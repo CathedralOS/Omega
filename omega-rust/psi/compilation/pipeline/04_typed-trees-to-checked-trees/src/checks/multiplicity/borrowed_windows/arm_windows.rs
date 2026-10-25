@@ -2,7 +2,7 @@
 
 use validation::CanonicalPlace;
 
-use super::{place_spelling, resolve_storage_place, same_place_set, same_storage_debt};
+use super::{FrameWalk, StorageWalk, place_spelling};
 
 use crate::checks::borrows::{StorageSelectorFacts, storage_path_compatibility};
 
@@ -160,7 +160,8 @@ impl<'facts> ArmWindowPlan<'facts> {
             _ => {}
         }
         for root in roots {
-            plan.collect_frames(program, root, ArmHandle::invalid(), false, false, operators);
+            let frames = FrameWalk::new(program, operators);
+            plan.collect_frames(&frames, root, ArmHandle::invalid(), false, false);
         }
         for (index, frame) in plan.frames.iter().enumerate() {
             for ordinal in 0..frame.arms.len() {
@@ -186,15 +187,12 @@ impl<'facts> ArmWindowPlan<'facts> {
     /// expression→arm map (call-flow argument moves).
     pub(in crate::checks::multiplicity) fn add_borrowed_move(
         &mut self,
-        program: &dyn ::validation::CheckingInput,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        statements: &[StatementNode],
+        walk: &StorageWalk<'_>,
         statement_index: usize,
         event: &crate::flow::DiscoveredMoveEvent,
         path: &[facts::PlaceSegment],
     ) {
-        let arm = self.effective_arm(program, machine, state, event);
+        let arm = self.effective_arm(walk, event);
         if !arm.is_valid() {
             return;
         }
@@ -204,25 +202,14 @@ impl<'facts> ArmWindowPlan<'facts> {
         self.arm_debts
             .entry(arm_key(arm))
             .or_default()
-            .push(resolve_storage_place(
-                program,
-                machine,
-                state,
-                statements,
-                statement_index,
-                root_symbol,
-                path,
-            ));
+            .push(walk.resolve_storage_place(statement_index, root_symbol, path));
     }
 
     /// Compute liveness and agreement. `live` follows the frame's enclosing
     /// chain (pre-order visits parents first); agreement runs innermost-first
     /// so each nested match contributes its agreed debt to the arm that
     /// evaluates it, and a nested disagreement poisons that arm.
-    pub(in crate::checks::multiplicity) fn seal(
-        &mut self,
-        program: &dyn ::validation::CheckingInput,
-    ) {
+    pub(in crate::checks::multiplicity) fn seal(&mut self, walk: &StorageWalk<'_>) {
         let count = self.frames.len();
         self.live = vec![false; count];
         for index in 0..count {
@@ -266,8 +253,7 @@ impl<'facts> ArmWindowPlan<'facts> {
             let mut rejected = arm_sets.iter().any(|debts| {
                 debts.iter().enumerate().any(|(position, debt)| {
                     debts[..position].iter().any(|prior| {
-                        same_storage_debt(
-                            program,
+                        walk.same_storage_debt(
                             self.captures,
                             (prior.0, &prior.1),
                             (debt.0, &debt.1),
@@ -281,8 +267,7 @@ impl<'facts> ArmWindowPlan<'facts> {
                         Some(Some(inner)) => {
                             for debt in inner {
                                 if !arm_sets[position].iter().any(|prior| {
-                                    same_storage_debt(
-                                        program,
+                                    walk.same_storage_debt(
                                         self.captures,
                                         (prior.0, &prior.1),
                                         (debt.0, &debt.1),
@@ -304,7 +289,7 @@ impl<'facts> ArmWindowPlan<'facts> {
                 let first = arm_sets.first().map(Vec::as_slice).unwrap_or(&[]);
                 rejected = arm_sets
                     .iter()
-                    .any(|debts| !same_place_set(program, self.captures, debts, first));
+                    .any(|debts| !walk.same_place_set(self.captures, debts, first));
                 if !rejected {
                     agreed_debts[index] = first.to_vec();
                 }
@@ -345,16 +330,13 @@ impl<'facts> ArmWindowPlan<'facts> {
     /// `Invoke` crosses, so a sibling arm's reads still see the place present.
     pub(in crate::checks::multiplicity) fn verdict(
         &mut self,
-        program: &dyn ::validation::CheckingInput,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        statements: &[StatementNode],
+        walk: &StorageWalk<'_>,
         statement_index: usize,
         event_index: usize,
         event: &crate::flow::DiscoveredMoveEvent,
         path: &[facts::PlaceSegment],
     ) -> Option<ArmWindowVerdict> {
-        let arm = self.effective_arm(program, machine, state, event);
+        let arm = self.effective_arm(walk, event);
         if !arm.is_valid() {
             return None;
         }
@@ -369,7 +351,7 @@ impl<'facts> ArmWindowPlan<'facts> {
         // A move under a short-circuit operand inside its own arm cannot
         // promise the hole on that arm's edge, and a match whose own position
         // is statement-conditional cannot promise it on the joined edge.
-        let site = self.event_site_expression(program, machine, state, event);
+        let site = self.event_site_expression(walk, event);
         if (site.is_valid() && self.edge_conditional.contains(&expression_key(site)))
             || !self.rooted_agreed[frame_index]
             || self.rooted_conditional[frame_index]
@@ -379,33 +361,15 @@ impl<'facts> ArmWindowPlan<'facts> {
         let Some(root_symbol) = event.root.as_symbol() else {
             return Some(ArmWindowVerdict::Reject);
         };
-        let resolved = resolve_storage_place(
-            program,
-            machine,
-            state,
-            statements,
-            statement_index,
-            root_symbol,
-            path,
-        );
+        let resolved = walk.resolve_storage_place(statement_index, root_symbol, path);
         self.edge_absent.push((arm, resolved.0, resolved.1.clone()));
         let root = self.root_frame(frame_index);
         if self.opened.iter().any(|(frame, root, path)| {
             *frame == frame_index
-                && same_storage_debt(
-                    program,
-                    self.captures,
-                    (*root, path),
-                    (resolved.0, &resolved.1),
-                )
+                && walk.same_storage_debt(self.captures, (*root, path), (resolved.0, &resolved.1))
         }) || self.pending.iter().any(|(pending_root, _, proot, ppath)| {
             *pending_root == root
-                && same_storage_debt(
-                    program,
-                    self.captures,
-                    (*proot, ppath),
-                    (resolved.0, &resolved.1),
-                )
+                && walk.same_storage_debt(self.captures, (*proot, ppath), (resolved.0, &resolved.1))
         }) {
             return Some(ArmWindowVerdict::SiblingRoute);
         }
@@ -483,10 +447,7 @@ impl<'facts> ArmWindowPlan<'facts> {
     /// exists only after the match commits.
     pub(in crate::checks::multiplicity) fn check_edge_use(
         &self,
-        program: &dyn ::validation::CheckingInput,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        statements: &[StatementNode],
+        walk: &StorageWalk<'_>,
         statement_index: usize,
         expression: ExpressionHandle,
         use_place: &CanonicalPlace,
@@ -495,6 +456,7 @@ impl<'facts> ArmWindowPlan<'facts> {
         if self.edge_absent.is_empty() {
             return;
         }
+        let program = walk.program;
         let Some(&arm) = self.arm_of_expression.get(&expression_key(expression)) else {
             return;
         };
@@ -504,15 +466,8 @@ impl<'facts> ArmWindowPlan<'facts> {
         let Some(root_symbol) = use_place.root.as_symbol() else {
             return;
         };
-        let (root, storage_path) = resolve_storage_place(
-            program,
-            machine,
-            state,
-            statements,
-            statement_index,
-            root_symbol,
-            &use_place.segments,
-        );
+        let (root, storage_path) =
+            walk.resolve_storage_place(statement_index, root_symbol, &use_place.segments);
         for (edge_arm, absent_root, absent_path) in &self.edge_absent {
             if !self.edge_covers(*edge_arm, arm)
                 || *absent_root != root
@@ -520,9 +475,8 @@ impl<'facts> ArmWindowPlan<'facts> {
             {
                 continue;
             }
-            let spelling = place_spelling(program, machine, state, root, &storage_path);
-            let absent_spelling =
-                place_spelling(program, machine, state, *absent_root, absent_path);
+            let spelling = place_spelling(program, root, &storage_path);
+            let absent_spelling = place_spelling(program, *absent_root, absent_path);
             diagnostics.push(Diagnostic::error(format!(
                 "cannot use `{spelling}` while `{absent_spelling}` is absent from borrowed \
                  storage: the value moved out at statement {statement_index} must be restored first",
@@ -571,11 +525,12 @@ impl<'facts> ArmWindowPlan<'facts> {
     /// arm whose subtree contains the resolved call site.
     fn effective_arm(
         &self,
-        program: &dyn ::validation::CheckingInput,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        walk: &StorageWalk<'_>,
         event: &crate::flow::DiscoveredMoveEvent,
     ) -> ArmHandle {
+        let program = walk.program;
+        let machine = walk.machine;
+        let state = walk.state;
         if event.source_arm.is_valid() {
             return event.source_arm;
         }
@@ -607,11 +562,12 @@ impl<'facts> ArmWindowPlan<'facts> {
     /// name a statement-local call by ordinal instead.
     fn event_site_expression(
         &self,
-        program: &dyn ::validation::CheckingInput,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        walk: &StorageWalk<'_>,
         event: &crate::flow::DiscoveredMoveEvent,
     ) -> ExpressionHandle {
+        let program = walk.program;
+        let machine = walk.machine;
+        let state = walk.state;
         if event.expression.is_valid() {
             return event.expression;
         }
@@ -637,13 +593,14 @@ impl<'facts> ArmWindowPlan<'facts> {
 
     fn collect_frames(
         &mut self,
-        program: &dyn ::validation::CheckingInput,
+        frames: &FrameWalk<'_>,
         expression: ExpressionHandle,
         enclosing_arm: ArmHandle,
         statement_conditional: bool,
         edge_conditional: bool,
-        operators: &checked_trees::CheckedOperatorFacts,
     ) {
+        let program = frames.program;
+        let operators = frames.operators;
         if !expression.is_valid() {
             return;
         }
@@ -669,12 +626,11 @@ impl<'facts> ArmWindowPlan<'facts> {
                     conditional: statement_conditional,
                 });
                 self.collect_frames(
-                    program,
+                    frames,
                     dispatch.subject,
                     enclosing_arm,
                     statement_conditional,
                     edge_conditional,
-                    operators,
                 );
                 for (ordinal, arm) in program
                     .expression_table
@@ -684,67 +640,55 @@ impl<'facts> ArmWindowPlan<'facts> {
                 {
                     let arm_handle = dispatch.arms.handle_at(ordinal as u32);
                     for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
-                        self.collect_frames(
-                            program,
-                            pattern,
-                            enclosing_arm,
-                            true,
-                            edge_conditional,
-                            operators,
-                        );
+                        self.collect_frames(frames, pattern, enclosing_arm, true, edge_conditional);
                     }
                     // The arm's own subtree is a fresh edge: statement
                     // conditionality carries down, but the arm's selection
                     // is this frame's agreement domain, not an edge
                     // condition.
                     self.collect_frames(
-                        program,
+                        frames,
                         arm.value,
                         arm_handle,
                         statement_conditional,
                         false,
-                        operators,
                     );
                 }
             }
             ExpressionNode::Atomic(atomic) => {
                 self.collect_frames(
-                    program,
+                    frames,
                     atomic.value,
                     enclosing_arm,
                     statement_conditional,
                     edge_conditional,
-                    operators,
                 );
                 self.collect_frames(
-                    program,
+                    frames,
                     atomic.result,
                     enclosing_arm,
                     statement_conditional,
                     edge_conditional,
-                    operators,
                 );
             }
             ExpressionNode::ArrayLiteral(values) => {
                 for value in program.expression_table.expression_handles(*values) {
                     self.collect_frames(
-                        program,
+                        frames,
                         *value,
                         enclosing_arm,
                         statement_conditional,
                         edge_conditional,
-                        operators,
                     );
                 }
             }
             ExpressionNode::Binary(binary) => {
                 self.collect_frames(
-                    program,
+                    frames,
                     binary.left,
                     enclosing_arm,
                     statement_conditional,
                     edge_conditional,
-                    operators,
                 );
                 if matches!(
                     binary.operator,
@@ -761,131 +705,118 @@ impl<'facts> ArmWindowPlan<'facts> {
                     );
                     if left != Some(!evaluate_when) {
                         self.collect_frames(
-                            program,
+                            frames,
                             binary.right,
                             enclosing_arm,
                             statement_conditional || left.is_none(),
                             edge_conditional || left.is_none(),
-                            operators,
                         );
                     }
                 } else {
                     self.collect_frames(
-                        program,
+                        frames,
                         binary.right,
                         enclosing_arm,
                         statement_conditional,
                         edge_conditional,
-                        operators,
                     );
                 }
             }
             ExpressionNode::Borrow(borrow) => {
                 self.collect_frames(
-                    program,
+                    frames,
                     borrow.target,
                     enclosing_arm,
                     statement_conditional,
                     edge_conditional,
-                    operators,
                 );
             }
             ExpressionNode::Call(call) => {
                 self.collect_frames(
-                    program,
+                    frames,
                     call.receiver,
                     enclosing_arm,
                     statement_conditional,
                     edge_conditional,
-                    operators,
                 );
                 for argument in program.expression_table.expression_handles(call.arguments) {
                     self.collect_frames(
-                        program,
+                        frames,
                         *argument,
                         enclosing_arm,
                         statement_conditional,
                         edge_conditional,
-                        operators,
                     );
                 }
             }
             ExpressionNode::Cast(cast) => {
                 self.collect_frames(
-                    program,
+                    frames,
                     cast.value,
                     enclosing_arm,
                     statement_conditional,
                     edge_conditional,
-                    operators,
                 );
             }
             ExpressionNode::Indexed(indexed) => {
                 self.collect_frames(
-                    program,
+                    frames,
                     indexed.collection,
                     enclosing_arm,
                     statement_conditional,
                     edge_conditional,
-                    operators,
                 );
                 self.collect_frames(
-                    program,
+                    frames,
                     indexed.index,
                     enclosing_arm,
                     statement_conditional,
                     edge_conditional,
-                    operators,
                 );
             }
             ExpressionNode::Member(member) => {
                 self.collect_frames(
-                    program,
+                    frames,
                     member.receiver,
                     enclosing_arm,
                     statement_conditional,
                     edge_conditional,
-                    operators,
                 );
             }
             ExpressionNode::Range(range) => {
                 self.collect_frames(
-                    program,
+                    frames,
                     range.start,
                     enclosing_arm,
                     statement_conditional,
                     edge_conditional,
-                    operators,
                 );
                 self.collect_frames(
-                    program,
+                    frames,
                     range.end,
                     enclosing_arm,
                     statement_conditional,
                     edge_conditional,
-                    operators,
                 );
             }
             ExpressionNode::StructLiteral(literal) => {
                 for field in program.expression_table.struct_fields(literal.fields) {
                     self.collect_frames(
-                        program,
+                        frames,
                         field.value,
                         enclosing_arm,
                         statement_conditional,
                         edge_conditional,
-                        operators,
                     );
                 }
             }
             ExpressionNode::Unary(unary) => {
                 self.collect_frames(
-                    program,
+                    frames,
                     unary.operand,
                     enclosing_arm,
                     statement_conditional,
                     edge_conditional,
-                    operators,
                 );
             }
             ExpressionNode::Name(_) | typed_trees::spelled_literal_expression_pattern!() => {}

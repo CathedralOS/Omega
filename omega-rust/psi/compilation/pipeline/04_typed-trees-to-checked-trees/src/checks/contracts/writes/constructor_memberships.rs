@@ -8,9 +8,8 @@
 
 use super::member_domains::captured_value_satisfies_indexed_domain;
 use super::{
-    CheckFacts, ConstructionWalk, Diagnostic, ExpressionHandle, FlowStateFact, SymbolHandle,
-    record_qualification, value_proves_qualification_in_contexts,
-    value_satisfies_domain_predicates_in_contexts,
+    CheckFacts, ConstructionWalk, Diagnostic, ExpressionHandle, SymbolHandle, record_qualification,
+    value_proves_qualification_in_contexts, value_satisfies_domain_predicates_in_contexts,
 };
 use crate::labels::{machine_name, symbol_name};
 
