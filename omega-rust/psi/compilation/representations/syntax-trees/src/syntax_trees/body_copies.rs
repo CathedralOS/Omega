@@ -20,8 +20,8 @@ use crate::syntax_trees::SyntaxTrees;
 use crate::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use arena::{Handle, HandleSpan};
 
-/// `StateSignature` assembly shared by the value/node signature copies: both
-/// parameter types carry the same field roster verbatim.
+/// `StateSignature` assembly shared by the signature copy entrances: one row
+/// type carries the whole authored roster, so this is the only walk over it.
 macro_rules! copied_state_signature {
     ($self:ident, $other:ident, $signature:ident) => {{
         StateSignature {
@@ -109,25 +109,17 @@ impl SyntaxCopy<'_> {
             other.items.state_signatures(span).iter().copied(),
             |this, handle| {
                 let signature = other.items.state_signature(handle);
-                let copied_signature = this.copy_state_signature_node(other, signature);
+                let copied_signature = this.copy_state_signature(other, signature);
                 this.items.insert_state_signature(&copied_signature)
             },
             |this, handle| this.items.append_state_signature_handle(handle),
         )
     }
 
-    pub(crate) fn copy_state_signature_value(
+    pub(crate) fn copy_state_signature(
         &mut self,
         other: &SyntaxTrees,
-        signature: &StateSignature,
-    ) -> StateSignature {
-        copied_state_signature!(self, other, signature)
-    }
-
-    pub(crate) fn copy_state_signature_node(
-        &mut self,
-        other: &SyntaxTrees,
-        signature: &crate::item::StateSignatureNode,
+        signature: &crate::item::StateSignature,
     ) -> StateSignature {
         copied_state_signature!(self, other, signature)
     }
