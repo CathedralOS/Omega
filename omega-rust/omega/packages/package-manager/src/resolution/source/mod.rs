@@ -27,6 +27,7 @@ mod custody;
 mod error;
 pub(crate) mod git;
 mod local;
+pub use local::{AcquiredLocalSource, LocalSourceAcquisitionError};
 mod materialization;
 mod navigation;
 mod projection;

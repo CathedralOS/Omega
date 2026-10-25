@@ -1,6 +1,5 @@
 //! Prepare one admitted Terminal Build and settle its exact normal-return output.
 //! The caller owns execution stepping and dependency work between those operations.
-mod project;
 
 use crate::{AdmittedBuildProgram, BuildConfig, ComputedBuildConfig};
 use diagnostics::Diagnostic;
@@ -114,8 +113,7 @@ impl PreparedBuildExecution {
         if !self.host_issued || completed.identity != self.produced.view().custody_identity() {
             return Err(self.refuse("Build completion belongs to another invocation"));
         }
-        let declaration =
-            project::declaration(&completed.requests).map_err(|reason| self.refuse(&reason))?;
+        let declaration = &completed.declaration;
         // No Product may consume an outstanding edge. This refusal remains until
         // the application coordinator installs the real request/join protocol.
         if completed.requests.iter().any(|issued| {
@@ -128,7 +126,7 @@ impl PreparedBuildExecution {
                 "dependency requests require coordinator settlement before Product compilation",
             ));
         }
-        if matches!(&declaration, build_declarations::BuildDeclaration::Application(application) if application.artifact_only)
+        if matches!(declaration, build_declarations::BuildDeclaration::Application(application) if application.artifact_only)
         {
             return Err(self.refuse("artifact-only Build requires completed output custody"));
         }
@@ -154,7 +152,7 @@ impl PreparedBuildExecution {
         Ok(ComputedBuildConfig {
             config,
             root_binding_requests: completed.root_bindings,
-            project_declaration: Some(declaration),
+            project_declaration: Some(completed.declaration),
             optimization_report_request: completed.optimization_report,
             evaluation_usage: Some(usage),
             observation_summary: Some(observation_summary),

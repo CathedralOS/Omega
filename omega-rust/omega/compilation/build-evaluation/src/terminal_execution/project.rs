@@ -1,4 +1,4 @@
-//! Normalize the role returned by execution, independent of source spelling.
+//! Normalize the role at normal return, before package identity is established.
 
 use build_declarations::{
     ApplicationDeclaration, BuildDeclaration, BuildRequest, PackageDeclaration,

@@ -5,6 +5,8 @@
 //! them before publishing a product. Both protocol adapters borrow one activation;
 //! a pause never reconstructs the instance or replays earlier effects.
 
+mod project;
+
 use build_time_evaluation::BuildTimeValue;
 use evaluation_accounting::EvaluationInvocationAccount;
 use language_semantics::declaration_selection::ExecutedRootBinding;
@@ -32,6 +34,7 @@ pub(crate) fn measurement() -> evaluation_accounting::EvaluationMeasurementIdent
 /// mandatory dependency join precedes normalized Build publication.
 pub struct ReturnedBuild {
     pub(crate) identity: terminal_codec::TerminalExecutionIdentity,
+    pub(crate) declaration: build_declarations::BuildDeclaration,
     pub(crate) requests: Vec<IssuedBuildRequest>,
     pub(crate) settings: EvaluatedBuildSettings,
     pub(crate) optimization_report: optimization_core::OptimizationReportRequest,
@@ -40,6 +43,13 @@ pub struct ReturnedBuild {
 }
 
 impl ReturnedBuild {
+    /// The role established by this activation's normal return. Package
+    /// management may now bind its name to acquired source lineage; this does
+    /// not settle dependency requests or authorize Product publication.
+    pub fn declaration(&self) -> &build_declarations::BuildDeclaration {
+        &self.declaration
+    }
+
     /// The complete issued roster, including requests observed in earlier steps.
     /// Observing or ignoring a step cannot remove a dependency from final joining.
     pub fn requests(&self) -> &[IssuedBuildRequest] {
@@ -230,8 +240,10 @@ impl TerminalBuildActivation<'_, '_> {
         )?;
         self.instance.close().map_err(describe)?;
         drop(self.instance);
+        let declaration = project::declaration(&self.requests)?;
         Ok(ReturnedBuild {
             identity: self.host.produced.view().custody_identity(),
+            declaration,
             requests: self.requests,
             settings,
             optimization_report,

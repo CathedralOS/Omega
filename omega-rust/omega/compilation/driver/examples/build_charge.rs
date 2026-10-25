@@ -31,7 +31,8 @@ fn main() {
     }
     initial_build_source_isolation();
     deferred_product_uses_captured_imports();
-    unbound_build_invocation();
+    unbound_build_invocation("separate_build_product_imports_exit");
+    unbound_build_invocation("executed_project_identity_exit");
     interleaved_build_invocations();
     foreign_build_return_refuses();
     ignored_build_request_still_requires_join();
@@ -291,9 +292,10 @@ fn deferred_product_uses_captured_imports() {
     println!("deferred_product_import_used_captured_namespace_after_live_deletion");
 }
 
-fn unbound_build_invocation() {
+fn unbound_build_invocation(project_name: &str) {
     let authored = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/build/separate_build_product_imports_exit");
+        .join("tests/omega/pass/build")
+        .join(project_name);
     let temporary =
         platform_custody::temporary_directory::TemporaryDirectory::create("unbound-build", false)
             .expect("exclusive source workspace");
@@ -301,11 +303,13 @@ fn unbound_build_invocation() {
         std::fs::copy(authored.join(name), temporary.path().join(name))
             .expect("copy authored source");
     }
-    let capture = package_source::local::operations::capture_local_source_input(
+    let acquired = package_manager::resolution::source::AcquiredLocalSource::capture(
         temporary.path(),
         package_source::LocalSourceLimits::default(),
+        package_source::ExternalSourceContext::derive(b"build-charge-sdk"),
     )
     .expect("acquire source before its Build declares an owner");
+    let capture = acquired.source_capture().clone();
     let root = capture.canonical_live_root().join("main.omg");
     for name in ["main.omg", "build.omg", "naming.omg", "result.omg"] {
         std::fs::remove_file(temporary.path().join(name))
@@ -333,11 +337,25 @@ fn unbound_build_invocation() {
             )
         });
     let returned = return_build(&mut invocation);
-    let inputs = unbound_join_inputs(
-        &capture,
-        capture.tree().clone(),
-        "separate_build_product_imports_exit",
+    let actual_return = returned.as_ref().expect("authored Build normal return");
+    let binding = acquired
+        .bind_returned_build(actual_return)
+        .expect("package manager binds the executed name to acquired source lineage");
+    assert_eq!(binding.canonical_name(), project_name);
+    assert!(
+        !actual_return.requests().iter().any(|issued| matches!(
+            issued.request(),
+            build_declarations::BuildRequest::Dependency { .. }
+        )),
+        "unselected helper must not issue its missing dependency"
     );
+    let inputs = package_compilation::PackageCompilationInputs::new(
+        binding.identity(),
+        actual_return.declaration().kind(),
+        vec![binding],
+        Vec::new(),
+    )
+    .expect("named root inputs; this Build issued no dependencies");
     invocation
         .join_package_inputs(inputs)
         .expect("join exact source owner");
@@ -409,7 +427,7 @@ fn unbound_build_invocation() {
     assert_eq!(observed.status.code(), Some(0), "{observed:?}");
     assert_eq!(counters::build_execution_count(), before + 1);
     println!(
-        "acquired_unbound_build_joined_named_product_native_and_terminal_exit0_without_live_source_or_replay"
+        "{project_name}: acquired_unbound_build_joined_named_product_native_and_terminal_exit0_without_live_source_or_replay"
     );
 
     let other = package_source::local::operations::capture_local_source_input(
@@ -418,19 +436,11 @@ fn unbound_build_invocation() {
         package_source::LocalSourceLimits::default(),
     )
     .expect("different acquired namespace for refusal control");
-    let wrong_capture = unbound_join_inputs(
-        &capture,
-        other.tree().clone(),
-        "separate_build_product_imports_exit",
-    );
+    let wrong_capture = unbound_join_inputs(&capture, other.tree().clone(), project_name);
     let wrong_name = unbound_join_inputs(&capture, capture.tree().clone(), "wrong_name");
-    let wrong_purpose = unbound_join_inputs(
-        &capture,
-        capture.tree().clone(),
-        "separate_build_product_imports_exit",
-    )
-    .with_compilation_purpose(build_declarations::DependencyPurpose::Build)
-    .expect("Build-purpose control");
+    let wrong_purpose = unbound_join_inputs(&capture, capture.tree().clone(), project_name)
+        .with_compilation_purpose(build_declarations::DependencyPurpose::Build)
+        .expect("Build-purpose control");
     let root_owner = fixture_package_inputs::fixture_package_identity(71);
     let dependency_owner = fixture_package_inputs::fixture_package_identity(72);
     let extra_dependency = package_compilation::PackageCompilationInputs::new(
@@ -439,7 +449,7 @@ fn unbound_build_invocation() {
         vec![
             package_compilation::PackageSourceBinding::new(
                 root_owner,
-                "separate_build_product_imports_exit",
+                project_name,
                 capture.canonical_live_root().to_path_buf(),
             )
             .with_captured_source(capture.tree().clone())
@@ -516,7 +526,7 @@ fn unbound_build_invocation() {
         package_inputs: Some(unbound_join_inputs(
             &capture,
             capture.tree().clone(),
-            "separate_build_product_imports_exit",
+            project_name,
         )),
         ..CheckedCompileRequest::new(&root, Some("linux_x86_64"))
     };
