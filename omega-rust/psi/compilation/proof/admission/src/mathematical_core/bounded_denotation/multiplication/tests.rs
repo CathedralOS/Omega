@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use super::super::Elaboration;
-use super::super::test_utilities::mathematical;
+use super::super::test_utilities::{assert_refused, mathematical};
 use super::Law;
 use crate::proof::assumption_proof;
 use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
@@ -256,16 +256,12 @@ fn correlated_multiply_rejects_mutated_premise_and_goal() {
         Proposition::LessOrEqual(value(1), value(3)),
     ]);
     let flipped_premise = root_bound.conclusion.clone();
-    assert!(
-        verify_bounded_certificate(
-            &fixture.context,
-            &fixture.goal,
-            std::slice::from_ref(&flipped_premise),
-            &fixture.axioms,
-            &flipped,
-            &mut Budget::default()
-        )
-        .is_err()
+    assert_refused(
+        &fixture.context,
+        &fixture.goal,
+        std::slice::from_ref(&flipped_premise),
+        &fixture.axioms,
+        &flipped,
     );
     // A conclusion literal that is not the carrier endpoint mismatches
     // the checked map outright.
@@ -277,16 +273,12 @@ fn correlated_multiply_rejects_mutated_premise_and_goal() {
             Box::new(mathematical(&value(2))),
         ),
     );
-    assert!(
-        verify_bounded_certificate(
-            &fixture.context,
-            &wrong_goal.conclusion,
-            std::slice::from_ref(&fixture.premise),
-            &fixture.axioms,
-            &wrong_goal,
-            &mut Budget::default()
-        )
-        .is_err()
+    assert_refused(
+        &fixture.context,
+        &wrong_goal.conclusion,
+        std::slice::from_ref(&fixture.premise),
+        &fixture.axioms,
+        &wrong_goal,
     );
     // The sign conjunct alone is not the checked conjunction shape.
     let mut missing = fixture.proof.clone();
@@ -295,15 +287,11 @@ fn correlated_multiply_rejects_mutated_premise_and_goal() {
     };
     root_bound.conclusion = Proposition::LessOrEqual(value(3), value(1));
     let missing_premise = root_bound.conclusion.clone();
-    assert!(
-        verify_bounded_certificate(
-            &fixture.context,
-            &fixture.goal,
-            std::slice::from_ref(&missing_premise),
-            &fixture.axioms,
-            &missing,
-            &mut Budget::default()
-        )
-        .is_err()
+    assert_refused(
+        &fixture.context,
+        &fixture.goal,
+        std::slice::from_ref(&missing_premise),
+        &fixture.axioms,
+        &missing,
     );
 }
