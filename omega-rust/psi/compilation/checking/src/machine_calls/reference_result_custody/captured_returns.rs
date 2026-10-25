@@ -13,6 +13,7 @@
 //! formation and the returned live association own its placement authority.
 //! Forwarded descriptors still retain their exact existing interpretation.
 
+mod descriptor_sources;
 mod incoming_origins;
 mod named_returns;
 mod presence;

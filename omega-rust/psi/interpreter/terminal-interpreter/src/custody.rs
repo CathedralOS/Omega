@@ -85,6 +85,7 @@ pub(crate) fn commit_cleanup_action(
         crate::structural_inputs::case_membership::StructuralCaseContents,
     >,
     machines: &crate::program::ProgramDeclarations<'_, TerminalMachine>,
+    current_machine: &TerminalMachine,
     structural_values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
     reference_referents: &mut RuntimeRows<
         StructuralRuntimePlace,
@@ -108,6 +109,7 @@ pub(crate) fn commit_cleanup_action(
                 reference_referents,
                 element_views,
                 *place,
+                current_machine,
             )
             .is_none()
                 || !remove_affine_root(frontier, *place)

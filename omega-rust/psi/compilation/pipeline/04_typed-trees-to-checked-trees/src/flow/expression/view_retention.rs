@@ -333,10 +333,15 @@ impl Execution<'_, '_, '_> {
         let parameter = self
             .program
             .state_parameter_by_symbol(self.state, source.root.as_symbol()?)?;
-        let paths = validation::borrow_contracts::borrow_carrying_owner_paths(
+        // The borrow itself retains its root lifetime separately. The value
+        // lent by a readable input carries the descriptor leaves inside its
+        // referent; inspecting the outer reference alone would erase them.
+        let carrier = validation::reference_result_custody::input_carrier_type(
             self.program,
             parameter.type_reference,
         )?;
+        let paths =
+            validation::borrow_contracts::borrow_carrying_owner_paths(self.program, carrier)?;
         let mut leaves = Vec::new();
         for path in paths {
             let path = crate::borrow::owner_place_segments(&path);
