@@ -2424,9 +2424,14 @@ then independent claimed restoration slices -> final closure.
   original borrowed entry storage through invocation-borrowed byte readers,
   allowing result custody to be reserved before copying; source-produced Build identifier helpers run
   through retained/loaded Terminal artifacts and return their changed bytes.
-  Full Build evaluation still uses the checked-tree engine. Connect settings
-  readback to that replacement together with ordered binding observations,
-  pause/resume without replay and foreign/malformed-input refusal.
+  Settings readback now projects the admitted settings through the instance's
+  catalog into the existing Build-value validator, excluding host facets.
+  Complete Build embedding tests join settings with ordered bindings through
+  retained/loaded artifacts and fuel pauses; nested records, case payloads,
+  byte views and invalid configuration controls are covered. Production Build
+  evaluation still uses the checked-tree engine. Join Terminal live-storage and
+  result accounting, remaining host operations and dependency/provider suspension
+  before replacing it; readback alone is not an admitted production activation.
   Core Build now names the backing lifetime of its stored views; ordinary
   boundary completion contracts cover both pointer slots and stored views.
   `receiver_view_writeback_exit` has a portable corpus provision that loads the

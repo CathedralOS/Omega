@@ -3,7 +3,7 @@
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
-use compiler::{CheckedCompileRequest, CompilationProduct, CompilationSession};
+use compiler::{CheckedCompileRequest, CompilationSession};
 use fixture_package_inputs::{repo_root, reviewed_repository_fixture_package_inputs};
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerValue};
 use terminal_codec::CanonicalTerminalArtifact;
@@ -14,7 +14,13 @@ use terminal_interpreter::{
     TerminalStructuralInputs, TerminalStructuralValue,
 };
 
-fn produce(machine: &str) -> CanonicalTerminalArtifact {
+fn produce(
+    machine: &str,
+) -> (
+    psi_compiler::ProducedTerminalArtifact,
+    package_compilation::build_execution::build_value::BuildValueAdmission,
+    build_time_evaluation::BuildTimeValue,
+) {
     // The fixture harness restages one process-local path for each request.
     // Hold that source owner until compilation has finished reading it.
     static STAGING: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -24,11 +30,38 @@ fn produce(machine: &str) -> CanonicalTerminalArtifact {
         reviewed_repository_fixture_package_inputs(&root, None).expect("sealed fixture inputs");
     let mut request = CheckedCompileRequest::new(&prepared.root_path, None);
     request.package_inputs = prepared.package_inputs;
-    CompilationSession::default()
-        .produce(request, CompilationProduct::Inspection(machine.to_owned()))
-        .and_then(compiler::CompilationOutput::into_inspection)
-        .map(|produced| produced.into_artifact())
-        .unwrap_or_else(|error| panic!("{machine}: {error:?}"))
+    let checked = CompilationSession::default()
+        .check(request)
+        .result
+        .unwrap_or_else(|error| panic!("{machine}: {error:?}"));
+    let typed = &checked.execution().program.typed;
+    let admission =
+        package_compilation::build_execution::build_value::BuildValueAdmission::admit(typed)
+            .unwrap();
+    let selected = typed
+        .machines()
+        .iter()
+        .find(|entry| entry.name.as_str() == machine)
+        .unwrap();
+    let scope = package_compilation::build_execution::prepare_filesystem_scope(
+        &prepared.root_path,
+        None,
+        &source::SourceMap::default(),
+        None,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
+    let initial = admission.initial_value(typed, selected, &scope);
+    let artifact = psi_compiler::TerminalProductionRequest::new(
+        &checked.execution().program,
+        psi_compiler::TerminalMachineSelection::Name(machine),
+        checked.sources().exact_toolchain_sources(),
+    )
+    .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+    .unwrap_or_else(|error| panic!("{machine}: {error:?}"));
+    (artifact, admission, initial)
 }
 
 fn field(artifact: &CanonicalTerminalArtifact, name: &str) -> Path {
@@ -60,8 +93,9 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
         ("configure", b"omega".as_slice()),
         ("configure_build_readback", b"com.example.omega".as_slice()),
     ] {
-        let artifact = produce(machine);
-        let identifier_path = [field(&artifact, "identifier")];
+        let (produced, admission, initial) = produce(machine);
+        let artifact = produced.artifact();
+        let identifier_path = [field(artifact, "identifier")];
         for loaded in [false, true] {
             let program = if loaded {
                 TerminalProgram::load_envelope(&artifact.to_bytes()).expect("external artifact")
@@ -117,17 +151,14 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                 identifier,
             );
             if machine == "configure" {
-                let signature_path = [field(&artifact, "signature")];
+                let signature_path = [field(artifact, "signature")];
                 assert_bytes(
                     instance.observe_borrowed_entry(0, &signature_path).unwrap(),
                     &[0, 9, 0],
                 );
                 assert!(matches!(
                     instance
-                        .observe_borrowed_entry(
-                            0,
-                            &[signature_path[0].clone(), Path::FixedIndex(1)]
-                        )
+                        .observe_borrowed_entry(0, &[signature_path[0], Path::FixedIndex(1)])
                         .unwrap(),
                     TerminalEntryStorageValue::Storage(TerminalStorageContents::Scalar {
                         value: TerminalScalarValue::Integer {
@@ -138,15 +169,12 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                     })
                 ));
                 assert_eq!(
-                    instance.observe_borrowed_entry(
-                        0,
-                        &[signature_path[0].clone(), Path::FixedIndex(3)]
-                    ),
+                    instance.observe_borrowed_entry(0, &[signature_path[0], Path::FixedIndex(3)]),
                     Err(TerminalEntryStorageError::UnknownPath)
                 );
                 assert!(matches!(
                     instance
-                        .observe_borrowed_entry(0, &[field(&artifact, "revision")])
+                        .observe_borrowed_entry(0, &[field(artifact, "revision")])
                         .unwrap(),
                     TerminalEntryStorageValue::Storage(TerminalStorageContents::Scalar {
                         value: TerminalScalarValue::Integer {
@@ -157,9 +185,26 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                     })
                 ));
             } else {
+                let (settings, report) =
+                    build_evaluation::terminal_settings::extract(&instance, admission, &initial)
+                        .unwrap();
+                let expected =
+                    package_compilation::build_execution::build_value::EvaluatedBuildSettings {
+                        application_identifier: Some(
+                            target::ApplicationIdentifier::new(identifier).unwrap(),
+                        ),
+                        application_intent: Some(target::HostedApplicationIntent::Gui),
+                        subsystem: 2,
+                        ..Default::default()
+                    };
+                assert_eq!(settings, expected);
+                assert_eq!(
+                    report,
+                    optimization_core::OptimizationReportRequest::Suppressed
+                );
                 let TerminalEntryStorageValue::Storage(TerminalStorageContents::Case(selected)) =
                     instance
-                        .observe_borrowed_entry(0, &[field(&artifact, "subsystem")])
+                        .observe_borrowed_entry(0, &[field(artifact, "subsystem")])
                         .unwrap()
                 else {
                     panic!("Build subsystem retains its selected case");
@@ -209,8 +254,9 @@ fn assert_bytes(observed: TerminalEntryStorageValue<'_>, expected: &[u8]) {
 #[test]
 fn owned_inputs_and_failed_activations_do_not_return_borrowed_storage() {
     for machine in ["consume", "fail_after_write"] {
-        let artifact = produce(machine);
-        let identifier_path = [field(&artifact, "identifier")];
+        let (produced, _, _) = produce(machine);
+        let artifact = produced.artifact();
+        let identifier_path = [field(artifact, "identifier")];
         let program = TerminalProgram::borrow(artifact.view());
         let arguments = [TerminalStructuralValue::minted(
             79,
@@ -245,6 +291,186 @@ fn owned_inputs_and_failed_activations_do_not_return_borrowed_storage() {
                 instance.observe_borrowed_entry(0, &identifier_path),
                 Err(TerminalEntryStorageError::NormalReturnRequired)
             );
+        }
+    }
+}
+
+#[test]
+fn build_settings_use_the_existing_validator_after_terminal_execution() {
+    for (machine, rejection) in [
+        ("build", None),
+        ("configure_all_settings", None),
+        (
+            "configure_invalid_identifier",
+            Some("Build.identifier is not a valid application identifier"),
+        ),
+        (
+            "configure_invalid_loader",
+            Some("Build.elf_interpreter.linux_arm64 is invalid"),
+        ),
+        (
+            "configure_duplicate_optimization",
+            Some("enabled more than once"),
+        ),
+    ] {
+        let (produced, admission, initial) = produce(machine);
+        let artifact = produced.artifact();
+        for loaded in [false, true] {
+            let program = if loaded {
+                TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap()
+            } else {
+                TerminalProgram::borrow(artifact.view())
+            };
+            let arguments = [TerminalStructuralValue::minted(
+                79,
+                program.entry().unwrap().structural_parameters[0].structural_type,
+                Vec::new(),
+            )];
+            let host = build_evaluation::terminal_bindings::TerminalBuildBindingHost::new(
+                artifact,
+                produced.build_bindings(),
+                arguments[0].clone(),
+            )
+            .unwrap();
+            let mut instance = program
+                .instantiate(
+                    &[],
+                    TerminalStructuralInputs {
+                        arguments: &arguments,
+                        zero_initialized_arguments: &[0],
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+            for boundary in instance.unbound_imports().collect::<Vec<_>>() {
+                let declaration = artifact
+                    .semantic_module()
+                    .boundary_machines
+                    .iter()
+                    .find(|declaration| declaration.id == boundary)
+                    .unwrap();
+                instance
+                    .bind_import(boundary, host.adapter(declaration.into()))
+                    .unwrap();
+            }
+            assert!(
+                build_evaluation::terminal_settings::extract(&instance, admission, &initial)
+                    .unwrap_err()
+                    .contains("NormalReturnRequired")
+            );
+            let mut fuel = TerminalFuelMeter::with_allowance(0);
+            for _ in 0..2_000 {
+                match instance.invoke(&mut fuel).unwrap() {
+                    TerminalExecutionStatus::SponsorExhausted(_) => {
+                        assert!(
+                            build_evaluation::terminal_settings::extract(
+                                &instance, admission, &initial
+                            )
+                            .unwrap_err()
+                            .contains("NormalReturnRequired")
+                        );
+                        fuel.replenish(1).unwrap();
+                    }
+                    TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => break,
+                    status => panic!("{machine}: {status:?}"),
+                }
+            }
+            assert!(instance.result().is_some(), "{machine} did not complete");
+            let result =
+                build_evaluation::terminal_settings::extract(&instance, admission, &initial);
+            if let Some(rejection) = rejection {
+                let error = result.unwrap_err();
+                assert!(error.contains(rejection), "{machine}: {error}");
+            } else if machine == "build" {
+                let (settings, report) = result.unwrap();
+                assert_eq!(
+                    settings,
+                    package_compilation::build_execution::build_value::EvaluatedBuildSettings {
+                        application_identifier: Some(
+                            target::ApplicationIdentifier::new(b"com.example.omega").unwrap()
+                        ),
+                        ..Default::default()
+                    }
+                );
+                assert_eq!(
+                    report,
+                    optimization_core::OptimizationReportRequest::Suppressed
+                );
+            } else {
+                let (settings, report) = result.unwrap();
+                assert_eq!(
+                    settings.application_identifier,
+                    Some(target::ApplicationIdentifier::new(b"com.example.omega").unwrap())
+                );
+                assert_eq!(settings.application_intent, None);
+                assert_eq!(settings.subsystem, 73);
+                assert!(settings.freestanding);
+                assert!(settings.privileged_services.port_io);
+                assert!(!settings.privileged_services.interrupt_table);
+                assert_eq!(
+                    settings.optimizations,
+                    optimization_core::OptimizationSelections::new([
+                        optimization_core::Optimization::ControlFlowCleanup,
+                    ])
+                    .unwrap()
+                );
+                assert_eq!(
+                    report,
+                    optimization_core::OptimizationReportRequest::EmitHumanText
+                );
+                assert!(
+                    settings
+                        .x86_deployment_claim
+                        .admit_for(Some(target::TargetProfile::LinuxX64))
+                        .unwrap()
+                        .is_some()
+                );
+                let expected_loader = target::normalize_elf_interpreter_plan(
+                    b"/lib/omega-loader.so".to_vec(),
+                    target::TargetProfile::LinuxArm64,
+                )
+                .unwrap();
+                assert_eq!(
+                    settings
+                        .elf_interpreters
+                        .explicit(target::TargetProfile::LinuxArm64),
+                    Some(&expected_loader)
+                );
+                assert_eq!(
+                    settings
+                        .elf_interpreters
+                        .explicit(target::TargetProfile::LinuxX64),
+                    None
+                );
+            }
+            instance.close().unwrap();
+            assert!(
+                build_evaluation::terminal_settings::extract(&instance, admission, &initial)
+                    .unwrap_err()
+                    .contains("Closed")
+            );
+            drop(instance);
+            let requests = host.into_executed().unwrap();
+            if machine == "build" {
+                assert_eq!(
+                    requests
+                        .iter()
+                        .map(|request| request.slot.as_str())
+                        .collect::<Vec<_>>(),
+                    [
+                        "windows_x86_64::ProgramEntry",
+                        "linux_x86_64::ProgramEntry",
+                        "linux_arm64::ProgramEntry",
+                        "macos_arm64::ProgramEntry"
+                    ]
+                );
+                assert!(requests.iter().all(|request| matches!(
+                    &request.implementation,
+                    language_semantics::declaration_selection::RootBindingSelection::AuthoredPath(path) if path == "main"
+                )));
+            } else {
+                assert!(requests.is_empty());
+            }
         }
     }
 }
