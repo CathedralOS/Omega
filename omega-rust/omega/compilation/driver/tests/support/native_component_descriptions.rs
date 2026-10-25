@@ -151,13 +151,11 @@ fn inspect_description_identity_controls(
     use component_description::ComponentVerificationRejection;
     use component_description::component_description::DescriptionDecodeRejection;
 
-    if !decoded
+    let long_export = decoded
         .exports
         .iter()
-        .any(|export| export.identity.len() > 1024)
-    {
-        return Err("description identity control lacks an actual long derived export".into());
-    }
+        .position(|export| export.identity.len() > 1024)
+        .ok_or("description identity control lacks an actual long derived export")?;
     // Schema V3 starts with magic, schema, frontier and the embedded artifact.
     // Select the first text field in the ordinary import/export wire roster.
     let identity_length = 8 + 4 + 1 + 4 + decoded.artifact_bytes.len() + 4 + 4;
@@ -203,12 +201,7 @@ fn inspect_description_identity_controls(
         return Err("description consumer accepted a payload beyond its wire envelope".into());
     }
     let mut changed = decoded.clone();
-    changed
-        .exports
-        .first_mut()
-        .ok_or("missing actual export")?
-        .identity
-        .push_str(":changed");
+    changed.exports[long_export].identity.push_str(":changed");
     let changed = encode_component_description(&changed);
     decode_component_description(&changed)
         .map_err(|error| format!("changed full identity did not form: {error:?}"))?;
