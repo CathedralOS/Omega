@@ -17,18 +17,20 @@ pub(crate) use error::NonAuthoritativeCalleeSaveStorageError;
 pub(crate) use identity::non_authoritative_callee_save_storage_identity;
 pub(crate) use validation::validate_non_authoritative_callee_save_storage;
 
-use optimization_core::OptimizationWorkBudget;
+use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
 pub use machine_code::{
     FunctionNonAuthoritativeCalleeSaveStorage, NonAuthoritativeCalleeSaveSlot,
     NonAuthoritativeCalleeSaveSlotId, NonAuthoritativeCalleeSaveStorageIdentity,
     NonAuthoritativeCalleeSaveStoragePlan, NonAuthoritativeCalleeSaveStoragePolicy,
 };
-use optimization_core::OptimizationWorkUsage;
-use register_environment::{FrameAbiPreservationConvention, ValidatedTargetRegisterEnvironment};
+use register_environment::{
+    FrameAbiPreservationConvention, ValidatedTargetRegisterEnvironment, selected_abi_preservation,
+    selected_preservation_storage_catalog,
+};
 use register_model::{
     PhysicalRegisterModelIdentity, PreservationStorageCatalogIdentity,
-    TargetRegisterEnvironmentIdentity,
+    TargetRegisterEnvironmentIdentity, ValidatedPreservationStorageCatalog,
 };
 use selected_instructions_to_register_homes::{
     AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
@@ -43,8 +45,77 @@ pub(crate) fn stage_non_authoritative_callee_save_storage(
     policy: NonAuthoritativeCalleeSaveStoragePolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<ValidatedNonAuthoritativeCalleeSaveStorage, NonAuthoritativeCalleeSaveStorageError> {
-    let plan = compute::derive(source, environment, policy, budget)?;
+    let plan = admit_plan(
+        source,
+        environment,
+        policy,
+        budget,
+        compute::derive_functions,
+    )?;
     validate_non_authoritative_callee_save_storage(source, environment, plan)
+}
+
+/// Admit one callee-save storage plan under the single bounded-claim policy:
+/// the policy, the target's preservation catalog, the work-extent ceiling and
+/// the plan row. `functions` is the one input the forward derivation and the
+/// keyed reconstruction admit through different owners, so it is the caller's
+/// own function roster.
+pub(super) fn admit_plan(
+    source: &ValidatedAllocatedCalleeSavedRequirements,
+    environment: &ValidatedTargetRegisterEnvironment,
+    policy: NonAuthoritativeCalleeSaveStoragePolicy,
+    budget: OptimizationWorkBudget,
+    functions: impl FnOnce(
+        &AllocatedCalleeSavedRequirementPlan,
+        &ValidatedPreservationStorageCatalog,
+    ) -> Result<
+        Vec<FunctionNonAuthoritativeCalleeSaveStorage>,
+        NonAuthoritativeCalleeSaveStorageError,
+    >,
+) -> Result<NonAuthoritativeCalleeSaveStoragePlan, NonAuthoritativeCalleeSaveStorageError> {
+    if policy != NonAuthoritativeCalleeSaveStoragePolicy::CanonicalTargetPreservationGroupsV1 {
+        return Err(NonAuthoritativeCalleeSaveStorageError::UnsupportedPolicy);
+    }
+    let source_plan = source.plan();
+    if source_plan.register_environment != environment.identity()
+        || source_plan.physical_register_model != environment.physical().identity()
+        || source_plan.target != environment.target()
+    {
+        return Err(NonAuthoritativeCalleeSaveStorageError::RootMismatch);
+    }
+    let preservation = selected_abi_preservation(environment)
+        .map_err(|_| NonAuthoritativeCalleeSaveStorageError::UnsupportedTargetCatalog)?;
+    let catalog = selected_preservation_storage_catalog(environment)
+        .map_err(|_| NonAuthoritativeCalleeSaveStorageError::UnsupportedTargetCatalog)?;
+    if source_plan.abi != preservation.kind
+        || source_plan.callee_saved_units != preservation.convention.callee_saved
+    {
+        return Err(NonAuthoritativeCalleeSaveStorageError::RootMismatch);
+    }
+    let functions = functions(source_plan, &catalog)?;
+    let usage = work::usage(source_plan, &catalog, &functions)?;
+    // The derivation reads each requirement once: its ceilings grow with the
+    // program's requirements rather than capping the program's size.
+    let ceiling = budget.for_extent(work::extent(source_plan)?);
+    if !usage.within(ceiling) {
+        return Err(NonAuthoritativeCalleeSaveStorageError::BudgetExceeded {
+            required: usage,
+            budget: ceiling,
+        });
+    }
+    Ok(NonAuthoritativeCalleeSaveStoragePlan {
+        callee_saved_requirements: source.receipt().identity(),
+        register_environment: environment.identity(),
+        physical_register_model: environment.physical().identity(),
+        preservation_storage_catalog: catalog.identity(),
+        target: environment.target(),
+        abi: source_plan.abi,
+        callee_saved_units: source_plan.callee_saved_units.clone(),
+        policy,
+        budget,
+        usage,
+        functions,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
