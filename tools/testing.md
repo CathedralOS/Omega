@@ -270,6 +270,10 @@ python3 tools/corpus_gate.py --filter wire/,fail/proofs
 python3 tools/corpus_gate.py --record             # re-pin the golden
 ```
 
+An unfiltered run covers every fixture and takes a long time. It is a manual
+trigger: only the user starts it, never an agent. Agents always pass
+`--filter` with the domains their change can move.
+
 `--runner PATH` may reuse an immutable compiler built in another checkout.
 The gate supplies `OMEGA_CORPUS_ROOT` so fixture sources, oracles and discovery
 belong to the measured checkout; the runner's compiled-in path is only the
@@ -1040,7 +1044,9 @@ the whole chain.
 
 ## Full baseline
 
-Use these gates when establishing or refreshing a full checkout baseline:
+Use these gates when establishing or refreshing a full checkout baseline. The
+full baseline is a manual trigger: only the user starts it. Agents run the
+focused checks under [validation scope](#validation-scope) instead.
 
 ```bash
 python tools/check_native_boundary.py

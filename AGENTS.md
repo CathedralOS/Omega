@@ -438,6 +438,11 @@ profiles bound to the actual binary digests. See
   `python tools/corpus_gate.py --filter <group/name fragment>`; a crate's own
   Rust tests run by package and name filter
   (`mbx nextest run -p <crate> <filter>`).
+- **Full suites are manual triggers.** An agent never starts the unfiltered
+  corpus gate, the [full baseline](tools/testing.md#full-baseline), or any
+  other whole-corpus or whole-workspace sweep. Only the user starts those.
+  Agents doing work run focused checks: the change's own witnesses, the touched
+  fixture domains through `--filter`, and the affected crates' tests.
 - Validation policy — what a change must run, baseline gates, corpus and
   bootstrap gates, test selection, slow builds — lives in
   [tools/testing.md](tools/testing.md). Read it before running more than the
