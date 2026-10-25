@@ -7,10 +7,11 @@ where Value == [u8; Capacity]
 machine capacity<Length [copy], const Capacity: u64>(items: Length) -> u64
 where Length == [u8; Capacity]
 { Capacity }
-machine forward<Value [copy]>(value: Value) -> Value { value }
+data Envelope<Value [copy]> [copy] { value: Value; }
+machine forward<Value [copy]>(value: Value) -> Envelope<Value> { Envelope { value: value } }
 machine main() crashes Trap {
     let items: IndexedPacket<[u8; 2], extent()> = IndexedPacket { items: [7, 11] };
-    let observed: u64 = capacity(forward(items).items);
+    let observed: u64 = capacity(forward(items).value.items);
     transition observed == 2 { true -> done() _ -> bad() }
     state done() {} state bad() { crash Trap; }
 }

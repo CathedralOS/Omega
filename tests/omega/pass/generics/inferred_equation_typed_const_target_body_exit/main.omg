@@ -7,11 +7,12 @@ where Value == [u8; Capacity]
 machine capacity<Length [copy], const Capacity: u64>(items: Length) -> u64
 where Length == [u8; Capacity]
 { Capacity }
-linux_x86_64 machine consume(items: IndexedPacket<[u8; 2], extent()>) -> u64 { capacity(forward(items).items) }
-windows_x86_64 machine consume(items: IndexedPacket<[u8; 2], extent()>) -> u64 { capacity(forward(items).items) }
-macos_arm64 machine consume(items: IndexedPacket<[u8; 2], extent()>) -> u64 { capacity(forward(items).items) }
-linux_arm64 machine consume(items: IndexedPacket<[u8; 2], extent()>) -> u64 { capacity(forward(items).items) }
-machine forward<Value [copy]>(value: Value) -> Value { value }
+linux_x86_64 machine consume(items: IndexedPacket<[u8; 2], extent()>) -> u64 { capacity(forward(items).value.items) }
+windows_x86_64 machine consume(items: IndexedPacket<[u8; 2], extent()>) -> u64 { capacity(forward(items).value.items) }
+macos_arm64 machine consume(items: IndexedPacket<[u8; 2], extent()>) -> u64 { capacity(forward(items).value.items) }
+linux_arm64 machine consume(items: IndexedPacket<[u8; 2], extent()>) -> u64 { capacity(forward(items).value.items) }
+data Envelope<Value [copy]> [copy] { value: Value; }
+machine forward<Value [copy]>(value: Value) -> Envelope<Value> { Envelope { value: value } }
 machine main() crashes Trap {
     let items: IndexedPacket<[u8; 2], extent()> = IndexedPacket { items: [7, 11] };
     let observed: u64 = consume(items);

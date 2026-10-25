@@ -7,8 +7,8 @@ invocations meet their acceptance.
 
 Fact: the checked call `extent()` establishes index 2 before
 `IndexedPacket<[u8; 2], extent()>` discharges `Value == [u8; Capacity]`.
-Transporting that carrier through `forward<Value>` retains its exact declared
-field type, from which `capacity` infers 2. Array elements supply no index.
+Transporting that carrier through the generic `Envelope<Value>` result of
+`forward<Value>` retains its exact declared field type, from which `capacity` infers 2. Array elements supply no index.
 
 The root and nine named places run through normal package preparation and
 `omega run --both`; each declares exit 0 and binds all four hosted entry targets.

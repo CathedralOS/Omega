@@ -11,9 +11,10 @@ machine joined(flag: bool) -> u64 {
     let left: IndexedPacket<[u8; 2], extent()> = IndexedPacket { items: [7, 11] };
     let right: IndexedPacket<[u8; 2], extent()> = IndexedPacket { items: [19, 23] };
     let items: IndexedPacket<[u8; 2], extent()> = match flag { true -> left, false -> right };
-    capacity(forward(items).items)
+    capacity(forward(items).value.items)
 }
-machine forward<Value [copy]>(value: Value) -> Value { value }
+data Envelope<Value [copy]> [copy] { value: Value; }
+machine forward<Value [copy]>(value: Value) -> Envelope<Value> { Envelope { value: value } }
 machine main() crashes Trap {
     let left_result: u64 = joined(true);
     let right_result: u64 = joined(false);
