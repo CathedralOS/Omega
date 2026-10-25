@@ -23,7 +23,7 @@ use terminal_interpreter::{
 };
 use terminal_psi::StructuralTypeShape;
 
-fn allocation(provenance: u64) -> Extent {
+pub(super) fn allocation(provenance: u64) -> Extent {
     ExtentRootGrant::from_admitted_provider(
         ExtentProviderIssuance::from_normalized_identities([
             1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
@@ -217,13 +217,37 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact, writes: bool) 
             } else {
                 (allocation, None)
             };
-            let result = instance.bind_provider_storage(TerminalProviderStorageInput {
+            let mut input = TerminalProviderStorageInput {
                 argument_index: 0,
                 path: Vec::new(),
                 extent: supplied_allocation,
                 profile,
                 bytes,
-            });
+            };
+            if second_word == 41 && compatible_transfer && !crosswire && writable == writes {
+                // Leave room for only one of the two records. Failure must
+                // return the same backing and allow retry on this instance.
+                let held = account.reserve_storage(100_000 - before - 1, 0).unwrap();
+                let pointer = input.bytes.as_ptr();
+                let failure = instance
+                    .bind_provider_storage(input)
+                    .expect_err("provider binding must reserve both records before publication");
+                assert!(
+                    failure.reason.contains("AllowanceExhausted(LiveStorage)"),
+                    "{}",
+                    failure.reason
+                );
+                assert_eq!(failure.input.bytes.as_ptr(), pointer);
+                assert_eq!(
+                    failure.input.bytes,
+                    [17_u64.to_le_bytes(), second_word.to_le_bytes()].concat()
+                );
+                assert_eq!(sponsor.live_storage_cells(), 99_999);
+                input = failure.input;
+                drop(held);
+                assert_eq!(sponsor.live_storage_cells(), before);
+            }
+            let result = instance.bind_provider_storage(input);
             if crosswire {
                 let failure =
                     result.expect_err("equal geometry cannot crosswire profile authority");
@@ -254,7 +278,8 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact, writes: bool) 
                 "provider allocation and descriptor must each own one live cell"
             );
         }
-        let result = instance.invoke(&mut TerminalFuelMeter::unbounded());
+        let mut meter = TerminalFuelMeter::with_invocation(account.clone(), None).unwrap();
+        let result = instance.invoke(&mut meter);
         if !bind_backing {
             assert!(
                 matches!(result, Err(TerminalInstanceError::Execution(_))),

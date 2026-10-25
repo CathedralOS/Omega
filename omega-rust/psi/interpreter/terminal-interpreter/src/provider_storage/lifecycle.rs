@@ -210,6 +210,16 @@ impl TerminalExecution<'_> {
         // and install them while the original resource and custody still live.
         storage.install(self)?;
         self.structural_values.insert(result.place, value)?;
+        let lease = self
+            .account
+            .as_ref()
+            .map(|account| account.reserve_storage(1, 0))
+            .transpose()
+            .map_err(TerminalInterpretError::Storage)?;
+        let descriptor = self
+            .provider_storage
+            .descriptors
+            .insert_vacant(destination, prepared.binding)?;
         let start = usize::try_from(prepared.binding.offset).map_err(|_| malformed())?;
         let end = start
             .checked_add(prepared.image.len())
@@ -235,15 +245,10 @@ impl TerminalExecution<'_> {
                 initialized_by: plan.boundary,
                 custody,
                 compatibility: prepared.compatibility,
+                _lease: lease,
             });
+        descriptor.resident = resident;
         retirement.commit(self);
-        self.provider_storage.descriptors.insert(
-            destination,
-            super::ProviderStorageBinding {
-                resident,
-                ..prepared.binding
-            },
-        );
         self.local_structural_identities
             .commit_cursor(identity_cursor);
         Ok(())

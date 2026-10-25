@@ -330,18 +330,18 @@ impl TerminalExecution<'_> {
         let storage = storage.into_detached()?;
         storage.install(self)?;
         self.structural_values.insert(result.place, value)?;
-        // All source and receiving obligations have joined. Decoded data and
-        // retained non-byte bindings now replace the private snapshot together.
-        let _original = std::mem::take(self.provider_storage.residents.get_mut(binding.resident));
-        self.provider_storage.residents.free(binding.resident);
-        retirement.commit(self);
-        self.provider_storage.descriptors.insert(
+        self.provider_storage.descriptors.insert_vacant(
             extent_home,
             ProviderStorageBinding {
                 resident: arena::Handle::default(),
                 ..binding
             },
-        );
+        )?;
+        // All source and receiving obligations have joined. Decoded data and
+        // retained non-byte bindings now replace the private snapshot together.
+        let _original = std::mem::take(self.provider_storage.residents.get_mut(binding.resident));
+        self.provider_storage.residents.free(binding.resident);
+        retirement.commit(self);
         self.local_structural_identities
             .commit_cursor(identity_cursor);
         Ok(())
