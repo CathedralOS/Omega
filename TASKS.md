@@ -2414,12 +2414,13 @@ then independent claimed restoration slices -> final closure.
   resolution/review, Psi requirement admission, and Terminal continuation plus
   provider-slot installation as their existing owners rather than another Build
   driver. The seed's
-  runtime work is its four authored `Build::bind` rows. On published
-  `0f544a8a211`, inspecting this Build through Terminal refuses `root binding`
-  at statement 2; prior unpublished RootBinding preparation is not a current
-  implementation or acceptance result. General binding operations must carry
-  exact declaration coordinates and authenticated original Build inputs through
-  the common core. Terminal instances now expose normal-return readback of
+  runtime work is its four authored `Build::bind` rows. Those bindings now lower
+  through ordinary boundary calls with source-issued designated operands bound
+  to the exact artifact and operation identities. Full source-produced Build
+  entries execute under the portable embedding provision, including conditional
+  selection and explicit reborrowing, with ordered exactly-once binding records
+  across fuel pauses. Foreign receivers, reused tickets and unissued operations
+  refuse. This is not yet the production Build scheduler. Terminal instances expose normal-return readback of
   original borrowed entry storage; source-produced Build identifier helpers run
   through retained/loaded Terminal artifacts and return their changed bytes.
   Full Build evaluation still uses the checked-tree engine. Connect settings
@@ -2430,7 +2431,9 @@ then independent claimed restoration slices -> final closure.
   `receiver_view_writeback_exit` has a portable corpus provision that loads the
   produced artifact, executes two mutable boundary calls exactly once across
   fuel pauses, rejects a foreign receiver and reads the final original storage.
-  This is prerequisite evidence, not execution of the full Build entry.
+  The same fixture separately executes its full Build entry and verifies all
+  four root bindings and the configured identifier. Production execution still
+  needs the explicit activation, host provisions and completed-result join.
   Connect those admitted operations to the production Build scheduler without
   inferring slot preservation from an observation-only adapter, a call name or
   source custody; a lifetime anchor is not backing identity. Local backing still
