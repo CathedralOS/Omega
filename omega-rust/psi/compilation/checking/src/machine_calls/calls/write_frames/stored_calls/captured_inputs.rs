@@ -30,9 +30,19 @@ pub(super) fn instantiate_sources(
     entry: &super::CollectedStatementPrefix,
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<Vec<InstantiatedSource>> {
-    let mut returned = if supplied.origin.source.is_static()
-        || supplied.origin.source.output_identity().is_some()
-    {
+    if let Some(identity) = supplied.origin.source.output_identity() {
+        crate::invocation_output_parameter(program, identity)?;
+        // This value was supplied by an actual opaque completion retained in
+        // the callee's normal route. Its former descriptor slot can already
+        // hold another value at this state edge. Keep the captured occurrence;
+        // only parameter-rooted sources below need actual-value substitution.
+        // Separate lifetime input rows still retain their complete capture cuts.
+        return Some(vec![InstantiatedSource {
+            source: supplied.clone(),
+            substitutions: Vec::new(),
+        }]);
+    }
+    let mut returned = if supplied.origin.source.is_static() {
         vec![InstantiatedSource {
             source: supplied.clone(),
             substitutions: Vec::new(),

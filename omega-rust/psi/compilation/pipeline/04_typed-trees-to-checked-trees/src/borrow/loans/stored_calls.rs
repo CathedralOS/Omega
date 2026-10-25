@@ -126,11 +126,13 @@ pub(in crate::borrow) fn from_effects(
         for source in effect.sources {
             let backing = source.backing;
             if let Some(identity) = backing.invocation_output {
-                // This is the output's admitted permission, not any retained
-                // input's address. The complete relation independently keeps
-                // all lifetime debts and all non-provider alternatives below.
-                let supplied = (source.lifetime_access.is_none()
-                    && identity.is_valid()
+                // Both a supplied pointer and an already captured output
+                // retained as a lifetime debt have this exact opaque namespace.
+                // A debt does not become the current descriptor slot's address
+                // or acquire a supplied permission. All other input debts and
+                // alternatives remain independent rows of the complete relation.
+                let access = source.lifetime_access.unwrap_or(effect.access);
+                let supplied = (identity.is_valid()
                     && !backing.is_image_storage
                     && backing.recasts.is_empty()
                     && backing.representation.is_none())
@@ -144,11 +146,7 @@ pub(in crate::borrow) fn from_effects(
                         &backing.segments,
                     )?;
                     let shell = validation::reference_shell(program, reference)?;
-                    (shell.access == effect.access).then_some((
-                        machine,
-                        state,
-                        parameter.type_reference,
-                    ))
+                    (shell.access == access).then_some((machine, state, parameter.type_reference))
                 });
                 if let Some((machine, state, carrier_type)) = supplied {
                     loans.push(StatementBorrowLoan {
@@ -185,8 +183,12 @@ pub(in crate::borrow) fn from_effects(
                         },
                         source_owner_symbol: Default::default(),
                         supplying_loans: Vec::new(),
-                        lineage: checked_trees::BorrowLoanLineage::SuppliedOutput,
-                        kind: checked_trees::BorrowAccessKind::from(effect.access),
+                        lineage: if source.lifetime_access.is_some() {
+                            checked_trees::BorrowLoanLineage::LifetimeDependency
+                        } else {
+                            checked_trees::BorrowLoanLineage::SuppliedOutput
+                        },
+                        kind: checked_trees::BorrowAccessKind::from(access),
                         call_result: true,
                     });
                     continue;
