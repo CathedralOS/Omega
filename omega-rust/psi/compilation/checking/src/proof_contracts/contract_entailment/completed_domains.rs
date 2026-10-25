@@ -81,6 +81,12 @@ pub fn completed_value_proves_bound_domain_predicate(
         predicate,
         projection,
     );
+    if super::struct_trace() {
+        eprintln!(
+            "STRUCT completed-bound-domain machine={} domain={} instance={:?} observed={} proven={}",
+            machine.name, domain.name, domain.semantic_id, judgment.observed, judgment.proven
+        );
+    }
     judgment.observed && judgment.proven
 }
 

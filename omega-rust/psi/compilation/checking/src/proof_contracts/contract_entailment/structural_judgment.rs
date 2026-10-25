@@ -1774,15 +1774,25 @@ impl<'program> StructuralJudge<'program> {
         &self,
         call: &typed_trees::expression::TableCallExpression,
     ) -> bool {
-        self.specification_terms
-            && specification_application_candidate(
-                self.program,
-                self.machine_symbol,
-                call.target_symbol,
-                &call.machine_arguments,
-                self.frame_resolver(),
-            )
-            .is_ok()
+        if !self.specification_terms {
+            return false;
+        }
+        let candidate = specification_application_candidate(
+            self.program,
+            self.machine_symbol,
+            call.target_symbol,
+            &call.machine_arguments,
+            self.frame_resolver(),
+        );
+        if super::struct_trace()
+            && let Err(reason) = candidate
+        {
+            eprintln!(
+                "STRUCT specification-call-refused caller={:?} target={:?} reason={reason}",
+                self.machine_symbol, call.target_symbol
+            );
+        }
+        candidate.is_ok()
     }
 
     fn callee_term(
@@ -2598,9 +2608,23 @@ impl<'program> StructuralJudge<'program> {
                     return if holds { StructuralJudgment::Proven } else { StructuralJudgment::Refuted };
                 }
                 if !self.has_identity_equality_meaning(fact) {
+                    if super::struct_trace() {
+                        eprintln!(
+                            "STRUCT equality-refused caller={:?} fact={} reason=identity-authority",
+                            self.machine_symbol,
+                            program.expression_table.display_name(fact)
+                        );
+                    }
                     return StructuralJudgment::Unknown;
                 }
                 let Some(terms) = self.declaration_term_pair(binary) else {
+                    if super::struct_trace() {
+                        eprintln!(
+                            "STRUCT equality-refused caller={:?} fact={} reason=term-formation",
+                            self.machine_symbol,
+                            program.expression_table.display_name(fact)
+                        );
+                    }
                     return StructuralJudgment::Unknown;
                 };
                 // No facts change between the authority check and judgment.
