@@ -165,6 +165,36 @@ fn publish_flat_native_files(
         paths.push(path);
     }
     staged.push(stage_exact_bytes(output_path, output, true)?);
+    if target.object_format == target::ObjectFormat::Coff {
+        let provider = runtime_abi::WINDOWS_INTERNET_PROVIDER_LIBRARY;
+        let imported = runtime_abi::image_imports_windows_internet_provider(output)
+            || components.iter().any(|component| {
+                runtime_abi::image_imports_windows_internet_provider(
+                    component.image().image().contents(),
+                )
+            });
+        if imported {
+            let library = std::str::from_utf8(provider)
+                .map_err(|_| "windows internet provider library name is not utf-8")?;
+            if components
+                .iter()
+                .any(|component| component.locator().image_filename() == library)
+            {
+                return Err(
+                    "a component image already uses the windows internet provider library name"
+                        .into(),
+                );
+            }
+            // The Windows loader resolves PeByName from the executable directory.
+            // This file is the classful inet implementation those imports name;
+            // it is not a component product and grants no authority.
+            staged.push(stage_exact_bytes(
+                &directory.join(library),
+                &runtime_abi::windows_internet_provider_dll(),
+                false,
+            )?);
+        }
+    }
     install_staged_files(&staged)?;
     components
         .into_iter()

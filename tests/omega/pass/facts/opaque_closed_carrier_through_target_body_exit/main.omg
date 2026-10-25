@@ -73,6 +73,19 @@ linux_arm64 machine linux_arm64_host_binding() -> ForeignBinding<9, 10, 10> {
 linux_arm64 machine host(address: InternetAddress) -> u32
     satisfies AddressParts::host via linux_arm64_host_binding();
 
+windows_x86_64 machine windows_x86_64_make_binding() -> ForeignBinding<14, 13, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_host.dll", export: "inet_makeaddr" } }
+}
+windows_x86_64 machine make(network: u32, host: u32) -> InternetAddress
+    satisfies AddressParts::make via windows_x86_64_make_binding();
+
+windows_x86_64 machine windows_x86_64_host_binding() -> ForeignBinding<14, 10, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_host.dll", export: "inet_lnaof" } }
+}
+windows_x86_64 machine host(address: InternetAddress) -> u32
+    satisfies AddressParts::host via windows_x86_64_host_binding();
+
+
 public data AddressBox { value: InternetAddress; }
 public data AddressPair { first: InternetAddress; second: InternetAddress; }
 
