@@ -53,10 +53,11 @@ pub(super) fn completed_view_words(
         StructuralTypeShape::ElementView { .. } => builder
             .transport
             .element_view(source.place)
-            .map(|view| view.length),
-        shape if shape.is_borrowed_byte_carrier() => {
-            builder.transport.view(source.place).map(|view| view.length)
-        }
+            .map(|view| view.element_length),
+        shape if shape.is_borrowed_byte_carrier() => builder
+            .transport
+            .view(source.place)
+            .map(|view| view.byte_length),
         _ => None,
     };
     let Some(length) = length else {
