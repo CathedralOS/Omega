@@ -112,8 +112,8 @@ pub(super) fn validate(
             program,
             machine,
             current_state,
-            call,
-            direct_written.as_deref(),
+            statement,
+            scope.call_frames,
             value_environment,
         );
     }

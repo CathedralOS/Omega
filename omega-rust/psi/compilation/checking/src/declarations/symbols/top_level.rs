@@ -252,9 +252,11 @@ impl<'program> TopLevelSymbols<'program> {
                 .get(trait_definition.name.as_str())
                 .is_some_and(|previous| {
                     previous.iter().any(|previous| {
-                        !program
-                            .symbols
-                            .source_scopes_separate(previous.symbol, trait_definition.symbol)
+                        program.symbols.get(previous.symbol).parent
+                            == program.symbols.get(trait_definition.symbol).parent
+                            && !program
+                                .symbols
+                                .source_scopes_separate(previous.symbol, trait_definition.symbol)
                     })
                 })
             {

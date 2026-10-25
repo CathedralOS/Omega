@@ -117,10 +117,13 @@ pub(crate) fn seed_cited_element_bounds(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
-    call: &typed_trees::statement::TableCall,
-    written: Option<&[String]>,
+    statement: &typed_trees::statement::StatementNode,
+    frames: Option<&crate::CallFrameResolver<'_>>,
     environment: &mut ValueEnvironment,
 ) {
+    let Some(call) = statement.as_call() else {
+        return;
+    };
     if !call.receiver.is_empty() || call.static_requirement_dispatch.is_some() {
         return;
     }
@@ -149,14 +152,36 @@ pub(crate) fn seed_cited_element_bounds(
     if parameters.len() != arguments.len() {
         return;
     }
+    let argument_written =
+        frames.and_then(|frames| frames.statement_value_may_write_paths(machine, statement));
+    let callee_written = frames.and_then(|frames| frames.may_write_paths(machine, call));
+    let written =
+        argument_written
+            .as_ref()
+            .zip(callee_written.as_ref())
+            .map(|(arguments, callee)| {
+                let mut written = arguments.clone();
+                written.extend(callee.iter().cloned());
+                written
+            });
+    let reference_origins = arguments
+        .iter()
+        .map(|actual| {
+            frames.and_then(|frames| {
+                frames.structural_reference_origins_before_statement(machine, statement, *actual)
+            })
+        })
+        .collect::<Vec<_>>();
     let substitution = Substitution {
         program,
         machine,
         state,
         parameters,
         arguments,
-        written,
+        written: written.as_deref(),
         static_arguments,
+        argument_written: argument_written.as_deref(),
+        reference_origins: &reference_origins,
     };
     for expression in crate::proof_contracts::proof_facts::ensures_expression_facts(
         program,
@@ -201,6 +226,8 @@ struct Substitution<'program> {
     arguments: &'program [ExpressionHandle],
     written: Option<&'program [String]>,
     static_arguments: &'program [typed_trees::expression::StaticMachineArgument],
+    argument_written: Option<&'program [String]>,
+    reference_origins: &'program [Option<Vec<(symbols::SymbolHandle, Vec<facts::PlaceSegment>)>>],
 }
 
 impl Substitution<'_> {
@@ -245,7 +272,54 @@ impl Substitution<'_> {
     ) -> Option<ProjectedOperand> {
         let state = self.state?;
         let mut bindings = Vec::new();
-        for (parameter, actual) in self.parameters.iter().zip(self.arguments) {
+        let mut reference_formals = Vec::new();
+        for (position, (parameter, actual)) in
+            self.parameters.iter().zip(self.arguments).enumerate()
+        {
+            if crate::reference_shell(self.program, parameter.type_reference).is_some() {
+                // The callee's post-state speaks about its evaluated referent,
+                // not a descriptor the body has replaced with another loan.
+                if !crate::state_reference_parameter_binding_is_stable(
+                    self.program,
+                    callee,
+                    entry,
+                    parameter.symbol,
+                ) {
+                    continue;
+                }
+                let Some(actual_identity) =
+                    ordered_values::operand(self.program, self.machine, state, *actual, None)
+                else {
+                    continue;
+                };
+                if !self
+                    .argument_written
+                    .is_some_and(|written| actual_identity.survives(written))
+                {
+                    continue;
+                }
+                let Some(Some(origins)) = self.reference_origins.get(position) else {
+                    continue;
+                };
+                let [(root, segments)] = origins.as_slice() else {
+                    continue;
+                };
+                let Some(value) = captured_storage_operand(self.program, *root, segments) else {
+                    continue;
+                };
+                // Prefix origins identify the evaluated loan. Operand effects
+                // must preserve that observation; the callee's intentional
+                // writes change its post-state contents, not this identity.
+                if !self
+                    .argument_written
+                    .is_some_and(|written| value.survives(written))
+                {
+                    continue;
+                }
+                reference_formals.push(Operand::parameter(parameter));
+                bindings.push((Operand::parameter(parameter), value));
+                continue;
+            }
             if parameter.is_mutable
                 || !self
                     .program
@@ -254,7 +328,11 @@ impl Substitution<'_> {
             {
                 continue;
             }
-            let value = ordered_values::operand(self.program, self.machine, state, *actual, None)?;
+            let Some(value) =
+                ordered_values::operand(self.program, self.machine, state, *actual, None)
+            else {
+                continue;
+            };
             if !value.is_immutable_snapshot(self.program, state)
                 && !self.written.is_some_and(|written| value.survives(written))
             {
@@ -289,36 +367,57 @@ impl Substitution<'_> {
             ));
         }
         let source = ordered_values::operand(self.program, callee, entry, expression, None)?;
-        fn fully_bound(value: &Operand, bindings: &[(Operand, Operand)]) -> bool {
+        fn reference_path(value: &Operand, references: &[Operand]) -> bool {
+            references.contains(value)
+                || match value {
+                    Operand::Field { receiver, .. } => reference_path(receiver, references),
+                    _ => false,
+                }
+        }
+        fn fully_bound(
+            value: &Operand,
+            bindings: &[(Operand, Operand)],
+            references: &[Operand],
+        ) -> bool {
             match value {
                 Operand::Integer(..) => true,
-                Operand::Place { .. } => bindings.iter().any(|(formal, _)| formal == value),
-                Operand::Binary { operands, .. } => {
-                    operands.iter().all(|value| fully_bound(value, bindings))
+                Operand::Place { .. } => {
+                    bindings.iter().any(|(formal, _)| formal == value)
+                        && !references.contains(value)
                 }
+                Operand::Field {
+                    receiver,
+                    primitive,
+                    ..
+                } => {
+                    primitive.is_some_and(|primitive| primitive.is_fixed_integer())
+                        && reference_path(receiver, references)
+                }
+                Operand::Binary { operands, .. } => operands
+                    .iter()
+                    .all(|value| fully_bound(value, bindings, references)),
                 _ => false,
             }
         }
-        if !fully_bound(&source, &bindings) {
+        if !fully_bound(&source, &bindings, &reference_formals) {
             return None;
         }
         let values = source.rebound(&bindings);
         let [operand] = values.as_slice() else {
             return None;
         };
-        // Any remaining callee root is unbound, even if it shares a display
-        // path with a caller declaration. Demand complete subject custody.
-        if !operand.is_immutable_snapshot(self.program, state)
-            && !self
-                .written
-                .is_some_and(|written| operand.survives(written))
-        {
-            return None;
-        }
+        // Every leaf has an exact simultaneous binding: copied scalar values
+        // survived the complete frame, reference subjects name captured loans.
+        // No unbound callee subject is admitted by matching display spelling.
         Some(ProjectedOperand {
             operand: Some(operand.clone()),
-            spelled: None,
-            declared_type: None,
+            spelled: operand.static_path(),
+            declared_type: crate::declared_place_type_raw(
+                self.program,
+                callee,
+                Some(entry),
+                expression,
+            ),
         })
     }
 
@@ -486,6 +585,51 @@ impl Substitution<'_> {
             declared_type: Some(declared),
         })
     }
+}
+
+/// Reuse the exact captured-origin roster, never a live descriptor spelling.
+/// Only structural coordinates representable by the shared ordered algebra
+/// enter arithmetic facts; unknown, ranged and conditional origins stay opaque.
+fn captured_storage_operand(
+    program: &dyn crate::CheckingInput,
+    root: symbols::SymbolHandle,
+    segments: &[facts::PlaceSegment],
+) -> Option<Operand> {
+    if !root.is_valid() {
+        return None;
+    }
+    let mut operand = Operand::Place {
+        root,
+        path: program.symbols.name(root).to_owned(),
+    };
+    for segment in segments {
+        operand = match segment {
+            facts::PlaceSegment::Field { symbol } if symbol.is_valid() => Operand::Field {
+                receiver: Box::new(operand),
+                field: *symbol,
+                name: program.symbols.name(*symbol).to_owned(),
+                primitive: crate::value_custody::places::declaration_type_reference(
+                    program, *symbol,
+                )
+                .and_then(|reference| program.primitive_type_reference(reference)),
+            },
+            facts::PlaceSegment::FixedIndex { index } => Operand::Indexed {
+                collection: Box::new(operand),
+                index: Box::new(Operand::Integer(
+                    numerics::literals::IntegerLiteral::from_parts(
+                        false,
+                        numerics::literals::IntegerRadix::Decimal,
+                        &index.to_string(),
+                    )
+                    .ok()?,
+                    None,
+                )),
+                primitive: None,
+            },
+            _ => return None,
+        };
+    }
+    Some(operand)
 }
 
 fn seed_conjunct(

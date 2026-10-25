@@ -1350,9 +1350,6 @@ impl ArrivalWalk<'_, '_> {
                     }
                 }
                 StatementNode::Call(call) => {
-                    let operand_written = self.frames.and_then(|frames| {
-                        frames.statement_value_may_write_paths(self.machine, statement)
-                    });
                     let arguments = self
                         .program
                         .statement_table
@@ -1386,8 +1383,8 @@ impl ArrivalWalk<'_, '_> {
                             self.program,
                             self.machine,
                             Some(source),
-                            call,
-                            operand_written.as_deref(),
+                            statement,
+                            self.frames,
                             environment,
                         );
                     }
