@@ -9,13 +9,13 @@ static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 /// A private directory under the host temporary root, removed on drop unless
 /// the invocation asked to keep it. `purpose` names the operation in the
 /// directory name so leftovers from a kept or interrupted run are attributable.
-pub(crate) struct TemporaryDirectory {
+pub struct TemporaryDirectory {
     path: PathBuf,
     keep: bool,
 }
 
 impl TemporaryDirectory {
-    pub(crate) fn create(purpose: &str, keep: bool) -> io::Result<Self> {
+    pub fn create(purpose: &str, keep: bool) -> io::Result<Self> {
         loop {
             let sequence = NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed);
             let path = std::env::temp_dir()
@@ -28,7 +28,7 @@ impl TemporaryDirectory {
         }
     }
 
-    pub(crate) fn path(&self) -> &Path {
+    pub fn path(&self) -> &Path {
         &self.path
     }
 }

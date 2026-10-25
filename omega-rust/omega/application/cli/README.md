@@ -4,11 +4,12 @@
 [CLI](src/cli/mod.rs) owns argument spelling, console rendering, and shell exit
 codes. It calls complete operations, not individual compiler stages.
 
-The same package also exposes a [library](src/lib.rs):
+Project Build has an independent [application owner](../build/README.md).
+The CLI package also exposes execution and inspection through its [library](src/lib.rs):
 
 | Operation | Request and result |
 | --- | --- |
-| [Compile a project](src/compilation/mod.rs) | Product and policy options → compile report and optional published executable |
+| [Build a project](../build/src/build.rs) | Typed target/product request → ordered reports and published products |
 | [Run a project](src/execution/mod.rs) | Execution/comparison options → report, captured process output, and interpreter comparison |
 | [Inspect a machine](src/inspection/mod.rs) | Source, target, and machine → verified module and fixed-work analysis |
 

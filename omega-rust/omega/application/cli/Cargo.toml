@@ -11,6 +11,7 @@ path = "src/main.rs"
 test = true
 
 [dependencies]
+omega-build = { path = "../build" }
 mimalloc = { version = "0.1", default-features = false }
 bounded-process = { path = "../../foundation/bounded-process" }
 compiler = { path = "../../compilation/driver" }

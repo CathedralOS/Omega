@@ -74,6 +74,71 @@ class DevelopmentRun(unittest.TestCase):
         self.assert_exit(result, 0)
         self.assertFalse((self.project / "omega.lock").exists())
 
+    def test_check_does_not_claim_or_publish_the_output_directory(self):
+        output = self.project / "check-output"
+        result = self.invoke("--check", "--build-dir", output, "--target", self.target, "main.omg")
+        self.assert_exit(result, 0)
+        self.assertFalse(output.exists())
+        self.assertFalse((self.project / "omega.lock").exists())
+
+    def test_batch_keeps_a_directory_refusal_beside_a_runnable_sibling(self):
+        rejected = "windows_x86_64" if self.target != "windows_x86_64" else "linux_x86_64"
+        output = self.project / "batch-output"
+        occupied = output / rejected / ".omega-occupant"
+        occupied.parent.mkdir(parents=True)
+        marker = "omega-build-directory-occupant 1\nheld by this test\n"
+        occupied.write_text(marker, encoding="utf-8")
+        report = self.project / "batch-report.txt"
+        result = self.invoke("--build-dir", output, "--target", rejected, "--target", self.target,
+                             "--report-file", report, "main.omg")
+        self.assert_exit(result, 1)
+        self.assertIn(f"target {rejected} failed", result.stdout)
+        self.assertIn(f"target {self.target}:", result.stdout)
+        self.assertEqual(occupied.read_text(encoding="utf-8"), marker)
+        self.assertFalse((output / self.target / ".omega-occupant").exists())
+        paths = [line.removeprefix("published native output to ")
+                 for line in result.stdout.splitlines() if line.startswith("published native output to ")]
+        self.assertEqual(len(paths), 1, result.stdout + result.stderr)
+        executable = Path(paths[0])
+        self.assertTrue(executable.resolve().is_relative_to((output / self.target).resolve()))
+        observed = subprocess.run([str(executable)], cwd=self.project, env=self.environment,
+                                  capture_output=True, text=True, timeout=30)
+        self.assert_exit(observed, 0)
+        published = report.read_text(encoding="utf-8")
+        self.assertIn(f"target: {rejected}\nfailed:", published)
+        self.assertIn(f"target: {self.target}\n", published)
+        self.assertFalse((self.project / "omega.lock").exists())
+
+    def test_invalid_batch_target_refuses_before_output_admission(self):
+        output = self.project / "invalid-output"
+        result = self.invoke("--build-dir", output, "--target", self.target,
+                             "--target", "not_a_target", "main.omg")
+        self.assert_exit(result, 1)
+        self.assertFalse(output.exists())
+
+    def test_artifact_only_build_publishes_its_sealed_output(self):
+        fixture = REPOSITORY / "tests/omega/pass/build/artifact_only_required_output_completion"
+        for name in ("main.omg", "build.omg"):
+            shutil.copyfile(fixture / name, self.project / name)
+        result = self.invoke("--build-dir", self.project / "artifact-output", "--target", self.target, "main.omg")
+        self.assert_exit(result, 0)
+        prefix = "published completed build outputs to "
+        paths = [line.removeprefix(prefix) for line in result.stdout.splitlines() if line.startswith(prefix)]
+        self.assertEqual(len(paths), 1, result.stdout + result.stderr)
+        published = Path(paths[0])
+        self.assertTrue((published / "manifest.bin").is_file())
+        self.assertEqual((published / "files/manifest.txt").read_bytes(), b"omega artifact\n")
+        self.assertNotIn("published native output", result.stdout)
+
+    def test_artifact_only_build_does_not_publish_an_unsealed_output(self):
+        fixture = REPOSITORY / "tests/omega/fail/build/artifact_only_unsealed_output_refused"
+        for name in ("main.omg", "build.omg"):
+            shutil.copyfile(fixture / name, self.project / name)
+        result = self.invoke("--build-dir", self.project / "artifact-output", "--target", self.target, "main.omg")
+        self.assert_exit(result, 1)
+        self.assertIn("staged output never sealed", result.stdout + result.stderr)
+        self.assertNotIn("published completed build outputs", result.stdout)
+
     def test_unreadable_lock_is_not_an_unlocked_project(self):
         lock = self.project / "omega.lock"
         lock.write_bytes(b"not an omega lock\n")
@@ -91,7 +156,7 @@ class DevelopmentRun(unittest.TestCase):
             source.write(build)
         result = self.invoke("run", "main.omg")
         self.assert_exit(result, 200)
-        self.assertIn("accepted package-owned", result.stdout + result.stderr)
+        self.assertIn("needs an accepted program-entry binding", result.stdout + result.stderr)
         self.assertFalse((self.project / "omega.lock").exists())
 
     def test_current_lock_still_runs(self):

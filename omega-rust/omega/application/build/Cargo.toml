@@ -1,0 +1,14 @@
+[package]
+name = "omega-build"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+compiler = { path = "../../compilation/driver" }
+compilation-products = { path = "../../compilation/products" }
+package-manager = { path = "../../packages/package-manager" }
+artifacts = { path = "../../foundation/artifacts" }
+platform-custody = { path = "../../foundation/platform-custody" }
+target = { path = "../../compilation/backend/target" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
