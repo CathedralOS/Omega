@@ -44,6 +44,8 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
         input,
     )?;
     input = next;
+    let (cleanup_selection, next) = super::domain::parse_cleanup_selection(syntax_trees, input)?;
+    input = next;
     // N6: a quotient is the bodyless data form
     // `data Real = CauchySeq % converges_together;`. The carrier remains a
     // normal type reference (including a bare generic family); `%` is the
@@ -101,6 +103,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
                 type_parameters,
                 generic_instance: None,
                 properties,
+                cleanup_selection,
                 quotient: Some(QuotientDefinition {
                     carrier,
                     relation,
@@ -146,6 +149,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             type_parameters,
             generic_instance: None,
             properties,
+            cleanup_selection,
             quotient: None,
             where_facts,
             members,
@@ -188,6 +192,7 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
         DataDefinition {
             name,
             is_public: false,
+            cleanup_selection: None,
             supply_mode: language_core::DataSupplyMode::BoundaryOpaque,
             lifetime_parameters,
             type_parameters,

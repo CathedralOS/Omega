@@ -109,6 +109,12 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
             let type_parameters = data_type_parameters
                 .span_or_empty(data_definition.type_parameters)
                 .to_vec();
+            let declaration_symbol = data_definition.symbol;
+            if let Some(selection) = &mut data_definition.cleanup_selection {
+                crate::symbols::targets::assign_static_argument_symbols(
+                    symbols, declaration_symbol, &type_parameters, selection, false,
+                );
+            }
             assign_type_parameter_constraint_symbols(
                 symbols,
                 child_type_references,
@@ -253,6 +259,11 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
         let type_parameters = data_type_parameters
             .span_or_empty(domain.type_parameters)
             .to_vec();
+        if let Some(selection) = &mut domain.cleanup_selection {
+            crate::symbols::targets::assign_static_argument_symbols(
+                symbols, domain.symbol, &type_parameters, selection, false,
+            );
+        }
         assign_type_parameter_constraint_symbols(
             symbols,
             child_type_references,

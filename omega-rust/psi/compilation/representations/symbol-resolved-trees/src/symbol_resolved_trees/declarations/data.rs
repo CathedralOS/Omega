@@ -20,6 +20,8 @@ pub struct DataDefinitionStorage {
     /// Resolved structural origin of a generated concrete generic instance.
     pub generic_instance: Option<TypeReference>,
     pub properties: DataProperties,
+    /// Selected default-domain cleanup, independent from the data namespace.
+    pub cleanup_selection: Option<crate::expression::StaticMachineArgument>,
     /// N6 proof-only quotient metadata. The carrier is resolved like an
     /// ordinary type reference; the relation keeps its authored path and its
     /// resolved machine symbol so validation never re-resolves by text.

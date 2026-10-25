@@ -385,6 +385,7 @@ impl SyntaxCopy<'_> {
                             .map(|constituent| self.copy_item_identifier_span(other, *constituent))
                             .collect(),
                     }),
+                cleanup_selection: domain.cleanup_selection.as_ref().map(|selection| self.copy_static_machine_argument(other, selection)),
                 authored_routes: domain.authored_routes.clone(),
                 classification: domain.classification,
                 predicate_body: domain.predicate_body,
@@ -457,6 +458,7 @@ impl SyntaxCopy<'_> {
         DataDefinition {
             name: data.name.clone(),
             is_public: data.is_public,
+            cleanup_selection: data.cleanup_selection.as_ref().map(|selection| self.copy_static_machine_argument(other, selection)),
             supply_mode: data.supply_mode,
             lifetime_parameters: data.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, data.type_parameters),

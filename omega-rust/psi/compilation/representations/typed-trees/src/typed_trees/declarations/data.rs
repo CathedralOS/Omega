@@ -15,6 +15,8 @@ pub struct DataDefinition {
     /// instance. The generated nominal symbol remains the runtime carrier.
     pub generic_instance: Option<TypeReferenceHandle>,
     pub properties: DataProperties,
+    /// Selected default-domain cleanup, independent from the data namespace.
+    pub cleanup_selection: Option<crate::expression::StaticMachineArgument>,
     /// N6 proof-only quotient metadata, retained through typing so proof and
     /// validation consumers share the exact carrier/relation identity.
     pub quotient: Option<QuotientDefinition>,
@@ -40,6 +42,7 @@ impl Default for DataDefinition {
             type_parameters: HandleSpan::empty(),
             generic_instance: None,
             properties: DataProperties::default(),
+            cleanup_selection: None,
             quotient: None,
             where_facts: HandleSpan::empty(),
             zero_gated: false,

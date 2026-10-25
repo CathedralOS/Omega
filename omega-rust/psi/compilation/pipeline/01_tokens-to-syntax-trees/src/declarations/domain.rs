@@ -90,6 +90,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         (None, input)
     };
     let ((classification, classification_token_count), input) = parse_domain_classification(input)?;
+    let (cleanup_selection, input) = parse_cleanup_selection(syntax_trees, input)?;
     // A chained declaration is authored at the last segment and carries the
     // leading subject membership proposition its refinement semantics imply;
     // the parent path spells the chain's own prefix so a bracketed target
@@ -218,6 +219,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
             is_public: false,
             alias,
             authored_routes,
+            cleanup_selection,
             classification,
             predicate_body,
             facts,
@@ -472,4 +474,25 @@ fn parse_authored_route<'tokens, 'source>(
     // length, distinguishes an exact machine from a trait requirement and
     // rejects ambiguous or ineligible declarations.
     Ok((route, input))
+}
+
+/// A cleanup clause selects a declaration, never a runtime call or receiver.
+/// Reuse static-application grammar so nested generic arguments retain their
+/// own telescope instead of being reparsed as diagnostic text downstream.
+pub(super) fn parse_cleanup_selection<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Option<syntax_trees::expression::StaticMachineArgument>> {
+    if !input.at_contextual("dropped") {
+        return Ok((None, input));
+    }
+    let input = input.take_contextual("dropped")?.take_contextual("by")?;
+    let Some((selection, input)) = crate::expressions::parse_postfix::try_parse_static_argument(syntax_trees, input)? else {
+        return Err(input.error_here("dropped by requires one static machine application"));
+    };
+    if selection.path.is_empty() || selection.type_reference.is_valid()
+        || selection.const_literal.is_some() || selection.evidence_projection.is_some() {
+        return Err(input.error_here("dropped by requires one static machine application"));
+    }
+    Ok((Some(selection), input))
 }

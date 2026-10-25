@@ -39,6 +39,7 @@ fn lower_data_definition_contents(
             .as_ref()
             .map(|origin| lower_type_reference_into_table(lowerer, origin))
             .transpose()?,
+        cleanup_selection: data_definition.cleanup_selection.as_ref().map(|selection| crate::expressions::expression::lower_static_machine_argument(Some(lowerer.source_trees), &mut lowerer.typed_trees, lowerer.type_reference_exposure, selection)).transpose()?,
         properties: typed::data::DataProperties {
             carry: data_definition.properties.carry,
             multiplicity: data_definition.properties.multiplicity,

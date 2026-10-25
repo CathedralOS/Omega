@@ -16,6 +16,8 @@ pub struct DomainDefinition {
     pub target_type: TypeReferenceHandle,
     pub index_arguments: Vec<TypeReferenceHandle>,
     pub is_public: bool,
+    /// Selected machine identity and its full declaration-site application.
+    pub cleanup_selection: Option<crate::expression::StaticMachineArgument>,
     /// Authored transparent alias theory. Semantic consumers expand this
     /// record before normalization rather than treating the alias as evidence.
     pub alias: Option<DomainAliasDefinition>,
@@ -49,6 +51,7 @@ impl Default for DomainDefinition {
             target_type: TypeReferenceHandle::invalid(),
             index_arguments: Vec::new(),
             is_public: false,
+            cleanup_selection: None,
             alias: None,
             classification: None,
             predicate_body: language_semantics::DomainPredicateBody::Bodyless,

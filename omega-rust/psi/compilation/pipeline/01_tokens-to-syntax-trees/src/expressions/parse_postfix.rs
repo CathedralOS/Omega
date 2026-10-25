@@ -657,7 +657,7 @@ fn parse_static_call_arguments<'tokens, 'source>(
     }
 }
 
-fn try_parse_static_argument<'tokens, 'source>(
+pub(crate) fn try_parse_static_argument<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
 ) -> Result<Option<(StaticMachineArgument, Input<'tokens, 'source>)>, ParseError> {

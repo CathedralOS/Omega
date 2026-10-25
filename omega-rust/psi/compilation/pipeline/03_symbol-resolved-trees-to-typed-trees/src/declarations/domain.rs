@@ -58,6 +58,7 @@ pub(crate) fn lower_domain_definition(
             .collect::<Result<Vec<_>, _>>()?,
         is_public: domain.is_public,
         alias,
+        cleanup_selection: domain.cleanup_selection.as_ref().map(|selection| crate::expressions::expression::lower_static_machine_argument(Some(lowerer.source_trees), &mut lowerer.typed_trees, lowerer.type_reference_exposure, selection)).transpose()?,
         classification: domain.classification,
         predicate_body: domain.predicate_body,
         facts,
