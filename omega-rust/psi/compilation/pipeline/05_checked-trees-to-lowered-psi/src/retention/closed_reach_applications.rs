@@ -8,9 +8,7 @@
 //! call occurrences nevertheless let the consumer check every retained join.
 
 use checked_trees::CheckedTrees;
-use checked_trees::data::{
-    MachineParameterContract, MachineParameterContractView, TypeParameterKind,
-};
+use checked_trees::data::{MachineParameterContractView, TypeParameterKind};
 use language_semantics::ServiceReachId;
 use lowered_psi::LoweredSourceCallOccurrence;
 use semantic_vocabulary::{MachineId, ServiceId};
@@ -64,20 +62,8 @@ pub(crate) fn retain_closed_reach_applications(
         // Type/const-only applications still specialize an original contract:
         // their fixed dependency may include private-helper reach. An empty
         // machine-binder set needs no alternate representation or replay rule.
-        // Executable specialization currently retains no proposition arguments
-        // or declaration-identity contract. Keep those existing routes outside
-        // this closed application projection rather than fabricate positions.
-        if parameters.iter().any(|parameter| {
-            matches!(
-                parameter.kind,
-                TypeParameterKind::Proposition { .. }
-                    | TypeParameterKind::Machine {
-                        contract: MachineParameterContract::RequirementIdentity
-                    }
-            )
-        }) {
-            continue;
-        }
+        // Machine templates cannot author proposition or declaration-identity
+        // binders, so the telescope match below decides each real position.
         let template =
             inferred
                 .for_machine(specialization.template)
@@ -108,7 +94,6 @@ pub(crate) fn retain_closed_reach_applications(
             })?);
         }
         dependencies.sort_unstable();
-        let original_service_count = module.services.len();
         let mut telescope = Vec::with_capacity(parameters.len());
         let mut types = specialization.type_argument_identities.iter();
         let mut constants = specialization.const_argument_identities.iter();
@@ -117,8 +102,7 @@ pub(crate) fn retain_closed_reach_applications(
                 .machine_argument_contract_commitments
                 .iter(),
         );
-        let mut covered = true;
-        for (position, parameter) in parameters.iter().enumerate() {
+        for parameter in parameters.iter() {
             telescope.push(match &parameter.kind {
                 TypeParameterKind::Type => ClosedReachParameter::Type {
                     argument: types
@@ -204,14 +188,10 @@ pub(crate) fn retain_closed_reach_applications(
                     // An unresolved installation selection keeps its effective
                     // row here: provider bounds are already part of the
                     // conservative contract rows, and the requirement axis is
-                    // retained separately for installation substitution.
-                    if dependencies.contains(&(position as u32))
-                        && callee.is_none()
-                        && schema.is_none()
-                    {
-                        covered = false;
-                        break;
-                    }
+                    // retained separately for installation substitution. A
+                    // selected machine with no emitted body keeps its exact
+                    // identity, contract commitment and row; an absent callee
+                    // is evidence about emission, not about the selection.
                     let view = checked.machine_parameter_contract_view(contract).ok_or(
                         LoweringError::Unsupported(
                             "closed reach binder has no retained callable contract",
@@ -277,10 +257,6 @@ pub(crate) fn retain_closed_reach_applications(
                 }
             });
         }
-        if !covered {
-            module.services.truncate(original_service_count);
-            continue;
-        }
         if types.next().is_some() || constants.next().is_some() || machines.next().is_some() {
             return unsupported("closed reach arguments differ from the complete telescope");
         }
@@ -310,81 +286,39 @@ pub(crate) fn retain_closed_reach_applications(
                             == Some(call.target_state_symbol)
                 });
                 let Some(occurrence) = matches.next() else {
-                    // Inlining routes have no retained direct operation. Their
-                    // ordinary checking remains, but this projection is absent.
-                    covered = false;
-                    break;
+                    // An inlined or otherwise unemitted call has no retained
+                    // operation to join. The binder's retained binding already
+                    // carries its dependency; only the exact emitted-call
+                    // record is absent, so no call row is produced for it.
+                    continue;
                 };
                 if matches.next().is_some() {
                     return unsupported("closed reach call has ambiguous emitted occurrences");
                 }
-                let operation = occurrence.terminal_site.operation().ok_or(
-                    LoweringError::Unsupported(
-                        "closed reach machine argument names an external completion instead of a body call",
-                    ),
-                )?;
+                // A boundary or dynamic completion edge is a valid emitted
+                // invocation site but names no owner operation; the call keeps
+                // its binder binding without an emitted-call record.
+                let Some(operation) = occurrence.terminal_site.operation() else {
+                    continue;
+                };
                 calls.push(ClosedReachCall {
                     operation,
                     binder: binder as u32,
                     application: match &telescope[binder] {
                         ClosedReachParameter::Machine(binding) if binding.schema.is_some() => {
-                            let Some(application) = closed_call_application(
+                            closed_call_application(
                                 identities,
                                 checked,
                                 source_machines,
                                 call.target_state_symbol,
                             )?
-                            else {
-                                covered = false;
-                                break;
-                            };
-                            Some(application)
                         }
                         _ => None,
                     },
                 });
             }
         }
-        if !covered {
-            module.services.truncate(original_service_count);
-            continue;
-        }
         calls.sort_by_key(|call| call.operation);
-        // This optional projection describes direct in-module substitution.
-        // A valid boundary or inlined operation keeps the ordinary inferred
-        // reach and installation requirements, but cannot masquerade as such
-        // a call. Decide coverage before installing any occurrence markers.
-        // Consumers requiring an independent closed application still reject
-        // its absence; omission grants no invocation or effect evidence.
-        let terminal_owner = module
-            .machines
-            .iter()
-            .find(|machine| machine.id == owner)
-            .ok_or(LoweringError::Unsupported(
-                "closed reach source owner has no Terminal machine",
-            ))?;
-        let mut direct_coverage = true;
-        for call in &calls {
-            let mut operations = terminal_owner
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .filter(|operation| operation.id == call.operation);
-            let (Some(operation), None) = (operations.next(), operations.next()) else {
-                return unsupported("closed reach consumer has no unique exact owner operation");
-            };
-            if !matches!(
-                telescope.get(call.binder as usize),
-                Some(ClosedReachParameter::Machine(_))
-            ) {
-                return unsupported("closed reach consumer does not select a machine binder");
-            }
-            direct_coverage &= direct_call_parts(&operation.kind).is_some();
-        }
-        if !direct_coverage {
-            module.services.truncate(original_service_count);
-            continue;
-        }
         // Type/const specialization selects actual custody leaves. Retain
         // their contractual contribution beside the template dependency; it
         // cannot be recovered from authored calls alone or by subtracting a
@@ -427,18 +361,20 @@ pub(crate) fn retain_closed_reach_applications(
             let Some(ClosedReachParameter::Machine(_)) = telescope.get(call.binder as usize) else {
                 return unsupported("closed reach consumer does not select a machine binder");
             };
-            let operation = terminal_owner
+            let mut operations = terminal_owner
                 .blocks
                 .iter_mut()
                 .flat_map(|block| &mut block.operations)
-                .find(|operation| operation.id == call.operation)
-                .ok_or(LoweringError::Unsupported(
-                    "closed reach consumer has no exact owner operation",
-                ))?;
-            if direct_call_parts(&operation.kind).is_none() {
-                return unsupported("closed reach consumer is not a direct machine call");
+                .filter(|operation| operation.id == call.operation);
+            let (Some(operation), None) = (operations.next(), operations.next()) else {
+                return unsupported("closed reach consumer has no unique exact owner operation");
+            };
+            // Only a direct in-module call can carry the binder marker: a
+            // boundary or dispatch operation is the retained emitted site of
+            // the checked call but makes no direct substitution claim.
+            if direct_call_parts(&operation.kind).is_some() {
+                operation.static_reach_binding = Some(call.binder);
             }
-            operation.static_reach_binding = Some(call.binder);
         }
         terminal_owner.closed_reach_application = Some(ClosedReachApplication {
             template_identity: identities
@@ -451,67 +387,7 @@ pub(crate) fn retain_closed_reach_applications(
             calls,
         });
     }
-    prune_incomplete_closed_reach_applications(module);
     Ok(())
-}
-
-pub(crate) fn prune_incomplete_closed_reach_applications(module: &mut TerminalModule) {
-    // Coverage follows the retained call graph, not specialization ordering.
-    // If an inner application still uses an unsupported projection (for example
-    // an inlined callback), its schema consumers cannot advertise a complete
-    // application join. Remove only those projections and their own markers;
-    // ordinary execution and checking retain their existing behavior.
-    loop {
-        let uncovered = module
-            .machines
-            .iter()
-            .filter_map(|owner| {
-                let application = owner.closed_reach_application.as_ref()?;
-                let missing_callee = application
-                    .calls
-                    .iter()
-                    .filter_map(|call| call.application.as_ref())
-                    .any(|call| {
-                        !module.machines.iter().any(|callee| {
-                            callee.id == call.callee && callee.closed_reach_application.is_some()
-                        })
-                    });
-                // A forwarding owner need not call the schema itself. Once a
-                // helper loses coverage, reconsider dependent owners against
-                // the same presence-only closure used by the final verifier.
-                let missing_dependency = application.dependencies.iter().any(|ordinal| {
-                    let Some(ClosedReachParameter::Machine(binding)) =
-                        application.telescope.get(*ordinal as usize)
-                    else {
-                        return false;
-                    };
-                    binding.nominal_requirement.is_some()
-                        && binding.schema.is_some()
-                        && !terminal_semantics::closed_reach::has_schema_application_in_call_closure(
-                            module, owner.id, binding,
-                        )
-                });
-                (missing_callee || missing_dependency).then_some(owner.id)
-            })
-            .collect::<Vec<_>>();
-        if uncovered.is_empty() {
-            break;
-        }
-        for owner in module
-            .machines
-            .iter_mut()
-            .filter(|owner| uncovered.contains(&owner.id))
-        {
-            owner.closed_reach_application = None;
-            for operation in owner
-                .blocks
-                .iter_mut()
-                .flat_map(|block| &mut block.operations)
-            {
-                operation.static_reach_binding = None;
-            }
-        }
-    }
 }
 
 // Source call custody may retain a machine declaration while operational

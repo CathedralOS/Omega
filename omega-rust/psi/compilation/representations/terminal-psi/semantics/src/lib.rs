@@ -24,7 +24,6 @@ mod byte_sequence_concatenation;
 mod byte_sequence_predicates;
 mod call_composition;
 pub mod closed_conformances;
-pub mod closed_reach;
 mod collection_backing;
 pub mod control_graph;
 pub mod descriptor_results;
