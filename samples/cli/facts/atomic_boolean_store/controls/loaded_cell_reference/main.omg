@@ -1,0 +1,7 @@
+// An observed Boolean is a value, not a loan of the atomic cell.
+data Cell { value: AtomicBool; }
+machine consume(value: &AtomicBool) {}
+machine main() {
+    let cell: Cell;
+    consume(cell.value.load(Receive));
+}

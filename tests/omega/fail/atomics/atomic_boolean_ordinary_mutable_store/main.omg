@@ -1,0 +1,7 @@
+// Exclusive ordinary storage still supplies no atomic operation authority.
+data Cell { value: bool; }
+machine publish(cell: &mut Cell) { cell.value.store(true, Publish); }
+machine main() {
+    let mut cell: Cell;
+    publish(&mut cell);
+}
