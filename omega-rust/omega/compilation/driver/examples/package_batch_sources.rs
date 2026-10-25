@@ -88,7 +88,7 @@ fn main() {
     assert!(
         diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.message.contains("empty")),
+            .any(|diagnostic| diagnostic.message == "package compilation has no Product root"),
         "{diagnostics:?}"
     );
     let reports: Vec<_> = outputs
