@@ -1097,6 +1097,7 @@ fn machine_from_signature(
         HandleSpan::from_parts(clause, 1)
     });
     Machine {
+        nested_machines: Vec::new(),
         target_family_interface: false,
         name: machine_name,
         default_body_trait,

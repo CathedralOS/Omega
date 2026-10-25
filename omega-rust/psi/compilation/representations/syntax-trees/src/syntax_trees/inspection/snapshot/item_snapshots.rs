@@ -109,6 +109,8 @@ pub enum ItemSnapshot {
         path: Vec<IdentifierSnapshot>,
     },
     Machine {
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        nested_machines: Vec<ItemSnapshot>,
         name: IdentifierSnapshot,
         attached_data: Option<IdentifierSnapshot>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -658,6 +660,11 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
             ),
         },
         Item::Machine(value) => ItemSnapshot::Machine {
+            nested_machines: value
+                .nested_machines
+                .iter()
+                .map(|nested| snapshot_item(syntax_trees, &Item::Machine(nested.clone())))
+                .collect(),
             where_facts: syntax_trees
                 .items
                 .proof_facts(value.where_facts)
