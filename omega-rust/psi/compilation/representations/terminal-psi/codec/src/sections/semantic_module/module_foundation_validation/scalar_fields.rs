@@ -7,7 +7,6 @@ use super::{CodecError, TerminalMachine, TerminalModule, malformed};
 use semantic_vocabulary::{ScalarDomainId, ScalarQualificationSetId, StructuralFieldId, ValueId};
 use terminal_psi::{
     OperationKind, RecordFieldValue, StructuralFieldDeclaration, StructuralTypeShape,
-    ValueDeclaration,
 };
 fn fields(module: &TerminalModule) -> impl Iterator<Item = &StructuralFieldDeclaration> {
     module.structural_types.iter().flat_map(|owner| {
@@ -27,30 +26,9 @@ fn domains(
     module: &TerminalModule,
     set: ScalarQualificationSetId,
 ) -> Result<&[ScalarDomainId], CodecError> {
-    if set.is_empty() {
-        return Ok(&[]);
-    }
-    module
-        .scalar_qualifications
-        .sets
-        .iter()
-        .find(|row| row.id == set)
-        .map(|row| row.domains.as_slice())
-        .ok_or(CodecError::MalformedStructuralFoundation(
-            "stored scalar names an absent qualification set",
-        ))
-}
-
-fn values(machine: &TerminalMachine) -> impl Iterator<Item = &ValueDeclaration> {
-    machine
-        .parameters
-        .iter()
-        .chain(machine.block_parameters())
-        .chain(
-            machine
-                .operations()
-                .filter_map(|operation| operation.result.scalar_ref()),
-        )
+    super::qualification_domains(module, set).ok_or(CodecError::MalformedStructuralFoundation(
+        "stored scalar names an absent qualification set",
+    ))
 }
 
 fn required(
@@ -77,7 +55,7 @@ fn validate_write(
     if required.is_empty() {
         return Ok(());
     }
-    let value = values(machine).find(|row| row.id == value).ok_or(
+    let value = super::values(machine).find(|row| row.id == value).ok_or(
         CodecError::MalformedStructuralFoundation("scalar field write lost its exact SSA source"),
     )?;
     let actual = domains(module, value.qualifications)?;
@@ -222,11 +200,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
             }
         }
         for domain in domains(module, row.value_type.qualifications)? {
-            if module
-                .scalar_qualifications
-                .domains
-                .iter()
-                .find(|entry| entry.id == *domain)
+            if super::scalar_domain(module, *domain)
                 .is_none_or(|entry| entry.carrier != row.value_type.scalar_type)
             {
                 return malformed("scalar field membership has a different domain carrier");
@@ -248,15 +222,10 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                         |field| {
                             required(module, field.id).is_ok_and(|domains| {
                                 domains.iter().all(|id| {
-                                    module
-                                        .scalar_qualifications
-                                        .domains
-                                        .iter()
-                                        .find(|domain| domain.id == *id)
-                                        .is_some_and(|domain| {
-                                            domain.predicate.is_none()
-                                                && domain.establishment_routes.is_empty()
-                                        })
+                                    super::scalar_domain(module, *id).is_some_and(|domain| {
+                                        domain.predicate.is_none()
+                                            && domain.establishment_routes.is_empty()
+                                    })
                                 })
                             })
                         },
