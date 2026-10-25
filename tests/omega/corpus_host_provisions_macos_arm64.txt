@@ -7,6 +7,14 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
+fail/borrows/foreign_output_exclusive_anchor_read rejected 436ms expected @a9e0628deefe+wt
+	state `observe` receives `source` while local borrow `output` is still active (borrowed at statement 3; its last use is at statement 5)
+fail/borrows/foreign_output_live_lifetime_source_write rejected 436ms expected @a9e0628deefe+wt
+	statement 4 mutates `source[0]` while local borrow `output` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/build/receiver_view_writeback_local_escape rejected 552ms expected @a9e0628deefe+wt
+	machine `replace_identifier` stores a borrowed value without a complete normal-exit backing relation
+	machine `configure` state `entry` statement 0: call stores a borrowed value without a complete destination/backing relation
+pass/build/receiver_view_writeback_exit built 1986ms exit:0 interpreter-exit:0 interpreter:agrees terminal-runtime.configure_build_boundary:match terminal-inspections:match @a9e0628deefe+wt
 pass/drops/runtime_projected_nominal_cleanup_exit checked 2364ms check-target:macos_arm64 terminal-runtime.exercise_unit_projection:match terminal-inspections:match @59c80fdc820b
 pass/layouts/extent_view_external_content checked 4129ms terminal-runtime.attempt:match terminal-inspections:match @d3f12beefc63+wt
 pass/layouts/extent_view_external_write checked 6366ms terminal-runtime.attempt:match terminal-inspections:match @114906953e11

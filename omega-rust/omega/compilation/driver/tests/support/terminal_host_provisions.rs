@@ -2,6 +2,8 @@
 mod cleanup_resume;
 #[path = "terminal_extent_view.rs"]
 mod extent_view;
+#[path = "terminal_mutable_boundary.rs"]
+mod mutable_boundary;
 
 /// Portable provisions supply semantic test sinks, never native host services.
 pub(super) fn observe_portable(
@@ -10,6 +12,7 @@ pub(super) fn observe_portable(
 ) -> Result<(), String> {
     match words {
         ["cleanup-resume"] => cleanup_resume::observe(artifact),
+        ["mutable-boundary"] => mutable_boundary::observe(artifact),
         ["external-extent-view"] => extent_view::observe(artifact, false),
         ["external-extent-view-write"] => extent_view::observe(artifact, true),
         _ => Err("unknown portable Terminal fixture provision".to_owned()),

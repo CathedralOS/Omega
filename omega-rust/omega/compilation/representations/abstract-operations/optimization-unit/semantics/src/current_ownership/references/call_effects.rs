@@ -293,13 +293,14 @@ impl ReferenceCallEffects {
                         access_path_type(types, signature.structural_type, &argument.path)
                     })
                     .is_none_or(|selected| {
-                        terminal_semantics::descriptor_results::writable_reference_slots(
-                            &self.declarations,
-                            argument.place,
-                            selected,
-                            argument.access,
-                        )
-                        .is_none_or(|slots| !slots.is_empty())
+                        terminal_semantics::descriptor_results::DescriptorSlotKind::References
+                            .writable_slots(
+                                &self.declarations,
+                                argument.place,
+                                selected,
+                                argument.access,
+                            )
+                            .is_none_or(|slots| !slots.is_empty())
                     })
             }) {
                 return Err(fail(

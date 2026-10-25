@@ -58,7 +58,7 @@ pub use replay::{
     DescriptorAnalysis, DescriptorSlotInventory, DescriptorSlotKind, DescriptorSourceObservation,
     DescriptorSourceObservations, DescriptorStoredCallEffect, DescriptorStoredEffect,
     DescriptorStoredOrigin, descriptor_slot_inventory, descriptor_slots,
-    reconstruct_source_origins, reconstruct_stored_effects, writable_reference_slots,
+    reconstruct_source_origins, reconstruct_stored_effects,
 };
 
 #[derive(Clone)]
