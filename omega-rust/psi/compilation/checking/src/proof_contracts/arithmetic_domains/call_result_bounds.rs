@@ -98,6 +98,12 @@ fn project_possible(
     expression: ExpressionHandle,
     formal: Option<&typed_trees::signature::StateParameter>,
 ) -> Option<Interval> {
+    if program
+        .prepared_mathematics()
+        .is_some_and(|view| view.application(expression).is_some())
+    {
+        return mathematical_interval(program, callee, environment, lengths, expression, formal);
+    }
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return Some(Interval::UNBOUNDED);
     };
@@ -174,6 +180,119 @@ fn project_possible(
         operand,
         subject_on_left,
     ))
+}
+
+/// Read the prepared predicate, not the definition's source body. Its captures
+/// keep the same public result/formal identity and immutable operand snapshots
+/// as ordinary contract comparisons. Temporary positions below describe this
+/// projection only; they grant no executable parameter or storage authority.
+fn mathematical_interval(
+    program: &dyn crate::CheckingInput,
+    callee: &CalleeContract<'_>,
+    environment: &ValueEnvironment,
+    lengths: &[(SymbolHandle, Interval)],
+    expression: ExpressionHandle,
+    formal: Option<&typed_trees::signature::StateParameter>,
+) -> Option<Interval> {
+    use checked_trees::CheckedScalarExpression as Scalar;
+    let reference = formal.map_or(callee.return_type, |parameter| parameter.type_reference);
+    let Some(primitive) = program.primitive_type_reference(reference) else {
+        return Some(Interval::UNBOUNDED);
+    };
+    let mut intervals = vec![Interval::UNBOUNDED];
+    let predicate = crate::mathematical_applications::scalar_predicate(
+        program,
+        expression,
+        |capture, source_type| {
+            let subject = formal.map_or_else(
+            || crate::reserved_result_owner(program, capture).is_some_and(|(owner, reference)| {
+                owner == callee.callable && reference == callee.return_type
+            }),
+            |parameter| matches!(program.expression_table.expression(capture), ExpressionNode::Name(path)
+                if path.symbol == parameter.symbol && path.head_symbol == parameter.symbol),
+        );
+            if subject {
+                return Some(Scalar::Parameter {
+                    position: 0,
+                    primitive_type: primitive,
+                });
+            }
+            let (interval, reference) = operand_interval(
+                program,
+                callee,
+                environment,
+                lengths,
+                capture,
+                formal.is_none(),
+            )?;
+            let primitive = program.primitive_type_reference(reference.unwrap_or(source_type))?;
+            let position = intervals.len();
+            intervals.push(interval);
+            Some(Scalar::Parameter {
+                position,
+                primitive_type: primitive,
+            })
+        },
+    );
+    predicate.map_or(Some(Interval::UNBOUNDED), |predicate| {
+        projected_interval(&predicate, &intervals, false)
+    })
+}
+
+fn projected_interval(
+    predicate: &checked_trees::CheckedBooleanExpression,
+    intervals: &[Interval],
+    negated: bool,
+) -> Option<Interval> {
+    use checked_trees::{
+        CheckedBooleanExpression as Boolean, CheckedIntegerComparisonKind as Comparison,
+        CheckedScalarExpression as Scalar,
+    };
+    match predicate {
+        Boolean::Constant(value) => (*value != negated).then_some(Interval::UNBOUNDED),
+        Boolean::Not(value) => projected_interval(value, intervals, !negated),
+        Boolean::And { left, right } | Boolean::Or { left, right } => {
+            let left = projected_interval(left, intervals, negated);
+            let right = projected_interval(right, intervals, negated);
+            if matches!(predicate, Boolean::And { .. }) != negated {
+                Some(left?.intersect(right?))
+            } else {
+                match (left, right) {
+                    (Some(left), Some(right)) => Some(left.union(right)),
+                    (left, right) => left.or(right),
+                }
+            }
+        }
+        Boolean::IntegerComparison { kind, left, right } => {
+            let subject = |value: &Scalar| matches!(value, Scalar::Parameter { position: 0, .. });
+            let (operand, subject_on_left) = if subject(left) {
+                (right, true)
+            } else if subject(right) {
+                (left, false)
+            } else {
+                return Some(Interval::UNBOUNDED);
+            };
+            let operand = match operand.as_ref() {
+                Scalar::Parameter { position, .. } if *position != 0 => {
+                    intervals.get(*position).copied()
+                }
+                Scalar::IntegerLiteral { literal } => literal.value_i64().map(Interval::constant),
+                _ => None,
+            };
+            let operator = match (kind, negated) {
+                (Comparison::Equal, false) => BinaryOperator::Equal,
+                (Comparison::Equal, true) => BinaryOperator::NotEqual,
+                (Comparison::LessThan, false) => BinaryOperator::Less,
+                (Comparison::LessThan, true) => BinaryOperator::GreaterOrEqual,
+                (Comparison::LessOrEqual, false) => BinaryOperator::LessOrEqual,
+                (Comparison::LessOrEqual, true) => BinaryOperator::Greater,
+            };
+            Some(operand.map_or(Interval::UNBOUNDED, |operand| {
+                guard_narrowing::comparison_interval(operator, operand, subject_on_left)
+            }))
+        }
+        _ => Some(Interval::UNBOUNDED),
+    }
 }
 
 fn condition_environment(

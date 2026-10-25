@@ -44,8 +44,17 @@ impl<'artifact> TerminalExecution<'artifact> {
         let supplied = provider
             .program
             .verified_boundary_machine(&provider_boundary)?;
+        let entry = provider.program.verified_machine(provider_entry)?;
         if receiver.structural_parameters.len() != supplied.structural_parameters.len()
             || arguments.len() != receiver.structural_parameters.len()
+            || entry.structural_parameters.len() != arguments.len()
+            || !entry.content_entry_claims.is_empty()
+            || entry.entry_claims.len()
+                != supplied
+                    .structural_parameters
+                    .iter()
+                    .filter(|parameter| parameter.multiplicity == StructuralMultiplicity::Linear)
+                    .count()
         {
             return Err(malformed());
         }
@@ -116,6 +125,15 @@ impl<'artifact> TerminalExecution<'artifact> {
             .zip(&mut values)
             .enumerate()
         {
+            let formal = &entry.structural_parameters[ordinal];
+            if formal.structural_type != supplied.structural_type
+                || formal.multiplicity != supplied.multiplicity
+                || formal.access != supplied.access
+            {
+                return Err(reject(
+                    "component entry differs from its admitted structural contract",
+                ));
+            }
             let receiver_type = receiver_types
                 .get(&required.structural_type)
                 .ok_or_else(malformed)?;
@@ -188,6 +206,54 @@ impl<'artifact> TerminalExecution<'artifact> {
             {
                 return Err(reject(
                     "component input lacks exact owned closed Inert type/custody",
+                ));
+            }
+            let mut entry_claims = entry
+                .entry_claims
+                .iter()
+                .filter(|claim| claim.input == formal.place);
+            let argument_index = u32::try_from(ordinal).map_err(|_| malformed())?;
+            let mut receipts = completion_receipts
+                .iter()
+                .filter(|receipt| receipt.argument_index == argument_index);
+            let carried_claim = if required.multiplicity == StructuralMultiplicity::Linear {
+                let claim = entry_claims
+                    .next()
+                    .ok_or_else(|| reject("linear component input lacks its whole entry claim"))?;
+                let receipt = receipts.next().ok_or_else(|| {
+                    reject("linear component input lacks its actual caller claim")
+                })?;
+                let live = self
+                    .live_claims
+                    .get(&receipt.claim)
+                    .ok_or_else(|| reject("linear component input claim is not live"))?;
+                if !claim.path.is_empty()
+                    || !receipt.path.is_empty()
+                    || entry_claims.next().is_some()
+                    || receipts.next().is_some()
+                    || live.place != Some(argument.place)
+                    || live.path != argument.path
+                    || live.multiplicity != Some(StructuralMultiplicity::Linear)
+                {
+                    return Err(reject(
+                        "linear component input lacks exactly one whole owned claim",
+                    ));
+                }
+                Some(receipt.claim)
+            } else if entry_claims.next().is_some() || receipts.next().is_some() {
+                return Err(reject(
+                    "nonlinear component input carries unexpected claims",
+                ));
+            } else {
+                None
+            };
+            if self.live_claims.iter().any(|(identity, claim)| {
+                claim.place == Some(argument.place)
+                    && terminal_semantics::structural_paths_may_overlap(&claim.path, &argument.path)
+                    && Some(*identity) != carried_claim
+            }) {
+                return Err(reject(
+                    "component input overlaps another live ownership claim",
                 ));
             }
             let home = StructuralRuntimePlace::from(&*value);

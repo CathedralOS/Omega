@@ -7,8 +7,10 @@ including replacement of one field without disturbing its sibling. This is
 host-boundary evidence and initial independent closed Affine input/result
 exchange. The [checked Copy continuation](independent_copy/README.md) also
 preserves the caller's original across an independently consuming call.
-Qualified or claim-bearing component inputs, remaining mismatch admission and
-replacement lifecycle acceptance remain open.
+The [Linear continuation](independent_linear/README.md) transfers actual whole
+ownership claims through independent inputs and returns on all four hosts.
+Qualified or view-backed component inputs, nested or routed claim carriers,
+remaining mismatch admission and replacement lifecycle acceptance remain open.
 
 **Closed nested Inert carrier transport preserves libc host numbers 66051 and
 513 and replacement 1027 while retaining the disjoint sibling.**
@@ -268,8 +270,11 @@ The applicable requirement categories above extend through the component edge:
 Raw observations remain in the existing swarm qualification record, bound to
 actual producer revisions and accepted project locks. Full provider/carrier/
 target/lifecycle/multiplicity/historical-selection mismatch controls,
-qualified or linear component inputs, and materialized/view-backed inputs remain
-separate acceptance. The [checked Copy continuation](independent_copy/README.md)
+qualified component inputs, nested or routed claim carriers, and
+materialized/view-backed inputs remain separate acceptance. The
+[Linear continuation](independent_linear/README.md) establishes whole-claim
+input/result transport on all four hosted targets. The
+[checked Copy continuation](independent_copy/README.md)
 establishes exact Copy input/result transport across independent components on
 all four hosted targets, retaining the original Windows timeout and its finite
 diagnostic observations. These rows and the focused fuel witness do not close

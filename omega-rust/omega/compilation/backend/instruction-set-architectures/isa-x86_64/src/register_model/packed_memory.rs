@@ -1,18 +1,11 @@
 //! Multi-instruction exact-byte memory transport declares all temporary writes.
 
 use register_model::{
-    RegisterConstraintFamily, RegisterConstraintId, RegisterConstraintKey,
-    RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
-    ValidatedPhysicalRegisterModel,
+    RegisterConstraintId, RegisterConstraintKey, RegisterInstructionConstraint,
+    RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
 };
-pub const X86_64_LOAD_PACKED: RegisterConstraintKey = RegisterConstraintKey {
-    family: RegisterConstraintFamily::Instruction,
-    variant: 734,
-};
-pub const X86_64_STORE_PACKED: RegisterConstraintKey = RegisterConstraintKey {
-    family: RegisterConstraintFamily::Instruction,
-    variant: 735,
-};
+pub const X86_64_LOAD_PACKED: RegisterConstraintKey = RegisterConstraintKey::instruction(734);
+pub const X86_64_STORE_PACKED: RegisterConstraintKey = RegisterConstraintKey::instruction(735);
 use crate::register_model::physical_model::GPR64;
 
 pub(super) fn append_constraints(

@@ -242,7 +242,7 @@ impl CatalogFamily {
 fn require_exact_ranking_view_row(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
-    entry: &syntax::item::StateNode,
+    entry: &syntax::item::State,
     declaration: language_semantics::RankingViewDeclaration,
 ) -> Result<(), Diagnostic> {
     let name = machine.name.as_str(syntax_trees);
@@ -305,7 +305,7 @@ fn require_exact_ranking_view_row(
 fn require_exact_semantic_row(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
-    entry: &syntax::item::StateNode,
+    entry: &syntax::item::State,
     namespace: &str,
     leaf: &str,
 ) -> Result<&'static numerics::float_semantics_catalog::FloatSemanticOperation, Diagnostic> {
@@ -378,7 +378,7 @@ fn require_exact_semantic_row(
 fn require_exact_atomic_fence_row(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
-    entry: &syntax::item::StateNode,
+    entry: &syntax::item::State,
 ) -> Result<(), Diagnostic> {
     let valid_parameter = match syntax_trees.items.state_parameters(entry.parameters) {
         [parameter] => {

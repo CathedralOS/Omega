@@ -100,19 +100,10 @@ pub struct ElfDynamicSectionRosterPlanningError {
     diagnostic: Diagnostic,
 }
 
-impl ElfDynamicSectionRosterPlanningError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ValidatedElfSectionNameTablePlan, Diagnostic) {
-        (self.section_names, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfDynamicSectionRosterPlanningError);
-
-impl std::error::Error for ElfDynamicSectionRosterPlanningError {}
+image::rejection_carrier!(
+    ElfDynamicSectionRosterPlanningError;
+    section_names: ValidatedElfSectionNameTablePlan,
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ElfDynamicSectionRosterContents {

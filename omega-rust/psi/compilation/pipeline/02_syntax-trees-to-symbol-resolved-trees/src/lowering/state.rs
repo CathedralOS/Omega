@@ -29,7 +29,7 @@ use syntax_trees::{self as syntax, SyntaxTrees};
 pub(crate) fn lower_state_node(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    state: &syntax::item::StateNode,
+    state: &syntax::item::State,
     public_signature: bool,
 ) -> Result<State, Diagnostic> {
     lower_state_parts(
@@ -168,7 +168,7 @@ fn with_state_scope<T>(
 pub(crate) fn lower_state_signature_node(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    signature: &syntax::item::StateSignatureNode,
+    signature: &syntax::item::StateSignature,
 ) -> Result<LoweredStateSignature, Diagnostic> {
     lower_state_signature_parts(
         lowerer,

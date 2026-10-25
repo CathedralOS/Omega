@@ -74,19 +74,10 @@ pub struct ElfIndexedSectionPayloadPlanningError {
     diagnostic: Diagnostic,
 }
 
-impl ElfIndexedSectionPayloadPlanningError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ValidatedElfSectionHeaderTableTemplate, Diagnostic) {
-        (self.section_headers, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfIndexedSectionPayloadPlanningError);
-
-impl std::error::Error for ElfIndexedSectionPayloadPlanningError {}
+image::rejection_carrier!(
+    ElfIndexedSectionPayloadPlanningError;
+    section_headers: ValidatedElfSectionHeaderTableTemplate,
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ElfIndexedSectionPayloadContents {

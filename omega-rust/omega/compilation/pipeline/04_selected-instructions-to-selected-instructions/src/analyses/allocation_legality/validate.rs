@@ -48,20 +48,11 @@ pub(crate) fn admit(
         ranges: plan.ranges,
         register_environment: plan.register_environment,
         allocator_availability: plan.allocator_availability,
-        function_count: plan.functions.len(),
         point_count,
         candidate_count,
         virtual_register_count: function_counts
             .iter()
             .map(|counts| counts.virtual_register_count)
-            .sum(),
-        early_clobber_point_count: function_counts
-            .iter()
-            .map(|counts| counts.early_clobber_point_count)
-            .sum(),
-        early_clobber_candidate_count: function_counts
-            .iter()
-            .map(|counts| counts.early_clobber_candidate_count)
             .sum(),
         entry_transition_count: function_counts
             .iter()

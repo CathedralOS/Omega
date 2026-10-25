@@ -407,7 +407,8 @@ defines the complete product bar.
   - **Computed calls and state transfers:** finish selected mixed scalar/structural
     operands, effectful arguments/returns, nested mutable-argument calls,
     dependent/public-trait results, cyclic/opaque/provider/dependent result
-    composition (copied returns through ranked identities and public local-dyn slots, and returned
+    composition with exact guard and operand completion cuts (copied returns
+    through ranked identities and public local-dyn slots, and returned
     window extents as mathematical endpoint differences), and runtime-dispatched
     value construction on the common `EstablishStructuralValue` route through
     ordinary argument evaluation. Preserve once-only field/operand order,
@@ -415,7 +416,7 @@ defines the complete product bar.
     affine cleanup, and occurrence-bound routed memberships through completed
     children, copies, and nested projections (retaining
     `samples/cli/facts/copied_call_argument_snapshot` including
-    `copied_call_argument_snapshot/*/{indexed_byte_view,inferred_indexed_byte_view,post_write_indexed_byte_view,public_post_write_indexed_byte_view}`
+    `copied_call_argument_snapshot/*/{indexed_byte_view,inferred_indexed_byte_view,post_write_indexed_byte_view,public_post_write_indexed_byte_view,ranked_indexed_byte_view,computed_ranked_indexed_byte_view}`
     and `samples/cli/facts/matched_field_windows` across all nine places).
   - **Loan locals and projected storage (REFERENCE-LOCAL-BINDING-ROUTES):**
     reference-valued locals from every admitted producer keep their loan
@@ -1037,8 +1038,15 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     write; caller-private scalar staging removes the duplicate codec image and
     scalar decoding uses bounded inline storage. External read/write source
     controls cover exact/short budgets, borrowed/loaded artifacts, fuel pauses
-    and sticky refusal. Cumulative result custody remains.
-    Connect those admitted operations, remaining live-storage and result accounting, remaining
+    and sticky refusal. Root result publication now charges the shared cumulative
+    allowance from actual retained rows/backings, preserving failed custody and
+    avoiding repeat charges on cached observations. Scalar-case inspection shares
+    funded payloads; byte/view results retain their backing until instance close.
+    Source-produced result controls cover exact/short quotas, sibling invocations,
+    shared/distinct byte backing, literal windows, cases and packed arrays.
+    Explicit host loan returns still require an admitted loan-carrier interface;
+    accounting does not bypass that existing refusal.
+    Connect those admitted operations, remaining live-storage accounting, remaining
     host operations, and `suspend Build::await_provider<R>(builder, alias)`
     park/resume to the production Build scheduler, replacing checked-tree Build
     evaluation.
@@ -1551,7 +1559,7 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     and `host/runtime_descriptor_*_exit` passing.
   - Connect `omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs::opaque_representation_movement`
     to provider call-frame transport and backend emission for the remaining
-    linear, qualified, and view-backed opaque inputs with exact composition-edge
+    qualified and view-backed opaque inputs with exact composition-edge
     drift rejection. The direct and independent closed Affine rows in
     `samples/cli/facts/opaque_closed_carrier_exchange` now pass all nine places
     on all four hosted targets, including Linux ARM64. The
@@ -1559,6 +1567,9 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     also has nine-place native/Terminal agreement and copy-only rejects on all
     four targets. Its README retains the original Windows timeout and the
     independently reviewed finite diagnostic; that original run remains red.
+    The [Linear continuation](samples/cli/facts/opaque_closed_carrier_exchange/independent_linear/README.md)
+    carries actual whole ownership claims through independent inputs and returns
+    across all nine places on all four targets.
   - Connect stage 05 `retention/retained_borrow_custody.rs` and native
     marshaling to installed-provider custody and default Terminal adapters for
     moved, lifetime-borrowed, and permitted-snapshot boundaries so all nine
@@ -1933,9 +1944,9 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   through specialization, layout, and native execution (`Psi 02–07` and `Omega
   00–09`). Reuse
   `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/{type_equations/,machine_equations.rs}`.
-  - Combine equations with argument/result inference and forwarding beyond
-    `samples/cli/facts/inferred_array_equation_call` to open schemas, retained
-    extensions, late-selected receivers, operator/conformance supply,
+  - Extend equation and argument/result composition beyond closed generic
+    results in `samples/cli/facts/inferred_array_equation_call/forwarded_result`
+    to open schemas, retained extensions, late-selected receivers, operator/conformance supply,
     machine/evidence/value binders, named-lifetime identity, and unspecialized
     body checking under finite type-equality disjunctions.
   - Extend typed const-expression and invocation evaluators to selected computed
@@ -2019,10 +2030,11 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   and `omega-rust/psi/compilation/checking/src/borrow_contracts.rs`) under
   [invocation contracts](wiki/spec/language/state_contracts.md) and
   [subject preservation](wiki/spec/language/termination.md#subject-preservation):
-  - Complete finite write cycles and parameter-permutation fixpoint convergence
-    while keeping the direct helper-choice, nested-helper, nested-machine,
-    codec-argument, computed-receiver, and stored-rebind nine-place fact rows
-    exiting 0 on `omega run --both` and their overlapping twins rejecting.
+  - Complete ordinary parser-gate package admission without bypassing the
+    standard library's `FloatMeaning` proof contracts: `omega update --project
+    tests/psi/parser --target linux_x86_64` refuses ten unsupported entailments
+    in `source/library/std/math.omg` on the current baseline as well.
+    Retain the may-write nine-place fact rows and their overlapping rejects.
 
   Acceptance: all R5 nine-place fact rows and finite write-cycle / parameter-permutation
   witnesses pass `omega run --both` with overlapping twins rejecting, and

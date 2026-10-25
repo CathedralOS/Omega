@@ -26,9 +26,11 @@ impl PsiOptimizationRule for SameBlockTotalScalarCseRule {
         super::propose_same_block_scalar_cse(
             unit,
             analyses,
-            false,
             super::function_value_types,
-            |value_types, operation| total_scalar_expression(operation, value_types),
+            |value_types, _, _, operation| total_scalar_expression(operation, value_types),
+            |value_types, _, _, operation| {
+                total_scalar_expression(operation, value_types).map(|row| (row, ()))
+            },
             |same| {
                 PsiRewriteCandidate::new_local_scalar_common_subexpression(
                     unit.identity,

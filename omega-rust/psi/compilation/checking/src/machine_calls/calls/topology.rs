@@ -431,3 +431,56 @@ pub fn target_family_members<'program>(
     }
     Some(&family.members)
 }
+
+/// A whole completing invocation or named arrival, retaining its argument
+/// arena and exact authored call identity. Position is supplied by the consumer;
+/// nested calls are never promoted to transfers by this query. Source admission,
+/// component ranking and cleanup remain independent obligations.
+pub struct CompletingTransfer<'program> {
+    pub state: &'program typed_trees::state::State,
+    pub target: SymbolHandle,
+    pub arguments: &'program [typed_trees::expression::ExpressionHandle],
+    pub expression: typed_trees::expression::ExpressionHandle,
+}
+
+pub fn completing_call_transfer(
+    program: &dyn crate::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<CompletingTransfer<'_>> {
+    let call = program.expression_table.call_node(expression)?;
+    // Static application operands retain the generic declaration's selection;
+    // they do not evaluate another runtime operand before this arrival. The
+    // ordinary call checker validates that application. Keeping it here lets
+    // the template and its closed specialization share one completion query.
+    if call.receiver.is_valid() && !program.call_has_no_runtime_receiver_for_target(call) {
+        return None;
+    }
+    let state = call_target_state(program, call.target_symbol)?;
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    (arguments.len() == program.state_parameters(state).len()).then_some(CompletingTransfer {
+        state,
+        target: call.target_symbol,
+        arguments,
+        expression,
+    })
+}
+
+pub fn completing_transition_transfer(
+    program: &dyn crate::CheckingInput,
+    target: typed_trees::statement::TransitionTargetHandle,
+) -> Option<CompletingTransfer<'_>> {
+    match program.statement_table.transition_target(target) {
+        typed_trees::statement::TransitionTargetNode::Named {
+            path, arguments, ..
+        } => Some(CompletingTransfer {
+            state: call_target_state(program, path.symbol)?,
+            target: path.symbol,
+            arguments: program.statement_table.expression_handles(*arguments),
+            expression: Default::default(),
+        }),
+        typed_trees::statement::TransitionTargetNode::Value(expression) => {
+            completing_call_transfer(program, *expression)
+        }
+        typed_trees::statement::TransitionTargetNode::Terminal => None,
+    }
+}

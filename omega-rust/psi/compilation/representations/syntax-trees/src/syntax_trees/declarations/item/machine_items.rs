@@ -97,7 +97,7 @@ pub struct Machine {
     pub states: HandleSpan<StateHandle>,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub struct State {
     pub name: Identifier,
     pub parameters: HandleSpan<StateParameterHandle>,
@@ -150,7 +150,7 @@ pub struct TraitRefinementClause {
     pub signature: StateSignature,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub struct StateSignature {
     pub name: Identifier,
     /// Fixed token owned by this trait requirement, when any. Implementing

@@ -36,9 +36,83 @@ pub(crate) fn contexts_prove_comparison(
     operands: &[ExpressionHandle],
     expression: ExpressionHandle,
 ) -> bool {
+    if let Some(predicates) =
+        validation::mathematical_applications::float_predicates(program, expression)
+    {
+        return !predicates.is_empty()
+            && predicates.into_iter().all(|projection| {
+                let Some(path) = program.expression_table.name_path_node(projection.subject) else {
+                    return false;
+                };
+                if program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    != 1
+                {
+                    return false;
+                }
+                let Some(parameter) = parameters.iter().find(|parameter| {
+                    parameter.symbol == path.symbol || parameter.symbol == path.head_symbol
+                }) else {
+                    return false;
+                };
+                let format = match program.primitive_type_reference(parameter.type_reference) {
+                    Some(PrimitiveType::F32) => FloatFormat::F32,
+                    Some(PrimitiveType::F64) => FloatFormat::F64,
+                    _ => return false,
+                };
+                if format != projection.predicate.format() {
+                    return false;
+                }
+                let Some(position) =
+                    typed_trees::signature::state_parameter_position(parameters, parameter.symbol)
+                else {
+                    return false;
+                };
+                let Some(place) = operands
+                    .get(position)
+                    .and_then(|operand| canonical_place_from_expression(program, *operand))
+                else {
+                    return false;
+                };
+                let required = RequiredComparison {
+                    position,
+                    place,
+                    reference: parameter.type_reference,
+                    predicate: projection.predicate,
+                };
+                contexts_prove_required(
+                    program,
+                    semantic,
+                    operators,
+                    invocation_contexts,
+                    contexts,
+                    &required,
+                )
+            });
+    }
     let Some(required) = required_comparison(program, parameters, operands, expression) else {
         return false;
     };
+    contexts_prove_required(
+        program,
+        semantic,
+        operators,
+        invocation_contexts,
+        contexts,
+        &required,
+    )
+}
+
+fn contexts_prove_required(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &FactPlan,
+    operators: &CheckedOperatorFacts,
+    invocation_contexts: &crate::checks::operators::InvocationContexts<'_>,
+    contexts: &[facts::FactContextHandle],
+    required: &RequiredComparison,
+) -> bool {
     if comparison_holds_for_place(
         program,
         semantic,
@@ -67,7 +141,7 @@ pub(crate) fn contexts_prove_comparison(
         captured_operand,
         &required.place,
         contexts,
-        &required,
+        required,
         0,
     )
 }

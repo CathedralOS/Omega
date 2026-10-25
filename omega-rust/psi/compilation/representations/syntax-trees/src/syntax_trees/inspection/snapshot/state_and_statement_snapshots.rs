@@ -172,7 +172,7 @@ pub enum TransitionTargetSnapshot {
 
 pub(crate) fn snapshot_state_node(
     syntax_trees: &SyntaxTrees,
-    state: &crate::item::StateNode,
+    state: &crate::item::State,
 ) -> StateSnapshot {
     StateSnapshot {
         name: snapshot_identifier(syntax_trees, &state.name),
@@ -278,7 +278,7 @@ pub(crate) fn snapshot_state_signature(
 
 pub(crate) fn snapshot_state_signature_node(
     syntax_trees: &SyntaxTrees,
-    signature: &crate::item::StateSignatureNode,
+    signature: &crate::item::StateSignature,
 ) -> StateSignatureSnapshot {
     state_signature_snapshot!(syntax_trees, signature)
 }

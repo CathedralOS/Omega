@@ -227,11 +227,41 @@ impl StructuralJudge<'_> {
         state: &typed_trees::state::State,
     ) {
         let program = self.program;
-        for parameter in program.state_parameters(state) {
+        let parameters = program.state_parameters(state);
+        // Arrival already admitted these values. Index equations name their
+        // captured entry observations, never a later same-spelled local or
+        // replacement scalar. Borrowed referents acquire no owned capture.
+        let bindings = parameters
+            .iter()
+            .filter_map(|parameter| {
+                self.captured_parameter_projection(
+                    parameter.symbol,
+                    &[],
+                    language_semantics::content::ContentPlaceVersion::Entry,
+                )
+                .map(|value| (parameter.symbol, value))
+            })
+            .collect::<Vec<_>>();
+        for parameter in parameters {
+            let captured = bindings
+                .iter()
+                .find(|(symbol, _)| *symbol == parameter.symbol)
+                .map(|(_, value)| value);
             self.intake_admitted_value_predicates(
                 parameter.type_reference,
-                StructuralTerm::Variable(parameter.name.as_str().to_owned()),
+                captured.cloned().unwrap_or_else(|| {
+                    StructuralTerm::Variable(parameter.name.as_str().to_owned())
+                }),
             );
+            if let Some(value) = captured {
+                self.intake_admitted_value_indices(
+                    parameter.type_reference,
+                    value,
+                    state.symbol,
+                    parameters,
+                    &bindings,
+                );
+            }
         }
         let entry = program
             .machine_states(machine)
@@ -308,9 +338,10 @@ impl StructuralJudge<'_> {
         self.intake_admitted_data_predicates(reference, value, &mut Vec::new());
     }
 
-    /// A completed callable result retains each explicit index application
-    /// under the same captured actuals as its published result contracts.
-    pub(super) fn intake_result_indices(
+    /// An independently admitted value retains its explicit index application
+    /// under the captured telescope that established it. Entry values and
+    /// completed results share this operation; destination annotations do not.
+    pub(super) fn intake_admitted_value_indices(
         &mut self,
         reference: TypeReferenceHandle,
         value: &StructuralTerm,

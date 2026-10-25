@@ -9,8 +9,10 @@ pub use expressions::{
 };
 mod logical_bodies;
 pub use logical_bodies::{indexed_contract_is_proved, is_indexed_logical_machine};
+mod float_predicates;
 mod prepared;
 mod scalar_predicates;
+pub use float_predicates::{MathematicalFloatPredicate, float_predicates};
 pub(crate) use prepared::application_spine;
 pub use prepared::{
     PreparedApplication, PreparedCapture, PreparedConstant, PreparedConstantMeaning,

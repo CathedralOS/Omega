@@ -35,6 +35,13 @@ impl<'host, 'artifact> ComponentOwnedReturn<'host, 'artifact> {
         &self.value
     }
 
+    pub(crate) fn returned_claims(&self) -> Option<&[terminal_psi::StructuralResultClaimBinding]> {
+        self.owner
+            .execution
+            .as_ref()
+            .map(|execution| execution.returned_claims.as_slice())
+    }
+
     /// Authenticate the exact presented observation without giving an adapter
     /// a constructor for checked result evidence. The owned completion retains
     /// the original value and instance custody until publication acknowledges it.

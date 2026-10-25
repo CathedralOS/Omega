@@ -206,7 +206,7 @@ impl Predicate<'_> {
             return crate::mathematical_applications::scalar_predicate(
                 self.program,
                 expression,
-                |capture| self.scalar(capture, depth + 1),
+                |capture, _| self.scalar(capture, depth + 1),
             );
         }
         if matches!(self.primitive, PrimitiveType::F32 | PrimitiveType::F64) {

@@ -323,8 +323,9 @@ impl ResultSelection {
 /// ordinary guard falls through. Current captured Boolean values can refute a
 /// guard and remove an unreachable referent from the caller-visible union.
 /// Calls and named-state arrivals substitute the same captured current values,
-/// not expressions replayed against a later caller or the outer entry. Cycles
-/// and unresolved routes retain the complete result union.
+/// not expressions replayed against a later caller or the outer entry. Finite
+/// cycles settle in captured-input queries; unresolved routes retain the
+/// complete result union.
 fn retain_reachable_transition_results(
     program: &dyn crate::CheckingInput,
     state: &State,
@@ -332,11 +333,24 @@ fn retain_reachable_transition_results(
     actual_values: &[BoolTruth],
     origins: &mut Vec<ParameterRelativeFrameOrigin>,
 ) {
-    let Some(reachable) =
-        reachable_value_parameters(program, state, parameters, actual_values, &mut Vec::new())
-    else {
-        return;
+    let mut reachability = ResultReachability::default();
+    let reachable = loop {
+        reachability.changed = false;
+        for query in &mut reachability.queries {
+            query.visited = false;
+        }
+        let roots = reachable_value_parameters(
+            program,
+            state,
+            parameters,
+            actual_values,
+            &mut reachability,
+        );
+        if !reachability.changed {
+            break roots;
+        }
     };
+    let Some(reachable) = reachable else { return };
     let filtered: Vec<_> = origins
         .iter()
         .filter(|origin| {
@@ -349,27 +363,85 @@ fn retain_reachable_transition_results(
     }
 }
 
+// Selection only narrows the independently completed origin relation. Each
+// query is one state with captured Boolean inputs; its result is expressed in
+// that state's own formal roots, so every edge substitutes a permutation
+// simultaneously. There are finitely many three-valued input vectors and roots.
+// Real returns seed the least fixed point, while a backedge reads only the
+// provisional set. Unsupported routes are absorbing unknowns and disable
+// narrowing. No provisional selection escapes before the whole solve settles.
+#[derive(Default)]
+struct ResultReachability {
+    queries: Vec<ResultQuery>,
+    changed: bool,
+}
+
+struct ResultQuery {
+    state: SymbolHandle,
+    values: Vec<BoolTruth>,
+    roots: Option<Vec<SymbolHandle>>,
+    active: bool,
+    visited: bool,
+}
+
 fn reachable_value_parameters(
     program: &dyn crate::CheckingInput,
     state: &State,
     parameters: &[StateParameter],
     actual_values: &[BoolTruth],
-    stack: &mut Vec<SymbolHandle>,
+    reachability: &mut ResultReachability,
 ) -> Option<Vec<SymbolHandle>> {
-    if stack.contains(&state.symbol) || parameters.len() != actual_values.len() {
+    if parameters.len() != actual_values.len() {
         return None;
     }
-    stack.push(state.symbol);
-    let result = reachable_value_parameters_body(program, state, actual_values, stack);
-    stack.pop();
-    result
+    let index = if let Some(index) = reachability
+        .queries
+        .iter()
+        .position(|query| query.state == state.symbol && query.values == actual_values)
+    {
+        index
+    } else {
+        reachability.queries.push(ResultQuery {
+            state: state.symbol,
+            values: actual_values.to_vec(),
+            roots: Some(Vec::new()),
+            active: false,
+            visited: false,
+        });
+        reachability.changed = true;
+        reachability.queries.len() - 1
+    };
+    if reachability.queries[index].active || reachability.queries[index].visited {
+        return reachability.queries[index].roots.clone();
+    }
+    reachability.queries[index].active = true;
+    reachability.queries[index].visited = true;
+    let incoming = reachable_value_parameters_body(program, state, actual_values, reachability);
+    let query = &mut reachability.queries[index];
+    query.active = false;
+    match (&mut query.roots, incoming) {
+        (Some(held), Some(incoming)) => {
+            for root in incoming {
+                if !held.contains(&root) {
+                    held.push(root);
+                    reachability.changed = true;
+                }
+            }
+        }
+        (Some(_), None) => {
+            query.roots = None;
+            reachability.changed = true;
+        }
+        (None, _) => {}
+    }
+    query.roots.clone()
 }
 
 fn reachable_value_parameters_body(
     program: &dyn crate::CheckingInput,
     state: &State,
     actual_values: &[BoolTruth],
-    stack: &mut Vec<SymbolHandle>,
+    reachability: &mut ResultReachability,
 ) -> Option<Vec<SymbolHandle>> {
     let mut current = ResultSelection::new(program, state, actual_values);
     let mut fall_through = true;
@@ -391,7 +463,13 @@ fn reachable_value_parameters_body(
                 let stable = !binding_is_exclusively_exposed(program, state, local.symbol);
                 let result = stable
                     .then(|| {
-                        contributed_parameters(program, state, &current, stack, local.initial_value)
+                        contributed_parameters(
+                            program,
+                            state,
+                            &current,
+                            reachability,
+                            local.initial_value,
+                        )
                     })
                     .flatten();
                 current.captured_results.push((local.symbol, result));
@@ -412,13 +490,21 @@ fn reachable_value_parameters_body(
                             TransitionTargetNode::Value(result) => {
                                 saw_value = true;
                                 reachable.extend(contributed_parameters(
-                                    program, state, &current, stack, *result,
+                                    program,
+                                    state,
+                                    &current,
+                                    reachability,
+                                    *result,
                                 )?);
                             }
                             TransitionTargetNode::Named { .. } => {
                                 saw_value = true;
                                 reachable.extend(contributed_named_target(
-                                    program, state, &current, stack, edge,
+                                    program,
+                                    state,
+                                    &current,
+                                    reachability,
+                                    edge,
                                 )?);
                             }
                             TransitionTargetNode::Terminal => {}
@@ -441,7 +527,11 @@ fn reachable_value_parameters_body(
             StatementNode::Expression(result) if statement_index == last && fall_through => {
                 saw_value = true;
                 reachable.extend(contributed_parameters(
-                    program, state, &current, stack, *result,
+                    program,
+                    state,
+                    &current,
+                    reachability,
+                    *result,
                 )?);
             }
             _ => {}
@@ -454,12 +544,12 @@ fn contributed_parameters(
     program: &dyn crate::CheckingInput,
     state: &State,
     current: &ResultSelection,
-    stack: &mut Vec<SymbolHandle>,
+    reachability: &mut ResultReachability,
     result: ExpressionHandle,
 ) -> Option<Vec<SymbolHandle>> {
     match program.expression_table.expression(result) {
         ExpressionNode::Borrow(borrow) => {
-            contributed_parameters(program, state, current, stack, borrow.target)
+            contributed_parameters(program, state, current, reachability, borrow.target)
         }
         ExpressionNode::Name(path) => {
             if let Some(parameter) = program
@@ -506,7 +596,7 @@ fn contributed_parameters(
                 program,
                 state,
                 current,
-                stack,
+                reachability,
                 callee_state,
                 callee_arguments,
             )
@@ -519,7 +609,7 @@ fn contributed_named_target(
     program: &dyn crate::CheckingInput,
     state: &State,
     current: &ResultSelection,
-    stack: &mut Vec<SymbolHandle>,
+    reachability: &mut ResultReachability,
     edge: typed_trees::statement::TransitionTargetHandle,
 ) -> Option<Vec<SymbolHandle>> {
     let TransitionTargetNode::Named {
@@ -541,7 +631,14 @@ fn contributed_named_target(
         super::transition_topology::named_transition_target_state(program, machine, state, edge)?
     };
     let arguments = program.statement_table.expression_handles(*arguments);
-    parameters_reached_through(program, state, current, stack, target_state, arguments)
+    parameters_reached_through(
+        program,
+        state,
+        current,
+        reachability,
+        target_state,
+        arguments,
+    )
 }
 
 /// Compose result provenance across either a call or a state arrival. Evaluate
@@ -551,21 +648,26 @@ fn parameters_reached_through(
     program: &dyn crate::CheckingInput,
     host_state: &State,
     host: &ResultSelection,
-    stack: &mut Vec<SymbolHandle>,
+    reachability: &mut ResultReachability,
     target_state: &State,
     target_arguments: &[ExpressionHandle],
 ) -> Option<Vec<SymbolHandle>> {
     let parameters = program.state_parameters(target_state);
     let actual_values = host.values.argument_values(program, target_arguments);
-    let inner =
-        reachable_value_parameters(program, target_state, parameters, &actual_values, stack)?;
+    let inner = reachable_value_parameters(
+        program,
+        target_state,
+        parameters,
+        &actual_values,
+        reachability,
+    )?;
     let mut mapped = Vec::new();
     for symbol in inner {
         let position = parameters
             .iter()
             .position(|parameter| parameter.symbol == symbol)?;
         let actual = *target_arguments.get(position)?;
-        for parameter in contributed_parameters(program, host_state, host, stack, actual)? {
+        for parameter in contributed_parameters(program, host_state, host, reachability, actual)? {
             if !mapped.contains(&parameter) {
                 mapped.push(parameter);
             }

@@ -11,18 +11,7 @@ use register_homes::{
     AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedUnitRequirement,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct NonAuthoritativeCalleeSaveStorageIdentity([u8; 32]);
-
-impl NonAuthoritativeCalleeSaveStorageIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+register_homes::identity_newtype! { pub struct NonAuthoritativeCalleeSaveStorageIdentity([u8; 32]); }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NonAuthoritativeCalleeSaveStoragePolicy {

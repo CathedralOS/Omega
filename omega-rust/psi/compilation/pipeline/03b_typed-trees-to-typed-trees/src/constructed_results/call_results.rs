@@ -189,111 +189,72 @@ fn apply_result_type(
             .apply_callable_result_type(return_type, lifetimes, target)
             .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?
     };
-    Ok(substitute_runtime_bound_result_bounds(
-        program,
-        target,
-        arguments,
-        return_type,
-    ))
+    apply_runtime_result_operands(program, target, arguments, return_type)
 }
 
-/// A specialized callee's result range can name the realized trailing
-/// parameter that carries a runtime-bound `Value` subject
-/// (`-> u64[0..=Bound]`). Retyping the caller's inferred local with the raw
-/// declaration would install a dead binder under a foreign scope: copy the
-/// declared type and substitute each parameter-named leaf in a range endpoint
-/// with the paired call argument, so the destination's index IS the captured
-/// subject (`u64[0..=n]`). Return types whose endpoints name no parameter
-/// keep the shared reference — ordinary calls allocate nothing.
-fn substitute_runtime_bound_result_bounds(
+/// All expression-bearing result carriers belong to the invocation's actual
+/// telescope: dependent data/domain arguments and range endpoints share one
+/// simultaneous application. A range-only rewrite leaves nominal indices in
+/// the callee's namespace and makes a valid returned descriptor opaque.
+/// Selected actuals stay in their supplying scope; this records type vocabulary,
+/// never an extra evaluation, index equality, or borrow permission.
+fn apply_runtime_result_operands(
     program: &mut TypedTrees,
-    callee_state: SymbolHandle,
+    target: SymbolHandle,
     arguments: &[ExpressionHandle],
     return_type: TypeReferenceHandle,
-) -> TypeReferenceHandle {
-    let Some((_, state)) = validation::find_state(program, callee_state) else {
-        return return_type;
+) -> Result<TypeReferenceHandle, Vec<diagnostics::Diagnostic>> {
+    let Some((_, state)) = validation::find_state(program, target) else {
+        return Ok(return_type);
     };
-    let substitutions = arguments
+    let parameters = program.state_parameters(state);
+    if parameters.len() != arguments.len() {
+        return Ok(return_type);
+    }
+    let symbols = parameters
         .iter()
-        .copied()
-        .zip(
-            program
-                .state_parameters(state)
-                .iter()
-                .map(|parameter| parameter.symbol),
-        )
-        .map(|(argument, symbol)| (symbol, argument))
+        .map(|parameter| parameter.symbol)
         .collect::<Vec<_>>();
-    if !range_endpoints_name_parameters(program, return_type, &substitutions) {
-        return return_type;
-    }
-    let copied = crate::monomorphization::copy_type_reference(None, program, return_type, &[]);
-    substitute_named_endpoints(program, copied, &substitutions);
-    copied
-}
-
-/// True when any range endpoint under `root` names one of the callee's state
-/// parameters — the shape the runtime-bound specialization writes into its
-/// signature.
-fn range_endpoints_name_parameters(
-    program: &dyn ::validation::CheckingInput,
-    root: TypeReferenceHandle,
-    substitutions: &[(SymbolHandle, ExpressionHandle)],
-) -> bool {
-    crate::monomorphization::for_each_type_reference(
-        program,
-        &[root],
-        |_, _| false,
-        |program, minimum, maximum| {
-            [minimum, maximum].into_iter().any(|endpoint| {
-                let mut tree = Vec::new();
-                validation::expression_traversal::collect_expression_tree(
-                    program, endpoint, &mut tree,
-                );
-                tree.into_iter().any(|handle| {
-                    matches!(
-                        program.expression_table.expression(handle),
-                        ExpressionNode::Name(path)
-                            if substitutions
-                                .iter()
-                                .any(|(symbol, _)| *symbol == path.symbol)
-                    )
-                })
-            })
-        },
-    )
-}
-
-/// Replace every name leaf inside the copied type's range endpoints that
-/// names a callee parameter with the paired call argument's node payload. The
-/// caller's argument subtree is shared read-only structure — reusing its
-/// payload in the copied endpoint is the same reference reuse
-/// `copy_expression` performs between arenas.
-fn substitute_named_endpoints(
-    program: &mut TypedTrees,
-    root: TypeReferenceHandle,
-    substitutions: &[(SymbolHandle, ExpressionHandle)],
-) {
-    let endpoints = crate::monomorphization::type_reference_endpoints(program, root);
-    for endpoint in endpoints
-        .into_iter()
-        .flat_map(|(minimum, maximum)| [minimum, maximum])
-    {
+    let names_parameter = |program: &dyn validation::CheckingInput, expression| {
         let mut tree = Vec::new();
-        validation::expression_traversal::collect_expression_tree(program, endpoint, &mut tree);
-        for member in tree {
-            let replacement = match program.expression_table.expression(member) {
-                ExpressionNode::Name(path) => substitutions
-                    .iter()
-                    .find(|(symbol, _)| *symbol == path.symbol)
-                    .map(|(_, argument)| *argument),
-                _ => None,
-            };
-            if let Some(argument) = replacement {
-                let payload = program.expression_table.expression(argument).clone();
-                *program.expression_table.expression_mut(member) = payload;
+        validation::expression_traversal::collect_expression_tree(program, expression, &mut tree);
+        tree.into_iter().any(|handle| matches!(program.expression_table.expression(handle),
+            ExpressionNode::Name(path) if symbols.contains(&path.symbol) || symbols.contains(&path.head_symbol)))
+    };
+    let uses_actual = crate::monomorphization::for_each_type_reference(
+        program,
+        &[return_type],
+        |program, node| match node {
+            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => symbols.contains(symbol),
+            typed_trees::types::TypeReferenceNode::ConstExpression(expression) => {
+                names_parameter(program, *expression)
             }
-        }
+            typed_trees::types::TypeReferenceNode::FixedArray {
+                length: typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. },
+                ..
+            } => symbols.contains(symbol),
+            _ => false,
+        },
+        |program, minimum, maximum| {
+            names_parameter(program, minimum) || names_parameter(program, maximum)
+        },
+    );
+    if !uses_actual {
+        return Ok(return_type);
     }
+    let substitutions = symbols
+        .into_iter()
+        .zip(arguments)
+        .map(|(symbol, argument)| {
+            (
+                symbol,
+                program.type_reference_table.insert(
+                    typed_trees::types::TypeReferenceNode::ConstExpression(*argument),
+                ),
+            )
+        })
+        .collect::<Vec<_>>();
+    program
+        .apply_callable_type(return_type, &substitutions, &[], target)
+        .map_err(|message| vec![diagnostics::Diagnostic::error(message)])
 }

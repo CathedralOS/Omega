@@ -3,6 +3,7 @@
 //! lexical paths preserve their original frame and must have a finite order;
 //! no cycle is disguised as a finite instruction sequence or an assumed fact.
 
+mod normal_exit_contracts;
 mod normalization;
 mod register_versions;
 pub(crate) use normalization::normalize;

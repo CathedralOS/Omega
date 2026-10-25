@@ -193,8 +193,15 @@ impl<'artifact> TerminalExecution<'artifact> {
                     .present_result_memberships(&mut value.qualifications)
                     .map_err(|reason| reject(reason.to_owned()))?;
                 value.qualifications.sort();
+                let claims = completed.returned_claims().ok_or_else(|| {
+                    reject("component return lost its owned claim bindings".to_owned())
+                })?;
                 if let OperationResult::Structural(result) = &operation.result {
                     if self.structural_values.contains_key(&result.place)
+                        || self
+                            .live_claims
+                            .values()
+                            .any(|claim| claim.place == Some(result.place))
                         || self
                             .live_affine_frontier
                             .iter()
@@ -204,6 +211,26 @@ impl<'artifact> TerminalExecution<'artifact> {
                     {
                         return Err(reject(
                             "component receiving result place still owns custody".to_owned(),
+                        ));
+                    }
+                    if receiver_type.owns_linear_claim {
+                        if claims.len() != 1
+                            || !claims[0].path.is_empty()
+                            || returned.claims != [claims[0].claim]
+                            || result.claims.len() != 1
+                            || !result.claims[0].path.is_empty()
+                        {
+                            return Err(reject(
+                                "linear component result lacks exactly one whole returned claim"
+                                    .to_owned(),
+                            ));
+                        }
+                    } else if !claims.is_empty()
+                        || !returned.claims.is_empty()
+                        || !result.claims.is_empty()
+                    {
+                        return Err(reject(
+                            "nonlinear component result carries unexpected claims".to_owned(),
                         ));
                     }
                     // ComponentOwnedReturn owns the actual edge-authenticated
@@ -218,6 +245,10 @@ impl<'artifact> TerminalExecution<'artifact> {
                             result.multiplicity,
                         )?;
                     }
+                } else {
+                    return Err(reject(
+                        "component structural result has no receiving home".to_owned(),
+                    ));
                 }
                 self.local_structural_identities
                     .reserve_host_at_cursor(&value, self.local_structural_identities.cursor())?;

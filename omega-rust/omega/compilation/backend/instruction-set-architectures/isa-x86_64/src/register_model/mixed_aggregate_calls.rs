@@ -2,8 +2,8 @@
 
 use super::{x86_64_microsoft_mixed_unit_call_keys, x86_64_system_v_mixed_unit_call_keys};
 use register_model::{
-    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
-    RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
+    RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
+    RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
 };
 /// System V rows ordered by result fragment count (1–2), then mixed Unit-call key.
 pub fn x86_64_system_v_mixed_aggregate_call_keys() -> Vec<RegisterConstraintKey> {
@@ -16,12 +16,7 @@ pub fn x86_64_microsoft_mixed_aggregate_call_keys() -> Vec<RegisterConstraintKey
 }
 
 fn keys(variants: std::ops::Range<u32>) -> Vec<RegisterConstraintKey> {
-    variants
-        .map(|variant| RegisterConstraintKey {
-            family: RegisterConstraintFamily::Call,
-            variant,
-        })
-        .collect()
+    variants.map(RegisterConstraintKey::call).collect()
 }
 
 pub(super) fn append_constraints(

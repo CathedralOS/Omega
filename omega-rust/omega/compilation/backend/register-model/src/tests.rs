@@ -8,11 +8,11 @@ mod reservation_profiles;
 
 use crate::{
     PhysicalRegisterModel, PreservationConvention, RegisterClass, RegisterClassId,
-    RegisterConstraintCatalog, RegisterConstraintFamily, RegisterConstraintId,
-    RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
-    RegisterOperandConstraint, RegisterReservationOverlay, RegisterUnit, RegisterUnitId,
-    RegisterUnitKind, RegisterView, RegisterViewId, RegisterWriteSemantics, ReservationReason,
-    ValidatedPhysicalRegisterModel, validate_physical_register_model,
+    RegisterConstraintCatalog, RegisterConstraintId, RegisterConstraintKey,
+    RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
+    RegisterReservationOverlay, RegisterUnit, RegisterUnitId, RegisterUnitKind, RegisterView,
+    RegisterViewId, RegisterWriteSemantics, ReservationReason, ValidatedPhysicalRegisterModel,
+    validate_physical_register_model,
 };
 use target::Architecture;
 
@@ -97,10 +97,7 @@ fn miniature_model() -> PhysicalRegisterModel {
 }
 
 fn instruction_key(variant: u32) -> RegisterConstraintKey {
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Instruction,
-        variant,
-    }
+    RegisterConstraintKey::instruction(variant)
 }
 
 fn miniature_catalog() -> RegisterConstraintCatalog {

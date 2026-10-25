@@ -4,8 +4,8 @@ use language_core::operator_spelling::OperatorSpelling;
 
 pub type ItemHandle = Handle<Item>;
 pub type StateParameterHandle = Handle<StateParameterNode>;
-pub type StateSignatureHandle = Handle<StateSignatureNode>;
-pub type StateHandle = Handle<StateNode>;
+pub type StateSignatureHandle = Handle<StateSignature>;
+pub type StateHandle = Handle<State>;
 pub type MachineHandle = Handle<MachineNode>;
 pub type TraitHandle = Handle<TraitNode>;
 pub type MathematicalDefinitionHandle = Handle<MathematicalDefinition>;
@@ -197,8 +197,8 @@ pub struct ItemTable {
 #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 struct StateStorage {
     parameters: Arena<StateParameterNode>,
-    signatures: Arena<StateSignatureNode>,
-    states: Arena<StateNode>,
+    signatures: Arena<StateSignature>,
+    states: Arena<State>,
     parameter_handles: Arena<StateParameterHandle>,
     state_handles: Arena<StateHandle>,
     signature_handles: Arena<StateSignatureHandle>,
@@ -378,15 +378,15 @@ impl ItemTable {
         *self.items.get_mut(handle) = item;
     }
 
-    pub fn state_signature(&self, handle: StateSignatureHandle) -> &StateSignatureNode {
+    pub fn state_signature(&self, handle: StateSignatureHandle) -> &StateSignature {
         self.state_storage.signatures.get(handle)
     }
 
-    pub fn state(&self, handle: StateHandle) -> &StateNode {
+    pub fn state(&self, handle: StateHandle) -> &State {
         self.state_storage.states.get(handle)
     }
 
-    pub fn state_mut(&mut self, handle: StateHandle) -> &mut StateNode {
+    pub fn state_mut(&mut self, handle: StateHandle) -> &mut State {
         self.state_storage.states.get_mut(handle)
     }
 
@@ -629,40 +629,11 @@ impl ItemTable {
     }
 
     pub fn insert_state_signature(&mut self, signature: &StateSignature) -> StateSignatureHandle {
-        self.state_storage.signatures.append(StateSignatureNode {
-            name: signature.name.clone(),
-            spelling: signature.spelling,
-            lifetime_parameters: signature.lifetime_parameters.clone(),
-            type_parameters: signature.type_parameters,
-            is_default: signature.is_default,
-            parameters: signature.parameters,
-            native_callback_parameters: signature.native_callback_parameters.clone(),
-            return_type: signature.return_type,
-            service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
-            service_reach_keyword_source_spans: signature
-                .service_reach_keyword_source_spans
-                .clone(),
-            service_reaches: signature.service_reaches,
-            invokes: signature.invokes,
-            suspends_keyword_source_spans: signature.suspends_keyword_source_spans.clone(),
-            blocks_keyword_source_spans: signature.blocks_keyword_source_spans.clone(),
-            suspends: signature.suspends,
-            blocks: signature.blocks,
-            contracts: signature.contracts,
-            default_body: signature.default_body,
-            terminates_guarantee: signature.terminates_guarantee,
-            where_facts: signature.where_facts,
-        })
+        self.state_storage.signatures.append(signature.clone())
     }
 
     pub fn insert_state(&mut self, state: &State) -> StateHandle {
-        self.state_storage.states.append(StateNode {
-            name: state.name.clone(),
-            parameters: state.parameters,
-            return_type: state.return_type,
-            contracts: state.contracts,
-            statements: state.statements,
-        })
+        self.state_storage.states.append(state.clone())
     }
 
     pub fn insert_machine(&mut self, machine: &Machine) -> MachineHandle {
@@ -700,8 +671,8 @@ impl Default for ItemTable {
 
 pub(crate) struct StateStorageAppendCheckpoint {
     parameters: arena::PagedArenaFrontier<StateParameterNode>,
-    signatures: arena::PagedArenaFrontier<StateSignatureNode>,
-    states: arena::PagedArenaFrontier<StateNode>,
+    signatures: arena::PagedArenaFrontier<StateSignature>,
+    states: arena::PagedArenaFrontier<State>,
     parameter_handles: arena::PagedArenaFrontier<StateParameterHandle>,
     state_handles: arena::PagedArenaFrontier<StateHandle>,
     signature_handles: arena::PagedArenaFrontier<StateSignatureHandle>,
@@ -965,41 +936,6 @@ pub struct NativeCallbackParameterNode {
     pub name: Identifier,
     pub binder: Identifier,
     pub native_ordinal: u32,
-}
-
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
-pub struct StateSignatureNode {
-    pub name: Identifier,
-    pub spelling: Option<crate::operator_spelling::OperatorSpelling>,
-    pub lifetime_parameters: Vec<Identifier>,
-    pub type_parameters: HandleSpan<TypeParameter>,
-    pub is_default: bool,
-    pub parameters: HandleSpan<StateParameterHandle>,
-    pub native_callback_parameters: Vec<NativeCallbackParameterNode>,
-    pub return_type: crate::types::TypeReferenceHandle,
-    pub service_reach_is_installation_bound: bool,
-    pub service_reach_keyword_source_spans: Vec<source::SourceSpan>,
-    pub service_reaches: HandleSpan<Identifier>,
-    pub invokes: HandleSpan<Identifier>,
-    pub suspends_keyword_source_spans: Vec<source::SourceSpan>,
-    pub blocks_keyword_source_spans: Vec<source::SourceSpan>,
-    pub suspends: bool,
-    pub blocks: bool,
-    pub contracts: HandleSpan<CapabilityContract>,
-    pub default_body: HandleSpan<crate::statement::StatementHandle>,
-    /// TPR4 (decision 23): the bodyless requirement's authored guarantee.
-    pub terminates_guarantee: bool,
-    /// Signature-level `where` proof facts retained verbatim through storage.
-    pub where_facts: HandleSpan<ProofFact>,
-}
-
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
-pub struct StateNode {
-    pub name: Identifier,
-    pub parameters: HandleSpan<StateParameterHandle>,
-    pub return_type: crate::types::TypeReferenceHandle,
-    pub contracts: HandleSpan<CapabilityContract>,
-    pub statements: HandleSpan<crate::statement::StatementHandle>,
 }
 
 #[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]

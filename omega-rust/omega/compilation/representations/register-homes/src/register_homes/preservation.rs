@@ -14,18 +14,7 @@ use target::NativeTarget;
 
 use register_model::FrameAbiPreservationConvention;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct AllocatedCalleeSavedRequirementIdentity([u8; 32]);
-
-impl AllocatedCalleeSavedRequirementIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+crate::identity_newtype! { pub struct AllocatedCalleeSavedRequirementIdentity([u8; 32]); }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AllocatedCalleeSavedRequirementPolicy {

@@ -824,8 +824,9 @@ fn validate_value_call_arguments(
 mod topology;
 pub use topology::target_family_members;
 pub use topology::{
-    call_target_has_checked_body_contract, call_target_parameters, call_target_return_type,
-    call_target_state, call_target_symbol, call_target_type_parameters, find_machine,
+    CompletingTransfer, call_target_has_checked_body_contract, call_target_parameters,
+    call_target_return_type, call_target_state, call_target_symbol, call_target_type_parameters,
+    completing_call_transfer, completing_transition_transfer, find_machine,
     find_machine_by_entry_state, find_machine_head, find_state, find_state_for_exit,
     find_state_in_machine, find_state_on_machine, machine_state_by_symbols, machine_state_count,
     normal_completion_possible, terminal_callable_target,

@@ -30,8 +30,83 @@ pub struct TerminalStructuralResult {
 /// A returned selected case whose primitive payload carries no structural claims.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalScalarCaseResult {
-    pub value: TerminalScalarAggregateValue,
+    storage: std::sync::Arc<ScalarCaseStorage>,
 }
+
+struct ScalarCaseStorage {
+    value: TerminalScalarAggregateValue,
+    _lease: Option<evaluation_accounting::EvaluationStorageLease>,
+}
+
+impl TerminalScalarCaseResult {
+    /// Result inspection shares one immutable payload and its live reservation.
+    pub fn value(&self) -> &TerminalScalarAggregateValue {
+        &self.storage.value
+    }
+
+    pub(crate) fn collect(
+        declaration: &terminal_psi::StructuralTypeDeclaration,
+        case: semantic_vocabulary::StructuralCaseId,
+        count: usize,
+        fields: impl IntoIterator<
+            Item = Result<
+                (semantic_vocabulary::StructuralFieldId, TerminalScalarValue),
+                TerminalInterpretError,
+            >,
+        >,
+        account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    ) -> Result<Self, TerminalInterpretError> {
+        let cells = u64::try_from(count).map_err(|_| crate::errors::malformed())?;
+        let lease = account
+            .map(|account| account.reserve_storage(cells, 0))
+            .transpose()
+            .map_err(TerminalInterpretError::Storage)?;
+        let mut payload = Vec::new();
+        let requested_bytes = count
+            .checked_mul(std::mem::size_of::<(
+                semantic_vocabulary::StructuralFieldId,
+                TerminalScalarValue,
+            )>())
+            .ok_or_else(crate::errors::malformed)?;
+        payload.try_reserve_exact(count).map_err(|reason| {
+            TerminalInterpretError::StorageAllocationFailed {
+                requested_bytes,
+                reason: reason.to_string(),
+            }
+        })?;
+        let mut fields = fields.into_iter();
+        for _ in 0..count {
+            payload.push(fields.next().ok_or_else(crate::errors::malformed)??);
+        }
+        if fields.next().is_some() {
+            return Err(crate::errors::malformed());
+        }
+        let value = TerminalScalarAggregateValue {
+            structural_type: declaration.id,
+            result_case: Some(case),
+            fields: payload,
+        };
+        value.validate_against(declaration)?;
+        Ok(Self {
+            storage: std::sync::Arc::new(ScalarCaseStorage {
+                value,
+                _lease: lease,
+            }),
+        })
+    }
+}
+
+impl std::fmt::Debug for ScalarCaseStorage {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.value.fmt(formatter)
+    }
+}
+impl PartialEq for ScalarCaseStorage {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+impl Eq for ScalarCaseStorage {}
 
 pub(crate) fn meter_status(
     error: FuelMeterError,

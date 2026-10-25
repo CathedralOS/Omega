@@ -18,6 +18,9 @@ POSITIVES += tuple(f"pass/facts/opaque_independent_copy_through_{p}_exit" for p 
 NEGATIVES += tuple(f"fail/facts/opaque_independent_copy_through_{p}_rejected" for p in PLACES)
 # Copy support must preserve the existing take-once component lane as well.
 POSITIVES += tuple(f"pass/facts/opaque_independent_closed_carrier_through_{p}_exit" for p in PLACES)
+# Linear transport carries one actual whole claim across the same component edge.
+POSITIVES += tuple(f"pass/facts/opaque_independent_linear_through_{p}_exit" for p in PLACES)
+NEGATIVES += tuple(f"fail/facts/opaque_independent_linear_through_{p}_unconsumed" for p in PLACES)
 
 
 def authenticate_windows_lldiv(output):

@@ -9,19 +9,13 @@
 //! pushes a user-space return address nor writes a link register.
 
 use register_model::{
-    RegisterConstraintFamily, RegisterConstraintId, RegisterConstraintKey,
-    RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
-    ValidatedPhysicalRegisterModel,
+    RegisterConstraintId, RegisterConstraintKey, RegisterInstructionConstraint,
+    RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
 };
 
 /// Argument-count-major kernel entry rows, Unit then integer result.
 pub fn aarch64_linux_system_call_keys() -> Vec<RegisterConstraintKey> {
-    (100..114)
-        .map(|variant| RegisterConstraintKey {
-            family: RegisterConstraintFamily::SystemCall,
-            variant,
-        })
-        .collect()
+    (100..114).map(RegisterConstraintKey::system_call).collect()
 }
 
 pub(super) fn append_constraints(

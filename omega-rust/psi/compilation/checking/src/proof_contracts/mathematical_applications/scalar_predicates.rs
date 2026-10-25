@@ -1,9 +1,9 @@
 //! Project an already checked, reduced mathematical predicate into the common
 //! scalar contract representation. Captures are rebound by the caller's normal
 //! observation path; no authored body is reopened and no storage permission is
-//! inferred. Only the retained integer relation vocabulary is interpreted.
-//! Opaque/custom/IEEE operations and unrepresentable mathematical operands
-//! decline rather than acquiring finite arithmetic or comparison laws.
+//! inferred. Retained integer and authenticated IEEE relations keep distinct
+//! comparison vocabularies. Opaque/custom operations and unrepresentable
+//! mathematical operands decline rather than acquiring scalar laws.
 
 use super::{PreparedConstantMeaning, PreparedMathematicalView, application_spine};
 use checked_trees::{
@@ -17,7 +17,7 @@ use typed_trees::types::PrimitiveType;
 pub fn scalar_predicate(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
-    mut capture: impl FnMut(ExpressionHandle) -> Option<Scalar>,
+    mut capture: impl FnMut(ExpressionHandle, typed_trees::types::TypeReferenceHandle) -> Option<Scalar>,
 ) -> Option<Boolean> {
     let view = program.prepared_mathematics()?;
     let application = view.application(expression)?;
@@ -26,7 +26,7 @@ pub fn scalar_predicate(
         .captures
         .span_or_empty(application.captures)
         .iter()
-        .map(|row| capture(row.expression).map(Some))
+        .map(|row| capture(row.expression, row.source_type).map(Some))
         .collect::<Option<Vec<_>>>()?;
     predicate(view, application.term, &captures, 0)
 }
@@ -101,6 +101,41 @@ fn predicate(
                 (PreparedConstantMeaning::IntegerRelation(operator), [left, right]) => {
                     comparison(view, *operator, *left, *right, captures)
                 }
+                (
+                    PreparedConstantMeaning::FloatRelation {
+                        operator, format, ..
+                    },
+                    [left, right],
+                ) => {
+                    let primitive = match format {
+                        numerics::literals::FloatFormat::F32 => PrimitiveType::F32,
+                        numerics::literals::FloatFormat::F64 => PrimitiveType::F64,
+                    };
+                    let left = scalar(view, *left, captures, Some(primitive))?;
+                    let right = scalar(view, *right, captures, Some(primitive))?;
+                    if left.primitive_type() != Some(primitive)
+                        || right.primitive_type() != Some(primitive)
+                    {
+                        return None;
+                    }
+                    use checked_trees::CheckedIeeeFloatComparisonKind as FloatComparison;
+                    let (kind, left, right) = match operator {
+                        BinaryOperator::Equal => (FloatComparison::Equal, left, right),
+                        BinaryOperator::NotEqual => (FloatComparison::NotEqual, left, right),
+                        BinaryOperator::Less => (FloatComparison::LessThan, left, right),
+                        BinaryOperator::LessOrEqual => (FloatComparison::LessOrEqual, left, right),
+                        BinaryOperator::Greater => (FloatComparison::LessThan, right, left),
+                        BinaryOperator::GreaterOrEqual => {
+                            (FloatComparison::LessOrEqual, right, left)
+                        }
+                        _ => return None,
+                    };
+                    Some(Boolean::ScalarIeeeFloatComparison {
+                        kind,
+                        left: Box::new(left),
+                        right: Box::new(right),
+                    })
+                }
                 _ => None,
             }
         }
@@ -117,11 +152,30 @@ fn scalar(
         let value = captures
             .get(captures.len().checked_sub(index as usize + 1)?)?
             .clone()?;
-        return value.primitive_type()?.is_fixed_integer().then_some(value);
+        let primitive = value.primitive_type()?;
+        return (primitive.is_fixed_integer()
+            || matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64))
+        .then_some(value);
     }
     let (declaration, arguments) = application_spine(view, term)?;
     if !arguments.is_empty() {
         return None;
+    }
+    if let PreparedConstantMeaning::FloatLiteral { format, bits } = view.constant(declaration)? {
+        let (primitive, value) = match format {
+            numerics::literals::FloatFormat::F32 => (
+                PrimitiveType::F32,
+                semantic_vocabulary::IeeeFloatValue::Binary32(*bits as u32),
+            ),
+            numerics::literals::FloatFormat::F64 => (
+                PrimitiveType::F64,
+                semantic_vocabulary::IeeeFloatValue::Binary64(*bits),
+            ),
+        };
+        if expected.is_some_and(|expected| expected != primitive) {
+            return None;
+        }
+        return Some(Scalar::IeeeFloatLiteral { value });
     }
     let PreparedConstantMeaning::Integer(value) = view.constant(declaration)? else {
         return None;
@@ -144,6 +198,9 @@ fn comparison(
         .as_ref()
         .or(right_value.as_ref())?
         .primitive_type()?;
+    if !primitive.is_fixed_integer() {
+        return None;
+    }
     let left = left_value.or_else(|| scalar(view, left, captures, Some(primitive)))?;
     let right = right_value.or_else(|| scalar(view, right, captures, Some(primitive)))?;
     let (kind, left, right, negated) = match operator {

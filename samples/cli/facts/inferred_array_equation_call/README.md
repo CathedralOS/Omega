@@ -79,3 +79,11 @@ Full 8-layer specification and lowering evidence:
 ## What remains open
 
 Open generic schemas, late receiver/extension selection, operator/conformance/evidence binders, non-array structural equations, and computed equation solving remain governed under the wider `STRUCTURAL-GENERIC-MATCHING` roadmap.
+
+## Generic result production
+
+[Forwarded results](forwarded_result/README.md) carry the same fact through an
+inferred generic call before equation matching, with another nine-place row and
+conflicting explicit-capacity twins. Its fresh baseline rejected the composition;
+its Linux x86-64 native and Terminal execution evidence is distinct from the
+historical direct-call observations above.

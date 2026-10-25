@@ -6,7 +6,7 @@ use super::{
     AsmInstructionSerializationKind, AsmInstructionShape, AsmInterruptControlKind,
     AsmInterruptFlagEffect, AsmMemoryOrdering, AsmMemoryTransferKind, AsmOperandAccess,
     AsmSchedulingHintKind, AsmSystemRegister, AsmTargetApplicability, asm_catalog_entry,
-    asm_intrinsic_mnemonic,
+    asm_intrinsic_mnemonic, scratch_register,
 };
 
 #[test]
@@ -317,7 +317,7 @@ fn catalog_names_semantic_refusal_classes() {
     for mnemonic in [
         "ret", "retq", "retn", "retw", "retaa", "retab", "retf", "lret", "iret", "iretd", "iretw",
         "call", "callq", "callf", "lcall", "jmpq", "jmpf", "jmpl", "ljmp", "ljmpl", "br", "blr",
-        "b", "bl", "bx", "blx", "bc", "braa", "brab", "braaz", "brabz", "blraa", "blrab", "blraaz",
+        "bl", "bx", "blx", "bc", "braa", "brab", "braaz", "brabz", "blraa", "blrab", "blraaz",
         "blrabz", "eretaa", "eretab", "drps", "cbz", "cbnz", "tbz", "tbnz", "loop", "loope",
         "loopne", "loopz", "loopnz", "jcxz", "jecxz", "jrcxz", "int", "int1", "int3", "into", "je",
         "jne", "ja", "jae", "jb", "jbe", "jna", "jnae", "jnb", "jnbe", "jg", "jge", "jl", "jle",
@@ -1005,4 +1005,39 @@ fn zero_flag_branches_retain_polarity_without_effects_or_authority() {
         assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
         assert!(contract.clobbers.is_empty());
     }
+}
+
+#[test]
+fn comparison_and_arm_local_edges_retain_catalog_target_demands() {
+    let Some(AsmCatalogEntry::Contract(compare)) = asm_catalog_entry("cmp") else {
+        panic!("comparison has a structured register contract");
+    };
+    assert_eq!(compare.shape, AsmInstructionShape::Compare);
+    assert_eq!(compare.flags_data_flow, AsmFlagsDataFlow::ArithmeticResult);
+    assert_eq!(compare.required_authority, AsmAuthorityRequirement::None);
+    for (mnemonic, shape) in [
+        ("b", AsmInstructionShape::JumpState),
+        ("b.eq", AsmInstructionShape::JumpZeroFlag { when_set: true }),
+        (
+            "b.ne",
+            AsmInstructionShape::JumpZeroFlag { when_set: false },
+        ),
+    ] {
+        let Some(AsmCatalogEntry::Contract(branch)) = asm_catalog_entry(mnemonic) else {
+            panic!("local branch retains its checked edge");
+        };
+        assert_eq!(branch.target, AsmTargetApplicability::Aarch64);
+        assert_eq!(branch.shape, shape);
+        assert!(branch.clobbers.is_empty());
+    }
+    assert_eq!(
+        AsmTargetApplicability::X86_64.intersect(AsmTargetApplicability::Aarch64),
+        None
+    );
+    assert_eq!(
+        scratch_register("w28").map(|(_, target, clobber)| (target, clobber)),
+        Some((AsmTargetApplicability::Aarch64, "x28"))
+    );
+    assert_eq!(scratch_register("w29"), None);
+    assert_eq!(scratch_register("w30"), None);
 }

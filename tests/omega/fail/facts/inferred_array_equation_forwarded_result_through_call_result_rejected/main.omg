@@ -1,0 +1,12 @@
+// Fact: an omitted Capacity is inferred as 2 from the actual [u8; 2] type and Length == [u8; Capacity], independently of element values.
+// Expected exit: 0
+machine capacity<Length [copy], const Capacity: u64>(items: Length) -> u64
+where Length == [u8; Capacity]
+{ Capacity }
+machine make_items() -> [u8; 2] { [7, 11] }
+machine forward<Value [copy]>(value: Value) -> Value { value }
+machine main() crashes Trap {
+    let observed: u64 = capacity<[u8; 2], 3>(forward(make_items()));
+    transition observed == 2 { true -> done() _ -> bad() }
+    state done() {} state bad() { crash Trap; }
+}

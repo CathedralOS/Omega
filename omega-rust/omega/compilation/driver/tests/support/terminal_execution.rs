@@ -7,6 +7,9 @@ use terminal_runtime::{
     TerminalDomainExitDelegation, TerminalRuntimeError, TerminalRuntimeRequest,
 };
 
+#[path = "component_claim_resume.rs"]
+mod component_claim_resume;
+
 pub(super) const TARGET_ORACLE: &str = "expected_terminal_targets.txt";
 
 #[derive(Clone, Copy)]
@@ -289,6 +292,16 @@ pub(super) fn interpret(
         }
         Err(error) => return Observation::failure(error),
     };
+    if let Err(error) = component_claim_resume::observe(
+        fixture_dir,
+        artifact,
+        provisions,
+        target,
+        &result,
+        fuel_allowance,
+    ) {
+        return Observation::failure(error);
+    }
     let mut observation = match result.status {
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => Observation {
             facts: vec!["interpreter-exit:0".to_owned()],

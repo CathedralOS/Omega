@@ -43,6 +43,21 @@ pub(crate) struct RuntimeActivationStorage {
 }
 
 impl RuntimeActivationStorage {
+    pub(crate) fn measure_result_custody<'storage>(
+        &'storage self,
+        root: &StructuralRuntimePlace,
+        custody: &mut crate::result_custody::ResultCustody<'storage>,
+    ) -> Result<(), TerminalInterpretError> {
+        custody.rows(&self.grants, root)?;
+        custody.rows(&self.owners, root)?;
+        custody.rows(&self.claim_descriptors, root)?;
+        custody.rows(&self.split_children, root)?;
+        for (_, binding) in crate::structural_storage::cells(&self.claim_descriptors, root) {
+            custody.binding(binding)?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn new(account: Option<&EvaluationInvocationAccount>) -> Self {
         Self {
             ledgers: RuntimeRows::new(account),
