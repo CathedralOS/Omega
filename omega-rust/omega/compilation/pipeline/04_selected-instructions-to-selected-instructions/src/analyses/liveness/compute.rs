@@ -178,6 +178,21 @@ pub(crate) fn compute_function(
     function_index: usize,
     function: &SelectedFunction,
 ) -> Result<FunctionLiveness, LivenessError> {
+    compute_function_inner(function_index, function, true)
+}
+
+pub(crate) fn compute_function_for_ranges(
+    function_index: usize,
+    function: &SelectedFunction,
+) -> Result<FunctionLiveness, LivenessError> {
+    compute_function_inner(function_index, function, false)
+}
+
+fn compute_function_inner(
+    function_index: usize,
+    function: &SelectedFunction,
+    materialize_instruction_live_sets: bool,
+) -> Result<FunctionLiveness, LivenessError> {
     reject_unsupported_constraints(function_index, function)?;
     super::edge_values::validate_transports(function_index, function)?;
     let flow = flow::FunctionFlow::compute(function_index, function)?;
@@ -244,6 +259,7 @@ pub(crate) fn compute_function(
                 &operand_spans,
                 &flow,
                 block_index,
+                materialize_instruction_live_sets,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -480,51 +496,76 @@ fn materialize_block(
     operand_spans: &[arena::HandleSpan<OperandPosition>],
     flow: &flow::FunctionFlow,
     block_index: usize,
+    materialize_instruction_live_sets: bool,
 ) -> Result<BlockLiveness, LivenessError> {
     let state = &flow.blocks[block_index];
-    let mut current_virtual_live = state.virtual_exit.clone();
-    let mut unit_live = state.unit_exit.clone();
-    let mut current_unit_live = sorted(&unit_live);
-    let mut instructions = Vec::with_capacity(block.instructions.len() + 1);
-    for instruction in block_instructions(block).rev() {
-        let virtual_live_out = current_virtual_live.clone();
-        let unit_live_out = current_unit_live.clone();
-        let (uses, defs) = virtual_uses_defs_vec(instruction);
-        for definition in &defs {
-            if let Ok(pos) = current_virtual_live.binary_search(definition) {
-                current_virtual_live.remove(pos);
+    let instructions = if materialize_instruction_live_sets {
+        let mut current_virtual_live = state.virtual_exit.clone();
+        let mut unit_live = state.unit_exit.clone();
+        let mut current_unit_live = sorted(&unit_live);
+        let mut instructions = Vec::with_capacity(block.instructions.len() + 1);
+        for instruction in block_instructions(block).rev() {
+            let virtual_live_out = current_virtual_live.clone();
+            let unit_live_out = current_unit_live.clone();
+            let (uses, defs) = virtual_uses_defs_vec(instruction);
+            for definition in &defs {
+                if let Ok(pos) = current_virtual_live.binary_search(definition) {
+                    current_virtual_live.remove(pos);
+                }
             }
-        }
-        for used in &uses {
-            if let Err(pos) = current_virtual_live.binary_search(used) {
-                current_virtual_live.insert(pos, *used);
+            for used in &uses {
+                if let Err(pos) = current_virtual_live.binary_search(used) {
+                    current_virtual_live.insert(pos, *used);
+                }
             }
+            let virtual_live_in = current_virtual_live.clone();
+            if !instruction.implicit_defs.is_empty()
+                || !instruction.clobbers.is_empty()
+                || !instruction.implicit_uses.is_empty()
+            {
+                transfer_units(&mut unit_live, instruction);
+                current_unit_live = sorted(&unit_live);
+            }
+            let pos = positions[instruction.id.0 as usize];
+            instructions.push(InstructionLiveness {
+                position: LivenessPosition(pos),
+                instruction: instruction.id,
+                operands: operand_spans[pos as usize],
+                virtual_uses: uses,
+                virtual_defs: defs,
+                virtual_live_in,
+                virtual_live_out,
+                unit_uses: instruction.implicit_uses.clone(),
+                unit_defs: instruction.implicit_defs.clone(),
+                unit_clobbers: instruction.clobbers.clone(),
+                unit_live_in: current_unit_live.clone(),
+                unit_live_out,
+            });
         }
-        let virtual_live_in = current_virtual_live.clone();
-        if !instruction.implicit_defs.is_empty()
-            || !instruction.clobbers.is_empty()
-            || !instruction.implicit_uses.is_empty()
-        {
-            transfer_units(&mut unit_live, instruction);
-            current_unit_live = sorted(&unit_live);
-        }
-        let pos = positions[instruction.id.0 as usize];
-        instructions.push(InstructionLiveness {
-            position: LivenessPosition(pos),
-            instruction: instruction.id,
-            operands: operand_spans[pos as usize],
-            virtual_uses: uses,
-            virtual_defs: defs,
-            virtual_live_in,
-            virtual_live_out,
-            unit_uses: instruction.implicit_uses.clone(),
-            unit_defs: instruction.implicit_defs.clone(),
-            unit_clobbers: instruction.clobbers.clone(),
-            unit_live_in: current_unit_live.clone(),
-            unit_live_out,
-        });
-    }
-    instructions.reverse();
+        instructions.reverse();
+        instructions
+    } else {
+        block_instructions(block)
+            .map(|instruction| {
+                let pos = positions[instruction.id.0 as usize];
+                let (uses, defs) = virtual_uses_defs_vec(instruction);
+                InstructionLiveness {
+                    position: LivenessPosition(pos),
+                    instruction: instruction.id,
+                    operands: operand_spans[pos as usize],
+                    virtual_uses: uses,
+                    virtual_defs: defs,
+                    virtual_live_in: Vec::new(),
+                    virtual_live_out: Vec::new(),
+                    unit_uses: instruction.implicit_uses.clone(),
+                    unit_defs: instruction.implicit_defs.clone(),
+                    unit_clobbers: instruction.clobbers.clone(),
+                    unit_live_in: Vec::new(),
+                    unit_live_out: Vec::new(),
+                }
+            })
+            .collect()
+    };
     let terminator = selected_instructions::terminator_instruction(&block.terminator);
     let successors = control::successors(&block.terminator)
         .enumerate()

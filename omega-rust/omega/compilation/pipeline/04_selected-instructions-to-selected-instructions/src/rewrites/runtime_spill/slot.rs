@@ -1102,8 +1102,14 @@ pub(super) fn physical_definition(
         .blocks
         .iter()
         .enumerate()
-        .flat_map(|(owner, block)| {
-            block.instructions.iter().flat_map(move |candidate| {
+        .filter_map(|(owner, block)| {
+            let (start_idx, end_idx) = function
+                .blocks
+                .block_register_instruction_span(owner, argument)?;
+            Some((owner, &block.instructions[start_idx..=end_idx]))
+        })
+        .flat_map(|(owner, instructions)| {
+            instructions.iter().flat_map(move |candidate| {
                 candidate
                     .operands
                     .iter()

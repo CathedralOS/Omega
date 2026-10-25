@@ -300,15 +300,7 @@ pub(crate) fn required_rewrite_budget(
 /// structural binding, and a structural case's tag with each of its
 /// payloads. An audit that reads the edges reads each of these once.
 pub(crate) fn function_transports(function: &SelectedFunction) -> Option<usize> {
-    function
-        .blocks
-        .iter()
-        .flat_map(|block| selected_instructions::terminator_successors(&block.terminator))
-        .try_fold(0usize, |total, successor| {
-            total
-                .checked_add(crate::rewrites::block_edges::edge_surface(successor))?
-                .checked_add(usize::from(successor.structural_case.is_some()))
-        })
+    function.blocks.total_transport_count()
 }
 
 /// One step per block plus one per instruction in one function — the

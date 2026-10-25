@@ -986,6 +986,13 @@ impl Operation<'_, '_> {
                 operator,
                 self.left.interval,
                 self.right.interval,
+                None,
+                None,
+            )
+            || unsigned_representability::binary_fits(
+                operator,
+                self.left.interval,
+                self.right.interval,
                 self.known_unsigned(primitive, self.binary.left),
                 self.known_unsigned(primitive, self.binary.right),
             )

@@ -106,6 +106,7 @@ pub enum RecoveryReanalysisError {
 #[derive(Clone)]
 pub struct UnsealedRecoveryFacts {
     liveness_functions: Vec<std::sync::Arc<selected_instructions::FunctionLiveness>>,
+    liveness_materialized: Vec<bool>,
     range_functions: Vec<std::sync::Arc<selected_instructions::FunctionLiveRanges>>,
     legality_functions: Vec<std::sync::Arc<register_homes::FunctionAllocationLegality>>,
 }
@@ -116,8 +117,10 @@ impl UnsealedRecoveryFacts {
         ranges: &ValidatedLiveRanges,
         legality: &ValidatedAllocationLegality,
     ) -> Self {
+        let count = liveness.plan().functions.len();
         Self {
             liveness_functions: liveness.plan().functions.clone(),
+            liveness_materialized: vec![true; count],
             range_functions: ranges.plan().functions.clone(),
             legality_functions: legality.plan().functions.clone(),
         }
@@ -155,12 +158,17 @@ impl UnsealedRecoveryFacts {
             }
         }
         let mut liveness_functions = self.liveness_functions.clone();
+        let mut liveness_materialized = self.liveness_materialized.clone();
+        if liveness_materialized.len() < count {
+            liveness_materialized.resize(count, false);
+        }
         for (index, function) in next_plan.functions.iter().enumerate() {
             if changed[index] {
                 liveness_functions[index] = std::sync::Arc::new(
-                    liveness::compute::compute_function(index, function)
+                    liveness::compute::compute_function_for_ranges(index, function)
                         .map_err(RecoveryReanalysisError::Liveness)?,
                 );
+                liveness_materialized[index] = false;
             }
         }
         let mut range_functions = self.range_functions.clone();
@@ -194,6 +202,7 @@ impl UnsealedRecoveryFacts {
         }
         Ok(Self {
             liveness_functions,
+            liveness_materialized,
             range_functions,
             legality_functions,
         })
@@ -218,6 +227,15 @@ impl UnsealedRecoveryFacts {
     > {
         let anchor_plan = anchor_selected.selected_plan();
         let next_plan = selected.selected_plan();
+        let mut liveness_functions = self.liveness_functions;
+        for (index, materialized) in self.liveness_materialized.iter().copied().enumerate() {
+            if !materialized
+                && let Some(function) = next_plan.functions.get(index)
+                && let Ok(full) = liveness::compute::compute_function(index, function)
+            {
+                liveness_functions[index] = std::sync::Arc::new(full);
+            }
+        }
         let carried: Vec<bool> = next_plan
             .functions
             .iter()
@@ -228,7 +246,7 @@ impl UnsealedRecoveryFacts {
                     .shares_function_storage(&next_plan.functions, index)
                     || anchor_plan.functions.get(index) == Some(function))
                     && anchor_liveness.plan().functions.get(index)
-                        == self.liveness_functions.get(index)
+                        == liveness_functions.get(index)
                     && anchor_ranges.plan().functions.get(index) == self.range_functions.get(index)
                     && anchor_legality.plan().functions.get(index)
                         == self.legality_functions.get(index)
@@ -239,7 +257,7 @@ impl UnsealedRecoveryFacts {
             optimization_unit: selected.optimization_unit_identity(),
             fuel_schedule: selected.fuel_schedule_identity(),
             target: next_plan.target,
-            functions: self.liveness_functions,
+            functions: liveness_functions,
         };
         let validated_liveness = liveness::validate::admit_validated_liveness(
             selected,

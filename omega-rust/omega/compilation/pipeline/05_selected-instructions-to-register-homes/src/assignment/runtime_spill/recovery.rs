@@ -654,6 +654,18 @@ impl<'ranges> FailedDomain<'ranges> {
             .map_or(0, |pos| self.direct_pressure[pos].1)
     }
 
+    fn visit_overlapping_registers(&self, mut f: impl FnMut(VirtualRegisterId)) {
+        for &member in &self.members {
+            f(member);
+        }
+        if !self.intrinsic {
+            let components = self.components();
+            for &(component, _) in &self.pressure {
+                components.visit_members(component, &mut f);
+            }
+        }
+    }
+
     fn spill_priority(&self, function: usize, register: VirtualRegisterId) -> (usize, u64) {
         let points = if let Some(index) = self.index {
             index.live_points.get(register.0 as usize).copied().unwrap_or(0)
@@ -687,6 +699,7 @@ impl<'ranges> FailedDomain<'ranges> {
 // Long-lived blockers otherwise force recovery through many short failed
 // leaders and a whole-function analysis per victim. Equal scores retain roster
 // order. Intrinsic constraints still admit only the exact failed value.
+#[allow(dead_code)]
 fn candidate_position<Priority: Ord + Copy>(
     failure: &crate::RegisterHomeError,
     roster: &[(usize, VirtualRegisterId)],
@@ -714,15 +727,128 @@ fn candidate_position<Priority: Ord + Copy>(
         .map(|(position, _)| position)
 }
 
+struct FunctionRoster {
+    function: usize,
+    entries: Vec<(usize, VirtualRegisterId)>,
+    pos_by_reg: Vec<u32>,
+    split_inadmissible_bits: Vec<u64>,
+}
+
+impl FunctionRoster {
+    fn new(function: usize, entries: Vec<(usize, VirtualRegisterId)>) -> Self {
+        let max_reg = entries
+            .iter()
+            .map(|&(_, reg)| reg.0 as usize)
+            .max()
+            .unwrap_or(0);
+        let mut pos_by_reg = vec![u32::MAX; max_reg + 1];
+        for (idx, &(_, reg)) in entries.iter().enumerate() {
+            pos_by_reg[reg.0 as usize] = idx as u32;
+        }
+        Self {
+            function,
+            entries,
+            pos_by_reg,
+            split_inadmissible_bits: Vec::new(),
+        }
+    }
+
+    #[inline]
+    fn active_position(&self, register: VirtualRegisterId) -> Option<u32> {
+        self.pos_by_reg
+            .get(register.0 as usize)
+            .copied()
+            .filter(|&pos| pos != u32::MAX)
+    }
+
+    #[inline]
+    fn remove_register(&mut self, register: VirtualRegisterId) {
+        if let Some(slot) = self.pos_by_reg.get_mut(register.0 as usize) {
+            *slot = u32::MAX;
+        }
+    }
+
+    #[inline]
+    fn is_split_inadmissible(&self, register: VirtualRegisterId) -> bool {
+        let word = (register.0 as usize) >> 6;
+        self.split_inadmissible_bits
+            .get(word)
+            .is_some_and(|&bits| (bits & (1u64 << (register.0 & 63))) != 0)
+    }
+
+    #[inline]
+    fn mark_split_inadmissible(&mut self, register: VirtualRegisterId) {
+        let word = (register.0 as usize) >> 6;
+        if word >= self.split_inadmissible_bits.len() {
+            self.split_inadmissible_bits.resize(word + 1, 0);
+        }
+        self.split_inadmissible_bits[word] |= 1u64 << (register.0 & 63);
+    }
+
+    fn clear_split_inadmissible(&mut self) {
+        self.split_inadmissible_bits.clear();
+    }
+
+    fn extend(&mut self, iter: impl IntoIterator<Item = (usize, VirtualRegisterId)>) {
+        for (func, reg) in iter {
+            let pos = self.entries.len() as u32;
+            self.entries.push((func, reg));
+            let reg_idx = reg.0 as usize;
+            if reg_idx >= self.pos_by_reg.len() {
+                self.pos_by_reg.resize(reg_idx + 1, u32::MAX);
+            }
+            self.pos_by_reg[reg_idx] = pos;
+        }
+    }
+}
+
+fn select_roster_candidate(
+    failure: &crate::RegisterHomeError,
+    roster: &FunctionRoster,
+    domain: Option<&FailedDomain<'_>>,
+) -> Option<(usize, VirtualRegisterId)> {
+    match failure {
+        crate::RegisterHomeError::NoCompatibleHome { .. } => {}
+        crate::RegisterHomeError::NoCommonCandidate { function, register }
+        | crate::RegisterHomeError::UnresolvedEntryTransitions {
+            function, register, ..
+        } => {
+            if *function != roster.function {
+                return None;
+            }
+            let pos = roster.active_position(VirtualRegisterId(*register))?;
+            return Some(roster.entries[pos as usize]);
+        }
+        _ => return None,
+    };
+    let domain = domain?;
+    if domain.function() != roster.function {
+        return None;
+    }
+    let mut best: Option<((std::cmp::Reverse<(usize, u64)>, u32), VirtualRegisterId)> = None;
+    domain.visit_overlapping_registers(|reg| {
+        if let Some(pos) = roster.active_position(reg) {
+            let key = (
+                std::cmp::Reverse(domain.spill_priority(roster.function, reg)),
+                pos,
+            );
+            if best.is_none_or(|(best_key, _)| key < best_key) {
+                best = Some((key, reg));
+            }
+        }
+    });
+    best.map(|(_, reg)| (roster.function, reg))
+}
+
 /// The split decision at one step: among the still-available roster
 /// candidates overlapping the failed domain, in most-relief-then-roster
 /// order, the first whose fixed-view definition
 /// the split rewrite admits. `None` means no split is admissible and the step
 /// falls through to rematerialization or storage.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn admissible_split<'roster>(
+fn admissible_split_indexed(
     domain: Option<&FailedDomain<'_>>,
-    available: impl Iterator<Item = &'roster (usize, VirtualRegisterId)>,
+    roster: &mut FunctionRoster,
     selected: &impl ValidatedSelectedAnalysis,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
@@ -731,6 +857,9 @@ pub(super) fn admissible_split<'roster>(
     let Some(domain) = domain else {
         return Ok(None);
     };
+    if domain.function() != roster.function {
+        return Ok(None);
+    }
     let plan = selected.selected_plan();
     let can_prefilter = plan.target == environment.target()
         && environment
@@ -741,27 +870,36 @@ pub(super) fn admissible_split<'roster>(
     } else {
         None
     };
-    let mut ordered: Vec<(usize, (usize, VirtualRegisterId))> = available
-        .copied()
-        .filter_map(|candidate| {
-            let relief = domain.relief(candidate.0, candidate.1);
-            if relief == 0 {
-                return None;
-            }
-            if let Some(body) = function_body
-                && !body.blocks.has_fixed_definition(candidate.1)
-            {
-                return None;
-            }
-            Some((domain.direct_relief(candidate.1), candidate))
-        })
-        .collect();
-    // A stable sort keeps roster order among equal relief.
-    ordered.sort_by_key(|(relief, _)| std::cmp::Reverse(*relief));
+    let mut ordered: Vec<((std::cmp::Reverse<usize>, u32), (usize, VirtualRegisterId))> =
+        Vec::new();
+    domain.visit_overlapping_registers(|reg| {
+        let Some(pos) = roster.active_position(reg) else {
+            return;
+        };
+        if roster.is_split_inadmissible(reg) {
+            return;
+        }
+        if let Some(body) = function_body
+            && !body.blocks.has_fixed_definition(reg)
+        {
+            roster.mark_split_inadmissible(reg);
+            return;
+        }
+        ordered.push((
+            (std::cmp::Reverse(domain.direct_relief(reg)), pos),
+            (roster.function, reg),
+        ));
+    });
+    if ordered.is_empty() {
+        return Ok(None);
+    }
+    ordered.sort_unstable_by_key(|&(key, _)| key);
     for (_, (function, register)) in ordered {
         match split_selected_runtime_value(selected, function, register, environment, budget) {
             Ok(split) => return Ok(Some(((function, register), split))),
-            Err(error) if error.is_inadmissible() => {}
+            Err(error) if error.is_inadmissible() => {
+                roster.mark_split_inadmissible(register);
+            }
             Err(error) => return Err(RuntimeSpillAllocationError::Split(error)),
         }
     }
@@ -912,7 +1050,7 @@ fn recover_over(
     );
     let mut batch_indices: std::collections::BTreeMap<usize, BatchFunctionIndex> =
         std::collections::BTreeMap::new();
-    let mut rosters: std::collections::BTreeMap<usize, Vec<(usize, VirtualRegisterId)>> =
+    let mut rosters: std::collections::BTreeMap<usize, FunctionRoster> =
         std::collections::BTreeMap::new();
     loop {
         let selected = current.selected();
@@ -956,17 +1094,17 @@ fn recover_over(
             .functions
             .get(pressured)
             .map_or(0, |body| body.virtual_registers.len());
-        let roster: &mut Vec<(usize, VirtualRegisterId)> = rosters
+        let roster: &mut FunctionRoster = rosters
             .entry(pressured)
-            .or_insert_with(|| candidates(selected.plan(), pressured));
+            .or_insert_with(|| FunctionRoster::new(pressured, candidates(selected.plan(), pressured)));
         // The split decision comes first: one copy after a pinned definition
         // is cheaper than any regeneration or storage, and it is committed
         // whenever admitted. It replaces one live range by two disjoint ones
         // joined at the copy, so no point gains a live value; the pinned
         // segment the failed domain overlapped now ends at the copy.
-        let split = admissible_split(
+        let split = admissible_split_indexed(
             domain.as_ref(),
-            roster.iter(),
+            roster,
             &selected,
             environment,
             budget,
@@ -1007,9 +1145,7 @@ fn recover_over(
             RuntimeSpillStepRewrite::Split(split)
         } else if let Some((candidate, split)) = split {
             rewritten_candidate = candidate;
-            if let Some(pos) = roster.iter().position(|&entry| entry == candidate) {
-                roster.remove(pos);
-            }
+            roster.remove_register(candidate.1);
             if let Some(body) = split.transformed().functions.get(pressured)
                 && let Some(appended) = body.virtual_registers.get(old_vreg_len..)
             {
@@ -1022,20 +1158,9 @@ fn recover_over(
             }
             RuntimeSpillStepRewrite::Split(split)
         } else {
-            let Some(position) = candidate_position(
-                &failure,
-                roster,
-                |(function, register)| {
-                    domain
-                        .as_ref()
-                        .is_some_and(|domain| domain.relief(*function, *register) > 0)
-                },
-                |(function, register)| {
-                    domain
-                        .as_ref()
-                        .map_or((0, 0), |domain| domain.spill_priority(*function, *register))
-                },
-            ) else {
+            let Some((function, register)) =
+                select_roster_candidate(&failure, roster, domain.as_ref())
+            else {
                 // A hint can become unrewritable after earlier batch edits.
                 // Flush the actual current program before concluding recovery
                 // failed; those admitted edits may already have solved it.
@@ -1088,6 +1213,9 @@ fn recover_over(
                             failure = error;
                             current_facts = unsealed;
                             batch_indices.clear();
+                            for r in rosters.values_mut() {
+                                r.clear_split_inadmissible();
+                            }
                             analysis_source = current.clone();
                             pending_pressure = home_reuse.take_pressure();
                             pending_pressure.reverse();
@@ -1099,7 +1227,7 @@ fn recover_over(
                 }
                 break;
             };
-            let (function, register) = roster.remove(position);
+            roster.remove_register(register);
             rewritten_candidate = (function, register);
             // The cost decision: regenerating one pure immediate materialization
             // per use is strictly cheaper than private storage plus reload pairs,
@@ -1286,6 +1414,9 @@ fn recover_over(
                 failure = error;
                 current_facts = unsealed;
                 batch_indices.clear();
+                for r in rosters.values_mut() {
+                    r.clear_split_inadmissible();
+                }
                 current = rewrite;
                 analysis_source = current.clone();
                 pending_pressure = home_reuse.take_pressure();

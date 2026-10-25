@@ -908,20 +908,31 @@ pub(super) fn derive_runtime_spill<'source>(
     // and the store's value operand are content-bound elsewhere — by source
     // value, by result origin, or by the access's own coordinates — so only
     // the paired store's address use is retained through rewriting.
-    let establishing: std::collections::BTreeSet<(OperationId, PlaceId)> = definition
-        .into_iter()
-        .flat_map(|definition| {
-            function.memory_accesses.iter().filter_map(move |access| {
-                match (access.origin, access.role) {
-                    (
-                        SelectedMemoryAccessOrigin::Operation(operation),
-                        SelectedMemoryAccessRole::AddressLocal { .. },
-                    ) if access.instruction == definition => Some((operation, access.place)),
-                    _ => None,
-                }
+    let is_frame_address = definition.is_some_and(|def_id| {
+        function
+            .blocks
+            .instruction_index_in_block(block_index, def_id)
+            .and_then(|idx| function.blocks[block_index].instructions.get(idx))
+            .is_some_and(|inst| matches!(inst.kind, SelectedInstructionKind::FrameAddress { .. }))
+    });
+    let establishing: std::collections::BTreeSet<(OperationId, PlaceId)> = if is_frame_address {
+        definition
+            .into_iter()
+            .flat_map(|definition| {
+                function.memory_accesses.iter().filter_map(move |access| {
+                    match (access.origin, access.role) {
+                        (
+                            SelectedMemoryAccessOrigin::Operation(operation),
+                            SelectedMemoryAccessRole::AddressLocal { .. },
+                        ) if access.instruction == definition => Some((operation, access.place)),
+                        _ => None,
+                    }
+                })
             })
-        })
-        .collect();
+            .collect()
+    } else {
+        std::collections::BTreeSet::new()
+    };
     let established_stores: std::collections::BTreeSet<SelectedInstructionId> = if establishing
         .is_empty()
     {
@@ -1161,195 +1172,205 @@ pub(super) fn derive_runtime_spill<'source>(
                 }
             }
         }
-        for (instruction_index, instruction) in block.instructions.iter().enumerate() {
-            for operand in &instruction.operands {
-                if operand.virtual_register != register {
-                    continue;
-                }
-                match operand.access {
-                    RegisterOperandAccess::Def
-                        if !defined
-                            && current_block_index == block_index
-                            && Some(instruction.id) == definition =>
-                    {
-                        defined = true;
+        if let Some((start_idx, end_idx)) = function
+            .blocks
+            .block_register_instruction_span(current_block_index, register)
+        {
+            for (offset, instruction) in block.instructions[start_idx..=end_idx].iter().enumerate()
+            {
+                let instruction_index = start_idx + offset;
+                for operand in &instruction.operands {
+                    if operand.virtual_register != register {
+                        continue;
                     }
-                    // A later `Def` on the victim redefines the register: the
-                    // instruction writes a new value into it, so the slot
-                    // tracks that write with one store immediately after —
-                    // the same rule the origin definition keeps. The operand
-                    // itself keeps the victim register, so its class must
-                    // agree; a tie onto a victim use binds the write to that
-                    // use's reload register, and an early-clobber flag stays
-                    // allocation detail on the unrewritten operand, while a
-                    // use on the same instruction still reads the pre-write
-                    // value through its own reload. A write ahead of the
-                    // origin in the origin's own block — or a second
-                    // definition inside the origin instruction — stays
-                    // rejected: the register cannot be redefined before it
-                    // exists.
-                    RegisterOperandAccess::Def
-                        if (defined || current_block_index != block_index)
-                            && Some(instruction.id) != definition
-                            && operand.class == victim.class =>
-                    {
-                        if redefinitions[current_block_index].insert(instruction_index) {
-                            definitions.push(StorageDefinition {
-                                block_index: current_block_index,
-                                position: StoragePosition::AfterInstruction(instruction.id),
-                                register,
-                            });
-                        } else if usedef_writes[current_block_index].contains(&instruction_index) {
-                            // A second plain write still stores the victim's
-                            // post-instruction value, but a `UseDef` already
-                            // claimed this instruction's store for the reload
-                            // register its operand was redirected to — with
-                            // two writers the slot has no defined last writer.
-                            return Err(RuntimeSpillError::UnsupportedUse);
+                    match operand.access {
+                        RegisterOperandAccess::Def
+                            if !defined
+                                && current_block_index == block_index
+                                && Some(instruction.id) == definition =>
+                        {
+                            defined = true;
                         }
-                    }
-                    RegisterOperandAccess::Use
-                        if (defined || current_block_index != block_index)
-                            && Some(instruction.id) != definition
-                            && operand.tied_to.is_none()
-                            && !operand.early_clobber
-                            && operand.class == victim.class =>
-                    {
-                        // A `WritePlace` store or zero fill paired with the
-                        // `AddressLocal` access on the victim's own definition
-                        // keeps the address operand's register identity
-                        // verbatim; the reload cannot stand in for it there.
-                        // Operand 0 is the destination pointer of both kinds.
-                        if established_stores.contains(&instruction.id) {
-                            if operand.operand != 0
-                                || !matches!(
-                                    instruction.kind,
-                                    SelectedInstructionKind::Store { .. }
-                                        | SelectedInstructionKind::ZeroBytes
-                                )
+                        // A later `Def` on the victim redefines the register: the
+                        // instruction writes a new value into it, so the slot
+                        // tracks that write with one store immediately after —
+                        // the same rule the origin definition keeps. The operand
+                        // itself keeps the victim register, so its class must
+                        // agree; a tie onto a victim use binds the write to that
+                        // use's reload register, and an early-clobber flag stays
+                        // allocation detail on the unrewritten operand, while a
+                        // use on the same instruction still reads the pre-write
+                        // value through its own reload. A write ahead of the
+                        // origin in the origin's own block — or a second
+                        // definition inside the origin instruction — stays
+                        // rejected: the register cannot be redefined before it
+                        // exists.
+                        RegisterOperandAccess::Def
+                            if (defined || current_block_index != block_index)
+                                && Some(instruction.id) != definition
+                                && operand.class == victim.class =>
+                        {
+                            if redefinitions[current_block_index].insert(instruction_index) {
+                                definitions.push(StorageDefinition {
+                                    block_index: current_block_index,
+                                    position: StoragePosition::AfterInstruction(instruction.id),
+                                    register,
+                                });
+                            } else if usedef_writes[current_block_index]
+                                .contains(&instruction_index)
+                            {
+                                // A second plain write still stores the victim's
+                                // post-instruction value, but a `UseDef` already
+                                // claimed this instruction's store for the reload
+                                // register its operand was redirected to — with
+                                // two writers the slot has no defined last writer.
+                                return Err(RuntimeSpillError::UnsupportedUse);
+                            }
+                        }
+                        RegisterOperandAccess::Use
+                            if (defined || current_block_index != block_index)
+                                && Some(instruction.id) != definition
+                                && operand.tied_to.is_none()
+                                && !operand.early_clobber
+                                && operand.class == victim.class =>
+                        {
+                            // A `WritePlace` store or zero fill paired with the
+                            // `AddressLocal` access on the victim's own definition
+                            // keeps the address operand's register identity
+                            // verbatim; the reload cannot stand in for it there.
+                            // Operand 0 is the destination pointer of both kinds.
+                            if established_stores.contains(&instruction.id) {
+                                if operand.operand != 0
+                                    || !matches!(
+                                        instruction.kind,
+                                        SelectedInstructionKind::Store { .. }
+                                            | SelectedInstructionKind::ZeroBytes
+                                    )
+                                {
+                                    return Err(RuntimeSpillError::UnsupportedUse);
+                                }
+                                retained_uses.insert((instruction.id, operand.operand));
+                                continue;
+                            }
+                            // A fixed view on this operand stays attached to the
+                            // rewritten use, so the fresh reload register is a
+                            // precolored segment pinned to that physical view for
+                            // exactly the load-to-use window — the split the
+                            // operand always needed, created by recovery instead
+                            // of refusing the victim. A write tied to this use is
+                            // admitted only as the victim's own redefinition — the
+                            // two-operand read-modify-write idiom: the tie binds
+                            // the write to this reload register's home and the
+                            // store after the instruction reads that register
+                            // through the victim operand the write kept. A tie
+                            // from any other write would clobber the still-open
+                            // reload with no store to mirror it. An early-clobber
+                            // flag on the tied write is itself no hazard — the
+                            // write lands only in the reload home its tie names —
+                            // but it may complete before an unrelated operand's
+                            // read, so an unpinned use that could share the
+                            // block's open register with an unpinned
+                            // victim-reading co-operand is recorded for a
+                            // dedicated pair: the write's tied home is then a
+                            // register no other operand reads.
+                            let mut tied_writes = instruction
+                                .operands
+                                .iter()
+                                .filter(|other| other.tied_to == Some(operand.operand));
+                            let tied = tied_writes.next();
+                            if let Some(other) = tied
+                                && (other.access != RegisterOperandAccess::Def
+                                    || other.virtual_register != register
+                                    || tied_writes.next().is_some())
                             {
                                 return Err(RuntimeSpillError::UnsupportedUse);
                             }
-                            retained_uses.insert((instruction.id, operand.operand));
-                            continue;
-                        }
-                        // A fixed view on this operand stays attached to the
-                        // rewritten use, so the fresh reload register is a
-                        // precolored segment pinned to that physical view for
-                        // exactly the load-to-use window — the split the
-                        // operand always needed, created by recovery instead
-                        // of refusing the victim. A write tied to this use is
-                        // admitted only as the victim's own redefinition — the
-                        // two-operand read-modify-write idiom: the tie binds
-                        // the write to this reload register's home and the
-                        // store after the instruction reads that register
-                        // through the victim operand the write kept. A tie
-                        // from any other write would clobber the still-open
-                        // reload with no store to mirror it. An early-clobber
-                        // flag on the tied write is itself no hazard — the
-                        // write lands only in the reload home its tie names —
-                        // but it may complete before an unrelated operand's
-                        // read, so an unpinned use that could share the
-                        // block's open register with an unpinned
-                        // victim-reading co-operand is recorded for a
-                        // dedicated pair: the write's tied home is then a
-                        // register no other operand reads.
-                        let mut tied_writes = instruction
-                            .operands
-                            .iter()
-                            .filter(|other| other.tied_to == Some(operand.operand));
-                        let tied = tied_writes.next();
-                        if let Some(other) = tied
-                            && (other.access != RegisterOperandAccess::Def
-                                || other.virtual_register != register
-                                || tied_writes.next().is_some())
-                        {
-                            return Err(RuntimeSpillError::UnsupportedUse);
-                        }
-                        if let Some(other) = tied
-                            && other.early_clobber
-                            && operand.fixed_view.is_none()
-                            && instruction.operands.iter().any(|co| {
-                                co.operand != operand.operand
-                                    && co.virtual_register == register
-                                    && matches!(
-                                        co.access,
-                                        RegisterOperandAccess::Use | RegisterOperandAccess::UseDef
-                                    )
-                                    && co.fixed_view.is_none()
-                            })
-                        {
-                            dedicated_tie_uses[current_block_index]
-                                .insert((instruction_index, operand.operand));
-                            // The dedicated pair's own load reads the slot at
-                            // this position even when the block's open pair
-                            // serves the co-readers, so the slot-reuse replay
-                            // must see it.
-                            let dedicated = &mut use_positions[current_block_index].dedicated;
-                            if dedicated.last() != Some(&instruction_index) {
-                                dedicated.push(instruction_index);
+                            if let Some(other) = tied
+                                && other.early_clobber
+                                && operand.fixed_view.is_none()
+                                && instruction.operands.iter().any(|co| {
+                                    co.operand != operand.operand
+                                        && co.virtual_register == register
+                                        && matches!(
+                                            co.access,
+                                            RegisterOperandAccess::Use
+                                                | RegisterOperandAccess::UseDef
+                                        )
+                                        && co.fixed_view.is_none()
+                                })
+                            {
+                                dedicated_tie_uses[current_block_index]
+                                    .insert((instruction_index, operand.operand));
+                                // The dedicated pair's own load reads the slot at
+                                // this position even when the block's open pair
+                                // serves the co-readers, so the slot-reuse replay
+                                // must see it.
+                                let dedicated = &mut use_positions[current_block_index].dedicated;
+                                if dedicated.last() != Some(&instruction_index) {
+                                    dedicated.push(instruction_index);
+                                }
                             }
+                            use_positions[current_block_index].record_use(
+                                instruction_index,
+                                operand.fixed_view.is_some(),
+                                &mut flexible_uses[current_block_index],
+                            );
+                            uses = uses
+                                .checked_add(1)
+                                .ok_or(RuntimeSpillError::IdentityOverflow)?;
                         }
-                        use_positions[current_block_index].record_use(
-                            instruction_index,
-                            operand.fixed_view.is_some(),
-                            &mut flexible_uses[current_block_index],
-                        );
-                        uses = uses
-                            .checked_add(1)
-                            .ok_or(RuntimeSpillError::IdentityOverflow)?;
-                    }
-                    // A `UseDef` operand reads the victim and rewrites it in
-                    // place — the one-operand form of the tied pair admitted
-                    // above. The operand moves to a reload register like any
-                    // use, the instruction writes its result back into that
-                    // register, and the store after the instruction reads the
-                    // emitted operand's register rather than the victim, which
-                    // the rewritten instruction never defines. The read takes
-                    // the still-open shared pair and the write ends it, the
-                    // same span rule a plain redefinition keeps. Its own tie
-                    // would bind a second register to the reload's home, an
-                    // operand tied to it would clobber the reload without a
-                    // mirrored store, an early-clobber write could precede a
-                    // co-operand's read of the shared pair, and a second
-                    // victim-writing operand on the same instruction would
-                    // leave the slot without a defined last writer — all of
-                    // those stay rejected.
-                    RegisterOperandAccess::UseDef
-                        if (defined || current_block_index != block_index)
-                            && Some(instruction.id) != definition
-                            && operand.tied_to.is_none()
-                            && !operand.early_clobber
-                            && operand.class == victim.class =>
-                    {
-                        if established_stores.contains(&instruction.id)
-                            || instruction
-                                .operands
-                                .iter()
-                                .any(|other| other.tied_to == Some(operand.operand))
-                            || !redefinitions[current_block_index].insert(instruction_index)
+                        // A `UseDef` operand reads the victim and rewrites it in
+                        // place — the one-operand form of the tied pair admitted
+                        // above. The operand moves to a reload register like any
+                        // use, the instruction writes its result back into that
+                        // register, and the store after the instruction reads the
+                        // emitted operand's register rather than the victim, which
+                        // the rewritten instruction never defines. The read takes
+                        // the still-open shared pair and the write ends it, the
+                        // same span rule a plain redefinition keeps. Its own tie
+                        // would bind a second register to the reload's home, an
+                        // operand tied to it would clobber the reload without a
+                        // mirrored store, an early-clobber write could precede a
+                        // co-operand's read of the shared pair, and a second
+                        // victim-writing operand on the same instruction would
+                        // leave the slot without a defined last writer — all of
+                        // those stay rejected.
+                        RegisterOperandAccess::UseDef
+                            if (defined || current_block_index != block_index)
+                                && Some(instruction.id) != definition
+                                && operand.tied_to.is_none()
+                                && !operand.early_clobber
+                                && operand.class == victim.class =>
                         {
-                            return Err(RuntimeSpillError::UnsupportedUse);
+                            if established_stores.contains(&instruction.id)
+                                || instruction
+                                    .operands
+                                    .iter()
+                                    .any(|other| other.tied_to == Some(operand.operand))
+                                || !redefinitions[current_block_index].insert(instruction_index)
+                            {
+                                return Err(RuntimeSpillError::UnsupportedUse);
+                            }
+                            usedef_writes[current_block_index].insert(instruction_index);
+                            definitions.push(StorageDefinition {
+                                block_index: current_block_index,
+                                position: StoragePosition::AfterUseDef {
+                                    instruction: instruction.id,
+                                    operand: operand.operand,
+                                },
+                                register,
+                            });
+                            use_positions[current_block_index].record_use(
+                                instruction_index,
+                                operand.fixed_view.is_some(),
+                                &mut flexible_uses[current_block_index],
+                            );
+                            uses = uses
+                                .checked_add(1)
+                                .ok_or(RuntimeSpillError::IdentityOverflow)?;
                         }
-                        usedef_writes[current_block_index].insert(instruction_index);
-                        definitions.push(StorageDefinition {
-                            block_index: current_block_index,
-                            position: StoragePosition::AfterUseDef {
-                                instruction: instruction.id,
-                                operand: operand.operand,
-                            },
-                            register,
-                        });
-                        use_positions[current_block_index].record_use(
-                            instruction_index,
-                            operand.fixed_view.is_some(),
-                            &mut flexible_uses[current_block_index],
-                        );
-                        uses = uses
-                            .checked_add(1)
-                            .ok_or(RuntimeSpillError::IdentityOverflow)?;
+                        _ => return Err(RuntimeSpillError::UnsupportedUse),
                     }
-                    _ => return Err(RuntimeSpillError::UnsupportedUse),
                 }
             }
         }
@@ -1636,41 +1657,47 @@ pub(super) fn derive_runtime_spill<'source>(
                 let has_structural = structural_uses
                     .iter()
                     .any(|pending| pending.block == block_index);
+                let first_unpinned = use_positions[block_index].unpinned.first().copied();
                 let last_unpinned = use_positions[block_index].unpinned.iter().next_back().copied();
                 let mut open = false;
                 let mut written = std::collections::BTreeSet::new();
-                for (index, instruction) in block.instructions.iter().enumerate() {
-                    if !has_structural && last_unpinned.is_none_or(|last| index >= last) {
-                        break;
-                    }
-                    if use_positions[block_index].unpinned.contains(&index) {
-                        open = true;
-                    }
-                    if redefinitions[block_index].contains(&index) {
-                        open = false;
-                        written.clear();
-                        continue;
-                    }
-                    if instruction.clobbers.is_empty() && instruction.implicit_defs.is_empty()
-                        || !open
+                if let Some(start_idx) = first_unpinned {
+                    for (offset, instruction) in
+                        block.instructions[start_idx..].iter().enumerate()
                     {
-                        continue;
-                    }
-                    let mut trial = written.clone();
-                    trial.extend(instruction.clobbers.iter().copied());
-                    trial.extend(instruction.implicit_defs.iter().copied());
-                    if surviving_home_exists(
-                        environment,
-                        victim.class,
-                        &implicit_use_units,
-                        &pinned_units,
-                        &trial,
-                    ) {
-                        written = trial;
-                        crossed.insert(index);
-                    } else {
-                        open = false;
-                        written.clear();
+                        let index = start_idx + offset;
+                        if !has_structural && last_unpinned.is_none_or(|last| index >= last) {
+                            break;
+                        }
+                        if use_positions[block_index].unpinned.contains(&index) {
+                            open = true;
+                        }
+                        if redefinitions[block_index].contains(&index) {
+                            open = false;
+                            written.clear();
+                            continue;
+                        }
+                        if instruction.clobbers.is_empty() && instruction.implicit_defs.is_empty()
+                            || !open
+                        {
+                            continue;
+                        }
+                        let mut trial = written.clone();
+                        trial.extend(instruction.clobbers.iter().copied());
+                        trial.extend(instruction.implicit_defs.iter().copied());
+                        if surviving_home_exists(
+                            environment,
+                            victim.class,
+                            &implicit_use_units,
+                            &pinned_units,
+                            &trial,
+                        ) {
+                            written = trial;
+                            crossed.insert(index);
+                        } else {
+                            open = false;
+                            written.clear();
+                        }
                     }
                 }
             }

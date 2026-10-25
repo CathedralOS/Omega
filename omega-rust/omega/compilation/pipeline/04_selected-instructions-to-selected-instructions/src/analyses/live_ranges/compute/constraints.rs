@@ -9,6 +9,14 @@ pub(crate) fn derive_early_clobbers(
     function: usize,
     liveness: &selected_instructions::FunctionLiveness,
 ) -> Result<Vec<EarlyClobberConstraint>, LiveRangeError> {
+    if !liveness
+        .operand_positions
+        .storage_slice()
+        .iter()
+        .any(|operand| operand.early_clobber)
+    {
+        return Ok(Vec::new());
+    }
     let instruction_operands = || {
         liveness.blocks.iter().flat_map(|block| {
             block.instructions.iter().map(move |instruction| {
@@ -185,6 +193,14 @@ pub(crate) fn derive_tied_pairs(
     function: usize,
     liveness: &selected_instructions::FunctionLiveness,
 ) -> Result<Vec<DistinctUseDefTie>, LiveRangeError> {
+    if !liveness
+        .operand_positions
+        .storage_slice()
+        .iter()
+        .any(|operand| operand.tied_to.is_some())
+    {
+        return Ok(Vec::new());
+    }
     let mut pairs = Vec::new();
     for block in &liveness.blocks {
         for instruction in &block.instructions {
