@@ -19,6 +19,7 @@ macro_rules! import_signature_via_clone {
     };
 }
 
+mod absolute_value;
 mod allocation;
 mod borrowed_storage;
 mod buffered_output;
@@ -264,6 +265,15 @@ pub(super) fn bind<'host>(
                     return Err(TerminalRuntimeError::InvalidProvision(
                         "foreign host binding does not match its admitted requirement row",
                     ));
+                }
+                if let Some(adapter) = absolute_value::AbsoluteValueImport::admit(
+                    program,
+                    declaration,
+                    binding,
+                    provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
+                )? {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
                 }
                 if let Some(adapter) = allocation::AllocationImport::admit(
                     program,
