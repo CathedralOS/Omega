@@ -17,7 +17,7 @@ import time
 ROOT = Path(__file__).resolve().parent
 HOST = r'''
 use std::{fs, io::Cursor, path::PathBuf};
-use compiler::runtime::{execute, TerminalDomainExitDelegation, TerminalRuntimeRequest};
+use terminal_runtime::{execute, TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{prepare_local_project, LocalProjectPreparationOptions,
     compile_prepared_local_project_for_native, PreparedLocalProjectNativeRequest};
 use terminal_interpreter::TerminalExecutionStatus;
@@ -42,6 +42,7 @@ fn validate() -> Result<(), String> {
         ("truncated", 0), ("oversized", 3), ("limit", 3)] {
         let input = fs::read(root.join(format!("data/{name}.stdin"))).map_err(|e| e.to_string())?;
         let observed = execute(TerminalRuntimeRequest {
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             artifact, target: Some("linux_x86_64"), provisions: report.runtime_provisions(),
             provider_proposal: None,
             // Finite exhaustive replay: fixed 2000-record cap, 25 candidates per frame.
@@ -89,6 +90,7 @@ def main():
     project = ROOT/'build/terminal-host'
     (project/'src').mkdir(parents=True, exist_ok=True)
     dependencies = {'compiler': 'omega-rust/omega/compilation/driver',
+                    'terminal-runtime': 'omega-rust/omega/application/terminal-runtime',
                     'package-manager': 'omega-rust/omega/packages/package-manager',
                     'target': 'omega-rust/omega/compilation/backend/target',
                     'terminal-interpreter': 'omega-rust/psi/interpreter/terminal-interpreter'}

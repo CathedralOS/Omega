@@ -214,7 +214,32 @@ impl<'a> Admission<'a> {
             .program
             .machine_by_symbol(symbol)
             .ok_or("callee body is missing")?;
-        if self.program.machine_states(target).is_empty() {
+        // The portable interface owns a contract, not an empty performed-write
+        // body. Check every authenticated member against these same captured
+        // operands; realization's selected host cannot discharge the others.
+        if target.target_family_interface {
+            let members = validation::target_family_members(self.program, target)
+                .ok_or("encoded invocation has no complete target-family roster")?;
+            for member in members {
+                let target = self
+                    .program
+                    .machine_by_symbol(member.machine)
+                    .ok_or("target-family write body is absent")?;
+                self.visit_target(state, call, target, origins.clone())?;
+            }
+            return Ok(());
+        }
+        self.visit_target(state, call, target, origins)
+    }
+
+    fn visit_target(
+        &mut self,
+        state: &'a FlowStateFact,
+        call: &'a FlowCallFact,
+        target: &'a Machine,
+        origins: CallWriteOrigins,
+    ) -> Result<(), &'static str> {
+        if !target.supply_mode.is_checked_body() || self.program.machine_states(target).is_empty() {
             return self.check_unknown_call(state, call, &origins);
         }
         if let Some(cycle_entry) = self
@@ -228,7 +253,7 @@ impl<'a> Admission<'a> {
             for invocation in &mut self.stack[cycle_entry..] {
                 invocation.cyclic = true;
             }
-            return self.check_recursive_origins(state, call, &origins);
+            return self.check_recursive_origins(state, call, target, &origins);
         }
         self.stack.push(Invocation {
             state,
@@ -321,16 +346,10 @@ impl<'a> Admission<'a> {
                 let sources = actual_origins(parameters, position, &origins)
                     .ok_or("write-capable operator has unknown actual storage")?;
                 for source in sources {
-                    for (_owner, state, destination) in
+                    for (owner, state, destination) in
                         self.destinations(machine, body, source, self.stack.len())?
                     {
-                        if validation::stored_integer_source_may_require_fit(
-                            self.program,
-                            state,
-                            &destination,
-                        )
-                        .map_err(|()| "write-capable operator has unknown encoded reach")?
-                        {
+                        if self.source_requires_fit(owner, state, &destination)? {
                             return Err(
                                 "write-capable selected operator has no complete performed-write inventory",
                             );
@@ -586,6 +605,28 @@ impl<'a> Admission<'a> {
                 .local_requires_write_origin(parameter.type_reference)
     }
 
+    fn source_requires_fit(
+        &self,
+        machine: &Machine,
+        state: &State,
+        source: &LocalWriteSource,
+    ) -> Result<bool, &'static str> {
+        let reach = validation::stored_integer_source_reach(self.program, state, source)
+            .map_err(|()| "effectful invocation has unknown encoded reach")?;
+        // Templates keep their semantic checks and every concrete physical
+        // demand. A type parameter has no physical width until specialization;
+        // it is not evidence that a concrete destination is unrestricted.
+        if reach.has_open_parameters
+            && !self
+                .program
+                .typed_program()
+                .callable_body_has_open_parameters(machine)
+        {
+            return Err("encoded destination retains an unspecialized type parameter");
+        }
+        Ok(reach.requires_fit)
+    }
+
     fn call_may_require_fit(
         &self,
         state: &FlowStateFact,
@@ -603,15 +644,10 @@ impl<'a> Admission<'a> {
             let sources = actual_origins(parameters, position, origins)
                 .ok_or("effectful invocation has unknown writable storage")?;
             for source in sources {
-                for (_owner, state, destination) in
+                for (owner, state, destination) in
                     self.destinations(machine, body, source, self.stack.len())?
                 {
-                    needs_fit |= validation::stored_integer_source_may_require_fit(
-                        self.program,
-                        state,
-                        &destination,
-                    )
-                    .map_err(|()| "effectful invocation has unknown encoded reach")?;
+                    needs_fit |= self.source_requires_fit(owner, state, &destination)?;
                 }
             }
         }
@@ -637,10 +673,10 @@ impl<'a> Admission<'a> {
         &self,
         state: &FlowStateFact,
         call: &FlowCallFact,
+        target: &Machine,
         origins: &CallWriteOrigins,
     ) -> Result<(), &'static str> {
-        let symbol = call_values::target_machine(self.program, call)
-            .ok_or("recursive callee identity is absent")?;
+        let symbol = target.symbol;
         let (prior_index, prior) = self
             .stack
             .iter()

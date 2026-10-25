@@ -11,6 +11,6 @@ mod native_proposal;
 mod terminal_artifact;
 
 pub(crate) use terminal_artifact::{
-    TerminalProductRequest, TerminalProductionView, finish_terminal_application,
-    produce_retained_terminal_artifacts,
+    ProducedTerminalApplication, TerminalProductRequest, TerminalProductionView,
+    finish_terminal_application, produce_retained_terminal_artifacts,
 };

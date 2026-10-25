@@ -8,7 +8,7 @@ def main():
     parser=argparse.ArgumentParser();parser.add_argument('--producer',type=Path,required=True);parser.add_argument('--receipt',type=Path,required=True);parser.add_argument('--output',type=Path,required=True)
     options=parser.parse_args();output=options.output.resolve();output.mkdir(parents=True,exist_ok=True);receipt=json.loads(options.receipt.read_text());oracle=load();selected={};search=set()
     assert receipt['binary_sha256']==digest(options.producer/'omega') and receipt['build_finished_success']
-    for name in ('compiler','package_manager','terminal_interpreter','target'):
+    for name in ('compiler', 'terminal_runtime','package_manager','terminal_interpreter','target'):
         selected[name]=[]
         for artifact in receipt['libraries'][name]:
             path=Path(artifact['path']);assert digest(path)==artifact['sha256'];selected[name].append(path);search.add(path.parent)

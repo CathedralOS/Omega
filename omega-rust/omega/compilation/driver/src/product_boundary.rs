@@ -18,7 +18,7 @@ fn package_operations_do_not_assemble_compiler_products() {
     ] {
         for forbidden in [
             ".admit_trust(",
-            ".prepare_product_report(",
+            "ProductReportPlan",
             "CheckedProductReport::",
             "produce_native_product(",
             "produce_retained_terminal_artifacts(",
@@ -102,8 +102,24 @@ fn product_production_has_no_installed_checkpoint_mode() {
         include_str!("checked/compilation_session.rs"),
         include_str!("checked/package_compilation.rs"),
     ] {
-        assert!(source.contains("compiler::finish_compilations("));
+        assert!(source.contains("compiler::produce_products("));
     }
+}
+
+#[test]
+fn product_batch_carries_work_instead_of_empty_outcome_slots() {
+    let compiler = include_str!("compiler.rs");
+    assert!(compiler.contains("request.plan()"));
+    assert!(compiler.contains("produce_retained_terminal_artifacts(terminal_requests)"));
+    assert!(!compiler.contains("map(|_| None)"));
+    assert!(!compiler.contains("outcomes["));
+    assert!(!compiler.contains(".unzip()"));
+    assert!(compiler.contains("outcomes.push((owner, outcome))"));
+    let execution = include_str!("product_execution.rs");
+    assert!(!execution.contains(".settle("));
+    assert!(!execution.contains("(settlement, requested)"));
+    let reports = include_str!("../../products/src/checked_compilation/report.rs");
+    assert_eq!(reports.matches(".settle(").count(), 1);
 }
 
 #[test]
@@ -114,14 +130,6 @@ fn selected_execution_does_not_copy_checked_programs() {
     ] {
         assert!(!source.contains("Arc::make_mut"));
     }
-}
-
-#[test]
-fn retained_runtime_borrows_terminal_storage() {
-    let source = include_str!("runtime.rs");
-    assert!(source.contains("TerminalProgram::borrow(artifact)"));
-    assert!(!source.contains("TerminalProgram::load("));
-    assert!(!source.contains("semantic_bytes()"));
 }
 
 #[test]

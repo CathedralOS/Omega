@@ -12,10 +12,13 @@ use target_operations::{NativeCallOrigin, TargetUnitOperation};
 
 /// Rejoin the selected native namespace to retained portable catalog data.
 /// This does not install a provider, establish claims, or replay a source body.
+/// The verified input is required: a boundary row whose source occurrence is
+/// not retained here cannot be rechecked, and a target plan with no such row
+/// passes without it.
 pub(in crate::legalization) fn validate_boundary_origins(
     native: &TargetOperationPlan,
     unit: &super::PsiOptimizationUnit,
-    input: Option<&terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
+    input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
 ) -> Result<(), LegalizationError> {
     for function in &native.functions {
         for operation in function.graph.operations() {
@@ -32,7 +35,7 @@ pub(in crate::legalization) fn validate_boundary_origins(
             } = operation
             {
                 let binding = input
-                    .and_then(|input| input.selected_program_entry_call())
+                    .selected_program_entry_call()
                     .ok_or_else(LegalizationError::custody)?;
                 if binding.boundary() != *boundary
                     || binding.entry() != *entry
@@ -54,7 +57,6 @@ pub(in crate::legalization) fn validate_boundary_origins(
                 // Relationships are artifact-global policy, independent of an
                 // occurrence's caller after legal inlining. Rejoin the complete
                 // sealed relationship, not just its final candidate IDs.
-                let input = input.ok_or_else(LegalizationError::custody)?;
                 if !input.admitted_assumed_bindings().contains(assumption) {
                     return Err(LegalizationError::custody());
                 }
@@ -78,7 +80,6 @@ pub(in crate::legalization) fn validate_boundary_origins(
             let target_operations::NativeCallTarget::Machine(callee) = call_target else {
                 return Err(LegalizationError::custody());
             };
-            let input = input.ok_or_else(LegalizationError::custody)?;
             let selections = input
                 .target_machine_selections()
                 .ok_or_else(LegalizationError::custody)?;

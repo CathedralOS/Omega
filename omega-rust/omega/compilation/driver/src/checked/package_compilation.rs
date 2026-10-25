@@ -132,15 +132,21 @@ impl CompilationSession {
             // All roots enter source completion together. Provider selection feeds
             // the same Terminal-before-installation sequence as standalone builds.
             // Permission consent travels to that sequence's admission boundary.
-            let mut positions = Vec::new();
             let mut products = Vec::new();
             for (selected, (position, root, path, product, permissions)) in
                 self.select_build_batch(builds).into_iter().zip(admitted)
             {
                 match selected.result {
                     Ok(selected) => {
-                        positions.push((position, root));
-                        products.push(Ok((selected, path, product, permissions)));
+                        products.push((
+                            (position, root),
+                            Ok(crate::product_execution::ProductRequest {
+                                realization: selected,
+                                root: path,
+                                product,
+                                permissions,
+                            }),
+                        ));
                     }
                     Err(failure) => {
                         outcomes[position] = Some(Err(PackageCompileFailure {
@@ -150,10 +156,7 @@ impl CompilationSession {
                     }
                 }
             }
-            for ((position, root), product) in positions
-                .into_iter()
-                .zip(crate::compiler::finish_compilations(products))
-            {
+            for ((position, root), product) in crate::compiler::produce_products(products) {
                 outcomes[position] = Some(product.map_err(|error| PackageCompileFailure {
                     occurrence: root,
                     failure: error.into_diagnostics().into(),

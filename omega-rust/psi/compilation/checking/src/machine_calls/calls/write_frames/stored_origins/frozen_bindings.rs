@@ -318,7 +318,7 @@ fn expression_exposes(
 /// A complete may-write frame can prove disjointness from frozen slots, but
 /// cannot supply a replacement's new origin. Alias substitution happens before
 /// comparing paths, and a coarse collection path retains its whole ceiling.
-fn writes_may_replace_binding(
+pub(in crate::machine_calls::calls::write_frames) fn writes_may_replace_binding(
     program: &dyn crate::CheckingInput,
     stored: &[StoredLocalOrigins],
     aliases: &[(String, FramePlaceOrigin)],

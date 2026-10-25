@@ -26,11 +26,9 @@ pub fn verify_retained_target_operations(
         .source()
         .source()
         .optimized_target();
-    target_operations_to_selected_instructions::verify_target_operation_plan_with_context(
+    target_operations_to_selected_instructions::verify_target_operation_plan(
         current.target_operations(),
-        current.optimized().plan(),
-        current.optimized().unit(),
-        current.optimized().verified_input(),
+        current.optimized(),
     )
     .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))
 }

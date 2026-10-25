@@ -1,20 +1,8 @@
-//! Prepare package inputs and request a Terminal inspection. Grants no native authority.
-//!
-//! Source preparation follows the compile command rather than a focused-file
-//! shortcut. A root beside a `build.omg` (or an `omega.lock`) is a package
-//! project: the package manager resolves its declared closure and checks each
-//! prerequisite build before its consumer, retaining generated source under
-//! the producer's custody. Acquisition-only compiler inputs cannot provide
-//! that handoff, even if a helper happens to have usable physical source.
-//! A standalone root keeps the direct, optionally targetless check unchanged.
-//! Inspection asks the compiler to publish the selected machine as Terminal Psi;
-//! it neither admits runtime trust nor realizes native output. Candidate checking is shared with `--check`, but
-//! trust admission and native acceptance/publication remain separate operations.
+//! Inspect a source product through Build, or admit an existing Terminal envelope.
+//! Neither route grants native installation or runtime authority.
 
-use compiler::{CheckedCompileRequest, CompileOptions};
 use diagnostics::Diagnostic;
-use package_manager::operations as packages;
-use package_manager::operations::LocalProjectPreparationOptions;
+use omega_build::{BuildError, BuildRequest, BuildTargets, ProjectProduct};
 use std::path::PathBuf;
 use terminal_codec::CanonicalTerminalArtifact;
 
@@ -32,8 +20,7 @@ pub struct TerminalInspection {
 pub enum InspectTerminalError {
     Diagnostics(Vec<Diagnostic>),
     Artifact(terminal_codec::CanonicalTerminalArtifactError),
-    Preparation(packages::PrepareLocalProjectError),
-    Review(package_manager::review::CompileResolvedPackageReviewsError),
+    Build(BuildError),
 }
 
 impl std::fmt::Display for InspectTerminalError {
@@ -43,8 +30,7 @@ impl std::fmt::Display for InspectTerminalError {
                 diagnostics::write_diagnostics(formatter, diagnostics)
             }
             Self::Artifact(error) => write!(formatter, "cannot inspect Terminal artifact: {error}"),
-            Self::Preparation(error) => write!(formatter, "{error}"),
-            Self::Review(error) => write!(formatter, "cannot check inspection project: {error}"),
+            Self::Build(error) => write!(formatter, "{error}"),
         }
     }
 }
@@ -54,59 +40,45 @@ impl std::error::Error for InspectTerminalError {}
 pub fn inspect_terminal(
     request: &InspectTerminalRequest,
 ) -> Result<TerminalInspection, InspectTerminalError> {
-    let artifact = compile_inspection(request)?;
+    let targets = match request.target_name.as_deref() {
+        Some(name) => BuildTargets::Single(
+            target::TargetProfile::from_omega_target_name(Some(name))
+                .map_err(|error| InspectTerminalError::Diagnostics(vec![error]))?,
+        ),
+        None => BuildTargets::Host,
+    };
+    let outcomes = omega_build::build(BuildRequest {
+        root_path: request.root_path.clone(),
+        build_directory: None,
+        targets,
+        product: ProjectProduct::Inspection {
+            machine: request.machine.clone(),
+        },
+        timings: false,
+        offline: false,
+        verify: true,
+        require_package_project: false,
+        optimization_rollback: Default::default(),
+        build_snapshot: None,
+    })
+    .map_err(InspectTerminalError::Build)?;
+    let [outcome]: [_; 1] = outcomes.try_into().map_err(|_| {
+        InspectTerminalError::Diagnostics(vec![Diagnostic::error(
+            "inspection requires exactly one project Build outcome",
+        )])
+    })?;
+    let outcome = outcome.result.map_err(InspectTerminalError::Build)?;
+    let artifact = outcome
+        .output
+        .into_inspection()
+        .map_err(|error| InspectTerminalError::Diagnostics(error.into_diagnostics()))?;
     Ok(TerminalInspection { artifact })
 }
 
-/// Inspect externally supplied envelope bytes through canonical admission.
-/// This is a data inspection, independent of package preparation or runtime
-/// installation. It provides no establishment, provider, or execution grant.
+/// Inspect external envelope bytes through canonical admission. This route does
+/// not prepare packages, compile source, establish bindings or execute code.
 pub fn inspect_terminal_artifact(bytes: &[u8]) -> Result<TerminalInspection, InspectTerminalError> {
     let artifact =
         CanonicalTerminalArtifact::from_bytes(bytes).map_err(InspectTerminalError::Artifact)?;
     Ok(TerminalInspection { artifact })
-}
-
-/// Check package sources through the manager's dependency-first candidate
-/// pipeline. The prepared entry routes through immutable source custody, while
-/// build staging follows the authored root exactly as the compile command
-/// places it, independently of that custody's memory or persisted backing.
-/// Package preparation needs an exact
-/// target, so the invocation resolves one first: an explicit `--target`,
-/// else the compiler host's catalogued profile. A host that owns none
-/// reports that absence as an ordinary diagnostic rather than panicking.
-/// With the profile resolved, the checked compile keeps it so package
-/// inputs and target attachments agree; a standalone root without a target
-/// stays targetless, as before.
-fn compile_inspection(
-    request: &InspectTerminalRequest,
-) -> Result<CanonicalTerminalArtifact, InspectTerminalError> {
-    let target = crate::invocation_target_profile(request.target_name.as_deref())
-        .map_err(|diagnostic| InspectTerminalError::Diagnostics(vec![diagnostic]))?;
-    let prepared = packages::prepare_local_project(
-        &request.root_path,
-        LocalProjectPreparationOptions {
-            target,
-            offline: false,
-        },
-    )
-    .map_err(InspectTerminalError::Preparation)?;
-    let Some(prepared) = prepared else {
-        return compiler::CompilationSession::default()
-            .produce(
-                CheckedCompileRequest::new(&request.root_path, request.target_name.as_deref()),
-                compiler::CompilationProduct::Inspection(request.machine.clone()),
-            )
-            .and_then(compiler::CompilationOutput::into_inspection)
-            .map_err(compiler::CompilationProductError::into_diagnostics)
-            .map_err(InspectTerminalError::Diagnostics);
-    };
-    let build_dir = CompileOptions {
-        root_path: request.root_path.clone(),
-        build_dir: None,
-        target_name: None,
-    }
-    .build_dir();
-    packages::inspect_prepared_local_project(prepared, &build_dir, target, &request.machine)
-        .map_err(InspectTerminalError::Review)
 }

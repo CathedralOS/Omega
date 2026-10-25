@@ -89,6 +89,22 @@ impl<'program> CallFrameTables<'program> {
     }
 }
 
+pub(super) fn machine_symbols<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &'program Machine,
+) -> Option<std::sync::Arc<MachineSymbols<'program>>> {
+    if let Some(tables) = program.call_frame_tables() {
+        return tables
+            .machine_symbols
+            .get(&machine.symbol)
+            .cloned()
+            .flatten();
+    }
+    let mut diagnostics = Vec::new();
+    let built = MachineSymbols::build(program, machine, &mut diagnostics);
+    diagnostics.is_empty().then(|| std::sync::Arc::new(built))
+}
+
 /// Every memo a resolver fills. Each is pure over the resolver's immutable
 /// program, so resolvers over the same frozen program may share them.
 #[derive(Default)]

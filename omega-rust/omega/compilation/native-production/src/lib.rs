@@ -2,7 +2,7 @@
 
 //! The native compiler: retained Terminal plus realization inputs to an image.
 //!
-//! Start at `native_compilation.rs`. It prepares the supplied realization,
+//! Start at `compiler.rs`. It prepares the supplied realization,
 //! admits entry/providers and drives the abstract, target and physical stages.
 //! Callback bodies take the same provider admission and physical pipeline,
 //! using their own artifact-local native proposal and no application entry.
@@ -11,12 +11,15 @@
 //! crate cannot obtain typed or checked trees to repair a missing Terminal fact.
 //! The artifact owner retains runtime provisions before emission consumes them.
 
-mod native_compilation;
-mod physical_pipeline;
+mod compiler;
+mod pipeline;
 mod realization;
 mod request;
 
-pub use native_compilation::{compile, compile_with_components};
+#[cfg(test)]
+mod pipeline_boundary;
+
+pub use compiler::{compile, compile_with_components};
 pub use realization::{
     ComponentExportImage, ComponentExportRequest, ComponentNativeCall, ComponentNativeExport,
     RealizedNativeProduct, emit_component_exports,

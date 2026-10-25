@@ -5,7 +5,7 @@
 use std::{fs, path::{Path, PathBuf}, process::{Command, Stdio}};
 use package_manager::operations::{prepare_local_project, LocalProjectPreparationOptions,
     PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
-use compiler::runtime::{TerminalRuntimeRequest, TerminalDomainExitDelegation, TerminalClockSnapshot};
+use terminal_runtime::{TerminalRuntimeRequest, TerminalDomainExitDelegation, TerminalClockSnapshot};
 use terminal_interpreter::TerminalExecutionStatus;
 
 fn run(root: PathBuf) -> Result<(), String> {
@@ -28,7 +28,8 @@ fn run(root: PathBuf) -> Result<(), String> {
         let name=fixture.file_stem().unwrap().to_string_lossy();
         let expected=fs::read(root.join("fixtures").join(format!("{name}.expected.txt"))).map_err(|e|e.to_string())?;
         let expected_code=if name.starts_with("invalid_"){2}else{0};
-        let observed=compiler::runtime::execute(TerminalRuntimeRequest {
+        let observed=terminal_runtime::execute(TerminalRuntimeRequest {
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             artifact, target:Some("linux_x86_64"), provisions:report.runtime_provisions(),
             // Ordinary CLI default: no root-authored Terminal provider proposal.
             provider_proposal:None,
@@ -51,7 +52,7 @@ fn run(root: PathBuf) -> Result<(), String> {
     }
     // Publication owns the actual executable; no alternate emitter or native
     // reconstruction is involved. Every process gets a fresh finite stdin file.
-    let (_,executable)=omega::compilation::publication::publish_native_artifact(report,&output.join("native"))?;
+    let (_,executable)=omega_build::publication::publish_native_artifact(report,&output.join("native"))?;
     fs::write(output.join("executable-path.txt"),format!("{}\n",executable.display())).map_err(|e|e.to_string())?;
     for fixture in &fixtures {
         let name=fixture.file_stem().unwrap().to_string_lossy();

@@ -909,17 +909,16 @@ fn substituted_type_reference(
 }
 
 /// Data-declaration identity is an exact premise: a lookup commits to one
-/// declaration row, so a second row bearing the same symbol (or, for the
-/// name fallback, the same spelling) makes the premise ambiguous. Refuse it
-/// rather than letting the first same-shaped row mint evidence for the wrong
-/// subject.
+/// declaration row, so a second row bearing the same symbol makes the premise
+/// ambiguous. Refuse it rather than letting the first same-shaped row mint
+/// evidence for the wrong subject. The representation's declaration index
+/// keeps every position per symbol, so this is its unique query and not
+/// another roster scan that must stay order-compatible with it.
 pub fn unique_data_definition_by_symbol(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
-    program
-        .typed_program()
-        .unique_data_definition_by_symbol(symbol)
+    program.unique_data_definition_by_symbol(symbol)
 }
 
 fn data_field_type_reference(

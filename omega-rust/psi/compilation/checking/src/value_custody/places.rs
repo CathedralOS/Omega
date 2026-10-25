@@ -259,30 +259,16 @@ pub(crate) fn direct_self_field_member(
     }
 }
 
-/// Select one live nominal declaration without replacing retained identity by
-/// a coincidentally matching diagnostic name.
-fn data_definition_by_symbol(
-    program: &dyn crate::CheckingInput,
-    symbol: symbols::SymbolHandle,
-) -> Option<&DataDefinition> {
-    if !symbol.is_valid() || program.symbols.get(symbol).kind != symbols::SymbolKind::Data {
-        return None;
-    }
-    match crate::declarations::data_queries::memoized_data_definition_lookup(program, symbol) {
-        crate::declarations::data_queries::DataDefinitionLookup::Unique(position) => {
-            program.data_definitions().get(position as usize)
-        }
-        _ => None,
-    }
-}
-
 /// The attached declaration selected for this machine. Diagnostic attachment
-/// spelling is not authority to recover a missing or different nominal owner.
+/// spelling is not authority to recover a missing or different nominal owner,
+/// so this asks the declaration index for the sole row carrying the attached
+/// symbol: definition rows exist only for `Data` symbols, which makes a
+/// separate kind guard a restatement of the roster's own keying.
 pub(crate) fn machine_attached_data<'a>(
     program: &'a dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Option<&'a DataDefinition> {
-    data_definition_by_symbol(program, machine.attached_data_symbol)
+    program.unique_data_definition_by_symbol(machine.attached_data_symbol)
 }
 
 /// The DECLARED type of a simple place argument: a bare local/parameter name

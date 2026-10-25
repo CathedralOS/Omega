@@ -186,6 +186,8 @@ helper that passes does not close an item.
   opt-level-1 checks with phase profiling enabled. Immutable declaration pages
   and their fact-context index are shared across independent flow groups;
   local facts, fixed-point joins and unknown-input fallback remain per-group.
+  Whole-program reuse requires the original typed input and complete preparation
+  admission to match; a changed opaque application takes fresh checking.
   Six coarse summaries and bodyless-supply handling are insufficient:
   `CallFrameResolver` also derives returned-reference origins and binding
   stability, denotational admission checks observation freedom, and
@@ -508,9 +510,10 @@ helper that passes does not close an item.
   also removes data-subject conformances and `Self`; the three implementation
   migration tasks below own that work. Their authorization to break legacy tests
   and remove compatibility paths applies to this migration too. The parser
-  rejects `self` parameters and implicit `self` expressions
+  rejects `self` parameters and machine/state receiver expressions
   (`fail/machines/retired_self_receiver`); do not restore them to make an
-  unmigrated program pass.
+  unmigrated program pass. This does not prohibit the predicate-only subject
+  settled under **DOMAIN-DEFAULT-PREDICATE-UNIFICATION**.
   - Source remainder: the two memory canaries
     (**TOP-LEVEL-BOUNDARY-REQUIREMENTS** and **CHECKED-ASM-LABEL-CONTRACTS**).
     Build receiver calls remain for facets such as test groups; move their
@@ -654,7 +657,12 @@ defines the complete product bar.
     later operands mutate their source; retain the scalar, shared-reference and byte-view descriptor
     controls in [copied call argument snapshots](samples/cli/facts/copied_call_argument_snapshot/README.md),
     including captured backing exclusion after descriptor replacement, inline image-backed
-    sources and untouched sibling descriptors.
+    sources, computed image/input results with once-only content effects, named result
+    copies, retained local-array backing and untouched sibling descriptors.
+    Retain completed descriptor operands across later argument-driven slot
+    replacement, including direct views and constructed children with local backing.
+    Complete remaining cyclic, opaque and dependent result composition through
+    the same producer and custody relationships.
     Keep
     `pass/ownership/runtime_{captured_exclusive_argument,exclusive_argument_before_descriptor_retarget}_exit`
     and `runtime_{fixed_selector_collection_capture,index_before_descriptor_retarget,fixed_selector_owned_argument}_exit`
@@ -662,7 +670,8 @@ defines the complete product bar.
     execute that selector once, and retain the completed argument before later
     siblings while keeping exact static claim paths. Reject
     `fail/ownership/fixed_selector_owned_argument_second_consume` for consuming
-    the same selected claim twice. Selected payload returns use ordinary
+    the same selected claim twice.
+    Selected payload returns use ordinary
     expression continuations with captured backing across conditional arms and
     cyclic argument permutations; element origins retain logical window indices.
     Runtime-dispatched values still need their full construction schedule. Preserve
@@ -820,8 +829,16 @@ defines the complete product bar.
     keep `python3 tools/corpus_gate.py --both --filter
     runtime_call_endpoint,runtime_inclusive_call_endpoint` (70),
     `fail/slices/inclusive_*` for bounds/overlap rejection, and
-    `layouts/runtime_reborrow_preserves_store_origin_exit` (70) for address
-    origins across shared-value and write-prefix queries. Carry exact
+    `layouts/runtime_reborrow_preserves_store_origin_exit` for address origins
+    across shared-value and write-prefix queries (70 in both engines).
+    Preserve `samples/cli/facts/narrowed_integer_write`: signed eight-bit stores
+    retain semantic i64 meaning and their adjacent byte across all nine places;
+    value-200 twins reject. Open generic storage does not invent physical
+    geometry or hide concrete template-local obligations; portable families
+    discharge every member body's performed writes against the same actuals.
+    Completed call results
+    retain their checked fit evidence, including before later source writes.
+    Carry exact
     anonymous arithmetic through generic, boundary, aggregate, parameter,
     float and proof uses with result carrier/policy and warning origins.
     **OPERATOR-MACHINE-SUPPLY** owns executable selected helpers.
@@ -1722,10 +1739,36 @@ defines the complete product bar.
   subject/view/range identity, subordinate-call obligations and descent on
   every complete mutual call cycle. Checked-only records do not close this.
 
+- **DOMAIN-DEFAULT-PREDICATE-UNIFICATION.** Implement the owner-ratified
+  [predicate subject](wiki/spec/language/domains.md#declaration-and-membership)
+  and [case-dependent default domains](wiki/spec/language/data_and_literals.md#case-constraints).
+  `self` denotes the exact constrained value only in data `where` and domain
+  `requires`. Remove explicit domain subject binders and case-level `where`,
+  including their parallel internal predicate paths; machine/state receivers
+  and `Self` stay rejected. No data subject-parameter syntax is introduced.
+  Migrate library, samples and fixtures in the same implementation change.
+
+  Carry one general predicate representation through formation, construction,
+  calls, matching, coverage, writes and erasure. Case membership plus the
+  established domain must recover type equality and guarded payload bounds;
+  merely recognizing a constructor or accepting a declaration is insufficient.
+  Do not assume a predicate's own goal to form its payload access or helper
+  call. Keep recursive/indexed data support and its checked encoding obligations,
+  exact subject identity, first-case zero gating and mutation restoration.
+
+  Acceptance: execute a generic typed extractor over Integer/Boolean and a
+  guarded Range payload consumer through native and Terminal Psi. Exercise the
+  same predicate as a default domain and a named generic domain, through the
+  applicable nine fact places. Reject mismatched case/type construction,
+  unguarded inactive payload access, reversed bounds, stale facts after writes,
+  invalid zero establishment and the retired syntax. Preserve existing
+  receiver-rejection controls. Existing `case_where_*` fixtures are migration
+  inputs, not evidence that this new contract is implemented.
+
 - **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete the settled
   [proposition-based scalar range contract](wiki/spec/language/domains.md#declaration-and-membership)
   and [generic inference rule](wiki/spec/language/generics.md): common fields use
-  data `where`, payloads case `where`, machine/state parameters `requires`,
+  data `where` (including guarded payload predicates), machine/state parameters `requires`,
   results `ensures`, locals the facts from initializers, guards and calls.
   Remove integer and float `T [lo..hi]` / `T [lo..=hi]` suffixes after their
   customers migrate; ordinary ranges, slices, arrays and bracketed multiplicity
@@ -2561,16 +2604,18 @@ then independent claimed restoration slices -> final closure.
   Terminal loading, entry establishment, supplied-slot installation and
   execution. Target-aware host adapters belong outside Psi in Omega-owned host
   integration, using independent backend ABI/locator/mechanism libraries, not
-  compiler stages. Split `omega-rust/omega/compilation/driver/src/runtime.rs`
-  along that boundary; retain exact foreign identity and ABI checks before
-  effects. CLI execution, embedding and corpus consume these owning APIs.
+  compiler stages. Hosted integration now lives in
+  `omega-rust/omega/application/terminal-runtime`; finish the source-free
+  artifact execution boundary and retain exact foreign identity and ABI checks
+  before effects. CLI execution, embedding and corpus consume these owning APIs.
   Stdin/stdout/stderr, virtual clocks, provisions and observations are not
-  compiler responsibilities. Remove `compiler::runtime` and direct
-  `terminal-interpreter` dependencies from the application. Add a production
+  compiler responsibilities. The CLI and corpus no longer use
+  `compiler::runtime`; the CLI depends on the hosted runtime, not directly on
+  `terminal-interpreter`. Add a production
   command/API that executes an owned Terminal artifact without compiling
   source, beside the source route that asks only the Psi driver.
-  Replace source-checking-dependent `program-entry-plan` inputs with source-free
-  runtime provisions; the producer owns the exact provision/schema join.
+  Runtime provisions now come directly from the source-free `native-artifact`
+  owner; preserve the producer's exact provision/schema join.
   Follow [target environments and engines](wiki/spec/build/embedding.md#target-environments-and-execution-engines):
   Psi gains no Omega dependency, ABI catalog copy or native fallback. Hosts
   explicitly supply bindings; ordinary provider bodies can execute in Psi.
@@ -2580,7 +2625,7 @@ then independent claimed restoration slices -> final closure.
   A native compilation failure or comparison decline cannot count as agreement.
   Current frontier: the corpus adapter consumes the produced Terminal artifact
   and uses the common core; it no longer calls the checked-tree interpreter.
-  The shared `driver/src/runtime.rs` consumes retained native entry/provider
+  The shared `application/terminal-runtime/src/execution.rs` consumes retained native entry/provider
   provisions, establishes fresh private hosted backing and erased root fields,
   binds typed buffered line/byte output. Preserve
   `float/{named_provider_directed_divide_exit,runtime_float_integer_conversion_boundaries_exit}`,
@@ -2779,7 +2824,24 @@ crash and native exit behavior.
 
 - **PIPELINE-ARCHITECTURE-ENFORCEMENT.** (new-scope) Own convergence to, and
   permanent enforcement of, the connected route in
-  [the pipeline contract](omega-rust/pipeline.md): Psi 00-07 and Build execute
+  [the pipeline contract](omega-rust/pipeline.md) and the owner-approved
+  [build/compiler migration](omega-rust/pipeline.md#build-and-compiler-ownership-migration).
+  The application Build coordinator must own scheduling, while two compiler
+  entrances visibly sequence representations and stages. Remove old orchestration
+  and forbidden production dependencies as callers migrate; a shorter wrapper
+  or folder move does not establish this outcome. Native body sequencing is
+  shared by roots and callables, including explicit stages 07-09; backend frame
+  construction and evidence joins remain cohesive backend operations. Product
+  orchestration retains identities with ordered work. The application Build
+  entrance owns project preparation, directory admission and product publication
+  for compilation, `run` and source inspection; retained execution products and
+  named Terminal inspections use the same project lifecycle.
+  Hosted Terminal execution is an application consumer, no longer a compiler
+  export; it consumes source-free retained provisions from their native owner.
+  Package dependency/Build activation scheduling still needs migration. Psi
+  facade completion, the common
+  Terminal view and **TERMINAL-BUILD-SEED** remain required.
+  Psi 00-07 and Build execute
   once over every authored target body; one canonical Terminal Psi product is
   the only portable handoff; Omega 00-09 realizes each requested target from
   that product and target-keyed Build rows. This item covers integration and
@@ -6955,7 +7017,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
     beyond crash causes, including satisfier and static-machine-argument
     premises and guarantees. Prove indexes against symbolic `const` extents,
     case memberships, memberships inside larger facts, byte predicates and
-    stores affecting case-specific `where` facts. Represent storage origins
+    stores affecting case-conditional default-domain facts, with predicate-only
+    `self` and no case `where` or authored subject binder. Represent storage origins
     for returned references, reference fields and selected reference values;
     nonempty writes through an unknown origin must remain refused rather
     than acquire independent storage facts. Track payload paths on held-loan

@@ -39,7 +39,8 @@ mod prepared_source;
 pub mod publication;
 
 pub use checked_compilation::{
-    CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, RetainedCompilationChecks,
+    CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, ProductReportPlan,
+    ProductReportRequest, RetainedCompilationChecks,
 };
 pub use compilation_products::{CompileOutputKind, CompileReport};
 pub use compile_outcomes::{

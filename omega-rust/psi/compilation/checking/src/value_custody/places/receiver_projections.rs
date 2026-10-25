@@ -50,10 +50,7 @@ pub fn field(
 ) -> Option<Projection> {
     let nominal =
         crate::machine_symbol_from_type_reference_handle(program, receiver.type_reference);
-    let definition = program
-        .data_definitions()
-        .iter()
-        .find(|definition| nominal.is_valid() && definition.symbol == nominal)?;
+    let definition = program.data_definition_by_symbol(nominal)?;
     let selected = super::exact_data_member_field(
         program,
         definition,

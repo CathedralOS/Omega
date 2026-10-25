@@ -1,13 +1,10 @@
-//! Function-relative realization: the first machine-emission stage.
+//! Function frames and the evidence join for produced function-relative code.
 //!
-//! [`stage_fixed_frame_function_relative_realization`] (`fixed_frame`)
-//! reads the current allocation and the post-allocation machine plan,
-//! stages the function frame (`frame`: callee-save requirements, their
-//! storage, the frame layout and its byte protocol), encodes and lays out the
-//! selected forms, runs the phase-local layout optimization, stages the
-//! whole-function exit contract, and seals the manifest defined here with its
-//! custody receipt (`assembly`, `carriers`). Its validator, kept for
-//! retained-artifact readers and tests, replays each of those joins against
+//! [`stage_function_frame`] constructs callee-save requirements, storage, frame
+//! geometry and its byte protocol. Native compilation then runs encoding and
+//! layout stages. [`assemble_fixed_frame_realization`] consumes their results,
+//! constructs the whole-function exit contract, and binds the manifest and
+//! custody receipt. The retained-reader validator replays the joins against
 //! the same immutable inputs. `codec` encodes and decodes the manifest.
 
 mod assembly;
@@ -17,11 +14,11 @@ mod error;
 mod fixed_frame;
 mod frame;
 
-pub(crate) use carriers::StagedFixedFrameFunctionRelativeRealization;
+pub use carriers::StagedFixedFrameFunctionRelativeRealization;
 pub use error::FunctionRelativeOptimizationRealizationError;
-pub use fixed_frame::stage_fixed_frame_function_relative_realization;
+pub use fixed_frame::assemble_fixed_frame_realization;
 pub(crate) use fixed_frame::validate_fixed_frame_function_relative_realization;
-pub(crate) use frame::FunctionRelativeFrame;
+pub use frame::{FunctionRelativeFrame, stage_function_frame};
 
 use machine_code::{
     ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity, SelectedFunctionLayoutPolicy,

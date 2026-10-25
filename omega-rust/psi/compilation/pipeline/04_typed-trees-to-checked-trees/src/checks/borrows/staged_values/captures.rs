@@ -164,7 +164,14 @@ pub(super) fn append(
                 continue;
             }
         }
-        let places = super::backing::places(program, facts, state, operand, &path, &mut Vec::new());
+        let places = super::super::captured_descriptors::places(
+            program,
+            facts,
+            state,
+            operand,
+            &path,
+            &mut Vec::new(),
+        );
         match places {
             Some(places) => {
                 for place in places {

@@ -139,11 +139,11 @@ fn parameter_relative_place_origins_in(
         }
         ExpressionNode::Indexed(indexed) => {
             if expression_is_effectful_for_transparent_result(program, indexed.index) {
-                let mut diagnostics = Vec::new();
-                let machine_symbols =
-                    MachineSymbols::build(program, current_machine, &mut diagnostics);
-                if !diagnostics.is_empty()
-                    || !parameter_relative_expression_preserves_transparent_result(
+                let Some(machine_symbols) = super::demand::machine_symbols(program, current_machine)
+                else {
+                    return None;
+                };
+                if !parameter_relative_expression_preserves_transparent_result(
                         program,
                         current_machine,
                         indexed.index,
@@ -436,6 +436,13 @@ fn parameter_relative_call_result_origins(
     let callee_parameters = program.state_parameters(callee_state);
     let mut origins = Vec::new();
     for callee_origin in callee_origins {
+        // A literal-produced image route is independent of formal inputs.
+        // Preserve that authenticated route across every helper boundary;
+        // an absent parameter alone never makes a local origin static.
+        if !callee_origin.parameter_symbol.is_valid() && callee_origin.place.source.is_static() {
+            push_unique_parameter_relative(&mut origins, callee_origin);
+            continue;
+        }
         let callee_parameter = callee_parameters
             .iter()
             .find(|parameter| parameter.symbol == callee_origin.parameter_symbol)?;

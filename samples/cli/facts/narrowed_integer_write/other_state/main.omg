@@ -1,0 +1,33 @@
+// A completed write of 70 through a signed eight-bit field retains its i64 meaning and leaves the adjacent byte unchanged.
+// Place: other_state.
+// Expected exit: 0
+use omega::language::core::layout;
+
+data SignedByte {}
+machine SignedByte::plan(schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::IntegerAt {
+            offset: 0, stored_width: 8, interpretation: IntegerInterpretation::Signed,
+        },
+    };
+    Plan { entries: entries, entry_count: 1, size_fixed: 1, size_is_dynamic: false, align: 1 }
+}
+data PortableByte [copy] { value: i64; }
+data Memory { bytes: [u8; 2]; }
+machine store(destination: &mut i64, value: i64) { destination = value; }
+machine main(memory: &mut Memory) crashes Trap {
+    memory.bytes[1] = 85;
+    transition { _ -> apply(memory, 70) }
+    state apply(memory: &mut Memory, value: i64) {
+        let packed: &mut SignedByte<PortableByte> = &mut memory.bytes[0] as &mut SignedByte<PortableByte>;
+        store(&mut packed.value, value);
+    transition memory.bytes[0] == 70 && memory.bytes[1] == 85 {
+        true -> done()
+        false -> bad()
+    }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

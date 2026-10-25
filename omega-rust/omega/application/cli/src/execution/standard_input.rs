@@ -1,7 +1,7 @@
 //! A comparison replays one finite byte stream without a blocking pipe writer.
 //! Scratch input is separate from retained build artifacts and always disposable.
 
-use crate::temporary_directory::TemporaryDirectory;
+use platform_custody::temporary_directory::TemporaryDirectory;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read};
 

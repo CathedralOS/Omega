@@ -5,13 +5,61 @@
 //! earlier one. Unknown relations remain unknown.
 
 use super::{
-    CollectedStatementPrefix, FrameInference, Machine, SlotArgumentCapture, SlotEffect,
-    SlotRelationTransfer, TopLevelSymbols,
+    CollectedStatementPrefix, FrameInference, Machine, SlotEffect, SlotRelationTransfer,
+    TopLevelSymbols,
 };
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern};
 use typed_trees::statement::{
     StatementNode, TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
 };
+
+/// One value and its evaluated operands. For Calls, context is the call-entry
+/// inventory after all actuals and before its own invocation effects, so the
+/// checked result relation can complete relative dereferences at that boundary.
+/// Non-call contexts are their ordinary expression-completion inventories.
+/// Child records retain their own earlier descriptor observations; the
+/// enclosing evaluator independently retains the post-call ambient inventory.
+/// These are query construction records, not runtime values or loan authority.
+#[derive(Clone)]
+pub(super) struct SlotArgumentCapture {
+    pub(super) expression: ExpressionHandle,
+    pub(super) context: CollectedStatementPrefix,
+    pub(super) inference: FrameInference,
+    pub(super) operands: Vec<SlotArgumentCapture>,
+}
+
+impl SlotArgumentCapture {
+    pub(super) fn at(
+        expression: ExpressionHandle,
+        context: &CollectedStatementPrefix,
+        inference: &FrameInference,
+        operands: Vec<SlotArgumentCapture>,
+    ) -> Self {
+        Self {
+            expression,
+            context: context.clone(),
+            inference: inference.clone(),
+            operands,
+        }
+    }
+
+    /// One evaluated occurrence is required. Shared syntax alone cannot select
+    /// between observations on different alternatives or at different epochs.
+    pub(super) fn observation(&self, expression: ExpressionHandle) -> Option<&Self> {
+        let mut pending = vec![self];
+        let mut found = None;
+        while let Some(captured) = pending.pop() {
+            if captured.expression == expression {
+                if found.is_some() {
+                    return None;
+                }
+                found = Some(captured);
+            }
+            pending.extend(captured.operands.iter());
+        }
+        found
+    }
+}
 
 pub(super) struct CompletedTarget {
     pub target: TransitionTargetHandle,

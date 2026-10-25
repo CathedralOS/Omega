@@ -93,24 +93,19 @@ impl<'program> Engine<'program> {
         engine
     }
 
+    /// Start from the supplied bindings alone: they define the complete atom
+    /// roster, so no machine parameter atom is scanned and then discarded.
     pub(in crate::proof_contracts::contract_entailment) fn strict(
         program: &'program dyn crate::CheckingInput,
         machine: &Machine,
         bindings: &[StrictArithmeticSymbolBinding],
     ) -> Self {
-        let mut engine = Self::new(program, machine);
-        engine.parameter_atoms.clear();
-        engine.unsigned_atoms.clear();
+        let mut engine = Self::for_owner(program, machine.symbol, None);
         let mut resolved = Vec::with_capacity(bindings.len());
         for binding in bindings {
             let polynomial = match &binding.value {
                 StrictArithmeticBindingValue::Atom { identity, unsigned } => {
-                    if !engine.parameter_atoms.contains(identity) {
-                        engine.parameter_atoms.push(identity.clone());
-                    }
-                    if *unsigned && !engine.unsigned_atoms.contains(identity) {
-                        engine.unsigned_atoms.push(identity.clone());
-                    }
+                    engine.declare_atom(identity, *unsigned);
                     Polynomial::atom(identity.clone())
                 }
                 StrictArithmeticBindingValue::Integer(value) => Polynomial::constant(value.clone()),
@@ -214,18 +209,6 @@ impl<'program> Engine<'program> {
                 })
                 .collect(),
         )
-    }
-
-    /// Register a private atom of a scoped roster. Unsigned atoms carry the
-    /// same implicit `>= 0` as unsigned parameters; the matrix seeds it on the
-    /// next hypothesis installation.
-    fn declare_atom(&mut self, identity: &str, unsigned: bool) {
-        if !self.parameter_atoms.iter().any(|atom| atom == identity) {
-            self.parameter_atoms.push(identity.to_owned());
-        }
-        if unsigned && !self.unsigned_atoms.iter().any(|atom| atom == identity) {
-            self.unsigned_atoms.push(identity.to_owned());
-        }
     }
 
     /// Normalize a scoped value without manufacturing a source expression for

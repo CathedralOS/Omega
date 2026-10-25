@@ -244,6 +244,13 @@ pub(super) fn check_call_access_conflicts<'p>(
         }
     }
 
+    // Resolve pointer geometry only for an actual simultaneous-hold judgment.
+    // A sole reference operand needs no additional address proof merely to
+    // enter a call; its ordinary authority/lifetime checks still run below.
+    let mut held_places = (0..accesses.len())
+        .map(|_| super::held_places::HeldPlaces::default())
+        .collect::<Vec<_>>();
+
     for (index, access) in accesses.iter().enumerate() {
         for (other_index, other_access) in accesses.iter().enumerate().skip(index + 1) {
             // A local jump forwards the activation's exact data parent. It
@@ -309,26 +316,49 @@ pub(super) fn check_call_access_conflicts<'p>(
             {
                 continue;
             }
-            let mut conflict = None;
-            for backing in &operand_backings[index].places {
-                for other_backing in &operand_backings[other_index].places {
-                    if let Some(found) = simultaneous_hold_conflict(
+            if matches!(
+                (&access.kind, &other_access.kind),
+                (
+                    checked_trees::BorrowAccessKind::Read,
+                    checked_trees::BorrowAccessKind::Read
+                )
+            ) {
+                // captured_place_compatibility admits shared pairs independently
+                // of their pointer geometry. Authority checks remain separate.
+                continue;
+            }
+            let (earlier, later) = held_places.split_at_mut(other_index);
+            let first = earlier[index].resolve(
+                program,
+                facts,
+                state_flow,
+                borrow_call,
+                access,
+                target_name,
+                diagnostics,
+            );
+            let second = later[0].resolve(
+                program,
+                facts,
+                state_flow,
+                borrow_call,
+                other_access,
+                target_name,
+                diagnostics,
+            );
+            let conflict = first.iter().find_map(|first| {
+                second.iter().find_map(|second| {
+                    simultaneous_hold_conflict(
                         program,
-                        &backing.place,
+                        first,
                         &access.kind,
-                        &other_backing.place,
+                        second,
                         &other_access.kind,
                         stated_premises,
                         bound_lookup,
-                    ) {
-                        conflict = Some(found);
-                        break;
-                    }
-                }
-                if conflict.is_some() {
-                    break;
-                }
-            }
+                    )
+                })
+            });
             let Some(conflict) = conflict else {
                 continue;
             };

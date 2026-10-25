@@ -79,6 +79,7 @@ dependencies = [
  "package-manager",
  "target",
  "terminal-interpreter",
+ "terminal-runtime",
 ]
 
 [[package]]
@@ -483,6 +484,7 @@ dependencies = [
  "terminal-production",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
+ "terminal-runtime",
  "terminal-semantics",
  "tokens-to-syntax-trees",
  "trust-model",
@@ -694,6 +696,7 @@ dependencies = [
  "sha2",
  "target",
  "terminal-interpreter",
+ "terminal-runtime",
 ]
 
 [[package]]
@@ -825,6 +828,7 @@ dependencies = [
  "package-manager",
  "target",
  "terminal-interpreter",
+ "terminal-runtime",
 ]
 
 [[package]]
@@ -838,7 +842,9 @@ dependencies = [
  "effects",
  "image-emission",
  "mimalloc",
+ "optimization-core",
  "package-compilation",
+ "package-evidence",
  "semantic-vocabulary",
  "source-files-to-tokens",
  "symbols",
@@ -846,6 +852,7 @@ dependencies = [
  "target",
  "terminal-interpreter",
  "terminal-psi",
+ "terminal-runtime",
  "tokens-to-syntax-trees",
  "typed-trees",
 ]
@@ -1214,9 +1221,12 @@ dependencies = [
  "machine-emission",
  "native-artifact",
  "optimization-core",
+ "post-allocation-machine-to-selected-form-encoding",
  "register-environment",
  "register-homes-to-post-allocation-machine",
+ "resolved-layout-to-resolved-layout",
  "runtime-abi",
+ "selected-form-encoding-to-resolved-layout",
  "selected-instructions-to-register-homes",
  "selected-instructions-to-selected-instructions",
  "target",
@@ -1233,10 +1243,11 @@ name = "new087-terminal-validation"
 version = "0.1.0"
 dependencies = [
  "compiler",
- "omega",
+ "omega-build",
  "package-manager",
  "target",
  "terminal-interpreter",
+ "terminal-runtime",
 ]
 
 [[package]]
@@ -1285,6 +1296,7 @@ dependencies = [
  "compiler",
  "diagnostics",
  "mimalloc",
+ "omega-build",
  "package-compilation",
  "package-manager",
  "package-source",
@@ -1294,9 +1306,22 @@ dependencies = [
  "semantic-vocabulary",
  "target",
  "terminal-codec",
- "terminal-interpreter",
  "terminal-psi",
+ "terminal-runtime",
  "terminal-semantics",
+]
+
+[[package]]
+name = "omega-build"
+version = "0.1.0"
+dependencies = [
+ "artifacts",
+ "compilation-products",
+ "compiler",
+ "diagnostics",
+ "package-manager",
+ "platform-custody",
+ "target",
 ]
 
 [[package]]
@@ -1839,6 +1864,7 @@ dependencies = [
  "serde_json",
  "target",
  "terminal-interpreter",
+ "terminal-runtime",
 ]
 
 [[package]]
@@ -2071,9 +2097,10 @@ name = "spectral-power-validation"
 version = "0.1.0"
 dependencies = [
  "compiler",
- "omega",
+ "omega-build",
  "package-manager",
  "target",
+ "terminal-runtime",
 ]
 
 [[package]]
@@ -2342,6 +2369,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "terminal-runtime"
+version = "0.1.0"
+dependencies = [
+ "backend-plan",
+ "calling-conventions",
+ "native-artifact",
+ "numerics",
+ "runtime-abi",
+ "semantic-vocabulary",
+ "target",
+ "target-operations",
+ "terminal-codec",
+ "terminal-fuel",
+ "terminal-installation",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-semantics",
+]
+
+[[package]]
 name = "terminal-semantics"
 version = "0.1.0"
 dependencies = [
@@ -2360,9 +2407,10 @@ name = "thin-film-reflectometry-validation"
 version = "0.1.0"
 dependencies = [
  "compiler",
- "omega",
+ "omega-build",
  "package-manager",
  "target",
+ "terminal-runtime",
 ]
 
 [[package]]
@@ -2524,9 +2572,10 @@ version = "0.1.0"
 dependencies = [
  "bounded-process",
  "compiler",
- "omega",
+ "omega-build",
  "package-manager",
  "target",
+ "terminal-runtime",
 ]
 
 [[package]]

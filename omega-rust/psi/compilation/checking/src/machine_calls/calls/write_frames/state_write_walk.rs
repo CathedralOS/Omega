@@ -468,44 +468,37 @@ fn walk_state_write_prefix_body(
             }
         )
     );
-    let mut stored = if include_shared {
-        parameters
-            .iter()
-            .filter_map(|parameter| {
-                let reference = reference_subjects::carrier_storage_declaration(
-                    program,
-                    parameter.type_reference,
-                )?;
-                let mut origins = stored_origins::declared_origins_for_query(
-                    program,
-                    parameter.symbol,
-                    parameter.name.as_str(),
-                    reference,
-                    true,
-                )?;
-                // Borrowing the carrier does not transfer the caller's whole
-                // owner. Only its descriptor leaves seed this invocation.
-                if type_reference_is_reference(program, parameter.type_reference) {
-                    origins.moves.clear();
-                }
-                (!type_reference_is_reference(program, parameter.type_reference)
-                    || !origins.references.is_empty())
-                .then_some(origins)
-            })
-            .collect()
-    } else {
-        Vec::new()
-    };
+    let mut stored = parameters
+        .iter()
+        .filter_map(|parameter| {
+            let reference =
+                reference_subjects::carrier_storage_declaration(program, parameter.type_reference)?;
+            let mut origins = stored_origins::declared_origins_for_query(
+                program,
+                parameter.symbol,
+                parameter.name.as_str(),
+                reference,
+                true,
+            )?;
+            let binding_free = origins.has_no_frozen_bindings();
+            if !include_shared && !binding_free {
+                return None;
+            }
+            let borrowed = type_reference_is_reference(program, parameter.type_reference);
+            // Negative frontiers establish no whole-value transport. Borrowed
+            // carriers likewise supply slots, not ownership of the referent.
+            if borrowed || !include_shared {
+                origins.moves.clear();
+            }
+            (!borrowed || !origins.references.is_empty() || binding_free).then_some(origins)
+        })
+        .collect::<Vec<_>>();
     if include_shared {
         super::stored_calls::seed_incoming_slots(program, state, &mut stored);
     }
     let mut written = Vec::new();
 
-    let mut nested_diagnostics = Vec::new();
-    let machine_symbols = MachineSymbols::build(program, machine, &mut nested_diagnostics);
-    if !nested_diagnostics.is_empty() {
-        return None;
-    }
+    let machine_symbols = super::demand::machine_symbols(program, machine)?;
 
     let statements = program.statement_table.statements(state.statement_nodes);
     let order = program

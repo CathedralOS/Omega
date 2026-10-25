@@ -1,0 +1,85 @@
+// The selected value of a copied first argument remains 7 when the second argument replaces its former descriptor home with a view of 9.
+// Place: const_name.
+// Expected exit: 0
+const START: u64 = 7;
+data View<'storage> [copy] { bytes: &'storage [u8]; sibling: &'storage [u8]; }
+machine overwrite<'storage>(slot: &mut View<'storage>, replacement: &'storage [u8]) -> u64 {
+    slot.bytes = replacement;
+    0
+}
+data Counter { called: bool; }
+machine replacement<'storage>(source: &'storage [u8], destination: &mut View<'storage>, counter: &mut Counter) -> &'storage [u8]
+requires source.len == 9
+ensures result.len == 9
+{
+    counter.called = !counter.called;
+    destination.bytes = source;
+    source
+}
+machine install_selected<'storage>(slot: &mut View<'storage>, selected: View<'storage>, ignored: u64) -> u64 {
+    slot.bytes = selected.bytes;
+    0
+}
+machine install_view<'storage>(slot: &mut View<'storage>, selected: &'storage [u8], ignored: u64) -> u64 {
+    slot.bytes = selected;
+    0
+}
+machine choose<'storage>(selected: &'storage [u8], ignored: u64) -> &'storage [u8] { selected }
+machine view_after<'storage>(ignored: u64, selected: &'storage [u8]) -> &'storage [u8] { selected }
+machine tail_after(ignored: u64) -> &[u8] { "tail" }
+machine pure_replacement() -> &[u8] ensures result.len == 9 { "123456789" }
+machine seven(value: u64) -> u64
+requires value == 7
+ensures result == 7
+{ value }
+machine receive<'storage>(selected: View<'storage>, ignored: u64) -> u64
+requires selected.bytes.len == 7
+ensures result == 7
+{
+    seven(selected.bytes.len)
+}
+
+machine main() crashes Trap {
+    let mut counter: Counter = Counter { called: false };
+    let first: &[u8] = &"123456789"[0..START];
+    let mut original: View = View { bytes: first, sibling: "tail" };
+    let mut other: View = View { bytes: "abcdefgh", sibling: "tail" };
+    let observed: u64 = receive(original, overwrite(&mut original, replacement("123456789", &mut other, &mut counter)));
+    let mut pure_original: View = View { bytes: "1234567", sibling: "tail" };
+    let pure_observed: u64 = receive(pure_original, overwrite(&mut pure_original, pure_replacement()));
+    let mut staged_original: View = View { bytes: "1234567", sibling: "tail" };
+    let mut staged_source: View = View { bytes: "123456789", sibling: "tail" };
+    let staged_observed: u64 = receive(staged_original,
+        install_selected(&mut staged_original, staged_source, overwrite(&mut staged_source, "12345678")));
+    let staged_difference: u64 = staged_observed - 7;
+    let mut direct_original: View = View { bytes: "1234567", sibling: "tail" };
+    let mut direct_source: View = View { bytes: "123456789", sibling: "tail" };
+    let direct_observed: u64 = receive(direct_original,
+        install_view(&mut direct_original, direct_source.bytes, overwrite(&mut direct_source, "12345678")));
+    let direct_difference: u64 = direct_observed - 7;
+    let constructor_storage: [u8; 9] = [90, 50, 51, 52, 53, 54, 55, 56, 57];
+    let mut constructor_original: View = View { bytes: "1234567", sibling: "tail" };
+    let mut constructor_source: View = View { bytes: "12345678", sibling: "tail" };
+    let constructor_observed: u64 = receive(constructor_original,
+        install_selected(&mut constructor_original,
+            View { bytes: view_after(overwrite(&mut constructor_source, &constructor_storage[..]), constructor_source.bytes), sibling: tail_after(overwrite(&mut constructor_source, "12345678")) }, 0));
+    let constructor_difference: u64 = constructor_observed - 7;
+    let returned_storage: [u8; 9] = [91, 50, 51, 52, 53, 54, 55, 56, 57];
+    let mut returned_original: View = View { bytes: "1234567", sibling: "tail" };
+    let mut returned_source: View = View { bytes: &returned_storage[..], sibling: "tail" };
+    let returned_observed: u64 = receive(returned_original,
+        install_view(&mut returned_original, choose(returned_source.bytes, overwrite(&mut returned_source, "12345678")), 0));
+    let returned_difference: u64 = returned_observed - 7;
+    let pure_difference: u64 = pure_observed - 7;
+    let difference: u64 = observed - 7;
+    transition difference == 0 && original.bytes.len == 9 && original.sibling.len == 4 && other.bytes.len == 9 && other.sibling.len == 4 && counter.called
+        && pure_difference == 0 && pure_original.bytes.len == 9 && pure_original.sibling.len == 4
+        && staged_difference == 0 && staged_original.bytes.len == 9 && staged_original.sibling.len == 4 && staged_source.bytes.len == 8 && staged_source.sibling.len == 4
+        && direct_difference == 0 && direct_original.bytes.len == 9 && direct_original.sibling.len == 4 && direct_source.bytes.len == 8
+        && constructor_difference == 0 && constructor_original.bytes.len == 9 && constructor_original.bytes[0] == 90u8 && constructor_original.sibling.len == 4 && constructor_source.bytes.len == 8
+        && returned_difference == 0 && returned_original.bytes.len == 9 && returned_original.bytes[0] == 91u8 && returned_original.sibling.len == 4 && returned_source.bytes.len == 8 {
+        true -> done() false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

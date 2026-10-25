@@ -2,10 +2,10 @@
 //! the native report's exact retained provisions, never a second compilation,
 //! dummy receiver, expected-output callback or Unit-returning exit mock.
 
-use compiler::runtime::{
+use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
+use terminal_runtime::{
     TerminalDomainExitDelegation, TerminalRuntimeError, TerminalRuntimeRequest,
 };
-use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
 
 pub(super) const TARGET_ORACLE: &str = "expected_terminal_targets.txt";
 
@@ -141,7 +141,7 @@ pub(super) fn target_installations(
             matched = false;
             continue;
         }
-        let x86_flags = match compiler::runtime::capture_host_x86_flags(&target) {
+        let x86_flags = match terminal_runtime::capture_host_x86_flags(&target) {
             Ok(flags) => flags,
             Err(error) => {
                 observation.diagnostics.push(error.to_string());
@@ -149,7 +149,7 @@ pub(super) fn target_installations(
                 continue;
             }
         };
-        let result = compiler::runtime::execute(TerminalRuntimeRequest {
+        let result = terminal_runtime::execute(TerminalRuntimeRequest {
             x86_flags,
             artifact,
             target: Some(&target),
@@ -261,18 +261,18 @@ pub(super) fn interpret(
     fuel_allowance: u64,
     standard_input: Box<dyn std::io::Read + Send>,
 ) -> Observation {
-    let clock = match compiler::runtime::TerminalClockSnapshot::capture_host_epoch() {
+    let clock = match terminal_runtime::TerminalClockSnapshot::capture_host_epoch() {
         Ok(clock) => clock,
         Err(error) => return Observation::failure(error),
     };
     let x86_flags = match target
-        .map(compiler::runtime::capture_host_x86_flags)
+        .map(terminal_runtime::capture_host_x86_flags)
         .transpose()
     {
         Ok(flags) => flags.flatten(),
         Err(error) => return Observation::failure(error),
     };
-    let result = match compiler::runtime::execute(TerminalRuntimeRequest {
+    let result = match terminal_runtime::execute(TerminalRuntimeRequest {
         x86_flags,
         provider_proposal: None,
         artifact,

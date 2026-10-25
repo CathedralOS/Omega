@@ -180,12 +180,20 @@ pub struct CheckingContext<'program> {
     prepared_mathematics:
         Option<crate::mathematical_applications::PreparedMathematicalView<'program>>,
     opaque_selections: Option<&'program [OpaqueRepresentationSelection]>,
-    memos: CheckingMemos,
+    memos: Arc<CheckingMemos>,
     call_frame_tables:
         OnceLock<Option<Arc<crate::machine_calls::calls::CallFrameTables<'program>>>>,
 }
 
 impl<'program> CheckingContext<'program> {
+    fn reset_context_sensitive_memos(&mut self) {
+        let memos = std::mem::take(&mut self.memos);
+        self.memos = Arc::new(Arc::try_unwrap(memos).map_or_else(
+            |shared| shared.clone_typed_tree_memos(),
+            CheckingMemos::retain_typed_tree_memos,
+        ));
+    }
+
     /// Change the explicit declaration input before any flow-dependent memo is
     /// built. These dependencies constrain lifetimes; they supply no address.
     pub fn with_retained_borrow_custodies(
@@ -193,7 +201,7 @@ impl<'program> CheckingContext<'program> {
         rows: Arc<[checked_trees::RetainedBorrowCustodyFact]>,
     ) -> Self {
         self.retained_borrows = rows;
-        self.memos = CheckingMemos::default();
+        self.memos = Arc::new(CheckingMemos::default());
         self.call_frame_tables = OnceLock::new();
         self
     }
@@ -206,7 +214,7 @@ impl<'program> CheckingContext<'program> {
             prepared_effects: None,
             prepared_mathematics: None,
             opaque_selections: None,
-            memos: CheckingMemos::default(),
+            memos: Arc::new(CheckingMemos::default()),
             call_frame_tables: OnceLock::new(),
         }
     }
@@ -219,17 +227,22 @@ impl<'program> CheckingContext<'program> {
         mut self,
         selections: &'program AuthoredDeclarationSelections,
     ) -> Self {
+        let changed = self.authored_declaration_selections() != selections;
         self.finalized_selections = Some(selections);
-        self.memos = self.memos.retain_typed_tree_memos();
+        if changed {
+            self.reset_context_sensitive_memos();
+        }
         self
     }
 
     /// Switch to the ownership-complete execution graph. Effects participate
-    /// in later judgments, so effect-dependent memos reset while pure
-    /// typed-tree indexes survive.
+    /// in later judgments, so effect-dependent memos reset when the completed
+    /// plans differ from the source plans while pure typed-tree indexes survive.
     pub fn with_prepared_effect_plans(mut self, plans: &'program PreparedEffectPlans) -> Self {
         self.prepared_effects = Some(plans);
-        self.memos = self.memos.retain_typed_tree_memos();
+        if !self.memos.matches_effect_plans(plans) {
+            self.reset_context_sensitive_memos();
+        }
         self
     }
 
@@ -246,6 +259,11 @@ impl<'program> CheckingContext<'program> {
         if let Some(tables) = self.call_frame_tables.get() {
             let _ = call_frame_tables.set(tables.clone());
         }
+        let memos = if self.memos.matches_effect_plans(plans) {
+            self.memos.clone()
+        } else {
+            Arc::new(self.memos.clone_typed_tree_memos())
+        };
         CheckingContext {
             program: self.program,
             retained_borrows: self.retained_borrows.clone(),
@@ -253,7 +271,7 @@ impl<'program> CheckingContext<'program> {
             prepared_effects: Some(plans),
             prepared_mathematics: self.prepared_mathematics,
             opaque_selections: self.opaque_selections,
-            memos: self.memos.clone_typed_tree_memos(),
+            memos,
             call_frame_tables,
         }
     }
@@ -266,7 +284,10 @@ impl<'program> CheckingContext<'program> {
         mathematics: Option<crate::mathematical_applications::PreparedMathematicalView<'program>>,
     ) -> Self {
         self.prepared_mathematics = mathematics;
-        self.memos = self.memos.retain_typed_tree_memos();
+        self.reset_context_sensitive_memos();
+        if let Some(memos) = Arc::get_mut(&mut self.memos) {
+            memos.call_frames = Arc::default();
+        }
         self
     }
 
@@ -277,7 +298,7 @@ impl<'program> CheckingContext<'program> {
         selections: &'program [OpaqueRepresentationSelection],
     ) -> Self {
         self.opaque_selections = Some(selections);
-        self.memos = self.memos.retain_typed_tree_memos();
+        self.reset_context_sensitive_memos();
         self
     }
 }
@@ -610,12 +631,27 @@ pub struct CheckingMemos {
 }
 
 impl CheckingMemos {
+    fn matches_effect_plans(&self, plans: &PreparedEffectPlans) -> bool {
+        self.operational
+            .get()
+            .is_some_and(|operational| **operational == plans.operational)
+            && self
+                .service_reaches
+                .get()
+                .is_some_and(|(operational, service_reaches)| {
+                    operational == &plans.operational && service_reaches == &plans.service_reaches
+                })
+    }
+
     /// Retain memos that depend strictly on the immutable `TypedTrees` tables
     /// (`self.program`), resetting memos that may observe prepared effects,
     /// finalized selections, prepared mathematics, or opaque representations.
+    /// Call-frame caches also retain prepared operational/service plans, so
+    /// only an unchanged-context Arc clone may share those caches.
     fn retain_typed_tree_memos(self) -> Self {
         Self {
             requirement_satisfiers: self.requirement_satisfiers,
+            erased_initializers: self.erased_initializers,
             owned_field_domains: self.owned_field_domains,
             claim_frontiers: self.claim_frontiers,
             establishment: self.establishment,
@@ -637,6 +673,7 @@ impl CheckingMemos {
     fn clone_typed_tree_memos(&self) -> Self {
         Self {
             requirement_satisfiers: self.requirement_satisfiers.clone(),
+            erased_initializers: self.erased_initializers.clone(),
             proof_only: self.proof_only.clone(),
             license_candidates: self.license_candidates.clone(),
             entry_machines: self.entry_machines.clone(),

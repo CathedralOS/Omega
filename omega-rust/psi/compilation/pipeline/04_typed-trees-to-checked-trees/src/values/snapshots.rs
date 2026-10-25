@@ -109,6 +109,16 @@ pub(crate) fn scalar_value_at_place<'a>(
     contexts: impl IntoIterator<Item = &'a FactContext>,
     subject: &CanonicalPlace,
 ) -> Option<ScalarValue> {
+    // A literal expression is already a completed, storage-independent value.
+    // Call guarantees bind exact expression subjects as well as named homes;
+    // requiring an assignment fact for a literal loses that same observation
+    // when it arrives as an inline actual. Never evaluate a nonliteral here.
+    if subject.segments.is_empty()
+        && let facts::PlaceRoot::Expression(expression) = subject.root
+        && let Some(value) = scalar_literal(program, expression)
+    {
+        return Some(value);
+    }
     scalar_value_from_payloads(
         program,
         semantic,
@@ -128,18 +138,7 @@ pub(crate) fn scalar_value_from_payloads(
                 ScalarValue::Unknown => None,
                 value => Some(value.clone()),
             },
-            FactPayload::AssignedValue { value } => {
-                if !program.expression_table.expression_is_valid(value) {
-                    return None;
-                }
-                match program.expression_table.expression(value) {
-                    ExpressionNode::Integer(value) => {
-                        value.value_bignum().map(ScalarValue::Integer)
-                    }
-                    ExpressionNode::Boolean(value) => Some(ScalarValue::Boolean(*value)),
-                    _ => None,
-                }
-            }
+            FactPayload::AssignedValue { value } => scalar_literal(program, value),
             // A singleton interval is the completed observation itself: the
             // captured bounds assert the place held exactly this endpoint at
             // the fact's program point. A wider interval remains evidence
@@ -477,4 +476,18 @@ pub(crate) fn immutable_owned_place_root(
         }
     }
     Some(symbol)
+}
+
+fn scalar_literal(
+    program: &dyn validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<ScalarValue> {
+    if !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(value) => value.value_bignum().map(ScalarValue::Integer),
+        ExpressionNode::Boolean(value) => Some(ScalarValue::Boolean(*value)),
+        _ => None,
+    }
 }

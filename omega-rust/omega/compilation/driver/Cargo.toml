@@ -10,7 +10,6 @@ autotests = false
 
 
 [dependencies]
-terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }
 checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
 effects = { path = "../backend/plans/provider-evidence" }
 package-evidence = { path = "../../packages/review-evidence" }
@@ -30,8 +29,6 @@ boundary-applications = { path = "../backend/artifacts/boundary-applications" }
 optimization = { path = "../../../psi/foundation/optimization-selections" }
 optimization-core = { path = "../../foundation/optimization-core" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
-runtime-abi = { path = "../backend/runtime/runtime-abi" }
-numerics = { path = "../../../psi/foundation/numerics" }
 symbols = { path = "../../../psi/foundation/symbols" }
 psi-compiler = { path = "../../../psi/compilation/driver" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
@@ -45,11 +42,7 @@ target = { path = "../backend/target" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
-terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
-terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
-terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
 target-operations = { path = "../representations/target-operations" }
-calling-conventions = { path = "../backend/calling-conventions" }
 proof-admission = { path = "../../../psi/compilation/proof/admission" }
 selected-dispatch = { path = "../realization/selected-dispatch" }
 image-emission = { path = "../backend/images/image-emission" }
@@ -60,6 +53,14 @@ terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-a
 optimization-core = { path = "../../foundation/optimization-core" }
 
 [dev-dependencies]
+terminal-runtime = { path = "../../application/terminal-runtime" }
+terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }
+runtime-abi = { path = "../backend/runtime/runtime-abi" }
+numerics = { path = "../../../psi/foundation/numerics" }
+terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
+terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
+terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
+calling-conventions = { path = "../backend/calling-conventions" }
 access-plans = { path = "../../../psi/foundation/access-plans" }
 extents = { path = "../../../psi/foundation/extents" }
 platform-custody = { path = "../../foundation/platform-custody" }

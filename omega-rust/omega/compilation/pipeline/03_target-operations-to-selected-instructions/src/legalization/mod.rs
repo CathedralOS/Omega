@@ -7,30 +7,33 @@ mod model;
 mod runtime_indices;
 mod scalar_graph_input;
 mod source;
-mod source_input;
-pub(crate) use source_input::LegalizationSource;
 
 pub use model::LegalizationError;
 pub(crate) use model::legalization_validator_identity;
 pub(crate) use model::{LegalizationValidationReceipt, ValidatedLegalizedOperations};
 
 use abstract_operations::AbstractOperationPlan;
+use abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan;
 use legalized_operations::{LegalizedOperationPlan, legalized_operation_plan_identity};
 use target_operations::TargetOperationPlan;
 
 use source::derive_source_function_rosters;
 
-pub(crate) fn legalize_target_operations<'source>(
+/// Project the target plan through the canonical legal operation graph.
+///
+/// The plan is lowered from one exact validated abstract source, which
+/// carries the abstract plan, the optimization unit and the verified input
+/// the boundary-row audit needs; this entrance takes that owner rather than
+/// three views re-derived by every caller.
+pub(crate) fn legalize_target_operations(
     target: &TargetOperationPlan,
-    abstract_plan: &AbstractOperationPlan,
-    source: impl Into<LegalizationSource<'source>>,
+    source: &ValidatedOptimizedAbstractPlan,
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
-    let source = source.into();
-    let unit = source.unit;
+    let (abstract_plan, unit) = (source.plan(), source.unit());
     scalar_graph_input::call_origin::validate_boundary_origins(
         target,
         unit,
-        source.verified_input,
+        source.verified_input(),
     )?;
     let rosters = derive_source_function_rosters(target, abstract_plan, unit)?;
     let plan = LegalizedOperationPlan {
@@ -64,29 +67,20 @@ pub(crate) use scalar_graph_input::exact_cast_has_native_carriers;
 /// Independently check retained target rows against their source products.
 /// This is an audit entrypoint for corpus and foreign-artifact review, not
 /// another phase of instruction construction in the producing compile.
-/// Callers supply validated current source products, including exact receiving
-/// obligations and current-graph byte invariants. This checks target/source
-/// correspondence; it does not admit an arbitrary optimization unit.
+/// Callers supply the exact validated abstract source the target plan was
+/// lowered from. It audits selected family calls with their immutable portable
+/// catalog and admitted deployment-tag selection, rather than reconstructing
+/// installation, and it does not admit an arbitrary optimization unit.
 pub fn verify_target_operation_plan(
     target: &TargetOperationPlan,
-    abstract_plan: &AbstractOperationPlan,
-    unit: &optimization_unit::PsiOptimizationUnit,
+    source: &ValidatedOptimizedAbstractPlan,
 ) -> Result<(), LegalizationError> {
-    scalar_graph_input::call_origin::validate_boundary_origins(target, unit, None)?;
-    audit_target_operation_plan(target, abstract_plan, unit)
-}
-
-/// Audit selected family calls with their immutable portable catalog and
-/// admitted deployment-tag selection, rather than reconstructing installation.
-/// Source admission remains the caller's responsibility, as for
-/// [`verify_target_operation_plan`].
-pub fn verify_target_operation_plan_with_context(
-    target: &TargetOperationPlan,
-    abstract_plan: &AbstractOperationPlan,
-    unit: &optimization_unit::PsiOptimizationUnit,
-    input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
-) -> Result<(), LegalizationError> {
-    scalar_graph_input::call_origin::validate_boundary_origins(target, unit, Some(input))?;
+    let (abstract_plan, unit) = (source.plan(), source.unit());
+    scalar_graph_input::call_origin::validate_boundary_origins(
+        target,
+        unit,
+        source.verified_input(),
+    )?;
     audit_target_operation_plan(target, abstract_plan, unit)
 }
 

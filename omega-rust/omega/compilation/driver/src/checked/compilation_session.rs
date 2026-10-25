@@ -88,16 +88,23 @@ impl CompilationSession {
             let selected = self.select(request).result.map_err(|failure| {
                 crate::CompilationProductError::Production(failure.into_diagnostics())
             })?;
-            crate::compiler::finish_compilations(vec![Ok((selected, root, product, None))])
-                .into_iter()
-                .next()
-                .ok_or_else(|| {
-                    crate::CompilationProductError::Production(vec![
-                        diagnostics::Diagnostic::error(
-                            "compiler lost the requested source product",
-                        ),
-                    ])
-                })?
+            crate::compiler::produce_products(vec![(
+                (),
+                Ok(crate::product_execution::ProductRequest {
+                    realization: selected,
+                    root,
+                    product,
+                    permissions: None,
+                }),
+            )])
+            .into_iter()
+            .next()
+            .map(|(_, outcome)| outcome)
+            .ok_or_else(|| {
+                crate::CompilationProductError::Production(vec![diagnostics::Diagnostic::error(
+                    "compiler lost the requested source product",
+                )])
+            })?
         })
     }
 
@@ -157,11 +164,7 @@ impl CompilationSession {
             .package_inputs
             .as_ref()
             .map(PackageCompilationInputs::source_inputs);
-        self.prepare_source_with_inputs(
-            &request.root_path,
-            inputs,
-            request.collect_timings,
-        )
+        self.prepare_source_with_inputs(&request.root_path, inputs, request.collect_timings)
     }
 
     pub(crate) fn prepare_source_with_inputs(
@@ -170,9 +173,11 @@ impl CompilationSession {
         inputs: Option<Arc<PackageCompilationSourceInputs>>,
         collect_timings: bool,
     ) -> Result<PreparedCheckedSource, CompileFailure> {
-        if let Some(prepared) = self.sources.iter_mut().find(|prepared| {
-            prepared.root == root_path && prepared.inputs == inputs
-        }) {
+        if let Some(prepared) = self
+            .sources
+            .iter_mut()
+            .find(|prepared| prepared.root == root_path && prepared.inputs == inputs)
+        {
             return Ok(prepared.source.fork());
         }
         let mut source = prepare_checked_source(root_path, inputs.clone(), collect_timings)?;
@@ -184,8 +189,39 @@ impl CompilationSession {
         Ok(source)
     }
 
-    pub(crate) fn pure_builds(&self) -> &build_evaluation::PureBuildCompilation {
-        &self.pure_builds
+    /// The shared source/Build prefix for an admitted multi-target request.
+    /// Target provider selection begins only after this completed Psi judgment;
+    /// source continuations and invocation reuse remain owned by the session.
+    pub(crate) fn check_shared_source(
+        &mut self,
+        shared: &compilation_products::compile_request::SharedCompileInputs,
+        target: &compilation_products::compile_request::ValidatedTargetCompilation,
+    ) -> Result<compilation_products::CheckedProductSource, Vec<diagnostics::Diagnostic>> {
+        let parsed = self
+            .prepare_source_with_inputs(
+                &shared.root_path,
+                shared.package_sources.clone(),
+                shared.timings,
+            )
+            .map_err(CompileFailure::into_diagnostics)?;
+        let mut execution = target.checked_execution(&shared.build_directory);
+        execution.settled_check_reuse = self.reuse();
+        let source = super::prepare_product_source(
+            &shared.root_path,
+            parsed,
+            execution,
+            Some(&self.pure_builds),
+        )
+        .map_err(CompileFailure::into_diagnostics)?;
+        let checked = super::check_product_source(
+            source,
+            target.package_inputs(),
+            target.optimization_rollback(),
+            self.reuse(),
+            &mut self.selections,
+        )?;
+        self.retain(&checked.retained_checks);
+        Ok(checked)
     }
 
     pub(crate) fn reuse(&self) -> SettledCheckReuse {

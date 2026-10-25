@@ -34,7 +34,7 @@ command = ['rustc', '--edition=2024', '--crate-name', 'ind01_terminal_probe',
            '-C', 'opt-level=2', '-C', 'debuginfo=0',
            str(root/'validation/terminal_probe/src/main.rs'), '-o', str(root/'build/ind01-terminal-probe')]
 inputs = []
-for crate in ['compiler', 'package_manager', 'target', 'terminal_interpreter', 'serde_json']:
+for crate in ['compiler', 'terminal_runtime', 'package_manager', 'target', 'terminal_interpreter', 'serde_json']:
     candidates = list(target.glob(f'build/**/out/lib{crate}-*.rlib')) + list(target.glob(f'deps/lib{crate}-*.rlib'))
     assert candidates, crate
     # This optional fast path reuses this executor's recorded build cache.

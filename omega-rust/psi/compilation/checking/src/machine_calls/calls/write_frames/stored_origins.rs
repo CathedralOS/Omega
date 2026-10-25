@@ -44,8 +44,8 @@ pub(super) use assignments::assignment_origins;
 pub(super) use frozen_bindings::assignment_replaces_case_binding;
 pub(super) use frozen_bindings::assignment_replaces_reference_ancestor;
 pub(super) use frozen_bindings::binding_source;
-pub(super) use frozen_bindings::statement_exposes_frozen_binding;
 pub(super) use frozen_bindings::{call_exposes_frozen_binding, expression_exposes_frozen_binding};
+pub(super) use frozen_bindings::{statement_exposes_frozen_binding, writes_may_replace_binding};
 
 pub(super) use projections::reference_leaves_before_statement_for_query;
 pub(super) use projections::symbolic_reference_leaves;
@@ -73,6 +73,13 @@ pub(super) struct StoredLocalOrigins {
     /// can specialize an unknown index. Rows observed from an assigned or
     /// initialized value already name their source selectors.
     pub symbolic: bool,
+}
+
+impl StoredLocalOrigins {
+    /// Unknown, opaque and symbolic frontiers are never negative evidence.
+    pub(super) fn has_no_frozen_bindings(&self) -> bool {
+        self.references.is_empty() && self.cases.is_empty() && !self.symbolic
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -153,9 +160,9 @@ fn local_declaration_state<'program>(
     .then_some(state)
 }
 
-/// Recover a declared local's aggregate-case origins and record them into
-/// the local and stored rosters — a no-write value's missing case recovery
-/// does not invalidate its writes.
+/// Publish authenticated negative binding frontiers and constructed case
+/// origins. A known absence is different from missing inventory; neither
+/// negative evidence nor unsuccessful case recovery establishes a moved value.
 pub(super) fn record_declaration_origins(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -165,7 +172,16 @@ pub(super) fn record_declaration_origins(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) {
-    if has_aggregate_case_shape(program, local.type_reference)
+    // A complete negative frontier is useful evidence too. Authenticate the
+    // declaration and inspect its full shared/opaque structure, independently
+    // of this query's positive-reference mode. This carries no moved value or
+    // origin: it only proves ordinary content writes cannot replace a binding.
+    if let Some(origins) = unresolved_origins(program, machine, local, true)
+        && origins.has_no_frozen_bindings()
+    {
+        inference.record_local(&origins);
+        stored.push(origins);
+    } else if has_aggregate_case_shape(program, local.type_reference)
         && let Some(origins) =
             declaration_origins(program, machine, local, aliases, stored, symbols, inference)
     {

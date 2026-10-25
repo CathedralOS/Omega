@@ -151,35 +151,35 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     let before_execution = terminal_codec::module_decode_count();
     // Possessing this same artifact, its selected provider and established
     // root Binding does not delegate containing-domain death to an embedding.
-    let denied = compiler::runtime::execute(compiler::runtime::TerminalRuntimeRequest {
+    let denied = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
         x86_flags: None,
         provider_proposal: None,
         artifact: artifact.psi_artifact(),
         target: None,
         provisions: product.runtime_provisions.as_ref(),
         fuel_allowance: 100_000,
-        domain_exit: compiler::runtime::TerminalDomainExitDelegation::default(),
+        domain_exit: terminal_runtime::TerminalDomainExitDelegation::default(),
         standard_input: None,
         clock: None,
     });
     assert!(
         matches!(
             denied,
-            Err(compiler::runtime::TerminalRuntimeError::MissingProvision {
+            Err(terminal_runtime::TerminalRuntimeError::MissingProvision {
                 capability: "process-exit-domain-delegation",
                 ..
             })
         ),
         "embedding without host delegation must refuse before execution"
     );
-    let observation = compiler::runtime::execute(compiler::runtime::TerminalRuntimeRequest {
+    let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
         x86_flags: None,
         provider_proposal: None,
         artifact: artifact.psi_artifact(),
         target: None,
         provisions: product.runtime_provisions.as_ref(),
         fuel_allowance: 100_000,
-        domain_exit: compiler::runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
+        domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: None,
         clock: None,
     })

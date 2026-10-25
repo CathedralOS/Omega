@@ -114,7 +114,6 @@ impl CheckRequest<'_> {
                     preparation,
                     retained_input,
                     &checking,
-                    self.previous.first().copied(),
                     &prior_dependency_bodies,
                     self.retain,
                 )

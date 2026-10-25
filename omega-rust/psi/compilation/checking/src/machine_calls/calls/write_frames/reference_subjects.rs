@@ -589,11 +589,7 @@ fn caller_isolated_initializer_origins<'program>(
             _ => None,
         })
         .collect::<Vec<_>>();
-    let mut diagnostics = Vec::new();
-    let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
-    if !diagnostics.is_empty() {
-        return None;
-    }
+    let machine_symbols = super::demand::machine_symbols(program, machine)?;
     stable_alias_initializer_origins(
         program,
         machine,
@@ -750,7 +746,19 @@ fn declared_initializer_origins(
                 if origin.precision != FramePathPrecision::Exact {
                     return None;
                 }
-                validate_source_projection(program, machine, state, index, &origin.source, stored)?;
+                // Checked image routes have no declaration to project. Their
+                // literal/body producer establishes the source; a missing
+                // declaration root alone still cannot establish image storage.
+                if !origin.source.is_static() {
+                    validate_source_projection(
+                        program,
+                        machine,
+                        state,
+                        index,
+                        &origin.source,
+                        stored,
+                    )?;
+                }
                 push_unique_origin(&mut captured, origin);
             }
         }

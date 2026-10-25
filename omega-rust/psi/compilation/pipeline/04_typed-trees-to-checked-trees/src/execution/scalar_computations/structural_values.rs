@@ -292,10 +292,6 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<CheckedStructuralValueHandle> {
-        // A completed copied operand owns its value before this consumer
-        // chooses a loan or owned-access lane. Its source spelling can still
-        // name the former mutable backing, so classifying it as an ordinary
-        // named place first would discard the authenticated saved receiver.
         let (expression, expected) = match self
             .program
             .type_reference_table
@@ -338,39 +334,11 @@ impl Builder<'_, '_> {
             TypeReferenceNode::Reference { .. }
                 if validation::slice_view_shell(self.program, expected, &[]).is_some() =>
             {
-                // An established view keeps its descriptor and loan route.
-                // An array has backing storage but no view descriptor:
-                // lending it as a slice establishes that descriptor at the
-                // argument occurrence, through the same value planner as
-                // a local initializer. Calls and state arrivals consume
-                // that checked formation rather than inventing a carrier
-                // from representation compatibility alone.
-                if crate::semantic::calls::view_argument_names_existing_place(
-                    self.program,
-                    expression,
-                ) && !validation::canonical_place_from_expression_in_state(
-                    self.program,
-                    self.state,
-                    self.statement_index,
-                    expression,
-                )
-                .and_then(|place| {
-                    validation::canonical_place_type_reference(
-                        self.program,
-                        self.state,
-                        self.statement_index,
-                        &place,
-                    )
-                })
-                .and_then(|reference| validation::unwrapped_type_reference(self.program, reference))
-                .is_some_and(|reference| {
-                    matches!(
-                        self.program.type_reference_table.type_reference(reference),
-                        TypeReferenceNode::FixedArray { .. }
-                    )
-                }) {
-                    return None;
-                }
+                // A view is a descriptor value even when it has a named or
+                // projected home. Complete that value at this operand's own
+                // position; a later argument may replace the old slot. The
+                // same value producer forms array-to-view descriptors, and
+                // retained loan facts independently preserve backing custody.
                 (expression, expected)
             }
             TypeReferenceNode::Reference { .. }

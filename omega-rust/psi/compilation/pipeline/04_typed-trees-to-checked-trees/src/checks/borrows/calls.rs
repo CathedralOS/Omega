@@ -14,6 +14,7 @@ use diagnostics::Diagnostic;
 use crate::labels::call_target_label;
 
 mod conflicts;
+mod held_places;
 mod receiver;
 mod staging;
 

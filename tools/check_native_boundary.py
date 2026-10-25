@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the native compiler's transitive workspace dependency boundary.
+"""Check native production and hosted execution's source-free dependencies.
 
 Uses Cargo's declared path dependencies, including optional, build and
 target-specific edges. This checks every configuration, not just the current
@@ -24,18 +24,24 @@ PERMITTED_OWNERS = (
     "omega-rust/psi/compilation/checking/terminal-installation",
     "omega-rust/psi/compilation/proof/admission",
 )
+RUNTIME_ROOT = "omega-rust/omega/application/terminal-runtime"
+RUNTIME_OWNERS = (
+    RUNTIME_ROOT,
+    "omega-rust/psi/interpreter/terminal-interpreter",
+    *PERMITTED_OWNERS[1:],
+)
 
 
-def dependency_violations(metadata):
+def dependency_violations(metadata, entrance_path=NATIVE_ROOT, owners=PERMITTED_OWNERS):
     """Return offending paths, with the actual dependency chain to each one."""
     root = Path(metadata["workspace_root"]).resolve()
     packages = {
         Path(package["manifest_path"]).resolve().parent: package
         for package in metadata["packages"]
     }
-    entrance = root / NATIVE_ROOT
+    entrance = root / entrance_path
     if entrance not in packages:
-        raise ValueError("native-production is absent from the workspace")
+        raise ValueError(f"{entrance_path} is absent from the workspace")
     pending = [(entrance, ())]
     visited = set()
     violations = []
@@ -51,7 +57,7 @@ def dependency_violations(metadata):
         relative = directory.relative_to(root).as_posix()
         if not any(
             relative == owner or relative.startswith(owner + "/")
-            for owner in PERMITTED_OWNERS
+            for owner in owners
         ):
             violations.append(f"{' -> '.join(chain)}: {relative}")
             continue
@@ -69,15 +75,17 @@ def main():
             ["cargo", "metadata", "--no-deps", "--format-version", "1"],
             cwd=root, capture_output=True, text=True, encoding="utf-8", check=True,
         )
-        violations = dependency_violations(json.loads(result.stdout))
+        metadata = json.loads(result.stdout)
+        violations = dependency_violations(metadata)
+        violations += dependency_violations(metadata, RUNTIME_ROOT, RUNTIME_OWNERS)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"native boundary could not be checked: {error}", file=sys.stderr)
         return 2
     if violations:
-        print("native compiler reaches a source/product/execution owner:")
+        print("native compilation or hosted execution crosses its ownership boundary:")
         print("\n".join(violations))
         return 1
-    print("native boundary: no production dependency escapes the Terminal/native owners")
+    print("native/runtime boundaries: no production dependency reaches a source owner")
     return 0
 
 

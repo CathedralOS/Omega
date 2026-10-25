@@ -1,15 +1,26 @@
 # Native compilation
 
-Start at [native_compilation.rs](src/native_compilation.rs): consume a retained
+Start at [compiler.rs](src/compiler.rs): consume a retained
 Terminal product and explicit realization policy, prepare its providers, admit
 the entry and emit the requested image. On failure the caller recovers the
 original image request and diagnostics. No source compilation happens here.
 
-[realization.rs](src/realization.rs) captures the admitted runtime provisions
-and drives [object emission](src/realization/object_emission.rs). That operation
-chains abstract optimization, target lowering, the
-[physical pipeline](src/physical_pipeline.rs) and object publication. Callback
-bodies use the same physical pipeline, not another compiler. Native artifact
+[pipeline.rs](src/pipeline.rs) sequences the body transformations for application
+entries, callbacks and component exports: abstract optimization, target lowering,
+instruction selection, selected optimization, register allocation, post-allocation
+machine construction, frame preparation, encoding, layout, layout optimization,
+realization assembly and object emission. There is one implementation of that sequence.
+Its internal target boundary lets callers capture runtime layout companions
+before instruction selection, preserving error order without a callback hook.
+Machine emission owns frame geometry and its byte protocol, then joins the
+pipeline's encoded/layout products with the exit contract and source identities.
+It no longer drives compiler stages 07-09 behind the pipeline's entrance.
+
+[realization.rs](src/realization.rs) admits the entry and captures runtime
+provisions. [Object emission](src/realization/object_emission.rs) uses the shared
+pipeline, discovers surviving callbacks and publishes the composed object;
+callable emission uses that same pipeline and retains callable authority.
+Neither caller independently selects or sequences transformation stages. Native artifact
 ownership includes the runtime provisions; the source coordinator does not own
 their types.
 
