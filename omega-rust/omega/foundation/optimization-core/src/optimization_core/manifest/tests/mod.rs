@@ -17,25 +17,25 @@ fn rule(name: &[u8]) -> OptimizationRuleIdentity {
     OptimizationRuleIdentity::from_canonical_bytes(name)
 }
 
-fn fact(name: &[u8]) -> OptimizationFactReference {
+pub(crate) fn fact(name: &[u8]) -> OptimizationFactReference {
     OptimizationFactReference::ScalarConstant(ScalarConstantFactIdentity::from_canonical_bytes(
         name,
     ))
 }
 
-fn obligation_fact(name: &[u8]) -> OptimizationFactReference {
+pub(crate) fn obligation_fact(name: &[u8]) -> OptimizationFactReference {
     OptimizationFactReference::AcceptedObligation(
         AcceptedObligationFactIdentity::from_canonical_bytes(name),
     )
 }
 
-fn ownership_fact(name: &[u8]) -> OptimizationFactReference {
+pub(crate) fn ownership_fact(name: &[u8]) -> OptimizationFactReference {
     OptimizationFactReference::OwnershipFrontier(
         OwnershipFrontierFactIdentity::from_canonical_bytes(name),
     )
 }
 
-fn range_fact(name: &[u8]) -> OptimizationFactReference {
+pub(crate) fn range_fact(name: &[u8]) -> OptimizationFactReference {
     OptimizationFactReference::ValueRange(ValueRangeFactIdentity::from_canonical_bytes(name))
 }
 
