@@ -13,6 +13,13 @@ to package policy. It retains suspended consumer Builds through cache-miss
 recovery. Install/update and read-only audit share this executor; optional cache
 publication occurs only after policy admits the completed review and cache write.
 
+[package_inspection.rs](src/package_inspection.rs) owns the read-only audit
+lifecycle: open package custody, reserve one session, prepare the target roster,
+review each target, finish the report and dispose staging. An unavailable target
+remains in the report while later targets continue. Package management retains
+pinned resolution, policy comparison, bounded reporting and the final unchanged-file
+check; the application cannot publish an audit as package acceptance.
+
 Start at [build.rs](src/build.rs). One typed `BuildRequest` selects a host,
 single explicit target or batch, and a check, native or named Terminal inspection
 product. Inspection has one target context and uses a private workspace without
@@ -66,7 +73,6 @@ does not acquire sources or execute code.
 This is the project application owner, not another compiler pipeline. It depends
 on facades and product contracts, not intermediate source representations or
 stage crates. Ordinary and review dependency scheduling are now here.
-Moving the audit's outer target/session lifecycle, completing Psi's facade,
-and replacing the checked-tree Build evaluator with Terminal
+Completing Psi's facade and replacing the checked-tree Build evaluator with Terminal
 continuations remain explicit obligations of the
 [ownership migration](../../../pipeline.md#build-and-compiler-ownership-migration).
