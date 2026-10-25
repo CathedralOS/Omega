@@ -522,6 +522,15 @@ impl DeclarationSelection {
         }
     }
 
+    /// Join two exact selections, including complement-based selections.
+    pub fn union(&self, other: &Self) -> Self {
+        let mut complement = self.clone();
+        complement.excluded = !complement.excluded;
+        let mut combined = complement.excluding(other);
+        combined.excluded = !combined.excluded;
+        combined
+    }
+
     /// A selected application produced this new declaration in the same arenas.
     pub fn include(&mut self, symbol: SymbolHandle) {
         let position = self

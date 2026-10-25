@@ -8,21 +8,20 @@ use typed_trees::{
 
 use super::PlanLaidRecord;
 
-pub(crate) fn compute_plan_laid_layouts_in(
+/// Bind source recipes once, before deciding which inputs can be evaluated.
+/// A pending application is a real policy requirement, never ordinary packing.
+fn bind_applications(
     typed: &mut TypedTrees,
     records: &[PlanLaidRecord],
-    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
-    domain: &crate::build_time_evaluation::EvaluationDomain,
-) -> Result<(), Vec<Diagnostic>> {
-    if records.is_empty() {
-        return Ok(());
-    }
-
-    let execution = domain.execution_program(typed);
-    let mut layouts = Vec::with_capacity(records.len());
-    let mut target_layouts = arena::Arena::new();
-    let mut captured_schema_fields = arena::Arena::new();
+) -> Result<Vec<symbols::SymbolHandle>, Vec<Diagnostic>> {
+    let mut applications = Vec::with_capacity(records.len());
     for record in records {
+        let missing = |role: &str| {
+            vec![Diagnostic::error(format!(
+                "plan-laid value type `{}` lost its exact {role}",
+                record.synthetic_name
+            ))]
+        };
         let policy_name = record
             .policy_machine
             .strip_suffix("::plan")
@@ -30,152 +29,259 @@ pub(crate) fn compute_plan_laid_layouts_in(
         let policy_symbol = typed
             .data_definition_by_name_str(policy_name)
             .map(|data| data.symbol)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "plan-laid value type `{}` lost its exact nominal policy identity",
-                    record.synthetic_name
-                ))]
-            })?;
+            .ok_or_else(|| missing("nominal policy identity"))?;
         let policy_plan_machine_symbol = typed
             .realized_machine_named(&record.policy_machine)
             .map(|machine| machine.symbol)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "plan-laid value type `{}` lost its exact policy plan machine",
-                    record.synthetic_name
-                ))]
-            })?;
-
-        let synthesized_data = typed
+            .ok_or_else(|| missing("policy plan machine"))?;
+        let data = typed
             .data_definition_by_name_str(&record.synthetic_name)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "plan-laid value type `{}` lost its exact synthesized data identity",
-                    record.synthetic_name
-                ))]
-            })?;
-        let data_symbol = synthesized_data.symbol;
+            .ok_or_else(|| missing("synthesized data identity"))?;
+        let data_symbol = data.symbol;
         let field_symbols = typed
-            .live_data_fields(typed.data_members(synthesized_data))
+            .live_data_fields(typed.data_members(data))
             .map(|field| field.symbol)
-            .collect::<Vec<_>>();
-
+            .collect();
         let schema = typed
             .data_definition_by_name_str(&record.schema_data)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "plan-laid value type `{}` lost its exact source schema identity",
-                    record.synthetic_name
-                ))]
-            })?;
+            .ok_or_else(|| missing("source schema identity"))?;
         let schema_symbol = schema.symbol;
-        let schema_fields = typed
-            .live_data_fields(typed.data_members(schema))
-            .map(|field| (field.name.as_str().to_owned(), field.type_reference))
-            .collect::<Vec<_>>();
         let schema_field_symbols = typed
             .live_data_fields(typed.data_members(schema))
             .map(|field| field.symbol)
-            .collect::<Vec<_>>();
-        require_invariant_schema(typed, records, schema_symbol).map_err(|reason| {
+            .collect();
+        let application = PlanLaidLayout {
+            data_name: record.synthetic_name.clone(),
+            data_symbol,
+            field_symbols,
+            schema_symbol,
+            schema_field_symbols,
+            policy_symbol,
+            policy_plan_machine_symbol,
+            schema_argument: None,
+            realizations: PlanLaidRealizations::Pending,
+        };
+        if let Some(previous) = typed.plan_laid_layout(data_symbol) {
+            if previous.field_symbols != application.field_symbols
+                || previous.schema_symbol != application.schema_symbol
+                || previous.schema_field_symbols != application.schema_field_symbols
+                || previous.policy_symbol != application.policy_symbol
+                || previous.policy_plan_machine_symbol != application.policy_plan_machine_symbol
+            {
+                return Err(missing("retained policy/schema application binding"));
+            }
+        } else {
+            typed.plan_laid_layouts.push(application);
+        }
+        applications.push(data_symbol);
+    }
+    Ok(applications)
+}
+
+/// Settle ready application inputs independently of unrelated query values.
+/// Results immediately become prerequisites of later jobs in this same owner.
+pub(crate) fn prepare_plan_laid_layouts_in(
+    typed: &mut TypedTrees,
+    records: &[PlanLaidRecord],
+    authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    domain: &mut crate::build_time_evaluation::EvaluationDomain,
+) -> Result<Vec<PlanLaidRecord>, Vec<Diagnostic>> {
+    let applications = bind_applications(typed, records)?;
+    let mut pending: Vec<_> = records.iter().zip(applications).collect();
+    loop {
+        let input_revision = typed.type_reference_table.revision();
+        let previous_work = domain.work().clone();
+        let mut waiting = Vec::new();
+        let mut completed = false;
+        for (record, application) in pending {
+            if !application_prerequisites(typed, application, authority.clone(), domain)?.is_empty()
+            {
+                waiting.push((record, application));
+                continue;
+            }
+            install_plan_laid_layout(typed, record, application, authority.clone(), domain)?;
+            completed = true;
+        }
+        let inputs_changed = typed.type_reference_table.revision() != input_revision
+            || domain.work() != &previous_work;
+        if (!completed && !inputs_changed) || waiting.is_empty() {
+            return Ok(waiting
+                .into_iter()
+                .map(|(record, _)| record.clone())
+                .collect());
+        }
+        pending = waiting;
+    }
+}
+
+pub(crate) fn compute_plan_laid_layouts_in(
+    typed: &mut TypedTrees,
+    records: &[PlanLaidRecord],
+    authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    domain: &mut crate::build_time_evaluation::EvaluationDomain,
+) -> Result<(), Vec<Diagnostic>> {
+    let pending = prepare_plan_laid_layouts_in(typed, records, authority.clone(), domain)?;
+    if pending.is_empty() {
+        return Ok(());
+    }
+    let mut diagnostics = Vec::new();
+    for record in pending {
+        let data = typed
+            .data_definition_by_name_str(&record.synthetic_name)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "pending layout lost its bound declaration",
+                )]
+            })?;
+        let application = data.symbol;
+        let prerequisites =
+            application_prerequisites(typed, application, authority.clone(), domain)?;
+        diagnostics.push(Diagnostic::error(format!(
+            "plan-laid value type `{}` has unresolved prerequisites: {}",
+            record.synthetic_name,
+            prerequisites.join(", ")
+        )));
+    }
+    Err(diagnostics)
+}
+
+fn install_plan_laid_layout(
+    typed: &mut TypedTrees,
+    record: &PlanLaidRecord,
+    application: symbols::SymbolHandle,
+    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    domain: &crate::build_time_evaluation::EvaluationDomain,
+) -> Result<(), Vec<Diagnostic>> {
+    let execution = domain.execution_program(typed);
+    // One continuation owns only its recorded applications. Other cohorts'
+    // validated rows and arena coordinates remain part of this same program.
+    // Publish the complete replacement only after every new result validates.
+    let mut layouts = typed.plan_laid_layouts.clone();
+    let mut target_layouts = typed.plan_laid_target_layouts.clone();
+    let mut captured_schema_fields = typed.plan_laid_schema_fields.clone();
+    let data_symbol = application;
+    let application = typed.plan_laid_layout(data_symbol).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "layout job lost its bound policy application",
+        )]
+    })?;
+    let policy_symbol = application.policy_symbol;
+    let policy_plan_machine_symbol = application.policy_plan_machine_symbol;
+    let field_symbols = application.field_symbols.clone();
+    let schema = typed
+        .data_definition_by_symbol(application.schema_symbol)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "plan-laid value type `{}` lost its exact source schema identity",
+                record.synthetic_name
+            ))]
+        })?;
+    let schema_symbol = schema.symbol;
+    let schema_fields = typed
+        .live_data_fields(typed.data_members(schema))
+        .map(|field| (field.name.as_str().to_owned(), field.type_reference))
+        .collect::<Vec<_>>();
+    let schema_field_symbols = typed
+        .live_data_fields(typed.data_members(schema))
+        .map(|field| field.symbol)
+        .collect::<Vec<_>>();
+    super::super::schema_reflection::require_invariant_schema(typed, schema_symbol, &[]).map_err(
+        |reason| {
+            vec![Diagnostic::error(format!(
+                "plan-laid value type `{}`: {reason}",
+                record.synthetic_name
+            ))]
+        },
+    )?;
+    let family = typed
+        .target_machine_families
+        .iter()
+        .find(|family| family.canonical == policy_plan_machine_symbol);
+    if family.is_none()
+        && typed
+            .machine_by_symbol(policy_plan_machine_symbol)
+            .is_some_and(|machine| machine.target_family_interface)
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "plan-laid value type `{}`: policy family lost its structural roster",
+            record.synthetic_name
+        ))]);
+    }
+    let family_schema = family
+        .map(|_| {
+            let pending = execution
+                .plan_laid_layouts
+                .iter()
+                .filter(|layout| !layout.is_materialized())
+                .map(|layout| layout.data_symbol)
+                .collect::<Vec<_>>();
+            super::super::schema_reflection::require_materialized_schema(
+                &execution,
+                schema_symbol,
+                &pending,
+            )?;
+            prepare_family_schema(&execution, schema_symbol, &record.schema_data)
+        })
+        .transpose()
+        .map_err(|reason| {
             vec![Diagnostic::error(format!(
                 "plan-laid value type `{}`: {reason}",
                 record.synthetic_name
             ))]
         })?;
-        let family = typed
-            .target_machine_families
-            .iter()
-            .find(|family| family.canonical == policy_plan_machine_symbol);
-        if family.is_none()
-            && typed
-                .machine_by_symbol(policy_plan_machine_symbol)
-                .is_some_and(|machine| machine.target_family_interface)
-        {
-            return Err(vec![Diagnostic::error(format!(
-                "plan-laid value type `{}`: policy family lost its structural roster",
-                record.synthetic_name
-            ))]);
+    let schema_argument = family_schema.as_ref().map(|(fields, _, retained)| {
+        debug_assert_eq!(fields.len(), retained.len());
+        PlanLaidSchemaArgument {
+            abi_version: 1,
+            fields: captured_schema_fields.insert_many(retained.iter().cloned()),
         }
-        let family_schema = family
-            .map(|_| {
-                let pending = records
-                    .iter()
-                    .filter_map(|record| {
-                        let data = execution.data_definition_by_name_str(&record.synthetic_name)?;
-                        execution
-                            .plan_laid_layout(data.symbol)
-                            .is_none()
-                            .then_some(data.symbol)
-                    })
-                    .collect::<Vec<_>>();
-                super::super::schema_reflection::require_materialized_schema(
+    });
+    let admission = crate::BuildTimeAdmissionPlan::infer(&execution, selection_authority.clone());
+    let evaluate = |machine_symbol| {
+        let machine = execution.machine_by_symbol(machine_symbol).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "layout policy lost its exact machine declaration",
+            )]
+        })?;
+        for source in &record.invocation_sources {
+            admission
+                .require_common_floor_for_invocation(
                     &execution,
-                    schema_symbol,
-                    &pending,
-                )?;
-                prepare_family_schema(&execution, schema_symbol, &record.schema_data)
-            })
-            .transpose()
-            .map_err(|reason| {
-                vec![Diagnostic::error(format!(
-                    "plan-laid value type `{}`: {reason}",
-                    record.synthetic_name
-                ))]
-            })?;
-        let schema_argument = family_schema.as_ref().map(|(fields, _, retained)| {
-            debug_assert_eq!(fields.len(), retained.len());
-            PlanLaidSchemaArgument {
-                abi_version: 1,
-                fields: captured_schema_fields.insert_many(retained.iter().cloned()),
-            }
-        });
-        let admission =
-            crate::BuildTimeAdmissionPlan::infer(&execution, selection_authority.clone());
-        let evaluate = |machine_symbol| {
-            let machine = execution.machine_by_symbol(machine_symbol).ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "layout policy lost its exact machine declaration",
-                )]
-            })?;
-            for source in &record.invocation_sources {
-                admission
-                    .require_common_floor_for_invocation(
-                        &execution,
-                        machine,
-                        crate::BuildTimeInvocationCustody::Source(*source),
-                    )
-                    .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
-            }
-            let selection = selection_authority
-                .clone()
-                .zip(record.invocation_sources.first())
-                .map(|(authority, source)| crate::AuthorizedSelection {
-                    authority,
-                    custody: crate::BuildTimeInvocationCustody::Source(*source),
-                });
-            let report = match &family_schema {
-                Some((fields, fingerprint, _)) => {
-                    super::super::layout_plans::compute_native_layout_plan_with_schema(
-                        &execution,
-                        machine_symbol,
-                        &record.schema_data,
-                        fields,
-                        *fingerprint,
-                        selection,
-                    )
-                }
-                None => super::super::layout_plans::compute_native_layout_plan_for_machine(
+                    machine,
+                    crate::BuildTimeInvocationCustody::Source(*source),
+                )
+                .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
+        }
+        let selection = selection_authority
+            .clone()
+            .zip(record.invocation_sources.first())
+            .map(|(authority, source)| crate::AuthorizedSelection {
+                authority,
+                custody: crate::BuildTimeInvocationCustody::Source(*source),
+            });
+        let report = match &family_schema {
+            Some((fields, fingerprint, _)) => {
+                super::super::layout_plans::compute_native_layout_plan_with_schema(
                     &execution,
                     machine_symbol,
                     &record.schema_data,
+                    fields,
+                    *fingerprint,
                     selection,
-                ),
+                )
             }
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            install_geometry(&execution, record, &schema_fields, report)
-        };
-        let realizations = if let Some(family) = family {
+            None => super::super::layout_plans::compute_native_layout_plan_for_machine(
+                &execution,
+                machine_symbol,
+                &record.schema_data,
+                selection,
+            ),
+        }
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        install_geometry(&execution, record, &schema_fields, report)
+    };
+    let realizations =
+        if let Some(family) = family {
             validate_family_roster(&execution, family).map_err(|reason| {
                 vec![Diagnostic::error(format!(
                     "plan-laid value type `{}`: {reason}",
@@ -217,23 +323,218 @@ pub(crate) fn compute_plan_laid_layouts_in(
                 },
             )?)
         };
-        layouts.push(PlanLaidLayout {
-            data_name: record.synthetic_name.clone(),
-            data_symbol,
-            field_symbols,
-            schema_symbol,
-            schema_field_symbols,
-            policy_symbol,
-            policy_plan_machine_symbol,
-            schema_argument,
-            realizations,
-        });
+    let layout = PlanLaidLayout {
+        data_name: record.synthetic_name.clone(),
+        data_symbol,
+        field_symbols,
+        schema_symbol,
+        schema_field_symbols,
+        policy_symbol,
+        policy_plan_machine_symbol,
+        schema_argument,
+        realizations,
+    };
+    if let Some(previous) = layouts
+        .iter_mut()
+        .find(|previous| previous.data_symbol == data_symbol)
+    {
+        if previous.schema_symbol != layout.schema_symbol
+            || previous.field_symbols != layout.field_symbols
+            || previous.schema_field_symbols != layout.schema_field_symbols
+            || previous.policy_symbol != layout.policy_symbol
+            || previous.policy_plan_machine_symbol != layout.policy_plan_machine_symbol
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "plan-laid value type `{}` changed its retained application identity",
+                record.synthetic_name
+            ))]);
+        }
+        *previous = layout;
+    } else {
+        layouts.push(layout);
     }
-
     typed.plan_laid_layouts = layouts;
     typed.plan_laid_target_layouts = target_layouts;
     typed.plan_laid_schema_fields = captured_schema_fields;
     Ok(())
+}
+
+/// Read actual dependency edges, not the presence of a query elsewhere in the
+/// source cohort. These descriptions explain pending work; they grant no
+/// admission, and evaluation errors never become scheduling signals.
+fn application_prerequisites(
+    typed: &mut TypedTrees,
+    application: symbols::SymbolHandle,
+    authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    domain: &mut crate::build_time_evaluation::EvaluationDomain,
+) -> Result<Vec<String>, Vec<Diagnostic>> {
+    let layout = typed.plan_laid_layout(application).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "layout readiness lost its bound application",
+        )]
+    })?;
+    let schema = layout.schema_symbol;
+    let policy = layout.policy_plan_machine_symbol;
+    let mut roots = vec![schema, policy];
+    let policies = if let Some(family) = typed
+        .target_machine_families
+        .iter()
+        .find(|family| family.canonical == policy)
+    {
+        family
+            .members
+            .iter()
+            .map(|member| member.machine)
+            .collect::<Vec<_>>()
+    } else {
+        vec![policy]
+    };
+    roots.extend(policies.iter().copied());
+    let mut demanded = domain.demanded_roots(typed, &roots);
+    let original_demand = demanded.clone();
+    let mut pending = Vec::new();
+    for dependency in &typed.plan_laid_layouts {
+        if demanded.contains(dependency.data_symbol) && !dependency.is_materialized() {
+            pending.push(format!("layout `{}`", dependency.data_name));
+        }
+    }
+    for machine in typed.machines() {
+        if demanded.contains(machine.symbol)
+            && machine.body_status == typed_trees::machine::MachineBodyStatus::Deferred
+        {
+            pending.push(format!("body `{}`", machine.name));
+        }
+    }
+    if !pending.is_empty() {
+        return Ok(pending);
+    }
+    if crate::const_evaluation::const_lengths::evaluate_independent_lengths(
+        typed,
+        authority.clone(),
+        &demanded,
+    )? {
+        pending.push("provider-dependent array extents".to_owned());
+    }
+    use crate::const_evaluation::{const_applications, const_domain_facts, range_endpoints};
+    let selected = crate::SelectedBuildTimeOperators::default();
+    if range_endpoints::pending_endpoint_calls_need_operator_selection(
+        typed,
+        authority.clone(),
+        &demanded,
+    )? {
+        pending.push("selected range endpoints".to_owned());
+    }
+    if const_domain_facts::pending_memberships_need_operator_selection(
+        typed,
+        authority.clone(),
+        &demanded,
+    )? {
+        pending.push("selected domain inputs".to_owned());
+    }
+    if const_applications::pending_const_applications_need_operator_selection(
+        typed,
+        authority.clone(),
+        &demanded,
+    )? {
+        pending.push("selected const arguments".to_owned());
+    }
+    if !pending.is_empty() {
+        return Ok(pending);
+    }
+    // Reflection consumes the normalized schema, including computed ranges
+    // and const arguments. Use their existing producers in their normal order;
+    // an unevaluated constraint is never a full-width scalar permission.
+    range_endpoints::evaluate_selected_range_endpoints(
+        typed,
+        authority.clone(),
+        selected,
+        &demanded,
+    )?;
+    const_domain_facts::evaluate_selected_domain_facts(
+        typed,
+        authority.clone(),
+        selected,
+        &demanded,
+    )?;
+    let previous_types = typed.type_reference_table.revision();
+    const_applications::evaluate_selected_const_applications(
+        typed,
+        authority.clone(),
+        selected,
+        &mut demanded,
+    )?;
+    domain.retain_produced(&original_demand, &demanded);
+    if typed.type_reference_table.revision() != previous_types {
+        // New instances may introduce lengths, domains or further applications.
+        // Revisit their exact input closure before reflecting any geometry.
+        return Ok(vec!["newly realized schema inputs".to_owned()]);
+    }
+    let execution = demanded.execution_program(typed);
+    let admission = crate::BuildTimeAdmissionPlan::infer(&execution, authority);
+    let operators = validation::derive_pre_flow_operator_selections(&execution);
+    for policy in policies {
+        if admission.closure_needs_operator_selection(&execution, policy, &operators) {
+            pending.push(format!(
+                "selected meaning in `{}`",
+                typed.symbols.name(policy)
+            ));
+        }
+    }
+    if crate::const_evaluation::data_layout_queries::pending_layout_queries_need_operator_selection(
+        typed,
+        demanded.work(),
+    ) {
+        pending.push("layout-query values in the policy input closure".to_owned());
+    }
+
+    let mut records = vec![schema];
+    let mut visited = Vec::new();
+    while let Some(symbol) = records.pop() {
+        if visited.contains(&symbol) {
+            continue;
+        }
+        visited.push(symbol);
+        if let Some(layout) = typed.plan_laid_layout(symbol) {
+            match layout.realizations {
+                PlanLaidRealizations::Pending => {
+                    pending.push(format!("layout `{}`", layout.data_name));
+                    continue;
+                }
+                PlanLaidRealizations::TargetFamily(_) => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "schema contains target-dependent layout `{}`; nested target-dependent schema arguments are not yet supported",
+                        layout.data_name
+                    ))]);
+                }
+                PlanLaidRealizations::Invariant(_) => {}
+            }
+        }
+        let Some(data) = typed.data_definition_by_symbol(symbol) else {
+            continue;
+        };
+        let mut members = typed
+            .live_data_fields(typed.data_members(data))
+            .map(|field| field.type_reference)
+            .collect::<Vec<_>>();
+        while let Some(member) = members.pop() {
+            use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+            match typed.type_reference_table.type_reference(member) {
+                TypeReferenceNode::Named { symbol, .. } => records.push(*symbol),
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length,
+                } => {
+                    if !matches!(length, FixedArrayLength::Literal(_)) {
+                        pending.push(format!("schema array extent at {member:?}"));
+                    }
+                    members.push(*element_type);
+                }
+                TypeReferenceNode::Constrained { base_type, .. } => members.push(*base_type),
+                _ => {}
+            }
+        }
+    }
+    Ok(pending)
 }
 
 /// The structural roster is authoritative, including deployment target names
@@ -292,28 +593,6 @@ fn validate_family_roster(
         }
     }
     Ok(())
-}
-
-fn require_invariant_schema(
-    typed: &TypedTrees,
-    records: &[PlanLaidRecord],
-    schema: symbols::SymbolHandle,
-) -> Result<(), String> {
-    // Pending applications are checked before any layout is installed, so this
-    // check cannot accidentally depend on the order of policy evaluation.
-    let pending = records
-        .iter()
-        .filter_map(|record| {
-            let policy = typed.realized_machine_named(&record.policy_machine)?;
-            if !policy.target_family_interface {
-                return None;
-            }
-            typed
-                .data_definition_by_name_str(&record.synthetic_name)
-                .map(|data| data.symbol)
-        })
-        .collect::<Vec<_>>();
-    super::super::schema_reflection::require_invariant_schema(typed, schema, &pending)
 }
 
 /// Version 1 records the complete active record argument; unsupported ABI axes

@@ -77,7 +77,8 @@ fn fixture_geometry_mut(
 ) -> &mut typed_trees::PlanLaidGeometry {
     match &mut plan.realizations {
         typed_trees::PlanLaidRealizations::Invariant(geometry) => geometry,
-        typed_trees::PlanLaidRealizations::TargetFamily(_) => panic!("fixture must be invariant"),
+        typed_trees::PlanLaidRealizations::Pending
+        | typed_trees::PlanLaidRealizations::TargetFamily(_) => panic!("fixture must be invariant"),
     }
 }
 

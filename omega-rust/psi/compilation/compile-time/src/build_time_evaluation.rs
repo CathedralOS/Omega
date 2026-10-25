@@ -105,6 +105,14 @@ impl EvaluationDomain {
         self.work.include(symbol);
         self.execution.include(symbol);
     }
+
+    /// Rejoin only declarations produced by an admitted child evaluation.
+    /// Its pre-existing lookup closure is not new work or execution authority.
+    pub(crate) fn retain_produced(&mut self, before: &Self, after: &Self) {
+        let produced = after.work.excluding(&before.work);
+        self.work = self.work.union(&produced);
+        self.execution = self.execution.union(&produced);
+    }
 }
 
 use crate::{
@@ -458,26 +466,44 @@ impl PreCheckEvaluation {
         mut self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<Option<Self>, Vec<diagnostics::Diagnostic>> {
-        if const_lengths::evaluate_independent_lengths(
+        // Geometry is an input to formation, borrow, proof and cleanup, not a
+        // side effect of folding a consumer's eventual size_of value. Settle
+        // ready policy/schema jobs before those facts can be constructed.
+        self.plan_laid_records = plan_laid::prepare_plan_laid_layouts_in(
+            typed,
+            &self.plan_laid_records,
+            self.selection_authority.clone(),
+            &mut self.domain,
+        )?;
+        // A waiting policy does not own unrelated array jobs. Publish their
+        // independent results even when this continuation must remain pending.
+        let pending_lengths = const_lengths::evaluate_independent_lengths(
             typed,
             self.selection_authority.clone(),
             &self.domain,
-        )? || range_endpoints::pending_endpoint_calls_need_operator_selection(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )? || const_domain_facts::pending_memberships_need_operator_selection(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )? || const_applications::pending_const_applications_need_operator_selection(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )? || data_layout_queries::pending_layout_queries_need_operator_selection(
-            typed,
-            self.domain.work(),
-        ) {
+        )?;
+        if pending_lengths
+            || !self.plan_laid_records.is_empty()
+            || range_endpoints::pending_endpoint_calls_need_operator_selection(
+                typed,
+                self.selection_authority.clone(),
+                &self.domain,
+            )?
+            || const_domain_facts::pending_memberships_need_operator_selection(
+                typed,
+                self.selection_authority.clone(),
+                &self.domain,
+            )?
+            || const_applications::pending_const_applications_need_operator_selection(
+                typed,
+                self.selection_authority.clone(),
+                &self.domain,
+            )?
+            || data_layout_queries::pending_layout_queries_need_operator_selection(
+                typed,
+                self.domain.work(),
+            )
+        {
             range_endpoints::defer_pending_endpoint_calls_in(typed, &self.domain)?;
             const_applications::defer_pending_const_applications(typed, &self.domain)?;
             // A const-generic application of a recipe call becomes a symbolic
@@ -595,7 +621,7 @@ impl PreCheckEvaluation {
             typed,
             &self.plan_laid_records,
             self.selection_authority.clone(),
-            &self.domain,
+            &mut self.domain,
         )?;
         placed_views::validate_placed_view_plans_in(
             typed,

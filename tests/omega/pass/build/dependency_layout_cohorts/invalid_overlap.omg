@@ -1,0 +1,34 @@
+// Both views fit, but late geometry must not hide their exclusive overlap.
+use omega::language::core::layout;
+use layout_cohort_kit::geometry;
+
+data RootPolicy {}
+data RootPayload [copy] { value: u32; }
+data RootView { payload: RootPolicy<RootPayload>; }
+
+machine RootPolicy::plan(schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 8 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: 12, size_is_dynamic: false, align: 4 }
+}
+
+machine root_observation() -> u32 {
+    let mut bytes: [u8; 12] = [17, 0, 0, 0, 34, 0, 0, 0, 51, 0, 0, 0];
+    let first: &mut RootView = &mut bytes[0] as &mut RootView;
+    let second: &mut u32 = &mut bytes[8] as &mut u32;
+    first.payload.value = 51;
+    second
+}
+
+machine good() {}
+machine bad() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let dependency_value: u32 = dependency_observation();
+    let root_value: u32 = root_observation();
+    let dependency_extent: u64 = size_of<DependencyView>();
+    let root_extent: u64 = size_of<RootView>();
+    transition dependency_value == 34u32 && root_value == 51u32 && dependency_extent == 8u64 && root_extent == 12u64 {
+        true -> good()
+        false -> bad()
+    }
+}

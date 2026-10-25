@@ -265,8 +265,9 @@ pub(crate) fn named_type_reference_through_shells(
     }
 }
 
-/// One exact policy/schema application. Every retained geometry is validated;
-/// target-family alternatives remain guarded until target closure.
+/// One exact policy/schema application. Its inputs exist before evaluation;
+/// every materialized geometry is validated, and target alternatives remain
+/// guarded until target closure. Pending inputs never imply packed storage.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlanLaidLayout {
     /// Name of the synthesized data definition (e.g. `CLayout<GdtEntryish>`).
@@ -317,6 +318,7 @@ pub enum PlanLaidSchemaFieldKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlanLaidRealizations {
+    Pending,
     Invariant(PlanLaidGeometry),
     TargetFamily(arena::HandleSpan<PlanLaidTargetLayout>),
 }
@@ -330,11 +332,16 @@ pub struct PlanLaidTargetLayout {
 }
 
 impl PlanLaidLayout {
+    /// Whether this application's exact geometry has completed evaluation.
+    pub fn is_materialized(&self) -> bool {
+        !matches!(self.realizations, PlanLaidRealizations::Pending)
+    }
+
     /// Only an invariant application has geometry before target closure.
     pub fn invariant_geometry(&self) -> Option<&PlanLaidGeometry> {
         match &self.realizations {
             PlanLaidRealizations::Invariant(geometry) => Some(geometry),
-            PlanLaidRealizations::TargetFamily(_) => None,
+            PlanLaidRealizations::Pending | PlanLaidRealizations::TargetFamily(_) => None,
         }
     }
 
@@ -346,6 +353,7 @@ impl PlanLaidLayout {
         target: Option<&str>,
     ) -> Option<&'a PlanLaidGeometry> {
         match &self.realizations {
+            PlanLaidRealizations::Pending => None,
             PlanLaidRealizations::Invariant(geometry) => Some(geometry),
             PlanLaidRealizations::TargetFamily(span) => {
                 let target = target?;
@@ -366,7 +374,7 @@ impl PlanLaidLayout {
     ) -> impl Iterator<Item = &'a PlanLaidGeometry> {
         let invariant = match &self.realizations {
             PlanLaidRealizations::Invariant(geometry) => Some(geometry),
-            PlanLaidRealizations::TargetFamily(_) => None,
+            PlanLaidRealizations::Pending | PlanLaidRealizations::TargetFamily(_) => None,
         };
         invariant
             .into_iter()
@@ -377,7 +385,7 @@ impl PlanLaidLayout {
     /// check the arena span and complete nonempty family roster before use.
     pub fn target_layouts<'a>(&self, typed: &'a crate::TypedTrees) -> &'a [PlanLaidTargetLayout] {
         match self.realizations {
-            PlanLaidRealizations::Invariant(_) => &[],
+            PlanLaidRealizations::Pending | PlanLaidRealizations::Invariant(_) => &[],
             PlanLaidRealizations::TargetFamily(span) => {
                 typed.plan_laid_target_layouts.span_or_empty(span)
             }

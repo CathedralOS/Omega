@@ -1,0 +1,33 @@
+// Expected exit: 0
+// Deferred queries and physical reads consume both cohorts' exact geometry.
+use omega::language::core::layout;
+use layout_cohort_kit::geometry;
+
+data RootPolicy {}
+data RootPayload [copy] { value: u32; }
+data RootView { payload: RootPolicy<RootPayload>; }
+
+machine RootPolicy::plan(schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 8 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: 12, size_is_dynamic: false, align: 4 }
+}
+
+machine root_observation() -> u32 {
+    let bytes: [u8; 12] = [17, 0, 0, 0, 34, 0, 0, 0, 51, 0, 0, 0];
+    let view: &RootView = &bytes[0] as &RootView;
+    view.payload.value
+}
+
+machine good() {}
+machine bad() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let dependency_value: u32 = dependency_observation();
+    let root_value: u32 = root_observation();
+    let dependency_extent: u64 = size_of<DependencyView>();
+    let root_extent: u64 = size_of<RootView>();
+    transition dependency_value == 34u32 && root_value == 51u32 && dependency_extent == 8u64 && root_extent == 12u64 {
+        true -> good()
+        false -> bad()
+    }
+}

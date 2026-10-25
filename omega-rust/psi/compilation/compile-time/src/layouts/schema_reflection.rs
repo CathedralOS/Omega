@@ -358,7 +358,8 @@ fn reflected_record_layout(
                 geometry.validated_layout.size?,
                 geometry.validated_layout.align,
             )),
-            typed_trees::PlanLaidRealizations::TargetFamily(_) => None,
+            typed_trees::PlanLaidRealizations::Pending
+            | typed_trees::PlanLaidRealizations::TargetFamily(_) => None,
         };
     }
     if data.quotient.is_some()

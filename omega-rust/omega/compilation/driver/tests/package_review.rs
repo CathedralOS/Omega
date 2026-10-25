@@ -7,6 +7,69 @@ use compiler::{CheckedCompileRequest, CompilationSession, PackageReviewFailure};
 use package_evidence::PackageReviewProjectionError;
 
 #[test]
+fn policy_layout_queries_preserve_executed_and_skipped_branches() {
+    let target = "linux_x86_64";
+    let fixture = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/layouts/policy_layout_query_values/main.omg");
+    let mut prepared =
+        fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
+            .expect("policy query fixture has admitted package inputs");
+    let inputs = prepared.package_inputs.clone().expect("root custody");
+    for entry in ["main.omg", "skipped.omg"] {
+        let request = CheckedCompileRequest {
+            package_inputs: Some(inputs.clone()),
+            ..CheckedCompileRequest::new(&prepared.root_path.with_file_name(entry), Some(target))
+        };
+        fixture_package_inputs::check_fixture_request(&mut prepared, request)
+            .expect("policy input queries settle before formation without executing skipped arms");
+    }
+}
+
+#[test]
+fn dependency_layouts_precede_formation_and_borrow_checking() {
+    let target = "linux_x86_64";
+    let fixture = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/build/dependency_layout_cohorts/main.omg");
+    let mut prepared =
+        fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
+            .expect("layout dependency fixture has admitted package inputs");
+    let inputs = prepared.package_inputs.clone().expect("root custody");
+    for entry in ["main.omg", "valid_disjoint.omg"] {
+        let request = CheckedCompileRequest {
+            package_inputs: Some(inputs.clone()),
+            ..CheckedCompileRequest::new(&prepared.root_path.with_file_name(entry), Some(target))
+        };
+        fixture_package_inputs::check_fixture_request(&mut prepared, request)
+            .expect("completed geometry preserves valid physical views");
+    }
+    for (entry, fragments) in [
+        (
+            "invalid_bounds.omg",
+            &["recast target needs 12 bytes", "region holds 4"][..],
+        ),
+        (
+            "invalid_overlap.omg",
+            &["borrow `second`", "borrow `first` is still active"][..],
+        ),
+    ] {
+        let request = CheckedCompileRequest {
+            package_inputs: Some(inputs.clone()),
+            ..CheckedCompileRequest::new(&prepared.root_path.with_file_name(entry), Some(target))
+        };
+        let diagnostics = fixture_package_inputs::check_fixture_request(&mut prepared, request)
+            .expect_err("layout queries must not hide formation or exclusive-loan obligations");
+        let rendered = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        for fragment in fragments {
+            assert!(rendered.contains(fragment), "{entry}: {rendered}");
+        }
+    }
+}
+
+#[test]
 fn dependency_frontends_retain_constant_values_without_admitting_new_callers() {
     let target = "linux_x86_64";
     let fixture = fixture_package_inputs::repo_root()

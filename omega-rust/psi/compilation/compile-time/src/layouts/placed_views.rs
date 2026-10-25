@@ -255,7 +255,7 @@ pub fn desugar_placed_views(
     let probe_plan_laid = crate::desugar_plan_laid_value_types(&mut probe)?;
     let frontier =
         syntax_trees_to_symbol_resolved_trees::resolve_deferred(context.resolution_request(probe))?;
-    let (mut typed, domain, selected_layouts) = prepare_placement_probe(
+    let (mut typed, mut domain, selected_layouts) = prepare_placement_probe(
         frontier,
         &applications,
         &probe_plan_laid,
@@ -276,7 +276,7 @@ pub fn desugar_placed_views(
         &mut typed,
         &selected_layouts,
         selection_authority.clone(),
-        &domain,
+        &mut domain,
     )?;
     let execution = domain.execution_program(&typed);
 

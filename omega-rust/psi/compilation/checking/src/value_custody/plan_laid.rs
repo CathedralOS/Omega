@@ -11,6 +11,13 @@ pub(crate) fn validate_plans(
 ) {
     let mut data_symbols = Vec::with_capacity(program.plan_laid_layouts.len());
     for plan in &program.plan_laid_layouts {
+        if !plan.is_materialized() {
+            diagnostics.push(Diagnostic::error(format!(
+                "plan-laid value type `{}` still has pending geometry before source formation checking",
+                plan.data_name
+            )));
+            continue;
+        }
         if data_symbols.contains(&plan.data_symbol) {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` repeats its exact synthesized data identity",

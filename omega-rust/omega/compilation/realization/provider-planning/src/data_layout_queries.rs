@@ -189,7 +189,8 @@ fn plan_laid_operand_pending_installation(
         .type_reference_table
         .type_reference_handles(*arguments);
     let installed = program.plan_laid_layouts.iter().any(|plan| {
-        plan.policy_symbol == *base_symbol
+        plan.is_materialized()
+            && plan.policy_symbol == *base_symbol
             && argument_handles
                 .iter()
                 .any(|argument| program.type_reference_symbol(*argument) == plan.schema_symbol)

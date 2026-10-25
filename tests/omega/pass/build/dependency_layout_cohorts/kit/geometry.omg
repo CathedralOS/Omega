@@ -1,0 +1,17 @@
+use omega::language::core::layout;
+
+public data DependencyPolicy {}
+public data DependencyPayload [copy] { value: u32; }
+public data DependencyView { payload: DependencyPolicy<DependencyPayload>; }
+
+public machine DependencyPolicy::plan(schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 4 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 4 }
+}
+
+public machine dependency_observation() -> u32 {
+    let bytes: [u8; 8] = [17, 0, 0, 0, 34, 0, 0, 0];
+    let view: &DependencyView = &bytes[0] as &DependencyView;
+    view.payload.value
+}
