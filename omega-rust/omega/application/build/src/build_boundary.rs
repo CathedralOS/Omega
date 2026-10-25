@@ -81,10 +81,46 @@ fn ordinary_package_operations_admit_instead_of_execute() {
         .find("admit_project_compilation(request)")
         .unwrap();
     let compile = execution
-        .find("compiler.compile_packages(admitted.requests)")
+        .find("crate::compile_packages(&mut compiler, admitted.requests)")
         .unwrap();
     let reconcile = execution
         .find("admitted.completion.complete(products)")
         .unwrap();
     assert!(admit < compile && compile < reconcile);
+}
+
+#[test]
+fn application_schedules_dependencies_without_opening_source_continuations() {
+    let execution = include_str!("build_execution.rs");
+    assert!(execution.contains("while !frontiers.is_empty()"));
+    assert!(execution.contains("join_generated_sources(occurrence, &frontier.products)"));
+    assert!(execution.contains("compiler.prepare_package_build(occurrence)"));
+    assert!(execution.contains("compiler.complete_package_components(builds)"));
+    for source in [execution, include_str!("package_compilation.rs")] {
+        for forbidden in [
+            "CheckedCompilation",
+            "PreparedPackageBuild",
+            ".into_continuation(",
+            ".select_build_batch(",
+            "produce_products(",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "application opens source: {forbidden}"
+            );
+        }
+    }
+    let compiler = include_str!("../../../compilation/driver/src/checked/package_compilation.rs");
+    for removed in [
+        "fn compile_packages(",
+        "fn check_package(",
+        "fn join_dependency_builds(",
+        "PackageFrontier",
+        "join_generated_sources(",
+    ] {
+        assert!(
+            !compiler.contains(removed),
+            "compiler still schedules {removed}"
+        );
+    }
 }

@@ -16,9 +16,10 @@ pub(crate) mod checking;
 mod compilation_session;
 pub use compilation_session::CompilationSession;
 mod package_compilation;
-mod package_preparation;
 mod product_batch;
-pub use package_compilation::{PackageCompilationRequest, PackageCompileFailure};
+pub use package_compilation::{
+    PackageBuild, PackageCompilationRequest, PackageCompileFailure, PreparedPackageProduct,
+};
 
 pub use artifacts::compile_timings::counters::{
     checked_compilation_call_count, preliminary_check_totals, settled_check_totals,

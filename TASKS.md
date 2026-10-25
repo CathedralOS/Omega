@@ -2890,8 +2890,12 @@ crash and native exit behavior.
   plans; package completion retains custody, identity reconciliation and disposal.
   Package frontiers, source cohorts and component publication carry caller identity
   with work and results, rather than reconstructing parallel result tables.
-  Candidate review and compiler-internal dependency/Build activation scheduling
-  still need migration. Psi
+  Application Build now schedules dependency frontiers and joins generated source,
+  completing demanded components before their consumers. Compiler-owned opaque
+  Build continuations prevent the application from extracting source IR; source
+  checking and component/product publication remain behind the compiler facade.
+  Candidate review and Terminal Build/helper activation scheduling still need
+  migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
   Psi 00-07 and Build execute

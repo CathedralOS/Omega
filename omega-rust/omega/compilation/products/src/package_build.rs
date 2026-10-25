@@ -97,6 +97,10 @@ impl PreparedPackageBuild {
         &self.generated_sources
     }
 
+    pub fn root_path(&self) -> &std::path::Path {
+        &self.root_path
+    }
+
     pub fn build(&self) -> &ComputedBuildConfig {
         &self.prepared.built.computed_build_config
     }

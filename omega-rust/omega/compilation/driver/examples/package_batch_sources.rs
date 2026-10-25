@@ -18,6 +18,20 @@ fn main() {
         return;
     }
     let whole_builds = counters::build_execution_count();
+    // Application scheduling and nested compiler operations share the same
+    // explicit stack worker, rather than reserving a stack per occurrence.
+    compiler::checked::run_on_compile_thread(|| {
+        let worker = std::thread::current().id();
+        let nested = compiler::checked::run_on_compile_thread(|| {
+            Ok::<_, Vec<diagnostics::Diagnostic>>(std::thread::current().id())
+        })?;
+        assert_eq!(
+            worker, nested,
+            "dependency operations retain the invocation worker"
+        );
+        Ok::<_, Vec<diagnostics::Diagnostic>>(())
+    })
+    .expect("compiler worker");
     let whole_checks = counters::settled_check_totals().0;
     let whole_sources = counters::product_source_completion_count();
     let whole_terminals = counters::terminal_production_count();
@@ -77,7 +91,7 @@ fn main() {
         builds - whole_builds,
         checks - whole_checks
     );
-    let mut outputs = CompilationSession::default().compile_packages(requests);
+    let mut outputs = omega_build::compile_packages(&mut CompilationSession::default(), requests);
     assert_eq!(outputs.len(), 4, "every request keeps its outcome");
     let rejected = match outputs.remove(1) {
         Err(error) => error,

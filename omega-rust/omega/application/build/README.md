@@ -11,13 +11,29 @@ use disposable workspaces and do not claim the requested product directory.
 
 [products.rs](src/products.rs) translates package and standalone product demands.
 [project_compilation.rs](src/project_compilation.rs) shows ordinary package
-compilation: admit the target batch, invoke one compiler session, then reconcile
+compilation: admit the target batch, schedule its Builds and products, then reconcile
 package identities and dispose staging. Package management returns requests; it
 does not invoke this route. Its completion owner retains acquisition custody and
 one aggregate sponsor until every target returns. An inadmissible target remains
 an ordered refusal beside successful siblings. A failed staging close is reported.
 The prepared-project native/check/inspection APIs here also serve SDK callers;
 package-management compilation exports have been removed.
+
+[package_compilation.rs](src/package_compilation.rs) owns the admitted package
+invocation. [build_execution.rs](src/build_execution.rs) advances dependency-first
+frontiers, joins generated dependency output, executes ready Builds, and waits for
+demanded independent components before advancing consumers. Ready roots complete
+together through the compiler's product facade. One explicit stack worker spans
+the invocation; nested compiler calls execute inline on that worker.
+
+The compiler returns an opaque `PackageBuild`: the application can inspect its
+package inputs, generated bundle and demanded package identities, and join
+component descriptions, but cannot extract its source continuation. Component
+executable custody stays in the compiler session. `prepare_package` prepares a
+root Build for diagnostic consumers; `join_dependency_builds` leaves the root
+unexecuted and returns its joined inputs. The corpus uses these same operations,
+not a test-only dependency scheduler.
+
 [publication.rs](src/publication.rs) publishes admitted products and is also used
 by execution. The CLI owns argument spelling, console output and process exits,
 not this lifecycle. Shared temporary directories belong to `platform-custody`.
@@ -37,8 +53,7 @@ does not acquire sources or execute code.
 This is the project application owner, not another compiler pipeline. It depends
 on facades and product contracts, not intermediate source representations or
 stage crates. Candidate review still invokes checking in package management;
-the deeper dependency/Build activation scheduler remains in the old compiler
-coordinator. Moving those responsibilities, completing
+ordinary dependency scheduling is now here. Moving review scheduling, completing
 Psi's facade, and replacing the checked-tree Build evaluator with Terminal
 continuations remain explicit obligations of the
 [ownership migration](../../../pipeline.md#build-and-compiler-ownership-migration).
