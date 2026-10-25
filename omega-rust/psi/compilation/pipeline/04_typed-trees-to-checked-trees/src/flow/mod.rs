@@ -69,6 +69,7 @@ pub(crate) use operand_contexts::{
 };
 mod state;
 mod statements;
+mod storage_footprints;
 mod transfers;
 
 // One call's facts: the call builder, its phases, and boundary-trait edges.

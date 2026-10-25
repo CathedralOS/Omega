@@ -1,0 +1,65 @@
+// A completed write of 70 through a signed eight-bit field retains its i64 meaning and leaves the adjacent byte unchanged.
+// Must reject an out-of-range signed-byte write.
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField
+where size <= 4096, 1 <= align, align <= 16,
+{ key: u64; size: u64; align: u64; number: i64; kind: FieldKind; }
+data Schema where field_count <= 32,
+{ fields: [SchemaField; 32]; field_count: u64; }
+data IntegerInterpretation { case Signed; case Unsigned; }
+data FieldPlan {
+    case IntegerAt(offset: u64, stored_width: u64, interpretation: IntegerInterpretation);
+}
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan {
+    entries: [FieldEntry; 64];
+    entry_count: u64;
+    size_fixed: u64;
+    size_is_dynamic: bool;
+    align: u64;
+}
+data SignedByte { }
+machine SignedByte::plan(schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::IntegerAt {
+            offset: 0,
+            stored_width: 8,
+            interpretation: IntegerInterpretation::Signed,
+        },
+    };
+    Plan {
+        entries: entries,
+        entry_count: 1,
+        size_fixed: 1,
+        size_is_dynamic: false,
+        align: 1,
+    }
+}
+data PortableByte [copy] { value: i64; }
+data RawView { value: SignedByte<PortableByte>; }
+data Main { bytes: [u8; 2]; ordinary: i64; }
+
+machine choose<'storage>(first: &'storage mut i64, second: &'storage mut i64, choose_second: bool) -> &'storage mut i64 {
+    transition choose_second {
+        true -> second
+        _ -> first
+    }
+}
+machine Main::main(main: &mut Main) crashes Trap {
+    main.bytes[0] = 0;
+    main.bytes[1] = 85;
+    main.ordinary = 257;
+    let view: &mut RawView = &mut main.bytes[0] as &mut RawView;
+    let leaf: &mut i64 = &mut view.value.value;
+    leaf = 200;
+    let ordinary: &mut i64 = choose(leaf, &mut main.ordinary, true);
+    ordinary = 127;
+    transition main.bytes[0] == 70 && main.bytes[1] == 85 && main.ordinary == 127 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
