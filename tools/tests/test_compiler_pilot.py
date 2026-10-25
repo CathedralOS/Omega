@@ -7,6 +7,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ci"))
 import compiler_pilot as pilot
+import compiler_cleanup as cleanup
 
 
 class CompilerPilotTests(unittest.TestCase):
@@ -74,6 +75,44 @@ class CompilerPilotTests(unittest.TestCase):
             report[key] = value
             with self.subTest(key=key), self.assertRaises(ValueError):
                 self.validate(report, True)
+
+    def test_cleanup_report_requires_both_authored_output_observations(self):
+        fixture = "pass/drops/runtime_projected_nominal_cleanup_exit"
+        report = self.report(True)
+        report["observations"] = [dict(fixture=fixture, status="built", facts={
+            "exit": "0", "interpreter-exit": "0", "interpreter": "agrees",
+            "stdout": "match", "interpreter-stdout": "match"})]
+
+        def validate(value):
+            pilot.validate_report(value, (fixture,), both=True,
+                                  revision="a" * 40, target="linux_x86_64")
+
+        validate(report)
+        for key in ("stdout", "interpreter-stdout"):
+            for value in (None, "mismatch"):
+                missing = deepcopy(report)
+                missing["observations"][0]["facts"][key] = value
+                with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                    validate(missing)
+
+    def test_cleanup_cannot_lose_a_transport_or_intended_rejection(self):
+        report = self.report()
+        report["observations"] = [dict(
+            fixture=fixture, status="checked" if fixture.startswith("pass/") else "rejected",
+            expected_satisfied=fixture.startswith("fail/"))
+            for fixture in cleanup.POSITIVES + cleanup.NEGATIVES]
+
+        def validate(value):
+            pilot.validate_report(value, cleanup.POSITIVES + cleanup.NEGATIVES,
+                                  both=False, revision="a" * 40, target="linux_x86_64")
+
+        validate(report)
+        for fixture in (cleanup.POSITIVES[-1], cleanup.NEGATIVES[-1]):
+            missing = deepcopy(report)
+            missing["observations"] = [row for row in missing["observations"]
+                                       if row["fixture"] != fixture]
+            with self.subTest(fixture=fixture), self.assertRaises(ValueError):
+                validate(missing)
 
 
 if __name__ == "__main__":

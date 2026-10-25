@@ -91,9 +91,8 @@ coverage of that production, not execution of these new compositions.
 
 ## Remaining scope
 
-CML4's cross-host qualification, suspension acceptance, and remaining moved
-linear-place and computed-call result composition stay open. This row establishes
-normal death after borrowed supplier reads; it does not complete those requirements.
+CML4's Windows/Linux ordered-cleanup qualification remains open. This row
+establishes normal death after borrowed supplier reads on its measured host.
 
 ```sh
 omega run --both samples/cli/facts/borrowed_projection_cleanup/local/main.omg

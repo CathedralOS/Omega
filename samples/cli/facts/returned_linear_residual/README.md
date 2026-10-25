@@ -61,7 +61,7 @@ the expected fragment, 9 native `built ... exit:0`, and 9 both-leg rows reading
 Parent outcome: **CML4** in [TASKS.md](../../../../TASKS.md), which keeps
 `samples/cli/facts/returned_linear_residual/` and its pinned pass/reject pairs
 for selected by-value linear-child consumption and original-owner residual
-cleanup. Open: fuel/resume, cancellation, and the rest of CML4's remaining work.
+cleanup. Windows/Linux ordered-cleanup qualification remains separate.
 
 ## Eight-layer acceptance obligations
 
@@ -87,8 +87,8 @@ cleanup. Open: fuel/resume, cancellation, and the rest of CML4's remaining work.
    oracle, not a proof of a particular instruction or frame allocation.
 8. **Images and execution:** native and Terminal must independently complete
    with the authored result and checked cleanup frontier. Target bindings alone
-   establish no foreign-host execution. Fuel/resume, cancellation and the broader
-   CML4 acceptance remain separate requirements.
+   establish no foreign-host execution. This row does not measure fuel/resume;
+   the projected nominal cleanup fixture's portable provision covers that contract.
 
 Authority: [source ownership](../../../../wiki/spec/language/ownership.md),
 [claim paths and residuals](../../../../wiki/spec/terminal-psi/ownership.md), and

@@ -1149,11 +1149,10 @@ defines the complete product bar.
     `runtime_owned_{record_replacement,nominal_replacement,replacement_composition}_exit`
     and `fail/drops/owned_replacement_{old_hook_prerequisite,transferred_source_read}`
     as value-home, occurrence and invalid-custody controls.
-  - Complete scalar materialization of moved linear places and claim-bearing
+  - Preserve scalar materialization of moved linear places and claim-bearing
     call results on **STATE-LOCAL-VALUE-FRONTIER**'s computed-call path.
     Keep `samples/cli/facts/borrowed_projection_cleanup/` as the captured-context,
-    detached-carrier and reference-free projected-supplier read control while
-    completing those remaining moved-value and computed-call claims.
+    detached-carrier and reference-free projected-supplier read control.
     Preserve the checked ordered temporary action roster and its scalar-call continuation in
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/calls.rs`
     with exact live-claim dispositions; claim-free discard/hook actions do not

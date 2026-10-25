@@ -36,7 +36,7 @@ authored [] operator to acquire builtin array meaning.
 7. Instructions and frames: preserve operand order, outgoing scalar values and
    original cleanup actions without runtime liveness flags.
 8. Images and execution: native and Terminal must independently produce exit 0;
-   fuel/resume and cross-host execution remain separate acceptance.
+   this row establishes no cross-host or fuel/resume execution.
 
 Baseline 55c5385c96f5 rejects public preparation at issue's indexed ensures,
 consume's input requirement and the sibling hook prerequisite. Fresh main
@@ -53,9 +53,9 @@ returning the wrong same-typed input still rejects. These controls establish
 this row's proof and custody path. Operator applicability uses exact closed
 generic multiplicity bindings; projecting a computed copy does not select
 builtin storage. Extent guarantees retain their actual result/formal binders
-and selected Exact arithmetic. These repairs do not close the remaining CML4
-cleanup, fuel/retry or
-Windows/Linux execution requirements.
+and selected Exact arithmetic. Windows/Linux ordered-cleanup qualification
+remains separate. The projected nominal cleanup fixture's portable provision
+owns the existing fuel/retry acceptance.
 
 Authority: [proof contracts](../../../../wiki/spec/proofs/contracts.md),
 [structural array construction](../../../../wiki/spec/terminal-psi/structural_access.md#complete-structural-array-construction),

@@ -52,6 +52,11 @@ def validate_report(report, expected, *, both, revision, target):
             if (row["status"] != "built" or facts.get("interpreter") != "agrees"
                     or "exit" not in facts or facts["exit"] != facts.get("interpreter-exit")):
                 raise ValueError(f"{row['fixture']}: missing native/Terminal agreement")
+            for stream in ("stdout", "stderr"):
+                oracle = ROOT / "tests" / "omega" / row["fixture"] / f"expected_{stream}.txt"
+                if oracle.is_file() and (facts.get(stream) != "match"
+                                         or facts.get("interpreter-" + stream) != "match"):
+                    raise ValueError(f"{row['fixture']}: missing authored {stream} observation")
         elif row["status"] not in ("checked", "built"):
             raise ValueError(f"{row['fixture']}: positive source did not check")
 
@@ -60,14 +65,15 @@ def command(arguments):
     return subprocess.check_output(arguments, cwd=ROOT, text=True).strip()
 
 
-def execute(output, summary):
+def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES):
     revision = command(["git", "rev-parse", "HEAD"])
     if command(["git", "status", "--porcelain"]):
         raise ValueError("pilot requires a clean candidate")
     if os.environ.get("GITHUB_SHA", revision) != revision:
         raise ValueError("checkout is not the GitHub candidate being checked")
     summary.update(candidate=revision, target=corpus_gate.host_target(),
-                   toolchain=command(["rustc", "-Vv"]), stages=[])
+                   toolchain=command(["rustc", "-Vv"]), stages=[],
+                   fixtures=dict(positive=positives, negative=negatives))
 
     def stage(name, operation):
         started = time.monotonic()
@@ -87,13 +93,16 @@ def execute(output, summary):
         stdin=subprocess.DEVNULL, check=True))
     runner = stage("build corpus runner", corpus_gate.build_runner)
     # Keep the exact producer with the reports; later jobs need not rebuild it.
-    retained = output / "corpus_runner"
+    retained = output / ("corpus_runner.exe" if runner.suffix == ".exe" else "corpus_runner")
     shutil.copy2(runner, retained)
+    shutil.copy2(str(runner) + ".compiler-profile.json",
+                 str(retained) + ".compiler-profile.json")
     with retained.open("rb") as stream:
         digest = hashlib.sha256()
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     summary["runner_sha256"] = digest.hexdigest()
+    summary["runner_profile"] = corpus_gate.require_optimized(retained)
 
     def corpus(name, fixtures, both=False):
         report_path = output / f"{name}.json"
@@ -107,18 +116,18 @@ def execute(output, summary):
         validate_report(json.loads(report_path.read_text(encoding="utf-8")), fixtures,
                         both=both, revision=revision, target=summary["target"])
 
-    stage("checking and rejection controls", lambda: corpus("checking", POSITIVES + NEGATIVES))
-    stage("native and Terminal execution", lambda: corpus("both", POSITIVES, both=True))
+    stage("checking and rejection controls", lambda: corpus("checking", positives + negatives))
+    stage("native and Terminal execution", lambda: corpus("both", positives, both=True))
     if command(["git", "rev-parse", "HEAD"]) != revision or command(["git", "status", "--porcelain"]):
         raise ValueError("candidate changed during validation")
 
 
-def main():
-    output = ROOT / "build" / "compiler-pilot"
+def run_suite(name, positives, negatives):
+    output = ROOT / "build" / name
     output.mkdir(parents=True, exist_ok=True)
     summary = dict(schema="omega-compiler-pilot-v1", passed=False)
     try:
-        execute(output, summary)
+        execute(output, summary, positives=positives, negatives=negatives)
         summary["passed"] = True
         return 0
     except (OSError, ValueError, subprocess.CalledProcessError,
@@ -128,6 +137,10 @@ def main():
         return 1
     finally:
         (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+
+
+def main():
+    return run_suite("compiler-pilot", POSITIVES, NEGATIVES)
 
 
 if __name__ == "__main__":

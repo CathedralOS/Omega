@@ -6,6 +6,11 @@ on:
   schedule:
     - cron: '23 9 * * *'
   workflow_dispatch:
+    inputs:
+      cleanup:
+        description: Qualify ordered cleanup on Windows and Linux instead of the small smoke
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -13,15 +18,21 @@ permissions:
 # Finish the active observation. GitHub keeps only the newest pending run, so
 # a busy main does not start one cold executable build for every queued PR.
 concurrency:
-  group: compiler-regression-${{ github.ref }}
+  group: compiler-regression-${{ github.ref }}-${{ inputs.cleanup }}
   cancel-in-progress: false
 
 jobs:
   regression:
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: ${{ fromJSON(inputs.cleanup && '["ubuntu-24.04", "windows-2025"]' || '["ubuntu-24.04"]') }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     env:
       CARGO_BUILD_JOBS: '2'
+      # Keep generated package outputs below Windows link.exe's path limit.
+      CARGO_TARGET_DIR: ${{ runner.temp }}/ot
       CARGO_INCREMENTAL: '0'
       CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
       CARGO_BUILD_FINGERPRINT: content
@@ -39,19 +50,25 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
+            ${{ env.CARGO_TARGET_DIR }}
           key: compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
           restore-keys: |
             compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
       - name: Check smoke report refusal paths
         run: python tools/tests/test_compiler_pilot.py -v
       - name: Execute native and Terminal smoke with rejection controls
+        if: ${{ !inputs.cleanup }}
         run: python tools/ci/compiler_pilot.py
+      - name: Execute ordered cleanup with rejection controls
+        if: inputs.cleanup
+        run: python tools/ci/compiler_cleanup.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
-          name: compiler-regression-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/
+          name: compiler-regression-${{ runner.os }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            build/compiler-pilot/
+            build/compiler-cleanup/
           if-no-files-found: warn
           compression-level: 0
           retention-days: 7
