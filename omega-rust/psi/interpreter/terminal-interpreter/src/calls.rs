@@ -495,16 +495,13 @@ impl<'artifact> TerminalExecution<'artifact> {
                 let argument = structural_arguments.get(position).ok_or_else(malformed)?;
                 if formal.structural_type
                     != boundary_declaration.structural_parameters[position].structural_type
-                    || prepared_arguments
-                        .scalar_arrays
-                        .insert(
-                            formal.place,
-                            self.prepare_scalar_array_argument(callee, formal, argument)?,
-                        )?
-                        .is_some()
                 {
                     return Err(malformed());
                 }
+                prepared_arguments.scalar_arrays.publish(
+                    formal.place,
+                    self.prepare_scalar_array_argument(callee, formal, argument)?,
+                )?;
             }
             let claim_transfers = completion_receipts
                 .iter()
