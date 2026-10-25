@@ -30,7 +30,7 @@ pub(super) fn append(
     helper: &mut Machine,
 ) {
     let blocks = source.statement_table.assembly_blocks(graph.blocks);
-    let Some((exit_index, block)) = blocks.iter().enumerate().last() else {
+    let Some((exit_index, block)) = blocks.iter().enumerate().next_back() else {
         return;
     };
     if !matches!(

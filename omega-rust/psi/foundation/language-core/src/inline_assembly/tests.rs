@@ -6,7 +6,7 @@ use super::{
     AsmInstructionSerializationKind, AsmInstructionShape, AsmInterruptControlKind,
     AsmInterruptFlagEffect, AsmMemoryOrdering, AsmMemoryTransferKind, AsmOperandAccess,
     AsmSchedulingHintKind, AsmSystemRegister, AsmTargetApplicability, asm_catalog_entry,
-    asm_intrinsic_mnemonic,
+    asm_intrinsic_mnemonic, scratch_register,
 };
 
 #[test]

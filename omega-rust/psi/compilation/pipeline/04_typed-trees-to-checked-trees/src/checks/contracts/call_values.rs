@@ -657,10 +657,9 @@ fn bind_current(
             },
             &place,
         )
+        && let Some(literal) = observed_literal(value, primitive)
     {
-        if let Some(literal) = observed_literal(value, primitive) {
-            return Some(literal);
-        }
+        return Some(literal);
     }
     let operand = CheckedScalarExpression::Parameter {
         position: bindings.len(),

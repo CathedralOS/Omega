@@ -720,7 +720,7 @@ fn parse_asm_mnemonic<'tokens, 'source>(
         let rest = rest.take_punctuation(PunctuationKind::Dot, ".")?;
         let (condition, rest) = rest.take_identifier()?;
         return Ok((
-            Identifier::generated(&format!("b.{}", condition.as_str(trees))),
+            Identifier::generated(format!("b.{}", condition.as_str(trees))),
             rest,
         ));
     }
