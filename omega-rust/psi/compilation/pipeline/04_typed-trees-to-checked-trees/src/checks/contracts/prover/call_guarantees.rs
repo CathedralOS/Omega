@@ -438,12 +438,7 @@ fn capture_preserved(
     guarantee: ExpressionHandle,
     frames: &validation::CallFrameResolver<'_>,
 ) -> bool {
-    let Some(state) = borrow.with_state_index(|index| {
-        index
-            .bucket(caller.symbol, supplied.caller_state)
-            .first()
-            .map(|handle| borrow.states.get(*handle))
-    }) else {
+    let Some((_, state)) = borrow.first_state_borrow(caller.symbol, supplied.caller_state) else {
         return false;
     };
     let Some(call) = borrow.calls.span_or_empty(state.calls).iter().find(|call| {

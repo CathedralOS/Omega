@@ -373,7 +373,21 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 )
                 .map(|places| (*places).clone())
         };
-        let final_storage_writes = storage_writes.clone();
+        // Scalar observations require an exact logical coordinate. Binding
+        // invalidation only needs a complete physical may-write enclosure;
+        // losing the former must not withdraw every disjoint descriptor.
+        let final_storage_writes = if statement.as_assignment().is_some() {
+            super::storage_footprints::assignment(
+                program,
+                machine,
+                statement,
+                &build.control,
+                build.control.statements.get(statement_fact).store_target,
+                build.call_frames,
+            )
+        } else {
+            storage_writes.clone()
+        };
         let operand_writes = build
             .control
             .statements

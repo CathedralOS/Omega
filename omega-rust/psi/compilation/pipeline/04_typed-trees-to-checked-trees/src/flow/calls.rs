@@ -13,7 +13,6 @@ use crate::flow::apply_call_invalidations;
 use crate::flow::build_call_entry_contexts;
 use crate::flow::build_call_exit_contexts;
 use crate::flow::build_call_requires_contexts;
-use crate::flow::proof_contract_call;
 use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
@@ -46,13 +45,12 @@ pub(super) fn build_call_flow_fact<'plans>(
 ) -> FlowCallFact {
     let storage_writes = writes.map(|writes| writes.observation_places.as_slice());
     super::state_values::record_invocation(program, build, machine, state, borrow_call);
-    let contract_call = proof_contract_call(
-        proof,
+    let contract_call = proof.contract_call_at(&(
         machine.symbol,
         state.symbol,
         borrow_call.statement_index,
         borrow_call.call_ordinal,
-    );
+    ));
     let entry = build_call_entry_contexts(
         borrow,
         build,

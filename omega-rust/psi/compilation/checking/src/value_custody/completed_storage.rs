@@ -55,6 +55,8 @@ impl StoredOperand {
     }
 }
 
+mod backing;
+pub use backing::reference_backing_places;
 mod captures;
 mod descriptor_suppliers;
 mod reference_captures;

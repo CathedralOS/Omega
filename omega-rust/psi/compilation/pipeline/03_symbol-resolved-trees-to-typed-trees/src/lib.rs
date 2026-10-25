@@ -60,7 +60,7 @@ pub use lowerer::lower_symbol_resolved_trees;
 // typed base instead of retyping the whole package.
 pub use lowerer::seeded_continuation::{
     SeededContinuationError, SeededTypingBase, lower_seeded_extension,
-    lower_symbol_resolved_trees_to_seeded_base, retained_typed_base_is_exact_prefix,
+    lower_symbol_resolved_trees_to_seeded_base,
 };
 
 // The typing tests' front-end pipelines, one file shared with the `suite`

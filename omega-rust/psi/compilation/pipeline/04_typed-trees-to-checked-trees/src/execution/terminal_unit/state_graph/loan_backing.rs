@@ -300,10 +300,7 @@ fn retained_parents(
     }
     let borrow_state = facts
         .borrow
-        .with_state_index(|index| match index.bucket(machine, state) {
-            [handle] => Some(facts.borrow.states.get(*handle)),
-            _ => None,
-        })
+        .unique_state_borrow(machine, state)
         .ok_or("state loan parents: source borrow state")?;
     let dependencies = Dependencies {
         program,
@@ -578,13 +575,7 @@ pub(super) fn retired_carrier_backing(
         })
         .map(|(_, resource)| resource)
         .collect::<Vec<_>>();
-    let borrow_state =
-        facts
-            .borrow
-            .with_state_index(|index| match index.bucket(machine, state) {
-                [handle] => Some(facts.borrow.states.get(*handle)),
-                _ => None,
-            })?;
+    let borrow_state = facts.borrow.unique_state_borrow(machine, state)?;
     let dependencies = Dependencies {
         program,
         facts,

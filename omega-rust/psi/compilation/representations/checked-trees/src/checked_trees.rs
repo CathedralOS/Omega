@@ -16,11 +16,14 @@ pub mod admissibility;
 pub mod borrow;
 pub mod facts;
 pub mod flow;
+pub mod keyed_rows;
 pub mod operators;
 pub mod proof;
 pub mod service_parameter;
 pub mod statement;
 pub mod values;
+
+pub use keyed_rows::{DurableRows, KeyedRows};
 
 pub use admissibility::{
     AcceptanceCheck, AcceptanceCheckProvenance, AcceptanceCheckVerdict, AcceptanceDimension,
@@ -31,8 +34,8 @@ pub use admissibility::{
 pub use borrow::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowLoanFact,
     BorrowLoanLineage, BorrowLoanOwnerSegment, BorrowRetainedOperand, BorrowReturnedLoanFact,
-    BorrowRootKind, BorrowStateIndex, BorrowWritableRootFact, CapturedPlace,
-    CapturedPlaceCompatibility, CapturedPlaceContainment, CheckedBorrowResourceDispositionTarget,
+    BorrowRootKind, BorrowWritableRootFact, CapturedPlace, CapturedPlaceCompatibility,
+    CapturedPlaceContainment, CheckedBorrowResourceDispositionTarget,
     CheckedBorrowResourceLifecyclePhase, CheckedCallBorrowLoanResource,
     CheckedCallBorrowLoanSource, CheckedDirectBorrowLoanResource,
     CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation,

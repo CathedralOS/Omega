@@ -3299,6 +3299,7 @@ pass/host/runtime_descriptor_scalar_input_exit built 1560ms exit:0 stdout:match 
 pass/host/std_clock_sleep_exit built 14521ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
 pass/inline_asm/target_family_instruction_exit built 837ms exit:0 interpreter-exit:0 interpreter:agrees @a8fbfdfa4d11
 pass/layouts/completed_integer_at_result_snapshot_exit built 2680ms exit:0 interpreter-exit:0 interpreter:agrees @6bbc0c024e25+wt
+pass/layouts/direct_encoded_assignment_preserves_descriptor_exit built 880ms exit:0 interpreter-exit:0 interpreter:agrees @477082ca1580
 pass/layouts/placed_primitive_aligned_backing built 60162ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
 pass/layouts/placed_primitive_authored_name built 19716ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
 pass/layouts/placed_primitive_callback built 50141ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
@@ -3328,7 +3329,7 @@ pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit built 1565ms 
 pass/layouts/runtime_qualified_record_schema_geometry_exit built 5308ms exit:0 interpreter-exit:0 interpreter:agrees @94cfa03cda24+wt
 pass/layouts/runtime_reborrow_preserves_store_origin_exit built 4425ms exit:70 interpreter-exit:70 interpreter:agrees @6bbc0c024e25+wt
 pass/layouts/runtime_recast_reference_captures_index_exit built 4024ms exit:0 interpreter-exit:0 interpreter:agrees @edb462c792f9
-pass/layouts/runtime_recursive_encoded_reference_exit built 1811ms exit:0 interpreter-exit:0 interpreter:agrees @cd0f1f2b1338
+pass/layouts/runtime_recursive_encoded_reference_exit built 981ms exit:0 interpreter-exit:0 interpreter:agrees @477082ca1580
 pass/layouts/runtime_returned_encoded_reference_exit built 1690ms exit:0 interpreter-exit:0 interpreter:agrees @a094551c41ad
 pass/layouts/runtime_selected_reference_parent_restoration_exit built 1381ms exit:0 interpreter-exit:0 interpreter:agrees @e51ea3b52251+wt
 pass/layouts/runtime_selected_scalar_reference_codec_exit built 1080ms exit:0 interpreter-exit:0 interpreter:agrees @e51ea3b52251+wt

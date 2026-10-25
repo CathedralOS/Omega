@@ -16442,6 +16442,8 @@ fail/layouts/data_layout_query_value_argument rejected 114ms expected @5f668826a
 	`align_of` takes no value arguments; the queried type is its single `<T>` operand
 fail/layouts/demanded_partial_target_layout rejected 6205ms expected @5f668826adf3
 	native artifact target lowering failed: UnclosedTargetLayout(StructuralTypeId(25))
+fail/layouts/direct_encoded_assignment_requires_fit rejected 257ms expected @477082ca1580
+	IntegerAt store in machine `Main::main` state `main` assignment requires a value proven to fit 8-bit signed storage
 fail/layouts/encoded_foreign_view_preserves_value_facts rejected 666ms expected @5f668826adf3
 	machine `Main::main` state `main`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `ForeignByte` are not representation-compatible
 fail/layouts/encoded_foreign_view_requires_same_geometry rejected 538ms expected @5f668826adf3
@@ -26699,6 +26701,7 @@ pass/layouts/byte_view_borrow_with_encoded_sibling rejected 1319ms regressed-fro
 pass/layouts/byte_wide_byte_byte_layout_compile checked 1669ms @a9ae30e1c334+wt
 pass/layouts/completed_integer_at_result_snapshot_exit checked 1722ms check-target:macos_arm64 @6bbc0c024e25+wt
 pass/layouts/const_layout_query_compile checked 1842ms @a9ae30e1c334+wt
+pass/layouts/direct_encoded_assignment_preserves_descriptor_exit checked 751ms check-target:macos_arm64 @477082ca1580
 pass/layouts/empty_cases_sum_layout_compile checked 1697ms @a9ae30e1c334+wt
 pass/layouts/empty_record_layout_queries_compile checked 1632ms @a9ae30e1c334+wt
 pass/layouts/extent_view_external_content rejected 3629ms regressed-from:checked+terminal-runtime.attempt:unrequested+terminal-inspections:match @5f668826adf3
@@ -26809,9 +26812,7 @@ pass/layouts/runtime_recast_reference_captures_index_exit rejected 1747ms check-
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: effectful invocation has unknown writable storage
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/runtime_recursive_encoded_reference_exit rejected 2224ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/runtime_recursive_encoded_reference_exit checked 754ms check-target:macos_arm64 @477082ca1580
 pass/layouts/runtime_returned_encoded_reference_exit rejected 1609ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach

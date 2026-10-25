@@ -1261,13 +1261,7 @@ pub fn storage_place_loans(
     selection: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<Vec<RecordLeafLoans>> {
     let selected_owner_path = loan_owner_path(program, reference, selection)?;
-    let borrowing =
-        facts
-            .borrow
-            .with_state_index(|index| match index.bucket(machine, state.symbol) {
-                [handle] => Some(facts.borrow.states.get(*handle)),
-                _ => None,
-            })?;
+    let borrowing = facts.borrow.unique_state_borrow(machine, state.symbol)?;
     let loans = facts
         .borrow
         .storage_loans(borrowing, owner, statement_index as usize)?;
@@ -1326,13 +1320,7 @@ pub fn initial_parameter_reference_establishment(
     {
         return None;
     }
-    let borrowing =
-        facts
-            .borrow
-            .with_state_index(|index| match index.bucket(machine, state.symbol) {
-                [handle] => Some(facts.borrow.states.get(*handle)),
-                _ => None,
-            })?;
+    let borrowing = facts.borrow.unique_state_borrow(machine, state.symbol)?;
     let owner_path = loan_owner_path(program, parameter.type_reference, &[])?;
     let order = program
         .statement_table
@@ -2423,13 +2411,7 @@ pub fn result_loans(
     let return_type = crate::call_target_return_type(program, call.target_symbol)?;
     let shell = crate::reference_shell(program, return_type)?;
     let expected_kind = checked_trees::BorrowAccessKind::from(shell.access);
-    let borrowing =
-        facts
-            .borrow
-            .with_state_index(|index| match index.bucket(machine, state.symbol) {
-                [handle] => Some(facts.borrow.states.get(*handle)),
-                _ => None,
-            })?;
+    let borrowing = facts.borrow.unique_state_borrow(machine, state.symbol)?;
     let mut group = arena::HandleSpan::empty();
     for (handle, loan) in facts.borrow.loan_group(borrowing.loans)? {
         if loan.statement_index != call.statement_index
@@ -2514,12 +2496,7 @@ pub fn local_storage_loans(
     state: SymbolHandle,
     root: SymbolHandle,
 ) -> Option<Vec<arena::Handle<checked_trees::BorrowLoanFact>>> {
-    let borrowing = facts
-        .borrow
-        .with_state_index(|index| match index.bucket(machine, state) {
-            [handle] => Some(facts.borrow.states.get(*handle)),
-            _ => None,
-        })?;
+    let borrowing = facts.borrow.unique_state_borrow(machine, state)?;
     Some(
         facts
             .borrow

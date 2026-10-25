@@ -76,40 +76,6 @@ pub struct StatementTable {
 }
 
 impl StatementTable {
-    pub(crate) fn retains_exact_prefix(&self, base: &Self) -> bool {
-        let Self {
-            assembly_graphs,
-            assembly_blocks,
-            statements,
-            expression_handles,
-            name_path_members,
-            transition_targets,
-            outcome_proof_selectors,
-        } = base;
-        crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-            assembly_graphs,
-            &self.assembly_graphs,
-        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-            assembly_blocks,
-            &self.assembly_blocks,
-        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-            statements,
-            &self.statements,
-        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-            expression_handles,
-            &self.expression_handles,
-        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-            name_path_members,
-            &self.name_path_members,
-        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-            transition_targets,
-            &self.transition_targets,
-        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-            outcome_proof_selectors,
-            &self.outcome_proof_selectors,
-        )
-    }
-
     pub fn new() -> Self {
         Self {
             assembly_graphs: Arena::new(),

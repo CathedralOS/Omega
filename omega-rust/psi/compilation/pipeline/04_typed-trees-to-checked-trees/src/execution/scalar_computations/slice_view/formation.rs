@@ -24,12 +24,7 @@ impl Builder<'_, '_> {
         }
         let kind = BorrowAccessKind::from(expected_access);
         let access = CheckedStructuralAccess::from(expected_access);
-        let state = self.borrow.with_state_index(|index| {
-            index
-                .bucket(self.machine, self.state)
-                .first()
-                .map(|handle| self.borrow.states.get(*handle))
-        })?;
+        let (_, state) = self.borrow.first_state_borrow(self.machine, self.state)?;
         let descriptor = if let Some(place) = validation::canonical_place_from_expression_in_state(
             self.program,
             self.state,
