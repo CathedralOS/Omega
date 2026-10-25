@@ -58,7 +58,7 @@ returned-linear-child places with their reject twins; it uses the same corpus
 execution and report validator as smoke. Authored output must be observed by
 both engines. It does not change admission, scheduled smoke or any golden.
 The macOS/Linux roster also preserves the existing descriptor output controls
-for C pointer/count pairs, projected storage and separate stdout/stderr.
+for C pointer/count pairs and separate stdout/stderr.
 
 ```text
 gh workflow run compiler-regression.yml --ref BRANCH -f cleanup=true

@@ -4867,9 +4867,11 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   Foreign imports share one mechanism template per target ABI, derived from
   the evaluated plans.
   - Qualify remaining descriptor carriers and register/stack placement on each
-    matching host. Preserve `host/runtime_descriptor_direct_array_exit` and
-    `host/runtime_descriptor_output_streams_exit`: readonly byte views transport
-    their evaluated pointer/length on macOS ARM64, never the descriptor's address.
+    matching host. Restore original scalar-field backing through thin foreign
+    export: `host/runtime_descriptor_direct_array_exit` currently refuses with
+    `SourceCustodyMismatch` on macOS ARM64. Keep narrow/mixed backing export
+    refusals. Preserve `host/runtime_descriptor_output_streams_exit`: readonly
+    byte views transport their evaluated pointer/length, never the descriptor's address.
   - Qualify indirect (memory-returned) aggregate results on the remaining
     matching hosts. Linux x86-64 uses caller-owned result storage through
     foreign calls, ordinary helpers and owned state arrivals; retain

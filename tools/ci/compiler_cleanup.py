@@ -54,7 +54,6 @@ def positives_for_target(target):
     if target in ("macos_arm64", "linux_x86_64"):
         return POSITIVES + (
             "pass/host/runtime_descriptor_output_streams_exit",
-            "pass/host/runtime_descriptor_direct_array_exit",
         )
     return POSITIVES
 
