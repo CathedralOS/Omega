@@ -109,34 +109,21 @@ impl Emission<'_, '_, '_> {
             ) {
                 return unsupported("element range cannot replace a representation-byte region");
             }
-            let storage = view_ranges::storage(
+            let bindings = self.structural_bindings();
+            let (bound, establishment) = view_ranges::stage_source(
                 identities,
                 self.checked,
                 self.state,
                 self.statement,
                 source,
                 self.structural_types,
-            )?;
-            let bindings = self.structural_bindings();
-            let whole = storage
-                .requires_establishment()
-                .then(|| allocate_dense(self.environment.next_place).map(place_id))
-                .transpose()?;
-            let (bound, establishment) = storage.bind(
-                identities,
-                self.checked,
-                self.state,
                 &bindings,
-                whole,
-                self.structural_types,
+                self.environment.next_place,
+                self.values,
+                self.next_value,
+                self.operations,
             )?;
-            if let Some(establishment) = establishment {
-                let declaration = view_ranges::establish(
-                    &establishment,
-                    self.values,
-                    self.next_value,
-                    self.operations,
-                )?;
+            if let Some(declaration) = establishment {
                 self.operations.register_structural_materialization(
                     declaration.id,
                     self.state,
