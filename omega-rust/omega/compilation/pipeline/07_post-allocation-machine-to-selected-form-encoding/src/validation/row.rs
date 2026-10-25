@@ -168,11 +168,7 @@ pub(crate) fn validate(
                     &encoded.footprint().encoded,
                 )
             };
-            validate_machine_footprint(selected.id, machine, &decoded)?;
-            validate_size(selected.id, machine.alternative.size, bytes.len())?;
-            if footprint != &decoded {
-                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-            }
+            admit_decoded_footprint(selected.id, machine, bytes.len(), footprint, &decoded)?;
             Ok(())
         }
         kind @ (selected_instructions::selected_call_triple_pattern!(..)) => {
@@ -388,11 +384,7 @@ fn validate_baseline(
             )
         }
     };
-    validate_machine_footprint(instruction, machine, &decoded)?;
-    validate_size(instruction, machine.alternative.size, bytes.len())?;
-    if footprint != &decoded {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-    }
+    admit_decoded_footprint(instruction, machine, bytes.len(), footprint, &decoded)?;
     Ok(())
 }
 
@@ -420,6 +412,37 @@ fn validate_machine_footprint(
         return Err(OptimizedSelectedFormEncodingError::ImplicitFootprintMismatch(instruction));
     }
     Ok(())
+}
+
+/// Admit one arm's re-decoded row: the machine row's declared effects and
+/// size, and equality with the footprint the decoded bytes carry. Every
+/// per-kind validator ends through this one owner.
+fn admit_decoded_footprint(
+    instruction: SelectedInstructionId,
+    machine: &PostAllocationMachineInstruction,
+    bytes: usize,
+    retained: &SelectedFormDecodedFootprint,
+    decoded: &SelectedFormDecodedFootprint,
+) -> Result<(), OptimizedSelectedFormEncodingError> {
+    validate_machine_footprint(instruction, machine, decoded)?;
+    validate_size(instruction, machine.alternative.size, bytes)?;
+    if retained != decoded {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    }
+    Ok(())
+}
+
+/// Re-derive one fixup arm's decoded footprint from the effects' operand
+/// indices, so the per-arm decode tail has one owner.
+fn decoded_effects_footprint(
+    machine: &PostAllocationMachineInstruction,
+    effects: &MachineEncodedEffects,
+) -> Result<SelectedFormDecodedFootprint, OptimizedSelectedFormEncodingError> {
+    Ok(decoded_footprint(
+        &views_for_effects(machine, effects, true)?,
+        &views_for_effects(machine, effects, false)?,
+        effects,
+    ))
 }
 
 fn validate_external_operands(

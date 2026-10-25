@@ -8,7 +8,6 @@ pub(crate) mod parse_body;
 pub(crate) mod sequence;
 pub(crate) mod statements;
 pub(crate) mod states;
-pub(crate) mod tail_calls;
 pub(crate) mod trait_default;
 pub(crate) mod transitions;
 

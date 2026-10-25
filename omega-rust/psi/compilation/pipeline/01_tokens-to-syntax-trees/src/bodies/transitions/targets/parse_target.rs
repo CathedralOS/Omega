@@ -6,16 +6,15 @@ use crate::bodies::transitions::targets::copy::{
     copy_expression_identifier_path_to_statement_table,
 };
 use crate::diagnostics::parse_error::ParseError;
+use crate::expressions::context::ExpressionContext;
 use crate::expressions::parse_expression::{has_unary_expression_prefix, parse_expression_handle};
-use crate::expressions::parse_postfix::{self, parse_argument_list_after_open_paren_handle};
-use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::expressions::parse_postfix::parse_postfix_expression_handle;
+use crate::input::token_cursor::{Input, ParseResult};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{
-    ExpressionHandle, ExpressionNode, TableCallExpression, TableMemberExpression,
-};
+use syntax_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use syntax_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
-use tokens::{KeywordKind, PunctuationKind};
+use tokens::KeywordKind;
 
 pub(crate) fn parse_transition_block_target_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -52,28 +51,16 @@ pub(in crate::bodies::transitions) fn parse_transition_block_target_with_binding
         && !input.at_keyword(KeywordKind::False)
         && !input.at_keyword(KeywordKind::SelfValue)
         && input.at_name_like();
-    let (expression, rest, target_shaped) = if target_shaped {
-        let ((expression, named_target), rest) =
-            parse_transition_target_expression_handle(syntax_trees, input)?;
-        // A struct/case literal arm VALUE (`-> Vec2 { dx: 1, dy: 2 }`) is name-like, so
-        // the target-expression parser reads only the leading path and leaves the `{`.
-        // A bare path immediately followed by `{` is a value, not a transition target
-        // -- re-parse the original input as a full expression (which DOES handle struct
-        // literals; the scrutinee position is the one that disallows them, not an arm).
-        if rest.at_punctuation(PunctuationKind::LeftBrace)
-            && matches!(
-                syntax_trees.expressions.expression(expression),
-                ExpressionNode::Name(_)
-            )
-        {
-            let (expression, rest) = parse_expression_handle(syntax_trees, input)?;
-            (expression, rest, false)
-        } else {
-            (expression, rest, named_target)
-        }
+    // Target-shaped arms use the ordinary postfix grammar, including generic
+    // applications, operational acknowledgements and nested postfix operands.
+    // Classification below may choose a plain named arrival only when that
+    // representation retains the complete invocation payload.
+    // A following negative pattern belongs to the next arm, not subtraction
+    // from this target. Arithmetic arm values retain their grouped spelling.
+    let (expression, rest) = if target_shaped {
+        parse_postfix_expression_handle(syntax_trees, input, ExpressionContext::Default)?
     } else {
-        let (expression, rest) = parse_expression_handle(syntax_trees, input)?;
-        (expression, rest, false)
+        parse_expression_handle(syntax_trees, input)?
     };
 
     let expression = bindings.iter().fold(expression, |expression, bindings| {
@@ -102,96 +89,15 @@ fn classify_transition_target_handle(
 ) -> Result<TransitionTargetHandle, ParseError> {
     let node = syntax_trees.expressions.expression(expression).clone();
     let target = match node {
-        ExpressionNode::Call(call) if target_shaped => {
+        ExpressionNode::Call(call)
+            if target_shaped && call.target_is_static && call.machine_arguments.is_empty() =>
+        {
             classify_call_target_handle(syntax_trees, call)?
         }
         _ => TransitionTargetNode::Value(expression),
     };
 
     Ok(syntax_trees.statements.insert_transition_target(target))
-}
-
-fn parse_transition_target_expression_handle<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, (ExpressionHandle, bool)> {
-    let (mut expression, mut input) = {
-        let (path, rest) = parse_path_handle_span(input, |member| {
-            syntax_trees
-                .expressions
-                .append_identifier_path_member(member)
-        })?;
-        (
-            syntax_trees.expressions.insert(ExpressionNode::Name(path)),
-            rest,
-        )
-    };
-
-    while input.at_punctuation(PunctuationKind::Dot) {
-        input = input.take_punctuation(PunctuationKind::Dot, ".")?;
-        let (member, rest) = input.take_identifier()?;
-        input = rest;
-        expression =
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Member(TableMemberExpression {
-                    receiver: expression,
-                    member,
-                    case_variant: None,
-                }));
-    }
-
-    // Namespace paths may name state targets.
-    // A dotted call on another receiver is an invocation, even when its leaf
-    // happens to spell the current machine or a sibling state.
-    let named_target = !matches!(
-        syntax_trees.expressions.expression(expression),
-        ExpressionNode::Member(_)
-    );
-    if input.at_punctuation(PunctuationKind::LeftParen) {
-        input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-        let ((arguments, evidence_arguments), rest) =
-            parse_argument_list_after_open_paren_handle(syntax_trees, input)?;
-        input = rest;
-        expression = match syntax_trees.expressions.expression(expression) {
-            ExpressionNode::Name(path) => {
-                let path = *path;
-                let (target, receiver) =
-                    parse_postfix::call_path_target_and_receiver(syntax_trees, path);
-                let target = target.expect("call path should have at least one member");
-
-                syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::Call(TableCallExpression {
-                        target_is_static: true,
-                        receiver,
-                        target,
-                        machine_arguments: Box::default(),
-                        arguments,
-                        evidence_arguments,
-                        operational_acknowledgement: Default::default(),
-                    }))
-            }
-            ExpressionNode::Member(member) => {
-                let receiver = member.receiver;
-                let target = member.member.clone();
-                syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::Call(TableCallExpression {
-                        target_is_static: false,
-                        receiver,
-                        target,
-                        machine_arguments: Box::default(),
-                        arguments,
-                        evidence_arguments,
-                        operational_acknowledgement: Default::default(),
-                    }))
-            }
-            _ => unreachable!("transition target call base should be a path or member access"),
-        };
-    }
-
-    Ok(((expression, named_target), input))
 }
 
 fn classify_call_target_handle(

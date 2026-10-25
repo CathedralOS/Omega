@@ -147,8 +147,8 @@ pub(crate) fn lower(
             let Some(integer_type) = integer_scalar_type(*primitive_type)?.as_integer() else {
                 return unsupported("structural crash arithmetic has a non-integer type");
             };
-            let left = Box::new(lower_operand(left)?);
-            let right = Box::new(lower_operand(right)?);
+            let left = lower_operand(left)?;
+            let right = lower_operand(right)?;
             if left.scalar_type() != ScalarType::Integer(integer_type)
                 || right.scalar_type() != ScalarType::Integer(integer_type)
             {
@@ -181,92 +181,42 @@ pub(crate) fn lower(
                     "structural crash policy division requires explicit terminal nonzero-divisor evidence",
                 );
             }
-            Ok(match kind {
-                CheckedIntegerBinaryKind::ExactAdd => ScalarTerm::ExactIntegerAdd {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                CheckedIntegerBinaryKind::ExactSubtract => ScalarTerm::ExactIntegerSubtract {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                CheckedIntegerBinaryKind::ExactMultiply => ScalarTerm::ExactIntegerMultiply {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                CheckedIntegerBinaryKind::ExactDivide => ScalarTerm::ExactIntegerDivide {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                CheckedIntegerBinaryKind::ExactRemainder => ScalarTerm::ExactIntegerRemainder {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                CheckedIntegerBinaryKind::WrappingAdd => ScalarTerm::WrappingIntegerAdd {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                CheckedIntegerBinaryKind::SaturatingAdd => ScalarTerm::SaturatingIntegerAdd {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                CheckedIntegerBinaryKind::WrappingSubtract => ScalarTerm::WrappingIntegerSubtract {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
+            // One construction row per guarded kind: each arm names the
+            // ScalarTerm constructor that owns its operation identity, and the
+            // operands apply once below.
+            let constructor: fn(
+                semantic_vocabulary::IntegerType,
+                ScalarTerm,
+                ScalarTerm,
+            )
+                -> Result<ScalarTerm, semantic_vocabulary::PropositionError> = match kind {
+                CheckedIntegerBinaryKind::ExactAdd => ScalarTerm::exact_integer_add,
+                CheckedIntegerBinaryKind::ExactSubtract => ScalarTerm::exact_integer_subtract,
+                CheckedIntegerBinaryKind::ExactMultiply => ScalarTerm::exact_integer_multiply,
+                CheckedIntegerBinaryKind::ExactDivide => ScalarTerm::exact_integer_divide,
+                CheckedIntegerBinaryKind::ExactRemainder => ScalarTerm::exact_integer_remainder,
+                CheckedIntegerBinaryKind::WrappingAdd => ScalarTerm::wrapping_integer_add,
+                CheckedIntegerBinaryKind::SaturatingAdd => ScalarTerm::saturating_integer_add,
+                CheckedIntegerBinaryKind::WrappingSubtract => ScalarTerm::wrapping_integer_subtract,
                 CheckedIntegerBinaryKind::SaturatingSubtract => {
-                    ScalarTerm::SaturatingIntegerSubtract {
-                        scalar_type: integer_type,
-                        left,
-                        right,
-                    }
+                    ScalarTerm::saturating_integer_subtract
                 }
-                CheckedIntegerBinaryKind::WrappingMultiply => ScalarTerm::WrappingIntegerMultiply {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
+                CheckedIntegerBinaryKind::WrappingMultiply => ScalarTerm::wrapping_integer_multiply,
                 CheckedIntegerBinaryKind::SaturatingMultiply => {
-                    ScalarTerm::SaturatingIntegerMultiply {
-                        scalar_type: integer_type,
-                        left,
-                        right,
-                    }
+                    ScalarTerm::saturating_integer_multiply
                 }
-                CheckedIntegerBinaryKind::WrappingDivide => ScalarTerm::WrappingIntegerDivide {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
+                CheckedIntegerBinaryKind::WrappingDivide => ScalarTerm::wrapping_integer_divide,
                 CheckedIntegerBinaryKind::WrappingRemainder => {
-                    ScalarTerm::WrappingIntegerRemainder {
-                        scalar_type: integer_type,
-                        left,
-                        right,
-                    }
+                    ScalarTerm::wrapping_integer_remainder
                 }
-                CheckedIntegerBinaryKind::SaturatingDivide => ScalarTerm::SaturatingIntegerDivide {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
+                CheckedIntegerBinaryKind::SaturatingDivide => ScalarTerm::saturating_integer_divide,
                 CheckedIntegerBinaryKind::SaturatingRemainder => {
-                    ScalarTerm::SaturatingIntegerRemainder {
-                        scalar_type: integer_type,
-                        left,
-                        right,
-                    }
+                    ScalarTerm::saturating_integer_remainder
                 }
                 _ => unreachable!("guarded structural arithmetic kind"),
-            })
+            };
+            Ok(constructor(integer_type, left, right)
+                .map_err(LoweringError::InvalidCrashPredicate)?)
         }
         _ => leaf(expression),
     }

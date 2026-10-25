@@ -58,19 +58,11 @@ pub struct ElfDynamicLinkInputPlanningError {
     diagnostic: Diagnostic,
 }
 
-impl ElfDynamicLinkInputPlanningError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (FinalImage, NormalizedElfInterpreterPlan, Diagnostic) {
-        (self.image, self.interpreter, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfDynamicLinkInputPlanningError);
-
-impl std::error::Error for ElfDynamicLinkInputPlanningError {}
+image::rejection_carrier!(
+    ElfDynamicLinkInputPlanningError;
+    image: FinalImage,
+    interpreter: NormalizedElfInterpreterPlan,
+);
 
 /// Join one exact final image to a matching Linux interpreter and only its
 /// referenced normalized versioned-ELF import rows.

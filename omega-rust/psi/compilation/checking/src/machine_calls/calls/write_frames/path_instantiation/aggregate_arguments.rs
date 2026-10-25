@@ -202,23 +202,22 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
         {
             // Declaration transfer supplies frozen evidence; raw calls retain
             // symbolic source leaves for their existing caller-prefix closure.
-            let moved = if let ExpressionNode::Call(call) =
-                program.expression_table.expression(expression)
-            {
-                super::super::result_origins::call_result_origins(
-                    program,
-                    caller_machine,
-                    call,
-                    reference,
-                    symbols,
-                    inference,
-                    include_shared,
-                    resolve_reference,
-                    resolve_origins,
-                )?
-            } else {
-                resolve_origins(expression, reference, inference)?
-            };
+            let moved =
+                if let ExpressionNode::Call(_) = program.expression_table.expression(expression) {
+                    super::super::result_origins::call_result_origins(
+                        program,
+                        caller_machine,
+                        expression,
+                        reference,
+                        symbols,
+                        inference,
+                        include_shared,
+                        resolve_reference,
+                        resolve_origins,
+                    )?
+                } else {
+                    resolve_origins(expression, reference, inference)?
+                };
             if !demand_is_declared(program, reference, suffix) {
                 return None;
             }
@@ -437,13 +436,14 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
             _ if program.primitive_type_reference(reference).is_some()
                 || matches!(
                     program.type_reference_table.type_reference(reference),
-                    TypeReferenceNode::Unit
+                    TypeReferenceNode::Unit | TypeReferenceNode::DynamicTrait { .. }
                 ) =>
             {
                 if !suffix.is_empty() {
                     return None;
                 }
-                // This value lives in the callee's by-value aggregate copy.
+                // Scalar storage and implementation selectors live in the
+                // callee's copy. A selector carries no hidden data reference.
             }
             _ => return None,
         }

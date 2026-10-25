@@ -102,7 +102,19 @@ selected rows. Updating an existing primitive retains its cell, and first
 initialization reserves before invalidating stored provenance. Source controls
 check local and borrowed-entry mutation with exact and one-cell-short budgets,
 including readback through the original entry reference after a successful run.
-Global descriptor/placed/case storage and result publication are not yet completely accounted;
+Shared reference, byte-field, byte/view descriptor, backing, case and host-atom
+rows use this same owner in execution and constructor/transplant staging.
+Publication checks every paid table before retiring source storage; transferring
+the prepared rows does not request another budget. Activation split/merge funds
+its result case and binding before consuming source claims. The source-produced
+case, byte-field and activation controls check exact/short budgets through fuel
+pauses for borrowed and loaded artifacts, sticky refusal and teardown release.
+Activation frame ledgers, live claims, grants, backing owners, split associations
+and claim descriptors are also charged. Constructor transport carries descriptor
+reservations; split/merge stages every possible result descriptor before retiring
+source claims, then drops the unused case's rows. Ledger growth is funded before
+the foundation's authority operation and release/merge retires the removed cells.
+Provider ledgers/descriptors and cumulative result custody remain unaccounted;
 these partial snapshots must not become production Build usage receipts.
 
 A failed execution retains its exact host fault and unfinished custody. Calling
@@ -484,7 +496,7 @@ and claim map survive suspension; no partially moved ancestor becomes whole agai
 Structural storage copies and constructor staging use identity-bounded
 [`structural_storage`](src/structural_storage.rs) ranges. Keys order by carrier
 identity before path and field; subtree selection still checks the complete path.
-Each transaction stages all seven storage families before pruning either region,
+Each transaction stages its shared storage families before pruning either region,
 so overlapping copies/moves preserve the original snapshot behavior. This avoids
 scanning unrelated historical carriers; it grants no access to borrowed cells.
 At settled block boundaries scalar-only roots without executable handles may be

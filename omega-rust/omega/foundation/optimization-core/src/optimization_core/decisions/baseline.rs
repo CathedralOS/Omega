@@ -87,19 +87,11 @@ impl BaselineDecisionLog {
         let mut encoded = Vec::new();
         encoded.extend_from_slice(b"OMGBDL\0\0");
         crate::codec_bytes::push_encoded(&mut encoded, 1_u32.to_le_bytes());
-        encoded.extend_from_slice(
-            &u32::try_from(self.records.len())
-                .expect("decision record count fits u32")
-                .to_le_bytes(),
-        );
+        crate::codec_bytes::push_count_u32(&mut encoded, self.records.len());
         for record in &self.records {
             encoded.extend_from_slice(&record.identity.bytes());
             encoded.extend_from_slice(&record.input.bytes());
-            encoded.extend_from_slice(
-                &u32::try_from(record.considered.len())
-                    .expect("considered candidate count fits u32")
-                    .to_le_bytes(),
-            );
+            crate::codec_bytes::push_count_u32(&mut encoded, record.considered.len());
             for candidate in &record.considered {
                 encoded.extend_from_slice(&candidate.candidate.bytes());
                 crate::codec_bytes::push_encoded(
@@ -247,11 +239,7 @@ fn canonicalize_candidates(
 fn finish_log(records: Vec<BaselineDecisionRecord>) -> BaselineDecisionLog {
     let mut canonical = Vec::new();
     canonical.extend_from_slice(b"omega.baseline-decision-log.v1\0");
-    canonical.extend_from_slice(
-        &u64::try_from(records.len())
-            .expect("decision record count fits u64")
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::push_count_u64(&mut canonical, records.len());
     for record in &records {
         canonical.extend_from_slice(&record.identity.bytes());
     }
@@ -269,11 +257,7 @@ fn encode_decision(
     let mut canonical = Vec::new();
     canonical.extend_from_slice(b"omega.baseline-decision.v1\0");
     canonical.extend_from_slice(&input.bytes());
-    canonical.extend_from_slice(
-        &u64::try_from(considered.len())
-            .expect("candidate count fits u64")
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::push_count_u64(&mut canonical, considered.len());
     for candidate in considered {
         canonical.extend_from_slice(&candidate.candidate.bytes());
         crate::codec_bytes::push_encoded(

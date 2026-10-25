@@ -16,7 +16,6 @@ use crate::values::{
 };
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::StructuralTypeId;
-use std::collections::BTreeMap;
 use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 
 pub(crate) enum ConstructorValue<'execution> {
@@ -252,31 +251,32 @@ impl<'execution> ConstructorValue<'execution> {
 }
 
 pub(crate) struct ConstructorStorage {
-    completed_profiles: BTreeMap<
+    completed_profiles: RuntimeRows<
         StructuralRuntimePlace,
         crate::provider_storage::profiles::CompletedResourceProfile,
     >,
     provider_descriptors:
-        BTreeMap<StructuralRuntimePlace, crate::provider_storage::ProviderStorageBinding>,
+        RuntimeRows<StructuralRuntimePlace, crate::provider_storage::ProviderStorageBinding>,
     activation_descriptors:
-        BTreeMap<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
-    host_atoms: BTreeMap<StructuralRuntimePlace, crate::structural_storage::HostStructuralPayload>,
+        RuntimeRows<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
+    host_atoms:
+        RuntimeRows<StructuralRuntimePlace, crate::structural_storage::HostStructuralPayload>,
     scalars: RuntimeRows<StructuralScalarRuntimeField, TerminalScalarValue>,
-    bytes: BTreeMap<
+    bytes: RuntimeRows<
         StructuralByteSequenceRuntimeField,
         crate::byte_sequences::binding::ByteSequenceBinding,
     >,
-    views: BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
+    views: RuntimeRows<StructuralRuntimePlace, crate::element_views::ElementView>,
     byte_descriptors:
-        BTreeMap<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
-    references: BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
+        RuntimeRows<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
+    references: RuntimeRows<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
     primitives: RuntimeRows<StructuralRuntimePlace, TerminalScalarValue>,
-    byte_arrays: BTreeMap<StructuralRuntimePlace, ByteSequenceView>,
+    byte_arrays: RuntimeRows<StructuralRuntimePlace, ByteSequenceView>,
     owner_writes: Vec<(
         crate::byte_sequences::binding::ByteOwnerHome,
         ByteSequenceView,
     )>,
-    cases: BTreeMap<
+    cases: RuntimeRows<
         StructuralRuntimePlace,
         crate::structural_inputs::case_membership::StructuralCaseContents,
     >,
@@ -296,23 +296,73 @@ impl DetachedConstructorStorage {
 }
 
 impl ConstructorStorage {
+    /// Detached resident custody owns these rows independently of the execution
+    /// tables. Its provider and immutable backing edges can share other owners.
+    pub(crate) fn measure_result_custody<'storage>(
+        &'storage self,
+        execution: &'storage TerminalExecution<'_>,
+        custody: &mut crate::result_custody::ResultCustody<'storage>,
+    ) -> Result<(), TerminalInterpretError> {
+        for count in [
+            self.completed_profiles.len(),
+            self.provider_descriptors.len(),
+            self.activation_descriptors.len(),
+            self.host_atoms.len(),
+            self.scalars.len(),
+            self.bytes.len(),
+            self.views.len(),
+            self.byte_descriptors.len(),
+            self.references.len(),
+            self.primitives.len(),
+            self.byte_arrays.len(),
+            self.cases.len(),
+        ] {
+            custody.add_cells(count)?;
+        }
+        for binding in self.provider_descriptors.values() {
+            custody.provider(execution, *binding)?;
+        }
+        for binding in self.activation_descriptors.values() {
+            custody.binding(binding)?;
+        }
+        for binding in self.bytes.values() {
+            custody.binding(binding)?;
+        }
+        for binding in self.byte_descriptors.values() {
+            custody.binding(binding)?;
+        }
+        for bytes in self.byte_arrays.values() {
+            custody.bytes(bytes)?;
+        }
+        for (_, bytes) in &self.owner_writes {
+            custody.bytes(bytes)?;
+        }
+        for view in self.views.values() {
+            custody.element_view(view)?;
+        }
+        for reference in self.references.values() {
+            custody.reference(reference)?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn new(
         account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
     ) -> Self {
         Self {
-            completed_profiles: BTreeMap::new(),
-            provider_descriptors: BTreeMap::new(),
-            activation_descriptors: BTreeMap::new(),
-            host_atoms: BTreeMap::new(),
+            completed_profiles: RuntimeRows::new(account),
+            provider_descriptors: RuntimeRows::new(account),
+            activation_descriptors: RuntimeRows::new(account),
+            host_atoms: RuntimeRows::new(account),
             scalars: RuntimeRows::new(account),
-            bytes: BTreeMap::new(),
-            views: BTreeMap::new(),
-            byte_descriptors: BTreeMap::new(),
-            references: BTreeMap::new(),
+            bytes: RuntimeRows::new(account),
+            views: RuntimeRows::new(account),
+            byte_descriptors: RuntimeRows::new(account),
+            references: RuntimeRows::new(account),
             primitives: RuntimeRows::new(account),
-            byte_arrays: BTreeMap::new(),
+            byte_arrays: RuntimeRows::new(account),
             owner_writes: Vec::new(),
-            cases: BTreeMap::new(),
+            cases: RuntimeRows::new(account),
         }
     }
 
@@ -357,7 +407,8 @@ impl ConstructorStorage {
                     ),
                 );
             }
-            self.provider_descriptors.insert(relocate(home)?, *binding);
+            self.provider_descriptors
+                .insert(relocate(home)?, *binding)?;
         }
         for (home, binding) in &original.activation_descriptors {
             let target = relocate(home)?;
@@ -365,29 +416,29 @@ impl ConstructorStorage {
             descriptor.opaque_identity = target.opaque_identity;
             descriptor.path = target.path.clone();
             self.activation_descriptors
-                .insert(target, binding.clone().with_descriptor_home(descriptor));
+                .insert(target, binding.clone().with_descriptor_home(descriptor))?;
         }
         for (home, profile) in &original.completed_profiles {
             self.completed_profiles
-                .insert(relocate(home)?, profile.clone());
+                .insert(relocate(home)?, profile.clone())?;
         }
         for (home, payload) in &original.host_atoms {
-            self.host_atoms.insert(relocate(home)?, *payload);
+            self.host_atoms.insert(relocate(home)?, *payload)?;
         }
         for (home, view) in &original.views {
-            self.views.insert(relocate(home)?, view.clone());
+            self.views.insert(relocate(home)?, view.clone())?;
         }
         for (home, case) in &original.cases {
-            self.cases.insert(relocate(home)?, *case);
+            self.cases.insert(relocate(home)?, *case)?;
         }
         // Physical data is reconstructed in the ordinary constructor format,
         // not overlaid on stale byte-array or scalar aliases in the snapshot.
         // All non-byte associations above continue from the original value.
         self.scalars.append(&mut decoded.scalars)?;
         self.primitives.append(&mut decoded.primitives)?;
-        self.bytes.extend(decoded.bytes);
-        self.byte_arrays.extend(decoded.byte_arrays);
-        self.cases.extend(decoded.cases);
+        self.bytes.append(&mut decoded.bytes)?;
+        self.byte_arrays.append(&mut decoded.byte_arrays)?;
+        self.cases.append(&mut decoded.cases)?;
         Ok(())
     }
 
@@ -473,7 +524,7 @@ impl ConstructorStorage {
         crate::structural_inputs::case_membership::stored_case_at_projection(
             &execution.program.structural_types(),
             root,
-            &self.cases,
+            self.cases.as_map(),
             path,
         )
     }
@@ -482,8 +533,9 @@ impl ConstructorStorage {
         &mut self,
         destination: StructuralByteSequenceRuntimeField,
         bytes: crate::byte_sequences::binding::ByteSequenceBinding,
-    ) {
-        self.bytes.insert(destination, bytes);
+    ) -> Result<(), TerminalInterpretError> {
+        self.bytes.insert(destination, bytes)?;
+        Ok(())
     }
 
     /// Stage a descriptor whose producer has already captured its live source.
@@ -493,7 +545,7 @@ impl ConstructorStorage {
         destination: StructuralRuntimePlace,
         referent: crate::reference::ReferenceReferent,
     ) -> Result<(), TerminalInterpretError> {
-        if self.references.insert(destination, referent).is_some() {
+        if self.references.insert(destination, referent)?.is_some() {
             return Err(malformed());
         }
         Ok(())
@@ -503,7 +555,7 @@ impl ConstructorStorage {
         &mut self,
         destination: StructuralRuntimePlace,
         bytes: crate::byte_sequences::storage::ByteSequenceStorage,
-    ) {
+    ) -> Result<(), TerminalInterpretError> {
         // Byte arrays have one backing, never duplicate primitive cells. This
         // uses the same publication shape as constructor array establishment.
         self.primitives.retain(|home, _| {
@@ -511,7 +563,8 @@ impl ConstructorStorage {
                 || !home.path.starts_with(&destination.path)
         });
         self.byte_arrays
-            .insert(destination, ByteSequenceView::new(bytes));
+            .insert(destination, ByteSequenceView::new(bytes))?;
+        Ok(())
     }
     /// Completion reseats this exact root immediately after pruning it. Retained
     /// permission carriers never gain a second live identity or transfer custody.
@@ -539,7 +592,7 @@ impl ConstructorStorage {
             .structural_byte_sequence_fields
             .get(&cell)
             .ok_or_else(malformed)?;
-        self.bytes.insert(cell, bytes.clone());
+        self.bytes.insert(cell, bytes.clone())?;
         Ok(())
     }
 
@@ -548,14 +601,15 @@ impl ConstructorStorage {
         destination: StructuralRuntimePlace,
         structural_type: StructuralTypeId,
         case: semantic_vocabulary::StructuralCaseId,
-    ) {
+    ) -> Result<(), TerminalInterpretError> {
         self.cases.insert(
             destination,
             crate::structural_inputs::case_membership::StructuralCaseContents {
                 structural_type,
                 case,
             },
-        );
+        )?;
+        Ok(())
     }
 
     pub(crate) fn stage_scalar_endpoint(
@@ -663,7 +717,7 @@ impl ConstructorStorage {
                         execution.account.as_ref(),
                     )?;
                     self.byte_arrays
-                        .insert(destination.clone(), ByteSequenceView::new(bytes));
+                        .insert(destination.clone(), ByteSequenceView::new(bytes))?;
                 } else {
                     let element_count = match execution
                         .program
@@ -732,7 +786,7 @@ impl ConstructorStorage {
             self.activation_descriptors.insert(
                 destination.clone(),
                 binding.with_descriptor_home(descriptor),
-            );
+            )?;
             return Ok(());
         }
 
@@ -759,7 +813,7 @@ impl ConstructorStorage {
             self.byte_descriptors.insert(
                 destination.clone(),
                 binding.with_descriptor_home(descriptor),
-            );
+            )?;
             // A descriptor owns its permission carrier, not a subtree of its
             // backing. Relocating backing cells would manufacture ownership.
             return Ok(());
@@ -774,7 +828,7 @@ impl ConstructorStorage {
             self.views.insert(
                 destination.clone(),
                 execution.element_view_argument(argument, child)?.clone(),
-            );
+            )?;
         }
         if execution
             .program
@@ -800,7 +854,7 @@ impl ConstructorStorage {
                         crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
                             bytes.detached_descriptor(),
                         ),
-                    );
+                    )?;
                 }
                 Some(crate::byte_sequences::binding::ByteSequenceBinding::MutableOwner {
                     home,
@@ -813,7 +867,7 @@ impl ConstructorStorage {
                 Some(_) => return Err(malformed()),
                 None => {
                     self.byte_arrays
-                        .insert(destination.clone(), bytes.detached_descriptor());
+                        .insert(destination.clone(), bytes.detached_descriptor())?;
                 }
             }
         }
@@ -855,7 +909,7 @@ impl ConstructorStorage {
                 source,
             ) {
                 if let Some(target) = relocate(home) {
-                    self.completed_profiles.insert(target, profile.clone());
+                    self.completed_profiles.insert(target, profile.clone())?;
                 }
             }
         }
@@ -870,7 +924,7 @@ impl ConstructorStorage {
                         ),
                     );
                 }
-                self.provider_descriptors.insert(target, *binding);
+                self.provider_descriptors.insert(target, *binding)?;
             }
         }
         for (home, binding) in crate::structural_storage::cells(
@@ -886,7 +940,7 @@ impl ConstructorStorage {
                 descriptor.opaque_identity = target.opaque_identity;
                 descriptor.path = target.path.clone();
                 self.activation_descriptors
-                    .insert(target, binding.clone().with_descriptor_home(descriptor));
+                    .insert(target, binding.clone().with_descriptor_home(descriptor))?;
             }
         }
         for (home, binding) in
@@ -902,14 +956,14 @@ impl ConstructorStorage {
                     return Err(malformed());
                 }
                 self.byte_descriptors
-                    .insert(target.clone(), binding.relocated_descriptor(home, &target)?);
+                    .insert(target.clone(), binding.relocated_descriptor(home, &target)?)?;
             }
         }
         for (home, descriptor) in
             crate::structural_storage::cells(&execution.structural_element_view_fields, source)
         {
             if let Some(target) = relocate(home) {
-                self.views.insert(target, descriptor.clone());
+                self.views.insert(target, descriptor.clone())?;
             }
         }
         for (home, referent) in
@@ -935,7 +989,7 @@ impl ConstructorStorage {
                         return Err(malformed());
                     }
                 }
-                self.references.insert(target, referent.clone());
+                self.references.insert(target, referent.clone())?;
             }
         }
         for (field, scalar) in
@@ -957,7 +1011,7 @@ impl ConstructorStorage {
                 {
                     return Err(malformed());
                 }
-                self.bytes.insert(field.relocated(parent), bytes.clone());
+                self.bytes.insert(field.relocated(parent), bytes.clone())?;
             }
         }
         for (home, value) in
@@ -971,19 +1025,19 @@ impl ConstructorStorage {
             crate::structural_storage::cells(&execution.structural_byte_storage, source)
         {
             if let Some(target) = relocate(home) {
-                self.byte_arrays.insert(target, bytes.clone());
+                self.byte_arrays.insert(target, bytes.clone())?;
             }
         }
         for (home, atom) in
             crate::structural_storage::cells(&execution.structural_host_atoms, source)
         {
             if let Some(target) = relocate(home) {
-                self.host_atoms.insert(target, *atom);
+                self.host_atoms.insert(target, *atom)?;
             }
         }
         for (home, case) in crate::structural_storage::cells(&execution.structural_cases, source) {
             if let Some(target) = relocate(home) {
-                self.cases.insert(target, *case);
+                self.cases.insert(target, *case)?;
             }
         }
         Ok(())
@@ -995,12 +1049,7 @@ impl ConstructorStorage {
     ) -> Result<(), TerminalInterpretError> {
         // Validate every pinned home before publishing any part of the
         // transaction. None of these writes retires another owner's frame.
-        execution
-            .structural_scalar_fields
-            .validate_append(&self.scalars)?;
-        execution
-            .structural_primitive_storage
-            .validate_append(&self.primitives)?;
+        self.validate_publication(execution)?;
         for (home, _) in &self.owner_writes {
             execution.byte_owner_bytes(home)?;
         }
@@ -1010,10 +1059,55 @@ impl ConstructorStorage {
         self.publish_cells(execution)
     }
 
+    fn validate_publication(
+        &self,
+        execution: &TerminalExecution<'_>,
+    ) -> Result<(), TerminalInterpretError> {
+        execution
+            .provider_storage
+            .descriptors
+            .validate_append(&self.provider_descriptors)?;
+        execution
+            .provider_storage
+            .completed_profiles
+            .validate_append(&self.completed_profiles)?;
+        execution
+            .activation_storage
+            .claim_descriptors
+            .validate_append(&self.activation_descriptors)?;
+        execution
+            .structural_scalar_fields
+            .validate_append(&self.scalars)?;
+        execution
+            .structural_primitive_storage
+            .validate_append(&self.primitives)?;
+        execution
+            .structural_byte_sequence_fields
+            .validate_append(&self.bytes)?;
+        execution
+            .structural_element_view_fields
+            .validate_append(&self.views)?;
+        execution
+            .structural_byte_descriptors
+            .validate_append(&self.byte_descriptors)?;
+        execution
+            .reference_referents
+            .validate_append(&self.references)?;
+        execution
+            .structural_byte_storage
+            .validate_append(&self.byte_arrays)?;
+        execution.structural_cases.validate_append(&self.cases)?;
+        execution
+            .structural_host_atoms
+            .validate_append(&self.host_atoms)?;
+        Ok(())
+    }
+
     fn publish_cells(
         mut self,
         execution: &mut TerminalExecution<'_>,
     ) -> Result<(), TerminalInterpretError> {
+        self.validate_publication(execution)?;
         execution
             .structural_scalar_fields
             .append(&mut self.scalars)?;
@@ -1023,24 +1117,32 @@ impl ConstructorStorage {
         execution
             .activation_storage
             .claim_descriptors
-            .extend(self.activation_descriptors);
+            .append(&mut self.activation_descriptors)?;
         execution
             .provider_storage
             .descriptors
-            .extend(self.provider_descriptors);
+            .append(&mut self.provider_descriptors)?;
         execution
             .provider_storage
             .completed_profiles
-            .extend(self.completed_profiles);
-        execution.structural_byte_sequence_fields.extend(self.bytes);
-        execution.structural_element_view_fields.extend(self.views);
+            .append(&mut self.completed_profiles)?;
+        execution
+            .structural_byte_sequence_fields
+            .append(&mut self.bytes)?;
+        execution
+            .structural_element_view_fields
+            .append(&mut self.views)?;
         execution
             .structural_byte_descriptors
-            .extend(self.byte_descriptors);
-        execution.reference_referents.extend(self.references);
-        execution.structural_byte_storage.extend(self.byte_arrays);
-        execution.structural_cases.extend(self.cases);
-        execution.structural_host_atoms.extend(self.host_atoms);
+            .append(&mut self.byte_descriptors)?;
+        execution.reference_referents.append(&mut self.references)?;
+        execution
+            .structural_byte_storage
+            .append(&mut self.byte_arrays)?;
+        execution.structural_cases.append(&mut self.cases)?;
+        execution
+            .structural_host_atoms
+            .append(&mut self.host_atoms)?;
         Ok(())
     }
 }

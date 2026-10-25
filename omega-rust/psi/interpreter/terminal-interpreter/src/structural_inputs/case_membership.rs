@@ -123,7 +123,7 @@ impl TerminalExecution<'_> {
                 match case_projection_in_value_is_active(
                     &self.program.structural_types(),
                     root,
-                    &self.structural_cases,
+                    self.structural_cases.as_map(),
                     &binding.path,
                 ) {
                     Ok(true) => Some(Ok(binding.clone())),
@@ -408,7 +408,7 @@ impl TerminalExecution<'_> {
                         structural_type: selected_type,
                         case: contents.case,
                     },
-                )
+                )?
                 .is_some()
             {
                 return Err(malformed());

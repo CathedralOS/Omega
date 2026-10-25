@@ -853,6 +853,8 @@ pub(super) fn adapt(
                     structural_arguments,
                     ..
                 } => {
+                    let realizations =
+                        public_realizations(&module.dynamic_dispatch, *interface, *slot)?;
                     let slot = module
                         .dynamic_dispatch
                         .interface(*interface)?
@@ -863,14 +865,14 @@ pub(super) fn adapt(
                         &module.structural_types,
                         slot_kind,
                         slot,
+                        realizations.clone(),
                         structural_arguments,
                         result,
                         &graph.place_types,
                     )?;
-                    for actual in structural_arguments
-                        .iter()
-                        .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
-                    {
+                    for actual in structural_arguments.iter().filter(|actual| {
+                        realizations.is_empty() && actual.access != StructuralAccess::SharedBorrow
+                    }) {
                         step.definitions.extend(writable_descriptor_slots(
                             &module.structural_types,
                             &graph.place_types,
@@ -884,7 +886,8 @@ pub(super) fn adapt(
                             invalidates_contents: true,
                             ..
                         }
-                    ) {
+                    ) && realizations.is_empty()
+                    {
                         graph.unresolved_contents_writes.insert(position);
                         step.may_escape = true;
                     }

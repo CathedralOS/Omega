@@ -84,9 +84,9 @@ impl TerminalExecution<'_> {
         // Immutable backing snapshots the whole input before changing the owner.
         match owner {
             MutableByteSequenceStorage::Field(field) => {
-                self.invalidate_stored_provenance(&field.parent);
                 self.structural_byte_sequence_fields
-                    .insert(field, ByteSequenceBinding::Immutable(bytes));
+                    .insert(field.clone(), ByteSequenceBinding::Immutable(bytes))?;
+                self.invalidate_stored_provenance(&field.parent);
             }
             MutableByteSequenceStorage::Owned(home) => {
                 *self.byte_owner_bytes_mut(&home)? = bytes.detached_descriptor();

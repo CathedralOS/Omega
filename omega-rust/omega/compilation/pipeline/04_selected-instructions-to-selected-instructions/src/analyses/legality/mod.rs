@@ -127,11 +127,6 @@ pub struct StagedOptimizedAllocationLegalityCustodyReceipt {
     liveness: selected_instructions::LivenessIdentity,
     ranges: selected_instructions::LiveRangeIdentity,
     legality: AllocationLegalityIdentity,
-    function_count: usize,
-    virtual_register_count: usize,
-    point_count: usize,
-    candidate_count: usize,
-    entry_transition_count: usize,
 }
 
 impl StagedOptimizedAllocationLegalityCustodyReceipt {
@@ -151,21 +146,6 @@ impl StagedOptimizedAllocationLegalityCustodyReceipt {
     }
     pub const fn legality(self) -> AllocationLegalityIdentity {
         self.legality
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn virtual_register_count(self) -> usize {
-        self.virtual_register_count
-    }
-    pub const fn point_count(self) -> usize {
-        self.point_count
-    }
-    pub const fn candidate_count(self) -> usize {
-        self.candidate_count
-    }
-    pub const fn entry_transition_count(self) -> usize {
-        self.entry_transition_count
     }
 }
 

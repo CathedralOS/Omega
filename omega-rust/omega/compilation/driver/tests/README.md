@@ -294,9 +294,31 @@ missing-backing refusal, and an identical-geometry/different-provenance profile
 crosswire refusal followed by a successful retry with the original allocation.
 The returned extent retains its original grant; no observation grants vacancy
 or resident custody. This uses the public SDK, not compiler-internal mutation.
+Provider entry binding reserves two logical cells, refuses with one cell of
+headroom while returning the original buffer, then succeeds on retry. Teardown
+releases the allocation and every transported descriptor/profile row.
+The read provision and `external-extent-write` execute borrowed and loaded
+artifacts across one-unit fuel pauses. Their eight-byte transfers fit exactly
+eight payload bytes; seven bytes and one byte refuse with sticky live-storage
+exhaustion, no published result and no additional charge on resume. Scratch
+retires before completion or refusal. These observations cover compiler-owned
+transfer payloads, not the host-supplied allocation or generic temporary memory.
 Run with `OMEGA_CORPUS_HOST_PROVISIONS=1` and filter
 `pass/layouts/extent_view_external_content`; without opt-in it records
 `unrequested`. Cathedral's QEMU boot supplies the separate native observation.
+
+`runtime portable resident-storage <cell-peak> <payload-peak> <u64-words...>`
+executes the authored whole/aggregate resident `attempt` through initialization, helper transport,
+extraction and original-buffer handback. Borrowed and loaded artifacts run with
+the exact ceilings, one cell less, one payload byte less, one payload byte total,
+and actual write-only supply despite the source provider's read/write description.
+A competing root reservation after the complete initialization image retires
+independently forces decoder refusal. Fuel pauses do not repeat effects;
+budget/authority refusal retains custody until teardown. Success preserves the
+unused tail, checks the extracted value in source and refuses repeated handback.
+Use the same opt-in and filters `pass/layouts/resident_whole_extraction` and
+`pass/layouts/resident_aggregate_extraction`. The payload oracle names owned
+placement-image bytes, not codec metadata, host-owned backing capacity or RSS.
 
 `runtime portable mutable-boundary` supplies an observation-only host adapter
 to `build/receiver_view_writeback_exit`'s source-produced Build helper. It loads
@@ -331,12 +353,18 @@ The companion is not reconstructed from external artifact bytes or debug names.
 Description-query execution and production Build scheduling still use the tree
 engine and are not established by this provision.
 
-`runtime portable storage-cells <peak> <unsigned-result>` runs an authored helper
+`runtime portable storage-cells <peak> <unsigned-result|unit>` runs an authored helper
 with its exact live-cell ceiling and with one cell less, replenishing fuel one
-unit at a time. The sufficient run must return the authored scalar and report
+unit at a time. The sufficient run must return the authored scalar or Unit and report
 the exact peak. The short run must refuse for live storage, retain its activation
 without a result, and repeat the same refusal without changing usage. Teardown
 must release all live cells and payload bytes. This measures the named logical
 account, not process memory. `receiver_view_writeback_exit` covers a scalar record,
 an owned call result, and a copy that survives a write to the original.
 Enable with `OMEGA_CORPUS_HOST_PROVISIONS=1`; otherwise it is unrequested.
+
+Authored inspections compile independently through the public Inspection product.
+For positive fixtures they still run when native realization refuses; the row
+retains its native diagnostics and rejected verdict alongside the inspection
+facts. Such a result can establish Terminal-only behavior, never native
+acceptance. Intended-invalid fixtures do not execute inspection provisions.

@@ -53,7 +53,7 @@ impl TerminalExecution<'_> {
         if !crate::structural_inputs::case_membership::case_projection_in_value_is_active(
             &self.program.structural_types(),
             &result.value,
-            &self.structural_cases,
+            self.structural_cases.as_map(),
             path,
         )
         .map_err(|reason| format!("provider storage result case: {reason:?}"))?
@@ -81,7 +81,7 @@ impl TerminalExecution<'_> {
             })
             .map(|plan| &plan.storage)
             .ok_or("provider storage handback requires the returned Granted/Vacant extent")?;
-        if crate::custody::has_live_loan(&self.reference_referents, &value) {
+        if crate::custody::has_live_loan(self.reference_referents.as_map(), &value) {
             return Err("provider storage handback retains a live loan".into());
         }
         let home = StructuralRuntimePlace::from(&value);
@@ -90,7 +90,7 @@ impl TerminalExecution<'_> {
         // some unrelated claim in the same result is not ownership of this home.
         let returned_claim = returned_storage_claim(
             &self.program.structural_types(),
-            &self.structural_cases,
+            self.structural_cases.as_map(),
             result,
             &self.returned_claims,
             &home,
@@ -167,7 +167,7 @@ impl TerminalExecution<'_> {
                     crate::structural_inputs::case_membership::case_projection_in_value_is_active(
                         &self.program.structural_types(),
                         value,
-                        &self.structural_cases,
+                        self.structural_cases.as_map(),
                         &claim.path,
                     )
                     .is_ok_and(|active| active)
@@ -236,22 +236,52 @@ impl TerminalExecution<'_> {
             }
         };
         let length = allocation.extent().length();
-        let allocation = self
-            .provider_storage
-            .allocations
-            .insert(ProviderStorageSlot::Live {
-                allocation,
-                profile,
-            });
-        self.provider_storage.descriptors.insert(
-            home,
-            ProviderStorageBinding {
-                allocation,
-                offset: 0,
-                length,
-                resident: arena::Handle::default(),
-            },
-        );
+        // No allocation handle is published until both owned records are paid.
+        // Returning the original inputs on refusal leaves entry binding retryable.
+        let lease = self
+            .account
+            .as_ref()
+            .map(|account| account.reserve_storage(1, 0))
+            .transpose()
+            .map_err(crate::errors::TerminalInterpretError::Storage);
+        let receiving = lease.and_then(|lease| {
+            self.provider_storage
+                .descriptors
+                .insert_vacant(
+                    home,
+                    ProviderStorageBinding {
+                        allocation: arena::Handle::default(),
+                        offset: 0,
+                        length,
+                        resident: arena::Handle::default(),
+                    },
+                )
+                .map(|descriptor| (lease, descriptor))
+        });
+        let (lease, descriptor) = match receiving {
+            Ok(receiving) => receiving,
+            Err(reason) => {
+                let (extent, bytes) = allocation.into_parts();
+                return Err(TerminalProviderStorageRejection {
+                    input: TerminalProviderStorageInput {
+                        argument_index,
+                        path,
+                        extent,
+                        profile,
+                        bytes,
+                    },
+                    reason: format!("provider storage admission: {reason:?}"),
+                });
+            }
+        };
+        descriptor.allocation =
+            self.provider_storage
+                .allocations
+                .insert(ProviderStorageSlot::Live {
+                    allocation,
+                    profile,
+                    _lease: lease,
+                });
         Ok(())
     }
 
@@ -286,7 +316,7 @@ impl TerminalExecution<'_> {
         if !crate::structural_inputs::case_membership::case_projection_in_value_is_active(
             &self.program.structural_types(),
             root,
-            &self.structural_cases,
+            self.structural_cases.as_map(),
             &input.path,
         )
         .map_err(|reason| format!("provider storage entry case: {reason:?}"))?

@@ -4,10 +4,9 @@
 //! An observed prior is the result of this event, never an added scalar load.
 
 use abstract_operations::{AbstractAtomicEvent, AbstractResult};
-use semantic_vocabulary::{IntegerType, ScalarType, StructuralFieldId};
+use semantic_vocabulary::{IntegerType, StructuralFieldId};
 use terminal_psi::{
-    AtomicAccessEvent, StructuralAccess, StructuralArgument, StructuralFieldType,
-    StructuralTypeDeclaration,
+    AtomicAccessEvent, StructuralAccess, StructuralArgument, StructuralTypeDeclaration,
 };
 
 pub(in crate::legalization) struct Access {
@@ -136,12 +135,10 @@ pub(in crate::legalization) fn access(
         &location.path,
         location.field,
     )?;
-    // A bounded or qualified leaf owes additional evidence; matching its
-    // machine width does not discharge the restriction on an atomic write.
-    let StructuralFieldType::Atomic(ScalarType::Integer(integer)) = field.field_type else {
-        return None;
-    };
-    let scalar_type = ScalarType::Integer(integer);
+    // Dedicated cell identity and logical type are independent from the
+    // integer lane that the native instruction transfers.
+    let scalar_type = field.field_type.atomic_scalar_type()?;
+    let integer = target_operations::operations::atomic_storage_integer_type(event, scalar_type)?;
     super::scalar_shape(scalar_type)?;
     if event
         .operands()

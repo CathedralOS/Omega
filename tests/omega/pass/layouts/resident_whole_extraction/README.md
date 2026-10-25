@@ -12,10 +12,25 @@ buffer, extent geometry, origin and lineage; its first eight bytes encode 17 and
 the remaining eight stay `0xa5`. A second vacant handback must refuse.
 
 With actual write-only supply, initialization is allowed but extraction must
-refuse its missing Stable read supply without retiring the resident. A provider
+refuse the read/write description's mismatch with that original admitted supply
+without retiring the resident. A provider
 description claiming read/write cannot amplify the actual allocation's rights.
 
 The companion `resident_aggregate_extraction` exercises arrays, nested records
 and linear content custody. This embedding fixture alone does not establish
 native execution. Cathedral's UEFI witness separately checks a complete-width
 read/write resident through initialization, mutation and extraction.
+
+`OMEGA_CORPUS_HOST_PROVISIONS=1 python3 tools/corpus_gate.py --filter
+pass/layouts/resident_whole_extraction` executes the public embedding provision
+on both borrowed and loaded Terminal artifacts. The declared 3873-cell ceiling
+admits the complete journey; one cell less refuses without publishing a result
+or replaying effects. Resumption uses one-unit fuel grants. Failed instances
+retain their custody until teardown, which releases all live cells. Successful
+handback releases the allocation record and its descriptors and cannot repeat.
+The image's separate payload ceiling is 16 bytes: its eight-byte field and
+eight-byte complete image overlap during encoding. One byte less refuses, as
+does a one-byte allowance. A root-owned reservation after that image retires
+leaves one byte for extraction, independently exercising decoder refusal.
+Every private image retires its reservation on success or failure. These are
+logical records and owned payload bytes, not host-buffer capacity or RSS limits.

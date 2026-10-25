@@ -18,7 +18,7 @@ impl TerminalExecution<'_> {
         while let Some(action) = remaining.next() {
             let nominal = commit_cleanup_action(
                 &self.program.structural_types(),
-                &self.structural_cases,
+                self.structural_cases.as_map(),
                 &self.program.machines(),
                 &mut self.structural_values,
                 &mut self.reference_referents,
@@ -124,10 +124,20 @@ impl TerminalExecution<'_> {
                 });
                 return Err(malformed());
             }
+            if let Err(error) = self.charge_completed_result(&completed) {
+                self.failed_return = Some(FailedReturn {
+                    _completed: completed,
+                    _expected: None,
+                    _loan_completions: Vec::new(),
+                });
+                return Err(error);
+            }
             if let TerminalExecutionResult::Structural(returned) = &mut completed.value {
                 self.forward_host_atom(&mut returned.value);
             }
             self.returned_claims = completed.returned_claims;
+            self.returned_byte_sequence = completed.byte_sequence;
+            self.returned_element_view = completed.element_view;
             self.result = Some(completed.value.clone());
             return Ok(TerminatorFlow::Yield(TerminalExecutionStatus::Complete(
                 completed.value,

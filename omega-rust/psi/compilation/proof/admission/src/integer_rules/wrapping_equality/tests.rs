@@ -1,7 +1,5 @@
-use crate::mathematical_core::verify_and_assert_forged;
-use crate::{
-    Budget, PrimitiveJudgment, ProofNode, ProofRule, check_certificate, verify_bounded_certificate,
-};
+use crate::mathematical_core::{assert_refused, verify_and_assert_forged};
+use crate::{PrimitiveJudgment, ProofNode, ProofRule, check_certificate};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
     ScalarType, ValueId,
@@ -210,17 +208,7 @@ fn wrapping_polynomial_core_rechecks_the_primitive_and_rejects_forged_evidence()
     let proof = certificate(gauss(carrier, false));
     verify_and_assert_forged(&context, &proof.conclusion, &[], &[], &proof);
     let wrong = certificate(gauss(carrier, true));
-    assert!(
-        verify_bounded_certificate(
-            &context,
-            &wrong.conclusion,
-            &[],
-            &[],
-            &wrong,
-            &mut Budget::default()
-        )
-        .is_err()
-    );
+    assert_refused(&context, &wrong.conclusion, &[], &[], &wrong);
 }
 
 #[test]

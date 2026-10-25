@@ -79,9 +79,11 @@ impl TerminalExecution<'_> {
         // Sharing immutable backing copies the semantic value. An indexed
         // destination mutation detaches it before changing any byte.
         let bytes = bytes.clone();
+        self.structural_byte_sequence_fields.insert(
+            destination_field.clone(),
+            ByteSequenceBinding::Immutable(bytes),
+        )?;
         self.invalidate_stored_provenance(&destination_field.parent);
-        self.structural_byte_sequence_fields
-            .insert(destination_field, ByteSequenceBinding::Immutable(bytes));
         Ok(())
     }
 
@@ -205,7 +207,7 @@ impl TerminalExecution<'_> {
         match destination_field {
             Some(destination_field) => {
                 self.structural_byte_sequence_fields
-                    .insert(destination_field, ByteSequenceBinding::Immutable(view));
+                    .insert(destination_field, ByteSequenceBinding::Immutable(view))?;
             }
             None => {
                 // Replacing a descriptor transfers its observed window, not

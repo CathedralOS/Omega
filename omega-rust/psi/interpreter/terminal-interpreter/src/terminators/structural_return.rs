@@ -314,7 +314,7 @@ impl TerminalExecution<'_> {
                 let mut active = Vec::new();
                 for row in &result.projected_qualifications {
                     if crate::structural_inputs::case_membership::case_projection_in_value_is_active(
-                        &self.program.structural_types(), &value, &self.structural_cases, &row.path,
+                        &self.program.structural_types(), &value, self.structural_cases.as_map(), &row.path,
                     )? {
                         if !value.projected_qualifications.contains(row) {
                             return Err(malformed());
@@ -349,7 +349,7 @@ impl TerminalExecution<'_> {
             CompletedReturn {
                 returned_claims: active_returned_claims.clone(),
                 value: if let Some(value) = scalar_case {
-                    TerminalExecutionResult::ScalarCase(TerminalScalarCaseResult { value })
+                    TerminalExecutionResult::ScalarCase(value)
                 } else {
                     TerminalExecutionResult::Structural(TerminalStructuralResult {
                         value,
@@ -398,7 +398,7 @@ impl TerminalExecution<'_> {
     fn snapshot_scalar_case(
         &self,
         value: &crate::values::TerminalStructuralValue,
-    ) -> Result<Option<crate::values::TerminalScalarAggregateValue>, TerminalInterpretError> {
+    ) -> Result<Option<TerminalScalarCaseResult>, TerminalInterpretError> {
         if !value.qualifications.is_empty() || !value.projected_qualifications.is_empty() {
             return Ok(None);
         }
@@ -426,27 +426,22 @@ impl TerminalExecution<'_> {
         {
             return Ok(None);
         }
-        let fields = selected
-            .fields
-            .iter()
-            .map(|field| {
-                let cell = crate::values::StructuralScalarRuntimeField::case_payload(
-                    root.clone(),
-                    field.id,
-                );
-                self.structural_scalar_fields
-                    .get(&cell)
-                    .copied()
-                    .map(|scalar| (field.id, scalar))
-                    .ok_or_else(malformed)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let snapshot = crate::values::TerminalScalarAggregateValue {
-            structural_type: value.structural_type,
-            result_case: Some(contents.case),
+        let fields = selected.fields.iter().map(|field| {
+            let cell =
+                crate::values::StructuralScalarRuntimeField::case_payload(root.clone(), field.id);
+            self.structural_scalar_fields
+                .get(&cell)
+                .copied()
+                .map(|scalar| (field.id, scalar))
+                .ok_or_else(malformed)
+        });
+        let snapshot = TerminalScalarCaseResult::collect(
+            declaration,
+            contents.case,
+            selected.fields.len(),
             fields,
-        };
-        snapshot.validate_against(declaration)?;
+            self.account.as_ref(),
+        )?;
         Ok(Some(snapshot))
     }
 }

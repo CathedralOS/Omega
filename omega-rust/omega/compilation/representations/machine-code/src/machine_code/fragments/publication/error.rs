@@ -16,13 +16,4 @@ pub enum FunctionFragmentEmissionManifestDecodeError {
 
 optimization_core::truncated_from_adapter!(FunctionFragmentEmissionManifestDecodeError);
 
-impl std::fmt::Display for FunctionFragmentEmissionManifestDecodeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid function-fragment emission manifest: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for FunctionFragmentEmissionManifestDecodeError {}
+register_homes::decode_error_display! { FunctionFragmentEmissionManifestDecodeError, "invalid function-fragment emission manifest" }

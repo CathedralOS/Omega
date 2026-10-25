@@ -787,7 +787,7 @@ impl ContractPredicates<'_, '_> {
             return validation::mathematical_applications::scalar_predicate(
                 program,
                 expression,
-                |capture| {
+                |capture, _| {
                     self.numeric_term(capture, depth + 1)
                         .map(|(value, _)| value)
                 },

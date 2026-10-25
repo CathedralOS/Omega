@@ -58,9 +58,9 @@ impl ScalarFieldValue {
 /// materializer. The compiler derives `bytes` from an owned typed value; source
 /// programs do not gain an arbitrary byte-patching operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AggregateFieldValue {
+pub struct AggregateFieldValue<Bytes = Vec<u8>> {
     pub field: String,
-    pub bytes: Vec<u8>,
+    pub bytes: Bytes,
 }
 
 /// Compiler-derived physical extent of one aggregate schema field. This is
@@ -177,8 +177,18 @@ impl AggregateFieldValue {
         field: impl Into<String>,
         bytes: impl Into<Vec<u8>>,
     ) -> Result<Self, MaterializationDiagnostic> {
-        let bytes = bytes.into();
-        if bytes.is_empty() {
+        Self::from_storage(field, bytes.into())
+    }
+}
+
+impl<Bytes: AsRef<[u8]>> AggregateFieldValue<Bytes> {
+    /// Retain the caller's payload owner without copying or detaching its
+    /// allocation lifetime. The codec borrows bytes from this owner.
+    pub fn from_storage(
+        field: impl Into<String>,
+        bytes: Bytes,
+    ) -> Result<Self, MaterializationDiagnostic> {
+        if bytes.as_ref().is_empty() {
             return Err(MaterializationDiagnostic(
                 "aggregate field materialization requires a nonempty complete value".into(),
             ));

@@ -709,6 +709,34 @@ pub(crate) fn complete_equation_arguments_with_types(
     Ok(tuple)
 }
 
+/// Instantiate a selected signature from its already completed argument tuple.
+/// This is the same constructor traversal used to synthesize an equation's
+/// omitted type, so composing a generic call cannot erase index/carrier identity
+/// or reconstruct a type from the callee's implementation or runtime contents.
+pub(crate) fn materialize_completed_type(
+    syntax: &mut SyntaxTrees,
+    base_info: EquationTemplate<'_>,
+    base_name: &Identifier,
+    arguments: &[TypeReferenceHandle],
+    result: TypeReferenceHandle,
+    const_values: &HashMap<String, i128>,
+    selection: Option<&declaration_selection::ConstantSelection>,
+) -> Result<TypeReferenceHandle, Diagnostic> {
+    let mut solver = Solver::new(
+        syntax,
+        base_info,
+        base_name,
+        arguments,
+        const_values,
+        selection,
+    );
+    solver
+        .construct_type_structure(result, base_name.source_span())?
+        .ok_or_else(|| {
+            solver.reject("retains an undetermined result type after argument inference".to_owned())
+        })
+}
+
 #[derive(Clone)]
 enum Binding {
     /// A supplied or forwarded type argument.

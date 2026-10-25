@@ -1,17 +1,14 @@
 //! The two unary integer constant folds, widening and bitwise-not: one row
-//! each over the shared single-operand traversal in `propose`.
+//! each over the family's shared constant-fold traversal.
 
 use abstract_operations::AbstractOperation as O;
-use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
-use optimization_unit::{
-    IntegerConstantRewrite, IntegerEvaluationWitness, PsiOptimizationUnit, PsiRealizationSite,
-    PsiRewriteCandidate,
-};
+use optimization_core::{OptimizationRuleContract, OptimizationSafetyClass};
+use optimization_unit::{IntegerEvaluationWitness, PsiOptimizationUnit, PsiRewriteCandidate};
 
 use crate::rules::sparse_conditional_constant_propagation::{
-    constant_evaluation_contract as contract, integer_constant, node_location,
+    constant_evaluation_contract as contract, integer_constant,
 };
-use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 constant_fold_rules! {
     IntegerBitwiseNotConstantsRule = (b"omega.psi-rule.integer-bitwise-not-constants.v1", ExactOperationSemantics, IntegerUnaryKind::BitwiseNot);
@@ -30,86 +27,64 @@ fn propose(
     contract: OptimizationRuleContract,
     kind: IntegerUnaryKind,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-    required_analysis!(analyses, AnalysisKind::ScalarConstants => Some(AnalysisProduct::ScalarConstants(constants)));
-    let mut candidates = Vec::new();
-    for function in &unit.functions {
-        for block in &function.blocks {
-            for (node_index, node) in block.nodes.iter().enumerate() {
-                let (source_operation, result, source_type, target_type, operand) =
-                    match (&node.operation, kind) {
-                        (
-                            O::IntegerWiden {
-                                psi_operation,
-                                result,
-                                source_type,
-                                target_type,
-                                operand,
-                            },
-                            IntegerUnaryKind::Widen,
-                        ) => (
-                            *psi_operation,
-                            *result,
-                            *source_type,
-                            *target_type,
-                            *operand,
-                        ),
-                        (
-                            O::IntegerBitwiseNot {
-                                psi_operation,
-                                result,
-                                scalar_type,
-                                operand,
-                            },
-                            IntegerUnaryKind::BitwiseNot,
-                        ) => (
-                            *psi_operation,
-                            *result,
-                            *scalar_type,
-                            *scalar_type,
-                            *operand,
-                        ),
-                        _ => continue,
-                    };
-                let Some((operand_value, operand_fact)) =
-                    integer_constant(constants, function.machine, operand)
-                else {
-                    continue;
-                };
-                let constant = match kind {
-                    IntegerUnaryKind::Widen => {
-                        source_type.widen_value_to(target_type, operand_value)
-                    }
-                    IntegerUnaryKind::BitwiseNot => source_type.bitwise_not(operand_value),
-                };
-                let Some(constant) = constant else {
-                    continue;
-                };
-                let location = node_location(
-                    function.machine,
-                    block.id,
-                    u32::try_from(node_index).expect("optimization node indices are u32"),
-                );
-                candidates.push(
-                    PsiRewriteCandidate::new_integer_evaluation(
-                        unit.identity,
-                        contract,
-                        vec![block.id],
-                        Vec::new(),
-                        vec![realized_node_provenance!(location, node)],
-                        IntegerEvaluationWitness::Unary { operand_fact },
-                        -1,
-                        IntegerConstantRewrite {
-                            location,
-                            source_operation,
+    super::propose_integer_constant_folds(
+        unit,
+        analyses,
+        contract,
+        |_, machine, node, constants| {
+            let (source_operation, result, source_type, target_type, operand) =
+                match (&node.operation, kind) {
+                    (
+                        O::IntegerWiden {
+                            psi_operation,
                             result,
-                            scalar_type: target_type,
-                            constant,
+                            source_type,
+                            target_type,
+                            operand,
                         },
-                    )
-                    .map_err(RuleProposalError::InvalidCandidate)?,
-                );
-            }
-        }
-    }
-    Ok(candidates)
+                        IntegerUnaryKind::Widen,
+                    ) => (
+                        *psi_operation,
+                        *result,
+                        *source_type,
+                        *target_type,
+                        *operand,
+                    ),
+                    (
+                        O::IntegerBitwiseNot {
+                            psi_operation,
+                            result,
+                            scalar_type,
+                            operand,
+                        },
+                        IntegerUnaryKind::BitwiseNot,
+                    ) => (
+                        *psi_operation,
+                        *result,
+                        *scalar_type,
+                        *scalar_type,
+                        *operand,
+                    ),
+                    _ => return Ok(None),
+                };
+            let Some((operand_value, operand_fact)) = integer_constant(constants, machine, operand)
+            else {
+                return Ok(None);
+            };
+            let constant = match kind {
+                IntegerUnaryKind::Widen => source_type.widen_value_to(target_type, operand_value),
+                IntegerUnaryKind::BitwiseNot => source_type.bitwise_not(operand_value),
+            };
+            let Some(constant) = constant else {
+                return Ok(None);
+            };
+            Ok(Some(super::IntegerConstantFold {
+                source_operation,
+                result,
+                scalar_type: target_type,
+                constant,
+                witness: IntegerEvaluationWitness::Unary { operand_fact },
+            }))
+        },
+    )
 }

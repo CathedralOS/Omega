@@ -15,7 +15,7 @@ use super::{
     CheckedStructuralScalarArgumentPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, ExpressionNode,
-    Multiplicity, TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode,
+    Multiplicity, TransitionExit, TransitionGuardNode, TypeReferenceNode,
 };
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::control;
@@ -191,16 +191,11 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
         return None;
     }
     mark(SuccessorGuard::TargetState);
-    let TransitionTargetNode::Named {
-        path, arguments, ..
-    } = program.statement_table.transition_target(transition.target)
-    else {
-        return None;
-    };
-    let target_index = fused_target_index(program, fused, path.symbol)?;
+    let arrival = validation::completing_transition_transfer(program, transition.target)?;
+    let target_index = fused_target_index(program, fused, arrival.target)?;
     let &(machine, source) = fused.get(source_index)?;
     let &(_, target) = fused.get(target_index)?;
-    let arguments = program.statement_table.expression_handles(*arguments);
+    let arguments = arrival.arguments;
     let target_parameters = program.state_parameters(target);
     mark(SuccessorGuard::ArgumentCount);
     if arguments.len() != target_parameters.len() {
@@ -692,7 +687,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                 source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
                                     retired_carrier_backing: super::loan_backing::retired_carrier_backing(
                                         program, facts, machine.symbol, source.symbol,
-                                        ordinal as usize, path.symbol, arguments,
+                                        ordinal as usize, arrival.target, arguments,
                                         target.position as usize, operations, &subject,
                                     ),
                                     subject,
@@ -934,7 +929,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
             machine.symbol,
             source.symbol,
             ordinal as usize,
-            path.symbol,
+            arrival.target,
             arguments,
             parameter.position as usize,
             operations,

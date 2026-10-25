@@ -118,7 +118,7 @@ impl TerminalExecution<'_> {
             .into_call_arguments(
                 &opaque_parameters,
                 &self.program.structural_types(),
-                &self.structural_cases,
+                self.structural_cases.as_map(),
                 self.account.as_ref(),
             )
             .map_err(|error| error.in_argument_preparation("admit argument carriers"))?;

@@ -58,6 +58,19 @@ machine primitive_entry(value: &mut u32) -> u32 {
     write_number(value);
     value
 }
+data Choice [copy] { case Chosen(value: u32); case Empty; }
+machine case_storage() -> u32 {
+    let choice: Choice = Choice::Chosen { value: 37 };
+    transition choice {
+        Choice::Chosen { value } -> (value)
+        Choice::Empty -> (0u32)
+    }
+}
+data ByteHolder<'storage> { bytes: &'storage [u8]; }
+machine byte_field_storage() -> u32 {
+    let holder: ByteHolder = ByteHolder { bytes: "%" };
+    holder.bytes[0] as u32
+}
 machine array_result() -> [u32; 3] {
     let original: [u32; 3] = [11, 22, 33];
     let mut copied: [u32; 3] = copy_array(original);

@@ -11,6 +11,9 @@
 //! semantic value, and the guest still cannot manufacture the representation.
 
 #[repr(C)]
+// This copies only C bits. Guest occurrence creation and Copy permission belong
+// to the checked calling application and interpreter, not this ABI primitive.
+#[derive(Clone, Copy)]
 pub struct HostInternetAddress {
     address: u32,
 }
@@ -103,6 +106,7 @@ mod tests {
         for (network, host) in [(10, 66051), (44048, 513), (10, 1027)] {
             let made = HostInternetAddress::make(network, host).unwrap();
             assert_eq!(made.address, classful_internet_address(network, host));
+            assert_eq!(made.host_number(), Some(host));
             assert_eq!(made.host_number(), Some(host));
         }
     }

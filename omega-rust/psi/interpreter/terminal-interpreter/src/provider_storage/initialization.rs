@@ -9,6 +9,7 @@
 //! the unchanged inputs, not a host error or a replacement extent.
 
 use super::{ProviderStorageBinding, ProviderStorageSlot, RuntimeProviderStorage};
+use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::primitive_storage::PrimitiveStorageEndpoint;
 use crate::record::storage::ConstructorStorage;
@@ -31,7 +32,7 @@ pub(crate) enum InitializationRejection {
 /// standalone write method that could commit bytes ahead of that transaction.
 pub(crate) struct PreparedProviderImage {
     pub(super) binding: ProviderStorageBinding,
-    pub(super) image: Vec<u8>,
+    pub(super) image: ByteSequenceStorage,
     /// Subsequent accesses specialize from actual admitted backing, never
     /// from the selected call's possibly more permissive profile description.
     pub(super) compatibility: InitializationResourceCompatibility,
@@ -43,11 +44,11 @@ impl RuntimeProviderStorage {
         binding: ProviderStorageBinding,
         supplied: ValidatedResourceProfile,
         placement: &ValidatedPlacementPlan,
-        image: Vec<u8>,
+        image: ByteSequenceStorage,
     ) -> Result<Result<PreparedProviderImage, InitializationRejection>, TerminalInterpretError>
     {
         let required = placement.layout().size.ok_or_else(malformed)?;
-        if u64::try_from(image.len()).ok() != Some(required) {
+        if u64::try_from(image.bytes().len()).ok() != Some(required) {
             return Err(malformed());
         }
         let ProviderStorageSlot::Live {
@@ -160,7 +161,7 @@ pub(crate) fn stage_rejection_failure(
             .as_structural()
             .ok_or_else(malformed)?,
         failure.id,
-    );
+    )?;
     for (field, coordinate) in failure.fields.iter().zip(coordinates) {
         storage.stage_scalar_endpoint(
             &PrimitiveStorageEndpoint::ScalarField(StructuralScalarRuntimeField::case_payload(

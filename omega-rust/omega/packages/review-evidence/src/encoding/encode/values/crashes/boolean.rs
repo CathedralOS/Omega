@@ -5,10 +5,9 @@ use crate::encoding::encode::values::crashes::encode_primitive_type;
 use crate::encoding::encode::values::crashes::encode_scalar_expression;
 use crate::encoding::encode::values::crashes::encode_structural_field;
 use crate::encoding::encode::values::crashes::encode_structural_path;
-use crate::encoding::encode::values::crashes::integer_comparison_tag;
+use crate::encoding::encode::values::crashes::integer_comparison_row;
 use crate::record::PackageReviewBooleanExpression;
 use crate::record::PackageReviewIeeeFloatComparisonKind;
-use crate::record::PackageReviewIntegerComparisonKind;
 
 pub(crate) fn encode_boolean_expression(
     encoder: &mut Encoder,
@@ -62,12 +61,8 @@ fn encode_boolean_node(
         PackageReviewBooleanExpression::IntegerComparison { kind, left, right } => {
             encoder.tag("integer_comparison", 6);
             encoder.field("kind", |encoder| {
-                let name = match kind {
-                    PackageReviewIntegerComparisonKind::Equal => "equal",
-                    PackageReviewIntegerComparisonKind::LessThan => "less_than",
-                    PackageReviewIntegerComparisonKind::LessOrEqual => "less_or_equal",
-                };
-                encoder.tag(name, integer_comparison_tag(*kind));
+                let (tag, name) = integer_comparison_row(*kind);
+                encoder.tag(name, tag);
                 Ok(())
             })?;
             encoder.field("left", |encoder| encode_scalar_expression(encoder, left))?;

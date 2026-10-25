@@ -39,11 +39,7 @@ pub(super) fn point_identity(
     canonical.extend_from_slice(b"omega.external-decision-point.v2\0");
     canonical.extend_from_slice(&input.bytes());
     canonical.extend_from_slice(&rule.bytes());
-    canonical.extend_from_slice(
-        &u64::try_from(candidates.len())
-            .expect("external decision candidate count fits u64")
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::push_count_u64(&mut canonical, candidates.len());
     for candidate in candidates {
         encode_candidate_features(&mut canonical, candidate);
     }
@@ -58,11 +54,7 @@ pub(super) fn log_identity(
     let mut canonical = Vec::new();
     canonical.extend_from_slice(b"omega.external-decision-log.v2\0");
     encode_context(&mut canonical, context);
-    canonical.extend_from_slice(
-        &u64::try_from(points.len())
-            .expect("external decision point count fits u64")
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::push_count_u64(&mut canonical, points.len());
     for point in points {
         canonical.extend_from_slice(&point.identity.bytes());
     }
@@ -73,11 +65,7 @@ fn encode_candidate_features(encoded: &mut Vec<u8>, features: &ExternalCandidate
     encoded.extend_from_slice(&features.summary.candidate.bytes());
     crate::codec_bytes::push_encoded(encoded, features.summary.predicted_cost_delta.to_le_bytes());
     encoded.extend_from_slice(&features.consumed_analyses.encode());
-    encoded.extend_from_slice(
-        &u64::try_from(features.consumed_facts.len())
-            .expect("external candidate fact count fits u64")
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::push_count_u64(encoded, features.consumed_facts.len());
     for fact in &features.consumed_facts {
         encoded.extend_from_slice(&fact.encode());
     }
