@@ -1,4 +1,4 @@
-//! Compile dependencies before their consumers, once per checked occurrence.
+//! Admit review occurrences and join their evidence, without executing compilers.
 //!
 //! Acquisition and the immutable parse checkpoint remain package-owned. Build
 //! and product occurrences share those inputs, not checked output: each has its
@@ -28,9 +28,7 @@ use crate::lock::{PackageCheckedContext, PackageOccurrenceRoster};
 use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure};
 use crate::resolution::source::PackageSourceCustody;
-use crate::review::restricted_build_grants::RestrictedBuildCheckpoint;
 use diagnostics::Diagnostic;
-use package_compilation::build_execution::RestrictedBuildGrants;
 use package_compilation::{
     AcceptedSemanticBinding, PackageCompilationInputError, PackageCompilationInputs,
 };
@@ -40,7 +38,7 @@ use std::collections::BTreeMap;
 
 use super::PackageSourceBindings;
 
-pub(super) struct CompiledPackageReviews {
+pub struct RetainedPackageReviews {
     pub(super) reviews: CompilerIssuedPackageReviewSet,
     /// Every occurrence's compile under the exact inputs it consumed, in
     /// occurrence order. A following pass over the same closure and roster
@@ -57,7 +55,7 @@ pub(super) struct CompiledPackageReviews {
 /// One package occurrence's compile, retained with the complete inputs that
 /// produced it. The inputs and entry path are the reuse key: they carry the
 /// bindings, dependency generated-source handoffs, purpose and source custody
-/// a later pass could alter, while target, build snapshot and grant consent
+/// a later pass could alter, while target and build snapshot
 /// are parameters the reviewing caller supplies identically to every pass.
 #[derive(Debug, Clone)]
 pub(super) struct RetainedOccurrenceCompile {
@@ -145,194 +143,176 @@ impl OccurrenceCompile {
 
 /// Only the preliminary Discover pass may propose an already-checked
 /// dependency's target entry schema. Source checkpoint reuse is independent:
-/// final and Explicit passes consume exactly their supplied bindings.
+/// the bound pass consumes exactly its supplied bindings.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum TargetEntryDiscovery {
     Disabled,
     Dependencies,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn compile_dependency_closure(
-    target_closure: &ExactTargetPackageSourceClosure<'_>,
+/// Application work for one policy-selected review pass. The package owner
+/// admits the roster, bindings and input assignments before any Build runs.
+pub struct PackageReviewPass<'pass> {
+    closure: &'pass ResolvedPackageSourceClosure,
+    packages: Vec<ReviewPackage<'pass>>,
     execution_profile: Option<target::TargetProfile>,
-    roster: &PackageOccurrenceRoster,
-    session: &mut PackageBuildSession,
-    semantic_bindings_by_consumer: &BTreeMap<
-        (PackageKey, DependencyPurpose),
-        Vec<AcceptedSemanticBinding>,
-    >,
-    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
-    // A consuming compile supplies the accepted target's restricted-request
-    // checkpoint so each occurrence's projected requests join its granted
-    // meanings — bound to its exact checked context — before its own build
-    // effect executes, before the review is retained, and before its
-    // generated-source bundle hands off to a consumer.
-    // `None` is audit-only observation: requests still project for review
-    // material and the pass issues no grants.
-    restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
+    roster: &'pass PackageOccurrenceRoster,
+    semantic_bindings_by_consumer:
+        &'pass BTreeMap<(PackageKey, DependencyPurpose), Vec<AcceptedSemanticBinding>>,
+    root_build_snapshot: Option<&'pass build_evaluation::BuildSnapshotRequest>,
     discovery: TargetEntryDiscovery,
-    // A pass already run over this same closure and roster — the discovery
-    // pass to the bound pass that follows it. Every occurrence it retained is
-    // a reuse candidate for an occurrence that now arrives at exactly its
-    // inputs; anything else compiles fresh.
-    prior: Option<&CompiledPackageReviews>,
-    source_bindings: &mut PackageSourceBindings,
-) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
-    let closure = target_closure.source_closure();
-    if execution_profile.is_none()
-        && let Some(coverage) = roster
-            .coverages()
-            .iter()
-            .find(|coverage| coverage.purposes().contains(&DependencyPurpose::Build))
-    {
-        return Err(
-            CompileResolvedPackageReviewsError::UnsupportedBuildActivation {
-                package: coverage.package().clone(),
-                reason: "build dependencies require an admitted build execution profile",
-            },
-        );
-    }
-    // Reconcile the entire invocation before any authored dependency runs.
-    // Shared scheduling nodes may share equal assignments, never the union of
-    // grants from different incoming edges (an unassigned edge is empty).
-    let dependency_inputs = reconcile_build_inputs(target_closure, roster, root_build_snapshot)
-        .map_err(
-            |diagnostics| CompileResolvedPackageReviewsError::Compilation {
-                package: closure.graph().root().clone(),
-                diagnostics,
-            },
-        )?;
-    // A carried dependency whose record retains no component description
-    // cannot answer a consumer's `Independent` demand. Refresh that dependency,
-    // retaining completed occurrences and the consumer's Build continuation.
-    // Exact inputs decide whether work remains applicable after the refresh.
-    // Each interruption adds one demanded occurrence, bounding this loop.
-    let mut fresh_components = std::collections::BTreeSet::new();
-    let mut recovered = Vec::new();
-    let mut pending_builds = Vec::new();
-    loop {
-        match run_closure_pass(
-            target_closure,
-            roster,
-            execution_profile,
-            session,
-            semantic_bindings_by_consumer,
-            root_build_snapshot,
-            restricted_build_checkpoint,
-            discovery,
-            prior,
-            source_bindings,
-            &dependency_inputs,
-            &fresh_components,
-            &mut recovered,
-            &mut pending_builds,
-        ) {
-            Err(CompileResolvedPackageReviewsError::ComponentDescriptionNotRetained {
-                component,
-                purpose,
-                ..
-            }) if fresh_components.insert((component, purpose)) => {}
-            result => return result,
-        }
-    }
+    prior: Option<&'pass RetainedPackageReviews>,
+    dependency_inputs: Vec<[Option<OccurrenceBuildInputs>; 2]>,
 }
 
-#[allow(clippy::too_many_arguments)]
-fn run_closure_pass(
-    target_closure: &ExactTargetPackageSourceClosure<'_>,
-    roster: &PackageOccurrenceRoster,
-    execution_profile: Option<target::TargetProfile>,
-    session: &mut PackageBuildSession,
-    semantic_bindings_by_consumer: &BTreeMap<
-        (PackageKey, DependencyPurpose),
-        Vec<AcceptedSemanticBinding>,
-    >,
-    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
-    restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
-    discovery: TargetEntryDiscovery,
-    prior: Option<&CompiledPackageReviews>,
-    source_bindings: &mut PackageSourceBindings,
-    dependency_inputs: &[[Option<OccurrenceBuildInputs>; 2]],
-    fresh_components: &std::collections::BTreeSet<(
-        semantic_vocabulary::PackageKeyIdentity,
-        DependencyPurpose,
-    )>,
-    recovered: &mut Vec<CompiledPackageReviews>,
-    pending_builds: &mut Vec<PendingReviewBuild>,
-) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
-    let closure = target_closure.source_closure();
-    let mut pass = ClosurePass {
-        closure,
-        execution_profile,
-        session,
-        semantic_bindings_by_consumer,
-        root_build_snapshot,
-        restricted_build_checkpoint,
-        discovery,
-        prior,
-        source_bindings,
-        dependency_inputs,
-        fresh_components,
-        recovered,
-        pending_builds,
-        reviews: Vec::with_capacity(roster.occurrence_count()),
-        review_positions: vec![[None::<usize>; 2]; closure.graph().packages().len()],
-        component_candidates: BTreeMap::new(),
-        occurrences: Vec::new(),
-        carried_occurrences: 0,
-        retained_policy_canonical_total: 0,
-        target_entry_candidates: Vec::new(),
-    };
-    for key in dependency_first_package_order(closure) {
-        let scope = PackageCompilationScope::new(closure, &key);
-        let custody = closure
-            .custody(&key)
-            .expect("validated source closure retains custody for every graph package");
-        let position = closure.graph().package_position(&key).ok_or_else(|| {
-            CompileResolvedPackageReviewsError::IdentityMismatch {
+/// The dependency scope is prepared once for all of a package's purposes
+/// and reused if a demanded component interrupts the pass.
+struct ReviewPackage<'pass> {
+    scope: PackageCompilationScope<'pass>,
+    custody: &'pass PackageSourceCustody,
+    position: usize,
+    purposes: Vec<(DependencyPurpose, target::TargetProfile)>,
+}
+
+/// One complete dependency execution service supplied by application Build.
+/// Package management selects policy passes; it does not assemble compiler stages.
+pub type PackageReviewExecutor =
+    for<'pass> fn(
+        PackageReviewPass<'pass>,
+        &mut PackageBuildSession,
+        &mut PackageSourceBindings,
+    ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError>;
+
+impl<'pass> PackageReviewPass<'pass> {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn admit(
+        target_closure: &'pass ExactTargetPackageSourceClosure<'_>,
+        execution_profile: Option<target::TargetProfile>,
+        roster: &'pass PackageOccurrenceRoster,
+        semantic_bindings_by_consumer: &'pass BTreeMap<
+            (PackageKey, DependencyPurpose),
+            Vec<AcceptedSemanticBinding>,
+        >,
+        root_build_snapshot: Option<&'pass build_evaluation::BuildSnapshotRequest>,
+        discovery: TargetEntryDiscovery,
+        prior: Option<&'pass RetainedPackageReviews>,
+    ) -> Result<Self, CompileResolvedPackageReviewsError> {
+        let closure = target_closure.source_closure();
+        if execution_profile.is_none()
+            && let Some(coverage) = roster
+                .coverages()
+                .iter()
+                .find(|coverage| coverage.purposes().contains(&DependencyPurpose::Build))
+        {
+            return Err(
+                CompileResolvedPackageReviewsError::UnsupportedBuildActivation {
+                    package: coverage.package().clone(),
+                    reason: "build dependencies require an admitted build execution profile",
+                },
+            );
+        }
+        let dependency_inputs = reconcile_build_inputs(target_closure, roster, root_build_snapshot)
+            .map_err(
+                |diagnostics| CompileResolvedPackageReviewsError::Compilation {
+                    package: closure.graph().root().clone(),
+                    diagnostics,
+                },
+            )?;
+        let mut packages = Vec::new();
+        for key in dependency_first_package_order(closure) {
+            let missing = || CompileResolvedPackageReviewsError::IdentityMismatch {
                 package: key.clone(),
-            }
-        })?;
-        let purposes = roster.purposes(&key).ok_or_else(|| {
-            CompileResolvedPackageReviewsError::IdentityMismatch {
-                package: key.clone(),
-            }
-        })?;
-        // One acquired source can produce two independently checked occurrences.
-        // Every dependency package is complete before its consumer; role slots
-        // retain the exact generated output and never alias equal-profile builds.
-        for &purpose in purposes {
-            // One line per package occurrence: the review pass repeats this
-            // whole loop, so attributing a pass without attributing its
-            // members cannot show WHICH package the second pass repeats.
-            let _occurrence = crate::review::timings::subject_stage(|| {
-                format!("package {} purpose={purpose:?}", key.name().as_str())
-            });
-            let checked_target = if purpose.is_product() {
-                target_closure.target_profile()
-            } else {
-                execution_profile.ok_or_else(|| {
-                    CompileResolvedPackageReviewsError::UnsupportedBuildActivation {
+            };
+            let position = closure.graph().package_position(&key).ok_or_else(missing)?;
+            let custody = closure.custody(&key).ok_or_else(missing)?;
+            let requested = roster.purposes(&key).ok_or_else(missing)?;
+            let mut purposes = Vec::with_capacity(requested.len());
+            for &purpose in requested {
+                let checked_target = if purpose.is_product() {
+                    target_closure.target_profile()
+                } else {
+                    execution_profile.ok_or_else(|| CompileResolvedPackageReviewsError::UnsupportedBuildActivation {
                         package: key.clone(),
                         reason: "build dependencies require an admitted build execution profile",
-                    }
-                })?
-            };
-            if let Err(error) = pass.compile_occurrence(&PackageOccurrence {
-                key: &key,
-                scope: &scope,
+                    })?
+                };
+                purposes.push((purpose, checked_target));
+            }
+            packages.push(ReviewPackage {
+                scope: PackageCompilationScope::new(closure, custody.key()),
                 custody,
                 position,
-                purpose,
-                checked_target,
-            }) {
-                recovered.push(pass.into_retained());
-                return Err(error);
-            }
+                purposes,
+            });
+        }
+        Ok(Self {
+            closure,
+            packages,
+            execution_profile,
+            roster,
+            semantic_bindings_by_consumer,
+            root_build_snapshot,
+            discovery,
+            prior,
+            dependency_inputs,
+        })
+    }
+
+    /// Borrow admitted work in dependency order; the yielded token retains
+    /// occurrence timing until its work or carry has completed.
+    pub fn occurrences(&self) -> impl Iterator<Item = PackageReviewOccurrence<'_>> {
+        self.packages.iter().flat_map(|package| {
+            package
+                .purposes
+                .iter()
+                .map(move |&(purpose, checked_target)| {
+                    let key = package.custody.key();
+                    PackageReviewOccurrence {
+                        key,
+                        scope: &package.scope,
+                        custody: package.custody,
+                        position: package.position,
+                        purpose,
+                        checked_target,
+                        _timing: crate::review::timings::subject_stage(|| {
+                            format!("package {} purpose={purpose:?}", key.name().as_str())
+                        }),
+                    }
+                })
+        })
+    }
+
+    /// A cache-miss restart receives only already completed evidence. The
+    /// application retains pending Build continuations separately.
+    pub fn begin_round<'round>(
+        &'round self,
+        source_bindings: &'round mut PackageSourceBindings,
+        fresh_components: &'round std::collections::BTreeSet<(
+            semantic_vocabulary::PackageKeyIdentity,
+            DependencyPurpose,
+        )>,
+        recovered: &'round [RetainedPackageReviews],
+    ) -> PackageReviewRound<'round> {
+        PackageReviewRound {
+            closure: self.closure,
+            execution_profile: self.execution_profile,
+            semantic_bindings_by_consumer: self.semantic_bindings_by_consumer,
+            root_build_snapshot: self.root_build_snapshot,
+            discovery: self.discovery,
+            prior: self.prior,
+            source_bindings,
+            dependency_inputs: &self.dependency_inputs,
+            fresh_components,
+            recovered,
+            reviews: Vec::with_capacity(self.roster.occurrence_count()),
+            review_positions: vec![[None; 2]; self.closure.graph().packages().len()],
+            component_candidates: BTreeMap::new(),
+            occurrences: Vec::new(),
+            carried_occurrences: 0,
+            retained_policy_canonical_total: 0,
+            target_entry_candidates: Vec::new(),
         }
     }
-    pass.finish()
 }
 
 /// One pass over a dependency closure in dependency-first order. The request
@@ -343,16 +323,14 @@ fn run_closure_pass(
 /// Each occurrence runs four phases in order: assemble its complete inputs,
 /// carry a prior pass's or persisted record's identical compile forward, or
 /// else compile it fresh and then project and retain the fresh review.
-struct ClosurePass<'pass> {
+pub struct PackageReviewRound<'pass> {
     closure: &'pass ResolvedPackageSourceClosure,
     execution_profile: Option<target::TargetProfile>,
-    session: &'pass mut PackageBuildSession,
     semantic_bindings_by_consumer:
         &'pass BTreeMap<(PackageKey, DependencyPurpose), Vec<AcceptedSemanticBinding>>,
     root_build_snapshot: Option<&'pass build_evaluation::BuildSnapshotRequest>,
-    restricted_build_checkpoint: Option<&'pass RestrictedBuildCheckpoint>,
     discovery: TargetEntryDiscovery,
-    prior: Option<&'pass CompiledPackageReviews>,
+    prior: Option<&'pass RetainedPackageReviews>,
     source_bindings: &'pass mut PackageSourceBindings,
     /// Named build inputs reconciled across every incoming edge, by graph
     /// position and purpose slot.
@@ -366,9 +344,7 @@ struct ClosurePass<'pass> {
     )>,
     /// Completed work from interrupted attempts in this same pass. It remains
     /// usable only under the exact input comparisons of ordinary review reuse.
-    recovered: &'pass [CompiledPackageReviews],
-    /// Completed consumer Builds waiting for a missing component description.
-    pending_builds: &'pass mut Vec<PendingReviewBuild>,
+    recovered: &'pass [RetainedPackageReviews],
     reviews: Vec<CompilerIssuedPackageReview>,
     /// Index into `reviews` of each package position's review, by purpose slot.
     review_positions: Vec<[Option<usize>; 2]>,
@@ -389,20 +365,12 @@ struct ClosurePass<'pass> {
     target_entry_candidates: Vec<(DependencyPurpose, SemanticBindingReviewCandidate)>,
 }
 
-/// One linear continuation retained only while this pass refreshes a demanded
-/// component. Target, discovery mode, sponsors and consent belong to the fixed
-/// enclosing pass; source inputs, entry and snapshot must still match on reuse.
-struct PendingReviewBuild {
-    build: compiler::PackageBuild,
-    entry: std::path::PathBuf,
-    snapshot: build_evaluation::BuildSnapshotRequest,
-}
-
 /// One checked package occurrence: the package, its graph position and source
 /// custody, the purpose it is checked for, and the target that purpose selects.
-struct PackageOccurrence<'occurrence> {
+pub struct PackageReviewOccurrence<'occurrence> {
     key: &'occurrence PackageKey,
     scope: &'occurrence PackageCompilationScope<'occurrence>,
+    _timing: Option<crate::review::timings::StageTiming>,
     custody: &'occurrence PackageSourceCustody,
     position: usize,
     purpose: DependencyPurpose,
@@ -419,18 +387,46 @@ struct AssembledOccurrence {
     proposed_entry: Option<SemanticBindingReviewCandidate>,
 }
 
-impl ClosurePass<'_> {
-    fn compile_occurrence(
+impl<'pass> PackageReviewRound<'pass> {
+    /// Admit one occurrence, or carry an exact prior/cache result without
+    /// asking the application to execute its Build again.
+    pub fn admit_occurrence<'occurrence>(
         &mut self,
-        occurrence: &PackageOccurrence<'_>,
-    ) -> Result<(), CompileResolvedPackageReviewsError> {
-        let (unanswered_inputs, assembled) = self.assemble_occurrence_inputs(occurrence)?;
-        if self.carry_prior_compile(occurrence, &unanswered_inputs, &assembled)? {
-            return Ok(());
+        occurrence: PackageReviewOccurrence<'occurrence>,
+        session: &mut PackageBuildSession,
+    ) -> Result<Option<PackageReviewWork<'occurrence>>, CompileResolvedPackageReviewsError>
+    where
+        'pass: 'occurrence,
+    {
+        let (inputs, assembled) = self.assemble_occurrence_inputs(&occurrence)?;
+        if self.carry_prior_compile(&occurrence, &inputs, &assembled)? {
+            return Ok(None);
         }
-        let (product, occurrence_inputs) =
-            self.compile_fresh(occurrence, unanswered_inputs, &assembled)?;
-        self.retain_review(occurrence, assembled, product, occurrence_inputs)
+        let request = CheckedCompileRequest {
+            build_execution_profile: self.execution_profile,
+            package_inputs: Some(inputs),
+            filesystem_sponsor: Some(session.filesystem_sponsor().clone()),
+            evaluation_sponsor: Some(session.evaluation_sponsor().clone()),
+            build_snapshot: Some(assembled.build_snapshot.clone()),
+            collect_timings: self.source_bindings.collect_timings,
+            permit_unsettled_fused_service_fields: self.discovery
+                == TargetEntryDiscovery::Dependencies,
+            ..CheckedCompileRequest::new(
+                &assembled.entry,
+                Some(occurrence.checked_target.target_name()),
+            )
+        };
+        Ok(Some(PackageReviewWork {
+            request,
+            completion: PackageReviewCompletion {
+                occurrence,
+                assembled,
+                closure: self.closure,
+                execution_profile: self.execution_profile,
+            },
+            maximum_policy_canonical_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES
+                .saturating_sub(self.retained_policy_canonical_total),
+        }))
     }
 
     /// Join the occurrence's purpose, semantic bindings and every required
@@ -439,10 +435,10 @@ impl ClosurePass<'_> {
     /// beside the rest: a fresh compile consumes them, a carry only compares.
     fn assemble_occurrence_inputs(
         &mut self,
-        occurrence: &PackageOccurrence<'_>,
+        occurrence: &PackageReviewOccurrence<'_>,
     ) -> Result<(PackageCompilationInputs, AssembledOccurrence), CompileResolvedPackageReviewsError>
     {
-        let PackageOccurrence {
+        let PackageReviewOccurrence {
             key,
             scope,
             custody,
@@ -628,11 +624,11 @@ impl ClosurePass<'_> {
     /// would be. Returns whether the occurrence was carried.
     fn carry_prior_compile(
         &mut self,
-        occurrence: &PackageOccurrence<'_>,
+        occurrence: &PackageReviewOccurrence<'_>,
         unanswered_inputs: &PackageCompilationInputs,
         assembled: &AssembledOccurrence,
     ) -> Result<bool, CompileResolvedPackageReviewsError> {
-        let PackageOccurrence {
+        let PackageReviewOccurrence {
             key,
             custody,
             position,
@@ -713,7 +709,6 @@ impl ClosurePass<'_> {
                     occurrence.compilation.clone(),
                     review,
                     occurrence.policy_canonical_bytes,
-                    false,
                     same_pass && occurrence.compiled_in_pass,
                 )
             })
@@ -740,10 +735,9 @@ impl ClosurePass<'_> {
                 if occurrence.tolerated_unsettled_service_fields() && !tolerance_permitted {
                     return None;
                 }
-                Some((occurrence, review, policy_canonical_bytes, true, false))
+                Some((occurrence, review, policy_canonical_bytes, false))
             });
-        let Some((compile, review, policy_canonical_bytes, from_disk, compiled_in_pass)) = carried
-        else {
+        let Some((compile, review, policy_canonical_bytes, compiled_in_pass)) = carried else {
             return Ok(false);
         };
         compile
@@ -762,24 +756,6 @@ impl ClosurePass<'_> {
                         maximum_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
                     }
                 })?;
-        // A disk-cache carry ran no Build, so its retained requests meet the
-        // same gate a fresh activation's requests meet before execution. A
-        // carry from an earlier pass of this invocation already met it.
-        if from_disk && let Some(checkpoint) = self.restricted_build_checkpoint {
-            let mut grants = checkpoint.grants(
-                key.identity(),
-                review.checked_context(),
-                closure.dependency_path(key),
-            );
-            for request in review.restricted_build_requests() {
-                grants.admit(request).map_err(|diagnostics| {
-                    CompileResolvedPackageReviewsError::Compilation {
-                        package: key.clone(),
-                        diagnostics,
-                    }
-                })?;
-            }
-        }
         // Consumers need the same entry-schema offer whether this
         // dependency compiled now, in a prior pass, or in a prior
         // invocation. An offer is not an accepted binding: only the
@@ -813,157 +789,69 @@ impl ClosurePass<'_> {
         Ok(true)
     }
 
-    /// Execute Build once, answer its independent-component demands, then
-    /// complete review from that same opaque continuation. Returns the
-    /// compiler-issued review product and the exact inputs it consumed.
-    fn compile_fresh(
-        &mut self,
-        occurrence: &PackageOccurrence<'_>,
-        unanswered_inputs: PackageCompilationInputs,
-        assembled: &AssembledOccurrence,
-    ) -> Result<
-        (compiler::PackageReviewProduct, PackageCompilationInputs),
-        CompileResolvedPackageReviewsError,
-    > {
-        let PackageOccurrence {
-            key,
-            custody,
-            purpose,
-            checked_target,
-            ..
-        } = *occurrence;
-        let closure = self.closure;
-        let execution_profile = self.execution_profile;
-        let restricted_build_checkpoint = self.restricted_build_checkpoint;
-        let discovery = self.discovery;
-        let target = checked_target.target_name();
-        let entry = assembled.entry.as_path();
-        let build_snapshot = &assembled.build_snapshot;
-        let refuse = |failure: CompileFailure| {
-            CompileResolvedPackageReviewsError::from_compilation(
-                key.clone(),
-                PackageCheckedContext::new(purpose, checked_target, execution_profile),
-                closure.dependency_path(key),
-                failure,
-            )
-        };
-        let pending = self
-            .pending_builds
-            .iter()
-            .position(|pending| {
-                pending.build.package_inputs().root() == key.identity()
-                    && pending.build.package_inputs().compilation_purpose() == purpose
-            })
-            .map(|position| self.pending_builds.swap_remove(position));
-        let pending = pending.filter(|pending| {
-            pending.entry == *entry
-                && pending.snapshot == *build_snapshot
-                && pending.build.package_inputs() == &unanswered_inputs
-        });
-        let build = match pending {
-            Some(pending) => pending.build,
-            None => {
-                let request = CheckedCompileRequest {
-                    build_execution_profile: execution_profile,
-                    build_dir: Some(self.session.create_occurrence_directory(
-                        key,
-                        custody.resolution(),
-                        purpose,
-                    )?),
-                    package_inputs: Some(unanswered_inputs),
-                    filesystem_sponsor: Some(self.session.filesystem_sponsor().clone()),
-                    evaluation_sponsor: Some(self.session.evaluation_sponsor().clone()),
-                    build_snapshot: Some(build_snapshot.clone()),
-                    // An armed checkpoint binds the admitted activation's
-                    // restricted requests to this occurrence's granted meanings
-                    // before each request's own build effect executes.
-                    restricted_build_grants: restricted_build_checkpoint.map(|checkpoint| {
-                        Box::new(checkpoint.grants(
-                            key.identity(),
-                            PackageCheckedContext::new(purpose, checked_target, execution_profile),
-                            closure.dependency_path(key),
-                        ))
-                            as Box<dyn package_compilation::build_execution::RestrictedBuildGrants>
-                    }),
-                    collect_timings: self.source_bindings.collect_timings,
-                    // A discovery pass admits an entry whose `Service` fields still
-                    // lack their selection: this pass's whole product is the
-                    // nomination that supplies it.
-                    permit_unsettled_fused_service_fields: discovery
-                        == TargetEntryDiscovery::Dependencies,
-                    ..CheckedCompileRequest::new(entry, Some(target))
-                };
-                self.session
-                    .compiler
-                    .prepare_package_build(request)
-                    .map_err(&refuse)?
+    /// Select an admitted dependency's retained component source or cached
+    /// description. Publication and a demanded cache refresh belong to Build.
+    pub fn component(
+        &self,
+        completion: &PackageReviewCompletion<'_>,
+        inputs: &PackageCompilationInputs,
+        component: semantic_vocabulary::PackageKeyIdentity,
+    ) -> Result<Option<PackageReviewComponent>, CompileResolvedPackageReviewsError> {
+        let occurrence = &completion.occurrence;
+        if component == occurrence.key.identity() {
+            return Ok(None);
+        }
+        match self
+            .component_candidates
+            .get(&(component, occurrence.purpose))
+        {
+            Some(OccurrenceCompile::Live(source)) => {
+                Ok(Some(PackageReviewComponent::Source(source.clone())))
             }
-        };
-        let descriptions = match publish_independent_component_descriptions(
-            key,
-            purpose,
-            build.package_inputs(),
-            build.required_component_packages(),
-            &self.component_candidates,
-        ) {
-            Ok(descriptions) => descriptions,
-            Err(error) => {
-                if matches!(
-                    error,
-                    CompileResolvedPackageReviewsError::ComponentDescriptionNotRetained { .. }
-                ) {
-                    self.pending_builds.push(PendingReviewBuild {
-                        build,
-                        entry: entry.to_path_buf(),
-                        snapshot: build_snapshot.clone(),
-                    });
-                }
-                return Err(error);
+            Some(OccurrenceCompile::Cached(facts)) => {
+                let description = facts.component_description.clone().ok_or_else(|| {
+                    CompileResolvedPackageReviewsError::ComponentDescriptionNotRetained {
+                        package: occurrence.key.clone(),
+                        component,
+                        purpose: occurrence.purpose,
+                    }
+                })?;
+                Ok(Some(PackageReviewComponent::Description(description)))
             }
-        };
-        let build = build
-            .with_independent_component_descriptions(descriptions)
-            .map_err(
-                |errors| CompileResolvedPackageReviewsError::CompilationInputs {
-                    package: key.clone(),
-                    errors,
-                },
-            )?;
-        let occurrence_inputs = build.package_inputs().clone();
-        let review = self
-            .session
-            .compiler
-            .review_package_build(
-                build,
-                super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES
-                    .saturating_sub(self.retained_policy_canonical_total),
-            )
-            .map_err(|failure| match failure {
-                compiler::PackageReviewFailure::Compilation(failure) => refuse(failure),
-                compiler::PackageReviewFailure::Projection(failure) => {
-                    super::policy::projection_failure(key, failure)
-                }
-            })?;
-        Ok((review, occurrence_inputs))
+            None => Err(CompileResolvedPackageReviewsError::Compilation {
+                package: occurrence.key.clone(),
+                diagnostics: vec![Diagnostic::error(format!(
+                    "an independent provider selection names dependency package `{}`, which this closure never compiled",
+                    inputs.package_name(component).unwrap_or("<unnamed>"),
+                ))],
+            }),
+        }
     }
 
     /// Join compiler evidence to resolver custody and consumer nominations,
-    /// charge its retained budget, then cache and retain the occurrence.
-    fn retain_review(
+    /// charge its retained budget, then retain the occurrence and admit caching.
+    pub fn retain(
         &mut self,
-        occurrence: &PackageOccurrence<'_>,
-        assembled: AssembledOccurrence,
+        completion: PackageReviewCompletion<'_>,
         product: compiler::PackageReviewProduct,
         occurrence_inputs: PackageCompilationInputs,
-    ) -> Result<(), CompileResolvedPackageReviewsError> {
-        let PackageOccurrence {
+    ) -> Result<
+        Option<super::super::review_cache::PackageReviewCacheWrite>,
+        CompileResolvedPackageReviewsError,
+    > {
+        let PackageReviewCompletion {
+            occurrence,
+            assembled,
+            ..
+        } = completion;
+        let PackageReviewOccurrence {
             key,
             custody,
             position,
             purpose,
             checked_target,
             ..
-        } = *occurrence;
+        } = occurrence;
         let closure = self.closure;
         let execution_profile = self.execution_profile;
         let AssembledOccurrence {
@@ -1054,6 +942,7 @@ impl ClosurePass<'_> {
         // descriptions joined to the completed Build, so an occurrence that
         // needed those descriptions never matches an unanswered-inputs lookup —
         // the same shape the in-session carry takes.
+        let mut cache_write = None;
         if key != closure.graph().root()
             && (self.discovery == TargetEntryDiscovery::Dependencies
                 || !source.facts().tolerated_unsettled_service_fields)
@@ -1063,7 +952,6 @@ impl ClosurePass<'_> {
             && let Ok(target_entry_candidate) = source.target_entry_candidate()
         {
             let demanded = self.fresh_components.contains(&(key.identity(), purpose));
-            let component_description = demanded.then(|| source.publish_component().ok()).flatten();
             if let Some(record) = super::super::review_cache::record_compiled_review(
                 &review,
                 super::super::review_cache::CachedOccurrenceFacts {
@@ -1072,7 +960,7 @@ impl ClosurePass<'_> {
                         .tolerated_unsettled_service_fields,
                     consumed_units: consumed_units.to_vec(),
                     source_consumption_commitment,
-                    component_description,
+                    component_description: None,
                     target_entry_candidate,
                 },
                 policy_canonical_bytes,
@@ -1085,7 +973,12 @@ impl ClosurePass<'_> {
                 &occurrence_inputs,
                 &build_snapshot,
             ) {
-                cache.store(&cache_key, &record, demanded);
+                cache_write = Some(super::super::review_cache::PackageReviewCacheWrite {
+                    cache,
+                    key: cache_key,
+                    record,
+                    component_source: demanded.then(|| source.clone()),
+                });
             }
         }
         let review_position = self.reviews.len();
@@ -1106,11 +999,11 @@ impl ClosurePass<'_> {
             self.component_candidates
                 .insert((key.identity(), purpose), OccurrenceCompile::Live(source));
         }
-        Ok(())
+        Ok(cache_write)
     }
 
     /// Finish root-wide policy joins and return the retained review occurrences.
-    fn finish(mut self) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
+    pub fn finish(mut self) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
         let root = self.closure.graph().root();
         let services = self
             .reviews
@@ -1165,8 +1058,8 @@ impl ClosurePass<'_> {
 
     /// Retain only completed individual reviews. An interrupted set is private
     /// reuse input, never the final root-wide review returned to the caller.
-    fn into_retained(self) -> CompiledPackageReviews {
-        CompiledPackageReviews {
+    pub fn into_retained(self) -> RetainedPackageReviews {
+        RetainedPackageReviews {
             reviews: CompilerIssuedPackageReviewSet {
                 reviews: self.reviews,
             },
@@ -1176,64 +1069,78 @@ impl ClosurePass<'_> {
     }
 }
 
-/// Answer a completed Build's independent-component demands before Product
-/// checking. Existing descriptions retain their exact bytes and must still pass
-/// settlement; missing ones come from the already-checked dependency occurrence.
-/// A root-local or package-less selection remains the compiler's responsibility.
-fn publish_independent_component_descriptions(
-    key: &PackageKey,
-    purpose: DependencyPurpose,
-    inputs: &PackageCompilationInputs,
-    components: Vec<semantic_vocabulary::PackageKeyIdentity>,
-    component_candidates: &BTreeMap<
-        (semantic_vocabulary::PackageKeyIdentity, DependencyPurpose),
-        OccurrenceCompile,
-    >,
-) -> Result<
-    Vec<package_compilation::IndependentComponentDescription>,
-    CompileResolvedPackageReviewsError,
-> {
-    let mut descriptions: Vec<_> = inputs
-        .independent_component_descriptions()
-        .cloned()
-        .collect();
-    for component in components {
-        if component == key.identity()
-            || descriptions
-                .iter()
-                .any(|description| description.package() == component)
-        {
-            continue;
-        }
-        let description = match component_candidates.get(&(component, purpose)) {
-            Some(OccurrenceCompile::Live(source)) => {
-                source.publish_component().map_err(|diagnostics| {
-                    CompileResolvedPackageReviewsError::Compilation {
-                        package: key.clone(),
-                        diagnostics,
-                    }
-                })?
-            }
-            Some(OccurrenceCompile::Cached(facts)) => {
-                facts.component_description.clone().ok_or_else(|| {
-                    CompileResolvedPackageReviewsError::ComponentDescriptionNotRetained {
-                        package: key.clone(),
-                        component,
-                        purpose,
-                    }
-                })?
-            }
-            None => {
-                return Err(CompileResolvedPackageReviewsError::Compilation {
-                    package: key.clone(),
-                    diagnostics: vec![Diagnostic::error(format!(
-                        "an independent provider selection names dependency package `{}`, which this closure never compiled",
-                        inputs.package_name(component).unwrap_or("<unnamed>"),
-                    ))],
-                });
-            }
-        };
-        descriptions.push(description);
+/// Whole-occurrence work admitted by package policy, with its completion
+/// context retained alongside the compiler request.
+pub struct PackageReviewWork<'occurrence> {
+    pub request: CheckedCompileRequest,
+    pub completion: PackageReviewCompletion<'occurrence>,
+    pub maximum_policy_canonical_bytes: usize,
+}
+
+pub struct PackageReviewCompletion<'occurrence> {
+    occurrence: PackageReviewOccurrence<'occurrence>,
+    assembled: AssembledOccurrence,
+    closure: &'occurrence ResolvedPackageSourceClosure,
+    execution_profile: Option<target::TargetProfile>,
+}
+
+impl PackageReviewCompletion<'_> {
+    /// Reserve staging only when Build will really execute. A resumed opaque
+    /// continuation keeps its original staging and charges no second grant.
+    pub fn reserve_build_directory(
+        &self,
+        session: &mut PackageBuildSession,
+    ) -> Result<std::path::PathBuf, CompileResolvedPackageReviewsError> {
+        session.create_occurrence_directory(
+            self.occurrence.key,
+            self.occurrence.custody.resolution(),
+            self.occurrence.purpose,
+        )
     }
-    Ok(descriptions)
+
+    pub fn compilation_failure(
+        &self,
+        failure: CompileFailure,
+    ) -> CompileResolvedPackageReviewsError {
+        let occurrence = &self.occurrence;
+        CompileResolvedPackageReviewsError::from_compilation(
+            occurrence.key.clone(),
+            PackageCheckedContext::new(
+                occurrence.purpose,
+                occurrence.checked_target,
+                self.execution_profile,
+            ),
+            self.closure.dependency_path(occurrence.key),
+            failure,
+        )
+    }
+
+    pub fn input_failure(
+        &self,
+        errors: Vec<PackageCompilationInputError>,
+    ) -> CompileResolvedPackageReviewsError {
+        CompileResolvedPackageReviewsError::CompilationInputs {
+            package: self.occurrence.key.clone(),
+            errors,
+        }
+    }
+
+    pub fn review_failure(
+        &self,
+        failure: compiler::PackageReviewFailure,
+    ) -> CompileResolvedPackageReviewsError {
+        match failure {
+            compiler::PackageReviewFailure::Compilation(failure) => {
+                self.compilation_failure(failure)
+            }
+            compiler::PackageReviewFailure::Projection(failure) => {
+                super::policy::projection_failure(self.occurrence.key, failure)
+            }
+        }
+    }
+}
+
+pub enum PackageReviewComponent {
+    Source(compiler::PackageReviewSource),
+    Description(package_compilation::IndependentComponentDescription),
 }

@@ -1,7 +1,8 @@
-use package_manager::operations::{PackageInspectionOptions, inspect_packages};
+use omega_build::inspect_packages;
+use package_manager::operations::PackageInspectionOptions;
 
 pub(crate) fn run(options: PackageInspectionOptions) {
-    match inspect_packages(options, None) {
+    match inspect_packages(options) {
         Ok(outcome) => {
             print!("{}", outcome.report);
             if !outcome.complete {

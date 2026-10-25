@@ -343,6 +343,7 @@ impl PackageCommandReviewRequest<'_> {
         self,
         session: &mut PackageBuildSession,
         source_bindings: &mut PackageSourceBindings,
+        execute: crate::review::PackageReviewExecutor,
     ) -> Result<PackageCommandReview, PackageCommandError> {
         let review = crate::operations::review_package_change_reusing(
             self.source_closure.clone(),
@@ -351,6 +352,7 @@ impl PackageCommandReviewRequest<'_> {
             session,
             self.build_snapshot,
             source_bindings,
+            execute,
         )
         .map_err(failure)?;
         Ok(PackageCommandReview {

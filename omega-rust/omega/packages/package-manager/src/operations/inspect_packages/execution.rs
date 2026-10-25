@@ -8,11 +8,10 @@ use crate::resolution::graph::{
     PackageRootSourceRequest, PackageSourceClosureLimits, resolve_external_local_project_closure,
     resolve_locked_local_project_closure,
 };
-use crate::review::SemanticBindingReview;
 use crate::review::{
-    CandidateCompilation, CompilerIssuedPackageReviewSet, PackagePolicyChangeLimits,
+    CandidateReview, CompilerIssuedPackageReviewSet, PackagePolicyChangeLimits,
     PackagePolicyChangeSet, PackageSourceBindings, compare_package_policy_changes,
-    compile_resolved_package_reviews_reusing,
+    review_resolved_packages,
 };
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
@@ -33,6 +32,7 @@ pub(super) fn inspect<Storage: Borrow<SourceResolver>>(
     offline: bool,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     session: &mut PackageBuildSession,
+    execute: crate::review::PackageReviewExecutor,
     open_storage: impl FnOnce(&Path) -> Result<Storage, PackageInspectionError>,
 ) -> Result<PackageInspectionOutcome, PackageInspectionError> {
     // read_pair refuses pending commit intent. Inspection never completes a
@@ -69,6 +69,7 @@ pub(super) fn inspect<Storage: Borrow<SourceResolver>>(
                 root_build_snapshot,
                 session,
                 &mut source_bindings,
+                execute,
             ),
             Err(error) => Err(failure(error)),
         };
@@ -156,6 +157,7 @@ fn check(
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     session: &mut PackageBuildSession,
     source_bindings: &mut PackageSourceBindings,
+    execute: crate::review::PackageReviewExecutor,
 ) -> Result<
     (
         CanonicalSourceClosureSubject,
@@ -198,15 +200,14 @@ fn check(
         .map_err(failure)?
     };
     let exact = closure.for_exact_target(target);
-    let reviews = compile_resolved_package_reviews_reusing(
-        CandidateCompilation {
+    let reviews = review_resolved_packages(
+        CandidateReview {
             target_closure: &exact,
             root_build_snapshot,
-            restricted_build_checkpoint: None,
         },
-        SemanticBindingReview::Discover,
         session,
         source_bindings,
+        execute,
     )
     .map_err(failure)?;
     let changes = compare_package_policy_changes(

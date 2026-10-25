@@ -60,6 +60,7 @@ impl From<CompileResolvedPackageReviewsError> for PackageInspectionError {
 pub fn inspect_packages(
     options: PackageInspectionOptions,
     storage: Option<&SourceResolver>,
+    execute: crate::review::PackageReviewExecutor,
 ) -> Result<PackageInspectionOutcome, PackageInspectionError> {
     let transaction =
         PackageFileTransaction::open(&options.project_root, PackagePublicationLimits::default())
@@ -79,6 +80,7 @@ pub fn inspect_packages(
         options.offline,
         build_snapshot.as_ref(),
         &mut session,
+        execute,
         |root| match storage {
             Some(storage) => Ok(InspectionStorage::Supplied(storage)),
             None => SourceResolver::for_current_user(PrimaryGitChoices {
