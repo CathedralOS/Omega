@@ -4,10 +4,8 @@
 //! output is checked by the separate frozen dense oracle. No source replay,
 //! synthetic receiver, expected-result callback, or package acceptance occurs.
 use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
-use package_manager::operations::{
-    LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
-    compile_prepared_local_project_for_native, prepare_local_project,
-};
+use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
+use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};

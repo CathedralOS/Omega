@@ -11,10 +11,10 @@ fn application_does_not_depend_on_pipeline_stages() {
 }
 
 #[test]
-fn package_operations_do_not_assemble_compiler_products() {
+fn build_operations_do_not_assemble_compiler_products() {
     for source in [
-        include_str!("../../../packages/package-manager/src/operations/check_project.rs"),
-        include_str!("../../../packages/package-manager/src/operations/compile_project.rs"),
+        include_str!("../../../application/build/src/check_project.rs"),
+        include_str!("../../../application/build/src/native_project.rs"),
     ] {
         for forbidden in [
             ".admit_trust(",
@@ -27,7 +27,7 @@ fn package_operations_do_not_assemble_compiler_products() {
         ] {
             assert!(
                 !source.contains(forbidden),
-                "package operation drives {forbidden}"
+                "Build operation drives {forbidden}"
             );
         }
     }
@@ -58,17 +58,29 @@ fn accepted_packages_supply_plans_not_compiler_continuations() {
 }
 
 #[test]
-fn package_target_batches_submit_source_work_together() {
+fn build_submits_admitted_package_batches_together() {
     for source in [
-        include_str!("../../../packages/package-manager/src/operations/check_project.rs"),
-        include_str!("../../../packages/package-manager/src/operations/compile_project.rs"),
+        include_str!("../../../application/build/src/check_project.rs"),
+        include_str!("../../../application/build/src/native_project.rs"),
     ] {
-        assert!(source.contains("compile_accepted_projects(requests, &mut session)"));
+        assert!(source.contains("crate::project_compilation::compile("));
     }
-    let source =
+    let application = include_str!("../../../application/build/src/project_compilation.rs");
+    assert!(application.contains("admit_project_compilation(request)"));
+    assert!(application.contains("compiler.compile_packages(admitted.requests)"));
+    assert!(application.contains("admitted.completion.complete(products)"));
+    let admission =
         include_str!("../../../packages/package-manager/src/operations/accepted_compilation.rs");
-    assert!(source.contains("session.compiler.compile_packages(plans)"));
-    assert!(!source.contains(".check_package("));
+    for forbidden in [
+        ".compile_packages(",
+        ".check_package(",
+        "CompilationSession",
+    ] {
+        assert!(
+            !admission.contains(forbidden),
+            "package admission executes {forbidden}"
+        );
+    }
 }
 
 #[test]

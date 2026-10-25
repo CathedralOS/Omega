@@ -1,10 +1,8 @@
 //! Observe original frozen requests through one normally admitted product.
 //! Native and public Terminal buffers are captured before oracle comparison.
 use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
-use package_manager::operations::{
-    LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
-    compile_prepared_local_project_for_native, prepare_local_project,
-};
+use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
+use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use std::{
     fs,
     io::{Cursor, Write},

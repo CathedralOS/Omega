@@ -2,9 +2,8 @@
 //! This uses normal package preparation and preserves its admission checks.
 //! Review modes use this exact executable identity; run never accepts decisions.
 use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
-use package_manager::operations::{
-    LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
-};
+use package_manager::operations::{LocalProjectPreparationOptions};
+use omega_build::{PreparedLocalProjectNativeRequest};
 use package_manager::{
     PackageBuildSession, PackageCommand, PackageCommandKind, PackageCommandOptions,
     PackageCommandStatus, execute_package_command,
@@ -54,7 +53,7 @@ fn run() {
     )
     .unwrap()
     .unwrap();
-    let report = package_manager::operations::compile_prepared_local_project_for_native(
+    let report = omega_build::compile_prepared_local_project_for_native(
         PreparedLocalProjectNativeRequest::new(prepared, directory.join("product"), profile),
     )
     .unwrap();

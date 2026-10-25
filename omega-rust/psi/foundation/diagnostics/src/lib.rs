@@ -12,10 +12,12 @@
 //! This crate only carries and renders them; bracketed names keep each
 //! producer's naming policy in its callback.
 
+mod bounded;
 mod diagnostic;
 mod phase_snapshot;
 mod reporter;
 
+pub use bounded::write_bounded_diagnostics;
 pub use diagnostic::{
     CoverageForm, Diagnostic, DiagnosticSeverity, ExceededProvision, ResolvedSourceLocation,
 };

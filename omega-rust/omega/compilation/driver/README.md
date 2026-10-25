@@ -74,7 +74,7 @@ whole-program request. Native production consumes each
 target's retained Terminal artifact without a second scheduling pass. Product
 reports belong to their product owners.
 
-Accepted package compilation supplies dependency-ordered
+Application Build requests package admission, then supplies dependency-ordered
 `PackageCompilationRequest`s together to the session's
 [`compile_packages`](src/checked/package_compilation.rs) entrance, with the
 requested product and root permission consent supplied up front. That operation
@@ -92,8 +92,8 @@ each retains its own Build receipts, charges, timings and target settlement.
 This is work partitioning within the submitted batch, not a historical cache.
 Opaque pending evaluation authorities must be the same retained authority;
 matching paths or settings alone never establish interchangeable continuations.
-`mbx run -p package-manager --example package_batch` asserts whole-invocation
-work through the public package route. Counters start before local-project
+`mbx run -p omega-build --example package_batch` asserts whole-invocation
+work through the application Build route. Counters start before local-project
 preparation and remain checked when production rejects. Its default two-target
 fixture requires one Build execution, two settled checks (Build and Product),
 one source completion and one shared Terminal allocation. `--check` preserves
@@ -106,8 +106,8 @@ The ordinary dependency control retains two different Builds and one Product
 check rather than merging their work:
 
 ```sh
-mbx run -p package-manager --example package_batch -- tests/omega/pass/build/package_batch_distinct_builds/main.omg 1 1 2 3
-mbx run -p package-manager --example package_batch -- --check --targets linux_x86_64 tests/omega/fail/build/unrequested_target_entry_returns_value/main.omg 1 0 1 2
+mbx run -p omega-build --example package_batch -- tests/omega/pass/build/package_batch_distinct_builds/main.omg 1 1 2 3
+mbx run -p omega-build --example package_batch -- --check --targets linux_x86_64 tests/omega/fail/build/unrequested_target_entry_returns_value/main.omg 1 0 1 2
 ```
 
 The latter must reject `foreign_launch` because `ProgramEntry` has no result,
@@ -126,11 +126,13 @@ package audit. Its fixture preparation legitimately performs another two Builds
 and four checks in its own sessions, so the whole measurement asserts four
 Builds/eight checks rather than hiding setup cost. These workflow measurements
 advance `BUILD-EVALUATES-ONCE`; they do not close its remaining target-row work.
-The package operation owns one compiler-stack worker; preparing Builds and
+The application request enters one compiler-stack worker; preparing Builds and
 checking source cohorts do not spawn additional workers.
 
-Package operations receive reports or Terminal inspections, never a checked
-checkpoint to return for production. The compiler compares fresh supplied
+Ordinary package operations return admitted requests and retain custody for
+result reconciliation; they do not invoke compilation. Application Build
+receives reports or Terminal inspections, never a checked checkpoint to return
+for production. The compiler compares fresh supplied
 permissions with the exact root Product consent before native production,
 using the independent package-evidence projection owner. Inspection is an
 explicit product with no native authority. Standalone inspection and corpus

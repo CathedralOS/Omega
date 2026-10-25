@@ -5,18 +5,18 @@
 //! build grants. An existing lock must still match the source, compiler and
 //! target; its permission rows are checked before producing the native product.
 
-use super::accepted_compilation::{AcceptedCompilationRequest, compile_accepted_projects};
-
-use super::{PrepareLocalProjectError, PreparedLocalProject};
-use crate::build_session::PackageBuildSession;
-use crate::review::CompileResolvedPackageReviewsError;
-use compiler::{CompileReport, OptimizationRollback};
-use diagnostics::Diagnostic;
-use std::fmt;
-use std::path::PathBuf;
-use terminal_psi_to_abstract_operations::provider_admission::{
+use compilation_products::compile_request::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, current_terminal_authority_policy,
 };
+use compiler::{CompileReport, OptimizationRollback};
+use diagnostics::Diagnostic;
+use package_manager::operations::{
+    PrepareLocalProjectError, PreparedLocalProject, ProjectCompilationAdmissionRequest,
+    ProjectCompilationError,
+};
+use package_manager::review::CompileResolvedPackageReviewsError;
+use std::fmt;
+use std::path::PathBuf;
 
 /// Complete policy and output input for one package-aware native production.
 ///
@@ -33,7 +33,7 @@ pub struct PreparedLocalProjectNativeRequest {
     target_profiles: Vec<target::TargetProfile>,
 
     optimization_rollback: OptimizationRollback,
-    build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
+    build_snapshot: Option<compiler::BuildSnapshotRequest>,
     terminal_authority_policy: TerminalAuthorityPolicy,
     receiving_terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
     timings: bool,
@@ -95,7 +95,7 @@ impl PreparedLocalProjectNativeRequest {
 
     /// Select the root build's input inventory and output obligations. Dependency
     /// builds retain their independently captured package inventories.
-    pub fn with_build_snapshot(mut self, snapshot: build_evaluation::BuildSnapshotRequest) -> Self {
+    pub fn with_build_snapshot(mut self, snapshot: compiler::BuildSnapshotRequest) -> Self {
         self.build_snapshot = Some(snapshot);
         self
     }
@@ -129,11 +129,11 @@ impl fmt::Display for CompilePreparedLocalProjectNativeError {
             }
             Self::TrustAdmission(diagnostics) => {
                 write!(formatter, "cannot admit package trust:")?;
-                crate::review::render_diagnostics(formatter, diagnostics)
+                diagnostics::write_bounded_diagnostics(formatter, diagnostics)
             }
             Self::Native(diagnostics) => {
                 write!(formatter, "cannot realize accepted package production:")?;
-                crate::review::render_diagnostics(formatter, diagnostics)
+                diagnostics::write_bounded_diagnostics(formatter, diagnostics)
             }
         }
     }
@@ -157,7 +157,11 @@ pub fn compile_prepared_local_project_for_native(
     }
     compile_prepared_local_project_for_native_targets(request)
         .pop()
-        .expect("a native request produces one outcome per requested target")
+        .ok_or_else(|| {
+            CompilePreparedLocalProjectNativeError::Native(vec![Diagnostic::error(
+                "compiler lost its requested native outcome",
+            )])
+        })?
         .result
 }
 
@@ -189,97 +193,36 @@ pub fn compile_prepared_local_project_for_native_targets(
         timings,
         private_entry_ram,
     } = request;
-    let (entry_path, source_closure, prepared_targets) = prepared.into_target_review_parts();
-    let targets: Vec<_> = prepared_targets
-        .into_iter()
-        .filter(|target| target_profiles.contains(&target.profile))
-        .collect();
-    if source_closure.root_role() != crate::declarations::BuildDeclarationKind::Application {
-        return targets
-            .into_iter()
-            .map(|target| CompiledProjectTargetOutcome {
-                target: target.profile,
-                result: Err(CompilePreparedLocalProjectNativeError::Review(
-                    CompileResolvedPackageReviewsError::InvalidProductionRootRole {
-                        package: source_closure.graph().root().clone(),
-                        role: source_closure.root_role(),
-                    },
-                )),
+    crate::project_compilation::compile(ProjectCompilationAdmissionRequest {
+        prepared,
+        build_directory: &build_dir,
+        target_profiles: &target_profiles,
+        snapshot: build_snapshot.as_ref(),
+        verify: false,
+        timings,
+        product: compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+            private_entry_ram,
+            terminal_authority_policy,
+            terminal_authority_permission_policy: receiving_terminal_authority_permission_policy,
+            optimization_rollback,
+        }),
+    })
+    .into_iter()
+    .map(|outcome| CompiledProjectTargetOutcome {
+        target: outcome.target,
+        result: outcome
+            .result
+            .map_err(|error| match error {
+                ProjectCompilationError::Prepare(error) => {
+                    CompilePreparedLocalProjectNativeError::Prepare(error)
+                }
+                ProjectCompilationError::Review(error) => {
+                    CompilePreparedLocalProjectNativeError::Review(error)
+                }
             })
-            .collect();
-    }
-    // The whole batch borrows one invocation: sponsors, staging and the pure
-    // Build store persist across targets rather than replenishing per compile.
-    let mut session = match PackageBuildSession::create(&build_dir) {
-        Ok(session) => session,
-        Err(error) => {
-            let message = error.to_string();
-            return targets
-                .iter()
-                .map(|target| CompiledProjectTargetOutcome {
-                    target: target.profile,
-                    result: Err(CompilePreparedLocalProjectNativeError::Review(
-                        CompileResolvedPackageReviewsError::Compilation {
-                            package: source_closure.graph().root().clone(),
-                            diagnostics: vec![Diagnostic::error(message.clone())],
-                        },
-                    )),
-                })
-                .collect();
-        }
-    };
-    let requests = targets
-        .iter()
-        .filter_map(|target| {
-            let accepted = target.accepted.as_ref().ok()?;
-            Some(AcceptedCompilationRequest {
-                closure: source_closure.for_exact_target(target.profile),
-                accepted: accepted.as_ref(),
-                entry: &entry_path,
-                snapshot: build_snapshot.as_ref(),
-                verify: false,
-                timings,
-                product: compiler::CompilationProduct::Native(
-                    compilation_products::NativeProductRequest {
-                        private_entry_ram: private_entry_ram.clone(),
-                        terminal_authority_policy: terminal_authority_policy.clone(),
-                        terminal_authority_permission_policy:
-                            receiving_terminal_authority_permission_policy.clone(),
-                        optimization_rollback: optimization_rollback.clone(),
-                    },
-                ),
-            })
-        })
-        .collect();
-    let mut products = compile_accepted_projects(requests, &mut session).into_iter();
-    let outcomes = targets
-        .into_iter()
-        .map(|target| {
-            let result = target
-                .accepted
-                .map_err(CompilePreparedLocalProjectNativeError::Prepare)
-                .and_then(|_| {
-                    products
-                        .next()
-                        .ok_or_else(|| {
-                            CompilePreparedLocalProjectNativeError::Native(vec![Diagnostic::error(
-                                "compiler lost a package target outcome",
-                            )])
-                        })?
-                        .map_err(CompilePreparedLocalProjectNativeError::Review)
-                })
-                .and_then(|product| product.into_report().map_err(product_failure));
-            CompiledProjectTargetOutcome {
-                target: target.profile,
-                result,
-            }
-        })
-        .collect();
-    // Staging cleanup is disposal work, not a target outcome; the shared
-    // Drop would otherwise swallow it silently.
-    let _ = session.close();
-
-    outcomes
+            .and_then(|product| product.into_report().map_err(product_failure)),
+    })
+    .collect()
 }
 
 fn product_failure(

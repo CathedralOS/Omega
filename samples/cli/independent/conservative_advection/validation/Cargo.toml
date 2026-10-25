@@ -7,5 +7,6 @@ edition = "2024"
 compiler = { path = "../../../../../omega-rust/omega/compilation/driver" }
 terminal-runtime = { path = "../../../../../omega-rust/omega/application/terminal-runtime" }
 package-manager = { path = "../../../../../omega-rust/omega/packages/package-manager" }
+omega-build = { path = "../../../../../omega-rust/omega/application/build" }
 target = { path = "../../../../../omega-rust/omega/compilation/backend/target" }
 terminal-interpreter = { path = "../../../../../omega-rust/psi/interpreter/terminal-interpreter" }

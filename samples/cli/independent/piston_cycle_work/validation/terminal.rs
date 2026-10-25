@@ -1,10 +1,8 @@
 //! Capture the existing public Terminal runtime's bytes from one prepared
 //! native product. This harness evaluates no physics and manufactures no IR.
 use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
-use package_manager::operations::{
-    LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
-    compile_prepared_local_project_for_native, prepare_local_project,
-};
+use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
+use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use std::{io::Cursor, path::PathBuf};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
 

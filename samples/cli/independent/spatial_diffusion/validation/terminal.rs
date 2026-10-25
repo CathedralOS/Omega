@@ -3,10 +3,8 @@
 //! artifact and admitted provisions. It neither interprets checked trees nor
 //! reruns Build per input. Every input receives an isolated runtime instance.
 use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
-use package_manager::operations::{
-    LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
-    compile_prepared_local_project_for_native, prepare_local_project,
-};
+use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
+use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use std::{fs, io::Cursor, path::PathBuf};
 use target::TargetProfile;
 use terminal_interpreter::TerminalExecutionStatus;

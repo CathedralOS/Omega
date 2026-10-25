@@ -2882,7 +2882,10 @@ crash and native exit behavior.
   named Terminal inspections use the same project lifecycle.
   Hosted Terminal execution is an application consumer, no longer a compiler
   export; it consumes source-free retained provisions from their native owner.
-  Package dependency/Build activation scheduling still needs migration. Psi
+  Ordinary prepared-project compilation is scheduled by Build from package-admitted
+  plans; package completion retains custody, identity reconciliation and disposal.
+  Candidate review and compiler-internal dependency/Build activation scheduling
+  still need migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
   Psi 00-07 and Build execute

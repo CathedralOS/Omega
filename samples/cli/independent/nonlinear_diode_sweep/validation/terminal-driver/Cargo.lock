@@ -1066,6 +1066,7 @@ name = "new031-terminal-validation"
 version = "0.1.0"
 dependencies = [
  "compiler",
+ "omega-build",
  "package-manager",
  "target",
  "terminal-interpreter",
@@ -1106,6 +1107,20 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
+]
+
+[[package]]
+name = "omega-build"
+version = "0.1.0"
+dependencies = [
+ "artifacts",
+ "compilation-products",
+ "compiler",
+ "diagnostics",
+ "package-manager",
+ "platform-custody",
+ "target",
+ "terminal-codec",
 ]
 
 [[package]]

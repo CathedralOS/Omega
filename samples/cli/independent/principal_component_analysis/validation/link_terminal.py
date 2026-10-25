@@ -8,7 +8,7 @@ import hashlib,json,subprocess,sys
 here=Path(__file__).resolve().parent
 messages=Path(sys.argv[1])
 root=Path(sys.argv[2]).resolve() if len(sys.argv)>2 else Path.cwd().resolve()
-dependencies={'compiler', 'terminal_runtime','package_manager','target','terminal_interpreter','compilation_products'}
+dependencies={'compiler', 'terminal_runtime','omega_build', 'package_manager','target','terminal_interpreter','compilation_products'}
 selected={}
 metadata={}
 build_success=False

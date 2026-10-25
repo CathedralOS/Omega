@@ -10,7 +10,7 @@ use package_compilation::{
 use std::path::PathBuf;
 use std::sync::Arc;
 use target::TargetProfile;
-use terminal_psi_to_abstract_operations::provider_admission::{
+pub use terminal_psi_to_abstract_operations::provider_admission::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, current_terminal_authority_policy,
 };
 
