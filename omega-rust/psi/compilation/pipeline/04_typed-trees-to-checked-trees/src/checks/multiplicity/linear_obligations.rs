@@ -583,6 +583,7 @@ pub(super) fn prepare_storage_deaths(
                 disposed_type,
                 path,
                 exclusions: facts.contextual_cleanup.exclusions.insert_many(exclusions),
+                definite_exclusions: Default::default(),
                 inactive_cases: Default::default(),
             });
     }

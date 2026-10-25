@@ -1141,7 +1141,7 @@ pass/collections/runtime_narrow_computed_selector_read_exit built 2392ms exit:0 
 pass/collections/runtime_nested_array_view_call_write_exit built 2850ms exit:0 @a92f16431042
 pass/collections/runtime_nested_const_row_indexed_read_exit built 5875ms exit:1 @a92f16431042
 pass/collections/runtime_nested_fixed_array_projected_write_exit built 7056ms exit:70 @a92f16431042
-pass/collections/runtime_nested_record_element_window_store_exit built 2128ms exit:0 @a92f16431042
+pass/collections/runtime_nested_record_element_window_store_exit built 1969ms exit:0 @036605466510+wt
 pass/collections/runtime_nested_selected_element_extents_exit built 1962ms exit:0 @a92f16431042
 pass/collections/runtime_offset_view_case_observation_exit built 2657ms exit:0 @a92f16431042
 pass/collections/runtime_ordered_computed_selector_reads_exit built 2571ms exit:0 @a92f16431042
@@ -2551,7 +2551,7 @@ pass/facts/computed_nested_state_loan_through_other_state_exit built 3103ms exit
 pass/facts/computed_nested_state_loan_through_parameter_exit built 3002ms exit:0 @a92f16431042
 pass/facts/computed_nested_state_loan_through_target_body_exit built 2220ms exit:0 @a92f16431042
 pass/facts/computed_record_window_mixed_lifecycle_exit built 9998ms exit:0 @a92f16431042
-pass/facts/computed_record_window_original_exit built 10474ms exit:0 @a92f16431042
+pass/facts/computed_record_window_original_exit built 5372ms exit:0 @036605466510+wt
 pass/facts/computed_record_window_through_call_result_exit built 11521ms exit:0 @a92f16431042
 pass/facts/computed_record_window_through_const_name_exit built 11116ms exit:0 @a92f16431042
 pass/facts/computed_record_window_through_field_exit built 11043ms exit:0 @a92f16431042
@@ -7655,10 +7655,11 @@ pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit built 16598ms exit:4
 pass/ownership/runtime_borrowed_carried_loan_transform_exit built 16665ms exit:42 @a92f16431042
 pass/ownership/runtime_borrowed_carrier_repeated_repair_exit built 15853ms exit:42 @a92f16431042
 pass/ownership/runtime_borrowed_case_inventory_insert_exit built 16434ms exit:0 @a92f16431042
-pass/ownership/runtime_borrowed_case_restore_variants_exit built 6055ms exit:0 @a92f16431042
+pass/ownership/runtime_borrowed_case_restore_variants_exit built 2768ms exit:0 @036605466510+wt
 pass/ownership/runtime_borrowed_case_result_restore_exit built 5040ms exit:0 @a92f16431042
 pass/ownership/runtime_borrowed_content_partition_exit built 3916ms exit:0 @a92f16431042
 pass/ownership/runtime_borrowed_content_partition_nested_reverse_exit built 3344ms exit:0 @a92f16431042
+pass/ownership/runtime_borrowed_match_repeated_repair_exit built 2786ms exit:0 @036605466510+wt
 pass/ownership/runtime_borrowed_operand_order_exit built 4122ms exit:0 @a92f16431042
 pass/ownership/runtime_borrowed_projected_claim_transform_exit built 8549ms exit:42 @a92f16431042
 pass/ownership/runtime_borrowed_projected_linear_return_exit built 3004ms exit:0 @a92f16431042
@@ -7679,8 +7680,7 @@ pass/ownership/runtime_captured_selector_call_exit built 2811ms exit:0 @a92f1643
 pass/ownership/runtime_captured_selector_partial_cleanup_exit rejected 3995ms regressed-from:built+exit:0 @a92f16431042
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "selection pass-through of partially moved roots requires retained residual frontier correspondence", gap: None })
 pass/ownership/runtime_carried_loan_field_replacement_exit built 7767ms exit:42 @a92f16431042
-pass/ownership/runtime_case_alternative_custody_exit incomplete 3530ms regressed-from:built+exit:0 @a92f16431042
-	`apply` has no executable body: this compiler does not lower its declaration of it yet (reference result has no complete captured origin paths)
+pass/ownership/runtime_case_alternative_custody_exit built 2664ms exit:0 @036605466510+wt
 pass/ownership/runtime_complete_array_reference_store_exit built 2832ms exit:0 @a92f16431042
 pass/ownership/runtime_computed_selector_snapshot_window_exit built 3256ms exit:0 @a92f16431042
 pass/ownership/runtime_declared_linear_local_assignment_exit built 7943ms exit:70 @a92f16431042
@@ -9216,8 +9216,7 @@ run/slices/folded_window_endpoint_effects built 2188ms exit:0 @a92f16431042
 run/slices/matched_computed_window_end built 2057ms exit:0 @a92f16431042
 run/slices/matched_record_window_lower_bound incomplete 1930ms regressed-from:built+exit:0 @a92f16431042
 	`main` has no executable body: this compiler does not lower a state of it yet (normal-exit cleanup); in state `main::entry`
-run/slices/mutable_window_call_argument incomplete 1920ms regressed-from:built+exit:0 @a92f16431042
-	`main` has no executable body: this compiler does not lower a call of it yet (state graph: structural result has duplicate dispositions); in state `main::entry`, statement 1
+run/slices/mutable_window_call_argument built 1739ms exit:0 @036605466510+wt
 run/slices/returned_record_fixed_array_window built 1919ms exit:0 @a92f16431042
 run/slices/returned_record_parameter_length built 1922ms exit:0 @a92f16431042
 run/state_owned_nested_borrow built 2259ms exit:0 @a92f16431042
