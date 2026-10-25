@@ -85,19 +85,10 @@ pub struct ElfSectionHeaderPlacementApplicationError {
     diagnostic: Diagnostic,
 }
 
-impl ElfSectionHeaderPlacementApplicationError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ValidatedElfDynamicLoadLayout, Diagnostic) {
-        (self.load_layout, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfSectionHeaderPlacementApplicationError);
-
-impl std::error::Error for ElfSectionHeaderPlacementApplicationError {}
+image::rejection_carrier!(
+    ElfSectionHeaderPlacementApplicationError;
+    load_layout: ValidatedElfDynamicLoadLayout,
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ElfPlacedSectionHeaderContents {

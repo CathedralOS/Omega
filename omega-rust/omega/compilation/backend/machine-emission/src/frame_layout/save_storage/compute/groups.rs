@@ -1,11 +1,27 @@
 use register_model::ValidatedPreservationStorageCatalog;
 
-use crate::frame_layout::save_storage::FunctionAllocatedCalleeSavedRequirements;
+use crate::frame_layout::save_storage::{
+    AllocatedCalleeSavedRequirementPlan, FunctionAllocatedCalleeSavedRequirements,
+};
 
 use super::super::{
     FunctionNonAuthoritativeCalleeSaveStorage, NonAuthoritativeCalleeSaveSlot,
     NonAuthoritativeCalleeSaveSlotId, NonAuthoritativeCalleeSaveStorageError,
 };
+
+/// The positional roster of one requirement plan: every function derived in
+/// plan order against the same target catalog.
+pub(in crate::frame_layout::save_storage) fn derive_functions(
+    source: &AllocatedCalleeSavedRequirementPlan,
+    catalog: &ValidatedPreservationStorageCatalog,
+) -> Result<Vec<FunctionNonAuthoritativeCalleeSaveStorage>, NonAuthoritativeCalleeSaveStorageError>
+{
+    source
+        .functions
+        .iter()
+        .map(|function| derive_function(function, catalog))
+        .collect()
+}
 
 pub(super) fn derive_function(
     source: &FunctionAllocatedCalleeSavedRequirements,

@@ -89,19 +89,10 @@ pub struct ElfSectionHeaderTableSerializationError {
     diagnostic: Diagnostic,
 }
 
-impl ElfSectionHeaderTableSerializationError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ValidatedElfDynamicSectionRoster, Diagnostic) {
-        (self.roster, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfSectionHeaderTableSerializationError);
-
-impl std::error::Error for ElfSectionHeaderTableSerializationError {}
+image::rejection_carrier!(
+    ElfSectionHeaderTableSerializationError;
+    roster: ValidatedElfDynamicSectionRoster,
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ElfSectionHeaderTableTemplateContents {

@@ -1,35 +1,12 @@
 //! The entry point's offset within text, resolved from the final image's entry
-//! symbol.
+//! symbol. The symbol's presence and text anchoring are the format-neutral
+//! owner's rule; this module only supplies the Mach-O format name.
 
 use diagnostics::Diagnostic;
-use image::{FinalImage, FinalImageSection, final_image_symbol_name};
+use image::FinalImage;
 
 pub(crate) fn macho_entry_text_offset(image: &FinalImage) -> Result<usize, Diagnostic> {
-    let entry_symbol = image
-        .symbol_table
-        .symbols
-        .is_valid(image.symbol_table.entry_symbol)
-        .then(|| {
-            image
-                .symbol_table
-                .symbols
-                .get(image.symbol_table.entry_symbol)
-        })
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "Mach-O entry symbol `{}` is missing from the final image",
-                final_image_symbol_name(image, image.symbol_table.entry_symbol)
-            ))
-        })?;
-
-    if entry_symbol.section != FinalImageSection::Text {
-        return Err(Diagnostic::error(format!(
-            "Mach-O entry symbol `{}` is not in the text section",
-            final_image_symbol_name(image, image.symbol_table.entry_symbol)
-        )));
-    }
-
-    Ok(entry_symbol.offset)
+    Ok(image::final_image_entry_symbol(image, "Mach-O")?.offset)
 }
 
 #[cfg(test)]

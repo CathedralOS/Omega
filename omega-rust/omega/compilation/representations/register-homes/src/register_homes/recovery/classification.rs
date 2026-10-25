@@ -17,18 +17,7 @@ use crate::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity, SpillChoi
 
 use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RecoveryClassificationIdentity(pub(crate) [u8; 32]);
-
-impl RecoveryClassificationIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+crate::identity_newtype! { pub struct RecoveryClassificationIdentity(pub(crate) [u8; 32]); }
 
 /// Named, deliberately bounded policy for classifying the already selected
 /// pressure victim. This is not a spill, rematerialization, or cost policy.
@@ -159,13 +148,4 @@ optimization_core::truncated_from_adapter!(RecoveryClassificationDecodeError);
 
 optimization_core::take_error_from_adapter!(RecoveryClassificationDecodeError);
 
-impl std::fmt::Display for RecoveryClassificationDecodeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid Terminal recovery-classification encoding: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for RecoveryClassificationDecodeError {}
+crate::decode_error_display! { RecoveryClassificationDecodeError, "invalid Terminal recovery-classification encoding" }
