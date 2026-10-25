@@ -486,6 +486,21 @@ impl<'program> CallFrameResolver<'program> {
         )
     }
 
+    /// An incoming exclusive parameter supplies its address rather than a
+    /// replaceable local descriptor home. Consumers still inspect the referee:
+    /// a reference-valued referent is itself a replaceable stored descriptor.
+    pub fn expression_borrows_fixed_parameter_address(
+        &self,
+        state: &State,
+        expression: ExpressionHandle,
+    ) -> bool {
+        super::reference_subjects::expression_is_fixed_incoming_reference(
+            self.program,
+            state,
+            expression,
+        )
+    }
+
     /// Complete exact referents captured by a reference-valued operand at this
     /// statement prefix. This source relation grants neither a loan nor a write.
     pub fn reference_expression_origins_before_statement(

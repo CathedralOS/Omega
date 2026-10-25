@@ -1,0 +1,18 @@
+// The adapter independently guarantees the exact result membership.
+data Token [copy] { value: u64; }
+domain Token::Ready established by Transfer::transfer;
+
+boundary trait Transfer {
+    machine transfer(input: Token in Ready, other: Token) -> Token
+    ensures result in Ready;
+}
+Adapter satisfies Transfer {
+    machine transfer(input: Token in Ready, other: Token) -> Token
+    ensures result in Ready
+    { input }
+}
+
+machine direct(input: Token in Ready, other: Token) -> Token
+ensures result in Ready
+{ Adapter::transfer(input, other) }
+machine main() {}

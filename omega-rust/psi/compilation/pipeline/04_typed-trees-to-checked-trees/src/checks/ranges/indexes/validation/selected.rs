@@ -59,22 +59,12 @@ pub(super) fn obligation(
         return Err(failure("does not match its checked operator spelling"));
     }
     let operands = validation::indexed_operand_types(program, indexed, selected.origin);
-    let mut live = resolve_indexed_spelling_for_operands(
+    let live = resolve_indexed_spelling_for_operands(
         program,
         spelling,
         &operands,
         program.expression_table.source_span(expression),
     );
-    let collection = operands.first().copied().flatten();
-    live.retain(|candidate| {
-        typed_trees::operator::indexed_operator_governs_occurrence(
-            program,
-            spelling,
-            candidate.operator,
-            expression,
-            collection,
-        )
-    });
     if matches!(
         selected.status,
         CheckedOperatorResolutionStatus::Missing | CheckedOperatorResolutionStatus::BuiltinFallback

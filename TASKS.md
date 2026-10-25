@@ -1132,7 +1132,10 @@ defines the complete product bar.
     as value-home, occurrence and invalid-custody controls.
   - Complete scalar materialization of moved linear places and claim-bearing
     call results on **STATE-LOCAL-VALUE-FRONTIER**'s computed-call path. Preserve the
-    checked ordered temporary action roster and its scalar-call continuation in
+    exact completion-time cleanup facts for copied descriptor leaves, and end
+    borrowed carriers' loans before disposing their supplier storage; anonymous
+    descriptor-source completion remains unfinished.
+    Preserve the checked ordered temporary action roster and its scalar-call continuation in
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/calls.rs`
     with exact live-claim dispositions; claim-free discard/hook actions do not
     consume retained claims. Preserve the selected transfer and ordered
@@ -1140,8 +1143,14 @@ defines the complete product bar.
     temporary for the selected field.
     Keep `samples/cli/facts/returned_linear_residual/` and its pinned
     pass/reject pairs for selected by-value linear-child consumption and
-    original-owner residual cleanup. Preserve the owner-telescope review
-    control `runtime_generic_cleanup_owner_telescope_exit` alongside it.
+    original-owner residual cleanup. Keep
+    `samples/cli/facts/returned_indexed_linear_residual/` and its pinned
+    pass/reject pairs for literal fixed-array selection under the returned
+    owner's exact element claims. Authored or lexical indexing cannot acquire
+    builtin result laws; inherited functional guarantees still owe ordinary
+    exit proof under the exact applied parameter mapping. Preserve the
+    owner-telescope review control `runtime_generic_cleanup_owner_telescope_exit`
+    alongside these rows.
     Keep `pass/drops/runtime_claim_bearing_temporary_cleanup_exit` and
     `pass/drops/runtime_nested_claim_bearing_temporary_cleanup_exit` as native
     and Terminal controls for conditional establishment, descendant identity

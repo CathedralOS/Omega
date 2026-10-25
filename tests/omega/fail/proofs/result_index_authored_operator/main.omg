@@ -1,0 +1,13 @@
+data Value [copy] { code: u64; }
+data Pair [copy] { items: [Value; 2]; }
+machine [] replacement(items: &[Value], index: u64) -> Value
+ensures result.code == 8
+{
+    Value { code: 8 }
+}
+machine issue() -> Pair
+ensures result.items[0].code == 7
+{
+    Pair { items: [Value { code: 7 }, Value { code: 7 }] }
+}
+machine main() {}

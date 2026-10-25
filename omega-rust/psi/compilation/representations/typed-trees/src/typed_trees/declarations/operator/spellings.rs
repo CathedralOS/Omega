@@ -246,6 +246,15 @@ pub fn has_builtin_spelled_expression_meaning(
         program.expression_table.source_span(expression),
     ) && !abstract_trait_meaning
         && !selected_trait_operator_meaning_exists(program, machine_symbol, spelling, operand_types)
+        // Raw contracts can select an operator through a lexical implementation
+        // bound before specialization publishes a selected implementation.
+        && super::bound_trait_operator_meanings(program, machine_symbol, spelling, operand_types)
+            .is_empty()
+        && !super::trait_operators::abstract_requirement_may_have_operator_bound(
+            program,
+            owner_symbol,
+            spelling,
+        )
         && crate::closed_numeric::has_builtin_anonymous_operands(program, expression, spelling)
 }
 
@@ -284,7 +293,7 @@ pub(crate) fn operator_matches_operands_with_indexed_collection(
     let type_parameters = program.operator_type_parameters(operator);
     let mut bindings = Vec::new();
     let mut const_bindings = Vec::new();
-    operand_types
+    let operands_match = operand_types
         .iter()
         .zip(normalized_operand_parameters(parameters))
         .enumerate()
@@ -330,7 +339,183 @@ pub(crate) fn operator_matches_operands_with_indexed_collection(
                 &mut const_bindings,
             )) && declared_domain_constraints_match(program, actual, expected.type_reference)
                 && declared_domain_constraints_match(program, matched_actual, matched_expected)
-        })
+        });
+    operands_match && bindings_satisfy_known_multiplicities(program, type_parameters, &bindings)
+}
+
+/// Applicability uses the complete operand telescope, including bindings from
+/// later operands. A missing or still-open actual is not evidence against a
+/// candidate. In particular, the syntax consuming an operator's result cannot
+/// replace that operation with builtin storage access.
+fn bindings_satisfy_known_multiplicities(
+    program: &TypedTrees,
+    parameters: &[crate::data::TypeParameter],
+    bindings: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    parameters.iter().all(|parameter| {
+        if !matches!(parameter.kind, crate::data::TypeParameterKind::Type)
+            || !parameter.symbol.is_valid()
+            || parameter.bounds.multiplicity == language_semantics::Multiplicity::Affine
+        {
+            return true;
+        }
+        let Some((_, actual)) = bindings
+            .iter()
+            .find(|(symbol, _)| *symbol == parameter.symbol)
+        else {
+            return true;
+        };
+        // type_multiplicity is a total query with unresolved-name fallbacks.
+        // Establish exact closed carrier identity before using its answer to
+        // exclude a candidate; fallback Affine must never become evidence.
+        !closed_multiplicity_carrier(program, *actual, 0)
+            || program.type_multiplicity(*actual) == parameter.bounds.multiplicity
+    })
+}
+
+/// Knowledge of the carrier, not proof of its value refinements or access.
+/// Unsupported/open applications retain their candidate. Lifetimes and static
+/// arguments are not guessed from display text, and a nominal declaration is
+/// resolved solely by its exact symbol, including generated instance origins.
+fn closed_multiplicity_carrier(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    depth: usize,
+) -> bool {
+    if depth >= 64
+        || !program
+            .type_reference_table
+            .contains_type_reference(reference)
+    {
+        return false;
+    }
+    let closed = |reference| closed_multiplicity_carrier(program, reference, depth + 1);
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Unit => true,
+        TypeReferenceNode::Constrained { base_type, .. } => closed(*base_type),
+        TypeReferenceNode::Reference {
+            referee, lifetime, ..
+        } => lifetime.is_none() && closed(*referee),
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: crate::types::FixedArrayLength::Literal(_),
+        }
+        | TypeReferenceNode::Slice { element_type } => closed(*element_type),
+        TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::ConstExpression(_) => false,
+        TypeReferenceNode::Named { symbol, name } => {
+            if program.data_type_parameter_by_symbol(*symbol).is_some() {
+                return false;
+            }
+            if !symbol.is_valid() {
+                // Primitive spellings are a closed language inventory, not a
+                // nominal declaration/name fallback.
+                return crate::types::PrimitiveType::from_name(name.as_str()).is_some();
+            }
+            if let Some(atom) = program.symbols.builtin_type_atom(*symbol) {
+                return crate::types::PrimitiveType::from_name(atom.symbol_name()).is_some()
+                    && atom.symbol_name() == name.as_str();
+            }
+            // Do not let the total multiplicity reader's primitive spelling
+            // fallback override a different resolved nominal identity.
+            if crate::types::PrimitiveType::from_name(name.as_str()).is_some() {
+                return false;
+            }
+            let Some(definition) = program.unique_data_definition_by_symbol(*symbol) else {
+                return false;
+            };
+            if let Some(origin) = definition.generic_instance {
+                return closed(origin);
+            }
+            program.data_type_parameters(definition).is_empty()
+                && definition.lifetime_parameters.is_empty()
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            lifetime_arguments,
+            arguments,
+            ..
+        } => {
+            let Some(definition) = program.unique_data_definition_by_symbol(*base_symbol) else {
+                return false;
+            };
+            lifetime_arguments.is_empty()
+                && definition.lifetime_parameters.is_empty()
+                && closed_multiplicity_arguments(
+                    program,
+                    program.data_type_parameters(definition),
+                    program
+                        .type_reference_table
+                        .type_reference_handles(*arguments),
+                    depth + 1,
+                )
+        }
+        TypeReferenceNode::DynamicTrait {
+            symbol, arguments, ..
+        } => {
+            if !symbol.is_valid() {
+                return false;
+            }
+            let mut declarations = program
+                .traits()
+                .iter()
+                .filter(|item| item.symbol == *symbol);
+            let Some(declaration) = declarations.next() else {
+                return false;
+            };
+            declarations.next().is_none()
+                && declaration.lifetime_parameters.is_empty()
+                && closed_multiplicity_arguments(
+                    program,
+                    program.trait_type_parameters(declaration),
+                    program
+                        .type_reference_table
+                        .type_reference_handles(*arguments),
+                    depth + 1,
+                )
+        }
+    }
+}
+
+fn closed_multiplicity_arguments(
+    program: &TypedTrees,
+    parameters: &[crate::data::TypeParameter],
+    arguments: &[TypeReferenceHandle],
+    depth: usize,
+) -> bool {
+    parameters.len() == arguments.len()
+        && parameters
+            .iter()
+            .zip(arguments)
+            .all(|(parameter, argument)| {
+                if !parameter.symbol.is_valid()
+                    || !program
+                        .type_reference_table
+                        .contains_type_reference(*argument)
+                {
+                    return false;
+                }
+                match parameter.kind {
+                    crate::data::TypeParameterKind::Type => {
+                        closed_multiplicity_carrier(program, *argument, depth)
+                    }
+                    crate::data::TypeParameterKind::Const { .. }
+                    | crate::data::TypeParameterKind::Value { .. } => {
+                        // Only already literal static operands are known here.
+                        // Selected calls, runtime subjects and unresolved names
+                        // need their own evaluator; absence retains the candidate.
+                        program
+                            .static_const_literal_from_type_reference(*argument)
+                            .is_some()
+                            || matches!(
+                                program.type_reference_table.type_reference(*argument),
+                                TypeReferenceNode::ConstExpression(value)
+                                    if matches!(program.expression_table.expression(*value),
+                                        crate::expression::ExpressionNode::Boolean(_))
+                            )
+                    }
+                    _ => false,
+                }
+            })
 }
 
 /// A readable primitive referent supplies its scalar value to a scalar

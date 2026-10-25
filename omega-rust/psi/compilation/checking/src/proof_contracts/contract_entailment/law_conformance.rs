@@ -25,8 +25,8 @@ pub(crate) use slot_bindings::{
 };
 
 use super::{
-    Diagnostic, ExpressionHandle, Machine, ProofFact, RESULT_BINDER, StateSignature,
-    StructuralTerm, structural_term, unfold_constant_applications,
+    Diagnostic, ExpressionHandle, Machine, ProofFact, StateSignature, StructuralTerm,
+    structural_term, unfold_constant_applications,
 };
 use crate::proof_contracts::contract_entailment::law_conformance::proposition_laws::{
     bindings_are_forall_general, check_proposition_law_conformance,
@@ -141,8 +141,16 @@ pub(crate) fn check_law_conformance(
         }
     }
 
-    let result_binder = RESULT_BINDER.to_owned();
     for law_conjunct in &law_conjuncts {
+        if crate::proof_contracts::contract_results::expression_uses_reserved_result(
+            program,
+            *law_conjunct,
+        ) {
+            // Selected content and other functional guarantees may not have
+            // first-order terms. Their exact result occurrence still keeps
+            // them out of law matching; ordinary exit proof remains required.
+            continue;
+        }
         let Some(binary) = program.expression_table.binary_node(*law_conjunct) else {
             continue;
         };
@@ -152,12 +160,6 @@ pub(crate) fn check_law_conformance(
         ) else {
             continue; // out-of-language law conjunct: nothing to enforce yet
         };
-        if term_mentions_variable(&law_left, &result_binder)
-            || term_mentions_variable(&law_right, &result_binder)
-        {
-            continue; // a functional spec, not a law conjunct
-        }
-
         // A law selects only operation slots it actually uses. Other members
         // may have several legitimate realizations (including target bodies);
         // their existence cannot make an unrelated equation ambiguous.
@@ -201,6 +203,11 @@ pub(crate) fn check_law_conformance(
         }
 
         let matched = proven_conjuncts.iter().find_map(|(proven, source)| {
+            if crate::proof_contracts::contract_results::expression_uses_reserved_result(
+                program, *proven,
+            ) {
+                return None;
+            }
             let Some(proven_binary) = program.expression_table.binary_node(*proven) else {
                 return None;
             };
@@ -210,11 +217,6 @@ pub(crate) fn check_law_conformance(
             ) else {
                 return None;
             };
-            if term_mentions_variable(&proven_left, &result_binder)
-                || term_mentions_variable(&proven_right, &result_binder)
-            {
-                return None;
-            }
             let proven_left = unfold_constant_applications(program, proven_left);
             let proven_right = unfold_constant_applications(program, proven_right);
             [(&proven_left, &proven_right), (&proven_right, &proven_left)]

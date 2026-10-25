@@ -289,7 +289,7 @@ fn retain_constructor_result_type(
                 typed_trees::data::DataMember::Field(declared)
                     if declared.symbol == field.field_symbol =>
                 {
-                    Some(declared.type_reference)
+                    Some(declared)
                 }
                 typed_trees::data::DataMember::Variant(case)
                     if Some(case.symbol) == literal.case_symbol =>
@@ -298,7 +298,6 @@ fn retain_constructor_result_type(
                         .data_payload_fields(case)
                         .iter()
                         .find(|declared| declared.symbol == field.field_symbol)
-                        .map(|declared| declared.type_reference)
                 }
                 _ => None,
             })?;
@@ -307,15 +306,23 @@ fn retain_constructor_result_type(
         else {
             continue;
         };
-        crate::monomorphization::infer_static_bindings(context, required, actual, &mut inferred);
-        crate::conformance::conformance_application_lifetimes::collect_lifetime_bindings(
-            program,
-            required,
+        crate::monomorphization::infer_static_bindings(
+            context,
+            required.type_reference,
             actual,
-            &owner.lifetime_parameters,
+            &mut inferred,
+        );
+        crate::conformance::conformance_application_lifetimes::collect_declared_field_lifetime_bindings(
+            program,
+            owner,
+            required,
+            machine,
+            state,
+            field.value,
+            actual,
             &mut lifetime_bindings,
             &mut lifetime_conflict,
-        );
+        )?;
     }
     if lifetime_conflict {
         return None;

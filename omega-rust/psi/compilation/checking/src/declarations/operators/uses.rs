@@ -706,7 +706,7 @@ fn operator_use_fact(
         );
     }
     let use_site = program.expression_table.source_span(expression);
-    let mut candidates = if matches!(spelling, OperatorSpelling::Index | OperatorSpelling::Range) {
+    let candidates = if matches!(spelling, OperatorSpelling::Index | OperatorSpelling::Range) {
         typed_trees::operator::resolve_indexed_spelling_for_operands(
             program,
             spelling,
@@ -716,18 +716,6 @@ fn operator_use_fact(
     } else {
         resolve_spelling_for_operands(program, spelling, operand_types, use_site)
     };
-    if spelling == OperatorSpelling::Index {
-        let collection = operand_types.first().copied().flatten();
-        candidates.retain(|candidate| {
-            typed_trees::operator::indexed_operator_governs_occurrence(
-                program,
-                spelling,
-                candidate.operator,
-                expression,
-                collection,
-            )
-        });
-    }
     let (candidate_count, candidate_span) =
         checked_candidate_span(program, candidate_facts, &candidates);
     let (status, selected_operator_symbol) =
@@ -753,20 +741,23 @@ fn operator_use_fact(
                 });
             let builtin_indexed = indexed_spelling
                 && origin_machine_symbol(origin).is_some_and(|machine_symbol| {
-                    (builtin_geometry
-                        && typed_trees::operator::has_builtin_spelled_expression_meaning(
-                            program,
-                            machine_symbol,
-                            expression,
-                            spelling,
-                            operand_types,
-                        ))
-                        || typed_trees::operator::declined_copy_index_is_builtin_place(
-                            program,
-                            machine_symbol,
-                            expression,
-                            operand_types,
-                        )
+                    builtin_geometry
+                        && if spelling == OperatorSpelling::Index {
+                            typed_trees::operator::builtin_index_read_is_spelled(
+                                program,
+                                machine_symbol,
+                                expression,
+                                operand_types,
+                            )
+                        } else {
+                            typed_trees::operator::has_builtin_spelled_expression_meaning(
+                                program,
+                                machine_symbol,
+                                expression,
+                                spelling,
+                                operand_types,
+                            )
+                        }
                 });
             (
                 if builtin_indexed {

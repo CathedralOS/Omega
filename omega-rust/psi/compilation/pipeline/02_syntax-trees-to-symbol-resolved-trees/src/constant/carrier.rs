@@ -169,10 +169,11 @@ pub(super) fn encoding_has_nominal_carrier(encoding: &str) -> bool {
 /// Rejoin the parent-owned child span in actual resolved type owners. Copies
 /// of one application may share its span, but must agree on the resolved base.
 /// No encoded name or detached provisional application supplies this identity.
-pub(super) fn receiving_parameters(
-    program: &SymbolResolvedTrees,
+pub(super) fn receiving_parameters<'program>(
+    program: &'program SymbolResolvedTrees,
     arguments: arena::HandleSpan<TypeReference>,
-) -> Option<&[symbol_resolved_trees::data::TypeParameter]> {
+    lexical_inputs: &[crate::lowering::state::StateLexicalInputs],
+) -> Option<&'program [symbol_resolved_trees::data::TypeParameter]> {
     let mut selected = SymbolHandle::invalid();
     let mut conflicting = false;
     let mut inspect = |reference: &TypeReference| {
@@ -190,6 +191,12 @@ pub(super) fn receiving_parameters(
     let declarations = &program.tables.declarations;
     for (_, reference) in declarations.child_type_references.iter() {
         inspect(reference);
+    }
+    // A constant annotation is an actual receiving application too. Its
+    // generic tuple may contain selected named constants just like a field
+    // or local; rejoin that parent-owned span before checking the slot.
+    for declaration in program.const_declarations.iter() {
+        inspect(&declaration.declared_type);
     }
     for (_, parameter) in declarations.state_parameters.iter() {
         inspect(&parameter.type_reference);
@@ -210,6 +217,16 @@ pub(super) fn receiving_parameters(
     for (_, statement) in declarations.state_statements.iter() {
         if let symbol_resolved_trees::statement::Statement::LocalData(local) = statement {
             inspect(&local.type_reference);
+        }
+    }
+    for input in lexical_inputs {
+        for statement in &input.locals {
+            if let symbol_resolved_trees::statement::Statement::LocalData(local) = statement {
+                inspect(&local.type_reference);
+            }
+        }
+        for (_, reference) in &input.types {
+            inspect(reference);
         }
     }
     for definition in program.data_definitions.iter() {

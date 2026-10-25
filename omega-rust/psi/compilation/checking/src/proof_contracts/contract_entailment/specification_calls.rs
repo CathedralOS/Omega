@@ -295,7 +295,7 @@ fn validate_expression(
         SpecificationCaller::Declaration(symbol, parameters) => {
             selected_call_contract_for_parameters(program, call, symbol, parameters)
         }
-        SpecificationCaller::Machine(..) => selected_call_contract(program, call),
+        SpecificationCaller::Machine(..) => selected_call_contract(program, caller.symbol(), call),
     };
     let Some(contract_owner) = selected else {
         return;
@@ -475,10 +475,12 @@ pub(crate) enum SelectedCallContract<'program> {
 
 pub(crate) fn selected_call_contract<'program>(
     program: &'program dyn crate::CheckingInput,
+    caller: SymbolHandle,
     call: &TableCallExpression,
 ) -> Option<SelectedCallContract<'program>> {
     selected_call_site_contract(
         program,
+        caller,
         crate::CallSite::Expression {
             expression: Default::default(),
             call,
@@ -490,22 +492,20 @@ pub(crate) fn selected_call_contract<'program>(
 /// A private realization cannot replace its retained requirement contract.
 pub(super) fn selected_call_site_contract<'program>(
     program: &'program dyn crate::CheckingInput,
+    caller: SymbolHandle,
     site: crate::CallSite<'_>,
 ) -> Option<SelectedCallContract<'program>> {
-    let application = match site {
-        crate::CallSite::Expression { call, .. } => call.authored_machine_application,
-        crate::CallSite::Statement(call) => call.authored_machine_application,
-        crate::CallSite::TransitionNamed { .. } => return None,
-    };
-    if application.is_valid() {
-        let caller = program
-            .expression_table
-            .static_machine_application(application)
-            .lexical_owner;
-        if let Some((_, signature)) = crate::requirement_contract_signature(program, caller, &site)
-        {
-            return Some(SelectedCallContract::Signature(signature));
-        }
+    // Contract expressions can name their exact state as value owner. Static
+    // selection belongs to that state's machine; abstract signatures retain
+    // their independent declaration telescope.
+    let caller = program
+        .machine_holding_state(caller)
+        .map_or(caller, |machine| machine.symbol);
+    // The caller owns selection even when the member's own telescope is
+    // empty and has no authored machine application. Its exact public view
+    // must never be replaced by the executable realization's private contract.
+    if let Some((_, signature)) = crate::requirement_contract_signature(program, caller, &site) {
+        return Some(SelectedCallContract::Signature(signature));
     }
     if site.static_requirement_dispatch().is_some() {
         // A selected body cannot replace a lost occurrence-local public view.
@@ -583,7 +583,7 @@ pub(super) fn selected_call_contract_for_parameters<'program>(
     owner: SymbolHandle,
     parameters: &[StateParameter],
 ) -> Option<SelectedCallContract<'program>> {
-    selected_call_contract(program, call).or_else(|| {
+    selected_call_contract(program, owner, call).or_else(|| {
         let (symbol, _, _) =
             crate::float_semantic_application_for_parameters(program, call, owner, parameters)?;
         typed_trees::operator::declaration_by_symbol(program, symbol)
@@ -1228,7 +1228,7 @@ fn requirements_are_acyclic(
     }
     let cyclic = crate::expression_traversal::visit_pre_order(program, pending, |_, node| {
         matches!(node, ExpressionNode::Call(call)
-        if selected_call_contract(program, call).is_some_and(|nested| {
+        if selected_call_contract(program, symbol, call).is_some_and(|nested| {
             !requirements_are_acyclic(program, &nested, active, complete)
         }))
     });

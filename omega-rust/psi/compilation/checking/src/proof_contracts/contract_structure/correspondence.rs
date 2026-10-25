@@ -33,6 +33,11 @@ pub(crate) fn correspondence_fact(
     fact: &ProofFact,
     binders: &[(SymbolHandle, String)],
 ) -> Option<CorrespondenceFact> {
+    if !crate::proof_contracts::contract_results::fact_has_source_builtin_index_meaning(
+        program, fact,
+    ) {
+        return None;
+    }
     match fact {
         ProofFact::Proposition(application) => proposition_fact(program, application, binders, &[]),
         _ => super::try_declared_fact(program, fact, binders, &[])
@@ -46,6 +51,18 @@ fn proposition_fact(
     binders: &[(SymbolHandle, String)],
     scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<CorrespondenceFact> {
+    if !program
+        .expression_table
+        .expression_handles(application.arguments)
+        .iter()
+        .all(|argument| {
+            crate::proof_contracts::contract_results::expression_has_source_builtin_index_meaning(
+                program, *argument,
+            )
+        })
+    {
+        return None;
+    }
     if !application.proposition.is_valid()
         || scopes
             .iter()
@@ -107,6 +124,9 @@ fn proposition_fact(
                     proposition_fact(program, expansion, binders, &applied)
                 }
                 PropositionFormula::BooleanExpression(expression) => {
+                    if !crate::proof_contracts::contract_results::expression_has_source_builtin_index_meaning(program, *expression) {
+                        return None;
+                    }
                     let identity = try_normalized_index_identity(
                         program.typed_program(),
                         IndexIdentityArgument::Expression(*expression),

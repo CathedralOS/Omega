@@ -7,12 +7,14 @@
 //!   the `direct` and `domains` provers).
 //! - `call_entry_contexts_prove_boolean_contract_expression`: a callee's
 //!   Boolean contract expression at one call site. It tries, in order, a
-//!   surviving call guarantee (`call_guarantees`), the caller's case at the
-//!   place a case test's subject names, Boolean field facts on the actual's
+//!   caller's case at the place a case test's subject names, Boolean field
+//!   facts on the actual's
 //!   referent (`field_actuals`), the instantiated expression in each entry
 //!   context (`booleans`, skipped when `field_actuals` recognized the
 //!   requirement), and last the expression evaluated with the call's
-//!   arguments substituted (`evaluator`).
+//!   arguments substituted (`evaluator`). Completed normal-call guarantees
+//!   belong to `calls::captured_boolean` before its source-replay fence; these
+//!   source-substitution fallbacks cannot replace a failed capture judgment.
 //! - `semantic_contexts_prove_contract_fact`: one contract fact, by payload
 //!   kind: domain membership (a matching or covering fact, or
 //!   `assigned_values`), carry permission, Boolean expression, proposition
@@ -185,18 +187,6 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
         return false;
     };
 
-    if call_guarantees::proves(
-        program,
-        facts,
-        state_flow,
-        call_flow,
-        entry_contexts,
-        expression,
-        call_frames,
-    ) {
-        return true;
-    }
-
     // Semantic place observations share one predicate owner. Ordinary calls
     // resolve the subject at invocation; captured callers supply the selected
     // operand's own place and contexts to the same query.
@@ -214,8 +204,11 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
         if predicate.proven(
             program,
             facts,
-            state_flow,
-            call_flow,
+            facts::ProgramPoint::Statement {
+                machine_symbol: state_flow.machine_symbol,
+                state_symbol: state_flow.state_symbol,
+                statement_index: call_flow.statement_index,
+            },
             entry_contexts,
             &place,
         ) {

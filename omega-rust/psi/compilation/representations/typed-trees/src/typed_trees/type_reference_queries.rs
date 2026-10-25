@@ -8,6 +8,9 @@ use crate::typed_trees::{
 };
 use crate::{expression, name, types};
 
+#[cfg(test)]
+mod static_const_binding_tests;
+
 impl TypedTrees {
     pub fn retain_collection_result_types(&mut self, reference: types::TypeReferenceHandle) {
         self.tables
@@ -184,13 +187,32 @@ impl TypedTrees {
                             .type_reference(argument.type_reference),
                         types::TypeReferenceNode::ConstExpression(_)
                     );
-                expression
-                    && crate::type_identity::applied_index_identity(
-                        self,
-                        crate::type_identity::IndexIdentityArgument::StaticArgument(argument),
-                        source_owner,
-                        &[],
-                    )
+                let value = if expression {
+                    crate::type_identity::IndexIdentityArgument::StaticArgument(argument)
+                } else if argument.symbol.is_valid()
+                    && self.symbols.get(argument.symbol).kind == symbols::SymbolKind::TypeParameter
+                    && self
+                        .data_type_parameter_by_symbol(argument.symbol)
+                        .is_some_and(|parameter| {
+                            matches!(parameter.kind, TypeParameterKind::Const { .. })
+                        })
+                    && argument.const_literal.is_none()
+                    && argument.application.is_none()
+                    && argument.evidence_projection.is_none()
+                    && (!argument.type_reference.is_valid()
+                        || matches!(
+                            self.type_reference_table.type_reference(argument.type_reference),
+                            types::TypeReferenceNode::Named { symbol, .. } if *symbol == argument.symbol
+                        ))
+                {
+                    // An open Const binder is a value even when its retained
+                    // Named reference resembles a type operand. Join its exact
+                    // declaration, never its spelling or runtime carrier.
+                    crate::type_identity::IndexIdentityArgument::Subject(argument.symbol)
+                } else {
+                    return false;
+                };
+                crate::type_identity::applied_index_identity(self, value, source_owner, &[])
                     .zip(crate::type_identity::applied_index_identity(
                         self,
                         crate::type_identity::IndexIdentityArgument::TypeReference(*actual),

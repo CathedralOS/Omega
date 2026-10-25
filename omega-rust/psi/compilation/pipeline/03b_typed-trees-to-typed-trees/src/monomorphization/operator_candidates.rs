@@ -621,17 +621,6 @@ fn selected_operator_application_at_expression(
     let Some(spelling) = operator.spelling else {
         return Ok(None);
     };
-    if spelling == language_core::operator_spelling::OperatorSpelling::Index
-        && !typed_trees::operator::indexed_operator_governs_occurrence(
-            program,
-            spelling,
-            operator,
-            expression,
-            operand_types.first().copied().flatten(),
-        )
-    {
-        return Ok(None);
-    }
     if !typed_trees::operator::resolve_spelling_for_operands(
         program,
         spelling,

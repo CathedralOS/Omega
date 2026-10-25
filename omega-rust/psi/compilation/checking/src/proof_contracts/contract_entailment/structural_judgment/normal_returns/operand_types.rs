@@ -26,7 +26,7 @@ pub(super) fn receiving_types(
 ) -> Option<Vec<TypeReferenceHandle>> {
     match node {
         ExpressionNode::Call(call) => {
-            let mut owner = selected_call_contract(program, call)?;
+            let mut owner = selected_call_contract(program, caller.symbol, call)?;
             // A static generic qualifier owns its public application just as
             // a dynamic slot owns its instantiated data telescope. Keep that
             // scope; an implementation's private parameter types are not it.

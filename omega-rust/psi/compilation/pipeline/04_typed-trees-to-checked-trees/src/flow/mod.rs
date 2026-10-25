@@ -49,7 +49,7 @@ pub(crate) use entry_origins::{
 };
 mod exits;
 mod guard_predicates;
-pub(crate) use guard_predicates::saved_guard_observations;
+pub(crate) use guard_predicates::{saved_guard_observations, transition_guard_observations};
 mod expression;
 mod operand_contexts;
 mod operand_values;

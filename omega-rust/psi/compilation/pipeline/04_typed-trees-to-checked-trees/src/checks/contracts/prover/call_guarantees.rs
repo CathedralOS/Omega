@@ -11,10 +11,10 @@
 //!
 //! This consumes the existing flow evidence rather than copying predicates at
 //! each assignment. Storage dependencies retire changed inputs; assignment
-//! provenance retires changed results. Predicate inputs must be places or
-//! literals (including constructor fields) and preserve their read footprints:
-//! expression-root dependencies alone do
-//! not establish that a computed actual still denotes its captured value.
+//! provenance retires changed results. Inputs retain their exact completed
+//! operand and declared carrier. Detached stable values can name opaque
+//! computations without replay; live views still owe storage preservation.
+//! Expression-root dependencies alone do not establish referent identity.
 
 use crate::facts::boolean_predicates::{self, BoundPredicate};
 
@@ -325,7 +325,7 @@ pub(in crate::checks) fn scalar_at_place(
         })
     })
 }
-pub(super) fn proves(
+pub(in crate::checks::contracts) fn proves(
     program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     caller: &FlowStateFact,
@@ -343,7 +343,7 @@ pub(super) fn proves(
     let Some(frames) = frames else {
         return false;
     };
-    if !stable_predicate_inputs(program, &required, expression)
+    if !stable_predicate_inputs(program, facts, caller, &required, expression)
         || !builtin_predicate(program, operators, &required, expression)
     {
         return false;
@@ -353,7 +353,10 @@ pub(super) fn proves(
         program,
         facts,
         caller,
-        GuaranteeUse::StatementEntry(call.statement_index),
+        // These are the exact call-entry contexts after its operands, not
+        // statement entry. Context membership excludes this call's own and
+        // later guarantees while admitting completed nested operands.
+        GuaranteeUse::EvaluatedContext(call.statement_index),
         contexts,
         frames,
     )
@@ -378,7 +381,25 @@ pub(super) fn proves(
         let required_scope = PredicateScope {
             callable: required.callable,
             literal: &|expression| bound_literal(program, &required, expression),
-            place: &|expression| bound_place(program, &required, expression),
+            place: &|expression| {
+                let place = bound_place(program, &required, expression)?;
+                let machine = program.machine_by_symbol(caller.machine_symbol)?;
+                // A syntactic match still owes operand chronology. In
+                // demand(value, set(&mut value)), the first copy cannot name
+                // the setter's post-state value. The shared prefix judge
+                // declines that storage identity; arithmetic may separately
+                // prove the retained copy at its own captured epoch.
+                crate::flow::local_reference_storage_at_call(
+                    program,
+                    frames,
+                    machine,
+                    &facts.flow,
+                    caller,
+                    call,
+                    place,
+                    crate::flow::ValueObservation::Contents,
+                )
+            },
         };
         let supplied_scope = PredicateScope {
             callable: guarantee.invocation.callable,
@@ -552,7 +573,7 @@ pub(in crate::checks) fn guarantee_scalar<'facts>(
             if matches!(supplied.site, CallSite::TransitionNamed { .. }) {
                 return None;
             }
-            let stable = stable_predicate_inputs(program, &supplied, occurrence);
+            let stable = stable_predicate_inputs(program, facts, caller, &supplied, occurrence);
             let preserved = capture_preserved(
                 program,
                 &facts.borrow,
@@ -745,6 +766,8 @@ fn ordinary_arguments(
 /// only admission to the exact-value vocabulary, not an effect exemption.
 fn stable_predicate_inputs(
     program: &dyn ::validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
+    caller: &FlowStateFact,
     invocation: &Invocation<'_>,
     expression: ExpressionHandle,
 ) -> bool {
@@ -761,10 +784,72 @@ fn stable_predicate_inputs(
         if let Some(result) = validation::reserved_result_place(program, occurrence) {
             return result.machine_symbol == invocation.callable.owner_symbol();
         }
-        static_operands::immutable(program, occurrence)
-            || actual_projection(program, invocation, occurrence)
-                .is_some_and(|(actual, _)| stable_value(program, actual, &mut Vec::new()))
+        if static_operands::immutable(program, occurrence) {
+            return true;
+        }
+        let Some((actual, path)) = actual_projection(program, invocation, occurrence) else {
+            return false;
+        };
+        let Some(call) = invocation_fact(facts, caller, invocation) else {
+            return false;
+        };
+        let Some((operands, receiver_offset)) =
+            crate::flow::captured_call_operands(program, &facts.flow, caller, call)
+        else {
+            return false;
+        };
+        let Some(formal) = formal_place(program, invocation, occurrence) else {
+            return false;
+        };
+        let Some(position) = invocation
+            .callable
+            .parameters(program)
+            .iter()
+            .position(|parameter| formal.root == PlaceRoot::Symbol(parameter.symbol))
+        else {
+            return false;
+        };
+        let Some(operand) = operands.get(receiver_offset + position) else {
+            return false;
+        };
+        if operand.expression != actual
+            || validation::project_type_reference_from_segments(
+                program,
+                operand.type_reference,
+                &path,
+            )
+            .is_none()
+        {
+            return false;
+        }
+        // Stable owned projections keep their captured contents even when
+        // the aggregate carries a separate semantic/linear qualification.
+        // Every prefix must remain owned: a scalar behind a reference is live
+        // storage, not a detached scalar merely because its final type is u64.
+        // Calls returning views retain the existing exact-place/write judge.
+        stable_owned_projection(program, operand.type_reference, &path)
+            || stable_value(program, actual, &mut Vec::new())
     })
+}
+
+fn stable_owned_projection(
+    program: &dyn ::validation::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+    path: &[facts::PlaceSegment],
+) -> bool {
+    let mut selected = reference;
+    for length in 0..=path.len() {
+        let Some(projected) =
+            validation::project_type_reference_from_segments(program, reference, &path[..length])
+        else {
+            return false;
+        };
+        if crate::flow::operand_binds_live_view(program, projected) {
+            return false;
+        }
+        selected = projected;
+    }
+    crate::flow::operand_binds_stable_copy(program, selected)
 }
 
 fn stable_value(

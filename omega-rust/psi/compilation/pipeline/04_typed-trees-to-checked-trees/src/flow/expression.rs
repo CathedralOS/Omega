@@ -1999,34 +1999,19 @@ fn returned_constructor_case(
     if !callee.body_is_present || program.machine_states(callee).first()?.symbol != state.symbol {
         return None;
     }
-    let statements = program.statement_table.statements(state.statement_nodes);
+    let values = typed_trees::statement::direct_state_return_values(
+        &program.statement_table,
+        program.statement_table.statements(state.statement_nodes),
+    )?;
     let mut agreed = None;
-    let mut saw_transition = false;
-    for statement in statements {
-        let Some(transition) = statement.as_transition() else {
-            continue;
-        };
-        saw_transition = true;
-        if transition.exit != typed_trees::statement::TransitionExit::Ordinary {
+    for value in values {
+        let variant = constructor_case(program, value)?;
+        if agreed.is_some_and(|existing| existing != variant) {
             return None;
         }
-        for target in transition.targets() {
-            let TransitionTargetNode::Value(value) =
-                program.statement_table.transition_target(target)
-            else {
-                return None;
-            };
-            let variant = constructor_case(program, *value)?;
-            if agreed.is_some_and(|existing| existing != variant) {
-                return None;
-            }
-            agreed = Some(variant);
-        }
+        agreed = Some(variant);
     }
-    if saw_transition {
-        return agreed;
-    }
-    constructor_case(program, *statements.iter().next_back()?.as_expression()?)
+    agreed
 }
 
 fn constructor_case(

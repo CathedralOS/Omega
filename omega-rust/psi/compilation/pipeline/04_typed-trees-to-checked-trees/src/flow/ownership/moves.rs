@@ -110,6 +110,24 @@ pub(super) fn append_move_events_for_expression(
         return;
     }
 
+    // Collection metadata is a scalar observation, not a stored member to
+    // transfer. Its structural receiver establishes builtin length meaning;
+    // a same-spelled nominal field still follows ordinary field ownership.
+    // Preserve evaluation of computed receivers and their real call operands.
+    if let Some(receiver) =
+        validation::collection_length_receiver(program, sink.machine, Some(sink.state), expression)
+    {
+        observations::append(
+            program,
+            sink,
+            state_symbol,
+            statement_index,
+            receiver,
+            source,
+        );
+        return;
+    }
+
     let value_type = consumed_value_type(
         program,
         state_symbol,

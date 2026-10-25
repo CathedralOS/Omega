@@ -196,6 +196,7 @@ pub(crate) fn finalize(
         program,
         &lowerer.pending_const_argument_selections,
         &lowerer.pending_const_argument_slots,
+        &lowerer.resolved_lexical_inputs,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
     let const_expression_roots = lowerer

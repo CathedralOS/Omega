@@ -164,9 +164,12 @@ fn ordered_result_call<'program>(
 
 /// Identity of one completed call occurrence while its `ensures` is applied.
 ///
-/// Argument operands use the ordinary place identity. The call itself is not
-/// required to be a primitive value closure: a field read is a real result,
-/// and this operand is not reused as proof that two such calls are equal.
+/// Exact occurrence identity does not require any actual to denote a
+/// repeatable primitive value. A nested owned result may have no such
+/// denotation, and an unrelated actual must not hide an independent result
+/// guarantee. The clause's mentioned formals still substitute through their
+/// own ordinary observation and write-preservation judges below. This root
+/// grants no argument equality and cannot equate distinct source calls.
 pub(super) fn ensured_call_operand(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,

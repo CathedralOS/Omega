@@ -375,6 +375,7 @@ fn expression_places_resolve_attached_data_members() {
         contracts: HandleSpan::empty(),
         states: HandleSpan::empty(),
         authored_target: None,
+        lexical_region_origin: None,
         entry_context_origin: None,
     };
     let mut state = typed_trees::state::State {

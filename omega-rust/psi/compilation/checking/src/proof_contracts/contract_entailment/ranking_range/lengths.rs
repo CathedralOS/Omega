@@ -232,17 +232,9 @@ fn evaluate_length(
         // An operator that ensures `result.len == end - start` is that
         // arithmetic: the endpoints are the extent, and the operator's
         // `requires` own ordering and inclusion.
-        if !contracted_extent {
-            for endpoint in [range.start, range.end] {
-                if endpoint.is_valid() {
-                    super::meanings::admitted_carrier(
-                        program,
-                        machine,
-                        state,
-                        endpoint,
-                        depth + 1,
-                    )?;
-                }
+        for endpoint in [range.start, range.end] {
+            if endpoint.is_valid() {
+                super::meanings::admitted_carrier(program, machine, state, endpoint, depth + 1)?;
             }
         }
         let start = if range.start.is_valid() {

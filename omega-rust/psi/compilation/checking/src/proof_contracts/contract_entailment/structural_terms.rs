@@ -375,9 +375,10 @@ pub(super) fn structural_call_machine_name(
 /// keep their retained handle when no concrete contract can be projected.
 pub(super) fn structural_call_target(
     program: &dyn crate::CheckingInput,
+    caller: symbols::SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,
 ) -> symbols::SymbolHandle {
-    super::specification_calls::selected_call_contract(program, call)
+    super::specification_calls::selected_call_contract(program, caller, call)
         .map(|owner| super::specification_calls::owner_symbol(&owner))
         .unwrap_or(call.target_symbol)
 }
@@ -837,9 +838,10 @@ pub(super) fn structural_term(
 /// not sufficient authority and an instance receiver stays observable.
 pub(super) fn static_call_receiver(
     program: &dyn crate::CheckingInput,
+    caller: symbols::SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
-    static_call_receiver_for_target(program, call, structural_call_target(program, call))
+    static_call_receiver_for_target(program, call, structural_call_target(program, caller, call))
 }
 
 /// The selected conformance's entry, when this call already carries a closed
@@ -899,7 +901,13 @@ fn structural_call_target_in_frame(
             )
         })
         .map(|owner| super::specification_calls::owner_symbol(&owner))
-        .unwrap_or_else(|| structural_call_target(program, call))
+        .unwrap_or_else(|| {
+            structural_call_target(
+                program,
+                frame.map_or(symbols::SymbolHandle::invalid(), |(owner, _)| owner),
+                call,
+            )
+        })
 }
 
 fn call_projection_field_symbol(

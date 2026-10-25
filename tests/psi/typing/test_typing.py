@@ -1896,6 +1896,53 @@ def main() -> None:
         b"i32!2",
     )
 
+    # Every trait telescope checks argument kinds, even without evidence slots.
+    rejected(
+        program,
+        "implementation-in-type-only-trait-slot",
+        b"trait Marker { }\nSeven satisfies Marker { }\n"
+        b"trait Consumer<Value> { }\ntrait Use: Consumer<Seven> { }\n",
+        "UnsupportedTypeForm",
+        b"Seven!2",
+    )
+    counted = b"trait Counted<Count: u64> { }\n"
+    accepted(program, "value-trait-literal", counted + b"trait Use: Counted<7> { }\n", ())
+    accepted(
+        program,
+        "value-trait-forwarded-value",
+        counted + b"trait Forward<Count: u64>: Counted<Count> { }\n",
+        (),
+    )
+    accepted(
+        program,
+        "value-trait-forwarded-const",
+        counted + b"trait Forward<const Count: u64>: Counted<Count> { }\n",
+        (),
+    )
+    rejected(
+        program,
+        "type-in-value-trait-slot",
+        counted + b"trait Use: Counted<u8> { }\n",
+        "UnsupportedTypeForm",
+        b"u8",
+    )
+    rejected(
+        program,
+        "forwarded-evidence-in-type-only-trait-slot",
+        b"trait Marker { }\ntrait Consumer<Value> { }\n"
+        b"trait Forward<Reader satisfies Marker>: Consumer<Reader> { }\n",
+        "UnsupportedTypeForm",
+        b"Reader!2",
+    )
+    rejected(
+        program,
+        "value-in-const-only-trait-slot",
+        b"trait Counted<const Count: u64> { }\n"
+        b"trait Forward<Count: u64>: Counted<Count> { }\n",
+        "UnsupportedTypeForm",
+        b"Count!5",
+    )
+
     # The product's own psi package types as one source set: each module
     # under source/psi as `<directory>::<file>` of package `psi`.
     psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"

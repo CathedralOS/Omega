@@ -3,13 +3,19 @@
 use checked_trees::{CheckFacts, FlowStateFact};
 use language_semantics::content::{ContentConservationTerm, ContentPlaceRoot, ContentPlaceVersion};
 
+mod inherited;
+
 pub(super) fn proves_exit(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
+    exit: &checked_trees::FlowExitFact,
     fact: &facts::Fact,
     content_plans: &[validation::ContentConservationSourcePlan],
 ) -> bool {
+    if inherited::proves_exit(program, facts, exit, fact, content_plans) {
+        return true;
+    }
     let facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
         return false;
     };

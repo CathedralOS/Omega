@@ -11,7 +11,9 @@
 
 use super::content_paths::{ClaimBindings, content_segments_to_fact_path, entry_claim_identity};
 use super::partition_wrappers::ordinary_returns;
-use crate::checks::multiplicity::{LinearPlace, ReturnedClaimSource, completed_owned_claims};
+use crate::checks::multiplicity::{
+    CompletedClaimLocation, LinearPlace, ReturnedClaimSource, completed_owned_claims,
+};
 use checked_trees::CheckFacts;
 use checked_trees::facts::ContentBodyConservationFact;
 use language_semantics::content::{
@@ -29,6 +31,7 @@ pub(crate) fn observe_body_completion(
     places: &[LinearPlace],
     events: &[checked_trees::FlowPermissionEventFact],
     evaluation_events: &[checked_trees::FlowPermissionEventFact],
+    location: CompletedClaimLocation,
 ) -> Vec<arena::Handle<ContentBodyConservationFact>> {
     let mut observed = Vec::new();
     let entry = program
@@ -100,8 +103,14 @@ pub(crate) fn observe_body_completion(
                 ) {
                     continue;
                 }
-                let returned =
-                    completed_owned_claims(program, facts, captured, places, evaluation_events);
+                let returned = completed_owned_claims(
+                    program,
+                    facts,
+                    completed_value,
+                    location,
+                    places,
+                    evaluation_events,
+                );
                 let Ok(returned) = returned else {
                     // Missing/ambiguous custody has its owning checker error;
                     // a theorem cannot fill an absent claim occurrence.

@@ -274,7 +274,7 @@ pub(super) fn assignment_storage_regions(
                 paths
                     .iter()
                     .map(|path| {
-                        place_from_origin_path(program, state, statement_index, path)
+                        frame_write_place(program, state, statement_index, path)
                             .map(StorageRegion::Declared)
                     })
                     .collect()
@@ -653,6 +653,24 @@ fn reference_result_candidate_places(
                 candidate
             })
             .collect(),
+    )
+}
+
+/// A complete frame's terminal wildcard is an absorbing collection footprint,
+/// not a field name or an element identity. Retain the entire collection;
+/// ordinary origin rebasing still follows any carried reference leaves.
+/// Value/descriptor readers keep the exact dotted-path query below.
+pub(super) fn frame_write_place(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    path: &str,
+) -> Option<CanonicalPlace> {
+    place_from_origin_path(
+        program,
+        state,
+        statement_index,
+        path.strip_suffix("[*]").unwrap_or(path),
     )
 }
 

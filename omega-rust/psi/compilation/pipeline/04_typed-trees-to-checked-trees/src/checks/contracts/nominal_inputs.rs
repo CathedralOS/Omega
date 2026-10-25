@@ -118,16 +118,13 @@ pub(super) fn check(
     };
     let arguments = validation::call_site_argument_expressions(program, &site);
     // Field obligations project different subjects from the same completed
-    // operand. Select its namespace once at this fixed invocation; each field
+    // operand. Select each exact namespace and epoch once; each field
     // still proves its own case validity and exact domain obligation below.
     let mut operand_contexts = crate::flow::OperandContextSelections::new(
         program,
         &facts.flow,
         &facts.semantic,
-        call.entry_constraints,
         state.machine_symbol,
-        state.state_symbol,
-        call.statement_index,
     );
     let mut argument_index = 0;
     for parameter in parameters {
@@ -187,6 +184,8 @@ pub(super) fn check(
                                         &facts.flow,
                                         captured,
                                     ),
+                                    call.entry_constraints,
+                                    (state.state_symbol, call.statement_index),
                                 ),
                                 (
                                     captured.operand,
@@ -196,43 +195,63 @@ pub(super) fn check(
                                         &facts.flow,
                                         captured,
                                     ),
+                                    captured.producer_invocation(call.entry_constraints),
+                                    captured.producer_frontier(
+                                        state.state_symbol,
+                                        call.statement_index,
+                                    ),
                                 ),
                             ]
                             .into_iter()
-                            .any(|(operand, reference, subjects)| {
-                                let selection = operand_contexts.for_operand(operand, reference);
-                                subjects.is_some_and(|subjects| {
-                                    !subjects.is_empty()
-                                        && subjects.iter().all(|place| {
-                                            // A captured empty collection has no
-                                            // child occurrences to qualify. An
-                                            // empty carrier itself still owes
-                                            // its own domain; only a strict
-                                            // pointwise ancestor is vacuous.
-                                            if pointwise_field_is_empty(
-                                                program,
-                                                operand,
-                                                &place.projected,
-                                            ) {
-                                                return true;
-                                            }
-                                            // Only the authored source selects
-                                            // a case. A declared field row is
-                                            // conditional validity, not a read
-                                            // that requires its case active.
-                                            selection.cases_are_selected(&place.storage)
-                                                && (selection.path_is_inactive(&place.projected)
-                                                    || prove_declared_field_domain(
-                                                        program,
-                                                        facts,
-                                                        selection,
-                                                        &place.projected,
-                                                        *domain_symbol,
-                                                        *semantic_domain,
-                                                    ))
-                                        })
-                                })
-                            })
+                            .any(
+                                |(
+                                    operand,
+                                    reference,
+                                    subjects,
+                                    invocation,
+                                    (source_state, source_statement),
+                                )| {
+                                    let selection = operand_contexts.for_operand(
+                                        operand,
+                                        reference,
+                                        invocation,
+                                        source_state,
+                                        source_statement,
+                                    );
+                                    subjects.is_some_and(|subjects| {
+                                        !subjects.is_empty()
+                                            && subjects.iter().all(|place| {
+                                                // A captured empty collection has no
+                                                // child occurrences to qualify. An
+                                                // empty carrier itself still owes
+                                                // its own domain; only a strict
+                                                // pointwise ancestor is vacuous.
+                                                if pointwise_field_is_empty(
+                                                    program,
+                                                    operand,
+                                                    &place.projected,
+                                                ) {
+                                                    return true;
+                                                }
+                                                // Only the authored source selects
+                                                // a case. A declared field row is
+                                                // conditional validity, not a read
+                                                // that requires its case active.
+                                                selection.cases_are_selected(&place.storage)
+                                                    && (selection
+                                                        .path_is_inactive(&place.projected)
+                                                        || prove_declared_field_domain(
+                                                            program,
+                                                            facts,
+                                                            selection,
+                                                            &place.projected,
+                                                            *domain_symbol,
+                                                            *semantic_domain,
+                                                        ))
+                                            })
+                                    })
+                                },
+                            )
                         })
                 });
             if !satisfied {

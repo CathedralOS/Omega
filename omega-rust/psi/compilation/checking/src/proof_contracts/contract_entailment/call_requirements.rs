@@ -101,7 +101,9 @@ pub fn selected_value_call_requirement_entailed(
         crate::CallSite::Statement(_) => ExpressionHandle::invalid(),
         crate::CallSite::TransitionNamed { .. } => return false,
     };
-    let Some(owner) = super::specification_calls::selected_call_site_contract(program, site) else {
+    let Some(owner) =
+        super::specification_calls::selected_call_site_contract(program, machine.symbol, site)
+    else {
         return false;
     };
     if inherited.is_none()
@@ -1054,9 +1056,11 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                 crate::CallSite::Statement(call) => call.machine_arguments.as_ref(),
                 crate::CallSite::TransitionNamed { .. } => &[],
             };
-            let Some(owner) =
-                super::specification_calls::selected_call_site_contract(program, site)
-            else {
+            let Some(owner) = super::specification_calls::selected_call_site_contract(
+                program,
+                machine.symbol,
+                site,
+            ) else {
                 self.proven = false;
                 return;
             };

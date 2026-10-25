@@ -4,10 +4,7 @@
 //! incoming guards, never from the monotonicity fact being proposed. Other
 //! states receive the union of their evaluated arrivals. Widening loses a
 //! bound rather than assuming that an unfinished iteration is inductive.
-use super::{
-    BinaryOperator, ExpressionHandle, Machine, State, StatementNode, SymbolHandle,
-    TransitionGuardNode,
-};
+use super::{BinaryOperator, ExpressionHandle, Machine, State, StatementNode, SymbolHandle};
 use crate::checks::ranges::loop_invariants::assignment_counter_field;
 use crate::checks::ranges::loop_invariants::expression_is_counter_member;
 use crate::checks::ranges::loop_invariants::integer_literal;
@@ -17,6 +14,7 @@ use validation::Interval;
 pub(super) fn updates_preserve_order(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
+    call_frames: &validation::CallFrameResolver<'_>,
     states: &[State],
     loop_states: &[SymbolHandle],
     head: SymbolHandle,
@@ -32,7 +30,12 @@ pub(super) fn updates_preserve_order(
         .iter()
         .filter(|state| loop_states.contains(&state.symbol))
     {
-        for statement in program.statement_table.statements(state.statement_nodes) {
+        for (statement_index, statement) in program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .enumerate()
+        {
             let StatementNode::Transition(transition) = statement else {
                 continue;
             };
@@ -43,7 +46,9 @@ pub(super) fn updates_preserve_order(
                         program,
                         machine,
                         state,
-                        transition.guard,
+                        statement_index,
+                        transition,
+                        call_frames,
                         counter,
                         positive,
                     ));
@@ -64,7 +69,12 @@ pub(super) fn updates_preserve_order(
         let Some(mut bounds) = arrivals[index] else {
             continue;
         };
-        for statement in program.statement_table.statements(state.statement_nodes) {
+        let statements = program.statement_table.statements(state.statement_nodes);
+        let order = program
+            .statement_table
+            .admitted_execution_order(state.statement_nodes);
+        for &statement_index in order.indices() {
+            let statement = &statements[statement_index];
             if let StatementNode::Assignment(assignment) = statement
                 && assignment_counter_field(program, machine, state, assignment) == Some(counter)
             {
@@ -102,7 +112,9 @@ pub(super) fn updates_preserve_order(
                     program,
                     machine,
                     state,
-                    transition.guard,
+                    statement_index,
+                    transition,
+                    call_frames,
                     counter,
                     positive,
                 ));
@@ -144,7 +156,9 @@ pub(super) fn updates_preserve_order(
                     program,
                     machine,
                     state,
-                    transition.guard,
+                    statement_index,
+                    transition,
+                    call_frames,
                     counter,
                     false,
                 ));
@@ -158,20 +172,35 @@ pub(super) fn updates_preserve_order(
     true
 }
 
+#[allow(clippy::too_many_arguments)]
 fn transition_bounds(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
-    guard: TransitionGuardNode,
+    statement_index: usize,
+    transition: &typed_trees::statement::TableTransition,
+    call_frames: &validation::CallFrameResolver<'_>,
     counter: SymbolHandle,
     positive: bool,
 ) -> Interval {
-    match guard {
-        TransitionGuardNode::Always => Interval::UNBOUNDED,
-        TransitionGuardNode::When(guard) => {
-            guard_bounds(program, machine, state, guard, counter, positive, 0)
-        }
-    }
+    let Some(observations) = crate::flow::transition_guard_observations(
+        program,
+        machine,
+        state,
+        statement_index,
+        transition,
+        positive,
+        call_frames,
+    ) else {
+        return Interval::UNBOUNDED;
+    };
+    observations
+        .into_iter()
+        .fold(Interval::UNBOUNDED, |bounds, (predicate, value)| {
+            bounds.intersect(guard_bounds(
+                program, machine, state, predicate, counter, value, 0,
+            ))
+        })
 }
 
 fn guard_bounds(
@@ -189,19 +218,7 @@ fn guard_bounds(
         return Interval::UNBOUNDED;
     }
     let Some(binary) = program.expression_table.binary_node(guard) else {
-        // A subject spelled by name stands for its capture's initializer.
-        let Some(subject) = super::boolean_subject_definition(program, state, guard) else {
-            return Interval::UNBOUNDED;
-        };
-        return guard_bounds(
-            program,
-            machine,
-            state,
-            subject,
-            counter,
-            positive,
-            depth + 1,
-        );
+        return Interval::UNBOUNDED;
     };
     if matches!(
         binary.operator,

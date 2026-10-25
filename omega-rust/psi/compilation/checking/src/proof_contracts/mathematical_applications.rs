@@ -4,7 +4,9 @@
 //! never an executable machine, a runtime result occurrence or a purity claim.
 
 mod expressions;
-pub use expressions::{definition_roots, erased_initializer_nodes, expression_nodes};
+pub use expressions::{
+    definition_roots, erased_initializer_nodes, expression_nodes, scoped_expression_nodes,
+};
 mod logical_bodies;
 pub use logical_bodies::{indexed_contract_is_proved, is_indexed_logical_machine};
 mod prepared;

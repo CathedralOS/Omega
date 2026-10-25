@@ -258,6 +258,14 @@ pub(super) fn check_call_requires(
                     constant_obligations.push(obligation);
                     continue;
                 }
+                let requirement = semantic_fact_requirement_label(program, &facts.semantic, fact);
+                let authored_requirement = match fact.payload {
+                    FactPayload::ContractBooleanExpression { expression, .. } => {
+                        authored_requirement_label(program, state_flow, call_flow, expression)
+                            .filter(|authored| authored != &requirement)
+                    }
+                    _ => None,
+                };
                 let detail = match fact.payload {
                     FactPayload::ContractDomainMembership { domain_symbol, .. }
                     | FactPayload::DomainMembership { domain_symbol, .. } => {
@@ -274,28 +282,22 @@ pub(super) fn check_call_requires(
                         )
                     }
                     FactPayload::ContractBooleanExpression { expression, .. } => {
-                        let mut details = Vec::new();
-                        if let Some(authored) =
-                            authored_requirement_label(program, state_flow, call_flow, expression)
-                            && authored
-                                != semantic_fact_requirement_label(program, &facts.semantic, fact)
-                        {
-                            details.push(format!("authored requirement `{authored}`"));
-                        }
-                        details.extend(explain_missing_boolean_fact(program, expression));
-                        (!details.is_empty()).then(|| details.join("; "))
+                        explain_missing_boolean_fact(program, expression)
                     }
                     _ => None,
                 };
                 diagnostics.push(Diagnostic::error(format!(
-                    "cannot prove requires contract for call {} from {}: {}{} in state `{}`",
+                    "cannot prove requires contract for call {} from {}: {}{} in state `{}`{}",
                     call_target_label(program, call_flow.target_symbol),
                     machine_name(program, state_flow.machine_symbol),
-                    semantic_fact_requirement_label(program, &facts.semantic, fact),
+                    requirement,
                     detail
                         .map(|message| format!(" ({message})"))
                         .unwrap_or_default(),
-                    symbol_name(program, state_flow.state_symbol)
+                    symbol_name(program, state_flow.state_symbol),
+                    authored_requirement
+                        .map(|authored| format!("; authored requirement `{authored}`"))
+                        .unwrap_or_default()
                 )));
             }
         }

@@ -644,24 +644,61 @@ pub fn visit_program(program: &TypedTrees, roots: &mut impl TypedReferences) {
 pub fn program_proof_facts(
     program: &TypedTrees,
 ) -> impl Iterator<Item = (arena::Handle<ProofFact>, &ProofFact)> {
-    let _guard = phase_profile::guard("typed_trees::program_proof_facts");
-    let mut roots = ProofFactCollector::default();
-    visit_program(program, &mut roots);
-    let mut facts = roots.facts.into_iter().collect::<Vec<_>>();
+    let mut facts = program_scoped_proof_facts(program)
+        .map(|(_, handle, _)| handle)
+        .collect::<Vec<_>>();
     facts.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
+    facts.dedup();
     facts
         .into_iter()
         .map(move |handle| (handle, program.proof_facts.get(handle)))
 }
 
+/// A fact can be shared by several declarations. Keep each lexical use: a
+/// selected call's public application is authenticated by the caller's scope,
+/// not by its expression handle or its private executable target. State
+/// contracts retain their machine's scope, while nested signatures introduce
+/// their own telescope through the traversal's lexical-scope callbacks.
+pub fn program_scoped_proof_facts(
+    program: &TypedTrees,
+) -> impl Iterator<Item = (SymbolHandle, arena::Handle<ProofFact>, &ProofFact)> {
+    let _guard = phase_profile::guard("typed_trees::program_scoped_proof_facts");
+    let mut roots = ProofFactCollector::default();
+    visit_program(program, &mut roots);
+    let mut facts = roots.facts.into_iter().collect::<Vec<_>>();
+    facts.sort_unstable_by_key(|(owner, handle)| {
+        (
+            owner.arena_index(),
+            owner.generation(),
+            handle.arena_index(),
+            handle.generation(),
+        )
+    });
+    facts
+        .into_iter()
+        .map(move |(owner, handle)| (owner, handle, program.proof_facts.get(handle)))
+}
+
 #[derive(Default)]
 struct ProofFactCollector {
-    facts: HashSet<arena::Handle<ProofFact>>,
+    declaration: SymbolHandle,
+    scopes: Vec<SymbolHandle>,
+    facts: HashSet<(SymbolHandle, arena::Handle<ProofFact>)>,
 }
 impl Extend<SymbolHandle> for ProofFactCollector {
     fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
 }
 impl TypedReferences for ProofFactCollector {
+    fn declaration(&mut self, symbol: SymbolHandle) -> bool {
+        self.declaration = symbol;
+        true
+    }
+    fn enter_lexical_scope(&mut self, symbol: SymbolHandle) {
+        self.scopes.push(symbol);
+    }
+    fn leave_lexical_scope(&mut self) {
+        self.scopes.pop();
+    }
     fn statement(&mut self, _: &StatementNode) -> bool {
         false
     }
@@ -675,7 +712,10 @@ impl TypedReferences for ProofFactCollector {
         false
     }
     fn proof_fact(&mut self, handle: arena::Handle<ProofFact>) -> bool {
-        self.facts.insert(handle);
+        self.facts.insert((
+            self.scopes.last().copied().unwrap_or(self.declaration),
+            handle,
+        ));
         false
     }
 }
@@ -1834,6 +1874,13 @@ fn visit_machine_with_sidecars(
     if let Some(origin) = machine.entry_context_origin {
         visit_symbol(retained, origin.entry);
         visit_symbol(retained, origin.context_parameter);
+    }
+    if let Some(origin) = machine.lexical_region_origin {
+        retained.declaration_description_dependency(origin.machine);
+        retained.declaration_description_dependency(origin.state);
+        // The argument span identifies the parent's exact capture call. Its
+        // expressions remain owned and traversed by that statement, not by
+        // the extracted helper's executable body.
     }
     // Capture admission replays the authored map and the exact supplying
     // invocation. Selecting a captured executable therefore retains those

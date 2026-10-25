@@ -1,0 +1,16 @@
+// The saved Boolean observes the old index, not the next loop arrival.
+data Main { items: [u8; 3]; index: u64 in Trapping; }
+machine Main::main(main: &mut Main) {
+    main.index = 0;
+    transition { _ -> body(main) }
+    state body(main: &mut Main) {
+        main.items[main.index] = 7;
+        transition { _ -> test(main) }
+    }
+    state test(main: &mut Main) {
+        let has_next: bool = main.index < 3;
+        main.index = main.index + 1;
+        transition has_next { true -> body(main) false -> done(main) }
+    }
+    state done(main: &mut Main) {}
+}

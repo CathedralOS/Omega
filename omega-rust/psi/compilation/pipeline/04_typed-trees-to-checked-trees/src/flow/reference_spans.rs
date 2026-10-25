@@ -8,6 +8,9 @@
 use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
 use facts::{FactPlan, ProgramPoint};
 
+#[cfg(test)]
+mod tests;
+
 pub(crate) fn retained_flow_contexts(
     semantic_context_refs: &arena::PagedArenaSet<FlowSemanticContextRef>,
     source: arena::HandleSpan<FlowSemanticContextRef>,
@@ -143,22 +146,28 @@ pub(crate) fn project_constraint_refs_to_active_contexts(
     // Both lists seed from the whole Global/Machine declaration groups, so a
     // scan of the active list per constraint is quadratic in the program's
     // declaration count for every state on every convergence pass. Read the
-    // active list once into a table indexed by arena position (the zero
-    // handle marks an empty slot) and probe it per constraint.
-    let mut active = Vec::new();
+    // active list once and probe it per constraint. Arena positions are local
+    // to a page: declaration and machine contexts can share a slot while both
+    // remain active. Select the generation's dense row before its slot, keeping
+    // the complete handle as the membership identity.
+    let mut active = std::collections::BTreeMap::new();
     for reference in semantic_context_refs.span_or_empty(active_contexts) {
         let position = reference.context.arena_index() as usize;
-        if active.len() <= position {
-            active.resize(position + 1, facts::FactContextHandle::default());
+        let page = active
+            .entry(reference.context.generation())
+            .or_insert_with(Vec::new);
+        if page.len() <= position {
+            page.resize(position + 1, facts::FactContextHandle::default());
         }
-        active[position] = reference.context;
+        page[position] = reference.context;
     }
     filter_constraint_refs(
         constraint_refs,
         source,
         |constraint_ref| match constraint_ref.kind {
             FlowConstraintKind::SemanticContext { context } => active
-                .get(context.arena_index() as usize)
+                .get(&context.generation())
+                .and_then(|page| page.get(context.arena_index() as usize))
                 .is_some_and(|known| *known == context),
             FlowConstraintKind::Unknown | checked_trees::borrow_set_quint_pattern!(..) => true,
         },

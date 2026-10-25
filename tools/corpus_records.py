@@ -203,7 +203,18 @@ def compare_records(base: list, head: list) -> dict:
                 (key == "interpreter" and after == "agrees"
                  and before in ("unchecked", "declined", "exhausted", "disagrees"))
                 or (key == "terminal-targets" and before == "unchecked" and after == "match"))
-            (gains if before is None or gained_agreement else losses).append(change)
+            # The runner rejects a publication that contradicts its authored
+            # inventory. A refused positive's `none` therefore is not a
+            # successful empty-output promise to preserve when it starts
+            # checking and publishes its required files. Successful empty
+            # inventories and every previously observed file remain exact
+            # regression obligations, as do unrelated execution facts.
+            gained_publication = (
+                key == "published" and before == "none" and after not in (None, "", "none")
+                and old["tier"] == new["tier"] and new["tier"] in ("pass", "run")
+                and old_rank == 0 and old["status"] in ("rejected", "incomplete")
+                and new["status"] in SUCCESS_STATUSES)
+            (gains if before is None or gained_agreement or gained_publication else losses).append(change)
     return {"losses": losses, "gains": gains,
             "fixtures": len(base_rows.keys() | head_rows.keys())}
 

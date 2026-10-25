@@ -263,6 +263,8 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                     .is_some_and(|values| {
                         !values.is_empty()
                             && values.iter().all(|captured| {
+                                let (source_state, source_statement) = captured
+                                    .producer_frontier(exit.state_symbol, exit.statement_index);
                                 let contexts = crate::flow::operand_contexts(
                                     program,
                                     &facts.flow.contexts,
@@ -270,7 +272,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                                     &facts.semantic,
                                     captured.operand,
                                     captured.type_reference,
-                                    exit.entry_constraints,
+                                    captured.producer_invocation(exit.entry_constraints),
                                 );
                                 crate::flow::captured_value_places(program, &facts.flow, captured)
                                     .is_some_and(|places| {
@@ -281,16 +283,16 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                                                     &facts.semantic,
                                                     &contexts,
                                                     exit.machine_symbol,
-                                                    exit.state_symbol,
-                                                    exit.statement_index,
+                                                    source_state,
+                                                    source_statement,
                                                     &place.storage,
                                                 ) && (crate::flow::place_case_path_is_inactive(
                                                     program,
                                                     &facts.semantic,
                                                     &contexts,
                                                     exit.machine_symbol,
-                                                    exit.state_symbol,
-                                                    exit.statement_index,
+                                                    source_state,
+                                                    source_statement,
                                                     &place.projected,
                                                 ) || proves_in(&contexts, &place.projected))
                                             })

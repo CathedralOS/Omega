@@ -137,6 +137,31 @@ pub fn applied_type_identity_in_scope(
     )
 }
 
+/// The declared carrier under exact application scopes. Refinements do not
+/// change storage correspondence, including nested refinements, but reference
+/// access, nominal arguments and extents remain structural. Regions belong to
+/// the independently checked borrow contract, just as in ordinary declared
+/// carrier matching. This identity admits no argument or refinement obligation.
+pub fn applied_declared_carrier_identity(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    let invalid = Cell::new(false);
+    let identity = normalize_type_reference(
+        program,
+        reference,
+        &TypeIdentityContext {
+            declared_carrier: true,
+            application_scopes: scopes,
+            invalid_application: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then_some(program_intern_type_identity(program, identity))
+}
+
 /// Identify a value-role operand under its supplying telescope. A named const
 /// and its canonical literal denote the same value; neither is a nominal type.
 /// Carrier and width admission remain the receiving declaration's obligation.

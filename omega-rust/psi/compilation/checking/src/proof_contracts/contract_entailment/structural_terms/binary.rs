@@ -120,8 +120,8 @@ pub(crate) fn binary_term_in_scope(
         // application and does not acquire this law.
         if let Some(term) = sealed_primitive_float_scalar(
             program,
+            owner,
             expression,
-            spelling,
             &references,
             left.clone(),
             right.clone(),
@@ -216,37 +216,34 @@ pub(crate) fn binary_term_in_scope(
 /// Several matches, a user operator, or a non-float carrier select nothing.
 pub(crate) fn sealed_primitive_float_operator(
     program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
     expression: ExpressionHandle,
-    spelling: language_core::OperatorSpelling,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> Option<BinaryOperator> {
-    let candidates = typed_trees::operator::resolve_spelling_for_operands(
+    let operation = program.expression_table.binary_node(expression)?.operator;
+    // The shared authority authenticates both the callable's selected trait
+    // meaning and every retained authored occurrence. A visible core default
+    // cannot replace a different operator selected by this declaration.
+    crate::proof_contracts::bound_expression_meaning::
+        sealed_float_comparison_declaration_for_operands(
         program,
-        spelling,
+        owner,
+        expression,
+        operation,
         operand_types,
-        program.expression_table.source_span(expression),
-    );
-    let [selected] = candidates.as_slice() else {
-        return None;
-    };
-    if !typed_trees::operator::is_sealed_toolchain_float_operator(program, selected.operator) {
-        return None;
-    }
-    let (operation, _) =
-        typed_trees::operator::primitive_float_binary_semantics(program, selected.operator)?;
-    let binary = program.expression_table.binary_node(expression)?;
-    (binary.operator == operation).then_some(operation)
+    )?;
+    Some(operation)
 }
 
 fn sealed_primitive_float_scalar(
     program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
     expression: ExpressionHandle,
-    spelling: language_core::OperatorSpelling,
     references: &[Option<TypeReferenceHandle>; 2],
     left: StructuralTerm,
     right: StructuralTerm,
 ) -> Option<StructuralTerm> {
-    let operation = sealed_primitive_float_operator(program, expression, spelling, references)?;
+    let operation = sealed_primitive_float_operator(program, owner, expression, references)?;
     let [Some(left_type), Some(right_type)] = *references else {
         return None;
     };

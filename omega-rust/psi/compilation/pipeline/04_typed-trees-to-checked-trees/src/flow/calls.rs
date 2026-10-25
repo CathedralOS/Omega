@@ -45,15 +45,6 @@ pub(super) fn build_call_flow_fact<'plans>(
 ) -> FlowCallFact {
     let storage_writes = writes.map(|writes| writes.observation_places.as_slice());
     super::state_values::record_invocation(program, build, machine, state, borrow_call);
-    super::state_values::record_call_argument_facts(
-        program,
-        semantic,
-        build,
-        machine,
-        state,
-        borrow_call,
-        captured_operands,
-    );
     let contract_call = proof.contract_call_at(&(
         machine.symbol,
         state.symbol,
@@ -68,6 +59,16 @@ pub(super) fn build_call_flow_fact<'plans>(
         machine.symbol,
         state.symbol,
         borrow_call,
+    );
+    super::state_values::lexical_regions::record(
+        program,
+        semantic,
+        build,
+        machine,
+        state,
+        borrow_call,
+        captured_operands,
+        entry.constraints,
     );
     let requires = build_call_requires_contexts(semantic, build, machine, state, borrow_call);
     let argument_sources = super::call_phases::ArgumentSources::new(
@@ -482,12 +483,26 @@ fn append_call_result_field_domain_facts<'plans>(
     // the attached authorization for exactly that call, so this publisher must
     // not re-derive the same membership from the requirement signature. The
     // crossing itself (a call with no realization dispatch) keeps its rows, and
-    // a membership the adapter's own contract carries is kept because the
-    // adapter's body owes it and its callers may assume it.
-    let withheld = withheld_admitted_memberships(program, call);
+    // an exact result membership the adapter's own contract carries is kept
+    // because its body owes it. A promise about an input, another projection,
+    // or another domain application cannot stand in for this result row.
+    let realization = checked_realization_result_identities(program, call);
     let mut refs = HandleSpan::empty();
-    for (path, domain_symbol, semantic_domain) in paths.iter() {
-        if withheld.contains(domain_symbol) {
+    for row @ (path, domain_symbol, semantic_domain) in paths.iter() {
+        if realization
+            .as_ref()
+            .is_some_and(|guaranteed| !guaranteed.contains(row))
+            && program
+                .domain_definition(*domain_symbol)
+                .is_some_and(|domain| {
+                    domain.establishment_routes.iter().any(|route| {
+                        matches!(
+                            route,
+                            language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. }
+                        )
+                    })
+                })
+        {
             continue;
         }
         let place = crate::semantic::places::append_place(
@@ -512,75 +527,35 @@ fn append_call_result_field_domain_facts<'plans>(
     reference_spans::append_semantic_context(semantic, build, exit, point, refs);
 }
 
-/// The owner-authorized memberships a direct realization call may not publish.
+/// The checked adapter's exact result obligations, when this is a direct call.
 ///
-/// A requirement's `ensures result in D` names the admitted crossing's promise.
-/// A call that statically dispatches to a checked realization is a direct
-/// adapter call, and the adapter's guarantee is what its own contract declares.
-/// Only domains established by a boundary requirement qualify, and only when
-/// the adapter's own contract does not carry that membership.
-fn withheld_admitted_memberships(
+/// Use the same subject, projection and normalized domain identities as the
+/// publisher. Scanning domain symbols alone would let `ensures input in D`
+/// authorize an unrelated `result in D`. An empty checked-body roster grants
+/// nothing; absence denotes a crossing or bodyless provider and adds no fence.
+fn checked_realization_result_identities(
     program: &dyn ::validation::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
-) -> Vec<SymbolHandle> {
-    let Some(dispatch) = &call.static_requirement_dispatch else {
-        return Vec::new();
-    };
-    let Some(realization) = program
+) -> Option<
+    Vec<(
+        Vec<facts::PlaceSegment>,
+        SymbolHandle,
+        language_semantics::SemanticDomainId,
+    )>,
+> {
+    let dispatch = call.static_requirement_dispatch.as_ref()?;
+    program
         .machine_by_symbol(dispatch.realization_machine)
-        .filter(|machine| machine.body_is_present)
-    else {
-        return Vec::new();
-    };
-    let mut guaranteed = Vec::new();
-    for contract in program.machine_contracts(realization) {
-        if contract.kind != typed_trees::signature::SignatureContractKind::Ensures {
-            continue;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            if let Some(membership) = fact.as_membership() {
-                guaranteed.push(membership.domain_symbol);
-            }
-        }
-    }
-    let Some(declaration) = program.trait_definition_by_symbol(dispatch.declaring_trait) else {
-        return Vec::new();
-    };
-    let Some(signature) =
-        program.trait_machine_signature_by_symbol(declaration, dispatch.contract_symbol())
-    else {
-        return Vec::new();
-    };
-    let mut withheld = Vec::new();
-    for contract in program.state_signature_contracts(signature) {
-        if contract.kind != typed_trees::signature::SignatureContractKind::Ensures {
-            continue;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let Some(membership) = fact.as_membership() else {
-                continue;
-            };
-            if guaranteed.contains(&membership.domain_symbol)
-                || withheld.contains(&membership.domain_symbol)
-            {
-                continue;
-            }
-            if program
-                .domain_definition(membership.domain_symbol)
-                .is_some_and(|domain| {
-                    domain.establishment_routes.iter().any(|route| {
-                        matches!(
-                            route,
-                            language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. }
-                        )
-                    })
-                })
-            {
-                withheld.push(membership.domain_symbol);
-            }
-        }
-    }
-    withheld
+        .filter(|machine| machine.body_is_present)?;
+    // The dispatch retains the selected declaration's template identity.
+    // Monomorphization has already joined the executable target to that
+    // selection. Read the actual target's substituted types and contracts:
+    // template parameter identities cannot match a closed invocation's rows.
+    Some(call_result_qualification_identities(
+        program,
+        call.target_symbol,
+        None,
+    ))
 }
 
 /// Authored `ensures <parameter> in <domain>` claims the call hands back on

@@ -118,8 +118,17 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(self.store.path.read_bytes(), pretty)
 
     def test_atomic_payload_digest_binds_only_successful_exact_bytes(self):
-        record = self.record()
-        digest = atomic_json(self.store.path, record, indent=None, with_digest=True)
+        record = dict(self.record(), encoding_cases={
+            "unicode": "\u03bb\U0001f680\ud800", "escaped": "\n\t\"\\",
+            "numbers": [-0.0, 1.5e100, 2 ** 128], "nested": [None, True, {"z": 0, "a": []}],
+        })
+        for indent in (None, 2):
+            with self.subTest(indent=indent):
+                digest = atomic_json(self.store.path, record, indent=indent, with_digest=True)
+                expected = (json.dumps(record, sort_keys=True, indent=indent,
+                                       allow_nan=False) + "\n").encode("utf-8")
+                self.assertEqual(self.store.path.read_bytes(), expected)
+                self.assertEqual(digest, hashlib.sha256(expected).hexdigest())
         before = self.store.path.read_bytes()
         self.assertEqual(digest, hashlib.sha256(before).hexdigest())
         self.assertEqual(json.loads(before), record)
@@ -129,6 +138,45 @@ class RecoveryTests(unittest.TestCase):
                             indent=None, with_digest=True)
         self.assertEqual(self.store.path.read_bytes(), before)
         self.assertIsNone(atomic_json(self.store.path, record))
+
+    def test_partial_write_failure_preserves_old_record_and_removes_temporary(self):
+        before = self.store.path.read_bytes()
+        fdopen = os.fdopen
+
+        def faulty_stream(descriptor, mode):
+            stream = fdopen(descriptor, mode)
+            writer = mock.MagicMock(wraps=stream)
+            writer.__enter__.return_value = writer
+            writer.__exit__.side_effect = stream.__exit__
+
+            def write_then_fail(payload):
+                stream.write(payload[:1])
+                raise OSError(28, "No space left on device")
+
+            writer.write.side_effect = write_then_fail
+            return writer
+
+        with mock.patch("recovery_state.os.fdopen", side_effect=faulty_stream):
+            with self.assertRaises(OSError):
+                atomic_json(self.store.path, dict(changed=True), with_digest=True)
+        self.assertEqual(self.store.path.read_bytes(), before)
+        self.assertEqual(list(self.root.glob(".recovery.json.*")), [])
+
+    def test_sync_failures_leave_complete_records_without_successful_digest(self):
+        before = self.store.path.read_bytes()
+        record = dict(changed=True)
+        with mock.patch("recovery_state.os.fsync", side_effect=OSError("file sync fault")):
+            with self.assertRaisesRegex(OSError, "file sync fault"):
+                atomic_json(self.store.path, record, with_digest=True)
+        self.assertEqual(self.store.path.read_bytes(), before)
+        self.assertEqual(list(self.root.glob(".recovery.json.*")), [])
+        if os.name != "nt":
+            with mock.patch("recovery_state.os.fsync",
+                            side_effect=[None, OSError("directory sync fault")]):
+                with self.assertRaisesRegex(OSError, "directory sync fault"):
+                    atomic_json(self.store.path, record, with_digest=True)
+            self.assertEqual(json.loads(self.store.path.read_bytes()), record)
+            self.assertEqual(list(self.root.glob(".recovery.json.*")), [])
 
     def test_interrupted_replace_keeps_old_complete_revision(self):
         before = self.store.path.read_bytes()

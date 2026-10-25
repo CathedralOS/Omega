@@ -211,6 +211,11 @@ fn try_declared_fact(
     content_conservation: &[crate::ContentConservationSourcePlan],
 ) -> Option<DeclaredContractFact> {
     project_declared_fact(program, fact, binders, content_conservation, |expression| {
+        if !super::contract_results::expression_has_source_builtin_index_meaning(
+            program, expression,
+        ) {
+            return None;
+        }
         typed_trees::type_identity::try_normalized_index_identity(
             program.typed_program(),
             typed_trees::type_identity::IndexIdentityArgument::Expression(expression),

@@ -1,0 +1,27 @@
+data Value [copy] { code: u64; }
+data Pair [copy] { items: [Value; 2]; }
+trait Indexer {
+    operator [] select(items: [Value; 2], index: u64) -> Value
+    ensures result.code == 8;
+}
+Chosen satisfies Indexer {
+    machine select(items: [Value; 2], index: u64) -> Value
+    ensures result.code == 8
+    {
+        Value { code: 8 }
+    }
+}
+trait Outer<Policy satisfies Indexer> {
+    machine issue() -> Pair
+    ensures result.items[0].code == 7;
+}
+Provider satisfies Outer<Chosen> {
+    machine issue() -> Pair
+    ensures result.items[0].code == 7
+    {
+        Pair { items: [Value { code: 7 }, Value { code: 7 }] }
+    }
+}
+machine main() {
+    let pair: Pair = Outer::issue<Chosen, Provider>();
+}

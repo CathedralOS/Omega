@@ -9,12 +9,31 @@ use typed_trees::mathematical::{MathematicalBody, MathematicalType};
 use crate::expression_traversal::collect_expression_nodes;
 
 pub fn expression_nodes(program: &dyn crate::CheckingInput) -> Vec<ExpressionHandle> {
+    let mut seen = HashSet::new();
+    scoped_expression_nodes(program)
+        .into_iter()
+        .filter_map(|(_, expression)| seen.insert(expression).then_some(expression))
+        .collect()
+}
+
+/// Preserve the declaration telescope even when an expression arena payload is
+/// shared. Executable membership still excludes the same nodes as the unscoped
+/// view; a mathematical use does not exempt a runtime use from formation.
+pub fn scoped_expression_nodes(
+    program: &dyn crate::CheckingInput,
+) -> Vec<(symbols::SymbolHandle, ExpressionHandle)> {
     let mut expressions = Vec::new();
-    let mut expressions_seen = HashSet::new();
     for definition in program.mathematical_definitions() {
+        let mut owned = Vec::new();
+        let mut expressions_seen = HashSet::new();
         for root in definition_roots(program, definition) {
-            collect_expression_nodes(program, root, &mut expressions, &mut expressions_seen);
+            collect_expression_nodes(program, root, &mut owned, &mut expressions_seen);
         }
+        expressions.extend(
+            owned
+                .into_iter()
+                .map(|expression| (definition.symbol, expression)),
+        );
     }
     if expressions.is_empty() {
         return expressions;
@@ -42,7 +61,7 @@ pub fn expression_nodes(program: &dyn crate::CheckingInput) -> Vec<ExpressionHan
             }
         }
     }
-    expressions.retain(|expression| !executable_seen.contains(expression));
+    expressions.retain(|(_, expression)| !executable_seen.contains(expression));
     expressions
 }
 
