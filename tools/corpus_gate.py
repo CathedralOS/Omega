@@ -21,6 +21,13 @@ Usage:
     python3 tools/corpus_gate.py --runner target/debug/deps/corpus_runner-*
     python3 tools/corpus_gate.py --list-pinned-regressions  # read stored rows only
 
+Frozen comparisons may supply both `--runner` and `--baseline-runner` with
+`--compare REVISION`. The compared checkout still has to be that exact revision,
+and both supplied executables retain optimized-profile and fixture-root checks.
+This starts no Rust compiler build; the caller records the actual frozen binary
+digests and source revisions in its qualification rather than treating the option
+as producer provenance.
+
 Subsets — the inner-loop mode:
 
     python3 tools/corpus_gate.py --filter termination       # one domain
@@ -985,7 +992,7 @@ def checkout_base(revision: str) -> Path:
     return COMPARE_WORKTREE
 
 
-def base_records_for(revision: str, leg: str, selected: list) -> list:
+def base_records_for(revision: str, leg: str, selected: list, baseline_runner: Path = None) -> list:
     """`revision`'s rows for the selected fixtures, measuring only those the
     cache lacks. A fixture the base does not have stays absent: it is new."""
     cache = baseline_path(revision, leg)
@@ -1012,7 +1019,12 @@ def base_records_for(revision: str, leg: str, selected: list) -> list:
         if selection:
             os.environ[FILTER_VARIABLE] = selection
         try:
-            measured = run_runner(build_runner(worktree), worktree, freshly_built=True)
+            if baseline_runner is not None:
+                if git_out("-C", str(worktree), "rev-parse", "HEAD") != revision:
+                    raise InfrastructureFailure("corpus_gate: frozen baseline runner needs the exact compared source checkout")
+                measured = run_runner(baseline_runner, worktree, freshly_built=False)
+            else:
+                measured = run_runner(build_runner(worktree), worktree, freshly_built=True)
         finally:
             if previous is None:
                 os.environ.pop(FILTER_VARIABLE, None)
@@ -1029,7 +1041,8 @@ def base_records_for(revision: str, leg: str, selected: list) -> list:
 
 def compare_with_revision(options, leg, revision: str, head_records: list) -> int:
     """Diff this tree's run against `revision`'s, fixture by fixture."""
-    base = base_records_for(revision, leg, [record["fixture"] for record in head_records])
+    base = base_records_for(revision, leg, [record["fixture"] for record in head_records],
+                            getattr(options, "baseline_runner", None))
     result = corpus_records.compare_records(base, head_records)
     for line in result["losses"]:
         print(f"- {line}")
@@ -1474,6 +1487,9 @@ def main() -> int:
                              "record_safe verdict (needs TYPESAFE_API_KEY)")
     parser.add_argument("--runner", type=Path,
                         help="use an existing corpus_runner binary instead of building")
+    parser.add_argument("--baseline-runner", type=Path,
+                        help="with --compare, use an explicitly frozen optimized baseline runner; "
+                             "its exact compared source worktree and fixture-root report remain required")
     parser.add_argument("--golden", type=Path,
                         help="read/write this golden instead of the selected leg's default")
     parser.add_argument("--native", action="store_true",
@@ -1594,6 +1610,9 @@ def main() -> int:
     if options.list_pinned_regressions:
         return list_pinned_regressions(options.golden)
     compare_revision = None
+    if options.baseline_runner and not options.compare:
+        print("corpus_gate: --baseline-runner requires --compare")
+        return usage_error
     if options.compare:
         if options.record:
             print("corpus_gate: --compare measures a base; it does not record a golden")

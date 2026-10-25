@@ -89,6 +89,40 @@ class CachedBaselineSelectionTests(unittest.TestCase):
             self.assertEqual([row["fixture"] for row in rows], ["pass/old/program"])
 
 
+class FrozenBaselineRunnerTests(unittest.TestCase):
+    def test_frozen_generation_does_not_reenter_build_admission(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            main = root / "tests/omega/pass/old/program/main.omg"
+            main.parent.mkdir(parents=True)
+            main.write_text("machine main() {}")
+            runner = root / "frozen-runner"
+            cache = root / "base.txt"
+            with patch.object(corpus_gate, "baseline_path", return_value=cache), \
+                 patch.object(corpus_gate, "checkout_base", return_value=root), \
+                 patch.object(corpus_gate, "git_out", return_value="exact-base"), \
+                 patch.object(corpus_gate, "build_runner") as build, \
+                 patch.object(corpus_gate, "run_runner", return_value=[record("pass/old/program")]) as measure:
+                rows = corpus_gate.base_records_for("exact-base", "", ["pass/old/program"], runner)
+            self.assertEqual(len(rows), 1)
+            build.assert_not_called()
+            measure.assert_called_once_with(runner, root, freshly_built=False)
+
+    def test_frozen_generation_cannot_measure_another_source_revision(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            main = root / "tests/omega/pass/old/program/main.omg"
+            main.parent.mkdir(parents=True)
+            main.write_text("machine main() {}")
+            with patch.object(corpus_gate, "baseline_path", return_value=root / "base.txt"), \
+                 patch.object(corpus_gate, "checkout_base", return_value=root), \
+                 patch.object(corpus_gate, "git_out", return_value="other-base"), \
+                 patch.object(corpus_gate, "run_runner") as measure, \
+                 self.assertRaises(corpus_gate.InfrastructureFailure):
+                corpus_gate.base_records_for("exact-base", "", ["pass/old/program"], root / "frozen")
+            measure.assert_not_called()
+
+
 class OptionalHistoryProvenance(unittest.TestCase):
     def test_slow_history_lookup_terminates_a_real_subprocess(self):
         execute = subprocess.run

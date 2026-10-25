@@ -559,7 +559,13 @@ whole corpus, about two hours on a Windows host.
 
 The base is built from its commit in a separate worktree (`build/cmp`) with its
 own build directory, so neither uncommitted edits nor artifacts from this tree
-can leak into it. A run exits 1 when any fixture loses its outcome, its
+can leak into it. An already built immutable base can be reused with
+`--baseline-runner <binary>` alongside `--compare <revision>`. The gate still
+checks the exact baseline checkout revision, optimized profile, and fixture-root
+protocol, but does not invoke a Rust build. Retain the executable digest and its
+source/build provenance: the option itself cannot establish that provenance.
+This permits bounded runtime-only comparison slices after the build phase has
+released its resource hold. A run exits 1 when any fixture loses its outcome, its
 expected fragments or an execution fact such as `exit:70`, and prints every
 loss and gain. Name the base explicitly: comparing against a newer `main` than
 your series sits on attributes other lanes' movement to you. Rebase first, then
