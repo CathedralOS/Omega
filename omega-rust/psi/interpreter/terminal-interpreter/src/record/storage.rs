@@ -296,6 +296,56 @@ impl DetachedConstructorStorage {
 }
 
 impl ConstructorStorage {
+    /// Detached resident custody owns these rows independently of the execution
+    /// tables. Its provider and immutable backing edges can share other owners.
+    pub(crate) fn measure_result_custody<'storage>(
+        &'storage self,
+        execution: &'storage TerminalExecution<'_>,
+        custody: &mut crate::result_custody::ResultCustody<'storage>,
+    ) -> Result<(), TerminalInterpretError> {
+        for count in [
+            self.completed_profiles.len(),
+            self.provider_descriptors.len(),
+            self.activation_descriptors.len(),
+            self.host_atoms.len(),
+            self.scalars.len(),
+            self.bytes.len(),
+            self.views.len(),
+            self.byte_descriptors.len(),
+            self.references.len(),
+            self.primitives.len(),
+            self.byte_arrays.len(),
+            self.cases.len(),
+        ] {
+            custody.add_cells(count)?;
+        }
+        for binding in self.provider_descriptors.values() {
+            custody.provider(execution, *binding)?;
+        }
+        for binding in self.activation_descriptors.values() {
+            custody.binding(binding)?;
+        }
+        for binding in self.bytes.values() {
+            custody.binding(binding)?;
+        }
+        for binding in self.byte_descriptors.values() {
+            custody.binding(binding)?;
+        }
+        for bytes in self.byte_arrays.values() {
+            custody.bytes(bytes)?;
+        }
+        for (_, bytes) in &self.owner_writes {
+            custody.bytes(bytes)?;
+        }
+        for view in self.views.values() {
+            custody.element_view(view)?;
+        }
+        for reference in self.references.values() {
+            custody.reference(reference)?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn new(
         account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
     ) -> Self {

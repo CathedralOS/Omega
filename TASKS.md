@@ -1037,8 +1037,15 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     write; caller-private scalar staging removes the duplicate codec image and
     scalar decoding uses bounded inline storage. External read/write source
     controls cover exact/short budgets, borrowed/loaded artifacts, fuel pauses
-    and sticky refusal. Cumulative result custody remains.
-    Connect those admitted operations, remaining live-storage and result accounting, remaining
+    and sticky refusal. Root result publication now charges the shared cumulative
+    allowance from actual retained rows/backings, preserving failed custody and
+    avoiding repeat charges on cached observations. Scalar-case inspection shares
+    funded payloads; byte/view results retain their backing until instance close.
+    Source-produced result controls cover exact/short quotas, sibling invocations,
+    shared/distinct byte backing, literal windows, cases and packed arrays.
+    Explicit host loan returns still require an admitted loan-carrier interface;
+    accounting does not bypass that existing refusal.
+    Connect those admitted operations, remaining live-storage accounting, remaining
     host operations, and `suspend Build::await_provider<R>(builder, alias)`
     park/resume to the production Build scheduler, replacing checked-tree Build
     evaluation.
