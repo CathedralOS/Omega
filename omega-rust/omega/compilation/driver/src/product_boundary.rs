@@ -18,7 +18,7 @@ fn package_operations_do_not_assemble_compiler_products() {
     ] {
         for forbidden in [
             ".admit_trust(",
-            ".prepare_product_report(",
+            "ProductReportPlan",
             "CheckedProductReport::",
             "produce_native_product(",
             "produce_retained_terminal_artifacts(",
@@ -104,6 +104,20 @@ fn product_production_has_no_installed_checkpoint_mode() {
     ] {
         assert!(source.contains("compiler::finish_compilations("));
     }
+}
+
+#[test]
+fn product_batch_carries_work_instead_of_empty_outcome_slots() {
+    let compiler = include_str!("compiler.rs");
+    assert!(compiler.contains("ProductRequest::plan"));
+    assert!(compiler.contains("produce_retained_terminal_artifacts(terminal_requests)"));
+    assert!(!compiler.contains("map(|_| None)"));
+    assert!(!compiler.contains("outcomes["));
+    let execution = include_str!("product_execution.rs");
+    assert!(!execution.contains(".settle("));
+    assert!(!execution.contains("(settlement, requested)"));
+    let reports = include_str!("../../products/src/checked_compilation/report.rs");
+    assert_eq!(reports.matches(".settle(").count(), 1);
 }
 
 #[test]

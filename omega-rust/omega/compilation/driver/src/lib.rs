@@ -10,13 +10,16 @@
 //! `execution_settlement` joins each target's provider installation and
 //! selected dispatch against it, `terminal` produces and
 //! verifies the Terminal artifact, `native` realizes it for a target, and
-//! finished products and publication belong to the independent
+//! `product_execution` finishes each requested stop with its permission consent.
+//! The product-owned report plan carries the native request and optimization
+//! choices through those phases. Finished products and publication belong to the independent
 //! `compilation_products` owner; this crate only sequences their production.
 
 mod compiler;
 mod execution_settlement;
 mod identity;
 mod inspection;
+mod product_execution;
 
 #[cfg(test)]
 mod product_boundary;
@@ -44,7 +47,8 @@ pub use compilation_products::{
     CompileOutputKind, CompileReport, ExecutablePublicationReceipt, OptimizationRollbackReceipt,
     RetainedBuildOutputs, RetainedNativeArtifact,
 };
+pub use compiler::compile;
 pub use compiler::package::publish_checked_component;
-pub use compiler::{CompilationOutput, CompilationProduct, CompilationProductError, compile};
+pub use product_execution::{CompilationOutput, CompilationProduct, CompilationProductError};
 pub use target::ExplicitTargetSet;
 pub use terminal_psi_to_abstract_operations::provider_admission::SourceEvaluatedImportSettlement;

@@ -19,7 +19,7 @@ use std::sync::Arc;
 mod report;
 mod terminal;
 
-pub use report::CheckedProductReport;
+pub use report::{CheckedProductReport, ProductReportPlan, ProductReportRequest};
 
 /// Invocation-local language judgments retained by the compiler session. Build
 /// and Product are independent checked programs; neither judgment carries
@@ -222,7 +222,6 @@ impl CheckedCompilation {
     pub fn timings_mut(&mut self) -> &mut CompileTimings {
         &mut self.timings
     }
-
 }
 
 impl std::ops::Deref for CheckedCompilation {

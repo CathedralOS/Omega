@@ -33,7 +33,7 @@ impl RequestedCompileProduct {
     /// executes. Request admission applies it before source acquisition -- the
     /// standalone route in `validate_for_execution`, the project route in the
     /// CLI's product dispatch -- so an invalid overlay rejects before frontend
-    /// work or auxiliary output, and `CheckedCompilation::prepare_product_report`
+    /// work or auxiliary output, and `ProductReportPlan::prepare`
     /// applies it again as the product-owned boundary every directly
     /// constructed route crosses
     /// (wiki/spec/build/optimizations.md#release-rollback-and-promotion).

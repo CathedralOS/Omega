@@ -30,6 +30,29 @@ to the shared whole-program Terminal entry roster.
 `cargo run -p compiler --example terminal_sharing` exercises two native targets
 through this route and checks actual production counts and shared backing
 storage. It does not execute a foreign-host image.
+`--check` and `--terminal` exercise the other report stops. For target-local
+failure isolation, use `--reject linux_arm64
+tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg
+windows_x86_64 linux_arm64 macos_arm64`: the missing entry rejects without
+discarding either successful sibling.
+
+The coordinator retains an ordered roster of completed outputs, errors and
+pending Terminal work. It borrows only the pending work for shared production,
+then finishes each application in that same order; no indexed output holes or
+parallel pending/result tables are reconstructed. [Product execution](src/product_execution.rs)
+owns one application's stop, permission admission, installation and output.
+[Product report planning](../products/src/checked_compilation/report.rs) owns
+the requested output together with native production inputs, and settles the
+optimization rollback once. The same choices feed Terminal, native production
+and the final receipt. A native request is carried by its native report
+settlement, not compared against an independent requested-mode tag afterward.
+
+The [session](src/checked/compilation_session.rs) owns the shared source/Build
+continuation and retained checking. Provider selection still precedes Terminal:
+the producer needs selected entry/callback roots and exclusion inputs.
+Installation, permission comparison and trust admission keep their existing
+ordering after portable production. This sequencing cleanup does not establish
+the separate, unfinished Terminal-only provider handoff.
 The independent [product request owner](../products/src/compile_request.rs)
 expands explicit targets over one invocation policy, rejects duplicates and incompatible rollback,
 and admits evaluated Build requirements. It returns immutable per-target inputs;
