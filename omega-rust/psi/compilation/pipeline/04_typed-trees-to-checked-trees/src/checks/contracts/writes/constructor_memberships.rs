@@ -6,10 +6,12 @@
 //! This index supplies obligations only. The child's live completion facts and
 //! authorized provenance must separately establish every membership.
 
-use super::member_domains::captured_value_satisfies_indexed_domain;
+use super::member_domains::{
+    captured_value_satisfies_indexed_domain, value_satisfies_domain_instance_predicates_in_contexts,
+};
 use super::{
     CheckFacts, Diagnostic, ExpressionHandle, FlowStateFact, SymbolHandle, record_qualification,
-    value_proves_qualification_in_contexts, value_satisfies_domain_predicates_in_contexts,
+    value_proves_qualification_in_contexts,
 };
 use crate::labels::{machine_name, symbol_name};
 
@@ -159,13 +161,14 @@ pub(super) fn check_constructor_membership(
         ) || vacuous
             || (predicate_only
                 && capture.is_some()
-                && (value_satisfies_domain_predicates_in_contexts(
+                && (value_satisfies_domain_instance_predicates_in_contexts(
                     program,
                     facts,
                     state,
                     statement_index,
                     value,
                     domain_symbol,
+                    semantic_domain,
                     contexts,
                     &mut Vec::new(),
                     capture,

@@ -36,13 +36,6 @@ impl TypedTrees {
             .zip(arguments)
             .map(|(parameter, argument)| (parameter.symbol, *argument))
             .collect::<Vec<_>>();
-        let static_arguments = substitutions
-            .iter()
-            .map(|(parameter, argument)| {
-                self.static_operand_from_type_reference(*argument)
-                    .map(|operand| (*parameter, operand))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
         let source_subject = theory.subject_symbol;
         let subject = if source_subject.is_valid() {
             self.symbols.insert_generated_root_from(
@@ -60,7 +53,9 @@ impl TypedTrees {
             lifetimes: Vec::new(),
             elided_lifetimes: Vec::new(),
             types: substitutions,
-            static_arguments,
+            // Type/Const substitutions belong to the value/type map. The
+            // namespace map is reserved for selected evidence and code.
+            static_arguments: Vec::new(),
             symbols: source_subject
                 .is_valid()
                 .then_some((source_subject, subject))

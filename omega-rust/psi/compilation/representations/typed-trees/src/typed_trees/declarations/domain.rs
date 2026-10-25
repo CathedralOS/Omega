@@ -366,10 +366,19 @@ impl Default for ProofMembershipFact {
 /// Carrier-only generic parameters remain eligible. This is a fail-closed
 /// proof-reader fence, not an identity or metadata-normalization judgment.
 pub fn has_symbol_only_proof(program: &TypedTrees, domain_symbol: SymbolHandle) -> bool {
-    fn visit(program: &TypedTrees, symbol: SymbolHandle, visited: &mut Vec<SymbolHandle>) -> bool {
-        let Some(domain) = domain_by_symbol(program, symbol) else {
-            return false;
-        };
+    domain_by_symbol(program, domain_symbol)
+        .is_some_and(|domain| has_bound_symbol_only_proof(program, domain))
+}
+
+/// Complete applied theories have no free index slots. Read the selected
+/// definition itself; falling back to its generic source would lose that tuple.
+pub fn has_bound_symbol_only_proof(program: &TypedTrees, domain: &DomainDefinition) -> bool {
+    fn visit(
+        program: &TypedTrees,
+        domain: &DomainDefinition,
+        visited: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
+    ) -> bool {
+        let symbol = (domain.symbol, domain.semantic_id);
         if !index_parameters(program, domain).is_empty() || !domain.index_arguments.is_empty() {
             return false;
         }
@@ -378,19 +387,21 @@ pub fn has_symbol_only_proof(program: &TypedTrees, domain_symbol: SymbolHandle) 
         }
         visited.push(symbol);
         domain.alias.as_ref().is_none_or(|alias| {
-            alias
-                .constituents
-                .iter()
-                .all(|constituent| visit(program, constituent.domain_symbol, visited))
+            alias.constituents.iter().all(|constituent| {
+                domain_by_symbol(program, constituent.domain_symbol)
+                    .is_some_and(|domain| visit(program, domain, visited))
+            })
         }) && program.proof_facts(domain).iter().all(|fact| match fact {
-            ProofFact::Membership(membership) => {
-                membership.domain_arguments.is_empty()
-                    && visit(program, membership.domain_symbol, visited)
-            }
+            ProofFact::Membership(membership) => program
+                .domain_definition_for_instance(
+                    membership.domain_symbol,
+                    membership.semantic_domain,
+                )
+                .is_some_and(|domain| visit(program, domain, visited)),
             _ => true,
         })
     }
-    visit(program, domain_symbol, &mut Vec::new())
+    visit(program, domain, &mut Vec::new())
 }
 
 /// Matches the declaration-owned subject, independently of its authored name.
@@ -405,7 +416,23 @@ pub fn domain_subject_reference(
         return false;
     }
     let subject = program.symbols.get(domain.subject_symbol);
-    if subject.kind != symbols::SymbolKind::Parameter || subject.parent != domain.symbol {
+    let applied_subject = program
+        .applied_domain_applications
+        .iter()
+        .any(|application| {
+            application.declaration == domain.symbol
+                && application.theory.semantic_id == domain.semantic_id
+                && application.theory.subject_symbol == domain.subject_symbol
+                && program
+                    .domain_definition(domain.symbol)
+                    .is_some_and(|declared| {
+                        program.symbols.authored_origin(domain.subject_symbol)
+                            == declared.subject_symbol
+                    })
+        });
+    if subject.kind != symbols::SymbolKind::Parameter
+        || (subject.parent != domain.symbol && !applied_subject)
+    {
         return false;
     }
     let crate::expression::ExpressionNode::Name(path) =

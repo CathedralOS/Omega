@@ -89,12 +89,69 @@ pub(in crate::checks::contracts) fn value_satisfies_domain_predicates_in_context
     capture: Option<&checked_trees::FlowOperandFact>,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    if active.contains(&domain_symbol) {
-        return false;
-    }
     let Some(domain) = program.domain_definition(domain_symbol) else {
         return false;
     };
+    value_satisfies_bound_domain_predicates_in_contexts(
+        program,
+        facts,
+        state,
+        statement_index,
+        value,
+        domain,
+        contexts,
+        active,
+        capture,
+        frames,
+    )
+}
+
+pub(in crate::checks::contracts) fn value_satisfies_domain_instance_predicates_in_contexts(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    value: ExpressionHandle,
+    domain_symbol: SymbolHandle,
+    identity: language_semantics::SemanticDomainId,
+    contexts: &[facts::FactContextHandle],
+    active: &mut Vec<SymbolHandle>,
+    capture: Option<&checked_trees::FlowOperandFact>,
+    frames: Option<&validation::CallFrameResolver<'_>>,
+) -> bool {
+    let Some(domain) = program.domain_definition_for_instance(domain_symbol, identity) else {
+        return false;
+    };
+    value_satisfies_bound_domain_predicates_in_contexts(
+        program,
+        facts,
+        state,
+        statement_index,
+        value,
+        domain,
+        contexts,
+        active,
+        capture,
+        frames,
+    )
+}
+
+fn value_satisfies_bound_domain_predicates_in_contexts(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    value: ExpressionHandle,
+    domain: &typed_trees::domain::DomainDefinition,
+    contexts: &[facts::FactContextHandle],
+    active: &mut Vec<SymbolHandle>,
+    capture: Option<&checked_trees::FlowOperandFact>,
+    frames: Option<&validation::CallFrameResolver<'_>>,
+) -> bool {
+    let domain_symbol = domain.symbol;
+    if active.contains(&domain_symbol) {
+        return false;
+    }
     if domain.alias.is_some() {
         return false;
     }
@@ -104,7 +161,7 @@ pub(in crate::checks::contracts) fn value_satisfies_domain_predicates_in_context
     if program.proof_facts(domain).is_empty() {
         return true;
     }
-    if !typed_trees::domain::has_symbol_only_proof(program, domain_symbol) {
+    if !typed_trees::domain::has_bound_symbol_only_proof(program, domain) {
         return false;
     }
     let capture = capture.filter(|capture| {
