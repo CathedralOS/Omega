@@ -1,4 +1,4 @@
-//! Portable declaration identity shared by emitted bodies and their demands.
+//! Declaration identity shared by emitted bodies and their demands.
 //!
 //! Psi derives nominal bytes from exact package/toolchain ownership and the
 //! declaration path. These records identify checked inputs; they do not grant
@@ -6,6 +6,8 @@
 //! Table coordinates belong to one module, not a global declaration namespace.
 //! Structural equality is useful within that module; cross-artifact joins use
 //! `same_identity_as` with both owning tables and retain every commitment.
+//! Invocation-local declarations additionally require the same retained code
+//! owner; their coordinates cannot substitute for portable package ownership.
 
 use crate::terminal_module::{TerminalIdentityIndex, TerminalIdentityTable};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -28,6 +30,9 @@ impl NominalDeclarationIdentity {
         other: &Self,
         other_identities: &TerminalIdentityTable,
     ) -> bool {
+        if identities.is_invocation_local(self.0) || other_identities.is_invocation_local(other.0) {
+            return identities.same_invocation_declaration(self.0, other_identities, other.0);
+        }
         let Some(identity) = identities
             .text(self.0)
             .filter(|identity| !identity.is_empty())

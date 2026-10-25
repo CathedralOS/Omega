@@ -11,7 +11,7 @@ use language_semantics::declaration_selection::ExecutedRootBinding;
 use package_compilation::build_execution::build_value::{
     BuildValueAdmission, EvaluatedBuildSettings,
 };
-use psi_compiler::ProducedTerminalArtifact;
+use psi_compiler::ProducedTerminalProgram;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation, TerminalProgram,
@@ -41,14 +41,14 @@ pub(crate) struct TerminalBuildCompletion {
 /// backing. The caller supplies the same account to invocation and host effects;
 /// arbitrary runtime imports never receive a Build adapter.
 pub(crate) fn execute(
-    produced: &ProducedTerminalArtifact,
+    produced: &ProducedTerminalProgram,
     admission: BuildValueAdmission,
     initial: &BuildTimeValue,
     account: &EvaluationInvocationAccount,
     mut submit: impl FnMut(Vec<IssuedBuildRequest>) -> Result<(), String>,
 ) -> Result<TerminalBuildCompletion, String> {
-    let artifact = produced.artifact();
-    let program = TerminalProgram::borrow(artifact.view());
+    let artifact = produced.view();
+    let program = TerminalProgram::borrow(artifact);
     let entry = program.entry().map_err(describe)?;
     let [parameter] = entry.structural_parameters else {
         return Err("Build activation requires its one original structural receiver".into());
@@ -89,7 +89,7 @@ pub(crate) fn execute(
         .ok_or("Build bindings lost their artifact custody")?;
     for boundary in instance.unbound_imports().collect::<Vec<_>>() {
         let declaration = artifact
-            .semantic_module()
+            .module()
             .boundary_machines
             .iter()
             .find(|declaration| declaration.id == boundary)

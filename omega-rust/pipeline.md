@@ -223,6 +223,17 @@ Target/Build companion inputs travel explicitly; consumers cannot reopen checked
 source. Matching compilation inputs may share work; host Build and product
 contexts are not interchangeable merely because source bytes match.
 
+An anonymous Build runs before its final source graph has a declaration owner.
+The Psi production request therefore distinguishes invocation-only code from
+portable publication, using the same stages, Terminal representation and
+interpreter. Invocation-local coordinates retain their live code owner; neither
+artifact encoding nor native production accepts that private product. Build
+companions require both exact code semantics and the same invocation owner.
+After the dependency join, package coordination must establish the final owner
+before Product resolution and typing, as required by
+[anonymous owner identity](../wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity).
+Retagging already-typed declarations or replaying Build is not that transition.
+
 ### Visible execution
 
 The Build entrance shows request admission, activation preparation, dependency

@@ -129,7 +129,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             .and_then(compiler::CompilationOutput::into_inspection)
             .map_err(compiler::CompilationProductError::into_diagnostics)
             .map_err(|errors| format!("inspection {machine} production: {errors:?}"))?;
-        let artifact = produced.artifact();
+        let artifact = produced.artifact().map_err(|error| error.to_string())?;
         let mut transported = artifact.to_bytes();
         let decoded = CanonicalTerminalArtifact::from_bytes(&transported)
             .map_err(|error| format!("inspection {machine} transport: {error:?}"))?;

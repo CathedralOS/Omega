@@ -55,8 +55,8 @@ pub use control_flow::{
     structural_parameter_position,
 };
 pub use identity::{
-    CheckedMachineDeclaration, CheckedMachineSpecialization, NominalDeclarationIdentity,
-    SemanticFingerprint, TerminalIdentityIndex, TerminalIdentityTable,
+    CheckedMachineDeclaration, CheckedMachineSpecialization, InvocationCodeScope,
+    NominalDeclarationIdentity, SemanticFingerprint, TerminalIdentityIndex, TerminalIdentityTable,
     TerminalIdentityTableBuilder, TerminalPsiIdentity, VocabularyMarker,
 };
 pub use observation::{

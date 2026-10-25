@@ -36,13 +36,15 @@ pub(crate) fn execute_admitted_build_program(
     let toolchain =
         source::source_identity::toolchain_source_identities(checked.symbols.source_files())
             .map_err(&refuse)?;
-    let produced = psi_compiler::TerminalProductionRequest::new(
+    let mut production = psi_compiler::TerminalProductionRequest::new(
         checked,
         psi_compiler::TerminalMachineSelection::Symbol(machine.symbol),
         &toolchain,
-    )
-    .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
-    .map_err(|error| error.diagnostics())?;
+    );
+    production.publication = terminal_codec::TerminalPublication::Invocation;
+    let produced = production
+        .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+        .map_err(|error| error.diagnostics())?;
 
     // These are Terminal units. An existing tree-measured sponsor is never
     // relabeled or silently replaced by a fresh account.

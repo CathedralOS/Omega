@@ -1,12 +1,13 @@
 use lowered_psi_to_lowered_psi::PsiOptimizationStageResult;
 
-/// Produce the canonical source-free artifact consumed at the Psi/Omega seam.
+/// Retain invocation code or publish the source-free Psi/Omega artifact.
 ///
 /// Unsupported checked constructs fail at lowering; there is no alternate
 /// checked-tree backend to select as a fallback.
-pub fn finalize_terminal_artifact(
+pub fn finalize_terminal_program(
     optimized: PsiOptimizationStageResult,
-) -> Result<terminal_codec::CanonicalTerminalArtifact, terminal_codec::CanonicalTerminalArtifactError>
+    publication: terminal_codec::TerminalPublication,
+) -> Result<terminal_codec::TerminalProgramProduct, terminal_codec::CanonicalTerminalArtifactError>
 {
     let (lowered, execution) = optimized.into_parts();
     let (module, debug_map, _) = lowered.into_parts();
@@ -24,10 +25,19 @@ pub fn finalize_terminal_artifact(
             },
         )?;
     }
-    let artifact = terminal_codec::CanonicalTerminalArtifact::from_parts(
-        module,
-        execution,
-        debug_map.as_ref(),
-    )?;
-    Ok(artifact)
+    match publication {
+        terminal_codec::TerminalPublication::Portable => {
+            let artifact = terminal_codec::CanonicalTerminalArtifact::from_parts(
+                module,
+                execution,
+                debug_map.as_ref(),
+            )?;
+            Ok(terminal_codec::TerminalProgramProduct::Portable(artifact))
+        }
+        terminal_codec::TerminalPublication::Invocation => {
+            let code = terminal_codec::InvocationTerminalCode::new(module)
+                .map_err(terminal_codec::CanonicalTerminalArtifactError::Semantic)?;
+            Ok(terminal_codec::TerminalProgramProduct::Invocation(code))
+        }
+    }
 }

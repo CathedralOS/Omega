@@ -1,10 +1,11 @@
-//! Shared portable output and independent application judgments.
+//! Retained Terminal code and independent portable application judgments.
 //!
-//! These are producer results beside the canonical artifact, not another Psi IR.
+//! Portable artifacts and invocation-only code share Terminal semantics, not
+//! publication rights. These producer results are not another Psi IR.
 
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
-/// Canonical Terminal output beside the checked-source evidence the caller
+/// Terminal code beside the checked-source evidence the caller
 /// asked production to retain, in request order. Each application carries its
 /// own refusal or optional checked `ProgramEntry` receipt. Production success
 /// alone does not mean an application was admitted. Earlier representations
@@ -17,41 +18,58 @@ use terminal_psi::CheckedProgramEntryTerminalReceipt;
 /// bound to the artifact and exact emitted operations, never as debug payload.
 #[derive(Debug, PartialEq, Eq)]
 #[must_use = "Terminal production retains independent application judgments"]
-pub struct ProducedTerminalArtifact {
-    pub(super) artifact: terminal_codec::CanonicalTerminalArtifact,
+pub struct ProducedTerminalProgram {
+    pub(super) program: terminal_codec::TerminalProgramProduct,
     pub(super) build_bindings: crate::TerminalBuildBindings,
     pub(super) build_requests: crate::TerminalBuildRequests,
     pub(super) applications:
         Vec<Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>>,
 }
 
-impl ProducedTerminalArtifact {
+impl ProducedTerminalProgram {
     pub const fn build_requests(&self) -> &crate::TerminalBuildRequests {
         &self.build_requests
     }
     pub const fn build_bindings(&self) -> &crate::TerminalBuildBindings {
         &self.build_bindings
     }
-    pub const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
-        &self.artifact
+    pub fn view(&self) -> terminal_codec::TerminalExecutionView<'_> {
+        self.program.view()
+    }
+
+    pub fn artifact(
+        &self,
+    ) -> Result<
+        &terminal_codec::CanonicalTerminalArtifact,
+        terminal_codec::CanonicalTerminalArtifactError,
+    > {
+        self.program.portable()
     }
 
     /// Keep only the canonical portable artifact. This discards application
     /// judgments and Build request/binding context, and confers no authority to execute
     /// or publish a native product.
-    pub fn into_artifact(self) -> terminal_codec::CanonicalTerminalArtifact {
-        self.artifact
+    pub fn into_artifact(
+        self,
+    ) -> Result<
+        terminal_codec::CanonicalTerminalArtifact,
+        terminal_codec::CanonicalTerminalArtifactError,
+    > {
+        self.program.into_portable()
     }
 
     /// Extract the portable artifact and application judgments, discarding Build
     /// request/binding context. Build consumers borrow it before extraction.
     pub fn into_parts(
         self,
-    ) -> (
-        terminal_codec::CanonicalTerminalArtifact,
-        Vec<Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>>,
-    ) {
-        (self.artifact, self.applications)
+    ) -> Result<
+        (
+            terminal_codec::CanonicalTerminalArtifact,
+            Vec<Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>>,
+        ),
+        terminal_codec::CanonicalTerminalArtifactError,
+    > {
+        Ok((self.program.into_portable()?, self.applications))
     }
 }
 
@@ -72,7 +90,8 @@ pub struct TerminalApplicationCustody<'a> {
 
 /// Independent consumers of one checked execution closure. Admission failure
 /// belongs to that application, not to another consumer of the same program.
-/// An empty slice requests only the portable artifact.
+/// An empty slice requests code without application judgments; the request's
+/// publication destination determines whether that code can be exported.
 #[derive(Clone, Copy, Default)]
 pub struct TerminalProductionCustody<'a> {
     pub applications: &'a [TerminalApplicationCustody<'a>],

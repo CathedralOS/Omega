@@ -21,28 +21,28 @@ pub struct TerminalBuildBindingCall {
     pub request: RootBindingRequest,
 }
 
-/// Source-issued context bound to one canonical semantic artifact. Its private
-/// construction is not reproduced by loading arbitrary external bytes.
+/// Source-issued context bound to exact Terminal semantics and, for private
+/// code, its live invocation owner. Loading bytes cannot recreate this context.
 #[derive(Debug, PartialEq, Eq)]
 pub struct TerminalBuildBindings {
-    identity: terminal_psi::SemanticFingerprint,
+    identity: terminal_codec::TerminalExecutionIdentity,
     calls: Vec<TerminalBuildBindingCall>,
 }
 
 impl TerminalBuildBindings {
     pub fn calls_for(
         &self,
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
     ) -> Option<&[TerminalBuildBindingCall]> {
-        (self.identity == artifact.manifest().semantic().program_fingerprint).then_some(&self.calls)
+        (self.identity == artifact.custody_identity()).then_some(&self.calls)
     }
 
     pub(super) fn new(
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
         calls: Vec<TerminalBuildBindingCall>,
     ) -> Self {
         Self {
-            identity: artifact.manifest().semantic().program_fingerprint,
+            identity: artifact.custody_identity(),
             calls,
         }
     }

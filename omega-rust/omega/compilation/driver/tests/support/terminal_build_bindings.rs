@@ -58,11 +58,18 @@ fn exercise(
             Vec::new(),
         );
         for foreign in [false, true] {
-            let host = TerminalBuildBindingHost::new(artifact, bindings, original.clone()).unwrap();
-            let project =
-                TerminalBuildRequestHost::new(artifact, requests, original.clone(), None).unwrap();
-            let request_calls = requests.calls_for(artifact).unwrap();
-            let binding_calls = bindings.calls_for(artifact).unwrap();
+            let host =
+                TerminalBuildBindingHost::new(artifact.view().into(), bindings, original.clone())
+                    .unwrap();
+            let project = TerminalBuildRequestHost::new(
+                artifact.view().into(),
+                requests,
+                original.clone(),
+                None,
+            )
+            .unwrap();
+            let request_calls = requests.calls_for(artifact.view().into()).unwrap();
+            let binding_calls = bindings.calls_for(artifact.view().into()).unwrap();
             let mut receiver = original.clone();
             if foreign {
                 receiver.opaque_identity += 1;

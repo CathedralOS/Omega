@@ -8,7 +8,7 @@ use checked_trees_to_lowered_psi::{
 use diagnostics::Diagnostic;
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
 
-use crate::custody::{ProducedTerminalArtifact, TerminalProductionCustody};
+use crate::custody::{ProducedTerminalProgram, TerminalProductionCustody};
 use crate::observation::{PsiCompilationObserver, PsiCompilationStage};
 
 pub use lowered_psi_to_terminal_psi::ProgramEntryTerminalReceiptError;
@@ -16,6 +16,9 @@ use lowered_psi_to_terminal_psi::{prepare_program_entry_receipt, rejoin_program_
 
 /// Exact borrowed source inputs and target-neutral selection for Terminal production.
 pub struct TerminalProductionRequest<'a> {
+    /// Portable publication requires closed declaration owners. Invocation code
+    /// instead retains local coordinates and cannot enter native production.
+    pub publication: terminal_codec::TerminalPublication,
     pub checked: &'a CheckedTrees,
     pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     pub machine: TerminalMachineSelection<'a>,
@@ -33,6 +36,7 @@ impl<'a> TerminalProductionRequest<'a> {
         exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     ) -> Self {
         Self {
+            publication: terminal_codec::TerminalPublication::Portable,
             checked,
             exact_toolchain_sources,
             machine,
@@ -41,20 +45,19 @@ impl<'a> TerminalProductionRequest<'a> {
         }
     }
 
-    /// Produce the canonical Terminal artifact beside the custody the caller
-    /// asked to retain.
+    /// Produce Terminal code beside the custody the caller asked to retain.
     ///
     /// Every product shares one instrumented body: checked-input lowering,
     /// selected optimization, the `ProgramEntry` receipt legs when an entry
-    /// identity is supplied, and canonical publication including boundary
-    /// demands and checked body candidates. The source-signature digest remains
-    /// opaque; later Omega settlement must compare it with the retained source
-    /// signature.
+    /// identity is supplied, and final retention or portable publication,
+    /// including boundary demands and checked body candidates. The source-signature
+    /// digest remains opaque; later Omega settlement must compare it with the
+    /// retained source signature.
     pub fn produce(
         self,
         custody: TerminalProductionCustody<'_>,
         observer: &mut impl PsiCompilationObserver,
-    ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
+    ) -> Result<ProducedTerminalProgram, TerminalArtifactProductionError> {
         let TerminalProductionCustody { applications } = custody;
         let checked = self.checked;
         let lowered = observer
@@ -64,6 +67,7 @@ impl<'a> TerminalProductionRequest<'a> {
                     self.machine,
                     self.exact_toolchain_sources,
                     self.roots,
+                    self.publication,
                 )
             })
             .map_err(TerminalArtifactProductionError::Lowering)?;
@@ -143,9 +147,9 @@ impl<'a> TerminalProductionRequest<'a> {
             .map_err(TerminalArtifactProductionError::BuildContext)?;
         let request_calls = crate::build_requests::capture(checked, optimized.lowered())
             .map_err(TerminalArtifactProductionError::BuildContext)?;
-        let artifact = observer
+        let program = observer
             .record_result(PsiCompilationStage::Publication, || {
-                lowered_psi_to_terminal_psi::finalize_terminal_artifact(optimized)
+                lowered_psi_to_terminal_psi::finalize_terminal_program(optimized, self.publication)
             })
             .map_err(TerminalArtifactProductionError::Artifact)?;
         let applications = receipts
@@ -153,17 +157,20 @@ impl<'a> TerminalProductionRequest<'a> {
             .map(|receipt| {
                 let receipt = receipt?;
                 if let Some(receipt) = &receipt {
-                    rejoin_program_entry_receipt(receipt, &artifact).map_err(|error| {
+                    let artifact = program.portable().map_err(|error| {
+                        TerminalArtifactProductionError::Artifact(error).diagnostics()
+                    })?;
+                    rejoin_program_entry_receipt(receipt, artifact).map_err(|error| {
                         TerminalArtifactProductionError::EntryReceipt(error).diagnostics()
                     })?;
                 }
                 Ok(receipt)
             })
             .collect();
-        let build_bindings = crate::TerminalBuildBindings::new(&artifact, binding_calls);
-        let build_requests = crate::TerminalBuildRequests::new(&artifact, request_calls);
-        Ok(ProducedTerminalArtifact {
-            artifact,
+        let build_bindings = crate::TerminalBuildBindings::new(program.view(), binding_calls);
+        let build_requests = crate::TerminalBuildRequests::new(program.view(), request_calls);
+        Ok(ProducedTerminalProgram {
+            program,
             build_bindings,
             build_requests,
             applications,

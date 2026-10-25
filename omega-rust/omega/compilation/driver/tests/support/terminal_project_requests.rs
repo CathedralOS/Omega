@@ -23,7 +23,12 @@ pub(super) fn observe(
         };
         let original = TerminalStructuralValue::minted(955, parameter.structural_type, Vec::new());
         for foreign in [false, true] {
-            let host = TerminalBuildRequestHost::new(artifact, requests, original.clone(), None)?;
+            let host = TerminalBuildRequestHost::new(
+                artifact.view().into(),
+                requests,
+                original.clone(),
+                None,
+            )?;
             let mut receiver = original.clone();
             if foreign {
                 receiver.opaque_identity += 1;

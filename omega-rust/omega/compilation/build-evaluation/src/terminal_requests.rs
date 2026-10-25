@@ -59,7 +59,7 @@ impl BuildLog {
 
 impl<'context> TerminalBuildRequestHost<'context> {
     pub fn new(
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
         requests: &'context TerminalBuildRequests,
         original: TerminalStructuralValue,
         account: Option<&'context EvaluationInvocationAccount>,
@@ -109,10 +109,10 @@ impl<'context> TerminalBuildRequestHost<'context> {
 /// The admitted entry is the compiler's Build shape. Project the exact catalog
 /// field into its original backing; a same-typed guest value is not that facet.
 fn log_facet(
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    artifact: terminal_codec::TerminalExecutionView<'_>,
     original: &TerminalStructuralValue,
 ) -> Result<TerminalStructuralValue, String> {
-    let module = artifact.semantic_module();
+    let module = artifact.module();
     let declaration = module
         .structural_types
         .iter()

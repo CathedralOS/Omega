@@ -26,24 +26,24 @@ pub struct TerminalBuildRequestCall {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct TerminalBuildRequests {
-    identity: terminal_psi::SemanticFingerprint,
+    identity: terminal_codec::TerminalExecutionIdentity,
     calls: Vec<TerminalBuildRequestCall>,
 }
 
 impl TerminalBuildRequests {
     pub fn calls_for(
         &self,
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
     ) -> Option<&[TerminalBuildRequestCall]> {
-        (self.identity == artifact.manifest().semantic().program_fingerprint).then_some(&self.calls)
+        (self.identity == artifact.custody_identity()).then_some(&self.calls)
     }
 
     pub(super) fn new(
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
         calls: Vec<TerminalBuildRequestCall>,
     ) -> Self {
         Self {
-            identity: artifact.manifest().semantic().program_fingerprint,
+            identity: artifact.custody_identity(),
             calls,
         }
     }

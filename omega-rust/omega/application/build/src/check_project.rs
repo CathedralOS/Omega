@@ -118,7 +118,7 @@ pub fn inspect_prepared_local_project(
     build_dir: &Path,
     target_profile: TargetProfile,
     machine: &str,
-) -> Result<compiler::ProducedTerminalArtifact, ProjectInspectionError> {
+) -> Result<compiler::ProducedTerminalProgram, ProjectInspectionError> {
     let outcome = crate::project_compilation::compile(ProjectCompilationAdmissionRequest {
         prepared,
         build_directory: build_dir,

@@ -36,7 +36,7 @@ struct BindingState {
 
 impl<'context> TerminalBuildBindingHost<'context> {
     pub fn new(
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
         bindings: &'context TerminalBuildBindings,
         original: TerminalStructuralValue,
     ) -> Result<Self, String> {

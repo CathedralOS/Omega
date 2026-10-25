@@ -223,7 +223,8 @@ impl PreparedBuildMachineProgram {
             &mut psi_terminal_production::UnmeasuredProduction,
         )
         .map_err(|error| error.to_string())?
-        .into_artifact();
+        .into_artifact()
+        .map_err(|error| error.to_string())?;
         let program = terminal_interpreter::TerminalProgram::borrow(artifact.view());
         let mut instance = program
             .instantiate(terminal_interpreter::TerminalInstantiation {

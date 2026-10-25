@@ -19,7 +19,7 @@ mod compiler;
 mod execution_settlement;
 mod identity;
 mod inspection;
-pub use terminal_production::ProducedTerminalArtifact;
+pub use terminal_production::ProducedTerminalProgram;
 mod product_execution;
 
 #[cfg(test)]
