@@ -138,19 +138,10 @@ pub struct ElfDynamicExecutableAdmissionError {
     diagnostic: Diagnostic,
 }
 
-impl ElfDynamicExecutableAdmissionError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ValidatedElfAssembledDynamicFile, Diagnostic) {
-        (self.assembled, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfDynamicExecutableAdmissionError);
-
-impl std::error::Error for ElfDynamicExecutableAdmissionError {}
+image::rejection_carrier!(
+    ElfDynamicExecutableAdmissionError;
+    assembled: ValidatedElfAssembledDynamicFile,
+);
 
 /// Rejected file assembly retaining the exact resolved-linkage owner.
 #[derive(Debug)]
@@ -160,19 +151,10 @@ pub struct ElfDynamicFileAssemblyError {
     diagnostic: Diagnostic,
 }
 
-impl ElfDynamicFileAssemblyError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ValidatedElfResolvedProcedureLinkage, Diagnostic) {
-        (self.resolved_linkage, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfDynamicFileAssemblyError);
-
-impl std::error::Error for ElfDynamicFileAssemblyError {}
+image::rejection_carrier!(
+    ElfDynamicFileAssemblyError;
+    resolved_linkage: ValidatedElfResolvedProcedureLinkage,
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ElfAssembledDynamicFileContents {

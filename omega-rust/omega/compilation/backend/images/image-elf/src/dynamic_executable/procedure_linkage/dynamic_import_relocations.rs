@@ -104,19 +104,10 @@ pub struct ElfProcedureLinkageRelocationPlanningError {
     diagnostic: Diagnostic,
 }
 
-impl ElfProcedureLinkageRelocationPlanningError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ValidatedElfDynamicSectionDescriptorPlan, Diagnostic) {
-        (self.descriptors, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfProcedureLinkageRelocationPlanningError);
-
-impl std::error::Error for ElfProcedureLinkageRelocationPlanningError {}
+image::rejection_carrier!(
+    ElfProcedureLinkageRelocationPlanningError;
+    descriptors: ValidatedElfDynamicSectionDescriptorPlan,
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ElfProcedureLinkageRelocationContents {
