@@ -1935,13 +1935,6 @@ impl<'program> StructuralJudge<'program> {
             owner_symbol(&owner),
             typed_trees::references::StaticArgumentCall::Expression(expression, call),
         ) {
-            if super::super::struct_trace() {
-                eprintln!(
-                    "STRUCT normal-capture refusal expression={expression:?} stage=independence owner={:?} caller={:?}",
-                    owner_symbol(&owner),
-                    self.machine_symbol
-                );
-            }
             return None;
         }
         let leading_operands = owner_leading_operands(&owner);
@@ -1953,14 +1946,6 @@ impl<'program> StructuralJudge<'program> {
             return None;
         };
         if arguments.len() != parameters.len() {
-            if super::super::struct_trace() {
-                eprintln!(
-                    "STRUCT normal-capture refusal expression={expression:?} stage=arity owner={:?} leading={leading_operands} arguments={} parameters={}",
-                    owner_symbol(&owner),
-                    arguments.len(),
-                    parameters.len()
-                );
-            }
             return None;
         }
         // The checked local-name gate rejects parameter/local collisions and
@@ -2019,12 +2004,7 @@ impl<'program> StructuralJudge<'program> {
             |subject| {
                 self.completed_scalar_subject(subject, site, completed_arguments, scope.0, scope.1)
             },
-        ).or_else(|| {
-            if super::super::struct_trace() {
-                eprintln!("STRUCT normal-capture refusal expression={expression:?} stage=scalar-substitution owner={:?}", owner_symbol(&owner));
-            }
-            None
-        })?;
+        )?;
         for (parameter, value) in static_bindings {
             if !entry_bindings
                 .iter()
@@ -2148,7 +2128,16 @@ impl<'program> StructuralJudge<'program> {
         };
         // Carrier equality is checked under the exact public application.
         // A policy adapter still cannot donate a raw declaration's equation.
-        let result_type = application.runtime_result_type(program, &owner, call, observed_type)?;
+        let result_presentation = application.runtime_result_presentation(
+            program,
+            &owner,
+            call,
+            observed_type,
+            callable,
+            parameters,
+            &bindings,
+        )?;
+        let result_type = result_presentation.type_reference;
         let contracts = owner_contracts(program, &owner).collect::<Vec<_>>();
         self.capture_sequence += 1;
         let captured = StructuralTerm::CapturedValue {
@@ -2276,7 +2265,16 @@ impl<'program> StructuralJudge<'program> {
             );
         }
         self.intake_admitted_value_predicates(result_type, captured.clone());
-        self.intake_result_indices(result_type, &captured, callable, parameters, &bindings);
+        // A dependent result recipe keeps the same formal presentation used
+        // by admission. Its operands are these completed invocation bindings;
+        // neither slot alpha-renaming nor later writes can replay their source.
+        self.intake_result_indices(
+            result_type,
+            &captured,
+            result_presentation.parameter_owner,
+            result_presentation.parameters,
+            &result_presentation.bindings,
+        );
         if let SelectedCallContract::Concrete(callee, selected_state) = &owner {
             equations.extend(self.returned_field_equations(
                 callee,

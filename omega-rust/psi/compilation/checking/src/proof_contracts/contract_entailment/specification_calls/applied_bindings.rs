@@ -8,7 +8,7 @@ use super::{SelectedCallContract, StructuralTerm, call_machine_substitution, own
 use language_semantics::const_value::{CanonicalConstIdentity, DecodedCanonicalConstValue};
 use symbols::SymbolHandle;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
-use typed_trees::expression::{ExpressionHandle, TableCallExpression};
+use typed_trees::expression::TableCallExpression;
 use typed_trees::operator::{ClosedOperatorApplicationArgument, OperatorConstBinding};
 use typed_trees::static_applications::StaticMachineBindingValue;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -28,6 +28,15 @@ pub(in crate::proof_contracts::contract_entailment) struct AppliedProofBindings 
     pub runtime_parameters: Vec<AppliedRuntimeBinding>,
     pub machines: MachineBindings,
     pub implementations: Vec<(SymbolHandle, typed_trees::expression::StaticMachineArgument)>,
+}
+
+/// One admitted result recipe together with the telescope its value leaves
+/// actually name. Captured ordinary bindings are transported, never re-read.
+pub(in crate::proof_contracts::contract_entailment) struct AppliedResultPresentation<'scope> {
+    pub type_reference: TypeReferenceHandle,
+    pub parameter_owner: SymbolHandle,
+    pub parameters: &'scope [typed_trees::signature::StateParameter],
+    pub bindings: std::borrow::Cow<'scope, [(SymbolHandle, StructuralTerm)]>,
 }
 
 /// One authenticated static value actual. Open values keep their supplying
@@ -237,15 +246,6 @@ impl AppliedProofBindings {
                 let correspondence = crate::machine_calls::calls::call_binding_correspondence(
                     program, caller, &site,
                 )
-                .inspect_err(|reason| {
-                    if super::super::struct_trace() {
-                        eprintln!(
-                            "STRUCT call-binding refusal application={handle:?} caller={caller:?} declaration={:?} owner={:?} reason={reason}",
-                            application.binding_declaration,
-                            owner_symbol(owner)
-                        );
-                    }
-                })
                 .ok()?;
                 if correspondence.public_owner != owner_symbol(owner)
                     || correspondence.declaration != declaration.symbol
@@ -276,15 +276,6 @@ impl AppliedProofBindings {
                 let correspondence = crate::machine_calls::calls::call_binding_correspondence(
                     program, caller, &site,
                 )
-                .inspect_err(|reason| {
-                    if super::super::struct_trace() {
-                        eprintln!(
-                            "STRUCT call-binding refusal application={handle:?} caller={caller:?} declaration={:?} owner={:?} reason={reason}",
-                            application.binding_declaration,
-                            owner_symbol(owner)
-                        );
-                    }
-                })
                 .ok()?;
                 if correspondence.public_owner != owner_symbol(owner)
                     || correspondence.declaration != application.binding_declaration
@@ -730,6 +721,215 @@ impl AppliedProofBindings {
         Some(result)
     }
 
+    /// Admit the result and preserve the exact telescope of its dependent
+    /// recipe. A dynamic slot freshens ordinary formals; its public requirement
+    /// keeps the source symbols. Alpha correspondence changes neither actual
+    /// values nor the full qualified/indexed result contract.
+    pub fn runtime_result_presentation<'scope>(
+        &self,
+        program: &dyn crate::CheckingInput,
+        owner: &SelectedCallContract<'scope>,
+        call: &TableCallExpression,
+        observed: TypeReferenceHandle,
+        parameter_owner: SymbolHandle,
+        parameters: &'scope [typed_trees::signature::StateParameter],
+        bindings: &'scope [(SymbolHandle, StructuralTerm)],
+    ) -> Option<AppliedResultPresentation<'scope>> {
+        use typed_trees::type_identity::{
+            AppliedTypeIdentityScope, IndexIdentityArgument, try_normalized_index_identity,
+        };
+        let SelectedCallContract::DynamicSlot { slot, signature } = owner else {
+            return Some(AppliedResultPresentation {
+                type_reference: self.runtime_result_type(program, owner, call, observed)?,
+                parameter_owner,
+                parameters,
+                bindings: std::borrow::Cow::Borrowed(bindings),
+            });
+        };
+        let slot = *slot;
+        let signature = *signature;
+        let declared = program.state_signature_parameters(signature);
+        let selected = slot.data_parameters();
+        if !slot.symbol.is_valid()
+            || !signature.symbol.is_valid()
+            || parameter_owner != signature.symbol
+            || call.target_symbol != slot.symbol
+            || slot.requirement != signature.symbol
+            || program.dynamic_slot_requirement(slot)?.symbol != signature.symbol
+            || program.symbols.get(slot.symbol).generated_from != signature.symbol
+            || slot.parameters.len() != declared.len() + 1
+            || selected.len() != parameters.len()
+            || parameters.len() != declared.len()
+        {
+            return None;
+        }
+        let selector = slot.parameters.first()?;
+        if !selector.symbol.is_valid()
+            || program.symbols.get(selector.symbol).parent != slot.symbol
+            || program.symbols.get(selector.symbol).generated_from != signature.symbol
+        {
+            return None;
+        }
+        let mut public_binders = Vec::with_capacity(declared.len());
+        let mut slot_binders = Vec::with_capacity(selected.len());
+        for (position, ((source, selected), prepared)) in
+            declared.iter().zip(selected).zip(parameters).enumerate()
+        {
+            if !source.symbol.is_valid()
+                || !selected.symbol.is_valid()
+                || prepared.symbol != source.symbol
+                || declared
+                    .iter()
+                    .any(|parameter| parameter.symbol == selected.symbol)
+                || program.symbols.get(selected.symbol).parent != slot.symbol
+                || program.symbols.get(selected.symbol).generated_from != source.symbol
+                || selected.is_const != source.is_const
+                || selected.is_mutable != source.is_mutable
+                || prepared.is_const != source.is_const
+                || prepared.is_mutable != source.is_mutable
+                || public_binders
+                    .iter()
+                    .any(|(symbol, _)| *symbol == source.symbol)
+                || slot_binders
+                    .iter()
+                    .any(|(symbol, _)| *symbol == selected.symbol)
+            {
+                return None;
+            }
+            // Ordinal alpha tokens are private to this authenticated complete
+            // signature map. Exact handles remain the keys on both sides;
+            // source names, Debug payloads and actual values are not identities.
+            let identity = format!("\0public-result-formal:{position}");
+            public_binders.push((source.symbol, identity.clone()));
+            slot_binders.push((selected.symbol, identity));
+        }
+        let requires_header = !program
+            .state_signature_type_parameters(signature)
+            .is_empty()
+            || !self.types.is_empty()
+            || !self.constants.is_empty()
+            || !self.runtime_parameters.is_empty()
+            || !self.machines.is_empty()
+            || !self.implementations.is_empty();
+        let mut header = Vec::new();
+        let mut header_owner = SymbolHandle::invalid();
+        if call.authored_machine_application.is_valid() {
+            let application = program
+                .expression_table
+                .static_machine_application(call.authored_machine_application);
+            let retained = program
+                .expression_table
+                .static_machine_application_bindings(call.authored_machine_application);
+            if retained.is_empty() {
+                if requires_header {
+                    return None;
+                }
+            } else {
+                if !application.binding_declaration.is_valid() {
+                    return None;
+                }
+                header_owner = application.binding_declaration;
+                header.extend(retained.iter().map(|binding| {
+                    let argument = match &binding.value {
+                        StaticMachineBindingValue::Type(reference) => {
+                            IndexIdentityArgument::TypeArgument(*reference)
+                        }
+                        StaticMachineBindingValue::Const(reference) => {
+                            IndexIdentityArgument::TypeReference(*reference)
+                        }
+                        StaticMachineBindingValue::RuntimeValue {
+                            subject,
+                            expression,
+                            ..
+                        } => {
+                            if expression.is_valid() {
+                                IndexIdentityArgument::Expression(*expression)
+                            } else {
+                                IndexIdentityArgument::Subject(*subject)
+                            }
+                        }
+                        StaticMachineBindingValue::Machine(argument)
+                        | StaticMachineBindingValue::Conformance(argument) => {
+                            IndexIdentityArgument::StaticArgument(argument)
+                        }
+                    };
+                    (binding.parameter, argument)
+                }));
+            }
+        } else if requires_header {
+            return None;
+        }
+        // Nongeneric calls may be admitted before an application is retained.
+        // Their genuinely empty scope indexes neither a zero handle nor an
+        // invented declaration. Required header evidence never takes this path.
+        let prepared_scopes = [AppliedTypeIdentityScope {
+            declaration: header_owner,
+            arguments: &header,
+            lifetimes: &[],
+        }];
+        let scopes = if header_owner.is_valid() {
+            &prepared_scopes[..]
+        } else {
+            &[]
+        };
+        let identity = |reference, binders: &[(SymbolHandle, String)]| {
+            try_normalized_index_identity(
+                program.typed_program(),
+                IndexIdentityArgument::TypeArgument(reference),
+                binders,
+                scopes,
+            )
+        };
+        // The prepared public telescope already takes its instantiated types
+        // from this slot while retaining public symbols. Compare every full
+        // type after the complete simultaneous ordinary alpha map exists.
+        for (selected, prepared) in selected.iter().zip(parameters) {
+            if identity(selected.type_reference, &slot_binders)?
+                != identity(prepared.type_reference, &slot_binders)?
+            {
+                return None;
+            }
+        }
+        if program.arithmetic_domain_for_type_reference(observed)
+            != program
+                .arithmetic_domain_for_type_reference(self.project_type(program, slot.return_type))
+        {
+            return None;
+        }
+        let result = identity(slot.return_type, &slot_binders)?;
+        if identity(observed, &public_binders).as_ref() == Some(&result) {
+            return Some(AppliedResultPresentation {
+                type_reference: observed,
+                parameter_owner,
+                parameters,
+                bindings: std::borrow::Cow::Borrowed(bindings),
+            });
+        }
+        if identity(observed, &slot_binders)? != result {
+            return None;
+        }
+        let mut selected_bindings = Vec::with_capacity(bindings.len());
+        for (symbol, value) in bindings {
+            let symbol = parameters
+                .iter()
+                .position(|parameter| parameter.symbol == *symbol)
+                .map_or(*symbol, |position| selected[position].symbol);
+            if selected_bindings
+                .iter()
+                .any(|(previous, _)| *previous == symbol)
+            {
+                return None;
+            }
+            selected_bindings.push((symbol, value.clone()));
+        }
+        Some(AppliedResultPresentation {
+            type_reference: observed,
+            parameter_owner: slot.symbol,
+            parameters: selected,
+            bindings: std::borrow::Cow::Owned(selected_bindings),
+        })
+    }
+
     /// Authenticate the completed result against its public declaration under
     /// the complete simultaneous application. Boundary calls retain a generic
     /// declaration even when their completed result has a closed carrier; no
@@ -742,97 +942,11 @@ impl AppliedProofBindings {
         observed: TypeReferenceHandle,
     ) -> Option<TypeReferenceHandle> {
         let declared = super::owner_return_type(owner);
-        let trace_refusal = |stage: &str| {
-            if !super::super::struct_trace() {
-                return;
-            }
-            eprintln!(
-                "STRUCT result-carrier refusal stage={stage} target={:?} public_owner={:?} observed={observed:?} declared={declared:?} types={} constants={} runtime={}",
-                call.target_symbol,
-                owner_symbol(owner),
-                self.types.len(),
-                self.constants.len(),
-                self.runtime_parameters.len()
-            );
-            for (label, reference) in [("observed", observed), ("declared", declared)] {
-                let node = program.type_reference_table.type_reference(reference);
-                let (kind, symbol, arguments) = match node {
-                    TypeReferenceNode::Named { symbol, .. } => ("named", *symbol, &[][..]),
-                    TypeReferenceNode::Generic {
-                        base_symbol,
-                        arguments,
-                        ..
-                    } => (
-                        "generic",
-                        *base_symbol,
-                        program
-                            .type_reference_table
-                            .type_reference_handles(*arguments),
-                    ),
-                    _ => ("other", SymbolHandle::invalid(), &[][..]),
-                };
-                eprintln!(
-                    "STRUCT result-carrier node label={label} reference={reference:?} kind={kind} symbol={symbol:?} arguments={}",
-                    arguments.len()
-                );
-                for (position, argument) in arguments.iter().take(4).enumerate() {
-                    let (kind, expression, symbol) =
-                        match program.type_reference_table.type_reference(*argument) {
-                            TypeReferenceNode::ConstExpression(expression) => {
-                                ("expression", *expression, SymbolHandle::invalid())
-                            }
-                            TypeReferenceNode::Named { symbol, .. } => {
-                                ("named", ExpressionHandle::invalid(), *symbol)
-                            }
-                            _ => (
-                                "other",
-                                ExpressionHandle::invalid(),
-                                SymbolHandle::invalid(),
-                            ),
-                        };
-                    let (expression_kind, receiver, member) = if expression.is_valid() {
-                        match program.expression_table.expression(expression) {
-                            typed_trees::expression::ExpressionNode::Member(value) => {
-                                ("member", value.receiver, value.member_symbol)
-                            }
-                            typed_trees::expression::ExpressionNode::Name(value) => {
-                                ("name", ExpressionHandle::invalid(), value.symbol)
-                            }
-                            typed_trees::expression::ExpressionNode::SavedSubject(_) => (
-                                "saved",
-                                ExpressionHandle::invalid(),
-                                SymbolHandle::invalid(),
-                            ),
-                            _ => (
-                                "other",
-                                ExpressionHandle::invalid(),
-                                SymbolHandle::invalid(),
-                            ),
-                        }
-                    } else {
-                        (
-                            "absent",
-                            ExpressionHandle::invalid(),
-                            SymbolHandle::invalid(),
-                        )
-                    };
-                    eprintln!(
-                        "STRUCT result-carrier argument label={label} position={position} reference={argument:?} kind={kind} symbol={symbol:?} expression={expression:?} expression_kind={expression_kind} receiver={receiver:?} member={member:?}"
-                    );
-                }
-            }
-        };
         if self.types.is_empty() && self.constants.is_empty() {
-            if !crate::declared_carriers_match(program, observed, declared) {
-                trace_refusal("declared-carrier");
-                return None;
-            }
-            let same_domain = program.arithmetic_domain_for_type_reference(observed)
-                == program.arithmetic_domain_for_type_reference(declared);
-            if !same_domain {
-                trace_refusal("declared-domain");
-            }
-            return same_domain.then_some(declared);
+            return (crate::declared_carriers_match(program, observed, declared)
+                && program.arithmetic_domain_for_type_reference(observed)
+                    == program.arithmetic_domain_for_type_reference(declared))
+            .then_some(declared);
         }
         let substitutions = program
             .expression_table
@@ -851,14 +965,9 @@ impl AppliedProofBindings {
             observed,
             declared,
             &substitutions,
-        ) {
-            trace_refusal("applied-carrier");
-            return None;
-        }
-        if program.arithmetic_domain_for_type_reference(observed)
+        ) || program.arithmetic_domain_for_type_reference(observed)
             != program.arithmetic_domain_for_type_reference(self.project_type(program, declared))
         {
-            trace_refusal("applied-domain");
             return None;
         }
         let applied = program.type_identity_with_simultaneous_substitutions(
@@ -868,7 +977,6 @@ impl AppliedProofBindings {
             },
         );
         if !applied.is_valid() {
-            trace_refusal("invalid-applied-identity");
             return None;
         }
         let public = self.project_type(program, declared);
@@ -880,11 +988,7 @@ impl AppliedProofBindings {
         // realization may return stronger qualifications than its public edge.
         // Authenticate the complete public type before that handle can supply
         // declared domains; carrier equality alone grants no such facts.
-        let same_identity = program.normalized_type_identity(observed) == applied;
-        if !same_identity {
-            trace_refusal("public-identity");
-        }
-        same_identity.then_some(observed)
+        (program.normalized_type_identity(observed) == applied).then_some(observed)
     }
 
     /// A direct formal type is read under this simultaneous application.
