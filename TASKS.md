@@ -133,20 +133,19 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
-- **OPTIONAL-REACH-CEILINGS.** Implement the ratified
+- **OPTIONAL-REACH-CEILINGS.** Complete the ratified
   [optional reach contract](wiki/spec/language/effects.md#declarations).
-  Established by `samples/cli/facts/unannotated_direct_boundary_call`: one
-  unannotated direct boundary call runs across the nine places, and an empty
-  ceiling rejects that hidden direct service. Remaining: unannotated transitive
-  calls; a pinned service-free empty ceiling and rejection of hidden transitive
-  services; a present clause as a bound on the complete derived row rather than
-  an additive union; `A + B` accepts `A` and rejects `C`; injected, generic,
-  dynamic, and target-specific refinement without selection narrowing callers;
-  public bodies, implementation members, and entries that omit `reaches`;
-  boundary-trait requirements that omit their ceiling; audit slack and
-  package-review round trips. Manifest/provider authority, foreign trust,
-  blocking, suspension, and crashes remain separate. Do not count removing
-  source annotations alone as compiler acceptance.
+  Remaining: require explicit ceilings on boundary-trait machine requirements
+  (including empty), migrate affected declarations and retain their runtime
+  oracles; finish injected-provider refinement and package acceptance/round-trip
+  coverage for the full contract.
+  Checked implementations may omit their own clause while refining their pinned
+  requirement. Keep optional versus explicitly empty custody through source,
+  generic substitution, joins, recursive summaries, Terminal production and
+  package comparison. Audit must retain inferred reach, declared slack and exact
+  critical/custom identities. Manifest/provider authority, foreign trust,
+  blocking, suspension and crashes remain separate. A green transport row or
+  annotation-only migration does not close the remaining acceptance.
 
 - **EXPLICIT-ENTRY-STORAGE.** Retire automatic provisioned ZII entry contexts
   under [entry roots](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge).

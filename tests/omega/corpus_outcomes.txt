@@ -4016,7 +4016,7 @@ fail/effects/finite_requirement_block_required rejected 1354ms expected @5f66882
 	call to `echo` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 fail/effects/global_key_polling_is_not_window_input rejected 1493ms expected @1654d389500c+wt
 	machine `Client::read` state `read` does not satisfy trait `WindowInputClient` machine `read`: service `GlobalInputObservation` is not allowed by the trait requirement
-fail/effects/graphics_provider_cannot_hide_filesystem_write rejected 376ms expected @1654d389500c+wt
+fail/effects/graphics_provider_cannot_hide_filesystem_write rejected 1494ms expected @b50066b75303+wt
 	machine `Renderer::present` state `present` does not satisfy trait `GraphicsPlatform` machine `present`: service `FilesystemContentWrite` is not allowed by the trait requirement
 fail/effects/invoked_family_block_marker_redundant rejected 2244ms expected @5f668826adf3
 	call to `emit` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly
@@ -4024,13 +4024,22 @@ fail/effects/macos_dispatch_cannot_hide_filesystem_write rejected 1518ms expecte
 	machine `RuntimePresentation::send` state `send` does not satisfy trait `PresentationClient` machine `send`: service `FilesystemContentWrite` is not allowed by the trait requirement
 fail/effects/nominal_callback_console_const_reach rejected 356ms expected @5f668826adf3
 	fixed-array length `[u8; length()]`: const evaluation of `length` failed: machine `@array-extent-2-9` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+fail/effects/optional_reach_declared_slack_rejected rejected 1192ms expected @b50066b75303+wt
+	machine `main` publishes service reach `Mark` but its checked body reaches undeclared service `Unused`
+fail/effects/optional_reach_disjoint_service_rejected rejected 1127ms expected @b50066b75303+wt
+	machine `read_mark` publishes service reach `Mark + Unused` but its checked body reaches undeclared service `Forbidden`
+fail/effects/optional_reach_generic_narrow_rejected rejected 1365ms expected @b50066b75303+wt
+	machine `main` publishes service reach `Mark` but its checked body reaches undeclared service `Unused`
+fail/effects/optional_reach_target_union_rejected rejected 1354ms expected @b50066b75303+wt
+	machine `main` publishes service reach `Mark` but its checked body reaches undeclared service `Forbidden`
 fail/effects/pacing_poll_cannot_observe_descriptors rejected 3531ms expected @1654d389500c+wt
 	cannot prove requires contract for call poll from invalid_wait: 1 == 0 && 1 == 0 (needs fact `fds == 0 && nfds == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/effects/portable_filesystem_write_needs_write_reach rejected 7075ms expected @d81382f05a6c+wt
 	machine `read_only` publishes service reach `FilesystemContentRead` but its checked body reaches undeclared service `FilesystemContentWrite`
 fail/effects/provider_authored_reach_beyond_invocation rejected 1979ms expected @5f668826adf3
 	machine `Provider::measure` state `measure` does not satisfy trait `Measure` machine `measure`: service `Length` is not allowed by the trait requirement
-fail/effects/reviewed_service_rows_missing_capability checked 2149ms @5f668826adf3
+fail/effects/reviewed_service_rows_missing_capability rejected 1295ms expected regressed-from:checked @b50066b75303+wt
+	machine `omitted` publishes service reach `<none>` but its checked body reaches undeclared service `ReadCapability`
 fail/effects/static_boundary_callback_reach rejected 1328ms expected @3b18b32f7117+wt
 	machine `main` state `entry` does not satisfy trait `Published` machine `run`: service `Read` is not allowed by the trait requirement
 fail/effects/synchronous_callback_block_required rejected 1827ms expected @5f668826adf3
@@ -4039,7 +4048,8 @@ fail/effects/synchronous_callback_reach_required rejected 1528ms expected @5f668
 	machine `missing_capability` publishes service reach `Registrar` but its checked body reaches undeclared service `Read`
 fail/effects/top_level_callback_block_required rejected 1162ms expected @5f668826adf3
 	call to `execute` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-fail/effects/top_level_callback_reach_required checked 2117ms @5f668826adf3
+fail/effects/top_level_callback_reach_required rejected 880ms expected regressed-from:checked @b50066b75303+wt
+	machine `caller` publishes service reach `<none>` but its checked body reaches undeclared service `Read`
 fail/effects/windows_canonical_path_requires_metadata rejected 7637ms expected @873d5df486fe
 	machine `inspect` publishes service reach `DirectoryEnumeration` but its checked body reaches undeclared service `FilesystemMetadataQuery`
 fail/effects/windows_copy_move_requires_content rejected 1746ms expected @034b5e35c420
@@ -13711,23 +13721,86 @@ fail/facts/twentyfour_arg_stack_calling_plan_through_target_body_rejected reject
 	exact arithmetic in machine `evaluate24` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate24` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate24` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/unannotated_direct_boundary_call_through_call_result_rejected rejected 1067ms expected @c2e06b875ba2+wt
+fail/facts/unannotated_direct_boundary_call_through_call_result_rejected rejected 835ms expected @b50066b75303+wt
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_direct_boundary_call_through_const_name_rejected rejected 1071ms expected @c2e06b875ba2+wt
+fail/facts/unannotated_direct_boundary_call_through_const_name_rejected rejected 879ms expected @b50066b75303+wt
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_direct_boundary_call_through_field_rejected rejected 1043ms expected @c2e06b875ba2+wt
+fail/facts/unannotated_direct_boundary_call_through_field_rejected rejected 964ms expected @b50066b75303+wt
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_direct_boundary_call_through_local_rejected rejected 1038ms expected @c2e06b875ba2+wt
+fail/facts/unannotated_direct_boundary_call_through_local_rejected rejected 1354ms expected @b50066b75303+wt
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_direct_boundary_call_through_match_join_rejected rejected 1030ms expected @c2e06b875ba2+wt
+fail/facts/unannotated_direct_boundary_call_through_match_join_rejected rejected 1241ms expected @b50066b75303+wt
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_direct_boundary_call_through_other_machine_rejected rejected 1050ms expected @c2e06b875ba2+wt
+fail/facts/unannotated_direct_boundary_call_through_other_machine_rejected rejected 1136ms expected @b50066b75303+wt
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_direct_boundary_call_through_other_state_rejected rejected 1030ms expected @c2e06b875ba2+wt
+fail/facts/unannotated_direct_boundary_call_through_other_state_rejected rejected 1162ms expected @b50066b75303+wt
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_direct_boundary_call_through_parameter_rejected rejected 1033ms expected @c2e06b875ba2+wt
+fail/facts/unannotated_direct_boundary_call_through_parameter_rejected rejected 1153ms expected @b50066b75303+wt
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_direct_boundary_call_through_target_body_rejected rejected 1019ms expected @c2e06b875ba2+wt
+fail/facts/unannotated_direct_boundary_call_through_target_body_rejected rejected 1051ms expected @b50066b75303+wt
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_call_result_rejected rejected 1085ms expected @b50066b75303+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_const_name_rejected rejected 949ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_field_rejected rejected 1261ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_local_rejected rejected 1611ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_match_join_rejected rejected 2050ms expected @b50066b75303+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_other_machine_rejected rejected 1331ms expected @b50066b75303+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_other_state_rejected rejected 981ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_parameter_rejected rejected 1995ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_target_body_rejected rejected 1978ms expected @b50066b75303+wt
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_call_result_rejected rejected 1234ms expected @b50066b75303+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_const_name_rejected rejected 945ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_field_rejected rejected 1755ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_local_rejected rejected 1291ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_match_join_rejected rejected 1451ms expected @b50066b75303+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_other_machine_rejected rejected 1656ms expected @b50066b75303+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_other_state_rejected rejected 1644ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_parameter_rejected rejected 1982ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_target_body_rejected rejected 1805ms expected @b50066b75303+wt
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_call_result_rejected rejected 1095ms expected @b50066b75303+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_const_name_rejected rejected 1409ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_field_rejected rejected 1401ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_local_rejected rejected 1393ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_match_join_rejected rejected 1085ms expected @b50066b75303+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_other_machine_rejected rejected 977ms expected @b50066b75303+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_other_state_rejected rejected 709ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_parameter_rejected rejected 860ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_target_body_rejected rejected 695ms expected @b50066b75303+wt
 	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
@@ -21359,13 +21432,17 @@ pass/effects/core_critical_service_catalog checked 642ms @1654d389500c+wt
 pass/effects/exact_synchronous_callback_rows checked 1237ms @c5a7c1ce1957+wt
 pass/effects/finite_requirement_block_acknowledged_exit checked 9603ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/effects/generic_callback_schema_reach checked 1651ms @a9ae30e1c334+wt
-pass/effects/graphics_provider_declares_filesystem_write checked 642ms @1654d389500c+wt
+pass/effects/graphics_provider_declares_filesystem_write checked 1936ms @b50066b75303+wt
 pass/effects/gui_semantic_services checked 4106ms @1654d389500c+wt
 pass/effects/nominal_callback_const_reach checked 654ms @cf5a1803718b+wt
 pass/effects/nominal_callback_dependency checked 1598ms @a9ae30e1c334+wt
+pass/effects/optional_reach_declared_slack_exit checked 1889ms check-target:macos_arm64 @b50066b75303+wt
+pass/effects/optional_reach_empty_exit checked 1591ms check-target:macos_arm64 @b50066b75303+wt
+pass/effects/optional_reach_generic_narrow_exit checked 1592ms check-target:macos_arm64 @b50066b75303+wt
+pass/effects/optional_reach_target_union_exit checked 1582ms check-target:macos_arm64 @b50066b75303+wt
 pass/effects/reach_inferred_wrapper checked 9161ms @5041ef1af684+wt
 pass/effects/reach_through_machine_param checked 9378ms @5041ef1af684+wt
-pass/effects/reviewed_service_rows_exit checked 13265ms check-target:macos_arm64 @088321186835+wt
+pass/effects/reviewed_service_rows_exit checked 6903ms check-target:macos_arm64 @b50066b75303+wt
 pass/effects/root_service_audit checked 639ms @1654d389500c+wt
 pass/effects/runtime_empty_boundary_reach_exit checked 8163ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/effects/static_boundary_callback_reach checked 4794ms @3b18b32f7117+wt
@@ -25435,15 +25512,42 @@ pass/facts/twentyfour_arg_stack_calling_plan_through_other_machine_exit checked 
 pass/facts/twentyfour_arg_stack_calling_plan_through_other_state_exit checked 145772ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/twentyfour_arg_stack_calling_plan_through_parameter_exit checked 141593ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/twentyfour_arg_stack_calling_plan_through_target_body_exit checked 328705ms check-target:macos_arm64 @9b001b8f6afa+wt
-pass/facts/unannotated_direct_boundary_call_through_call_result_exit checked 1705ms check-target:macos_arm64 @c2e06b875ba2+wt
-pass/facts/unannotated_direct_boundary_call_through_const_name_exit checked 1703ms check-target:macos_arm64 @c2e06b875ba2+wt
-pass/facts/unannotated_direct_boundary_call_through_field_exit checked 1718ms check-target:macos_arm64 @c2e06b875ba2+wt
-pass/facts/unannotated_direct_boundary_call_through_local_exit checked 1708ms check-target:macos_arm64 @c2e06b875ba2+wt
-pass/facts/unannotated_direct_boundary_call_through_match_join_exit checked 1711ms check-target:macos_arm64 @c2e06b875ba2+wt
-pass/facts/unannotated_direct_boundary_call_through_other_machine_exit checked 1697ms check-target:macos_arm64 @c2e06b875ba2+wt
-pass/facts/unannotated_direct_boundary_call_through_other_state_exit checked 1673ms check-target:macos_arm64 @c2e06b875ba2+wt
-pass/facts/unannotated_direct_boundary_call_through_parameter_exit checked 1668ms check-target:macos_arm64 @c2e06b875ba2+wt
-pass/facts/unannotated_direct_boundary_call_through_target_body_exit checked 1681ms check-target:macos_arm64 @c2e06b875ba2+wt
+pass/facts/unannotated_direct_boundary_call_through_call_result_exit checked 1303ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_direct_boundary_call_through_const_name_exit checked 1951ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_direct_boundary_call_through_field_exit checked 1611ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_direct_boundary_call_through_local_exit checked 1872ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_direct_boundary_call_through_match_join_exit checked 1357ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_direct_boundary_call_through_other_machine_exit checked 1605ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_direct_boundary_call_through_other_state_exit checked 1555ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_direct_boundary_call_through_parameter_exit checked 1935ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_direct_boundary_call_through_target_body_exit checked 1487ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_dynamic_boundary_call_through_call_result_exit checked 1739ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_dynamic_boundary_call_through_const_name_exit checked 1750ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_dynamic_boundary_call_through_field_exit checked 1605ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_dynamic_boundary_call_through_local_exit checked 1708ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_dynamic_boundary_call_through_match_join_exit checked 1319ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_dynamic_boundary_call_through_other_machine_exit checked 1951ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_dynamic_boundary_call_through_other_state_exit checked 1987ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_dynamic_boundary_call_through_parameter_exit checked 1606ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_dynamic_boundary_call_through_target_body_exit checked 1462ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_generic_boundary_call_through_call_result_exit checked 2026ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_generic_boundary_call_through_const_name_exit checked 1583ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_generic_boundary_call_through_field_exit checked 1883ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_generic_boundary_call_through_local_exit checked 1862ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_generic_boundary_call_through_match_join_exit checked 1579ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_generic_boundary_call_through_other_machine_exit checked 1816ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_generic_boundary_call_through_other_state_exit checked 1993ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_generic_boundary_call_through_parameter_exit checked 1716ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_generic_boundary_call_through_target_body_exit checked 1683ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_transitive_boundary_call_through_call_result_exit checked 1613ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_transitive_boundary_call_through_const_name_exit checked 1754ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_transitive_boundary_call_through_field_exit checked 1603ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_transitive_boundary_call_through_local_exit checked 1620ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_transitive_boundary_call_through_match_join_exit checked 1610ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_transitive_boundary_call_through_other_machine_exit checked 1693ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_transitive_boundary_call_through_other_state_exit checked 1723ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_transitive_boundary_call_through_parameter_exit checked 1815ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_transitive_boundary_call_through_target_body_exit checked 1597ms check-target:macos_arm64 @b50066b75303+wt
 pass/facts/unsigned_16bit_bitwise_and_mask_bound_through_call_result_exit checked 39435ms check-target:macos_arm64 @e9ba6b59ba84+wt
 pass/facts/unsigned_16bit_bitwise_and_mask_bound_through_const_name_exit checked 39388ms check-target:macos_arm64 @e9ba6b59ba84+wt
 pass/facts/unsigned_16bit_bitwise_and_mask_bound_through_field_exit checked 34323ms check-target:macos_arm64 @e9ba6b59ba84+wt
