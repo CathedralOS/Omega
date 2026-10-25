@@ -60,6 +60,7 @@ pass/borrow/runtime_indexed_write_only_local_receiver_exit built 1784ms exit:0 i
 pass/borrow/runtime_write_only_record_array_argument_exit built 758ms exit:0 interpreter-exit:0 interpreter:agrees @bf12cd0f89bb+wt
 pass/borrow/write_only_composed_forward_exit built 1375ms exit:70 interpreter-exit:70 interpreter:agrees @2bde2a770491
 pass/borrow/write_only_projected_state_receiver_exit built 1780ms exit:0 interpreter-exit:0 interpreter:agrees @8db36001d9fe+wt
+pass/borrows/borrowed_record_reference_field_state_writeback_exit built 851ms exit:0 interpreter-exit:0 interpreter:agrees @db430d661cf1+wt
 pass/borrows/borrowed_record_stack_parameter_writeback_exit built 1767ms exit:70 interpreter-exit:70 interpreter:agrees @4d7bbd96d2bf+wt
 pass/borrows/branch_selected_record_composed_receiver_exit built 2950ms exit:70 interpreter-exit:70 interpreter:agrees @0bb2f2c02dae+wt
 pass/borrows/branch_selected_record_receiver_exit built 1765ms exit:70 interpreter-exit:70 interpreter:agrees @635072c0b89e+wt
@@ -1060,6 +1061,15 @@ pass/facts/float_comparison_route_through_other_machine_exit built 19121ms exit:
 pass/facts/float_comparison_route_through_other_state_exit built 20389ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
 pass/facts/float_comparison_route_through_parameter_exit built 18464ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
 pass/facts/float_comparison_route_through_target_body_exit built 16675ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/foreign_scalar_backing_through_call_result_exit built 898ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
+pass/facts/foreign_scalar_backing_through_const_name_exit built 743ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
+pass/facts/foreign_scalar_backing_through_field_exit built 734ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
+pass/facts/foreign_scalar_backing_through_local_exit built 736ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
+pass/facts/foreign_scalar_backing_through_match_join_exit built 751ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
+pass/facts/foreign_scalar_backing_through_other_machine_exit built 751ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
+pass/facts/foreign_scalar_backing_through_other_state_exit built 736ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
+pass/facts/foreign_scalar_backing_through_parameter_exit built 729ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
+pass/facts/foreign_scalar_backing_through_target_body_exit built 739ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
 pass/facts/forty_variant_enum_payload_bound_through_call_result_exit built 3253ms exit:0 interpreter-exit:0 interpreter:agrees @9d9ba4fb6251+wt
 pass/facts/forty_variant_enum_payload_bound_through_const_name_exit built 3808ms exit:0 interpreter-exit:0 interpreter:agrees @9d9ba4fb6251+wt
 pass/facts/forty_variant_enum_payload_bound_through_field_exit built 4039ms exit:0 interpreter-exit:0 interpreter:agrees @9d9ba4fb6251+wt
@@ -3392,6 +3402,7 @@ pass/host/runtime_descriptor_record_array_input_exit built 15464ms exit:0 stdout
 pass/host/runtime_descriptor_record_loan_input_exit built 19575ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @198156d53e16
 pass/host/runtime_descriptor_reference_record_prefix_exit built 13839ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @dd8ff52ae8bf
 pass/host/runtime_descriptor_scalar_input_exit built 1560ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @45d2efab5b7d
+pass/host/runtime_returned_scalar_field_reference_sibling_exit built 733ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
 pass/host/std_clock_sleep_exit built 14521ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
 pass/inline_asm/target_family_instruction_exit built 837ms exit:0 interpreter-exit:0 interpreter:agrees @a8fbfdfa4d11
 pass/layouts/completed_integer_at_result_snapshot_exit built 2680ms exit:0 interpreter-exit:0 interpreter:agrees @6bbc0c024e25+wt

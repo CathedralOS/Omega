@@ -6705,6 +6705,51 @@ fail/facts/foreign_retained_shared_borrow_retained_redemption rejected 1813ms ex
 	callable `Reader::redeem` returns content-bearing custody `Buffer::Owned` sourced only from borrowed parameter `pending`; retained-after-return authority requires a consumed owned input
 fail/facts/foreign_retained_shared_borrow_target_body rejected 1931ms expected @b0640f0a9309
 	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_scalar_backing_through_call_result_rejected rejected 580ms expected @db430d661cf1+wt
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/foreign_scalar_backing_through_const_name_rejected rejected 480ms expected @db430d661cf1+wt
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/foreign_scalar_backing_through_field_rejected rejected 464ms expected @db430d661cf1+wt
+	statement 2 mutates `envelope.cell.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `envelope.cell.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `envelope.cell.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `envelope.cell.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/foreign_scalar_backing_through_local_rejected rejected 455ms expected @db430d661cf1+wt
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/foreign_scalar_backing_through_match_join_rejected rejected 466ms expected @db430d661cf1+wt
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/foreign_scalar_backing_through_other_machine_rejected rejected 464ms expected @db430d661cf1+wt
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/foreign_scalar_backing_through_other_state_rejected rejected 454ms expected @db430d661cf1+wt
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/foreign_scalar_backing_through_parameter_rejected rejected 457ms expected @db430d661cf1+wt
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/foreign_scalar_backing_through_target_body_rejected rejected 458ms expected @db430d661cf1+wt
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/facts/forty_variant_enum_payload_bound_through_call_result_rejected rejected 2577ms expected @9d9ba4fb6251+wt
 	cannot prove ensures contract for exit from extract_payload at statement 79: result >= 40 && result <= 80
 fail/facts/forty_variant_enum_payload_bound_through_const_name_rejected rejected 1856ms expected @9d9ba4fb6251+wt
@@ -16592,6 +16637,8 @@ fail/host/returning_exit_spelling_keeps_linear_obligations rejected 1685ms expec
 fail/host/scalar_reference_mixed_backing_foreign_export rejected 2296ms unexpected @5f668826adf3
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+fail/host/scalar_reference_mixed_index_backing_foreign_export rejected 626ms expected @db430d661cf1+wt
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(1)), operation: Some(OperationId(14)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("thin scalar foreign pointer requires the same byte footprint in every backing") }))
 fail/host/scalar_reference_narrow_backing_foreign_export rejected 2021ms unexpected @5f668826adf3
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
@@ -19991,6 +20038,7 @@ pass/borrows/borrow_returned_window_write_and_call checked 10236ms check-target:
 pass/borrows/borrow_stated_index_disequality_mut checked 1568ms @a9ae30e1c334+wt
 pass/borrows/borrowed_array_loop checked 9903ms @5041ef1af684+wt
 pass/borrows/borrowed_case_leaf_copy_exit checked 11053ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/borrowed_record_reference_field_state_writeback_exit checked 624ms check-target:macos_arm64 @db430d661cf1+wt
 pass/borrows/borrowed_record_stack_parameter_writeback_exit checked 11190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/borrowed_sum_dispatch checked 9483ms @5041ef1af684+wt
 pass/borrows/borrowed_window_parameter_provenance_exit rejected 2777ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
@@ -22851,6 +22899,15 @@ pass/facts/foreign_retained_shared_borrow_parameter checked 2653ms check-target:
 pass/facts/foreign_retained_shared_borrow_raw_same_carrier_borrow checked 2755ms check-target:macos_arm64 @b0640f0a9309
 pass/facts/foreign_retained_shared_borrow_raw_same_carrier_called checked 2939ms check-target:macos_arm64 @b0640f0a9309
 pass/facts/foreign_retained_shared_borrow_target_body checked 2167ms check-target:macos_arm64 @b0640f0a9309
+pass/facts/foreign_scalar_backing_through_call_result_exit checked 597ms check-target:macos_arm64 @db430d661cf1+wt
+pass/facts/foreign_scalar_backing_through_const_name_exit checked 601ms check-target:macos_arm64 @db430d661cf1+wt
+pass/facts/foreign_scalar_backing_through_field_exit checked 592ms check-target:macos_arm64 @db430d661cf1+wt
+pass/facts/foreign_scalar_backing_through_local_exit checked 582ms check-target:macos_arm64 @db430d661cf1+wt
+pass/facts/foreign_scalar_backing_through_match_join_exit checked 605ms check-target:macos_arm64 @db430d661cf1+wt
+pass/facts/foreign_scalar_backing_through_other_machine_exit checked 609ms check-target:macos_arm64 @db430d661cf1+wt
+pass/facts/foreign_scalar_backing_through_other_state_exit checked 594ms check-target:macos_arm64 @db430d661cf1+wt
+pass/facts/foreign_scalar_backing_through_parameter_exit checked 594ms check-target:macos_arm64 @db430d661cf1+wt
+pass/facts/foreign_scalar_backing_through_target_body_exit checked 586ms check-target:macos_arm64 @db430d661cf1+wt
 pass/facts/forty_variant_enum_payload_bound_through_call_result_exit checked 2261ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/forty_variant_enum_payload_bound_through_const_name_exit checked 2452ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/forty_variant_enum_payload_bound_through_field_exit checked 2354ms check-target:macos_arm64 @9d9ba4fb6251+wt
@@ -26980,6 +27037,7 @@ pass/host/runtime_foreign_scalar_loan_writeback_exit checked 7606ms check-target
 pass/host/runtime_foreign_zero_argument_import_exit checked 2253ms check-target:windows_x86_64 @1654d389500c+wt
 pass/host/runtime_gui_foreground_window_exit checked 2256ms check-target:windows_x86_64 @1654d389500c+wt
 pass/host/runtime_gui_window_lifecycle_exit checked 2262ms check-target:windows_x86_64 @1654d389500c+wt
+pass/host/runtime_returned_scalar_field_reference_sibling_exit checked 725ms check-target:macos_arm64 @db430d661cf1+wt
 pass/host/runtime_scalar_reference_backing_export_exit checked 9880ms check-target:linux_x86_64 @7becf2fe91a5+wt
 pass/host/runtime_semantic_gui_reach_exit checked 11262ms check-target:macos_arm64 @1654d389500c+wt
 pass/host/runtime_stored_scalar_reference_foreign_export_exit checked 8969ms check-target:macos_arm64 @7becf2fe91a5+wt
