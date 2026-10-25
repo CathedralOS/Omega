@@ -105,8 +105,7 @@ use std::collections::BTreeMap;
 /// the key references, whose result is used, and whose provenance does not
 /// leak into the receiver; then every incoming edge must translate the key to
 /// an existing in-scope leader or the candidate is incomplete. `None` plays
-/// the per-redundant `continue`; `reject_entry_block` additionally refuses a
-/// redundant at the function entry, as the compatible-policy rule requires.
+/// the per-redundant `continue`.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn collect_phi_translated_incoming<K>(
     function: &PsiOptimizationFunction,
@@ -119,7 +118,6 @@ pub(super) fn collect_phi_translated_incoming<K>(
     leaders: &[(K, NodeLocation, OperationId, ValueId, ScalarType)],
     key_references_parameters: impl Fn(&BTreeSet<ValueId>) -> bool,
     translate: impl Fn(&BTreeMap<ValueId, ValueId>) -> Option<K>,
-    reject_entry_block: bool,
 ) -> Option<(
     Vec<PhiTranslatedScalarIncoming>,
     Vec<BlockId>,
@@ -135,8 +133,7 @@ where
         .iter()
         .map(|parameter| parameter.value)
         .collect::<BTreeSet<_>>();
-    if (reject_entry_block && block.id == function.entry)
-        || parameter_values.is_empty()
+    if parameter_values.is_empty()
         || !key_references_parameters(&parameter_values)
         || !use_definitions.uses.iter().any(|(machine, use_site)| {
             *machine == function.machine && use_site.value == redundant_result
