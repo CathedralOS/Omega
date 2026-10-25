@@ -254,10 +254,23 @@ impl Execution<'_, '_, '_> {
         if paths.is_empty() {
             return None;
         }
+        let Some((_, state)) = validation::find_state(self.program, call.target_symbol) else {
+            return Some(HandleSpan::empty());
+        };
+        let Some(indices) = self.captured_argument_indices(
+            self.program.state_parameters(state),
+            inputs
+                .iter()
+                .skip(usize::from(call.receiver.is_valid()))
+                .map(|(_, value)| value),
+        ) else {
+            return Some(HandleSpan::empty());
+        };
         let Some(sources) = super::super::reference_places::call_result_captured_sources(
             self.program,
             call,
             self.context.call_frames,
+            &indices,
         ) else {
             return Some(HandleSpan::empty());
         };
@@ -897,6 +910,37 @@ impl Execution<'_, '_, '_> {
         } else {
             self.append_captured_references(&places)
         }
+    }
+
+    /// Both descriptor stores and returned values consume this exact completed
+    /// argument roster. Formal carrier checks decide eligible integer lanes;
+    /// captured_coordinate reads their immutable observations, not current homes.
+    pub(super) fn captured_argument_indices<'inputs>(
+        &self,
+        parameters: &[typed_trees::signature::StateParameter],
+        inputs: impl ExactSizeIterator<Item = &'inputs FlowOperandFact>,
+    ) -> Option<Vec<Option<usize>>> {
+        if parameters.len() != inputs.len() {
+            return None;
+        }
+        Some(
+            parameters
+                .iter()
+                .zip(inputs)
+                .map(|(parameter, input)| {
+                    if validation::reference_shell(self.program, parameter.type_reference).is_none()
+                        && self
+                            .program
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some_and(|primitive| primitive.is_fixed_integer())
+                    {
+                        self.captured_coordinate(input)
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+        )
     }
 
     pub(super) fn captured_coordinate(&self, operand: &FlowOperandFact) -> Option<usize> {

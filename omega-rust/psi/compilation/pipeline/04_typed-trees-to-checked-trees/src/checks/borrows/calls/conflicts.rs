@@ -250,7 +250,6 @@ pub(super) fn check_call_access_conflicts<'p>(
         }
     }
 
-    let mut traced_loan_conflict = false;
     for (index, access) in accesses.iter().enumerate() {
         for (other_index, other_access) in accesses.iter().enumerate().skip(index + 1) {
             // A completed actual does not compete with the inputs that
@@ -493,96 +492,6 @@ pub(super) fn check_call_access_conflicts<'p>(
             }
             let detail =
                 active_loan_detail(state_flow, facts, *loan_handle, borrow_call.statement_index);
-            if !traced_loan_conflict && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                traced_loan_conflict = true;
-                let access_path = facts.borrow.access_segments.span_or_empty(access.segments);
-                let loan_path = facts.borrow.loan_segments(loan);
-                let owner_path = facts.borrow.loan_owner_path(loan);
-                let suppliers = facts
-                    .borrow
-                    .loan_suppliers
-                    .span_or_empty(loan.supplying_loans);
-                let backings = &operand_backings[index].places;
-                eprintln!(
-                    "CHECKSITE call-active-loan-conflict machine={:?} state={:?} statement={} ordinal={} target={:?} call_expression={:?} access_index={} access_expression={:?} access_root={:?} access_kind={:?} access_path_count={} access_path={:?} offending={:?} owner={:?} storage_owner={:?} root={:?} incoming={:?} formed_at={} last_use={} formation_expression={:?} established_by={:?} source_owner={:?} retained_operand={:?} lineage={:?} path_count={} path={:?} owner_path_count={} owner_path={:?} supplier_count={} suppliers={:?} backing_count={}",
-                    state_flow.machine_symbol,
-                    state_flow.state_symbol,
-                    borrow_call.statement_index,
-                    borrow_call.call_ordinal,
-                    borrow_call.target_symbol,
-                    borrow_call.authored_expression,
-                    index,
-                    access.expression,
-                    access.root,
-                    access.kind,
-                    access_path.len(),
-                    &access_path[..access_path.len().min(16)],
-                    loan_handle,
-                    loan.owner_symbol,
-                    loan.storage_owner,
-                    loan.root,
-                    loan.incoming_reference,
-                    loan.statement_index,
-                    loan.last_use_statement_index,
-                    loan.formation_expression,
-                    loan.established_by_call,
-                    loan.source_owner_symbol,
-                    loan.retained_operand,
-                    loan.lineage,
-                    loan_path.len(),
-                    &loan_path[..loan_path.len().min(16)],
-                    owner_path.len(),
-                    &owner_path[..owner_path.len().min(16)],
-                    suppliers.len(),
-                    &suppliers[..suppliers.len().min(4)],
-                    backings.len(),
-                );
-                for (position, backing) in backings.iter().take(4).enumerate() {
-                    eprintln!(
-                        "CHECKSITE call-active-loan-backing position={} root={:?} incoming={:?} path_count={} path={:?} lineage_count={} lineage={:?}",
-                        position,
-                        backing.place.root,
-                        backing.place.incoming_reference,
-                        backing.place.segments.len(),
-                        &backing.place.segments[..backing.place.segments.len().min(16)],
-                        backing.lineage.len(),
-                        &backing.lineage[..backing.lineage.len().min(4)],
-                    );
-                    for handle in backing.lineage.iter().take(4) {
-                        if !facts.borrow.loans.is_valid(*handle) {
-                            continue;
-                        }
-                        let source = facts.borrow.loans.get(*handle);
-                        let path = facts.borrow.loan_segments(source);
-                        let owner_path = facts.borrow.loan_owner_path(source);
-                        let suppliers = facts
-                            .borrow
-                            .loan_suppliers
-                            .span_or_empty(source.supplying_loans);
-                        eprintln!(
-                            "CHECKSITE call-active-loan-backing-source handle={:?} owner={:?} storage_owner={:?} root={:?} incoming={:?} formed_at={} last_use={} formation_expression={:?} established_by={:?} source_owner={:?} retained_operand={:?} lineage={:?} path_count={} path={:?} owner_path_count={} owner_path={:?} supplier_count={} suppliers={:?}",
-                            handle,
-                            source.owner_symbol,
-                            source.storage_owner,
-                            source.root,
-                            source.incoming_reference,
-                            source.statement_index,
-                            source.last_use_statement_index,
-                            source.formation_expression,
-                            source.established_by_call,
-                            source.source_owner_symbol,
-                            source.retained_operand,
-                            source.lineage,
-                            path.len(),
-                            &path[..path.len().min(16)],
-                            owner_path.len(),
-                            &owner_path[..owner_path.len().min(16)],
-                            suppliers.len(),
-                            &suppliers[..suppliers.len().min(4)],
-                        );
-                    }
-                }
-            }
             diagnostics.push(Diagnostic::error(format!(
                 "state `{target_name}` receives `{}` while local borrow `{}` is still active{}",
                 borrow_access_label(program, &facts.borrow, access),

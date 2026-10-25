@@ -197,7 +197,7 @@ pub(in crate::flow) fn call_result_leaf_sources(
     call: &TableCallExpression,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ReferenceResultSource>> {
-    let sources = call_result_captured_sources(program, call, call_frames)?;
+    let sources = call_result_captured_sources(program, call, call_frames, &[])?;
     sources
         .into_iter()
         .map(|source| {
@@ -215,6 +215,7 @@ pub(in crate::flow) fn call_result_captured_sources(
     program: &dyn ::validation::CheckingInput,
     call: &TableCallExpression,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    indices: &[Option<usize>],
 ) -> Option<Vec<ReferenceResultSource>> {
     let (callee, state) = validation::find_state(program, call.target_symbol)?;
     let parameters = program.state_parameters(state);
@@ -237,7 +238,14 @@ pub(in crate::flow) fn call_result_captured_sources(
             &prepared_frames
         }
     };
-    let transports = frames.reference_result_transports(state.symbol)?;
+    // Raw storage consumers have no completed argument roster. Captured
+    // consumers supply every formal lane, including unknown coordinates;
+    // only the shared invocation owner may refine the symbolic source paths.
+    let transports = if indices.is_empty() {
+        frames.reference_result_transports(state.symbol)?
+    } else {
+        frames.reference_result_transports_for_indices(state.symbol, indices)?
+    };
     let mut sources = Vec::with_capacity(transports.len());
     for transport in transports {
         let (result_path, source, kind) = match transport {

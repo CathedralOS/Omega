@@ -29,9 +29,10 @@ checked-wrapper witness under CONSERVATION-CONTRACT.
 
 Every positive place and the root bind `ProgramEntry` for `windows_x86_64`,
 `linux_x86_64`, `macos_arm64`, and `linux_arm64`, declare `Expected exit: 0`,
-and pass `omega run --both`. This Windows host observed native exit 0 and
-interpreter exit 0 for the root and all nine places. Those bindings do not
-by themselves execute the other three hosts.
+and pass `omega run --both`. Earlier qualification reported Windows native and interpreter exit 0 for the
+root and all nine places. Fresh engineering runs at `ad1772d8f612` also observed
+native and Terminal exit 0 on macOS ARM64, with all nine ownership twins
+rejecting. The retained Windows report was not revalidated by those runs.
 
 ```sh
 omega run --both samples/cli/facts/content_reunion/main.omg
@@ -49,10 +50,10 @@ omega run --both samples/cli/facts/content_reunion/target_body/main.omg
 The oracle discriminates. Each invalid twin keeps the reunion expression and
 changes only the partitioned root from the input to `issue()`, then drops the
 input. The fresh root still has base 10 and length 48. Checking rejects
-`result in Region::Owned`. Straight-line, field, parameter, call-result,
-const, forwarding, and target-body twins also reject
-`Owned.content(old(&whole)) == Owned.content(&result)`. The match-join and
-successor-state twins report the ownership failure for each reconstructing arm.
+`result in Region::Owned`. The equal geometry still proves the mathematical
+content equation; it supplies no lineage from the consumed input to the fresh
+root. Every twin therefore pins the routed ownership failure. The match-join
+and successor-state twins report it for each reconstructing arm.
 
 ## Pinned fixtures
 
@@ -63,9 +64,10 @@ twin. Each invalid sample carries `sample.json` with the same fragments.
 
 ## Requirements and evidence
 
-- **Owning contract:** [content custody](wiki/spec/resources/content_custody.md)
-- **Parent outcome:** the content-reunion fact row. This does not discharge
-  CONSERVATION-CONTRACT's checked-wrapper witness.
+- **Owning contract:** [content custody](../../../../wiki/spec/resources/content_custody.md)
+- **Parent outcome:** **EXTENT-LIBRARY-TRANSFORMS** in [TASKS.md](../../../../TASKS.md).
+  This row establishes local numeric reunion; checked wrappers, admitted initial
+  supply, physical backing, and Cathedral acceptance remain separate obligations.
 
 1. **Establishment:** `issue` is the only establishment of the base-10
    length-48 root. `partition` authors the split of that root. The reunion

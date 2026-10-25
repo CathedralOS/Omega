@@ -18,41 +18,59 @@ impl CallFrameResolver<'_> {
         })
     }
 
-    /// A fixed actual may refine a relative selector, never the declared
-    /// lifetime frontier. Specialised rows are invocation scratch and cannot
-    /// enter the state-keyed transport memo.
+    /// Resolve the full normal-result relation using immutable integer actuals
+    /// from one invocation. Unknown coordinates keep the ordinary union;
+    /// unavailable ordinary evidence is never treated as an empty relation.
+    /// This scratch context cannot enter the state-keyed transport memo.
+    pub fn reference_result_transports_for_indices(
+        &self,
+        symbol: SymbolHandle,
+        indices: &[Option<usize>],
+    ) -> Option<Vec<ReferenceResultTransport>> {
+        let state = self.program.state_by_symbol(symbol)?;
+        if self.program.state_parameters(state).len() != indices.len() {
+            return None;
+        }
+        if !indices.iter().any(Option::is_some) {
+            return self.reference_result_transports(symbol);
+        }
+        if let Some(ordinary) = self.reference_result_transports(symbol)
+            && !ordinary.iter().any(|transport| {
+                let source = match transport {
+                    ReferenceResultTransport::Reference(leaf) => &leaf.source,
+                    ReferenceResultTransport::Value { source, .. } => source,
+                };
+                source
+                    .segments
+                    .iter()
+                    .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
+            })
+        {
+            return Some(ordinary);
+        }
+        let mut inference = FrameInference::default();
+        inference.with_invocation(self.program, state, &[], indices, |inference| {
+            self.result_transports_in_context(symbol, inference)
+        })
+    }
+
+    /// The flat projection still cannot select payloads of a moved value.
+    /// Apply invocation context to the full relation first, then retain that
+    /// refusal rather than letting a state-only flat query preempt context.
     pub fn reference_result_leaf_origins_for_arguments(
         &self,
         symbol: SymbolHandle,
         arguments: &[typed_trees::expression::ExpressionHandle],
     ) -> Option<Vec<ReferenceResultLeafOrigin>> {
-        let ordinary = self.reference_result_leaf_origins(symbol)?;
-        if !ordinary.iter().any(|leaf| {
-            leaf.source
-                .segments
-                .iter()
-                .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
-        }) {
-            return Some(ordinary);
-        }
-        let state = self.program.state_by_symbol(symbol)?;
-        if self.program.state_parameters(state).len() != arguments.len() {
-            return None;
-        }
-        let mut inference = FrameInference::default();
+        let inference = FrameInference::default();
         let indices = inference.argument_indices(self.program, arguments);
-        if !indices.iter().any(Option::is_some) {
-            return Some(ordinary);
-        }
-        inference.with_invocation(self.program, state, &[], &indices, |inference| {
-            self.result_transports_in_context(symbol, inference)?
-                .into_iter()
-                .map(|transport| match transport {
-                    ReferenceResultTransport::Reference(leaf) => Some(leaf),
-                    ReferenceResultTransport::Value { .. } => None,
-                })
-                .collect()
-        })
+        self.reference_result_transports_for_indices(symbol, &indices)?
+            .into_iter()
+            .map(|transport| match transport {
+                ReferenceResultTransport::Reference(leaf) => Some(leaf),
+                ReferenceResultTransport::Value { .. } => None,
+            })
+            .collect()
     }
 
     fn result_transports_in_context(

@@ -75,25 +75,10 @@ impl Execution<'_, '_, '_> {
                     {
                         return Vec::new();
                     }
-                    let indices = parameters
-                        .iter()
-                        .zip(inputs)
-                        .map(|(parameter, input)| {
-                            // Read the operand's immutable completed coordinate, never
-                            // its current source spelling after another operand wrote.
-                            if validation::reference_shell(self.program, parameter.type_reference)
-                                .is_none()
-                                && self
-                                    .program
-                                    .primitive_type_reference(parameter.type_reference)
-                                    .is_some_and(|primitive| primitive.is_fixed_integer())
-                            {
-                                self.captured_coordinate(input)
-                            } else {
-                                None
-                            }
-                        })
-                        .collect::<Vec<_>>();
+                    let Some(indices) = self.captured_argument_indices(parameters, inputs.iter())
+                    else {
+                        return Vec::new();
+                    };
                     let Some(effects) = self
                         .context
                         .stored_reference_effects(machine, state, &indices)
