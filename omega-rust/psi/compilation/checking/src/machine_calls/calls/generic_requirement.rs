@@ -500,9 +500,6 @@ fn call_value_arguments_match(
         &requirement.application.substitution_scope_starts,
         &arguments,
     );
-    result.and_then(|expected| program.type_identity_text(expected))
-        );
-    }
     result
         .zip(program.scoped_type_identity_with_index_arguments(
             TypeIdentityRequest::ordinary(actual),
