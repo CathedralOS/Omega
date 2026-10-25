@@ -154,6 +154,29 @@ impl<Image> NativeArtifactEmissionParts<Image> {
     }
 }
 
+impl<Image> NativeArtifactParts<Image> {
+    /// The retained terminal-authority closure receipt names exactly this
+    /// row's realization inputs: its Terminal artifact identity, target,
+    /// selected-provider closure, physical policy and permission policy.
+    /// Either product refuses a receipt that drifted from them, in its own
+    /// refusal vocabulary.
+    fn terminal_authority_closure_matches(&self) -> bool {
+        self.terminal_authority_closure_review
+            .terminal_artifact_identity()
+            == *self.psi_artifact.manifest().identity().as_bytes()
+            && self.terminal_authority_closure_review.target() == self.target
+            && self
+                .terminal_authority_closure_review
+                .selected_provider_closure()
+                .as_bytes()
+                == self.selected_provider_closure_digest.as_bytes()
+            && self.terminal_authority_closure_review.physical_policy()
+                == self.terminal_authority_policy_identity
+            && self.terminal_authority_closure_review.permission_policy()
+                == self.terminal_authority_permission_policy_identity
+    }
+}
+
 impl NativeArtifact {
     /// Complete fresh native emission by deriving the identity optimization
     /// projection and every currently supported physical child. The artifact
@@ -243,29 +266,7 @@ impl NativeArtifact {
         {
             return Err("native artifact target disagrees with its object or image");
         }
-        if self
-            .parts
-            .terminal_authority_closure_review
-            .terminal_artifact_identity()
-            != *self.parts.psi_artifact.manifest().identity().as_bytes()
-            || self.parts.terminal_authority_closure_review.target() != self.parts.target
-            || self
-                .parts
-                .terminal_authority_closure_review
-                .selected_provider_closure()
-                .as_bytes()
-                != self.parts.selected_provider_closure_digest.as_bytes()
-            || self
-                .parts
-                .terminal_authority_closure_review
-                .physical_policy()
-                != self.parts.terminal_authority_policy_identity
-            || self
-                .parts
-                .terminal_authority_closure_review
-                .permission_policy()
-                != self.parts.terminal_authority_permission_policy_identity
-        {
+        if !self.parts.terminal_authority_closure_matches() {
             return Err(
                 "native artifact terminal-authority closure receipt drifted from its exact realization inputs",
             );

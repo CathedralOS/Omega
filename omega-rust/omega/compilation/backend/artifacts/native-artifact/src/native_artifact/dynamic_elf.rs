@@ -166,29 +166,7 @@ impl DynamicElfNativeArtifact {
         }
         image_emission::validate_requested_dynamic_elf_image(&self.parts.object, &self.parts.image)
             .map_err(|_| "dynamic native artifact failed exact requested-image replay")?;
-        if self
-            .parts
-            .terminal_authority_closure_review
-            .terminal_artifact_identity()
-            != *self.parts.psi_artifact.manifest().identity().as_bytes()
-            || self.parts.terminal_authority_closure_review.target() != self.parts.target
-            || self
-                .parts
-                .terminal_authority_closure_review
-                .selected_provider_closure()
-                .as_bytes()
-                != self.parts.selected_provider_closure_digest.as_bytes()
-            || self
-                .parts
-                .terminal_authority_closure_review
-                .physical_policy()
-                != self.parts.terminal_authority_policy_identity
-            || self
-                .parts
-                .terminal_authority_closure_review
-                .permission_policy()
-                != self.parts.terminal_authority_permission_policy_identity
-        {
+        if !self.parts.terminal_authority_closure_matches() {
             return Err(
                 "dynamic native artifact closure receipt drifted from its exact realization inputs",
             );
