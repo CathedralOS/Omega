@@ -1,13 +1,12 @@
 //! Ordered primitive-array construction retains each leaf in one aggregate home.
 //! Its semantic type remains an array; byte layout adds neither a record nor a tag.
-use super::LiveDefinitions;
+use super::RowSite;
 use crate::LoweringError;
-use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation};
+use abstract_operations::AbstractOperation;
 use calling_conventions::ValueShape;
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
 use std::collections::BTreeMap;
-use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+use target_operations::TargetUnitOperation;
 use terminal_psi::{StructuralTypeDeclaration, StructuralTypeShape};
 
 pub(in crate::lowering) fn shape(
@@ -54,12 +53,9 @@ pub(in crate::lowering) fn shape(
 
 pub(super) fn establish(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
+    site: &mut RowSite<'_>,
 ) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
     let AbstractOperation::EstablishScalarArray {
         psi_operation,
         result,

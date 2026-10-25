@@ -1,8 +1,7 @@
 //! Ordered graph operations and their durable scalar result homes.
 use super::observations;
-use super::{KnownUnitInteger, LiveDefinitions};
+use super::{KnownUnitInteger, RowSite};
 use crate::LoweringError;
-use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, PlaceId, ScalarType};
@@ -10,18 +9,17 @@ use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
 use target_operations::{
     BoundaryRealization, BoundarySettlementBinding, ScalarFunctionAbi, TargetStructuralParameter,
-    TargetUnitOperation, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+    TargetUnitOperation, TargetUnitScalarHomeRequirement,
 };
 use terminal_psi::StructuralTypeShape;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_operation(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
+    site: &mut RowSite<'_>,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
-    structural_types: &StructuralTypeLookup<'_>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
     selected_calls: &crate::lowering::selected_boundary_calls::SelectedCallsByCall,
@@ -29,10 +27,8 @@ pub(super) fn lower_operation(
     native_callbacks: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    let (function, structural_types) = (site.function, site.types);
     let selected = if let AbstractOperation::BoundaryCall {
         psi_operation,
         boundary,
@@ -51,7 +47,7 @@ pub(super) fn lower_operation(
         .map_or(operation, |(operation, _)| operation);
     // Opaque foreign ABI calls cannot consume reference-carrier storage. This
     // is a native representation restriction, not a second borrow judgment.
-    // Ordinary operations go straight to their storage/address owner below;
+    // Ordinary site.operations go straight to their storage/address owner below;
     // Psi owns access legality and the corpus independently audits custody.
     let boundary_arguments: &[terminal_psi::StructuralArgument] = match operation {
         AbstractOperation::BoundaryCall {
@@ -60,10 +56,10 @@ pub(super) fn lower_operation(
         } => structural_arguments.as_slice(),
         _ => &[],
     };
-    if !super::references::moved_argument_leaves(live, boundary_arguments).is_empty() {
+    if !super::references::moved_argument_leaves(site.live, boundary_arguments).is_empty() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let first_output = operations.len();
+    let first_output = site.operations.len();
     match operation {
         AbstractOperation::EstablishActivationClaim {
             psi_operation,
@@ -74,7 +70,7 @@ pub(super) fn lower_operation(
             established_case,
             rejected_case,
         } => {
-            let committed = super::scalar_sources::source(*committed, function, live)?;
+            let committed = super::scalar_sources::source(*committed, function, site.live)?;
             if committed.scalar_type()
                 != ScalarType::Integer(
                     semantic_vocabulary::IntegerType::new(
@@ -88,23 +84,25 @@ pub(super) fn lower_operation(
             }
             let result_home =
                 super::aggregate_results::home(*psi_operation, result, structural_types)?;
-            if live
+            if site
+                .live
                 .structural_homes
                 .insert(result.place, result_home.clone())
                 .is_some()
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            operations.push(TargetUnitOperation::EstablishActivationClaim {
-                psi_operation: *psi_operation,
-                result_home,
-                bound: *bound,
-                committed,
-                backing_type: *backing_type,
-                established_case: *established_case,
-                rejected_case: *rejected_case,
-            });
-            provenance.operations.push(*psi_operation);
+            site.operations
+                .push(TargetUnitOperation::EstablishActivationClaim {
+                    psi_operation: *psi_operation,
+                    result_home,
+                    bound: *bound,
+                    committed,
+                    backing_type: *backing_type,
+                    established_case: *established_case,
+                    rejected_case: *rejected_case,
+                });
+            site.provenance.operations.push(*psi_operation);
             Ok(())
         }
         AbstractOperation::ReleaseActivationClaim {
@@ -112,12 +110,13 @@ pub(super) fn lower_operation(
             source,
             claim,
         } => {
-            operations.push(TargetUnitOperation::ReleaseActivationClaim {
-                psi_operation: *psi_operation,
-                source: source.clone(),
-                claim: *claim,
-            });
-            provenance.operations.push(*psi_operation);
+            site.operations
+                .push(TargetUnitOperation::ReleaseActivationClaim {
+                    psi_operation: *psi_operation,
+                    source: source.clone(),
+                    claim: *claim,
+                });
+            site.provenance.operations.push(*psi_operation);
             Ok(())
         }
         AbstractOperation::SplitActivationClaim {
@@ -130,27 +129,29 @@ pub(super) fn lower_operation(
             covered_case,
             rejected_case,
         } => {
-            let committed = super::scalar_sources::source(*committed_at, function, live)?;
+            let committed = super::scalar_sources::source(*committed_at, function, site.live)?;
             let result_home =
                 super::aggregate_results::home(*psi_operation, result, structural_types)?;
-            if live
+            if site
+                .live
                 .structural_homes
                 .insert(result.place, result_home.clone())
                 .is_some()
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            operations.push(TargetUnitOperation::SplitActivationClaim {
-                psi_operation: *psi_operation,
-                result_home,
-                source: source.clone(),
-                claim: *claim,
-                bound_at: *bound_at,
-                committed,
-                covered_case: *covered_case,
-                rejected_case: *rejected_case,
-            });
-            provenance.operations.push(*psi_operation);
+            site.operations
+                .push(TargetUnitOperation::SplitActivationClaim {
+                    psi_operation: *psi_operation,
+                    result_home,
+                    source: source.clone(),
+                    claim: *claim,
+                    bound_at: *bound_at,
+                    committed,
+                    covered_case: *covered_case,
+                    rejected_case: *rejected_case,
+                });
+            site.provenance.operations.push(*psi_operation);
             Ok(())
         }
         AbstractOperation::MergeActivationClaim {
@@ -165,24 +166,26 @@ pub(super) fn lower_operation(
         } => {
             let result_home =
                 super::aggregate_results::home(*psi_operation, result, structural_types)?;
-            if live
+            if site
+                .live
                 .structural_homes
                 .insert(result.place, result_home.clone())
                 .is_some()
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            operations.push(TargetUnitOperation::MergeActivationClaim {
-                psi_operation: *psi_operation,
-                result_home,
-                lower: lower.clone(),
-                upper: upper.clone(),
-                lower_claim: *lower_claim,
-                upper_claim: *upper_claim,
-                covered_case: *covered_case,
-                rejected_case: *rejected_case,
-            });
-            provenance.operations.push(*psi_operation);
+            site.operations
+                .push(TargetUnitOperation::MergeActivationClaim {
+                    psi_operation: *psi_operation,
+                    result_home,
+                    lower: lower.clone(),
+                    upper: upper.clone(),
+                    lower_claim: *lower_claim,
+                    upper_claim: *upper_claim,
+                    covered_case: *covered_case,
+                    rejected_case: *rejected_case,
+                });
+            site.provenance.operations.push(*psi_operation);
             Ok(())
         }
         AbstractOperation::RegisterAccess {
@@ -191,18 +194,21 @@ pub(super) fn lower_operation(
             event,
             result,
         } => {
-            let event = event
-                .try_map_inputs(|value| super::scalar_sources::source(*value, function, live))?;
+            let event = event.try_map_inputs(|value| {
+                super::scalar_sources::source(*value, function, site.live)
+            })?;
             let result_home = result
-                .map(|result| super::primitive_storage::retain_result(*psi_operation, result, live))
+                .map(|result| {
+                    super::primitive_storage::retain_result(*psi_operation, result, site.live)
+                })
                 .transpose()?;
-            operations.push(TargetUnitOperation::RegisterAccess {
+            site.operations.push(TargetUnitOperation::RegisterAccess {
                 psi_operation: *psi_operation,
                 service: *service,
                 event,
                 result_home,
             });
-            provenance.operations.push(*psi_operation);
+            site.provenance.operations.push(*psi_operation);
             Ok(())
         }
         AbstractOperation::PortWrite {
@@ -211,38 +217,29 @@ pub(super) fn lower_operation(
             port,
             value,
         } => {
-            operations.push(TargetUnitOperation::PortWrite {
+            site.operations.push(TargetUnitOperation::PortWrite {
                 psi_operation: *psi_operation,
                 service: *service,
                 port: *port,
                 value: *value,
             });
-            provenance.operations.push(*psi_operation);
+            site.provenance.operations.push(*psi_operation);
             Ok(())
         }
         AbstractOperation::AtomicEvent {
             psi_operation,
             event,
             ..
-        } => super::atomic_access::lower(
-            *psi_operation,
-            event,
-            function,
-            structural_types,
-            prepared,
-            live,
-            operations,
-            provenance,
-        ),
+        } => super::atomic_access::lower(*psi_operation, event, site, prepared),
         AbstractOperation::FloatResultPolicy {
             psi_operation,
             result,
             format,
             policy,
         } => {
-            // Resolve every input from the same live environment as the
+            // Resolve every input from the same site.live environment as the
             // preceding call. The adapter never invokes its provider again.
-            let source = |value| super::scalar_sources::source(value, function, live);
+            let source = |value| super::scalar_sources::source(value, function, site.live);
             let policy = match policy {
                 terminal_psi::FloatResultPolicy::Trapping { raw_result } => {
                     target_operations::TargetFloatResultPolicy::Trapping {
@@ -276,16 +273,22 @@ pub(super) fn lower_operation(
                 shape: crate::lowering::scalar_abi::fixed_native_scalar_shape(scalar_type)
                     .ok_or(LoweringError::ValueTypeMismatch(*result))?,
             };
-            if live.scalar_homes.insert(*result, result_home).is_some() {
+            if site
+                .live
+                .scalar_homes
+                .insert(*result, result_home)
+                .is_some()
+            {
                 return Err(LoweringError::DuplicateValue(*result));
             }
-            provenance.operations.push(*psi_operation);
-            operations.push(TargetUnitOperation::FloatResultPolicy {
-                psi_operation: *psi_operation,
-                result_home,
-                format: *format,
-                policy,
-            });
+            site.provenance.operations.push(*psi_operation);
+            site.operations
+                .push(TargetUnitOperation::FloatResultPolicy {
+                    psi_operation: *psi_operation,
+                    result_home,
+                    format: *format,
+                    policy,
+                });
             Ok(())
         }
         AbstractOperation::IeeeFloatCompare {
@@ -296,8 +299,8 @@ pub(super) fn lower_operation(
             left,
             right,
         } => {
-            let left = super::scalar_sources::source(*left, function, live)?;
-            let right = super::scalar_sources::source(*right, function, live)?;
+            let left = super::scalar_sources::source(*left, function, site.live)?;
+            let right = super::scalar_sources::source(*right, function, site.live)?;
             if left.scalar_type() != ScalarType::IeeeFloat(*format)
                 || right.scalar_type() != ScalarType::IeeeFloat(*format)
             {
@@ -309,9 +312,9 @@ pub(super) fn lower_operation(
                 scalar_type: ScalarType::Boolean,
                 shape: ValueShape::integer(1, 1),
             };
-            live.scalar_homes.insert(*result, result_home);
-            provenance.operations.push(*psi_operation);
-            operations.push(TargetUnitOperation::IeeeFloatCompare {
+            site.live.scalar_homes.insert(*result, result_home);
+            site.provenance.operations.push(*psi_operation);
+            site.operations.push(TargetUnitOperation::IeeeFloatCompare {
                 result_home,
                 comparison: *comparison,
                 format: *format,
@@ -327,7 +330,7 @@ pub(super) fn lower_operation(
             target_type,
             operand,
         } => {
-            let operand = super::scalar_sources::source(*operand, function, live)?;
+            let operand = super::scalar_sources::source(*operand, function, site.live)?;
             if operand.scalar_type() != *source_type
                 || terminal_semantics::ScalarRepresentationViewPair::classify(
                     *source_type,
@@ -345,32 +348,31 @@ pub(super) fn lower_operation(
                     .ok_or(LoweringError::ValueTypeMismatch(*result))?,
             };
             let duplicate = match target_type {
-                ScalarType::Integer(_) => live
+                ScalarType::Integer(_) => site
+                    .live
                     .integers
                     .insert(*result, KnownUnitInteger::Home(result_home))
                     .is_some(),
-                ScalarType::Boolean | ScalarType::IeeeFloat(_) => {
-                    live.scalar_homes.insert(*result, result_home).is_some()
-                }
+                ScalarType::Boolean | ScalarType::IeeeFloat(_) => site
+                    .live
+                    .scalar_homes
+                    .insert(*result, result_home)
+                    .is_some(),
             };
             if duplicate {
                 return Err(LoweringError::DuplicateValue(*result));
             }
-            provenance.operations.push(*psi_operation);
-            operations.push(TargetUnitOperation::ScalarRepresentationView {
-                result_home,
-                operand,
-            });
+            site.provenance.operations.push(*psi_operation);
+            site.operations
+                .push(TargetUnitOperation::ScalarRepresentationView {
+                    result_home,
+                    operand,
+                });
             Ok(())
         }
-        AbstractOperation::EstablishScalarArray { .. } => super::scalar_arrays::establish(
-            operation,
-            function,
-            structural_types,
-            live,
-            operations,
-            provenance,
-        ),
+        AbstractOperation::EstablishScalarArray { .. } => {
+            super::scalar_arrays::establish(operation, site)
+        }
         AbstractOperation::EstablishNativeCodeLayout {
             psi_operation,
             result,
@@ -378,44 +380,29 @@ pub(super) fn lower_operation(
         } => {
             let result_home =
                 super::aggregate_results::home(*psi_operation, result, structural_types)?;
-            live.structural_homes
+            site.live
+                .structural_homes
                 .insert(result.place, result_home.clone());
-            operations.push(TargetUnitOperation::EstablishNativeCodeLayout {
-                psi_operation: *psi_operation,
-                result_home,
-                machine: *machine,
-            });
-            provenance.operations.push(*psi_operation);
+            site.operations
+                .push(TargetUnitOperation::EstablishNativeCodeLayout {
+                    psi_operation: *psi_operation,
+                    result_home,
+                    machine: *machine,
+                });
+            site.provenance.operations.push(*psi_operation);
             Ok(())
         }
         AbstractOperation::EstablishRecord { .. }
-        | abstract_operations::structural_array_or_case_pattern!(..) => super::records::establish(
-            operation,
-            function,
-            structural_types,
-            live,
-            operations,
-            provenance,
-        ),
-        AbstractOperation::EstablishPlacedReference { .. } => super::references::establish_placed(
-            operation,
-            function,
-            structural_types,
-            live,
-            operations,
-            provenance,
-        ),
-        AbstractOperation::EstablishReference { .. } => super::references::establish(
-            operation,
-            function,
-            structural_types,
-            live,
-            operations,
-            provenance,
-        ),
-        AbstractOperation::ReleaseReference { .. } => {
-            super::references::release(operation, function, live, operations, provenance)
+        | abstract_operations::structural_array_or_case_pattern!(..) => {
+            super::records::establish(operation, site)
         }
+        AbstractOperation::EstablishPlacedReference { .. } => {
+            super::references::establish_placed(operation, site)
+        }
+        AbstractOperation::EstablishReference { .. } => {
+            super::references::establish(operation, site)
+        }
+        AbstractOperation::ReleaseReference { .. } => super::references::release(operation, site),
         AbstractOperation::SelectImplementation {
             psi_operation,
             result,
@@ -425,169 +412,75 @@ pub(super) fn lower_operation(
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             let result_home =
-                super::primitive_storage::retain_result(*psi_operation, *result, live)?;
-            provenance.operations.push(*psi_operation);
-            operations.push(TargetUnitOperation::SelectImplementation {
-                result_home,
-                table: *table,
-            });
+                super::primitive_storage::retain_result(*psi_operation, *result, site.live)?;
+            site.provenance.operations.push(*psi_operation);
+            site.operations
+                .push(TargetUnitOperation::SelectImplementation {
+                    result_home,
+                    table: *table,
+                });
             Ok(())
         }
         // Direct and selected calls share argument transport and result homes;
         // the call target alone determines how invocation finds executable code.
         abstract_operations::call_or_call_structural_pattern!(..) => super::calls::lower_call(
             operation,
-            function,
+            site,
             target,
             functions,
             dynamic_dispatch,
-            structural_types,
             scalar_abis,
             prepared,
             parameters_by_place,
-            live,
-            operations,
-            provenance,
         ),
-        AbstractOperation::StructuralCaseMembership { .. } => super::structural_case::observe(
-            operation,
-            function,
-            structural_types,
-            live,
-            operations,
-            provenance,
-        ),
+        AbstractOperation::StructuralCaseMembership { .. } => {
+            super::structural_case::observe(operation, site)
+        }
         AbstractOperation::StructuralLeafCopy { .. }
         | AbstractOperation::MoveStructuralValue { .. }
-        | AbstractOperation::TransformContent { .. } => super::leaf_copy::transport(
-            operation,
-            function,
-            structural_types,
-            live,
-            operations,
-            provenance,
-        ),
-        AbstractOperation::MoveStructuralField { .. } => super::borrowed_windows::move_field(
-            operation,
-            function,
-            structural_types,
-            prepared,
-            live,
-            operations,
-            provenance,
-        ),
-        AbstractOperation::StoreStructuralField { .. } => super::borrowed_windows::store_field(
-            operation,
-            function,
-            structural_types,
-            prepared,
-            live,
-            operations,
-            provenance,
-        ),
+        | AbstractOperation::TransformContent { .. } => {
+            super::leaf_copy::transport(operation, site)
+        }
+        AbstractOperation::MoveStructuralField { .. } => {
+            super::borrowed_windows::move_field(operation, site, prepared)
+        }
+        AbstractOperation::StoreStructuralField { .. } => {
+            super::borrowed_windows::store_field(operation, site, prepared)
+        }
         AbstractOperation::EstablishZeroedStructural { .. } => {
-            super::records::establish_zeroed_structural(
-                operation,
-                function,
-                structural_types,
-                live,
-                operations,
-                provenance,
-            )
+            super::records::establish_zeroed_structural(operation, site)
         }
         AbstractOperation::EstablishStructuralLocal { .. } => {
-            super::records::establish_structural_local(
-                operation,
-                function,
-                structural_types,
-                live,
-                operations,
-                provenance,
-            )
+            super::records::establish_structural_local(operation, site)
         }
         AbstractOperation::EstablishTrivialAffineLocal { .. } => {
-            super::records::establish_trivial_affine_local(
-                operation,
-                function,
-                structural_types,
-                live,
-                operations,
-                provenance,
-            )
+            super::records::establish_trivial_affine_local(operation, site)
         }
         AbstractOperation::EstablishPrimitiveLocal { .. }
         | AbstractOperation::PrimitiveLocalStore { .. }
         | AbstractOperation::StorageAddress { .. }
         | AbstractOperation::PrimitiveScalarRead { .. }
         | abstract_operations::byte_len_or_field_read_pattern!(..)
-        | AbstractOperation::StructuralScalarFieldRead { .. } => super::primitive_storage::lower(
-            operation,
-            function,
-            structural_types,
-            prepared,
-            live,
-            operations,
-            provenance,
-        ),
+        | AbstractOperation::StructuralScalarFieldRead { .. } => {
+            super::primitive_storage::lower(operation, site, prepared)
+        }
         AbstractOperation::StructuralByteSequenceFieldByteStore { .. } => {
-            super::byte_write::replace_byte(
-                operation,
-                function,
-                structural_types,
-                prepared,
-                live,
-                operations,
-                provenance,
-            )
+            super::byte_write::replace_byte(operation, site, prepared)
         }
         AbstractOperation::StructuralByteViewFieldStore { .. } => {
-            super::byte_write::replace_view_descriptor(
-                operation,
-                function,
-                structural_types,
-                prepared,
-                live,
-                operations,
-                provenance,
-            )
+            super::byte_write::replace_view_descriptor(operation, site, prepared)
         }
-        abstract_operations::byte_sequence_store_pair_pattern!(..) => super::byte_write::replace(
-            operation,
-            function,
-            structural_types,
-            prepared,
-            live,
-            operations,
-            provenance,
-        ),
-        AbstractOperation::ByteSequenceWrite { .. } => super::byte_write::lower(
-            operation,
-            function,
-            structural_types,
-            prepared,
-            live,
-            operations,
-            provenance,
-        ),
-        AbstractOperation::ElementViewWrite { .. } => super::element_view_write::lower(
-            operation,
-            function,
-            structural_types,
-            prepared,
-            live,
-            operations,
-            provenance,
-        ),
+        abstract_operations::byte_sequence_store_pair_pattern!(..) => {
+            super::byte_write::replace(operation, site, prepared)
+        }
+        AbstractOperation::ByteSequenceWrite { .. } => {
+            super::byte_write::lower(operation, site, prepared)
+        }
+        AbstractOperation::ElementViewWrite { .. } => {
+            super::element_view_write::lower(operation, site, prepared)
+        }
         AbstractOperation::EstablishByteSequenceConcatenation { .. } => {
-            super::byte_concatenation::lower(
-                operation,
-                function,
-                structural_types,
-                prepared,
-                live,
-                operations,
-                provenance,
-            )
+            super::byte_concatenation::lower(operation, site, prepared)
         }
         AbstractOperation::EstablishByteSequenceLiteral {
             psi_operation,
@@ -611,21 +504,23 @@ pub(super) fn lower_operation(
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            if live
+            if site
+                .live
                 .views
                 .insert(place.id, (*psi_operation, structural_type.id))
                 .is_some()
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            operations.push(TargetUnitOperation::EstablishByteSequenceLiteral {
-                psi_operation: *psi_operation,
-                place: *place,
-                structural_type: structural_type.clone(),
-                bytes: bytes.clone(),
-                qualifications: qualifications.clone(),
-            });
-            provenance.operations.push(*psi_operation);
+            site.operations
+                .push(TargetUnitOperation::EstablishByteSequenceLiteral {
+                    psi_operation: *psi_operation,
+                    place: *place,
+                    structural_type: structural_type.clone(),
+                    bytes: bytes.clone(),
+                    qualifications: qualifications.clone(),
+                });
+            site.provenance.operations.push(*psi_operation);
             Ok(())
         }
         AbstractOperation::EstablishElementView {
@@ -634,18 +529,19 @@ pub(super) fn lower_operation(
             destination,
             ..
         } => {
-            let values = observations::scalar_values(live, &prepared.scalar_parameters)?;
+            let values = observations::scalar_values(site.live, &prepared.scalar_parameters)?;
             let (view, _) = super::super::scalar::element_views::element_view_for_place(
                 function,
                 structural_types,
                 &prepared.parameters,
-                live.element_view_backings(),
+                site.live.element_view_backings(),
                 &values,
-                &live.lengths,
+                &site.live.lengths,
                 *destination,
                 &mut Vec::new(),
             )?;
-            if live
+            if site
+                .live
                 .views
                 .insert(*destination, (*psi_operation, result.structural_type))
                 .is_some()
@@ -657,14 +553,20 @@ pub(super) fn lower_operation(
             // Record the exact producer contract for forwarding copyable shared
             // descriptors as well as cleaning up affine mutable descriptors.
             let home = super::aggregate_results::home(*psi_operation, result, structural_types)?;
-            if live.structural_homes.insert(*destination, home).is_some() {
+            if site
+                .live
+                .structural_homes
+                .insert(*destination, home)
+                .is_some()
+            {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            operations.push(TargetUnitOperation::EstablishElementView {
-                result: result.clone(),
-                view,
-            });
-            provenance.operations.push(*psi_operation);
+            site.operations
+                .push(TargetUnitOperation::EstablishElementView {
+                    result: result.clone(),
+                    view,
+                });
+            site.provenance.operations.push(*psi_operation);
             Ok(())
         }
         AbstractOperation::StructuralScalarFieldStore { .. } => {
@@ -673,7 +575,7 @@ pub(super) fn lower_operation(
                     destination, path, ..
                 } => super::references::referent_projection(
                     function,
-                    live,
+                    site.live,
                     structural_types,
                     destination.place(),
                     path,
@@ -686,13 +588,13 @@ pub(super) fn lower_operation(
                 function,
                 structural_types,
                 parameters_by_place,
-                &live.structural_homes,
+                &site.live.structural_homes,
                 reference_destination,
-                &super::scalar_sources::ScalarSources::from(&*live),
+                &super::scalar_sources::ScalarSources::from(&*site.live),
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
-                operations,
-                provenance,
+                site.operations,
+                site.provenance,
             )
         }
         AbstractOperation::WriteOnlyPrimitiveStore { value, .. } => {
@@ -701,15 +603,15 @@ pub(super) fn lower_operation(
                 function,
                 structural_types,
                 parameters_by_place,
-                &live.structural_homes,
-                &live.integers,
-                &live.booleans,
-                &live.ieee_float_constants,
-                &live.scalar_homes,
-                live.scalar_block_parameters.get(&value.value).copied(),
-                &super::scalar_sources::ScalarSources::from(&*live),
-                operations,
-                provenance,
+                &site.live.structural_homes,
+                &site.live.integers,
+                &site.live.booleans,
+                &site.live.ieee_float_constants,
+                &site.live.scalar_homes,
+                site.live.scalar_block_parameters.get(&value.value).copied(),
+                &super::scalar_sources::ScalarSources::from(&*site.live),
+                site.operations,
+                site.provenance,
             )
         }
         AbstractOperation::BoundaryCall { boundary, .. }
@@ -722,16 +624,7 @@ pub(super) fn lower_operation(
                 )
             }) =>
         {
-            super::placement_lifecycles::lower(
-                operation,
-                function,
-                structural_types,
-                boundary_machines,
-                settlements,
-                live,
-                operations,
-                provenance,
-            )
+            super::placement_lifecycles::lower(operation, site, boundary_machines, settlements)
         }
         AbstractOperation::BoundaryCall { boundary, .. }
             if settlements.get(boundary).is_some_and(|binding| {
@@ -743,15 +636,7 @@ pub(super) fn lower_operation(
                 )
             }) =>
         {
-            super::placed_scalar_access::lower(
-                operation,
-                function,
-                structural_types,
-                settlements,
-                live,
-                operations,
-                provenance,
-            )
+            super::placed_scalar_access::lower(operation, site, settlements)
         }
         AbstractOperation::BoundaryCall { boundary, .. }
             if settlements.get(boundary).is_some_and(|binding| {
@@ -763,29 +648,17 @@ pub(super) fn lower_operation(
                 )
             }) =>
         {
-            super::program_image::lower(
-                operation,
-                target,
-                boundary_machines,
-                settlements,
-                live,
-                operations,
-                provenance,
-            )
+            super::program_image::lower(operation, target, boundary_machines, settlements, site)
         }
         AbstractOperation::BoundaryCall { boundary, .. }
             if super::ieee_float_arithmetic::is_inline_arithmetic(*boundary, settlements) =>
         {
             super::ieee_float_arithmetic::lower(
                 operation,
-                function,
-                structural_types,
+                site,
                 target,
                 boundary_machines,
                 settlements,
-                live,
-                operations,
-                provenance,
             )
         }
         AbstractOperation::BoundaryCall { boundary, .. }
@@ -809,19 +682,19 @@ pub(super) fn lower_operation(
                 settlements,
                 native_callbacks,
                 parameters_by_place,
-                &live.structural_homes,
-                &live.address_joins,
-                &live.block_views,
+                &site.live.structural_homes,
+                &site.live.address_joins,
+                &site.live.block_views,
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
                 &BTreeMap::new(),
-                &mut live.integers,
-                &mut live.scalar_homes,
-                &live.booleans,
-                &live.ieee_float_constants,
-                &live.scalar_block_parameters,
-                operations,
-                provenance,
+                &mut site.live.integers,
+                &mut site.live.scalar_homes,
+                &site.live.booleans,
+                &site.live.ieee_float_constants,
+                &site.live.scalar_block_parameters,
+                site.operations,
+                site.provenance,
             )?;
             if let Some(
                 TargetUnitOperation::BoundarySettlement {
@@ -832,8 +705,9 @@ pub(super) fn lower_operation(
                     result: target_operations::TargetBoundaryResult::Structural(home),
                     ..
                 },
-            ) = operations.last()
-                && live
+            ) = site.operations.last()
+                && site
+                    .live
                     .structural_homes
                     .insert(home.place(), home.clone())
                     .is_some()
@@ -856,15 +730,9 @@ pub(super) fn lower_operation(
         | abstract_operations::bitwise_or_xor_pair_pattern!(..)
         | AbstractOperation::IntegerBitwiseNot { .. }
         | AbstractOperation::IntegerShift { .. }
-        | AbstractOperation::IntegerExactCast { .. } => observations::lower(
-            operation,
-            function,
-            structural_types,
-            prepared,
-            live,
-            operations,
-            provenance,
-        ),
+        | AbstractOperation::IntegerExactCast { .. } => {
+            observations::lower(operation, site, prepared)
+        }
         AbstractOperation::IntegerConstant {
             psi_operation,
             result,
@@ -878,9 +746,9 @@ pub(super) fn lower_operation(
             *value,
             false,
             &mut BTreeMap::new(),
-            &mut live.integers,
-            operations,
-            provenance,
+            &mut site.live.integers,
+            site.operations,
+            site.provenance,
         ),
         AbstractOperation::BooleanConstant {
             psi_operation,
@@ -892,9 +760,9 @@ pub(super) fn lower_operation(
             *result,
             *value,
             false,
-            &mut live.booleans,
-            operations,
-            provenance,
+            &mut site.live.booleans,
+            site.operations,
+            site.provenance,
         ),
         AbstractOperation::IeeeFloatConstant {
             psi_operation,
@@ -905,9 +773,9 @@ pub(super) fn lower_operation(
             *result,
             *value,
             false,
-            &mut live.ieee_float_constants,
-            operations,
-            provenance,
+            &mut site.live.ieee_float_constants,
+            site.operations,
+            site.provenance,
         ),
         AbstractOperation::IntegerWiden { .. } => {
             crate::lowering::unit::scalar_definitions::lower_integer_widen(
@@ -915,16 +783,16 @@ pub(super) fn lower_operation(
                 function.machine,
                 &prepared.scalar_parameters,
                 false,
-                &mut live.integers,
-                operations,
-                provenance,
+                &mut site.live.integers,
+                site.operations,
+                site.provenance,
             )
         }
         _ => Err(LoweringError::unsupported_control_flow(function.machine)),
     }?;
     if let (Some(selected), Some((_, origin))) = (selected, resolved) {
         super::selected_boundary_calls::retain_origin(
-            &mut operations[first_output..],
+            &mut site.operations[first_output..],
             selected,
             origin,
         )?;
