@@ -55,6 +55,11 @@ pub(crate) fn instantiate_dynamic_slots(program: &mut TypedTrees) -> Result<(), 
         }
     }
     retarget_selector_calls(program);
+    let mut diagnostics = Vec::new();
+    validation::validate_prepared_inline_storage(program, &mut diagnostics);
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
     Ok(())
 }
 
