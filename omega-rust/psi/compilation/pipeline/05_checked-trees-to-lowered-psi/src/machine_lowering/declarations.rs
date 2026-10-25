@@ -115,6 +115,7 @@ pub(crate) fn identity(
                 .for_instance(machine)
                 .ok_or("checked executable application has no retained identity")?;
             Ok::<_, &'static str>(CheckedMachineSpecialization {
+                capture: capture_identity(identities, checked, machine)?,
                 template: nominal(identities, checked, sources, template)?,
                 template_callable: identities.intern(
                     &checked
@@ -136,6 +137,51 @@ pub(crate) fn identity(
         contract,
         specialization,
     })
+}
+
+pub(crate) fn capture_identity(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+) -> Result<Option<terminal_psi::CheckedMachineCapture>, &'static str> {
+    let template = checked.executable_application_template(machine)?;
+    let mut direct = checked
+        .captured_machine_applications
+        .iter()
+        .filter(|(_, capture)| capture.instance == machine)
+        .map(|(_, capture)| capture);
+    let direct_capture = direct.next();
+    if direct.next().is_some() {
+        return Err("checked declaration has ambiguous capture ownership");
+    }
+    let capture = if direct_capture.is_some() {
+        direct_capture
+    } else {
+        let mut outer = checked
+            .captured_machine_applications
+            .iter()
+            .filter(|(_, capture)| Some(capture.instance) == template)
+            .map(|(_, capture)| capture);
+        let capture = outer.next();
+        if outer.next().is_some() {
+            return Err("checked invocation has ambiguous capture ownership");
+        }
+        capture
+    };
+    capture
+        .map(|capture| {
+            let receipt = checked
+                .facts
+                .specialization_identities
+                .for_instance(capture.instance)
+                .ok_or("checked capture declaration lost its independent receipt")?;
+            Ok(terminal_psi::CheckedMachineCapture {
+                template_identity: identities.intern(&capture.normalized_template_identity),
+                template_commitment: receipt.template_contract_commitment.as_bytes(),
+                specialization_commitment: receipt.commitment.as_bytes(),
+            })
+        })
+        .transpose()
 }
 
 /// Retain a requirement's own checked callable, independently of its selected

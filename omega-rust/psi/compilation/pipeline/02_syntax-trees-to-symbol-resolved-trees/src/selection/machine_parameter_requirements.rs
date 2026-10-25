@@ -20,7 +20,7 @@ use symbol_resolved_trees::types::TypeReference;
 /// normalized program behind.
 pub(crate) fn normalize_nominal_machine_parameter_requirements(
     program: &mut SymbolResolvedTrees,
-) -> Result<(), Diagnostic> {
+) -> Result<(), Vec<Diagnostic>> {
     let mut replacements = Vec::new();
 
     for (handle, parameter) in program.tables.declarations.data_type_parameters.iter() {
@@ -44,7 +44,7 @@ pub(crate) fn normalize_nominal_machine_parameter_requirements(
                     parameter.name
                 ),
             })
-        })?;
+        }).map_err(|diagnostic| vec![diagnostic])?;
         replacements.push((
             handle,
             exact.trait_definition.symbol,
@@ -70,6 +70,7 @@ pub(crate) fn normalize_nominal_machine_parameter_requirements(
         };
     }
 
+    crate::symbols::assign_nominal_machine_requirement_arguments(program)?;
     Ok(())
 }
 

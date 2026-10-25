@@ -38,6 +38,6 @@ pub use providers::{
 };
 pub use reach_applications::{
     ClosedReachApplication, ClosedReachArgument, ClosedReachCall, ClosedReachCallApplication,
-    ClosedReachMachineBinding, ClosedReachParameter, ClosedReachSchema,
+    ClosedReachCapture, ClosedReachMachineBinding, ClosedReachParameter, ClosedReachSchema,
 };
 pub use services::{InstallationReachDependency, ServiceDeclaration, TerminalRootServiceReach};

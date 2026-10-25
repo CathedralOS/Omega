@@ -6,7 +6,8 @@ mod table;
 mod vocabulary;
 
 pub use declarations::{
-    CheckedMachineDeclaration, CheckedMachineSpecialization, NominalDeclarationIdentity,
+    CheckedMachineCapture, CheckedMachineDeclaration, CheckedMachineSpecialization,
+    NominalDeclarationIdentity,
 };
 pub use semantic::{SemanticFingerprint, TerminalPsiIdentity};
 pub use table::{
