@@ -199,6 +199,14 @@ checks, and verify the merged PR's source head and published squash commit.
 Do not keep local build slots occupied while waiting. The old `lane_land`
 lease driver is retired; do not recreate it in per-lane scripts.
 
+On this host `gh` is installed and authenticated (keychain) at
+`/opt/homebrew/bin/gh`, but it is not on the PATH of non-login shells:
+`command -v gh` failing in a plain `bash -c` context is not proof gh is
+absent. Use `zsh -lic '...'`, or prepend `export PATH="/opt/homebrew/bin:$PATH"`,
+for submission and queue commands. Run the `landing.py` helper from a tree that
+carries the cutover (a fetched main checkout or any post-cutover worktree); a
+checkout that predates it still has the retired lease CLI.
+
 ## Bound the shared disk safely
 
 Read the effective MBX config and distinguish the action-cache cap from the

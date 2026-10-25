@@ -33,6 +33,9 @@ Include actual agent/model provenance there when known, not in commit trailers.
 GitHub records the submitter and publication without a separate notes push.
 An existing PR for the owned branch is reused, not duplicated. Do not include
 unrelated local commits. Keep the candidate clean and committed before push.
+The helper must come from a tree that carries this cutover; a checkout that
+predates it still has the retired lease CLI, whose `enqueue` rejects
+`NUMBER --expected-head`.
 
 The enqueue helper uses GitHub's native `enqueuePullRequest` mutation, fenced by
 the expected source head. It does not enable repository-wide auto-merge, bypass
