@@ -1861,6 +1861,68 @@ impl TerminalExecution<'_> {
         self.read_primitive_storage(source, storage, scalar_type, expected, shared_view)
     }
 
+    /// Read one completed constructor leaf through its actual operand. A
+    /// projected or borrowed argument retains its activation home, descriptor
+    /// window and scalar codec; opaque leaf metadata cannot recreate them.
+    /// A whole owned primitive formal is already a completed payload, not a
+    /// request to create a borrowing grant from that formal.
+    pub(crate) fn read_primitive_argument(
+        &self,
+        argument: &StructuralArgument,
+        completed: &TerminalStructuralValue,
+        relative_path: &[StructuralPathSegment],
+        expected: ScalarType,
+    ) -> Result<TerminalScalarValue, TerminalInterpretError> {
+        if !matches!(
+            argument.access,
+            StructuralAccess::Owned
+                | StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+        ) {
+            return Err(malformed());
+        }
+        let mut path = argument.path.clone();
+        path.extend_from_slice(relative_path);
+        if path.is_empty() {
+            let machine = self
+                .program
+                .machines()
+                .get(&self.current_machine)
+                .ok_or_else(malformed)?;
+            if let Some(parameter) = machine
+                .structural_parameter(argument.place)
+                .filter(|parameter| parameter.access == StructuralAccess::Owned)
+            {
+                // Select this role from the actual declaration, before resolving
+                // storage. A failed home/loan query never falls back to metadata.
+                let current = self
+                    .structural_values
+                    .get(&argument.place)
+                    .ok_or_else(malformed)?;
+                if current != completed
+                    || current.structural_type != parameter.structural_type
+                    || !matches!(self.program.structural_types().get(&parameter.structural_type).ok_or_else(malformed)?.shape,
+                        terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar) if scalar == expected)
+                {
+                    return Err(malformed());
+                }
+                let (storage, actual, shared) =
+                    self.primitive_view_access(completed, &[], expected, false)?;
+                return self.read_primitive_storage(
+                    argument.place,
+                    storage,
+                    actual,
+                    expected,
+                    shared,
+                );
+            }
+        }
+        // The ordinary reader authenticates the exact declared access and
+        // follows retained loans into their original (possibly suspended)
+        // owner before resolving this complete typed path.
+        self.read_primitive_place(argument.place, &path, expected)
+    }
+
     pub(crate) fn read_primitive_home(
         &self,
         home: PrimitiveStorageHome,
