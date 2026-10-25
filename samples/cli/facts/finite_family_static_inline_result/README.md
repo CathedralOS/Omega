@@ -1,0 +1,15 @@
+# finite family static inline result
+
+Owning outcome: **FINITE-GENERIC-DISPATCH**.
+
+A literal finite-family call preserves its selected inline result shape and the first and last bytes of its input.
+
+This row exercises [finite specialization](../../../../wiki/spec/language/generics.md#finite-specialization-boundary), [dynamic method families](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families), and [runtime index identity](../../../../wiki/spec/language/generics.md#runtime-index-identity-and-storage). Declaring requirements own the full correlated roster. A call's exact closed tuple owns operand/result types; it cannot erase another row from the table or select a provider's private shape as public authority.
+
+Each of the nine places transports both concrete inputs into literal row selections. Row 16 preserves bytes 11 and 23 at its two ends; row 32 preserves bytes 17 and 29. Local, field, parameter, returned-value, match-join, named-const, state, independent-machine and target-body productions keep the same types and byte checks. Match joins execute both arms. Const arrays are materialized into ordinary owned records. Every project binds all four hosted entry targets and declares exit 0; only Linux x86-64 execution is available here.
+
+The common operation exposed successive real gaps: closed calls lost their declaring roster, dependent parameter matching omitted local const/value substitutions, slot retargeting erased the closed tuple, and the Terminal catalog selected one checked call shape for all family rows. Exact public instances already existed for the complete roster. The repair retains their call contracts and qualifies each table row by interface, complete requirement identity and canonical tuple. Static calls select their exact row while every selected implementation still supplies the whole table.
+
+All nine positives have current public-CLI native/Terminal exit-0 observations. Every twin changes only row16's selected tuple to32 while retaining its16-wide input; the tuple exists, but that input cannot satisfy its exact type. The nine twins reject with the authored conformance-argument diagnostic. Sources and oracles are mirrored under `tests/omega/{pass,fail}/facts/finite_family_static_inline_result`.
+
+Final fixed-candidate qualification, independent review and verified normal merge-queue landing remain pending. Other task obligations, including std-backed customers and domain-selected automatic cleanup, are not inferred from this row.
