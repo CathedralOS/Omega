@@ -19,8 +19,10 @@ use selected_instructions_to_register_homes::{
     stage_allocated_callee_saved_requirements, validate_allocated_callee_saved_requirements,
 };
 
+/// Prepared frame geometry and byte protocol for one allocated machine.
+/// Fields stay private; realization rejoins their exact source identities.
 #[derive(Debug, Clone)]
-pub(crate) struct FunctionRelativeFrame {
+pub struct FunctionRelativeFrame {
     pub(in crate::function_realization) requirements: ValidatedAllocatedCalleeSavedRequirements,
     pub(in crate::function_realization) storage: ValidatedNonAuthoritativeCalleeSaveStorage,
     pub(in crate::function_realization) layout: ValidatedTargetFrameLayout,
@@ -45,7 +47,8 @@ impl FunctionRelativeFrame {
     }
 }
 
-pub(super) fn stage_frame(
+/// Construct the frame before instruction encoding needs its displacement plan.
+pub fn stage_function_frame(
     current: &AllocationOutput<'_>,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     policy: TargetFrameLayoutPolicy,

@@ -13,8 +13,13 @@ use abstract_operations_to_target_operations::{
     OptimizedTargetLoweringRequest, ValidatedOptimizedTargetOperations,
 };
 pub(crate) use error::{OptimizedVerifiedPhysicalPipelineError, TargetLoweringError};
+use machine_emission::FunctionRelativeOptimizationRealizationError;
 use machine_emission::StagedOptimizedFunctionFragmentEmissionSource;
+use optimization_core::OptimizationExecutionPhase;
+use post_allocation_machine_to_selected_form_encoding::stage_optimized_layout_independent_selected_form_encoding;
 use register_environment::baseline_target_register_environment;
+use resolved_layout_to_resolved_layout::execute_resolved_layout_optimization;
+use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
 use selected_instructions_to_register_homes::stage_register_allocation;
 use selected_instructions_to_selected_instructions::optimize_selected_instructions;
 
@@ -61,12 +66,43 @@ pub(crate) fn emit_target(
             &allocation.current(),
         )
         .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
-    let budget = allocation.current().budget_per_pass();
-    let encoded = machine_emission::stage_fixed_frame_function_relative_realization(
-        allocation, machine, budget,
+    let current = allocation.current();
+    let selected = current.selected();
+    let registers = current.register_environment().physical();
+    let frame = machine_emission::stage_function_frame(
+        &current,
+        &machine,
+        machine_emission::frame_layout::TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+        current.budget_per_pass(),
+    )?;
+    let encoding = stage_optimized_layout_independent_selected_form_encoding(
+        selected,
+        &machine,
+        registers,
+        Some(frame.layout().plan()),
     )
-    .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
-    let physical = StagedOptimizedFunctionFragmentEmissionSource::from(encoded);
+    .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
+    let layout =
+        stage_optimized_resolved_selected_form_layout(selected, &machine, registers, &encoding)
+            .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
+    let optimized_layout = execute_resolved_layout_optimization(
+        registers,
+        &layout,
+        &current
+            .selections()
+            .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
+        current.budget_per_pass(),
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)?;
+    let realization = machine_emission::assemble_fixed_frame_realization(
+        allocation,
+        machine,
+        frame,
+        encoding,
+        layout,
+        optimized_layout,
+    )?;
+    let physical = StagedOptimizedFunctionFragmentEmissionSource::from(realization);
     native_artifact::emit_fragment_object(physical).map_err(BodyEmissionError::Object)
 }
 
@@ -78,5 +114,11 @@ pub(crate) enum BodyEmissionError {
 impl From<OptimizedVerifiedPhysicalPipelineError> for BodyEmissionError {
     fn from(error: OptimizedVerifiedPhysicalPipelineError) -> Self {
         Self::Physical(error)
+    }
+}
+
+impl From<FunctionRelativeOptimizationRealizationError> for BodyEmissionError {
+    fn from(error: FunctionRelativeOptimizationRealizationError) -> Self {
+        Self::Physical(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization(error))
     }
 }
