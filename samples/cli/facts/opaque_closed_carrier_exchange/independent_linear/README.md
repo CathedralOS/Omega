@@ -42,7 +42,16 @@ the ordinary native/Terminal pair.
 
 Historical main `3353916f9430` checked the root and ran native exit 0 while
 Terminal refused the linear constructor. Optimized producer `5512ca9f51bd`
-repairs Terminal transport and retained native replay. Matching-host evidence:
+repairs Terminal transport and retained native replay. The following observations
+retain that original producer identity. After integrating main through
+`cd6426edda068`, fresh optimized producer `a7725636f184` again passes all 63
+checking cases, 36 ordinary native/Terminal pairs, and the public root plus nine
+places with their ten rejection controls. Qualification additionally compares
+its Linear native images, Terminal artifacts and component descriptions with
+the retained macOS products. Foreign-host reuse is a separate independent
+source-scope judgment; those runs are not executions of the integrated producer.
+
+Matching-host evidence:
 
 | Host | Ordinary native/Terminal pairs | Intended rejects | Evidence |
 | --- | ---: | ---: | --- |
