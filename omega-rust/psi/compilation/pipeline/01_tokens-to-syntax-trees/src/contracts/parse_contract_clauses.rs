@@ -9,29 +9,32 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{CapabilityContract, CapabilityContractKind, CrashCause};
 use tokens::{KeywordKind, PunctuationKind};
 
-type MachineClauses = (
+/// The `terminates`/`reaches`/operational/contract/`where` rows parsed after a
+/// machine header, field-named so the one owner that folds them into a
+/// `Machine` never destructures an eighteen-position tuple.
+pub(crate) struct MachineClauses {
     // TPR2: authored BARE `terminates;` (the public guarantee); the by-form
     // supplies only the witness and leaves this false.
-    bool,
-    HandleSpan<syntax_trees::expression::ExpressionHandle>,
-    HandleSpan<Identifier>,
+    pub terminates_guarantee: bool,
+    pub ranking_subjects: HandleSpan<syntax_trees::expression::ExpressionHandle>,
+    pub ranking_view: HandleSpan<Identifier>,
     // TPR3: argumented-view arguments (`-> Nat::IncreasingTo(limit)`).
-    HandleSpan<syntax_trees::expression::ExpressionHandle>,
-    syntax_trees::expression::ExpressionHandle,
-    Vec<source::SourceSpan>,
-    bool,
-    HandleSpan<Identifier>,
-    HandleSpan<Identifier>,
-    Vec<source::SourceSpan>,
-    Vec<source::SourceSpan>,
-    bool,
-    bool,
-    HandleSpan<CapabilityContract>,
-    syntax_trees::types::TypeReferenceHandle,
-    HandleSpan<syntax_trees::item::ProofFact>,
-    u64,
-    Option<source::SourceSpan>,
-);
+    pub ranking_view_arguments: HandleSpan<syntax_trees::expression::ExpressionHandle>,
+    pub ranking_range: syntax_trees::expression::ExpressionHandle,
+    pub service_reach_keyword_source_spans: Vec<source::SourceSpan>,
+    pub service_reach_is_installation_bound: bool,
+    pub service_reaches: HandleSpan<Identifier>,
+    pub invokes: HandleSpan<Identifier>,
+    pub suspends_keyword_source_spans: Vec<source::SourceSpan>,
+    pub blocks_keyword_source_spans: Vec<source::SourceSpan>,
+    pub suspends: bool,
+    pub blocks: bool,
+    pub contracts: HandleSpan<CapabilityContract>,
+    pub return_type: syntax_trees::types::TypeReferenceHandle,
+    pub where_facts: HandleSpan<syntax_trees::item::ProofFact>,
+    pub admitted_same_stack_bytes: u64,
+    pub same_stack_clause_span: Option<source::SourceSpan>,
+}
 
 type RankedSubjects = (
     HandleSpan<syntax_trees::expression::ExpressionHandle>,
@@ -394,7 +397,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
         where_facts_span.push(syntax_trees.items.append_proof_fact(fact));
     }
     Ok((
-        (
+        MachineClauses {
             terminates_guarantee,
             ranking_subjects,
             ranking_view,
@@ -402,18 +405,18 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             ranking_range,
             service_reach_keyword_source_spans,
             service_reach_is_installation_bound,
-            service_reaches.finish(),
-            invokes.finish(),
+            service_reaches: service_reaches.finish(),
+            invokes: invokes.finish(),
             suspends_keyword_source_spans,
             blocks_keyword_source_spans,
             suspends,
             blocks,
-            contracts.finish(),
+            contracts: contracts.finish(),
             return_type,
-            where_facts_span.finish(),
+            where_facts: where_facts_span.finish(),
             admitted_same_stack_bytes,
             same_stack_clause_span,
-        ),
+        },
         input,
     ))
 }
