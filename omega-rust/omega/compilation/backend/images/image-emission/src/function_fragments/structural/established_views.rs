@@ -167,16 +167,7 @@ fn local_location(
     slot: LocalStorageSlotId,
     origin: selected_instructions::SelectedMemoryAccessOrigin,
 ) -> Result<StructuralSourceLocation, Error> {
-    let invalid = || {
-        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-            eprintln!("descriptor-local-custody refusal machine={:?} argument={argument:?} slot={slot:?} origin={origin:?} selected_slots={:?} root={:?} leaf={:?}",
-                selected.machine,
-                selected.local_storage_slots.iter().filter(|candidate| candidate.id == slot).collect::<Vec<_>>(),
-                selected.structural.as_ref().and_then(|signature| terminal_psi::find_structural_type(&signature.structural_types, argument.root_structural_type)),
-                selected.structural.as_ref().and_then(|signature| terminal_psi::find_structural_type(&signature.structural_types, argument.structural_type)));
-        }
-        Error::Mismatch("local view differs from current descriptor custody")
-    };
+    let invalid = || Error::Mismatch("local view differs from current descriptor custody");
     let declarations = &selected
         .structural
         .as_ref()

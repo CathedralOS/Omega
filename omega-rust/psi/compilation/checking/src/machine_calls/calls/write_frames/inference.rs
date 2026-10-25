@@ -83,17 +83,10 @@ impl FrameInference {
         program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
     ) -> Option<usize> {
-        constant_index(program, expression).or_else(|| {
-            let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
-                return None;
-            };
-            self.parameter_values
-                .as_ref()?
-                .indices
-                .iter()
-                .find(|(symbol, _)| *symbol == name.symbol)
-                .and_then(|(_, value)| *value)
-        })
+        match &self.parameter_values {
+            Some(values) => values.index_value(program, expression),
+            None => constant_index(program, expression),
+        }
     }
 
     pub(super) fn specialize_segments(
@@ -104,47 +97,9 @@ impl FrameInference {
         for segment in segments {
             if let facts::PlaceSegment::Index { expression } = *segment
                 && expression.is_valid()
+                && let Some(index) = self.index_value(program, expression)
             {
-                let index = self.index_value(program, expression);
-                if let Some(index) = index {
-                    *segment = facts::PlaceSegment::FixedIndex { index };
-                } else if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                    // Metadata only: the existing value query has already refused.
-                    // Do not unwrap a capture, inspect current storage or retry it.
-                    let (kind, symbol, capture) =
-                        match program.expression_table.expression(expression) {
-                            ExpressionNode::Name(name) => ("name", name.symbol, Default::default()),
-                            ExpressionNode::SavedSubject(saved) => {
-                                ("saved-subject", SymbolHandle::invalid(), saved.capture)
-                            }
-                            ExpressionNode::Integer(_) => {
-                                ("integer", SymbolHandle::invalid(), Default::default())
-                            }
-                            ExpressionNode::Cast(_) => {
-                                ("cast", SymbolHandle::invalid(), Default::default())
-                            }
-                            ExpressionNode::Range(_) => {
-                                ("range", SymbolHandle::invalid(), Default::default())
-                            }
-                            _ => ("other", SymbolHandle::invalid(), Default::default()),
-                        };
-                    eprintln!(
-                        "CHECKSITE selector-specialization-unavailable expression={:?} kind={} name_symbol={:?} capture={:?} scope={:?} active_count={} active_prefix={:?}",
-                        expression,
-                        kind,
-                        symbol,
-                        capture,
-                        self.parameter_values.as_ref().map(|values| (
-                            values.state,
-                            values.entry_indices.len(),
-                            &values.entry_indices[..values.entry_indices.len().min(8)],
-                            values.indices.len(),
-                            &values.indices[..values.indices.len().min(8)],
-                        )),
-                        self.active_states.len(),
-                        &self.active_states[..self.active_states.len().min(4)],
-                    );
-                }
+                *segment = facts::PlaceSegment::FixedIndex { index };
             }
         }
     }
@@ -330,6 +285,25 @@ impl ParameterValues {
         }
     }
 
+    fn index_value(
+        &self,
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+    ) -> Option<usize> {
+        if !expression.is_valid() {
+            return None;
+        }
+        constant_index(program, expression).or_else(|| {
+            let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
+                return None;
+            };
+            self.indices
+                .iter()
+                .find(|(symbol, _)| *symbol == name.symbol)
+                .and_then(|(_, value)| *value)
+        })
+    }
+
     pub(super) fn has_known_values(&self) -> bool {
         self.values
             .iter()
@@ -372,6 +346,35 @@ impl ParameterValues {
         state: &State,
         statement: &StatementNode,
     ) {
+        if self.state != state.symbol {
+            return;
+        }
+        if let StatementNode::LocalData(local) = statement {
+            // A completed private scalar binding is a snapshot in this walk.
+            // Treat authored and normalized locals alike; never replay an
+            // initializer later when a stored selector is consumed.
+            let private_integer = local.symbol.is_valid()
+                && local.role == language_core::LocalBindingRole::Value
+                && local.relevance == language_core::BindingRelevance::Relevant
+                && !super::type_reference_is_reference(program, local.type_reference)
+                && crate::value_custody::recasts::exact_primitive_type(
+                    program,
+                    local.type_reference,
+                )
+                .is_some_and(|primitive| primitive.is_fixed_integer())
+                && !binding_is_exclusively_exposed(program, state, local.symbol)
+                && !binding_is_written(
+                    program,
+                    state,
+                    local.symbol,
+                    BindingObservation::WholeValue,
+                );
+            if private_integer {
+                let value = self.index_value(program, local.initial_value);
+                self.indices.push((local.symbol, value));
+            }
+            return;
+        }
         let StatementNode::Assignment(assignment) = statement else {
             return;
         };

@@ -242,22 +242,9 @@ pub(in crate::flow) fn call_result_captured_sources(
     // consumers supply every formal lane, including unknown coordinates;
     // only the shared invocation owner may refine the symbolic source paths.
     let transports = if indices.is_empty() {
-        frames.reference_result_transports(state.symbol)
+        frames.reference_result_transports(state.symbol)?
     } else {
-        frames.reference_result_transports_for_indices(state.symbol, indices)
-    };
-    let Some(transports) = transports else {
-        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-            eprintln!(
-                "CHECKSITE returned-captured-source-refusal stage=relation target={:?} raw_target={:?} formals={} index_count={} indices={:?}",
-                state.symbol,
-                call.target_symbol,
-                parameters.len(),
-                indices.len(),
-                &indices[..indices.len().min(8)],
-            );
-        }
-        return None;
+        frames.reference_result_transports_for_indices(state.symbol, indices)?
     };
     let mut sources = Vec::with_capacity(transports.len());
     for transport in transports {
@@ -292,23 +279,6 @@ pub(in crate::flow) fn call_result_captured_sources(
                 )
             })
         {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                eprintln!(
-                    "CHECKSITE returned-captured-source-refusal stage=source-path target={:?} value={} source_root={:?} image={} coarse={} recasts={} representation={} source_path_count={} source_path={:?} result_path_count={} result_path={:?} indices={:?}",
-                    state.symbol,
-                    matches!(kind, ReferenceResultSourceKind::Value { .. }),
-                    source.root,
-                    source.is_image_storage,
-                    source.collection_coarse,
-                    source.recasts.len(),
-                    source.representation.is_some(),
-                    source.segments.len(),
-                    &source.segments[..source.segments.len().min(16)],
-                    result_path.len(),
-                    &result_path[..result_path.len().min(16)],
-                    &indices[..indices.len().min(8)],
-                );
-            }
             return None;
         }
         let (argument_index, parameter) = parameters

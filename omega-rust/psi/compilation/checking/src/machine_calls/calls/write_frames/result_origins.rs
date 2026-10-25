@@ -70,8 +70,7 @@ pub(super) fn call_result_origins(
     } else {
         let indices = inference.argument_indices(program, arguments);
         inference.with_invocation(program, state, &[], &indices, |inference| {
-            let context_installed = inference.selects_state(state);
-            let result = state_result_origins(
+            state_result_origins(
                 program,
                 machine,
                 state,
@@ -79,52 +78,7 @@ pub(super) fn call_result_origins(
                 symbols,
                 inference,
                 include_shared,
-            );
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
-                && result.as_ref().is_none_or(|result| {
-                    (result.references.is_empty() && result.moves.is_empty())
-                        || result.references.iter().any(|leaf| {
-                            leaf.origin.as_ref().is_none_or(|origin| {
-                                origin.place().source.segments.iter().any(|segment| {
-                                    matches!(segment, facts::PlaceSegment::Index { .. })
-                                })
-                            })
-                        })
-                        || result.moves.iter().any(|moved| {
-                            moved.source.segments.iter().any(|segment| {
-                                matches!(segment, facts::PlaceSegment::Index { .. })
-                            })
-                        })
-                })
-            {
-                eprintln!(
-                    "CHECKSITE nested-return-selection-unavailable caller={:?} callee={:?} state={:?} formal_count={} formal_prefix={:?} arguments={} argument_prefix={:?} indices={:?} context_installed={} active_count={} active_prefix={:?} result_counts={:?} reference_prefix={:?} move_prefix={:?}",
-                    caller_machine.symbol,
-                    machine.symbol,
-                    state.symbol,
-                    parameters.len(),
-                    parameters.iter().take(4).map(|parameter| (parameter.symbol, parameter.type_reference)).collect::<Vec<_>>(),
-                    arguments.len(),
-                    arguments.iter().take(4).map(|argument| (*argument, match program.expression_table.expression(*argument) {
-                        super::ExpressionNode::Name(name) => ("name", name.symbol),
-                        super::ExpressionNode::Integer(_) => ("integer", SymbolHandle::invalid()),
-                        super::ExpressionNode::SavedSubject(_) => ("saved-subject", SymbolHandle::invalid()),
-                        super::ExpressionNode::Cast(_) => ("cast", SymbolHandle::invalid()),
-                        _ => ("other", SymbolHandle::invalid()),
-                    })).collect::<Vec<_>>(),
-                    &indices[..indices.len().min(8)],
-                    context_installed,
-                    inference.active_states.len(),
-                    &inference.active_states[..inference.active_states.len().min(4)],
-                    result.as_ref().map(|result| (result.references.len(), result.moves.len(), result.cases.len())),
-                    result.as_ref().map(|result| result.references.iter().take(4).map(|leaf| leaf.origin.as_ref().map(|origin| {
-                        let source = &origin.place().source;
-                        (source.root, source.builtin_coordinates, source.segments.len(), &source.segments[..source.segments.len().min(16)])
-                    })).collect::<Vec<_>>()),
-                    result.as_ref().map(|result| result.moves.iter().take(4).map(|moved| (moved.type_reference, moved.source.root, moved.source.builtin_coordinates, moved.source.segments.len(), &moved.source.segments[..moved.source.segments.len().min(16)])).collect::<Vec<_>>()),
-                );
-            }
-            result
+            )
         })?
     };
     instantiate_result_origins(

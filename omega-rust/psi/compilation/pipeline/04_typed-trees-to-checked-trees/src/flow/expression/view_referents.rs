@@ -255,84 +255,16 @@ impl Execution<'_, '_, '_> {
             return None;
         }
         let Some((_, state)) = validation::find_state(self.program, call.target_symbol) else {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                eprintln!(
-                    "CHECKSITE returned-capture-refusal stage=target-state machine={:?} state={:?} statement={} call={:?} target={:?} inputs={}",
-                    self.machine.symbol,
-                    self.state.symbol,
-                    self.statement_index,
-                    expression,
-                    call.target_symbol,
-                    inputs.len(),
-                );
-            }
             return Some(HandleSpan::empty());
         };
-        let parameters = self.program.state_parameters(state);
         let Some(indices) = self.captured_argument_indices(
-            parameters,
+            self.program.state_parameters(state),
             inputs
                 .iter()
                 .skip(usize::from(call.receiver.is_valid()))
                 .map(|(_, value)| value),
         ) else {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                eprintln!(
-                    "CHECKSITE returned-capture-refusal stage=input-arity machine={:?} state={:?} statement={} call={:?} target={:?} formals={} inputs={} receiver={}",
-                    self.machine.symbol,
-                    self.state.symbol,
-                    self.statement_index,
-                    expression,
-                    call.target_symbol,
-                    parameters.len(),
-                    inputs.len(),
-                    call.receiver.is_valid(),
-                );
-            }
             return Some(HandleSpan::empty());
-        };
-        let machine_symbol = self.machine.symbol;
-        let state_symbol = self.state.symbol;
-        let statement_index = self.statement_index;
-        let trace_refusal = |stage: &str, path: &[PlaceSegment], source_count: Option<usize>| {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_none() {
-                return;
-            }
-            eprintln!(
-                "CHECKSITE returned-capture-refusal stage={} machine={:?} state={:?} statement={} call={:?} target={:?} formals={} formal_prefix={:?} inputs={} input_prefix={:?} index_count={} indices={:?} path_count={} path={:?} source_count={:?}",
-                stage,
-                machine_symbol,
-                state_symbol,
-                statement_index,
-                expression,
-                call.target_symbol,
-                parameters.len(),
-                parameters
-                    .iter()
-                    .take(4)
-                    .map(|parameter| (parameter.symbol, parameter.type_reference))
-                    .collect::<Vec<_>>(),
-                inputs.len(),
-                inputs
-                    .iter()
-                    .take(4)
-                    .map(|(expression, value)| (
-                        *expression,
-                        value.expression,
-                        value.state_symbol,
-                        value.statement_index,
-                        value.type_reference,
-                        value.completion,
-                        value.storage_snapshot,
-                        value.constraints
-                    ))
-                    .collect::<Vec<_>>(),
-                indices.len(),
-                &indices[..indices.len().min(8)],
-                path.len(),
-                &path[..path.len().min(16)],
-                source_count,
-            );
         };
         let Some(sources) = super::super::reference_places::call_result_captured_sources(
             self.program,
@@ -340,7 +272,6 @@ impl Execution<'_, '_, '_> {
             self.context.call_frames,
             &indices,
         ) else {
-            trace_refusal("source-relation", &[], None);
             return Some(HandleSpan::empty());
         };
         let mut leaves = Vec::new();
@@ -357,7 +288,6 @@ impl Execution<'_, '_, '_> {
             let mut places = Vec::new();
             let mut complete = true;
             let mut matched = false;
-            let mut refusal_stage = "no-matching-source";
             for source in &sources {
                 let Some(output) = validation::reference_result_custody::loan_place_segments(
                     self.program,
@@ -411,7 +341,6 @@ impl Execution<'_, '_, '_> {
                     .get(source.argument_index + usize::from(call.receiver.is_valid()))
                     .map(|(_, actual)| actual)
                 else {
-                    refusal_stage = "actual-roster";
                     complete = false;
                     break;
                 };
@@ -428,7 +357,6 @@ impl Execution<'_, '_, '_> {
                     )
                 });
                 let Some(selected) = selected else {
-                    refusal_stage = "selected-path";
                     complete = false;
                     break;
                 };
@@ -437,12 +365,10 @@ impl Execution<'_, '_, '_> {
                     &selected,
                     super::reference_projection::ReferenceProjection::Value,
                 ) else {
-                    refusal_stage = "captured-projection";
                     complete = false;
                     break;
                 };
                 if projected.places.is_empty() {
-                    refusal_stage = "empty-pointee";
                     complete = false;
                     break;
                 }
@@ -455,25 +381,6 @@ impl Execution<'_, '_, '_> {
             let referents = if complete && matched {
                 self.append_captured_references(&places)
             } else {
-                trace_refusal(refusal_stage, &path, Some(sources.len()));
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                    for source in sources.iter().take(4) {
-                        eprintln!(
-                            "CHECKSITE returned-capture-source source_count={} value={} argument_index={} parameter_type={:?} source_path_count={} source_path={:?} result_path_count={} result_path={:?}",
-                            sources.len(),
-                            matches!(
-                                source.kind,
-                                super::super::reference_places::ReferenceResultSourceKind::Value { .. }
-                            ),
-                            source.argument_index,
-                            source.parameter_type,
-                            source.segments.len(),
-                            &source.segments[..source.segments.len().min(16)],
-                            source.result_path.len(),
-                            &source.result_path[..source.result_path.len().min(16)],
-                        );
-                    }
-                }
                 HandleSpan::empty()
             };
             let path = self.context.control.operand_child_paths.insert_many(path);

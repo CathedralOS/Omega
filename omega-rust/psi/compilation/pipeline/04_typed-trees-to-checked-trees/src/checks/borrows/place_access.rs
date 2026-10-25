@@ -97,41 +97,7 @@ pub(in crate::checks::borrows) fn argument_backings(
         root: access.root,
         segments: facts.borrow.access_segments(access).to_vec(),
     };
-    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-        let declared = validation::expression_type_reference_in_state(
-            program,
-            state.state_symbol,
-            call.statement_index,
-            access.expression,
-        );
-        let captured = argument_capture(program, facts, state, call, access);
-        eprintln!(
-            "CHECKSITE argument-backing state={:?} statement={} ordinal={} access={:?} declared={:?} capture={:?}",
-            state.state_symbol, call.statement_index, call.call_ordinal, access, declared, captured,
-        );
-        if let Some(handle) = captured {
-            let operand = facts.flow.control.operands.get(handle);
-            eprintln!("CHECKSITE argument-backing-value {:?}", operand);
-            if let checked_trees::FlowOperandCompletion::Copied { copy, path } = operand.completion
-            {
-                eprintln!(
-                    "CHECKSITE argument-backing-copy identity={:?} path={:?}",
-                    copy,
-                    facts.flow.control.operand_child_paths.span_or_empty(path),
-                );
-                if facts.flow.control.copied_values.is_valid(copy) {
-                    let source = facts.flow.control.copied_values.get(copy).source;
-                    eprintln!("CHECKSITE argument-backing-copy-source {:?}", source);
-                    if facts.flow.control.operands.is_valid(source) {
-                        eprintln!(
-                            "CHECKSITE argument-backing-copy-value {:?}",
-                            facts.flow.control.operands.get(source),
-                        );
-                    }
-                }
-            }
-        }
-    }
+
     let selected = argument_capture(program, facts, state, call, access);
     let forwarded = !matches!(
         program.expression_table.expression(access.expression),

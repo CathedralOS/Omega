@@ -289,7 +289,13 @@ pub(super) fn declaration_origins_for_query(
                 return None;
             }
             origin => {
-                let origin = origin.as_ref().map(|origin| origin.place().clone());
+                let mut origin = origin.as_ref().map(|origin| origin.place().clone());
+                if let Some(origin) = &mut origin {
+                    // Freeze selectors at this declaration's completion cut,
+                    // while its chronological scalar snapshots are still live.
+                    // Keep the independent may-write precision unchanged.
+                    inference.specialize_source(program, &mut origin.source);
+                }
                 if include_shared {
                     vec![origin]
                 } else {
