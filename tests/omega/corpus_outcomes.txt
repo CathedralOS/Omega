@@ -4463,6 +4463,24 @@ fail/facts/as_slice_views_through_target_body_short_extent rejected 4504ms expec
 	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/assumed_binding_input_authority_through_call_result_rejected rejected 1924ms expected @0aa860d93fd4+wt
+	cannot prove index `index.value` is within length 2 in Actual::get::get
+fail/facts/assumed_binding_input_authority_through_const_name_rejected rejected 1922ms expected @0aa860d93fd4+wt
+	cannot prove index `index.value` is within length 2 in Actual::get::get
+fail/facts/assumed_binding_input_authority_through_field_rejected rejected 1903ms expected @0aa860d93fd4+wt
+	cannot prove index `index.value` is within length 2 in Actual::get::get
+fail/facts/assumed_binding_input_authority_through_local_rejected rejected 1600ms expected @0aa860d93fd4+wt
+	cannot prove index `index.value` is within length 2 in Actual::get::get
+fail/facts/assumed_binding_input_authority_through_match_join_rejected rejected 1584ms expected @0aa860d93fd4+wt
+	cannot prove index `index.value` is within length 2 in Actual::get::get
+fail/facts/assumed_binding_input_authority_through_other_machine_rejected rejected 1505ms expected @0aa860d93fd4+wt
+	cannot prove index `index.value` is within length 2 in Actual::get::get
+fail/facts/assumed_binding_input_authority_through_other_state_rejected rejected 1355ms expected @0aa860d93fd4+wt
+	cannot prove index `index.value` is within length 2 in Actual::get::get
+fail/facts/assumed_binding_input_authority_through_parameter_rejected rejected 1346ms expected @0aa860d93fd4+wt
+	cannot prove index `index.value` is within length 2 in Actual::get::get
+fail/facts/assumed_binding_input_authority_through_target_body_rejected rejected 1359ms expected @0aa860d93fd4+wt
+	cannot prove index `index.value` is within length 2 in Actual::get::get
 fail/facts/assumed_binding_result_bound_through_call_result_rejected rejected 1421ms expected @6f94b4f3cae8+wt
 	cannot prove index `acquire()` is within length 2 in main::entry
 fail/facts/assumed_binding_result_bound_through_const_name_rejected rejected 1386ms expected @6f94b4f3cae8+wt
@@ -21780,6 +21798,15 @@ pass/facts/as_slice_views_through_other_machine_exit checked 13911ms check-targe
 pass/facts/as_slice_views_through_other_state_exit checked 16196ms check-target:macos_arm64 @d68dc74a14e0
 pass/facts/as_slice_views_through_parameter_exit checked 17697ms check-target:macos_arm64 @d68dc74a14e0
 pass/facts/as_slice_views_through_target_body_exit checked 14573ms check-target:macos_arm64 @d68dc74a14e0
+pass/facts/assumed_binding_input_authority_through_call_result_exit checked 2726ms check-target:macos_arm64 @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_const_name_exit checked 2713ms check-target:macos_arm64 @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_field_exit checked 2676ms check-target:macos_arm64 @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_local_exit checked 2680ms check-target:macos_arm64 @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_match_join_exit checked 2728ms check-target:macos_arm64 @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_other_machine_exit checked 2738ms check-target:macos_arm64 @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_other_state_exit checked 2825ms check-target:macos_arm64 @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_parameter_exit checked 2678ms check-target:macos_arm64 @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_target_body_exit checked 2846ms check-target:macos_arm64 @0aa860d93fd4+wt
 pass/facts/assumed_binding_result_bound_through_call_result_exit checked 8799ms check-target:macos_arm64 @6f94b4f3cae8+wt
 pass/facts/assumed_binding_result_bound_through_const_name_exit checked 8748ms check-target:macos_arm64 @6f94b4f3cae8+wt
 pass/facts/assumed_binding_result_bound_through_field_exit checked 8710ms check-target:macos_arm64 @6f94b4f3cae8+wt

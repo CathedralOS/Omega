@@ -4678,9 +4678,12 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   `samples/cli/facts/assumed_binding_result_bound` carries that exit bound
   and its evaluated Product risk rows across nine places. The risk-row audit
   classifies disjoint literal integer result bounds and same-index parameter
-  bounds as refuted. Input-side authority issuance, broader invocation
-  correspondence, and the install/update/audit acceptance below remain;
-  unsupported authority or independent compatibility relationships fail closed.
+  bounds as refuted. `samples/cli/facts/assumed_binding_input_authority`
+  carries the input qualification `Index::Bounded` (`value <= 1`) through
+  that same index operation across nine places; a direct supplier call does
+  not receive it. Result qualifications, content guarantees, and program-local
+  root introductions still fail closed. Broader invocation and lifetime
+  correspondence, and the install/update/audit acceptance below, remain.
 
   Retain exact entry/exit assumptions, authorized issuer/subject mapping and
   the selected implementation closure through erasure and inlining. Both

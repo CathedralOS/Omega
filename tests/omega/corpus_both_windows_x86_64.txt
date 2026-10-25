@@ -53,6 +53,15 @@ pass/domains/named_const_subject_binding built 5457ms exit:3 interpreter-exit:3 
 pass/domains/named_subject_capacity_identity_exit built 5855ms exit:70 interpreter-exit:70 interpreter:agrees @9ed8b7d0772d
 pass/drops/owned_qualified_contextual_cleanup_exit built 11559ms exit:70 interpreter-exit:70 interpreter:agrees @e74967d11875
 pass/drops/runtime_case_selected_cleanup_continuations_exit built 8244ms exit:0 interpreter-exit:0 interpreter:agrees @37781ae2455d
+pass/facts/assumed_binding_input_authority_through_call_result_exit built 2253ms exit:0 interpreter-exit:0 interpreter:agrees @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_const_name_exit built 2115ms exit:0 interpreter-exit:0 interpreter:agrees @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_field_exit built 2027ms exit:0 interpreter-exit:0 interpreter:agrees @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_local_exit built 1826ms exit:0 interpreter-exit:0 interpreter:agrees @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_match_join_exit built 1770ms exit:0 interpreter-exit:0 interpreter:agrees @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_other_machine_exit built 1902ms exit:0 interpreter-exit:0 interpreter:agrees @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_other_state_exit built 2124ms exit:0 interpreter-exit:0 interpreter:agrees @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_parameter_exit built 2553ms exit:0 interpreter-exit:0 interpreter:agrees @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_target_body_exit built 2099ms exit:0 interpreter-exit:0 interpreter:agrees @0aa860d93fd4+wt
 pass/facts/bounded_activation_cleanup_crossing_exit built 1361ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @26348267c99f+wt
 pass/facts/bounded_activation_extent_composition_exit built 1391ms exit:0 interpreter-exit:0 interpreter:agrees @96673576ab49+wt
 pass/facts/crash_entry_boolean_view_call_result_exit built 1659ms exit:0 interpreter-exit:0 interpreter:agrees @ce4681e434c7+wt
