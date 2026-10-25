@@ -88,9 +88,6 @@ pub struct StagedOptimizedSelectedReanalysisCustodyReceipt {
     transformed_ranges: selected_instructions::LiveRangeIdentity,
     transformed_legality: register_homes::AllocationLegalityIdentity,
     allocator_availability: register_homes::AllocatorAvailabilityIdentity,
-    function_count: usize,
-    virtual_register_count: usize,
-    entry_transition_count: usize,
 }
 
 impl StagedOptimizedSelectedReanalysisCustodyReceipt {
@@ -108,15 +105,6 @@ impl StagedOptimizedSelectedReanalysisCustodyReceipt {
     }
     pub const fn allocator_availability(self) -> register_homes::AllocatorAvailabilityIdentity {
         self.allocator_availability
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn virtual_register_count(self) -> usize {
-        self.virtual_register_count
-    }
-    pub const fn entry_transition_count(self) -> usize {
-        self.entry_transition_count
     }
 }
 

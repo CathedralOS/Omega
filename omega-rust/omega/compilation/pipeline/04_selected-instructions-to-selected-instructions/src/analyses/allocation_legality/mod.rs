@@ -78,12 +78,9 @@ pub struct AllocationLegalityValidationReceipt {
     pub(crate) ranges: LiveRangeIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
-    pub(crate) function_count: usize,
     pub(crate) virtual_register_count: usize,
     pub(crate) point_count: usize,
     pub(crate) candidate_count: usize,
-    pub(crate) early_clobber_point_count: usize,
-    pub(crate) early_clobber_candidate_count: usize,
     pub(crate) entry_transition_count: usize,
 }
 
@@ -100,9 +97,6 @@ impl AllocationLegalityValidationReceipt {
     pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
         self.allocator_availability
     }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
     pub const fn virtual_register_count(self) -> usize {
         self.virtual_register_count
     }
@@ -111,12 +105,6 @@ impl AllocationLegalityValidationReceipt {
     }
     pub const fn candidate_count(self) -> usize {
         self.candidate_count
-    }
-    pub const fn early_clobber_point_count(self) -> usize {
-        self.early_clobber_point_count
-    }
-    pub const fn early_clobber_candidate_count(self) -> usize {
-        self.early_clobber_candidate_count
     }
     pub const fn entry_transition_count(self) -> usize {
         self.entry_transition_count

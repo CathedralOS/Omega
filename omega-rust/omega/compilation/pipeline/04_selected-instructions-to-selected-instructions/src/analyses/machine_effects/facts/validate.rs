@@ -7,6 +7,6 @@ use selected_instructions::PreAllocationMachineEffectPlan;
 pub(crate) fn seal_pre_allocation_machine_effects(
     plan: PreAllocationMachineEffectPlan,
 ) -> Result<ValidatedPreAllocationMachineEffects, MachineEffectError> {
-    let receipt = receipt(&plan)?;
+    let receipt = receipt(&plan);
     Ok(ValidatedPreAllocationMachineEffects::new(plan, receipt))
 }
