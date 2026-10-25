@@ -29,19 +29,17 @@ pub(crate) use outcome_arms::{bind_outcome_specific_arm_facts, exact_outcome_cas
 pub(crate) use proof_output_calls::bind_proof_output_call_facts;
 pub(crate) use proposition_vocabulary::lower_checked_proposition_application;
 
-use checked_trees::CheckedEvidenceTerm;
 use checked_trees::{
     BorrowFacts, CheckedOperatorFacts, ContractProofFactKind, ContractProofFactOwner, ProofFacts,
 };
 
-use crate::proof::proposition_vocabulary::{
-    build_checked_proposition_vocabulary, fact_handles, lower_checked_evidence_interface,
-};
+use crate::proof::proposition_vocabulary::{build_checked_proposition_vocabulary, fact_handles};
 use contracts::{
-    append_inherited_trait_contract_facts, append_machine_contract_facts,
-    append_operator_declaration_contract_facts, append_parameter_evidence_contract_facts,
-    append_state_contract_facts, append_state_signature_contract_facts, build_contract_call_facts,
-    build_contract_exit_facts, build_contract_operator_use_facts, estimated_contract_fact_capacity,
+    ContractEvidenceLanes, append_inherited_trait_contract_facts, append_machine_contract_facts,
+    append_named_contract_evidence_term, append_operator_declaration_contract_facts,
+    append_parameter_evidence_contract_facts, append_state_contract_facts,
+    append_state_signature_contract_facts, build_contract_call_facts, build_contract_exit_facts,
+    build_contract_operator_use_facts, estimated_contract_fact_capacity,
 };
 use obligations::lower_proof_obligation;
 
@@ -62,8 +60,9 @@ pub(crate) fn build_proof_facts(
     }
 
     for machine in program.machines() {
-        append_machine_contract_facts(program, machine, &mut contract_facts, &mut evidence_terms);
-        let mut guarded_lane_position = 0usize;
+        append_machine_contract_facts(program, machine, &mut contract_facts, &mut evidence_terms)
+            .map_err(|error| vec![error])?;
+        let mut guarded_lanes = ContractEvidenceLanes::default();
         for contract in program.machine_contracts(machine) {
             let typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
                 result_data,
@@ -73,41 +72,23 @@ pub(crate) fn build_proof_facts(
                 continue;
             };
             for fact in fact_handles(contract.facts) {
-                let evidence_term = contract.binding.as_ref().map(|binding| {
-                    let Some(application) = program.proof_facts.get(fact).as_proposition() else {
-                        unreachable!("validated named guarded guarantee must bind a proposition")
-                    };
-                    let normalized = program
-                        .normalize_nominal_proposition_application(application, None)
-                        .expect("validated named guarded guarantee must have a nominal endpoint");
-                    let (evidence_type, evidence_interface) = match &normalized.classification {
-                        typed_trees::proposition::PropositionEvidenceClassification::Witness {
-                            evidence,
-                            interface,
-                        } => (
-                            evidence.clone(),
-                            interface.as_ref().map(lower_checked_evidence_interface),
-                        ),
-                        typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
-                            unreachable!(
-                                "validated named guarded guarantee must bind witness evidence"
-                            )
-                        }
-                    };
-                    let term = evidence_terms.append(CheckedEvidenceTerm {
-                        name: binding.as_str().to_owned(),
-                        owner: ContractProofFactOwner::Machine {
-                            machine_symbol: machine.symbol,
-                        },
-                        kind: ContractProofFactKind::Ensures,
-                        lane_position: guarded_lane_position,
-                        proposition: lower_checked_proposition_application(normalized),
-                        evidence_type,
-                        evidence_interface,
-                    });
-                    guarded_lane_position += 1;
-                    term
-                });
+                let evidence_term = match contract.binding.as_ref() {
+                    Some(binding) => Some(
+                        append_named_contract_evidence_term(
+                            program,
+                            ContractProofFactOwner::Machine {
+                                machine_symbol: machine.symbol,
+                            },
+                            ContractProofFactKind::Ensures,
+                            guarded_lanes.next(ContractProofFactKind::Ensures),
+                            fact,
+                            binding.as_str(),
+                            &mut evidence_terms,
+                        )
+                        .map_err(|error| vec![error])?,
+                    ),
+                    None => None,
+                };
                 outcome_specific_guarantees.append(checked_trees::OutcomeSpecificGuaranteeFact {
                     machine_symbol: machine.symbol,
                     result_data: *result_data,
@@ -157,7 +138,8 @@ pub(crate) fn build_proof_facts(
                 state,
                 &mut contract_facts,
                 &mut evidence_terms,
-            );
+            )
+            .map_err(|error| vec![error])?;
         }
         append_inherited_trait_contract_facts(
             program,

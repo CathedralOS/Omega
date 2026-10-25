@@ -15,6 +15,7 @@ use super::super::super::super::{
 use super::super::super::LoweringError;
 use super::StateGraphEmission;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
+use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 
 /// Result preparation cannot emit cleanup: another temporary may have to die
 /// before a selected source region creates its private cleanup blocks.
@@ -123,7 +124,6 @@ impl StateGraphEmission<'_, '_> {
                     std::slice::from_ref(operation),
                     self.catalogs,
                     state_parameters,
-                    self.claims.published(),
                     &mut arm_evaluation,
                     &mut arm_values,
                     &self.state_erased[position],
@@ -159,7 +159,6 @@ impl StateGraphEmission<'_, '_> {
                     &planned,
                     self.catalogs,
                     state_parameters,
-                    self.claims.published(),
                     &mut arm_evaluation,
                     &mut arm_values,
                     &self.state_erased[position],
@@ -233,48 +232,41 @@ impl StateGraphEmission<'_, '_> {
                             .root,
                     ),
                 };
-                let (mut operation_catalogs, scalar_calls) = self.catalogs.operation_catalogs();
-                let mut calls = scalar_calls.emission_context();
-                let value = {
-                    let (mut environment, emission) = operation_catalogs
-                        .operation_frame(
-                            checked,
-                            owner,
-                            state,
-                            state_parameters,
-                            &self.state_erased[position],
-                            &mut sequence,
-                            crate::unit::attached_unit::operation_frame::OperationEmission {
-                                source_value_count: arm_values.len(),
-                                evaluation: &mut arm_evaluation,
-                                values: &mut arm_values,
-                                next_value,
-                                next_block,
-                                next_edge,
-                                calls: &mut calls,
-                                operations,
-                            },
-                        )
-                        .split();
-                    emission.evaluation.source_value(
-                        identities,
-                        checked,
-                        owner,
-                        state.state,
-                        *statement_ordinal,
-                        role,
-                        &retained,
-                        emission.source_value_count,
-                        emission.values,
-                        emission.next_value,
-                        emission.next_block,
-                        emission.next_edge,
-                        emission.operations,
-                        emission.calls,
-                        &mut environment,
-                    )
-                }?;
-                scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                let value = StateFrame::new(checked, owner, state, &self.state_erased[position])
+                    .evaluate(
+                        self.catalogs,
+                        state_parameters,
+                        &mut sequence,
+                        FrameValues {
+                            source_value_count: arm_values.len(),
+                            evaluation: &mut arm_evaluation,
+                            values: &mut arm_values,
+                            next_value,
+                            next_block,
+                            next_edge,
+                            operations,
+                        },
+                        |frame| {
+                            let (mut environment, emission) = frame.split();
+                            emission.evaluation.source_value(
+                                identities,
+                                checked,
+                                owner,
+                                state.state,
+                                *statement_ordinal,
+                                role,
+                                &retained,
+                                emission.source_value_count,
+                                emission.values,
+                                emission.next_value,
+                                emission.next_block,
+                                emission.next_edge,
+                                emission.operations,
+                                emission.calls,
+                                &mut environment,
+                            )
+                        },
+                    )?;
                 PreparedArmCompletion::Edge(Terminator::Return {
                     edge: edge_id(allocate_dense(next_edge)?),
                     value: value.id,

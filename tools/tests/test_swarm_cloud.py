@@ -641,7 +641,7 @@ class ControllerTests(unittest.TestCase):
                               unknown_operations=[],build_slot_clear=True,evidence='actual child process/recovery inventory')),
             prior=dict(assignment=prior,outcome='prior-outcome-'+assignment,disposition='released',
                 checkpoint=checkpoint(),approval_required=None,protected_paths=[],
-                resources=dict(observed_utc=stamp,evidence='fresh claims/landing/workspace inventory',claims_state='claimed',landing_state='available',
+                resources=dict(observed_utc=stamp,evidence='fresh claims/landing/workspace inventory',claims_state='claimed',landing_state='github-merge-queue',
                     claims=[],landing_tickets=[],workspaces=[dict(path='owned-worktree-'+assignment,
                         state='clean',owned=True,evidence='actual Git inventory')])) )
         return self.binding_packet(dict(assignment=assignment,operation='bind-'+assignment,
@@ -1118,13 +1118,15 @@ class AcceptanceTests(unittest.TestCase):
         (self.repo/'src/program').write_text('after'); self.git('commit','-am','tools: after'); self.candidate=self.git('rev-parse','HEAD')
         self.git('update-ref','refs/remotes/origin/main',self.candidate)
         self.assignment=assignment('program', self.base)
-        self.receipt=dict(schema='omega-landing-receipt-v1',candidate=self.candidate,base=self.base,exit_code=0,packages=[])
+        self.receipt=dict(state='MERGED',baseRefName='main',headRefOid=self.candidate,
+                          mergeCommit=dict(oid=self.candidate),url='https://github.com/example/repo/pull/1')
         self.manifest=dict(schema=1,assignment='program',candidate=self.candidate,base=self.base,outcome='program-program',
              remote_main=self.candidate,user_rescue=False,environment='host/toolchain/flags/input-hash',final_receipt=self.receipt,
              receipt_artifact=self.artifact('receipt.json',json.dumps(self.receipt)),historical=[],
              before=dict(revision=self.base,outcome='program-program',kind='native',failure_kind='compile',environment='host/toolchain/flags/input-hash',verdict='failed',exit=1,command='fixture native',artifact=self.artifact('before.log','failed')),
              final_evidence=[dict(r,program_result=r.get('expected_result'),revision=self.candidate,environment='host/toolchain/flags/input-hash',count=2,artifact=self.artifact(r['id']+'.log','real recorded result')) for r in requirements()])
         self.observation=dict(workspace=dict(head=self.candidate,clean=True,primary=False,owned=True,evidence='Git inventory before removal'),landed_head=self.candidate,main=self.candidate,remote_evidence='fresh push-destination fetch',claims=[],landing_tickets=[],registry_evidence='fresh claims and landing reads',processes_stopped=True,cleanup='completed',cleanup_evidence='owned clean worktree removed')
+        self.observation['publication']=self.receipt
 
     def git(self,*arguments):
         p=subprocess.run(['git','-C',str(self.repo),*arguments],capture_output=True,text=True)
@@ -1255,8 +1257,26 @@ class AcceptanceTests(unittest.TestCase):
     def test_exact_landed_contract_passes(self): self.assertEqual(self.validate()['candidate'],self.candidate)
 
     def test_wrong_final_sha_rejected(self):
-        self.manifest['final_receipt']['candidate']=self.base
-        with self.assertRaisesRegex(RecoveryError,'exact final'):self.validate()
+        self.manifest['final_receipt']['headRefOid']=self.base
+        with self.assertRaisesRegex(RecoveryError,'submitted source'):self.validate()
+
+    def test_squash_publication_keeps_source_evidence_identity(self):
+        published=self.git('commit-tree',self.git('rev-parse',self.candidate+'^{tree}'),
+                           '-p',self.base,'-m','repo: queue squash')
+        self.assertNotEqual(published,self.candidate)
+        self.git('update-ref','refs/remotes/origin/main',published)
+        self.receipt['mergeCommit']['oid']=published
+        self.manifest['remote_main']=published
+        self.manifest['receipt_artifact']=self.artifact('receipt.json',json.dumps(self.receipt))
+        self.observation.update(landed_head=published,main=published)
+        result=self.validate()
+        self.assertEqual(result['candidate'],self.candidate)
+        self.assertEqual(result['published'],published)
+
+    def test_open_pr_is_not_publication(self):
+        self.receipt['state']='OPEN'
+        self.receipt['mergeCommit']=None
+        with self.assertRaisesRegex(RecoveryError,'merged main PR'):self.validate()
 
     def test_historical_cannot_fill_final_manifest_without_explicit_reuse(self):
         self.manifest['historical']=self.manifest['final_evidence'];self.manifest['final_evidence']=[]
@@ -1270,7 +1290,7 @@ class AcceptanceTests(unittest.TestCase):
         (self.repo/'unrelated').write_text('board only');self.git('add','.');self.git('commit','-m','docs: unrelated')
         final=self.git('rev-parse','HEAD');self.git('update-ref','refs/remotes/origin/main',final)
         self.manifest.update(candidate=final,remote_main=final);self.observation.update(landed_head=final,main=final);self.observation['workspace']['head']=final
-        self.receipt['candidate']=final;self.manifest['receipt_artifact']=self.artifact('receipt.json',json.dumps(self.receipt))
+        self.receipt.update(headRefOid=final,mergeCommit=dict(oid=final));self.manifest['receipt_artifact']=self.artifact('receipt.json',json.dumps(self.receipt))
         for value in self.manifest['final_evidence']: value['revision']=final
         self.assertEqual(self.validate()['candidate'],final)
         history['environment']='other'

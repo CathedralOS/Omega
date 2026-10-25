@@ -650,7 +650,8 @@ defines the complete product bar.
     engines). Computed copies retain selectors and the selected value before
     later operands mutate their source; retain the scalar, shared-reference and byte-view descriptor
     controls in [copied call argument snapshots](samples/cli/facts/copied_call_argument_snapshot/README.md),
-    including captured backing exclusion after descriptor replacement.
+    including captured backing exclusion after descriptor replacement, inline image-backed
+    sources and untouched sibling descriptors.
     Keep
     `pass/ownership/runtime_{captured_exclusive_argument,exclusive_argument_before_descriptor_retarget}_exit`
     and `runtime_{fixed_selector_collection_capture,index_before_descriptor_retarget,fixed_selector_owned_argument}_exit`

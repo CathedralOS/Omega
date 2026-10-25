@@ -1,102 +1,108 @@
-# Compiler merge queue pilot
+# Compiler integration CI
 
-The owner authorized an isolated GitHub-native queue pilot on 2026-10-24.
-`integration-pilot` is its base; `ci-pilot/*` branches and PRs are permitted
-only for this experiment. Main continues through `tools/landing.py`. Do not
-point agents at the new route until the acceptance below is demonstrated.
+The owner authorized production rollout after the [isolated queue experiment](pilot-observations.md).
+The canonical author procedure is [landing](../landing.md). GitHub owns integration;
+authors do not rebuild or repeat review just because main advances.
 
-The native queue, not an agent, combines an eligible PR with the current base,
-runs CI on the resulting candidate, and publishes it. The pilot admits one
-integration build at a time, uses rebase merges, and has no bypass actors.
-Later submissions do not take over an active candidate's publication slot.
-Genuine conflicts or failing checks return to the author; they are not retried
-indefinitely or promoted by treating missing evidence as success.
+## Admission
 
-## CI contract
+`.github/workflows/compiler.yml` runs on main PRs, `merge_group`, and manual
+dispatch. Its only required status, **compiler-check**, runs
+`cargo check --locked -p omega` on Linux. Default checkout selects the PR merge
+candidate or merge-group commit, not just the source head. No path filters leave
+the required status absent. Permissions are read-only; checkout credentials are
+not retained. Compilation runs on ephemeral GitHub-hosted runners, not the owner's
+machine. No repository secrets are passed to compiler tests.
 
-`.github/workflows/compiler-pilot.yml` runs on pilot PRs, pilot `merge_group`
-events, and manual dispatch. Default checkout semantics select the PR merge
-candidate or merge-group commit, never just the contributor's head. There are
-no path skips that leave a required status absent. Permissions are read-only,
-checkout credentials are not retained, and untrusted code runs on an ephemeral
-GitHub-hosted Linux runner, not the owner's machine. No repository secrets are
-passed to compiler tests.
+`main-ruleset.json` specifies main's native queue: no bypass actors, no force push
+or deletion, required PR, linear history, and the check bound to GitHub Actions
+(application 15368). One integration candidate builds/merges at a time; squash
+publication means one main commit per checked PR result. There is no mandatory
+approval count or stale-review dismissal. Required semantic review remains
+assignment-specific and concerns the submitted change, not every integration SHA.
 
-The job builds the optimized CLI and corpus runner, then uses the existing
-corpus gate for three positives, four intended rejections, and actual native
-and Terminal execution of the three positives. `compiler_pilot.py` also requires
-the exact observation roster, source revision, clean tree, expected rejection
-fragments, and both-engine agreement. Golden movement alone may pass; source
-rejection, missing execution, wrong results, missing rows, and infrastructure
-failures cannot. Nothing records new goldens.
+The compile gate does not establish runtime correctness or check independent
+workspaces. Authors still run focused validation appropriate to their changes.
+Full suites, all-host validation and customer boots are not admission gates.
 
-The report and exact corpus runner are uploaded under `compiler-pilot-SHA-attempt`.
-`summary.json` separates build and test timings and names the producer digest.
-Cargo dependencies/build outputs are cached, but Cargo still checks freshness
-on every candidate. A cache hit never substitutes for executing the tests.
-The job has a 30-minute timeout; a cold build is measured separately from warm
-queue behavior. PR revisions cancel their superseded PR jobs; queue jobs do not
-cancel one another.
+## Post-merge and nightly regression
 
-This is a Linux smoke gate for proving integration, **not** the full compiler
-acceptance, cross-host coverage, or Cathedral UEFI acceptance. Existing
-assignment-specific tests and required semantic review remain the author's
-responsibility. Do not silently replace them with these three programs.
+`.github/workflows/compiler-regression.yml` runs on main pushes, nightly at
+09:23 UTC, and manual dispatch. It builds optimized executables and invokes the
+existing corpus gate for three positive programs, four intended rejections, and
+actual native/Terminal execution agreement. The smoke adapter requires exact
+observation rosters, revision, clean source, intended rejection fragments and
+authored results. Missing observations, wrong results and infrastructure failures
+are red, not success. It never records new goldens.
 
-## Activate and exercise the isolated queue
-
-Repository admin access is needed for the ruleset; write access suffices for
-submitting PRs once configured. The repository is public and organization-owned,
-which is eligible for GitHub's native queue. See GitHub's
-[merge queue documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue).
-
-1. Land the workflow/tooling through the existing main publication path.
-2. Create `integration-pilot` from that published commit. Do not overwrite an
-   existing pilot branch. Dispatch the workflow there once to measure the cold
-   baseline and populate a cache visible to its PRs and merge groups.
-3. Apply `pilot-ruleset.json` with the repository rulesets API. Inspect an
-   existing named ruleset before updating it; do not create duplicates. The
-   required `compiler-pilot` check is bound to the GitHub Actions application
-   (ID 15368), not an arbitrary user-authored status.
-4. Create two independent harmless PRs and one PR that deliberately changes a
-   smoke fixture's expected exit to the wrong value. These changes stay on the
-   isolated pilot branches; the bad oracle must never reach main.
-5. Observe the two good PRs' checks, enqueue them normally, and observe their
-   `merge_group` checks and resulting pilot history. Do not rebase their source
-   branches when the first merges. The bad PR must report its actual runtime
-   mismatch and remain unmerged. Do not use an admin merge override.
-
-Useful commands (Python 3 and GitHub CLI work on macOS and Windows):
+The adapter retains its original `compiler_pilot.py` filename; it is shared with
+the historical pilot, not a second compiler/test path. Run locally with:
 
 ```text
 python tools/tests/test_compiler_pilot.py -v
 python tools/ci/compiler_pilot.py
-gh workflow run compiler-pilot.yml --ref integration-pilot
-gh api --method POST repos/CathedralOS/Omega/rulesets --input tools/ci/pilot-ruleset.json
-gh pr create --base integration-pilot --head ci-pilot/CHANGE
-gh pr checks NUMBER
-gh pr merge NUMBER --match-head-commit FULL_HEAD_SHA
-gh run list --workflow compiler-pilot.yml
 ```
 
-## Acceptance and cutover
+Reports and the exact corpus runner upload as `compiler-regression-SHA-attempt`,
+retained seven days. `summary.json` separates build and test timing and identifies
+the producer. The 30-minute job does not cancel a running predecessor; pending
+push runs coalesce to the newest revision. This is a bounded Linux smoke, not
+all supported hosts, the full corpus, or Cathedral UEFI boot. Host/customer and
+release qualification remain explicit separate acceptance.
 
-Record the real run URLs, candidate SHAs, merge-group events, published commits,
-failed-control diagnostic, and cold/warm durations in this document after the
-experiment. Local adapter tests alone do not prove a working queue.
+A regression belongs to the author of the regressing change; the first observer
+claims triage until attribution is established. Repair or revert promptly through
+the same queue. Report failure and time-to-repair honestly; never relabel a failed
+run green or silently weaken a test. A queue compile pass is not a runtime claim.
 
-Cutover requires both good PRs to merge through successful integration checks,
-the bad oracle to prevent merging, and the second PR to survive the base moving
-without an author-side rebase. Also demonstrate a subsequent submission reuses
-the warm base cache. Record any extra queue rebuild rather than claiming exactly
-one build when GitHub legitimately recreates an affected group.
+Cargo dependency/output caches are restored by toolchain/lock/config identity;
+Cargo still checks freshness. Admission has a separate cache from executable
+smoke. Neither a cache hit nor a successful prior run replaces this run's check.
+PR updates cancel superseded PR jobs; queue jobs do not cancel one another.
 
-Before moving agents, select the required production checks from actual compiler
-and customer acceptance, provide supported-host coverage, update the canonical
-landing instructions/skills, and retire the superseded main publication loop.
-Keep semantic review proportional to the change; do not recreate the old
-receipt/rebase loop around GitHub's tested integration candidate.
+## Administration and rollout
 
-Rollback leaves main alone: close the pilot PRs and disable only the named pilot
-ruleset/workflow. Keep run artifacts and observations. No main branch protection,
-release workflow, billing setting, or host permission is changed by this pilot.
+Inspect existing rulesets before applying `main-ruleset.json`; update the named
+ruleset instead of creating duplicates. Admin access is needed only to configure
+rules. Ordinary write access suffices to submit PRs. See GitHub's
+[merge queue documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue).
+
+The rollout installs workflows before protection, seeds the default-main cache,
+drains old publication reservations, then enables the main ruleset and submits
+the workflow migration itself through the native queue. Verify its merged source
+head, published squash commit, and post-merge run. Disable only the owned isolated
+pilot ruleset after main succeeds. The old lease/build-receipt client and
+`lane_land` driver are retired; do not run a parallel direct-main publisher.
+
+`landing.py` calls `enqueuePullRequest` with an exact expected source head.
+During the pilot `gh pr merge` tried to enable repository auto-merge and failed;
+the native queue mutation succeeded without changing that repository setting,
+overriding checks or jumping the queue. Use the documented helper or GitHub UI.
+
+If the queue itself breaks, inspect its required check and workflow first.
+Changing protection or disabling the queue is an explicit owner/admin operation,
+not an author fallback. Preserve failed runs and PRs for diagnosis.
+
+## Production cutover observed: 2026-10-25 UTC
+
+Main ruleset **25803202** is active with no bypass actors. The old publication
+queue was empty at cutover. The isolated pilot ruleset **25802197** and its
+workflow are disabled; their definitions and observations remain historical.
+
+- [Default-main admission/cache seed](https://github.com/CathedralOS/Omega/actions/runs/40148269956)
+  passed in 1m48s.
+- [Cold production runtime smoke](https://github.com/CathedralOS/Omega/actions/runs/40148228977)
+  passed in 12m44s: three native/Terminal positives and four intended rejections.
+- [Migration PR #21](https://github.com/CathedralOS/Omega/pull/21) passed
+  [PR admission](https://github.com/CathedralOS/Omega/actions/runs/40149107230)
+  in 32s (Cargo 2.51s), then
+  [queue admission](https://github.com/CathedralOS/Omega/actions/runs/40149184976)
+  with Cargo 3.48s. Both restored the default-main cache.
+- Source stayed `3b29d843632aab7898812d7927d411990551ff84` throughout submission;
+  the queue squash-published `4f1915ed5b2347f3636764e9440d2ff43629a323` at 01:05:41 UTC.
+  No author rebase/rebuild was needed. An attempted direct fast-forward of that
+  valid source returned HTTP 422 requiring the queue, leaving main unchanged.
+
+These are measured jobs, not a performance guarantee for compiler-changing PRs.
+The compile-error refusal control remains in the isolated pilot record; no broken
+source was pushed to main to demonstrate it.

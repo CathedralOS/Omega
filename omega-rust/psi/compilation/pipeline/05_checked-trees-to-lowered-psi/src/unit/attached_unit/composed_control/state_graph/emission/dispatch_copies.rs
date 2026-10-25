@@ -3,6 +3,7 @@
 //! no live storage read may substitute the former source after sibling effects.
 
 use super::StateGraphEmission;
+use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::unit::attached_unit::argument_evaluation::Evaluation;
@@ -131,42 +132,35 @@ impl StateGraphEmission<'_, '_> {
                     &[],
                 ),
             )?;
-            let (mut operation_catalogs, scalar_calls) = self.catalogs.operation_catalogs();
-            let mut calls = scalar_calls.emission_context();
-            {
-                let (mut environment, emission) = operation_catalogs
-                    .operation_frame(
-                        checked,
-                        owner,
-                        state,
-                        parameters,
-                        &self.state_erased[position],
-                        sequence,
-                        crate::unit::attached_unit::operation_frame::OperationEmission {
-                            source_value_count: values.len(),
-                            evaluation,
-                            values,
-                            next_value,
-                            next_block,
-                            next_edge,
-                            calls: &mut calls,
-                            operations,
-                        },
+            StateFrame::new(checked, owner, state, &self.state_erased[position]).evaluate(
+                self.catalogs,
+                parameters,
+                sequence,
+                FrameValues {
+                    source_value_count: values.len(),
+                    evaluation,
+                    values,
+                    next_value,
+                    next_block,
+                    next_edge,
+                    operations,
+                },
+                |frame| {
+                    let (mut environment, emission) = frame.split();
+                    environment.produce_value(
+                        identities,
+                        root.root,
+                        structural_type,
+                        emission.evaluation,
+                        emission.values,
+                        emission.next_value,
+                        emission.next_block,
+                        emission.next_edge,
+                        emission.calls,
+                        emission.operations,
                     )
-                    .split();
-                environment.produce_value(
-                    identities,
-                    root.root,
-                    structural_type,
-                    emission.evaluation,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.calls,
-                    emission.operations,
-                )?;
-            }
+                },
+            )?;
             let binding = operations
                 .computed_values
                 .iter()
@@ -186,7 +180,6 @@ impl StateGraphEmission<'_, '_> {
                 value: root.root,
                 binding,
             });
-            self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
         }
         Ok(completed)
     }

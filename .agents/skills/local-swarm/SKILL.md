@@ -132,8 +132,8 @@ makes the generation valid by construction; re-roll one generation per sub-batch
 (a warm pair build compiles in ~1-2 minutes). Slots never build for verification
 and build at most once for a demonstrated repair.
 
-Take the pool once for the whole chain: wrap a lane's entire gate-and-landing
-sequence in one `tools/build_slot.py` hold
+Take the pool once for the local build/test chain in one `tools/build_slot.py` hold;
+release it before GitHub queue observation
 ([one hold](host-setup.md#take-the-pool-once-for-the-whole-chain)); nested
 pool users short-circuit on the inherited `OMEGA_BUILD_SLOT_HELD=1` instead of
 re-racing the wait.
@@ -169,8 +169,9 @@ count a witness landing as full capability closure. Switch only under the
 canonical selection rules and user scope. Send updated selection instructions
 explicitly to existing workers at safe checkpoints without discarding their work.
 
-Use local branches and landing.py, not merge commits/direct pushes. Rebase
-incoming changes, preserve behavior and validate the combined result. Existing
+Publish owned branches as PRs through the native queue in tools/landing.md,
+never direct main pushes. GitHub integrates current main; authors resolve actual
+conflicts/failures, not every base movement. Existing
 unrelated failures do not require another repair assignment. Reconcile board
 requirements; never union-merge accumulated notes. Two advisories order that
 verification: `tools/jev_attribute.py` ranks a commit window for a failing
@@ -218,9 +219,8 @@ helper actions before executing them.
     `tools/landing.py` publication on `main`—never split work into stages where
     workers return partial unlanded candidates for the coordinator to record or
     land.
-  - Note that `python tools/landing.py enqueue` takes `--owner "<owner>"` (and
-    optional `--priority`), **not** `--note`; passing `--note` causes `enqueue`
-    to fail with `unrecognized arguments: --note`.
+  - `python tools/landing.py enqueue NUMBER --expected-head FULL_SHA` submits
+    the eligible PR. A queued/open PR is not yet landed.
   - Never run recursive cleanup scripts that delete directories named `build`
     under `tests/omega/pass/`, because `tests/omega/pass/build/` is a tracked
     corpus category directory.
@@ -231,12 +231,9 @@ helper actions before executing them.
     wave, renewing leases, or draining finished claims.
   - Always obtain commit hashes from `git rev-parse HEAD` rather than
     transcribing abbreviated `git commit` output by hand.
-  - Run `landing.py enqueue` from inside the worktree being published: its
-    checkpoint guard inspects the calling repo's tree, and a coordinator
-    checkout holding unrelated untracked files refuses the enqueue.
-  - Parameterize scripted landings by the measured revision instead of a
-    hard-coded one, so a movement-guard refusal re-runs with the corrected
-    measurement rather than publishing stale evidence or failing repeatedly.
+  - Preserve the submitted head and published commit separately; squash merges
+    do not make the submitted commit an ancestor of main. Verify the merged PR
+    and fetched main before cleanup. No author rebuild/review for a new queue SHA.
   - Count fixture coverage for selection by longest-prefix fact attribution
     (`<fact>_...` directories under `tests/omega/{pass,fail}/facts`), not a
     strict canonical suffix: variant, nested and legacy names otherwise read as

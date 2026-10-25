@@ -95,6 +95,34 @@ and all nine twins rejecting the same `receive` obligation. Windows native
 execution is owner-deferred; Linux execution is unverified. Baseline and current
 producer-bound observations remain distinct in the qualification record.
 
+## Inline byte-view sources and untouched siblings
+
+The selected value of a copied first argument remains 7 when the second argument
+replaces its former descriptor home with a view of 9.
+
+The nine `<place>/inline_byte_view/main.omg` witnesses pass the replacement
+literal directly to `overwrite` and retain a second view field of extent 4.
+Every caller checks that the first copied extent stays 7, the replaced field
+becomes 9, and its sibling stays 4. The existing byte-view row retains the
+named-source control. Each inline witness has an `invalid/main.omg` twin that
+changes only the first extent to 9; the consumer still requires 7. Matching pins
+are `tests/omega/{pass,fail}/facts/inline_byte_view_argument_snapshot_through_*`.
+
+Optimized baseline `6ede39fcd256b210ac9a3be102ae61147ba9666b` refused a direct
+literal with “call stores a borrowed value without a complete destination/backing
+relation.” The same source passed when the literal was bound to a local; removing
+the sibling did not remove the refusal. Stored-call substitution now reads the
+source descriptor's producer relation rather than requiring a declaration home.
+An image-backed descriptor has a complete origin without such a home. Carrier
+identity stays separate from backing identity, including exclusive transfers;
+unknown relations still reject. The sibling and detached copy retain their own
+loans. This also exercises the larger aggregate call/return representation.
+
+Acceptance is all nine inline positives running with native and Terminal exit 0,
+all nine false-input twins rejecting `receive`'s unchanged obligation, and the
+named-source row retaining its behavior. These observations are for macOS ARM64;
+Windows native execution remains owner-deferred and Linux execution unverified.
+
 ## Requirements and evidence
 
 - Establishment: initial 7 and the completed operand capture establish the fact; checked call/arrival contracts carry it, never the later 9 or an unproved goal.
@@ -104,6 +132,6 @@ producer-bound observations remain distinct in the qualification record.
 - Checked-to-Terminal Psi and native realization: every positive binds all four hosted targets and declares exit 0. Acceptance requires observed native exit 0 and interpreter exit 0 through `omega run --both`; flags alone establish no other-host execution.
 - Provider/layout/ABI: the descriptor rows pass shared-reference and byte-view records through ordinary field layout and call/return placements, including its call-result place. It does not establish every aggregate ABI or target lane.
 - Instruction/frame/encoding/image realization: host execution exercises ordinary indirect loads, argument staging, frame homes, calls and direct Mach-O emission. No claim is made for unexecuted targets, concurrency, or unrelated instruction paths.
-- Remaining scope: these witnesses establish scalar, shared-reference and shared byte-view operand snapshots. A separate multi-view-field stored-call destination/backing relation remains incomplete; this row does not establish that broader effect summary. The rest of both parent outcomes, including general computed/cyclic composition, remains open.
+- Remaining scope: these witnesses establish scalar, shared-reference and shared byte-view operand snapshots. Inline image sources also preserve the untouched sibling through the ordinary stored-call relation; this does not establish every computed or opaque output relation. The rest of both parent outcomes, including general computed/cyclic composition, remains open.
 
 Actual baseline diagnostics, producer/source/oracle identities, engine observations and reject reasons belong in the owning qualification/claim records. No unexecuted target is claimed.

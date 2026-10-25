@@ -200,19 +200,22 @@ Share a completed replay's artifacts and receipts across checks/reviewers when
 the protocol supports that reuse; do not repeat the entire preparation/execution
 pass merely to fill another manifest. Keep current producer/review bindings
 separate from historical frozen products. This does not waive affected-consumer
-reruns, artifact integrity, required final review or the exact-SHA landing build.
+reruns, artifact integrity or review required for the submitted change.
 
-Record why evidence remains applicable to the integrated candidate; a new SHA
-alone is not a full-baseline requirement. Independent review required by the
-assignment covers the final integrated tree. After every rebase, obtain the
-normal exact-SHA, workspace-aware [landing receipt](landing.md#verify-the-build-before-publishing),
-even when behavioral evidence is reusable. New or unexplained affected failures
-still block landing; required authority, custody, digest and golden gates remain.
+Record evidence against the source actually tested. A new integration SHA alone
+does not require author rebase, tests or review. GitHub's [merge queue](landing.md)
+checks the integrated candidate with `cargo check --locked -p omega`; local
+exact-SHA build receipts are retired. Review and rerun affected checks when the
+author edits source, resolves a conflict or discovers a changed semantic premise.
+Independent-workspace checks remain part of focused author validation, not a
+per-main-movement qualification loop. New affected failures still require repair;
+authority, custody, digest and golden rules remain. Post-merge runtime checks and
+release qualification are separate from the deliberately small admission gate.
 
 ### Independent semantic review
 
-When the assignment requires independent review, provide the exact candidate
-and integrated base, relevant accepted canonical passages and source identities,
+When the assignment requires independent review, provide the exact submitted
+candidate and base, relevant accepted canonical passages and source identities,
 original baseline outcomes, preserved positives/controls, the evidence ledger,
 current versus historical observations, and known limitations. Review the
 [requirements and evidence](../AGENTS.md#requirements-and-evidence) established
@@ -226,8 +229,10 @@ file/line or evidence references, any needed focused checks, and material
 limitations. Distinguish demonstrated defects from unresolved concerns and
 documented baseline failures. Review authority does not transfer implementation
 ownership: the worker resolves findings and finishes authorized publication.
-An approval for one SHA does not automatically approve a rebased candidate;
-review its incoming changes and affected evidence before accepting the final tree.
+An approval names the source reviewed. Do not relabel it as a review of the
+queue's new integration SHA, and do not require another review solely for that
+SHA. Author changes, conflict resolutions or changed semantic assumptions need
+affected review; routine base movement is owned by queue CI and post-merge checks.
 
 ## Running one test
 

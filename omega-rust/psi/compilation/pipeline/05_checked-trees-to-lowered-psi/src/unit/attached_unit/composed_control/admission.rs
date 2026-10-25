@@ -1,6 +1,7 @@
 //! What a composed graph's states may hold and the boundaries their calls
 //! name. The graph itself (`state_graph::admission`) decides what else the
 //! route admits.
+use super::super::operation_frame::OperationFrame;
 use super::super::{CheckedBoundaryMachinePlan, CheckedUnitEffectOperationPlan, unsupported};
 use super::{CheckedTrees, LoweringError};
 use crate::unit::attached_unit::bodies::UnitPlans;
@@ -35,34 +36,17 @@ pub(super) fn admit_calls<'a>(
                 std::iter::once(operation),
                 &mut boundaries,
             )?;
+            // A call state's operations are its call and the effects that
+            // prepare it: the ones the frame emits (`OperationFrame::lowers`),
+            // plus the frame-local storage mints a statement establishes
+            // without a callee. Nothing else belongs to a call state.
             match operation {
                 _ if operation.call().is_some() => {}
-                CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. })
-                | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Scalar { .. })
-                // A store writes storage or a loan this state holds; it
-                // names no callee.
-                | CheckedUnitEffectOperationPlan::Store(_)
-                // An atomic event or port write names no callee.
-                | CheckedUnitEffectOperationPlan::AtomicFence { .. }
-                | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-                | CheckedUnitEffectOperationPlan::RegisterAccess { .. }
-                // The paired call carries the callee dependency; cleanup only
-                // disposes its discarded result.
-                | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
-                // A displaced field's move-out carries no callee; the
-                // replacing call carries its own dependency.
-                | checked_trees::structural_field_write_pattern!()
-                // A view-subslice local narrows a view the state holds.
-                | checked_trees::byte_sequence_establishment_pattern!()
-                // Frame-local storage minted at an authored statement names no
-                // callee; borrowed references bind storage already owned here.
-                | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. })
-                | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Primitive { .. })
-                | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine { .. })
-                // A declared structural local's establishment mints
-                // frame-local storage at its statement the same way.
-                | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Structural { .. })
-                | checked_trees::reference_hold_pattern!() => {}
+                CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::Primitive { .. }
+                    | checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine { .. },
+                ) => {}
+                _ if OperationFrame::lowers(operation) => {}
                 _ => return unsupported("composed Unit call state contains a non-call operation"),
             }
         }

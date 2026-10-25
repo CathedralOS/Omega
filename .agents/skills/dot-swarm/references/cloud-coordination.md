@@ -29,8 +29,9 @@ review required by the user or assignment remains mandatory.
 
 Runtime completion is not a landed advance. Final acceptance binds before/after
 program observations, authored native/interpreter result, scoped tests/negatives,
-exact landing receipt, fetched remote ancestry, reconciled claims/tickets and
-owned-resource cleanup to the final SHA. Historical evidence remains separate;
+merged PR source identity, published-commit ancestry, reconciled claims/tickets
+and owned-resource cleanup. Source evidence stays bound to the submitted SHA,
+not relabeled as a run of the squash commit. Historical evidence remains separate;
 reuse needs unchanged reviewed inputs/environment and explicit justification.
 
 Admit only a bounded two-session canary first: two currently red real programs

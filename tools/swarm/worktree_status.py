@@ -21,6 +21,7 @@ import argparse
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 # Sibling-tool imports; claims.py, landing.py, coordination.py live in tools/.
@@ -191,13 +192,13 @@ def attach_claims(repository, rows, live):
 
 
 def landing_state(repository, remote):
-    snapshot = landing.Landing(repository, remote).snapshot()
-    status = landing.Landing.status(snapshot)
-    active = status.get("active")
-    return {"state": status["state"],
-            "queue_depth": len(status.get("queue") or []),
-            "active_owner": active.get("owner") if active else None,
-            "head_expires_utc": status.get("head_expires_utc")}
+    queue = landing.queue_status(repository, remote)
+    entries = queue["entries"]["nodes"] if queue else []
+    return {"state": "github-merge-queue" if queue else "not-configured",
+            "queue_depth": len(entries),
+            "has_more": queue["entries"]["pageInfo"]["hasNextPage"] if queue else False,
+            "active_owner": entries[0]["pullRequest"]["url"] if entries else None,
+            "head_expires_utc": None}
 
 
 def collect(options, repository):
@@ -224,7 +225,7 @@ def collect(options, repository):
         record["claims"] = {"unavailable": str(error)}
     try:
         record["landing"] = landing_state(repository, options.remote)
-    except StatusError as error:
+    except (StatusError, landing.LandingError, OSError, subprocess.TimeoutExpired) as error:
         record["landing"] = {"unavailable": str(error)}
     return record
 

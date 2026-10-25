@@ -1,5 +1,5 @@
-use super::CheckedEvidenceTerm;
-use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner};
+use super::{CheckedEvidenceTerm, ContractEvidenceLanes};
+use checked_trees::{ContractProofFact, ContractProofFactOwner};
 use symbols::SymbolHandle;
 
 /// Facts carried by one state signature's contracts.
@@ -121,8 +121,7 @@ fn append_trait_contract_facts_for_machine(
             continue;
         };
 
-        let mut requires_position = 0usize;
-        let mut ensures_position = 0usize;
+        let mut lanes = ContractEvidenceLanes::default();
         for contract in program.state_signature_contracts(signature) {
             let Some(kind) =
                 crate::proof::proposition_vocabulary::contract_fact_kind(&contract.kind)
@@ -134,18 +133,7 @@ fn append_trait_contract_facts_for_machine(
                     if !exact_direct_requirement {
                         return None;
                     }
-                    let lane_position = match kind {
-                        ContractProofFactKind::Requires => {
-                            let position = requires_position;
-                            requires_position += 1;
-                            position
-                        }
-                        ContractProofFactKind::Ensures => {
-                            let position = ensures_position;
-                            ensures_position += 1;
-                            position
-                        }
-                    };
+                    let lane_position = lanes.next(kind);
                     evidence_terms.iter().find_map(|(handle, term)| {
                         (term.owner
                             == ContractProofFactOwner::Machine {

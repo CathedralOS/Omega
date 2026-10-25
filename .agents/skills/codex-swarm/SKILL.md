@@ -19,7 +19,7 @@ Prefer available completed sessions in the same saved Omega environment.
 Compare actual runtime/workspace/cache probes, preserve existing target/MBX
 caches and branch progress, and report unknown or reprovisioned continuity
 honestly. Reuse still fetches current main, creates an isolated lane, refreshes
-spec context and validates affected inputs with exact-SHA landing receipts.
+spec context and validates affected inputs before native PR/queue submission.
 The repository emits/reserves requests; the parent must execute the discovered
 session API once and preserve its actual receipt. It cannot enforce arbitrary
 external tool calls. Do not start a fresh session solely because a turn ended.
@@ -30,10 +30,10 @@ Reuse a settled session for its next dependency-ready assignment. The coordinato
 selects fact witnesses under `samples/cli/facts`, reconciles ownership and verifies complete results.
 
 Each session qualifies coherently on one checkpoint with the executable
-[qualification runner](../../../tools/qualification.md). Integrate main near
-publication outside the queue; assess actual changed dependencies, reuse only
-justified unchanged observations and rerun affected/final-candidate checks.
-Preserve exact producer artifacts and final review/build/publication gates.
+[qualification runner](../../../tools/qualification.md). When actual conflicts
+or changed assumptions require integration, assess changed dependencies, reuse
+justified unchanged observations and rerun affected source checks. Preserve exact
+producer artifacts and required source review; GitHub owns integration admission.
 
 Compiler work dispatch requires the focused canonical passages by default.
 Configure `semantic_contracts` and a checkout at the recorded source through
@@ -148,7 +148,7 @@ cannot dispatch work or acquire managed rollout/completion credit. See
    Keep one Rust build active per executor; independent machines have separate
    build slots. Do not launch compiler builds on the coordinator to warm every
    worker's machine. Each session batches its own machine's chain — the whole
-   gate-and-landing sequence inside one hold
+   local build/test sequence inside one hold, releasing it before GitHub waits
    ([build slots](../../../tools/build_slot.md#one-hold-for-a-whole-chain));
    build pools never span sessions and a session cannot upload a build to
    another's pool, so cross-machine coordination stays with the claims
@@ -224,13 +224,12 @@ This mode changes orchestration ownership, not language or acceptance rules.
    and report deferred slices. Do not suppress checks or rewrite fixed oracles.
    After any conflict resolution, inclusion change or main movement, reassess
    inputs and rerun affected/final checks, reusing only justified evidence.
-7. **Land linearly only when authorized.** Batch intake and combined validation
-   are not a Git merge or queue bypass. Keep independently buildable coherent
-   commits; squash inseparable repairs so every retained commit builds on its
-   own. Follow normal exact-SHA review/qualification and `landing.py verify`
-   requirements, including intermediate-commit checks, then the serialized
-   queue and fast-forward publication. Release the lease if affected checks
-   cannot fit; never waive them. Confirm remote ancestry before `landed`, and
+7. **Land only when authorized.** Batch intake and combined validation are not
+   a queue bypass. Submit the validated batch as a PR through tools/landing.md;
+   GitHub checks integration and squash-merges one PR into one main commit.
+   Do not repeat author review/build merely for a new queue SHA. Resolve actual
+   conflicts or failures and retain required source review. Confirm MERGED,
+   the submitted head, and the published commit in fetched main before `landed`, and
    record acceptance per outcome without closing broader tasks. Source-only or
    planning authorization stops before integration/publication as requested.
 

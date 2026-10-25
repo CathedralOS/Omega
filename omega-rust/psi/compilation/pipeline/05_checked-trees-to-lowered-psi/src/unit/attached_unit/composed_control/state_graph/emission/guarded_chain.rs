@@ -9,6 +9,7 @@ use super::super::super::LoweringError;
 use super::StateGraphEmission;
 use super::state::{ChainGuard, guarded_arm_may_read_payloads, plan_short_circuit_guard};
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 
 /// One staged chain arm: its decision block, the parameters and structural
 /// parameters that block gained while its guard evaluated, the guard's
@@ -84,45 +85,38 @@ impl StateGraphEmission<'_, '_> {
                     reads_payloads,
                 )?)
             } else {
-                let (mut operation_catalogs, scalar_calls) = self.catalogs.operation_catalogs();
-                let mut calls = scalar_calls.emission_context();
-                let guard = {
-                    let (mut environment, emission) = operation_catalogs
-                        .operation_frame(
-                            checked,
-                            owner,
-                            state,
-                            state_parameters,
-                            &self.state_erased[position],
-                            &mut sequence,
-                            crate::unit::attached_unit::operation_frame::OperationEmission {
-                                source_value_count: values.len(),
-                                evaluation,
-                                values,
-                                next_value,
-                                next_block,
-                                next_edge,
-                                calls: &mut calls,
-                                operations,
-                            },
-                        )
-                        .split();
-                    emission.evaluation.guard_value(
-                        identities,
-                        checked,
-                        owner,
-                        state.state,
-                        arm.statement_ordinal(),
-                        emission.values,
-                        emission.next_value,
-                        emission.next_block,
-                        emission.next_edge,
-                        emission.operations,
-                        emission.calls,
-                        &mut environment,
-                    )
-                }?;
-                scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                let guard = StateFrame::new(checked, owner, state, &self.state_erased[position])
+                    .evaluate(
+                        self.catalogs,
+                        state_parameters,
+                        &mut sequence,
+                        FrameValues {
+                            source_value_count: values.len(),
+                            evaluation,
+                            values,
+                            next_value,
+                            next_block,
+                            next_edge,
+                            operations,
+                        },
+                        |frame| {
+                            let (mut environment, emission) = frame.split();
+                            emission.evaluation.guard_value(
+                                identities,
+                                checked,
+                                owner,
+                                state.state,
+                                arm.statement_ordinal(),
+                                emission.values,
+                                emission.next_value,
+                                emission.next_block,
+                                emission.next_edge,
+                                emission.operations,
+                                emission.calls,
+                                &mut environment,
+                            )
+                        },
+                    )?;
                 ChainGuard::Value(guard.id)
             };
             sequence.finish_state(checked, state)?;

@@ -12,6 +12,7 @@ use super::{CheckedTrees, LoweringError, catalogs};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
 use crate::unit::attached_unit::byte_subslices;
+use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 
 /// Completed operands from the shared authored-position schedule. Their slots
 /// have already followed any control splits; evaluating them again at the call
@@ -49,46 +50,38 @@ pub(super) fn evaluate(
         if let Some(staged) = staged {
             return Ok((Some(staged.scalars.to_vec()), Vec::new()));
         }
-        let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
-        let mut calls = scalar_calls.emission_context();
-        let values = {
-            let (mut environment, emission) = operation_catalogs
-                .operation_frame(
+        let arguments = StateFrame::new(checked, machine, state_plan, erased_parameters).evaluate(
+            catalogs,
+            parameters,
+            sequence,
+            FrameValues {
+                source_value_count: values.len(),
+                evaluation,
+                values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+            },
+            |frame| {
+                let (mut environment, emission) = frame.split();
+                emission.evaluation.arguments(
+                    identities,
                     checked,
                     machine,
-                    state_plan,
-                    parameters,
-                    erased_parameters,
-                    sequence,
-                    crate::unit::attached_unit::operation_frame::OperationEmission {
-                        source_value_count: values.len(),
-                        evaluation,
-                        values,
-                        next_value,
-                        next_block,
-                        next_edge,
-                        calls: &mut calls,
-                        operations,
-                    },
+                    state,
+                    operation,
+                    emission.values,
+                    emission.next_value,
+                    emission.next_block,
+                    emission.next_edge,
+                    emission.operations,
+                    emission.calls,
+                    &mut environment,
                 )
-                .split();
-            emission.evaluation.arguments(
-                identities,
-                checked,
-                machine,
-                state,
-                operation,
-                emission.values,
-                emission.next_value,
-                emission.next_block,
-                emission.next_edge,
-                emission.operations,
-                emission.calls,
-                &mut environment,
-            )
-        }?;
-        scalar_calls.next_call_obligation = calls.next_obligation_identity;
-        return Ok((values, Vec::new()));
+            },
+        )?;
+        return Ok((arguments, Vec::new()));
     }
     let Some(call) = operation.call() else {
         return unsupported("literal call escaped the composed Unit operation family");
@@ -185,47 +178,39 @@ pub(super) fn evaluate(
         } else if staged.is_none()
             && scalar_positions.get(scalar_slots.len()) == Some(&argument_position)
         {
-            let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
-            let mut calls = scalar_calls.emission_context();
-            let value = {
-                let (mut environment, emission) = operation_catalogs
-                    .operation_frame(
+            let value = StateFrame::new(checked, machine, state_plan, erased_parameters).evaluate(
+                catalogs,
+                parameters,
+                sequence,
+                FrameValues {
+                    source_value_count: values.len(),
+                    evaluation,
+                    values,
+                    next_value,
+                    next_block,
+                    next_edge,
+                    operations,
+                },
+                |frame| {
+                    let (mut environment, emission) = frame.split();
+                    emission.evaluation.argument_at(
+                        identities,
                         checked,
                         machine,
-                        state_plan,
-                        parameters,
-                        erased_parameters,
-                        sequence,
-                        crate::unit::attached_unit::operation_frame::OperationEmission {
-                            source_value_count: values.len(),
-                            evaluation,
-                            values,
-                            next_value,
-                            next_block,
-                            next_edge,
-                            calls: &mut calls,
-                            operations,
-                        },
+                        state,
+                        operation,
+                        scalar_slots.len(),
+                        source_value_count,
+                        emission.values,
+                        emission.next_value,
+                        emission.next_block,
+                        emission.next_edge,
+                        emission.operations,
+                        emission.calls,
+                        &mut environment,
                     )
-                    .split();
-                emission.evaluation.argument_at(
-                    identities,
-                    checked,
-                    machine,
-                    state,
-                    operation,
-                    scalar_slots.len(),
-                    source_value_count,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.operations,
-                    emission.calls,
-                    &mut environment,
-                )
-            }?;
-            scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                },
+            )?;
             scalar_slots.push(values.len());
             values.push(value);
         }
@@ -287,54 +272,45 @@ pub(super) fn stage_range(
         .with_structural_locals(&evaluation.structural_locals)
         .with_view_locals(&evaluation.view_locals)
         .with_element_views(&evaluation.element_views);
-    let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
-    let mut calls = scalar_calls.emission_context();
-    let result = {
-        let (mut environment, emission) = operation_catalogs
-            .operation_frame(
-                checked,
-                machine,
-                state,
-                parameters,
-                erased_parameters,
-                sequence,
-                crate::unit::attached_unit::operation_frame::OperationEmission {
-                    source_value_count,
-                    evaluation,
-                    values,
-                    next_value,
-                    next_block,
-                    next_edge,
-                    calls: &mut calls,
-                    operations,
-                },
-            )
-            .split();
-        let context = byte_subslices::StagingContext {
-            state: state.state,
-            structural_types: environment.structural_types,
-            type_ids: environment.type_ids,
-            bindings: &bindings,
-        };
-        byte_subslices::emit(
-            identities,
-            checked,
-            &context,
-            operation,
-            ordinal,
-            emission.evaluation,
+    StateFrame::new(checked, machine, state, erased_parameters).evaluate(
+        catalogs,
+        parameters,
+        sequence,
+        FrameValues {
             source_value_count,
-            emission.values,
-            emission.next_value,
-            emission.next_block,
-            emission.next_edge,
-            emission.operations,
-            emission.calls,
-            &mut environment,
-        )
-    };
-    scalar_calls.next_call_obligation = calls.next_obligation_identity;
-    result
+            evaluation,
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+        },
+        |frame| {
+            let (mut environment, emission) = frame.split();
+            let context = byte_subslices::StagingContext {
+                state: state.state,
+                structural_types: environment.structural_types,
+                type_ids: environment.type_ids,
+                bindings: &bindings,
+            };
+            byte_subslices::emit(
+                identities,
+                checked,
+                &context,
+                operation,
+                ordinal,
+                emission.evaluation,
+                source_value_count,
+                emission.values,
+                emission.next_value,
+                emission.next_block,
+                emission.next_edge,
+                emission.operations,
+                emission.calls,
+                &mut environment,
+            )
+        },
+    )
 }
 
 fn establish(

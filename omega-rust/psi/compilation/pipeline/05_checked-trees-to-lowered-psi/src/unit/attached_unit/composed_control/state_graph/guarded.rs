@@ -12,6 +12,7 @@ use super::super::super::{
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::CheckedComposedUnitControlStatePlan;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
+use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 
 /// Emit the selected structural producer through ordinary operand preparation.
 /// Its captured local, parameter or returned carrier retains the checked loan;
@@ -52,46 +53,39 @@ pub(super) fn emit(
             .ok_or(LoweringError::Unsupported(
                 "guarded structural guards are stale",
             ))?;
+    let state_frame = StateFrame::new(checked, owner, state, erased_parameters);
     for (position, guard) in guards.iter().enumerate() {
-        let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
-        let mut calls = scalar_calls.emission_context();
-        let condition = {
-            let (mut environment, emission) = operation_catalogs
-                .operation_frame(
+        let condition = state_frame.evaluate(
+            catalogs,
+            parameters,
+            sequence,
+            FrameValues {
+                source_value_count: values.len(),
+                evaluation,
+                values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+            },
+            |frame| {
+                let (mut environment, emission) = frame.split();
+                emission.evaluation.guard_value(
+                    identities,
                     checked,
                     owner,
-                    state,
-                    parameters,
-                    erased_parameters,
-                    sequence,
-                    crate::unit::attached_unit::operation_frame::OperationEmission {
-                        source_value_count: values.len(),
-                        evaluation,
-                        values,
-                        next_value,
-                        next_block,
-                        next_edge,
-                        calls: &mut calls,
-                        operations,
-                    },
+                    state.state,
+                    guard.guard_statement_ordinal,
+                    emission.values,
+                    emission.next_value,
+                    emission.next_block,
+                    emission.next_edge,
+                    emission.operations,
+                    emission.calls,
+                    &mut environment,
                 )
-                .split();
-            emission.evaluation.guard_value(
-                identities,
-                checked,
-                owner,
-                state.state,
-                guard.guard_statement_ordinal,
-                emission.values,
-                emission.next_value,
-                emission.next_block,
-                emission.next_edge,
-                emission.operations,
-                emission.calls,
-                &mut environment,
-            )
-        }?;
-        scalar_calls.next_call_obligation = calls.next_obligation_identity;
+            },
+        )?;
         if condition.scalar_type != ScalarType::Boolean {
             return unsupported("ordered return guard is not Boolean");
         }
@@ -239,7 +233,6 @@ pub(super) fn emit_return(
         std::slice::from_ref(operation),
         catalogs,
         parameters,
-        claims,
         evaluation,
         values,
         erased_parameters,

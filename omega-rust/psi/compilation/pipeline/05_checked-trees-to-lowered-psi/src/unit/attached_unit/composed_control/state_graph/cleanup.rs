@@ -10,6 +10,7 @@ use crate::unit::attached_unit::argument_evaluation::{Evaluation, ScalarReturnCl
 use crate::unit::attached_unit::completion_cleanup::{
     self, CompletionCleanupCatalog, NormalExitSource,
 };
+use crate::unit::attached_unit::composed_control::emission::with_call_namespace;
 use crate::unit::unit_cleanup::CleanupRegion;
 use checked_trees::{
     CheckedComposedUnitControlStatePlan, CheckedScalarBranchDestination, FlowClaimJoinExit,
@@ -58,26 +59,25 @@ pub(super) fn scalar_returns(
     evaluation: &Evaluation,
     operations: &OperationBuffer,
 ) -> Result<Vec<ScalarReturnCleanup>, LoweringError> {
-    let mut calls = catalogs.scalar_calls.emission_context();
-    let mut catalog = CompletionCleanupCatalog {
-        control: catalogs.cleanup_control,
-        types: &catalogs.structural_types,
-        type_ids: &catalogs.type_ids,
-        calls: &mut calls,
-    };
-    let result = completion_cleanup::scalar_returns(
-        identities,
-        claims.bindings,
-        checked,
-        source(state, catalogs.cleanup_control),
-        control,
-        &mut catalog,
-        parameters,
-        evaluation,
-        operations,
-    );
-    catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
-    result
+    with_call_namespace(&mut catalogs.scalar_calls, |calls| {
+        let mut catalog = CompletionCleanupCatalog {
+            control: catalogs.cleanup_control,
+            types: &catalogs.structural_types,
+            type_ids: &catalogs.type_ids,
+            calls,
+        };
+        completion_cleanup::scalar_returns(
+            identities,
+            claims.bindings,
+            checked,
+            source(state, catalogs.cleanup_control),
+            control,
+            &mut catalog,
+            parameters,
+            evaluation,
+            operations,
+        )
+    })
 }
 pub(super) fn for_exit_regions(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -90,24 +90,23 @@ pub(super) fn for_exit_regions(
     evaluation: &Evaluation,
     operations: &OperationBuffer,
 ) -> Result<Vec<CleanupRegion>, LoweringError> {
-    let mut calls = catalogs.scalar_calls.emission_context();
-    let mut catalog = CompletionCleanupCatalog {
-        control: catalogs.cleanup_control,
-        types: &catalogs.structural_types,
-        type_ids: &catalogs.type_ids,
-        calls: &mut calls,
-    };
-    let result = completion_cleanup::for_exit_regions(
-        identities,
-        claims.bindings,
-        checked,
-        source(state, catalogs.cleanup_control),
-        exit,
-        &mut catalog,
-        parameters,
-        evaluation,
-        operations,
-    );
-    catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
-    result
+    with_call_namespace(&mut catalogs.scalar_calls, |calls| {
+        let mut catalog = CompletionCleanupCatalog {
+            control: catalogs.cleanup_control,
+            types: &catalogs.structural_types,
+            type_ids: &catalogs.type_ids,
+            calls,
+        };
+        completion_cleanup::for_exit_regions(
+            identities,
+            claims.bindings,
+            checked,
+            source(state, catalogs.cleanup_control),
+            exit,
+            &mut catalog,
+            parameters,
+            evaluation,
+            operations,
+        )
+    })
 }

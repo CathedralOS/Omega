@@ -1,18 +1,7 @@
-/// The next free lane position for this contract fact kind.
-fn next_contract_lane_position(
-    kind: ContractProofFactKind,
-    requires_position: &mut usize,
-    ensures_position: &mut usize,
-) -> usize {
-    let counter = match kind {
-        ContractProofFactKind::Requires => requires_position,
-        ContractProofFactKind::Ensures => ensures_position,
-    };
-    let position = *counter;
-    *counter += 1;
-    position
-}
-
+use crate::proof::proposition_vocabulary::{
+    contract_fact_kind, fact_handles, lower_checked_evidence_interface,
+    lower_checked_proposition_application,
+};
 use checked_trees::CheckedEvidenceTerm;
 use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner};
 use symbols::SymbolHandle;
@@ -28,6 +17,132 @@ pub(crate) use inherited::{
     append_inherited_trait_contract_facts, estimated_contract_fact_capacity,
 };
 pub(crate) use operators::build_contract_operator_use_facts;
+
+/// The named-evidence lanes of one contract owner's clause list.
+///
+/// A lane position counts that owner's named bindings of that kind in authored
+/// clause order. Erased call lanes and review-evidence projection both address
+/// evidence terms by it, so a published term and its position must always
+/// agree; `requires` and `ensures` count independently.
+#[derive(Default)]
+pub(crate) struct ContractEvidenceLanes {
+    requires: usize,
+    ensures: usize,
+}
+
+impl ContractEvidenceLanes {
+    pub(crate) fn next(&mut self, kind: ContractProofFactKind) -> usize {
+        let counter = match kind {
+            ContractProofFactKind::Requires => &mut self.requires,
+            ContractProofFactKind::Ensures => &mut self.ensures,
+        };
+        let position = *counter;
+        *counter += 1;
+        position
+    }
+}
+
+/// Publish the checked evidence term one named contract binding owns.
+///
+/// Validation guarantees the binding names a proposition whose nominal
+/// endpoint carries witness evidence; a row that lost that endpoint is
+/// reported here rather than re-derived.
+pub(crate) fn append_named_contract_evidence_term(
+    program: &dyn ::validation::CheckingInput,
+    owner: ContractProofFactOwner,
+    kind: ContractProofFactKind,
+    lane_position: usize,
+    fact: arena::Handle<typed_trees::domain::ProofFact>,
+    binding: &str,
+    evidence_terms: &mut arena::Arena<CheckedEvidenceTerm>,
+) -> Result<arena::Handle<CheckedEvidenceTerm>, diagnostics::Diagnostic> {
+    let Some(application) = program.proof_facts.get(fact).as_proposition() else {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "named contract binding `{binding}` is not a validated proposition"
+        )));
+    };
+    let Some(normalized) = program.normalize_nominal_proposition_application(application, None)
+    else {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "named contract binding `{binding}` lost its nominal proposition endpoint"
+        )));
+    };
+    let typed_trees::proposition::PropositionEvidenceClassification::Witness {
+        evidence,
+        interface,
+    } = &normalized.classification
+    else {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "named contract binding `{binding}` must bind witness evidence"
+        )));
+    };
+    let evidence_type = evidence.clone();
+    let evidence_interface = interface.as_ref().map(lower_checked_evidence_interface);
+    Ok(evidence_terms.append(CheckedEvidenceTerm {
+        name: binding.to_owned(),
+        owner,
+        kind,
+        lane_position,
+        proposition: lower_checked_proposition_application(normalized),
+        evidence_type,
+        evidence_interface,
+    }))
+}
+
+/// Publish the checked facts one owner's contract clause list owes.
+///
+/// Every clause names its own kind; a named binding additionally publishes its
+/// checked evidence term in this list's lane order. `boundary_signature` is
+/// the owner's boundary-authorization policy: a public logical signature
+/// carries one, machine and state contract rows carry none.
+fn append_contract_clause_facts(
+    program: &dyn ::validation::CheckingInput,
+    contracts: &[typed_trees::signature::SignatureContract],
+    owner: ContractProofFactOwner,
+    boundary_signature: Option<(SymbolHandle, &typed_trees::signature::StateSignature)>,
+    contract_facts: &mut arena::Arena<ContractProofFact>,
+    evidence_terms: &mut arena::Arena<CheckedEvidenceTerm>,
+) -> Result<(), diagnostics::Diagnostic> {
+    let mut lanes = ContractEvidenceLanes::default();
+    for contract in contracts {
+        let Some(kind) = contract_fact_kind(&contract.kind) else {
+            continue;
+        };
+        for fact in fact_handles(contract.facts) {
+            let evidence_term = match contract.binding.as_ref() {
+                Some(binding) => Some(append_named_contract_evidence_term(
+                    program,
+                    owner,
+                    kind,
+                    lanes.next(kind),
+                    fact,
+                    binding.as_str(),
+                    evidence_terms,
+                )?),
+                None => None,
+            };
+            let qualification_authorization =
+                boundary_signature.and_then(|(owner_symbol, signature)| {
+                    ::validation::boundary_qualification_authorization(
+                        program,
+                        owner_symbol,
+                        signature,
+                        contract.kind.clone(),
+                        program.proof_facts.get(fact),
+                    )
+                });
+            contract_facts.append(ContractProofFact {
+                kind,
+                owner,
+                fact,
+                evidence_term,
+                qualification_authorization,
+                inherited_scope: None,
+            });
+        }
+    }
+    Ok(())
+}
 
 /// Collect the callable signatures that need binder-owned checked evidence.
 ///
@@ -98,70 +213,23 @@ pub(crate) fn machine_parameter_evidence_signatures<'program>(
     signatures
 }
 
+/// Publish a machine's own contract clause facts.
 pub(crate) fn append_machine_contract_facts(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     contract_facts: &mut arena::Arena<ContractProofFact>,
     evidence_terms: &mut arena::Arena<CheckedEvidenceTerm>,
-) {
-    let mut requires_position = 0usize;
-    let mut ensures_position = 0usize;
-    for contract in program.machine_contracts(machine) {
-        let Some(kind) = crate::proof::proposition_vocabulary::contract_fact_kind(&contract.kind)
-        else {
-            continue;
-        };
-        for fact in crate::proof::proposition_vocabulary::fact_handles(contract.facts) {
-            let evidence_term = contract.binding.as_ref().map(|binding| {
-                let lane_position = next_contract_lane_position(
-                    kind,
-                    &mut requires_position,
-                    &mut ensures_position,
-                );
-                let Some(application) = program.proof_facts.get(fact).as_proposition() else {
-                    unreachable!("validated named contract must bind a proposition")
-                };
-                let normalized = program
-                    .normalize_nominal_proposition_application(application, None)
-                    .expect("validated named contract must have a nominal proposition endpoint");
-                let (evidence_type, evidence_interface) = match &normalized.classification {
-                    typed_trees::proposition::PropositionEvidenceClassification::Witness {
-                        evidence,
-                        interface,
-                    } => (
-                        evidence.clone(),
-                        interface.as_ref().map(
-                            crate::proof::proposition_vocabulary::lower_checked_evidence_interface,
-                        ),
-                    ),
-                    typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
-                        unreachable!("validated named contract must bind witness evidence")
-                    }
-                };
-                evidence_terms.append(CheckedEvidenceTerm {
-                    name: binding.as_str().to_owned(),
-                    owner: ContractProofFactOwner::Machine {
-                        machine_symbol: machine.symbol,
-                    },
-                    kind,
-                    lane_position,
-                    proposition: super::lower_checked_proposition_application(normalized),
-                    evidence_type,
-                    evidence_interface,
-                })
-            });
-            contract_facts.append(ContractProofFact {
-                kind,
-                owner: ContractProofFactOwner::Machine {
-                    machine_symbol: machine.symbol,
-                },
-                fact,
-                evidence_term,
-                qualification_authorization: None,
-                inherited_scope: None,
-            });
-        }
-    }
+) -> Result<(), diagnostics::Diagnostic> {
+    append_contract_clause_facts(
+        program,
+        program.machine_contracts(machine),
+        ContractProofFactOwner::Machine {
+            machine_symbol: machine.symbol,
+        },
+        None,
+        contract_facts,
+        evidence_terms,
+    )
 }
 
 pub(crate) fn append_operator_declaration_contract_facts(
@@ -173,11 +241,10 @@ pub(crate) fn append_operator_declaration_contract_facts(
         operator_symbol: operator.symbol,
     };
     for contract in program.operator_contracts(operator) {
-        let Some(kind) = crate::proof::proposition_vocabulary::contract_fact_kind(&contract.kind)
-        else {
+        let Some(kind) = contract_fact_kind(&contract.kind) else {
             continue;
         };
-        for fact in crate::proof::proposition_vocabulary::fact_handles(contract.facts) {
+        for fact in fact_handles(contract.facts) {
             contract_facts.append(ContractProofFact {
                 kind,
                 owner,
@@ -190,79 +257,28 @@ pub(crate) fn append_operator_declaration_contract_facts(
     }
 }
 
+/// Publish a state's arrival contract clause facts.
+///
+/// The syntax stage admits `requires` only on states, so a state clause list
+/// carries no exit guarantees to number.
 pub(crate) fn append_state_contract_facts(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     contract_facts: &mut arena::Arena<ContractProofFact>,
     evidence_terms: &mut arena::Arena<CheckedEvidenceTerm>,
-) {
-    let mut requires_position = 0usize;
-    for contract in program.state_contracts(state) {
-        let Some(kind) = crate::proof::proposition_vocabulary::contract_fact_kind(&contract.kind)
-        else {
-            continue;
-        };
-        for fact in crate::proof::proposition_vocabulary::fact_handles(contract.facts) {
-            let evidence_term = contract.binding.as_ref().map(|binding| {
-                let lane_position = match kind {
-                    ContractProofFactKind::Requires => {
-                        let position = requires_position;
-                        requires_position += 1;
-                        position
-                    }
-                    ContractProofFactKind::Ensures => {
-                        unreachable!("states admit only arrival requires contracts")
-                    }
-                };
-                let Some(application) = program.proof_facts.get(fact).as_proposition() else {
-                    unreachable!("validated named state contract must bind a proposition")
-                };
-                let normalized = program
-                    .normalize_nominal_proposition_application(application, None)
-                    .expect(
-                        "validated named state contract must have a nominal proposition endpoint",
-                    );
-                let (evidence_type, evidence_interface) = match &normalized.classification {
-                    typed_trees::proposition::PropositionEvidenceClassification::Witness {
-                        evidence,
-                        interface,
-                    } => (
-                        evidence.clone(),
-                        interface.as_ref().map(
-                            crate::proof::proposition_vocabulary::lower_checked_evidence_interface,
-                        ),
-                    ),
-                    typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
-                        unreachable!("validated named state contract must bind witness evidence")
-                    }
-                };
-                evidence_terms.append(CheckedEvidenceTerm {
-                    name: binding.as_str().to_owned(),
-                    owner: ContractProofFactOwner::MachineState {
-                        machine_symbol: machine.symbol,
-                        state_symbol: state.symbol,
-                    },
-                    kind,
-                    lane_position,
-                    proposition: super::lower_checked_proposition_application(normalized),
-                    evidence_type,
-                    evidence_interface,
-                })
-            });
-            contract_facts.append(ContractProofFact {
-                kind,
-                owner: ContractProofFactOwner::MachineState {
-                    machine_symbol: machine.symbol,
-                    state_symbol: state.symbol,
-                },
-                fact,
-                evidence_term,
-                qualification_authorization: None,
-                inherited_scope: None,
-            });
-        }
-    }
+) -> Result<(), diagnostics::Diagnostic> {
+    append_contract_clause_facts(
+        program,
+        program.state_contracts(state),
+        ContractProofFactOwner::MachineState {
+            machine_symbol: machine.symbol,
+            state_symbol: state.symbol,
+        },
+        None,
+        contract_facts,
+        evidence_terms,
+    )
 }
 
 /// Append the contract facts owed by every evidence signature reachable
@@ -318,72 +334,12 @@ pub(crate) fn append_signature_contract_facts(
     contract_facts: &mut arena::Arena<ContractProofFact>,
     evidence_terms: &mut arena::Arena<CheckedEvidenceTerm>,
 ) -> Result<(), diagnostics::Diagnostic> {
-    let mut requires_position = 0usize;
-    let mut ensures_position = 0usize;
-    for contract in program.state_signature_contracts(signature) {
-        let Some(kind) = crate::proof::proposition_vocabulary::contract_fact_kind(&contract.kind)
-        else {
-            continue;
-        };
-        for fact in crate::proof::proposition_vocabulary::fact_handles(contract.facts) {
-            let evidence_term = if let Some(binding) = contract.binding.as_ref() {
-                let lane_position = next_contract_lane_position(
-                    kind,
-                    &mut requires_position,
-                    &mut ensures_position,
-                );
-                let Some(application) = program.proof_facts.get(fact).as_proposition() else {
-                    return Err(diagnostics::Diagnostic::error(
-                        "applied named signature contract must bind a proposition",
-                    ));
-                };
-                let normalized = program
-                    .normalize_nominal_proposition_application(application, None)
-                    .ok_or_else(|| diagnostics::Diagnostic::error("applied named signature contract lost its nominal proposition endpoint"))?;
-                let (evidence_type, evidence_interface) = match &normalized.classification {
-                    typed_trees::proposition::PropositionEvidenceClassification::Witness {
-                        evidence,
-                        interface,
-                    } => (
-                        evidence.clone(),
-                        interface.as_ref().map(
-                            crate::proof::proposition_vocabulary::lower_checked_evidence_interface,
-                        ),
-                    ),
-                    typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
-                        return Err(diagnostics::Diagnostic::error(
-                            "applied named signature contract must bind witness evidence",
-                        ));
-                    }
-                };
-                Some(evidence_terms.append(CheckedEvidenceTerm {
-                    name: binding.as_str().to_owned(),
-                    owner,
-                    kind,
-                    lane_position,
-                    proposition: super::lower_checked_proposition_application(normalized),
-                    evidence_type,
-                    evidence_interface,
-                }))
-            } else {
-                None
-            };
-            let qualification_authorization = ::validation::boundary_qualification_authorization(
-                program,
-                owner_symbol,
-                signature,
-                contract.kind.clone(),
-                program.proof_facts.get(fact),
-            );
-            contract_facts.append(ContractProofFact {
-                kind,
-                owner,
-                fact,
-                evidence_term,
-                qualification_authorization,
-                inherited_scope: None,
-            });
-        }
-    }
-    Ok(())
+    append_contract_clause_facts(
+        program,
+        program.state_signature_contracts(signature),
+        owner,
+        Some((owner_symbol, signature)),
+        contract_facts,
+        evidence_terms,
+    )
 }

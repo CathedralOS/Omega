@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Shared plumbing for refs/coordination/* compare-and-swap protocols.
 
-landing.py and claims.py each store a JSON document as the message of an
+claims.py stores its JSON document as the message of an
 empty-tree commit on a coordination ref. Every mutation pushes with
 --force-with-lease=<ref>:<expected>, so a writer holding a stale snapshot is
 fenced and concurrent arrivals retry onto the newest document. Chaining each

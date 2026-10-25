@@ -14,6 +14,7 @@ use super::super::{CheckedTrees, LoweringError};
 use super::CheckedComposedUnitControlStatePlan;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::unit::attached_unit::argument_evaluation::Evaluation;
+use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 use checked_trees::CheckedStructuralControlTransferSourcePlan;
 
 /// The range argument a subslice transfer narrows on its edge. Its `path` is
@@ -99,48 +100,39 @@ pub(super) fn emit(
     };
 
     let source_value_count = values.len();
-    let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
-    let mut calls = scalar_calls.emission_context();
     let result_type = source.structural_type;
-    let result = {
-        let (mut environment, emission) = operation_catalogs
-            .operation_frame(
-                checked,
-                owner,
-                state,
-                state_parameters,
-                erased_parameters,
-                sequence,
-                crate::unit::attached_unit::operation_frame::OperationEmission {
-                    source_value_count,
-                    evaluation,
-                    values,
-                    next_value,
-                    next_block,
-                    next_edge,
-                    calls: &mut calls,
-                    operations,
-                },
-            )
-            .split();
-        view_ranges::emit(
-            identities,
-            checked,
-            site,
-            source,
-            result_type,
-            destination,
-            emission.evaluation,
+    StateFrame::new(checked, owner, state, erased_parameters).evaluate(
+        catalogs,
+        state_parameters,
+        sequence,
+        FrameValues {
             source_value_count,
-            emission.values,
-            emission.next_value,
-            emission.next_block,
-            emission.next_edge,
-            emission.operations,
-            emission.calls,
-            &mut environment,
-        )
-    };
-    scalar_calls.next_call_obligation = calls.next_obligation_identity;
-    result
+            evaluation,
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+        },
+        |frame| {
+            let (mut environment, emission) = frame.split();
+            view_ranges::emit(
+                identities,
+                checked,
+                site,
+                source,
+                result_type,
+                destination,
+                emission.evaluation,
+                source_value_count,
+                emission.values,
+                emission.next_value,
+                emission.next_block,
+                emission.next_edge,
+                emission.operations,
+                emission.calls,
+                &mut environment,
+            )
+        },
+    )
 }
