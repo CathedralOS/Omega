@@ -505,17 +505,32 @@ then replaces its former home; `seven` and exact subtraction consume the saved
 and independent backing obligations. Each `invalid/main.omg` changes only the
 original extent to 8 and must reject `Count == 7`.
 
+`<place>/computed_ranked_indexed_byte_view/main.omg` is the same production
+with its recursive argument prepared by `previous(remaining)`, whose published
+contract establishes `result == value - 1`. On main `f9baa191b37`, all nine
+positives refused because ranking used the completing invocation's whole write
+frame. Preparation now checks the guard and every nested operand call, leaving
+callee execution after arrival. The resolved completion query retains generic
+application metadata, so templates and closed specializations share that boundary.
+The source and the extent-8 twins retain the same fact, bound and consuming
+subtraction; neither an inline-arithmetic rewrite nor an extra caller guard
+establishes it.
+
 This establishes the ranked dependent-result part of
 **STATE-LOCAL-VALUE-FRONTIER** across all nine places, with pins under
-`tests/omega/{pass,fail}/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_*`.
+`tests/omega/{pass,fail}/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_*`
+and `copied_computed_ranked_indexed_byte_view_argument_snapshot_through_*`.
 Generic call payloads remain intact through admission; resolved completing calls
 share state-equation and constant-stack successor planning with named arrivals.
 Result carriers apply the actual invocation telescope; result equations bind the
 public declaration or dynamic-slot telescope to captured operands. Neither a
 receiving annotation nor the helper's private body establishes the caller's fact.
 
-All nine positives run with native and Terminal exit 0 on macOS ARM64; all nine
-extent-8 twins reject the intended obligation. The four hosted entries remain
+Both productions' nine positives run with native and Terminal exit 0 on macOS
+ARM64; their extent-8 twins reject the intended obligation. Focused
+`fail/termination/computed_rank_*` controls retain refusal of nondecrease, writes
+to the rank in guards or operands, and malformed static applications. The
+ordinary full write-frame query remains unchanged. The four hosted entries remain
 present. Linux and Windows execution are unverified here; Windows native
 validation remains owner-deferred. Opaque/provider-backed and remaining cyclic
 result compositions stay open on the parent task.
