@@ -298,7 +298,7 @@ fn retained_parents(
         }) || ingress_covers_capture_path(
             program,
             facts,
-            capture,
+            operand,
             &crate::borrow::owner_place_segments(path),
             &ingress,
         ) {
@@ -465,74 +465,93 @@ fn shared_leaf_lifetime_roots(
 /// Reuse the completed assembly's child projection. An opaque child keeps its
 /// remaining path in its own parameter namespace; alternatives must each own
 /// that same permission. No initializer or source constructor is replayed.
-fn ingress_covers_capture_path<'capture>(
+fn ingress_covers_capture_path(
     program: &dyn validation::CheckingInput,
-    facts: &'capture CheckFacts,
-    mut capture: &'capture checked_trees::FlowOperandFact,
-    mut path: &[facts::PlaceSegment],
+    facts: &CheckFacts,
+    capture: Handle<checked_trees::FlowOperandFact>,
+    path: &[facts::PlaceSegment],
     ingress: &[(PlaceRoot, &[checked_trees::BorrowLoanOwnerSegment])],
 ) -> bool {
-    loop {
-        // A proved inactive case has no installed reference leaf. This is
-        // selection only; an unresolved case still owes complete coverage.
-        if crate::flow::literal_value_path_is_inactive(
-            program,
-            capture.expression,
-            capture.type_reference,
-            path,
-        ) {
-            return true;
+    fn covers(
+        program: &dyn validation::CheckingInput,
+        facts: &CheckFacts,
+        handle: Handle<checked_trees::FlowOperandFact>,
+        path: &[facts::PlaceSegment],
+        ingress: &[(PlaceRoot, &[checked_trees::BorrowLoanOwnerSegment])],
+        active: &mut Vec<Handle<checked_trees::FlowOperandFact>>,
+    ) -> bool {
+        let control = &facts.flow.control;
+        if !control.operands.is_valid(handle) || active.contains(&handle) {
+            return false;
         }
-        if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion {
-            let Some(alternatives) = facts
-                .flow
-                .control
-                .operand_alternatives
-                .span(alternatives)
-                .filter(|alternatives| !alternatives.is_empty())
-            else {
-                return false;
-            };
-            return alternatives.iter().all(|alternative| {
-                alternative.source_arm.is_valid()
-                    && facts.flow.control.operands.is_valid(alternative.value)
-                    && ingress_covers_capture_path(
+        let capture = control.operands.get(handle);
+        active.push(handle);
+        let result = (|| {
+            // Only an independently proved inactive case has no leaf debt.
+            if crate::flow::literal_value_path_is_inactive(
+                program,
+                capture.expression,
+                capture.type_reference,
+                path,
+            ) {
+                return true;
+            }
+            if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion
+            {
+                let Some(alternatives) = control
+                    .operand_alternatives
+                    .span(alternatives)
+                    .filter(|alternatives| !alternatives.is_empty())
+                else {
+                    return false;
+                };
+                return alternatives.iter().all(|alternative| {
+                    alternative.source_arm.is_valid()
+                        && covers(program, facts, alternative.value, path, ingress, active)
+                });
+            }
+            if !path.is_empty()
+                && matches!(
+                    capture.completion,
+                    checked_trees::FlowOperandCompletion::Constructed(_)
+                )
+            {
+                let Some(children) =
+                    validation::completed_storage::captured_operand_children_at_path(
+                        program, control, handle, path,
+                    )
+                else {
+                    return false;
+                };
+                return children.iter().all(|child| {
+                    covers(
                         program,
                         facts,
-                        facts.flow.control.operands.get(alternative.value),
-                        path,
+                        child.capture,
+                        &child.projection,
                         ingress,
+                        active,
                     )
-            });
-        }
-        if path.is_empty() {
-            break;
-        }
-        let Some((child, _, length)) = crate::flow::captured_operand_child_at_path(
-            program,
-            &facts.flow.control,
-            capture,
-            capture.type_reference,
-            path,
-        ) else {
-            break;
-        };
-        capture = facts.flow.control.operands.get(child);
-        path = &path[length..];
+                });
+            }
+            let Some(mut source) = validation::canonical_place_from_expression_in_state(
+                program,
+                capture.state_symbol,
+                capture.statement_index,
+                capture.expression,
+            ) else {
+                return false;
+            };
+            source.segments.extend_from_slice(path);
+            let selected = crate::borrow::owner_path_from_place_segments(program, &source.segments);
+            ingress
+                .iter()
+                .any(|(root, path)| *root == source.root && *path == selected)
+        })();
+        active.pop();
+        result
     }
-    let Some(mut source) = validation::canonical_place_from_expression_in_state(
-        program,
-        capture.state_symbol,
-        capture.statement_index,
-        capture.expression,
-    ) else {
-        return false;
-    };
-    source.segments.extend_from_slice(path);
-    let selected = crate::borrow::owner_path_from_place_segments(program, &source.segments);
-    ingress
-        .iter()
-        .any(|(root, path)| *root == source.root && *path == selected)
+    covers(program, facts, capture, path, ingress, &mut Vec::new())
 }
 
 fn owned_parent_binding(

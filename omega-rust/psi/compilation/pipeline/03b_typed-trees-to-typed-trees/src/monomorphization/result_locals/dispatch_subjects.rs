@@ -39,6 +39,44 @@ pub(in crate::monomorphization) fn materialize(program: &mut TypedTrees) -> Vec<
                 if local.role != LocalBindingRole::DispatchSubject {
                     continue;
                 }
+                // Preserve the purpose through generic/operator selection
+                // until the actual result exists. A provisional carrier is
+                // neither a completed value nor authority to classify storage.
+                let actual = completed_subject_type(
+                    program,
+                    machine,
+                    state,
+                    local.initial_value,
+                    &mut Vec::new(),
+                );
+                // A closed anonymous number has no runtime carrier to capture.
+                // Preserve its original denotation instead of assigning a width;
+                // formation and each consuming landing still check that tree.
+                // A known declaration-backed type wins over its literal payload.
+                if actual.is_none()
+                    && validation::evaluate_anonymous_numeric_expression(
+                        program,
+                        local.initial_value,
+                        &[],
+                        |expression| {
+                            validation::has_anonymous_operator_meaning(program, expression)
+                        },
+                    )
+                    .is_some()
+                {
+                    logical.push((
+                        machine.clone(),
+                        state_index,
+                        state.statement_nodes,
+                        offset,
+                        local.symbol,
+                        local.initial_value,
+                    ));
+                    continue;
+                }
+                let Some(actual) = actual else {
+                    continue;
+                };
                 let storage = validation::canonical_place_from_expression_in_state(
                     program,
                     state.symbol,
@@ -46,18 +84,6 @@ pub(in crate::monomorphization) fn materialize(program: &mut TypedTrees) -> Vec<
                     local.initial_value,
                 )
                 .is_some_and(|place| place.root.as_symbol().is_some());
-                // Preserve the purpose through generic/operator selection
-                // until the actual result exists. A provisional carrier is
-                // neither a completed value nor authority to classify storage.
-                let Some(actual) = completed_subject_type(
-                    program,
-                    machine,
-                    state,
-                    local.initial_value,
-                    &mut Vec::new(),
-                ) else {
-                    continue;
-                };
                 let noncopy_storage =
                     storage && program.type_multiplicity(actual) != Multiplicity::Unrestricted;
                 let (mathematical, logical_machine) = if noncopy_storage {

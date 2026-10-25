@@ -8,15 +8,15 @@ mod reference_places;
 pub(crate) use captured_operand::CapturedOperand;
 pub(crate) use reference_places::{
     captured_operand_reference_places_with_formation, captured_reference_places,
-    captured_reference_places_with_formation, finite_projection_paths,
+    captured_reference_places_with_formation,
 };
 
 use checked_trees::{FlowControlFacts, FlowFacts, FlowOperandFact, FlowStateFact};
 use facts::{FactPlan, PlaceRoot, PlaceSegment};
 use typed_trees::types::TypeReferenceHandle;
 pub(crate) use validation::completed_storage::{
-    captured_operand_child_at_path, captured_retention_profiles_at_path, operand_child_type,
-    project_captured_view_place, reference_captures_at_path,
+    captured_operand_child_at_path, captured_retention_profiles_at_path, finite_projection_paths,
+    operand_child_type, project_captured_view_place, reference_captures_at_path,
 };
 
 /// Contextual construction uses the bound destination declaration. A source

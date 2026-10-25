@@ -150,7 +150,7 @@ impl Resolver<'_> {
             return Err("the completed value path is not a reference descriptor");
         }
         ancestors.push(capture);
-        let resolved = self.producer(operand, path, ancestors, forwarded_inputs);
+        let resolved = self.producer(capture, path, ancestors, forwarded_inputs);
         ancestors.pop();
         let resolved = resolved?;
         if resolved.is_empty() {
@@ -161,12 +161,13 @@ impl Resolver<'_> {
 
     fn producer(
         &self,
-        operand: &FlowOperandFact,
+        capture: Handle<FlowOperandFact>,
         path: &[PlaceSegment],
         ancestors: &mut Vec<Handle<FlowOperandFact>>,
         forwarded_inputs: &mut Vec<Handle<FlowOperandFact>>,
     ) -> Result<Vec<ResolvedAlias>, &'static str> {
         let control = &self.facts.flow.control;
+        let operand = control.operands.get(capture);
         // Copies and selections own completed value occurrences. Their source
         // expressions can still name storage that later operands replaced;
         // follow the retained producer graph before considering that address.
@@ -308,15 +309,26 @@ impl Resolver<'_> {
         if let FlowOperandCompletion::Constructed(_) = operand.completion
             && !path.is_empty()
         {
-            let (child, _, consumed) = crate::flow::captured_operand_child_at_path(
+            let children = validation::completed_storage::captured_operand_children_at_path(
                 self.program,
                 control,
-                operand,
-                operand.type_reference,
+                capture,
                 path,
             )
-            .ok_or("the constructed descriptor has no completed child")?;
-            return self.retained_descriptor(child, &path[consumed..], ancestors, forwarded_inputs);
+            .ok_or("the constructed descriptor has no complete evaluated child frontier")?;
+            let mut resolved = Vec::new();
+            for child in children {
+                append_distinct(
+                    &mut resolved,
+                    self.retained_descriptor(
+                        child.capture,
+                        &child.projection,
+                        ancestors,
+                        forwarded_inputs,
+                    )?,
+                );
+            }
+            return Ok(resolved);
         }
         if let ExpressionNode::Call(call) =
             self.program.expression_table.expression(operand.expression)

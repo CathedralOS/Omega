@@ -6,56 +6,12 @@
 //! substituting a declaration initializer or a newer source descriptor.
 
 use super::super::CapturedReferencePlace;
+use super::finite_projection_paths;
 use arena::Handle;
 use checked_trees::{FlowControlFacts, FlowOperandCompletion, FlowOperandFact};
 use facts::PlaceSegment;
 use typed_trees::types::TypeReferenceHandle;
 use validation::CanonicalPlace;
-
-/// Geometry enumerates every possible closed-array slot, without selecting a
-/// value or granting access. Consumers must resolve each slot's actual producer
-/// at their own observation frontier; an unknown alternative fails the query.
-pub(crate) fn finite_projection_paths(
-    program: &dyn validation::CheckingInput,
-    reference: TypeReferenceHandle,
-    projection: &[PlaceSegment],
-) -> Option<Vec<Vec<PlaceSegment>>> {
-    // Match the reference-origin owner's finite publication budget. A large
-    // declaration never authorizes unbounded provenance expansion.
-    const MAX_PROJECTIONS: usize = 4096;
-    let mut pending = vec![projection.to_vec()];
-    let mut paths = Vec::new();
-    while let Some(path) = pending.pop() {
-        let Some(position) = path
-            .iter()
-            .position(|segment| matches!(segment, PlaceSegment::Index { .. }))
-        else {
-            paths.push(path);
-            continue;
-        };
-        let collection = validation::project_type_reference_from_segments(
-            program,
-            reference,
-            &path[..position],
-        )?;
-        let length = validation::fixed_array_type_length(program, collection)?;
-        if length == 0
-            || paths
-                .len()
-                .checked_add(pending.len())?
-                .checked_add(length)?
-                > MAX_PROJECTIONS
-        {
-            return None;
-        }
-        for index in (0..length).rev() {
-            let mut selected = path.clone();
-            selected[position] = PlaceSegment::FixedIndex { index };
-            pending.push(selected);
-        }
-    }
-    Some(paths)
-}
 
 pub(crate) fn captured_reference_places_with_formation(
     program: &dyn validation::CheckingInput,
