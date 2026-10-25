@@ -403,13 +403,19 @@ pub(in crate::flow) fn finish(
         .contexts
         .semantic_context_refs
         .span_or_empty(contexts);
+    // Owned captures do not consult this frontier. A reference-backed capture
+    // still needs its exact context live after all operands; index that same
+    // immutable set lazily once instead of rescanning it per qualification.
+    let mut live_membership = None;
     let mut inputs: Vec<QualifiedInput> = Vec::new();
     for captured in captured {
         if captured.isolated
             || (bindings_stable
-                && live
-                    .iter()
-                    .any(|context| context.context == captured.context))
+                && live_membership
+                    .get_or_insert_with(|| {
+                        crate::flow::reference_spans::SemanticContextMembership::new(live)
+                    })
+                    .contains(captured.context))
         {
             inputs.push(captured.input);
         }

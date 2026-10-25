@@ -20,9 +20,7 @@ fn intersect_references_in_order<Reference: Copy, Identity: Ord>(
     evaluated: &[Reference],
     identity: impl Fn(&Reference) -> Identity,
 ) -> Vec<Reference> {
-    let mut incoming: Vec<_> = evaluated.iter().map(&identity).collect();
-    incoming.sort_unstable();
-    incoming.dedup();
+    let incoming = sorted_reference_identities(evaluated, &identity);
     skipped
         .iter()
         .filter(|reference| incoming.binary_search(&identity(reference)).is_ok())
@@ -30,16 +28,53 @@ fn intersect_references_in_order<Reference: Copy, Identity: Ord>(
         .collect()
 }
 
+fn sorted_reference_identities<Reference, Identity: Ord>(
+    references: &[Reference],
+    identity: impl Fn(&Reference) -> Identity,
+) -> Vec<Identity> {
+    let mut identities: Vec<_> = references.iter().map(identity).collect();
+    identities.sort_unstable();
+    identities.dedup();
+    identities
+}
+
+fn semantic_context_identity(context: facts::FactContextHandle) -> (u32, u32) {
+    (context.arena_index(), context.generation())
+}
+
+/// An immutable scratch index of exact live context handles, not evidence.
+/// Repeated qualification queries share this index for one completed frontier;
+/// it never survives a write, a new flow snapshot or a statement boundary.
+pub(crate) struct SemanticContextMembership {
+    identities: Vec<(u32, u32)>,
+}
+
+impl SemanticContextMembership {
+    pub(crate) fn new(references: &[FlowSemanticContextRef]) -> Self {
+        Self {
+            identities: sorted_reference_identities(references, |reference| {
+                semantic_context_identity(reference.context)
+            }),
+        }
+    }
+
+    pub(crate) fn contains(&self, context: facts::FactContextHandle) -> bool {
+        self.identities
+            .binary_search(&semantic_context_identity(context))
+            .is_ok()
+    }
+}
+
 pub(crate) fn intersect_semantic_contexts_in_order(
     skipped: &[FlowSemanticContextRef],
     evaluated: &[FlowSemanticContextRef],
 ) -> Vec<FlowSemanticContextRef> {
-    intersect_references_in_order(skipped, evaluated, |reference| {
-        (
-            reference.context.arena_index(),
-            reference.context.generation(),
-        )
-    })
+    let incoming = SemanticContextMembership::new(evaluated);
+    skipped
+        .iter()
+        .filter(|reference| incoming.contains(reference.context))
+        .copied()
+        .collect()
 }
 
 fn constraint_reference_identity(reference: &FlowConstraintRef) -> (u8, u32, u32) {
