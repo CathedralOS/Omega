@@ -6,7 +6,6 @@ version.workspace = true
 
 [dependencies]
 terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }
-compilation-products = { path = "../../compilation/products" }
 runtime-abi = { path = "../../compilation/backend/runtime/runtime-abi" }
 numerics = { path = "../../../psi/foundation/numerics" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }

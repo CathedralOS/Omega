@@ -45,7 +45,7 @@ pub enum TerminalDomainExitDelegation {
     IsolatedContainingDomain,
 }
 
-use compilation_products::TerminalRuntimeProvisions;
+use native_artifact::TerminalRuntimeProvisions;
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalBindingRejection, TerminalExecutionStatus,
     TerminalInstanceError, TerminalInterpretError, TerminalProcessExitAdmission, TerminalProgram,

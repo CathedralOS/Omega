@@ -22,4 +22,5 @@ fn compilation_and_cli_do_not_own_runtime_integration() {
     let runtime = include_str!("../Cargo.toml");
     assert!(!runtime.lines().any(|line| line.starts_with("compiler =")));
     assert!(!runtime.contains("/pipeline/"));
+    assert!(!runtime.contains("compilation-products"));
 }

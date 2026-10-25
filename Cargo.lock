@@ -2374,7 +2374,6 @@ version = "0.1.0"
 dependencies = [
  "backend-plan",
  "calling-conventions",
- "compilation-products",
  "native-artifact",
  "numerics",
  "runtime-abi",

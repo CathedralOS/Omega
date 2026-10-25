@@ -2567,7 +2567,7 @@ then independent claimed restoration slices -> final closure.
   integration, using independent backend ABI/locator/mechanism libraries, not
   compiler stages. Hosted integration now lives in
   `omega-rust/omega/application/terminal-runtime`; finish the source-free
-  provision boundary and retain exact foreign identity and ABI checks before
+  artifact execution boundary and retain exact foreign identity and ABI checks before
   effects. CLI execution, embedding and corpus consume these owning APIs.
   Stdin/stdout/stderr, virtual clocks, provisions and observations are not
   compiler responsibilities. The CLI and corpus no longer use
@@ -2575,8 +2575,8 @@ then independent claimed restoration slices -> final closure.
   `terminal-interpreter`. Add a production
   command/API that executes an owned Terminal artifact without compiling
   source, beside the source route that asks only the Psi driver.
-  Replace source-checking-dependent `program-entry-plan` inputs with source-free
-  runtime provisions; the producer owns the exact provision/schema join.
+  Runtime provisions now come directly from the source-free `native-artifact`
+  owner; preserve the producer's exact provision/schema join.
   Follow [target environments and engines](wiki/spec/build/embedding.md#target-environments-and-execution-engines):
   Psi gains no Omega dependency, ABI catalog copy or native fallback. Hosts
   explicitly supply bindings; ordinary provider bodies can execute in Psi.
@@ -2797,7 +2797,7 @@ crash and native exit behavior.
   entrance owns project preparation, directory admission and product publication
   for both compilation and `run`; retained execution products use the same route.
   Hosted Terminal execution is an application consumer, no longer a compiler
-  export; its retained provisions still need a source-free contract.
+  export; it consumes source-free retained provisions from their native owner.
   Package dependency/Build activation scheduling still needs migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.

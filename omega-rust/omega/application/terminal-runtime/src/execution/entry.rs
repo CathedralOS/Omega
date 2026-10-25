@@ -1,6 +1,6 @@
 //! Actual host-owned entry backing, not values invented from a parameter list.
 
-use compilation_products::TerminalRuntimeProvisions;
+use native_artifact::TerminalRuntimeProvisions;
 use terminal_interpreter::{
     TerminalEstablishedErasedField, TerminalProgram, TerminalStructuralInputs,
     TerminalStructuralValue,
