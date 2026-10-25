@@ -3,7 +3,7 @@ data Token [copy] { value: u32; }
 domain Token::Left;
 domain Token::Right;
 boundary trait Sink {
-    machine consume(left: Token, right: Token)
+    machine consume(left: Token, right: Token) reaches
     requires left in Token::Left, right in Token::Right;
 }
 machine observe(left: Token in Left, right: Token in Right) reaches Sink {
