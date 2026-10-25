@@ -163,8 +163,8 @@ value-comparison implementation. Generic bodies must cover all admitted cases.
 A type equation can also recover a declared generic binder from known structure:
 
 ```omega
-domain<const Capacity: u64> u64::AtMost<Capacity>(value)
-    requires value <= Capacity;
+domain<const Capacity: u64> u64::AtMost<Capacity>
+    requires self <= Capacity;
 
 data TinyBytes<Length, const Capacity: u64>
 where

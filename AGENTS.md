@@ -486,7 +486,9 @@ The rules that touch every edit:
 - Avoid unnecessary secondary labels and descriptions. Let the layout do the explaining.
 - Data and code are independent: named implementations satisfy traits; data
   does not. Trait data types are ordinary explicit parameters. There is no
-  conformance subject, `Self` type binding, or implicit `self` value. `dyn`
+  conformance subject, `Self` type binding, or machine/state `self` receiver.
+  Predicate-only `self` names the subject in data default-domain `where` and
+  domain `requires`; it is not a receiver or runtime parameter. `dyn`
   selects an implementation at runtime; data arguments stay separate. Authored
   implementations declare member machines inline; reuse is an ordinary call,
   not a `Trait::member = Existing::machine;` reference row. Follow

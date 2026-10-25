@@ -18,31 +18,37 @@ a qualified `&[u8] in D` view.
 
 ## Declaration and membership
 
-A domain names its refinement subject explicitly
-(`domain-refinement-subject-binder`):
+Named decision: `predicate-subject-self`, settled 2026-10-24. In a domain's
+`requires` predicates and a data declaration's default-domain `where`, `self`
+denotes the exact value being constrained:
 
 ```omega
-domain Player::Alive(player)
-    requires player.health > 0 { }
+domain Player::Alive
+    requires self.health > 0 { }
 ```
 
-`Player::` determines the carrier; `(player)` binds the value being classified.
-Its type is inferred from that carrier, with the domain family's generic
-arguments substituted. The binder is in scope in the declaration's predicates
-and body under ordinary lexical binding rules. There is no implicit `self`
-subject. Renaming the binder does not change the domain's identity.
+`Player::` determines the domain's carrier. In data predicates the carrier is
+the containing data type. Generic arguments are substituted in either context.
+Membership `candidate in AtMost<8>` substitutes that exact candidate for `self`;
+users supply no subject argument. Each declaration has one subject. Ordinary
+generic parameters and other lexical contract names remain available.
 
-The subject binder follows the complete domain name and its indices:
-`domain<const Capacity: u64> u64::AtMost<Capacity>(value)`.
-It is not a generic index, stored field, runtime argument, move, or borrow.
-Membership `candidate in AtMost<8>` substitutes `candidate` for that subject;
-users do not supply another argument. A declaration that does not refer to its
-subject may omit the binder, as in `domain i32::Km;`. Both a braced body and a
-bodyless `;` declaration use this same subject-binding rule.
+`self` is a logical subject, not a field, generic index, runtime parameter,
+implicit borrow, move, receiver or source of authority. Its scope is these
+predicates; it cannot be rebound and does not enter a separately declared
+machine or its contracts. Predicate calls retain their ordinary formation and
+evaluation obligations. A predicate may not assume its own goal to justify
+forming a call, projection or other partial term.
+
+This replaces explicit domain subject binders: `domain Player::Alive(player)`
+is rejected, as is a subject parameter on `data`. Subject-free declarations
+such as `domain i32::Km;` are unchanged. Machine/state receiver syntax and the
+`Self` conformance type remain absent. Existing unqualified data-field names
+in data predicates remain field references; `self.field` names them explicitly.
 
 Scalar interval relationships use ordinary propositions, not a bracketed type
 suffix (`scalar-range-contract-spelling`). Put common-field relationships in the
-data declaration's `where`, case-payload relationships in the case's `where`,
+data declaration's `where`, including guarded case-payload relationships,
 parameter/state-parameter obligations in `requires`, and result obligations in
 `ensures`. Locals receive facts from their initializer, guards, calls, and
 checked qualification. A call's checked postconditions apply to its exact result
@@ -59,8 +65,8 @@ To publish a reusable named classification, declare a predicate domain and
 return or accept its qualified carrier:
 
 ```omega
-domain u64::AlignmentSize(value)
-    requires value >= 1 && value <= 8;
+domain u64::AlignmentSize
+    requires self >= 1 && self <= 8;
 ```
 
 A result may be declared `u64 in AlignmentSize` when callers need that exact
@@ -68,14 +74,14 @@ domain. Otherwise return plain `u64` with
 `ensures result >= 1 && result <= 8`; the receiving local needs no qualification
 to use those established facts.
 
-Data and case `where` couplings remain their ordinary
+Data `where` couplings, including case-conditional predicates, remain ordinary
 [default-domain obligations](dependent_values.md#default-domains-and-zero-initialization).
 Range expressions, range membership, slices, fixed arrays, and bracketed
 multiplicity properties are separate facilities and are unchanged.
 
 ```omega
-domain i32::Positive(value)
-    requires value > 0;
+domain i32::Positive
+    requires self > 0;
 
 public domain Reservation::Issued
     established by Issues::issue;
@@ -399,8 +405,8 @@ predicates and uninhabited generic specializations are permitted, even when the
 compiler can trivially prove that no value satisfies them:
 
 ```omega
-domain i32::Impossible(value)
-    requires value > 0 && value < 0;
+domain i32::Impossible
+    requires self > 0 && self < 0;
 ```
 
 This defines a classification with no members, not a logical paradox or an

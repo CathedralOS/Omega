@@ -1,6 +1,6 @@
 # Numeric values and bounds
 
-Numeric bounds are propositions established by data/case `where`, callable
+Numeric bounds are propositions established by data-level `where`, callable
 contracts, intentionally named domains, and ordinary flow reasoning. A scalar
 carrier does not accept a separate bracketed range annotation. Fields and case
 payloads contribute their interval relationships through their owning `where`;

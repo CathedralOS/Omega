@@ -26,9 +26,11 @@ mentions every field; adding a field invalidates incomplete patterns. `..` opts
 out of this drift check in arm position. Extraction uses the saved subject and
 retains ordinary ownership and borrow obligations.
 
-Matching an established [constrained case](data_and_literals.md#case-constraints)
-also contributes its `where` propositions, substituted onto the exact subject
-and payload bindings. Type equalities use ordinary generic equality reasoning;
+Matching an established value combines its [default-domain predicates](data_and_literals.md#case-constraints)
+and any established named-domain predicates with the selected case fact, all
+substituted onto the exact subject and payload bindings. Case-conditional
+consequences follow from that combination, not case-local clauses or a special
+GADT proof route. Type equalities use ordinary generic equality reasoning;
 they may justify operations and results in the arm without a cast. They do not
 change the selected type arguments. At joins, only facts justified on every
 surviving predecessor remain. Payload mutation and case replacement retain
@@ -48,8 +50,8 @@ equality/inequality guards over the same unchanged subjects cover their domain.
 Other value/comparison ladders and predicate-domain guards require a wildcard
 unless their coverage is otherwise established by the specified judgment.
 
-Case constraints may exclude a case when their contradiction with the subject's
-established facts is proved, including a contradiction of exact type equalities.
+Default- or named-domain constraints may exclude a case when selecting it
+contradicts the subject's established facts, including exact type equalities.
 Coverage consumes that evidence; it does not require unrestricted theorem search
 over case predicates. If impossibility is not established, the case still needs
 coverage or an explicit proof discharging the dead arm. Failure to construct or

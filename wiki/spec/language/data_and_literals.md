@@ -15,9 +15,9 @@ Erased fields instead follow [erased construction](../proofs/contracts.md#explic
 an accessible nullary constructor may supply an omitted term without requiring
 runtime layout or a zero value.
 
-Scalar field relationships belong to the data declaration's ordinary `where`;
-case-payload relationships belong to that case's `where`. Field and payload type
-spellings do not carry bracketed scalar range suffixes. Construction and every
+Field and case-payload relationships belong to the data declaration's ordinary
+`where`; case-dependent projections require established case knowledge. Field
+and payload type spellings do not carry bracketed scalar range suffixes. Construction and every
 restoring write prove the owning default-domain clauses.
 
 Case-bearing values use a case literal, not record-only construction. Common
@@ -68,49 +68,63 @@ does not structurally compare fields or select `Equatable`.
 
 ## Case constraints
 
-A case may carry an ordinary `where` clause after its payload list (or its name
-when payload-free) and before its terminating semicolon:
+Named decision: `case-constraints-through-default-domain`, settled 2026-10-24.
+Cases have no `where` clause. Case-dependent validity is an ordinary predicate
+of the whole value in the data declaration's default-domain `where`. Its `self`
+subject follows [predicate subjects](domains.md#declaration-and-membership):
 
 ```omega
-data Value<T> {
-    case Integer(value: i32) where T == i32;
-    case Boolean(value: bool) where T == bool;
+data Value<T>
+    where ((self in Value::Integer) && T == i32)
+       || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: i32);
+    case Boolean(value: bool);
 }
 
-data Interval {
+data Interval
+    where (self in Interval::Empty)
+       || ((self in Interval::Range) && self.lo <= self.hi)
+{
     case Empty;
-    case Range(lo: u64, hi: u64) where lo <= hi;
+    case Range(lo: u64, hi: u64);
 }
 ```
 
-The clause uses ordinary well-formed contract propositions, including Boolean
-combinations, exact type equality, and value couplings. It may name enclosing
-generic parameters, common fields, its own payload bindings, and otherwise
-lexically available contract names; another case's payload is not in scope.
-It introduces no case-local generic or hidden existential binders. A conformance
+The data clause uses ordinary well-formed contract propositions, including
+Boolean combinations, exact type equality, and value couplings. It may name
+enclosing generic parameters, common fields, `self`, and otherwise lexically
+available contract names. Accessing `self.lo` or `self.hi` above requires the
+Range case established by the preceding conjunct. Use ordinary guarded formation
+and case reasoning: inactive payloads cannot be projected, and a predicate
+cannot assume the default domain it is establishing to justify its own terms.
+A field's qualification constrains that field, not the enclosing sum's case.
+
+This introduces no case-local generic or hidden existential binders. A conformance
 obligation does not select an implementation or manufacture evidence; ordinary
 [explicit selection](conformances.md) and [proof-term rules](../proofs/contracts.md)
 still apply.
 
-Case constraints are indexed by the actual active case, not predicates that can
-be satisfied by an inactive alternative. Let Common include type-wide `where`
-constraints and common-field validity, and Payload(i) and Constraint(i) describe
-case i. The complete default-domain condition is:
+Let Fields describe common-field validity, Payload(i) the selected payload's
+validity, and Predicate(self) all data-level `where` clauses. The complete
+default-domain condition is:
 
 ```text
-Common AND OR over cases i (
-    active_case == i AND Payload(i) AND Constraint(i)
-)
+Fields AND Predicate(self) AND
+    OR over cases i (active_case == i AND Payload(i))
 ```
 
-An omitted case clause contributes true, not a waiver of payload validity.
-Inactive payloads have no establishment or ownership obligation. This extends
-the existing default domain rather than replacing type-wide constraints.
+Omitted data predicates contribute true, not a waiver of payload validity.
+Inactive payloads have no establishment or ownership obligation. In a
+case-conditional predicate, an inactive alternative cannot satisfy a conjunction
+requiring its own case. Named generic domains can express the same predicate on
+a carrier; data `where` makes it mandatory for every established carrier value.
 
-Construction proves the selected case's complete conditions before producing an
-established value. Matching that value contributes the selected case's conditions
-through the ordinary [arm-local fact rules](patterns.md). A type equation reveals
-an equality; it does not reassign a generic parameter, reinterpret bytes, or
+Construction proves the complete default domain before producing an established
+value. Matching combines that domain with the selected case fact through ordinary
+[arm-local fact rules](patterns.md). For Value<T>, selecting Integer therefore
+establishes T == i32; selecting Range in Interval establishes self.lo <= self.hi.
+A type equation reveals an equality; it does not reassign a generic parameter, reinterpret bytes, or
 insert a runtime type test. Constructing `Integer` as `Value<bool>` rejects; matching
 that combination establishes a contradiction, not a conversion.
 
@@ -120,8 +134,9 @@ dependent place facts as appropriate; snapshots keep their own exact subjects.
 Before observation, the active value's complete conditions must hold again.
 Zero storage and generic bodies follow the existing
 [default-domain gate](dependent_values.md#default-domains-and-zero-initialization).
-This supplies constrained-case GADT behavior without a new data species, implicit
-boxing, or general existential packaging.
+This retains constrained-case GADT behavior through ordinary domains, without
+case-level `where`, a wrapper, a new data species, implicit boxing, runtime type
+tests, or general existential packaging. It grants no new layout optimization.
 
 The mathematical interpretation uses the selected
 [W-based inductive profile](../proofs/inductive_profile.md). Case constraints are
