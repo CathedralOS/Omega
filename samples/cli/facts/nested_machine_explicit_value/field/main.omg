@@ -1,9 +1,9 @@
 // A nested machine consumes explicit value 41 and establishes result 42 before exact result - 42.
 // Expected exit: 0
-machine produce() -> u32 ensures result == 42u32 {
+machine produce<const Expected: u32>() -> u32 requires Expected == 41u32 ensures result == 42u32 {
     step(41u32)
     machine step(value: u32) -> u32
-    requires value == 41u32
+    requires Expected == 41u32 && value == 41u32
     ensures result == 42u32
     {
         value + 1u32
@@ -11,7 +11,7 @@ machine produce() -> u32 ensures result == 42u32 {
 }
 data AnswerBox where value == 42u32 { value: u32; }
 machine main() crashes Trap {
-    let result: AnswerBox = AnswerBox { value: produce() };
+    let result: AnswerBox = AnswerBox { value: produce<41u32>() };
     let remainder: u32 = result.value - 42u32;
     transition remainder == 0u32 { true -> done() false -> wrong() }
 }

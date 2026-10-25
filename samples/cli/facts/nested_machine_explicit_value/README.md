@@ -4,7 +4,9 @@ Owning task: **NESTED-MACHINE-UNIFICATION** in [TASKS.md](../../../../TASKS.md).
 
 A nested machine consumes explicit value 41 and establishes result 42 before exact result - 42.
 
-The nested helper's own input contract establishes its addition and exact result;
+The producer closes the static declaration binding `Expected = 41`; the nested
+helper's own contract checks that binding and its explicit input before establishing
+its addition and exact result;
 lexical nesting supplies no runtime parameter or enclosing entry premise. Every
 place consumes the same exact result with subtraction by 42. Its reject twin
 changes only the helper's explicit actual from 41 to 40, violating the helper's
@@ -24,8 +26,11 @@ own arrival obligation.
 
 ## Acceptance
 
-Pending: run every positive with `omega run --both` and verify both engine exits
-are zero; reject twins must specifically refuse the helper's arrival obligation.
+Current sources additionally exercise a closed generic declaration context in
+every place. Fresh execution of these updated inputs is pending; earlier
+non-generic inputs at `cfd27083863` and `f1f253bc207` observed root plus all nine
+places native 0 / Terminal 0, and all nine twins refused the exact arrival fact.
+Those historical runs do not validate these changed sources.
 All four hosted ProgramEntry bindings are authored. This Windows host does not
 establish execution for Linux or macOS.
 

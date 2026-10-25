@@ -415,6 +415,39 @@ impl TypedTrees {
         }
     }
 
+    /// Visible declaration binders in nearest-scope order. This roster grants
+    /// no enclosing invocation premises; consumers read their own contracts.
+    pub fn machine_lexical_type_parameters(
+        &self,
+        machine: &machine::Machine,
+    ) -> Vec<&data::TypeParameter> {
+        let mut visible: Vec<&data::TypeParameter> = Vec::new();
+        let mut parameters = self.machine_type_parameters(machine);
+        let mut owner = machine.symbol;
+        let mut visited = Vec::new();
+        loop {
+            for parameter in parameters {
+                if !visible.iter().any(|nearer| nearer.name == parameter.name) {
+                    visible.push(parameter);
+                }
+            }
+            owner = self.applied_machine_parent(owner);
+            if !owner.is_valid() || visited.contains(&owner) {
+                break;
+            }
+            visited.push(owner);
+            parameters = self
+                .machine_by_symbol(owner)
+                .map(|parent| self.machine_type_parameters(parent))
+                .or_else(|| {
+                    self.conformance_by_symbol(owner)
+                        .map(|parent| self.conformance_type_parameters(parent))
+                })
+                .unwrap_or(&[]);
+        }
+        visible
+    }
+
     /// The authored callable contract of a compile-time machine parameter.
     pub fn machine_parameter_signature_in(
         &self,

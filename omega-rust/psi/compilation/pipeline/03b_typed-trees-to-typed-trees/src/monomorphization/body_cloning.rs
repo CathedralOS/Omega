@@ -158,8 +158,37 @@ fn clone_machine_in_context(
         })
         .collect();
     let evidence_paths = candidate_conformance_fingerprint_arguments(candidate);
+    // Distinct applied lexical parents can own identical helper leaf names
+    // and invocation tuples. Their flattened instances retain that exact
+    // declaration context instead of colliding in the root namespace.
+    let direct_nested =
+        lexical_declarations::direct_children(source.unwrap_or(program), source_machine.symbol);
+    let declaration_key = if !direct_nested.is_empty()
+        || source
+            .unwrap_or(program)
+            .symbols
+            .get(source_machine.symbol)
+            .parent
+            .is_valid()
+            && source
+                .unwrap_or(program)
+                .symbols
+                .get(
+                    source
+                        .unwrap_or(program)
+                        .symbols
+                        .get(source_machine.symbol)
+                        .parent,
+                )
+                .kind
+                == SymbolKind::Machine
+    {
+        normalized_template_identity.as_str()
+    } else {
+        candidate.template.template_name.as_str()
+    };
     let selection_report_fingerprint = specialization_selection_report_fingerprint(
-        &candidate.template.template_name,
+        declaration_key,
         &type_identities,
         &const_identities,
         &machine_paths,
@@ -176,8 +205,6 @@ fn clone_machine_in_context(
             &generated_name,
         )
     });
-    let direct_nested =
-        lexical_declarations::direct_children(source.unwrap_or(program), source_machine.symbol);
 
     let invocation_binders = if preserve_invocation {
         source
