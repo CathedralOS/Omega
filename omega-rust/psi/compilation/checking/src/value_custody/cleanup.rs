@@ -162,7 +162,10 @@ pub(crate) fn validate_cleanup_machine_declarations(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     super::cleanup_selection::validate_declaration_owners(program, diagnostics);
-    for (reference, _) in program.type_reference_table.type_reference_rows() {
+    let references = typed_trees::references::collect_program_references(program.typed_program());
+    let mut references = references.type_references.into_iter().collect::<Vec<_>>();
+    references.sort_unstable_by_key(|reference| (reference.arena_index(), reference.generation()));
+    for reference in references {
         if let Err(diagnostic) = super::cleanup_selection::selected_application(program, reference)
         {
             diagnostics.push(diagnostic);

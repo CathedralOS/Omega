@@ -243,9 +243,13 @@ fn visit_domain<'program>(
         // retain its exact application; its uninstantiated declaration cannot
         // stand in for a missing instance while selecting owned cleanup.
         return if program.domain_definition(symbol).is_some() {
-            Err(Diagnostic::error(
-                "owned cleanup requires the exact retained domain application",
-            ))
+            let declared = program
+                .domain_definition(symbol)
+                .expect("declared domain checked above");
+            Err(Diagnostic::error(format!(
+                "owned cleanup requires the exact retained domain application for `{}` (requested {:?}, declaration {:?})",
+                declared.name, identity, declared.semantic_id,
+            )))
         } else {
             Ok(())
         };
