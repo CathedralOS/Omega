@@ -6,8 +6,7 @@ use filesystem_authority::{
     FilesystemOperationResult, FilesystemRootedPathOperandResolution,
 };
 
-/// Schema for filesystem operation-attempt observations.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 20;
+pub use filesystem_authority::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemEvaluationHaltKind {

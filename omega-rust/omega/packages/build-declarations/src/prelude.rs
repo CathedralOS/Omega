@@ -189,6 +189,7 @@ public boundary trait BuildRequestOperations {
     machine artifact_only(builder: &Build) reaches;
     machine depend_path(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) reaches;
     machine depend_git(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) reaches;
+    machine write_log(log: &BuildLog, text: &[u8]) reaches;
 }
 public machine Build::depend(builder: &mut Build, source: Source) reaches BuildRequestOperations invokes BuildRequestOperations; {
     Build::request_dependency(builder, false, false, "", source);
@@ -316,7 +317,8 @@ public machine ProductTypeSchema::path(schema: &ProductTypeSchema) -> &[u8] {
 public machine ProductProviderRef::path(provider: &ProductProviderRef) -> &[u8] {
     ""
 }
-public machine BuildLog::write_line(log: &mut BuildLog, text: &[u8]) {
+public machine BuildLog::write_line(log: &mut BuildLog, text: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations; {
+    BuildRequestOperations::write_log(log, text);
 }
 // Fallible logical query: select the exact product machine `path` declares in
 // this call occurrence's own package for root slot `slot`. The evaluator

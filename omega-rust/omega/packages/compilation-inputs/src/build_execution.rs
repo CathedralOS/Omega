@@ -51,6 +51,36 @@ pub struct CapturedBuildObservations<'scope> {
 }
 
 impl<'scope> CapturedBuildObservations<'scope> {
+    /// Begin an activation's host observation collector before execution.
+    /// Admitted scope is input custody, not evidence that an operation ran.
+    /// Each installed host adapter must contribute its actual observations;
+    /// successful settlement still inspects staged output and obligations.
+    pub fn new(scope: &'scope BuildMachineFilesystemScope) -> Self {
+        Self {
+            scope,
+            filesystem_host_observed: false,
+            filesystem_operation_schema_version:
+                filesystem_authority::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
+            filesystem_operation_attempts: Vec::new(),
+            included_source_handoffs: Vec::new(),
+            output_obligations: Vec::new(),
+            output_receipts: Vec::new(),
+            build_log: Vec::new(),
+        }
+    }
+
+    /// Transfer the one activation log after normal return. No host effect is
+    /// repeated and no second payload copy is needed for settlement.
+    pub fn retain_build_log(&mut self, log: Vec<u8>) -> Result<(), Vec<Diagnostic>> {
+        if !self.build_log.is_empty() {
+            return Err(vec![Diagnostic::error(
+                "Build log was retained more than once",
+            )]);
+        }
+        self.build_log = log;
+        Ok(())
+    }
+
     /// Rejoin interpreter root identities and generated-source handoffs to
     /// this activation's admitted filesystem custody.
     pub fn capture(

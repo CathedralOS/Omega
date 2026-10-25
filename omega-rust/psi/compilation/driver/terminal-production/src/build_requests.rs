@@ -14,6 +14,7 @@ pub enum TerminalBuildRequestOperation {
     ArtifactOnly,
     PathDependency,
     GitDependency,
+    LogLine,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -71,6 +72,7 @@ pub(super) fn capture(
                 "artifact_only" => Request::ArtifactOnly,
                 "depend_path" => Request::PathDependency,
                 "depend_git" => Request::GitDependency,
+                "write_log" => Request::LogLine,
                 _ => {
                     return Err(diagnostics::Diagnostic::error(
                         "unknown toolchain Build request operation",

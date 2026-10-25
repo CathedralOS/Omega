@@ -1,4 +1,4 @@
-//! Receive evaluated project requests from one admitted Terminal Build.
+//! Receive evaluated host requests from one admitted Terminal Build.
 //!
 //! The producer authenticates protocol declarations and exact call sites; the
 //! activation authenticates its original receiver. Arguments are ordinary guest
@@ -35,6 +35,26 @@ pub struct TerminalBuildRequestHost<'context> {
     original: TerminalStructuralValue,
     account: Option<&'context EvaluationInvocationAccount>,
     requests: Mutex<Vec<IssuedBuildRequest>>,
+    log: Mutex<BuildLog>,
+    original_log: Option<TerminalStructuralValue>,
+}
+
+/// Actual output of the activation's log adapter. Its live reservations remain
+/// attached until normal-return settlement publishes the retained bytes.
+#[derive(Default)]
+pub(crate) struct BuildLog {
+    bytes: Vec<u8>,
+    storage: Vec<EvaluationStorageLease>,
+}
+
+impl BuildLog {
+    pub(crate) fn publish(self, account: &EvaluationInvocationAccount) -> Result<Vec<u8>, String> {
+        let bytes = u64::try_from(self.bytes.len()).map_err(|_| "Build log size overflowed")?;
+        account
+            .charge_result_custody(u64::from(bytes != 0), bytes)
+            .map_err(|error| error.to_string())?;
+        Ok(self.bytes)
+    }
 }
 
 impl<'context> TerminalBuildRequestHost<'context> {
@@ -47,11 +67,18 @@ impl<'context> TerminalBuildRequestHost<'context> {
         let calls = requests
             .calls_for(artifact)
             .ok_or("Build requests belong to another Terminal artifact")?;
+        let original_log = if calls.iter().any(|call| call.action == Operation::LogLine) {
+            Some(log_facet(artifact, &original)?)
+        } else {
+            None
+        };
         Ok(Self {
             calls,
             original,
             account,
             requests: Mutex::new(Vec::new()),
+            log: Mutex::new(BuildLog::default()),
+            original_log,
         })
     }
 
@@ -72,6 +99,44 @@ impl<'context> TerminalBuildRequestHost<'context> {
             .map_err(|_| "Build request activation lock was poisoned")?;
         Ok(std::mem::take(&mut *requests))
     }
+
+    pub(crate) fn take_log(&self) -> Result<BuildLog, String> {
+        let mut log = self.log.lock().map_err(|_| "Build log lock was poisoned")?;
+        Ok(std::mem::take(&mut *log))
+    }
+}
+
+/// The admitted entry is the compiler's Build shape. Project the exact catalog
+/// field into its original backing; a same-typed guest value is not that facet.
+fn log_facet(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    original: &TerminalStructuralValue,
+) -> Result<TerminalStructuralValue, String> {
+    let module = artifact.semantic_module();
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == original.structural_type)
+        .ok_or("Build receiver lost its declaration")?;
+    let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+        return Err("Build receiver is not a record".into());
+    };
+    let mut selected = fields
+        .iter()
+        .filter(|field| module.identities.text(field.identity) == Some("log"));
+    let field = selected.next().ok_or("Build receiver has no log facet")?;
+    if selected.next().is_some() {
+        return Err("Build receiver has multiple log facets".into());
+    }
+    let terminal_psi::StructuralFieldType::Structural(structural_type) = field.field_type else {
+        return Err("Build log facet is not structural".into());
+    };
+    let mut log =
+        TerminalStructuralValue::minted(original.opaque_identity, structural_type, Vec::new());
+    log.path = original.path.clone();
+    log.path
+        .push(terminal_psi::StructuralPathSegment::Field(field.identity));
+    Ok(log)
 }
 
 pub struct TerminalBuildRequestAdapter<'host, 'context> {
@@ -115,6 +180,56 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter<'_, '_> {
             .iter()
             .find(|call| call.operation == *operation && call.boundary == *boundary)
             .ok_or_else(|| refuse("Build request has no source-issued protocol call"))?;
+        if call.action == Operation::LogLine {
+            let [facet, _] = structural_arguments.as_slice() else {
+                return Err(refuse("Build log request has an invalid argument roster"));
+            };
+            let [None, Some(bytes)] = byte_sequence_arguments.as_slice() else {
+                return Err(refuse("Build log request has no byte payload"));
+            };
+            if !arguments.is_empty() || *result != terminal_psi::BoundaryMachineResult::Unit {
+                return Err(refuse("Build log request differs from its protocol"));
+            }
+            if self.host.original_log.as_ref() != Some(facet) {
+                return Err(refuse(
+                    "build logging requires the activation's compiler-issued BuildLog facet",
+                ));
+            }
+            let appended = bytes
+                .len()
+                .checked_add(1)
+                .ok_or_else(|| refuse("Build log size overflowed"))?;
+            let count = u64::try_from(appended).map_err(|_| refuse("Build log size overflowed"))?;
+            let storage = self
+                .host
+                .account
+                .map(|account| {
+                    let storage = account.reserve_site(0, 1, count)?;
+                    account.charge_build_log_bytes(count)?;
+                    Ok::<_, evaluation_accounting::EvaluationAccountingError>(storage)
+                })
+                .transpose()
+                .map_err(|error| {
+                    TerminalEffectRejection::new(format!("Build log accounting: {error}"))
+                })?;
+            let mut log = self
+                .host
+                .log
+                .lock()
+                .map_err(|_| refuse("Build log lock was poisoned"))?;
+            log.bytes
+                .try_reserve(appended)
+                .map_err(|_| refuse("Build log allocation was refused"))?;
+            if let Some(storage) = storage {
+                log.storage
+                    .try_reserve(1)
+                    .map_err(|_| refuse("Build log reservation allocation was refused"))?;
+                log.storage.push(storage);
+            }
+            log.bytes.extend_from_slice(bytes);
+            log.bytes.push(b'\n');
+            return Ok(TerminalEffectResult::Unit);
+        }
         if structural_arguments.first() != Some(&self.host.original)
             || byte_sequence_arguments.first() != Some(&None)
             || structural_arguments.len() != byte_sequence_arguments.len()
@@ -145,6 +260,9 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter<'_, '_> {
             Operation::Package | Operation::Application | Operation::Member => (0, 2),
             Operation::PathDependency => (2, 3),
             Operation::GitDependency => (3, 5),
+            Operation::LogLine => {
+                return Err(refuse("Build log did not complete its host request"));
+            }
         };
         if arguments.len() != scalar_count || structural_arguments.len() != structural_count {
             return Err(refuse(
@@ -211,6 +329,9 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter<'_, '_> {
         let project_name =
             |value: &str| ProjectName::parse(copy(value)?).map_err(TerminalEffectRejection::new);
         let request = match call.action {
+            Operation::LogLine => {
+                return Err(refuse("Build log did not complete its host request"));
+            }
             Operation::Package => BuildRequest::Package(project_name(text(1)?)?),
             Operation::Application => BuildRequest::Application(project_name(text(1)?)?),
             Operation::Member => BuildRequest::Member(

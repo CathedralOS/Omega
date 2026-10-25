@@ -12,7 +12,7 @@ pub(crate) fn execute_admitted_build_program(
     let AdmittedBuildProgram {
         prepared,
         machine,
-        filesystem_scope: _,
+        filesystem_scope,
         evaluation_sponsor,
         artifact_only: _,
     } = admitted;
@@ -22,6 +22,14 @@ pub(crate) fn execute_admitted_build_program(
             machine.name
         ))]
     };
+    // Unconnected filesystem adapters cannot execute the legacy prelude's
+    // placeholder bodies and then claim that the activation observed no I/O.
+    if machine.filesystem_reachable {
+        return Err(refuse(
+            "Terminal Build filesystem operations are not installed".into(),
+        ));
+    }
+    let mut observations = package_compilation::CapturedBuildObservations::new(&filesystem_scope);
     let checked = prepared
         .checked_trees()
         .ok_or_else(|| refuse("Build has no admitted source judgment".into()))?;
@@ -96,6 +104,8 @@ pub(crate) fn execute_admitted_build_program(
         ));
     }
     let root_bindings = collect_root_bindings(prepared.typed(), &completed.root_bindings)?;
+    observations.retain_build_log(completed.log.publish(&account).map_err(&refuse)?)?;
+    let observation_summary = observations.settle(machine.filesystem_reachable, &machine.name)?;
     let config = BuildConfig {
         settings: completed.settings,
         root_bindings,
@@ -110,7 +120,7 @@ pub(crate) fn execute_admitted_build_program(
         project_declaration: Some(declaration),
         optimization_report_request: completed.optimization_report,
         evaluation_usage: Some(usage),
-        observation_summary: None,
+        observation_summary: Some(observation_summary),
         selected_build_machine_symbol: Some(machine.symbol),
         generated_sources: Vec::new(),
     })

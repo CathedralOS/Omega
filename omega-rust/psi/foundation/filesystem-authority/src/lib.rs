@@ -11,3 +11,7 @@ mod filesystem_sponsor;
 
 pub use filesystem::*;
 pub use filesystem_sponsor::*;
+
+/// Schema for retained filesystem operation-attempt observations, independent
+/// of the interpreter that issues them. Observations grant no filesystem access.
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 20;

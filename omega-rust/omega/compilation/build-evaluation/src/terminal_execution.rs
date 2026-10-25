@@ -34,6 +34,7 @@ pub(crate) struct TerminalBuildCompletion {
     pub settings: EvaluatedBuildSettings,
     pub optimization_report: optimization_core::OptimizationReportRequest,
     pub root_bindings: Vec<ExecutedRootBinding>,
+    pub log: crate::terminal_requests::BuildLog,
 }
 
 /// Execute an admitted toolchain Build over its zero-initialized original
@@ -114,7 +115,9 @@ pub(crate) fn execute(
     let mut fuel =
         TerminalFuelMeter::with_invocation(account.clone(), Some(SLICE_FUEL)).map_err(describe)?;
     loop {
-        let status = instance.invoke(&mut fuel).map_err(describe)?;
+        let status = instance
+            .invoke(&mut fuel)
+            .map_err(|error| error.to_string())?;
         let issued = requests.drain_requests()?;
         if !issued.is_empty() {
             submit(issued)?;
@@ -135,6 +138,7 @@ pub(crate) fn execute(
         settings,
         optimization_report,
         root_bindings: bindings.into_executed()?,
+        log: requests.take_log()?,
     })
 }
 
