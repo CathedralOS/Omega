@@ -132,9 +132,18 @@ impl CallableApplication {
                         continue;
                     }
                     let kind = program.symbols.get(symbol).kind;
+                    // These are declarations in the applied signature's own
+                    // telescope, not independent roots. Declaration-type and
+                    // dependent-result queries rejoin their exact owner; the
+                    // template's provenance cannot supply a current type.
+                    let owner = self.symbol(declared.symbol);
                     let fresh = program
                         .symbols
-                        .insert_generated_root_from(symbol, kind, name);
+                        .insert_generated_children_from(
+                            owner,
+                            std::iter::once((symbol, kind, name)),
+                        )
+                        .handle_at(0);
                     self.symbols.push((symbol, fresh));
                 }
             }

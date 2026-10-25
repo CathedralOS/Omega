@@ -170,24 +170,25 @@ pub(super) fn emit_state(
                 structural_parameters: std::mem::take(&mut block_structural_parameters),
                 operation_start,
             };
-            crate::emission::operation_emission::dynamic_calls::emit_completed_dynamic_call(
-                &call.interface_identity,
-                &call.requirement_identity,
-                &call.family_tuple,
-                &operands,
-                &family_actuals,
-                structural_arguments,
-                claim_transfers,
-                &produced,
-                operation,
-                &mut span,
-                blocks,
-                next_value,
-                next_block,
-                next_edge,
-                operations,
-                |_| unsupported("scalar call requested structural result storage"),
-            )?;
+            let split =
+                crate::emission::operation_emission::dynamic_calls::emit_completed_dynamic_call(
+                    &call.interface_identity,
+                    &call.requirement_identity,
+                    &call.family_tuple,
+                    &operands,
+                    &family_actuals,
+                    structural_arguments,
+                    claim_transfers,
+                    &produced,
+                    operation,
+                    &mut span,
+                    blocks,
+                    next_value,
+                    next_block,
+                    next_edge,
+                    operations,
+                    |_| unsupported("scalar call requested structural result storage"),
+                )?;
             block = span.id;
             block_erased_formals = span.erased_scalar_formals;
             block_erased_proof_formals = span.erased_proof_formals;
@@ -196,7 +197,15 @@ pub(super) fn emit_state(
             // Earlier values dominate every family leaf and the merge. The
             // continuation's dense operand positions still name that prefix;
             // the call contributes one new value, just like a direct call.
-            values.extend(span.parameters);
+            if split {
+                values.extend(span.parameters);
+            } else if let terminal_psi::OperationResult::Scalar(value) = produced {
+                // A static tuple emits in the current block and leaves the
+                // prefix untouched. Append only its completed result; adding
+                // span.parameters again would duplicate the caller prefix and
+                // make the result position name an unrelated selector value.
+                values.push(value);
+            }
             operation_start = span.operation_start;
             continue;
         } else {
