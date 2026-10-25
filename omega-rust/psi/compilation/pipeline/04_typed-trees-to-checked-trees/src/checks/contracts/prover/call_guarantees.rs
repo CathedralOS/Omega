@@ -432,6 +432,7 @@ pub(in crate::checks::contracts) fn proves(
 
 fn capture_preserved(
     program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
     borrow: &checked_trees::BorrowFacts,
     caller: &Machine,
     supplied: &Invocation<'_>,
@@ -462,6 +463,51 @@ fn capture_preserved(
     ) else {
         return false;
     };
+    if let Some(reads) = logical_formal_reads(program, operators, supplied, guarantee) {
+        let parameters = supplied.callable.parameters(program);
+        let arguments = validation::call_site_argument_expressions(program, &supplied.site);
+        return reads.iter().all(|formal| {
+            let Some(position) = parameters
+                .iter()
+                .position(|parameter| formal.root == PlaceRoot::Symbol(parameter.symbol))
+            else {
+                return false;
+            };
+            let Some(actual) = arguments.get(position) else {
+                return false;
+            };
+            if formal.segments.is_empty() && crate::flow::literal(program, *actual).is_some() {
+                return true;
+            }
+            let Some(place) = crate::semantic::facts::projected_argument_place(
+                program,
+                supplied.caller_state,
+                supplied.statement,
+                *actual,
+                parameters[position].type_reference,
+                &formal.segments,
+            ) else {
+                return false;
+            };
+            let Some(place) = crate::flow::rebase_exact_local_place(
+                program,
+                supplied.caller_state,
+                supplied.statement,
+                place,
+                Some(frames),
+            ) else {
+                return false;
+            };
+            !writes.iter().any(|write| {
+                write.root == place.root
+                    && crate::flow::canonical_place_segments_may_overlap(
+                        program,
+                        &write.segments,
+                        &place.segments,
+                    )
+            }) || crate::values::exclusive_reference(program, parameters[position].type_reference)
+        });
+    }
     let mut occurrences = Vec::new();
     crate::facts::contract_occurrences::append_expression_occurrences(
         program,
@@ -576,6 +622,7 @@ pub(in crate::checks) fn guarantee_scalar<'facts>(
             let stable = stable_predicate_inputs(program, facts, caller, &supplied, occurrence);
             let preserved = capture_preserved(
                 program,
+                &facts.operators,
                 &facts.borrow,
                 machine,
                 &supplied,
@@ -774,56 +821,29 @@ fn stable_predicate_inputs(
     if !ordinary_arguments(program, invocation) {
         return false;
     }
-    // Resolve closed logical bindings to exact formal observations before
-    // checking capture preservation. Saved aliases are not invocation inputs.
-    let parameters = invocation.callable.parameters(program);
-    if let Some(predicate) = crate::values::lower_callable_scalar_contract_predicate(
-        program,
-        &facts.operators,
-        invocation.callable.owner_symbol(),
-        parameters,
-        invocation.callable.result_type(),
-        expression,
-        true,
-        &mut 4096,
-    ) {
-        let result = CanonicalPlace {
-            root: PlaceRoot::Expression(expression),
-            segments: Vec::new(),
-        };
-        if let Some(bound) = boolean_predicates::bind_parameters(
-            program,
-            invocation.callable.owner_symbol(),
-            invocation.callable.target_symbol(),
-            parameters,
-            Some((&result, invocation.callable.result_type())),
-            predicate,
-        ) {
-            let arguments = validation::call_site_argument_expressions(program, &invocation.site);
-            return bound.bindings.iter().all(|binding| {
-                if binding.place.root == result.root {
-                    return true;
-                }
-                let Some(position) = parameters
-                    .iter()
-                    .position(|formal| binding.place.root == PlaceRoot::Symbol(formal.symbol))
-                else {
-                    return false;
-                };
-                let Some(actual) = arguments.get(position) else {
-                    return false;
-                };
-                stable_captured_projection(
-                    program,
-                    facts,
-                    caller,
-                    invocation,
-                    position,
-                    *actual,
-                    &binding.place.segments,
-                )
-            });
-        }
+    if let Some(reads) = logical_formal_reads(program, &facts.operators, invocation, expression) {
+        let parameters = invocation.callable.parameters(program);
+        let arguments = validation::call_site_argument_expressions(program, &invocation.site);
+        return reads.iter().all(|place| {
+            let Some(position) = parameters
+                .iter()
+                .position(|formal| place.root == PlaceRoot::Symbol(formal.symbol))
+            else {
+                return false;
+            };
+            let Some(actual) = arguments.get(position) else {
+                return false;
+            };
+            stable_captured_projection(
+                program,
+                facts,
+                caller,
+                invocation,
+                position,
+                *actual,
+                &place.segments,
+            )
+        });
     }
     let mut occurrences = Vec::new();
     crate::facts::contract_occurrences::append_expression_occurrences(
@@ -854,6 +874,60 @@ fn stable_predicate_inputs(
         };
         stable_captured_projection(program, facts, caller, invocation, position, actual, &path)
     })
+}
+
+/// Logical matches carry their subject binding inside this exact contract.
+/// Return only the formal observations admitted by the common contract owner;
+/// ambient captures and unsupported patterns cannot enter this route.
+fn logical_formal_reads(
+    program: &dyn validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    invocation: &Invocation<'_>,
+    expression: ExpressionHandle,
+) -> Option<Vec<CanonicalPlace>> {
+    let mut tree = Vec::new();
+    validation::expression_traversal::collect_expression_tree(program, expression, &mut tree);
+    if !tree.iter().any(|node| {
+        matches!(
+            program.expression_table.expression(*node),
+            ExpressionNode::Match(_)
+        )
+    }) || !validation::expression_has_closed_value_captures(program, expression)
+    {
+        return None;
+    }
+    let parameters = invocation.callable.parameters(program);
+    let predicate = crate::values::lower_callable_scalar_contract_predicate(
+        program,
+        operators,
+        invocation.callable.owner_symbol(),
+        parameters,
+        invocation.callable.result_type(),
+        expression,
+        true,
+        &mut 4096,
+    )?;
+    // A reserved result's synthetic query root only excludes it from the input
+    // roster. It is not a runtime operand or a published result observation.
+    let result = CanonicalPlace {
+        root: PlaceRoot::Expression(expression),
+        segments: Vec::new(),
+    };
+    let bound = boolean_predicates::bind_parameters(
+        program,
+        invocation.callable.owner_symbol(),
+        invocation.callable.target_symbol(),
+        parameters,
+        Some((&result, invocation.callable.result_type())),
+        predicate,
+    )?;
+    Some(
+        bound
+            .bindings
+            .into_iter()
+            .filter_map(|binding| (binding.place.root != result.root).then_some(binding.place))
+            .collect(),
+    )
 }
 
 fn stable_captured_projection(

@@ -11,6 +11,23 @@ pub(super) struct ContractSubject {
 }
 
 impl ContractPredicates<'_, '_> {
+    fn logical_readable_path(
+        &self,
+        position: u32,
+        path: &[CheckedStructuralPredicatePathSegment],
+    ) -> Option<TypeReferenceHandle> {
+        let mut remaining = self.remaining.get();
+        let result = super::super::structural_fields::readable_entry_parameter_path(
+            self.program,
+            self.parameters,
+            position,
+            path,
+            &mut remaining,
+        );
+        self.remaining.set(remaining);
+        result
+    }
+
     fn logical_subject(
         &self,
         expression: ExpressionHandle,
@@ -77,13 +94,7 @@ impl ContractPredicates<'_, '_> {
         if formal.is_const || !super::contract_storage_root(program, formal, self.allow_result) {
             return None;
         }
-        let reference = super::super::structural_fields::readable_entry_parameter_path(
-            program,
-            self.parameters,
-            position,
-            &path,
-            &mut **self.remaining.borrow_mut(),
-        )?;
+        let reference = self.logical_readable_path(position, &path)?;
         Some(ContractSubject {
             position,
             path,
@@ -122,13 +133,7 @@ impl ContractPredicates<'_, '_> {
             observed.reference =
                 validation::field_domains::readable_type_reference(self.program, reference)?;
         } else {
-            observed.reference = super::super::structural_fields::readable_entry_parameter_path(
-                self.program,
-                self.parameters,
-                observed.position,
-                &observed.path,
-                &mut **self.remaining.borrow_mut(),
-            )?;
+            observed.reference = self.logical_readable_path(observed.position, &observed.path)?;
         }
         Some(observed)
     }
@@ -200,7 +205,7 @@ impl ContractPredicates<'_, '_> {
             result_type: self.result_type,
             parameters: self.parameters,
             allow_result: self.allow_result,
-            remaining: self.remaining.clone(),
+            remaining: self.remaining,
             logical_captures: bindings,
         };
         scoped.numeric_term(arm, depth + 1)

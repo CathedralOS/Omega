@@ -64,6 +64,7 @@ pub(crate) fn lower_state_scalar_contract_predicate(
     expression: ExpressionHandle,
     remaining: &mut usize,
 ) -> Option<CheckedBooleanExpression> {
+    let budget = ContractBudget::new(remaining);
     ContractPredicates {
         program,
         operators,
@@ -72,7 +73,7 @@ pub(crate) fn lower_state_scalar_contract_predicate(
         parameters: program.state_parameters(state),
         allow_result: false,
         logical_captures: Vec::new(),
-        remaining: std::rc::Rc::new(std::cell::RefCell::new(remaining)),
+        remaining: &budget.remaining,
     }
     .boolean(expression, 0)
 }
@@ -90,6 +91,7 @@ pub(crate) fn lower_callable_scalar_contract_predicate(
     allow_result: bool,
     remaining: &mut usize,
 ) -> Option<CheckedBooleanExpression> {
+    let budget = ContractBudget::new(remaining);
     ContractPredicates {
         program,
         operators,
@@ -98,9 +100,31 @@ pub(crate) fn lower_callable_scalar_contract_predicate(
         parameters,
         allow_result,
         logical_captures: Vec::new(),
-        remaining: std::rc::Rc::new(std::cell::RefCell::new(remaining)),
+        remaining: &budget.remaining,
     }
     .boolean(expression, 0)
+}
+
+/// Query-owned copy counter. Even an unsuccessful read commits consumption to
+/// the caller when the scope exits; child logical readers borrow this counter.
+struct ContractBudget<'budget> {
+    remaining: std::cell::Cell<usize>,
+    caller: &'budget mut usize,
+}
+
+impl<'budget> ContractBudget<'budget> {
+    fn new(caller: &'budget mut usize) -> Self {
+        Self {
+            remaining: std::cell::Cell::new(*caller),
+            caller,
+        }
+    }
+}
+
+impl Drop for ContractBudget<'_> {
+    fn drop(&mut self) {
+        *self.caller = self.remaining.get();
+    }
 }
 
 struct ContractPredicates<'program, 'budget> {
@@ -110,7 +134,7 @@ struct ContractPredicates<'program, 'budget> {
     result_type: TypeReferenceHandle,
     parameters: &'program [StateParameter],
     allow_result: bool,
-    remaining: std::rc::Rc<std::cell::RefCell<&'budget mut usize>>,
+    remaining: &'budget std::cell::Cell<usize>,
     logical_captures: Vec<validation::LogicalMatchBinding<logical_matches::ContractSubject>>,
 }
 
@@ -142,6 +166,7 @@ pub(crate) fn lower_callable_scalar_membership_value(
     remaining: &mut usize,
 ) -> Option<CheckedBooleanExpression> {
     let primitive = validation::scalar_membership_value_carrier(program, membership)?;
+    let budget = ContractBudget::new(remaining);
     let mut context = ContractPredicates {
         program,
         operators,
@@ -150,7 +175,7 @@ pub(crate) fn lower_callable_scalar_membership_value(
         parameters,
         allow_result: false,
         logical_captures: Vec::new(),
-        remaining: std::rc::Rc::new(std::cell::RefCell::new(remaining)),
+        remaining: &budget.remaining,
     };
     let subject = if primitive == PrimitiveType::Bool {
         CheckedScalarExpression::Boolean(Box::new(context.boolean(membership.value, 0)?))
@@ -596,7 +621,7 @@ impl ContractPredicates<'_, '_> {
         terms: &mut arena::Arena<CheckedIntegerMathTerm>,
     ) -> Option<arena::Handle<CheckedIntegerMathTerm>> {
         if depth >= 64
-            || **self.remaining.borrow() == 0
+            || self.remaining.get() == 0
             || !self
                 .program
                 .expression_table
@@ -604,7 +629,7 @@ impl ContractPredicates<'_, '_> {
         {
             return None;
         }
-        **self.remaining.borrow_mut() -= 1;
+        self.remaining.set(self.remaining.get() - 1);
         let program = self.program;
         let term = if let Some((primitive_type, argument)) =
             validation::integer_embedding_argument(program, expression)
@@ -688,8 +713,8 @@ impl ContractPredicates<'_, '_> {
         depth: usize,
     ) -> Option<CheckedBooleanExpression> {
         let rows = validation::exact_predicate_intervals(self.program, self.owner, expression)?;
-        let remaining = (**self.remaining.borrow()).checked_sub(rows.len())?;
-        **self.remaining.borrow_mut() = remaining;
+        let remaining = self.remaining.get().checked_sub(rows.len())?;
+        self.remaining.set(remaining);
         let mut predicate = CheckedBooleanExpression::Constant(true);
         for row in rows {
             let subject = if row.extent {
@@ -745,7 +770,7 @@ impl ContractPredicates<'_, '_> {
         depth: usize,
     ) -> Option<CheckedBooleanExpression> {
         if depth >= 64
-            || **self.remaining.borrow() == 0
+            || self.remaining.get() == 0
             || !self
                 .program
                 .expression_table
@@ -753,7 +778,7 @@ impl ContractPredicates<'_, '_> {
         {
             return None;
         }
-        **self.remaining.borrow_mut() -= 1;
+        self.remaining.set(self.remaining.get() - 1);
         let program = self.program;
         if program
             .prepared_mathematics()
@@ -1415,6 +1440,7 @@ pub(crate) fn lower_state_declared_range_predicate(
             .map(|(predicate, _)| predicate);
     }
     let mut remaining = 4096;
+    let budget = ContractBudget::new(&mut remaining);
     let context = ContractPredicates {
         program,
         operators,
@@ -1423,7 +1449,7 @@ pub(crate) fn lower_state_declared_range_predicate(
         parameters,
         allow_result: false,
         logical_captures: Vec::new(),
-        remaining: std::rc::Rc::new(std::cell::RefCell::new(&mut remaining)),
+        remaining: &budget.remaining,
     };
     let endpoint = |expression| {
         if let Some((value, reference)) = context.numeric_term(expression, 0) {
