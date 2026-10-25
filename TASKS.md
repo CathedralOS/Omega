@@ -672,15 +672,16 @@ defines the complete product bar.
     copies, retained local-array backing and untouched sibling descriptors.
     Retain completed descriptor operands across later argument-driven slot
     replacement, including direct views and constructed children with local backing.
-    Complete remaining cyclic, opaque and dependent result composition through
-    the same producer and custody relationships. Retain the computed-descriptor
-    row's ranked identity return, including a local carrier copy, contextual
-    literal window and disjoint descriptor writes. Finite descriptor-leaf
-    equations retain exact immutable input-slot metadata; growing pointee paths,
-    changed inputs and divergent return identities must not acquire equalities. Preserve copied returns
-    from mutated borrowed record fields and stored array elements through the
-    existing computed-descriptor fact row, including saved descriptors returned
-    after their former slot changes again and untouched element/sibling storage.
+    Complete remaining cyclic, opaque/provider and dependent result composition
+    through the same producer and custody relationships. Retain copied returns
+    through ranked identities and public local-dyn slots, including immutable
+    local copies, contextual windows, disjoint writes, borrowed record fields,
+    stored array elements and later replacement of former slots. Descriptor-leaf
+    equations preserve exact immutable input metadata; admitted dynamic regions
+    supply conservative backing independently of scalar identity and permission
+    ancestry. Reject growing pointee paths, changed inputs, divergent identities
+    and writes to any possible retained backing. Nonzero-window result extent
+    establishment and multi-input callable-region refinement remain unqualified.
     Selected payload returns use ordinary
     expression continuations with captured backing across conditional arms and
     cyclic argument permutations; element origins retain logical window indices.
@@ -1145,10 +1146,11 @@ defines the complete product bar.
     and `fail/drops/owned_replacement_{old_hook_prerequisite,transferred_source_read}`
     as value-home, occurrence and invalid-custody controls.
   - Complete scalar materialization of moved linear places and claim-bearing
-    call results on **STATE-LOCAL-VALUE-FRONTIER**'s computed-call path. Preserve the
-    exact completion-time cleanup facts for copied descriptor leaves, and end
-    borrowed carriers' loans before disposing their supplier storage; anonymous
-    descriptor-source completion remains unfinished.
+    call results on **STATE-LOCAL-VALUE-FRONTIER**'s computed-call path.
+    Anonymous scalar projections from linear-aggregate suppliers
+    still reach Terminal `AffineFrontierMismatch`. Keep
+    `samples/cli/facts/borrowed_projection_cleanup/` as the captured-context
+    and detached-carrier control while completing those residual claims.
     Preserve the checked ordered temporary action roster and its scalar-call continuation in
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/calls.rs`
     with exact live-claim dispositions; claim-free discard/hook actions do not
@@ -2923,8 +2925,10 @@ crash and native exit behavior.
   rather than interpreting checked machines, traits, reaches or provider plans.
   Review consumes a compiler-issued evidence product and opaque source owner;
   checked-state custody, nomination and demand-driven component publication stay
-  behind the compiler facade. Package-owned review orchestration and Terminal
-  Build/helper activation scheduling still need migration. Psi
+  behind the compiler facade. Application Build runs install/update target reviews
+  from package-admitted requests; package management retains transaction custody,
+  decisions and publication. The inner review dependency loop, audit scheduling
+  and Terminal Build/helper activation scheduling still need migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
   Psi 00-07 and Build execute

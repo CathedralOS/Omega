@@ -4,7 +4,7 @@
 use crate::resolution::graph::ResolvedPackageSourceClosure;
 
 #[derive(Default)]
-pub(crate) struct PackageSourceBindings {
+pub struct PackageSourceBindings {
     pub(crate) collect_timings: bool,
     pub(crate) root_bindings: Vec<Option<package_compilation::PackageSourceBinding>>,
 }

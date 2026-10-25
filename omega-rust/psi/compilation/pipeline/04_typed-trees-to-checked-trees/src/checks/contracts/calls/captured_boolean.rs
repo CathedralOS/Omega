@@ -10,6 +10,7 @@ use super::super::call_values;
 
 /// `None` permits the ordinary source-substitution proof routes. `Some` is a
 /// capture-owned judgment, including failure: no later fallback may replace it.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn judgment(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -19,6 +20,7 @@ pub(super) fn judgment(
     requirement: &Fact,
     expression_intervals: &[validation::ExpressionInterval],
     frames: Option<&validation::CallFrameResolver<'_>>,
+    whole_contract_cache: &mut Vec<(arena::Handle<checked_trees::ContractProofFact>, bool)>,
 ) -> Option<bool> {
     let FactPayload::ContractBooleanExpression { expression, .. } = requirement.payload else {
         return None;
@@ -59,6 +61,7 @@ pub(super) fn judgment(
                 expression,
                 expression_intervals,
                 frames,
+                whole_contract_cache,
             ) {
                 return Some(false);
             }
@@ -67,19 +70,16 @@ pub(super) fn judgment(
     })();
     if proven == Some(true)
         || (proven != Some(false)
-            && phase_profile::scope("05.d.7.3b.1.cap.5_float_req", || {
-                captured_float_requirement(program, facts, state, call, expression) == Some(true)
-            }))
+            && captured_float_requirement(program, facts, state, call, expression) == Some(true))
     {
         return Some(true);
     }
     // Ordinary proof routes observe the authored actual, not its initializer.
     // A retained value-origin proof may discharge the requirement first; a
     // failed origin proof cannot weaken the original operand's epoch fence.
-    if phase_profile::scope("05.d.7.3b.1.cap.6_preserves_captures", || {
-        source_substitution_preserves_captures(program, facts, state, call, requirement)
-            == Some(true)
-    }) {
+    if source_substitution_preserves_captures(program, facts, state, call, requirement)
+        == Some(true)
+    {
         None
     } else {
         Some(false)
@@ -161,6 +161,7 @@ fn captured_contract_proven(
     expression: typed_trees::expression::ExpressionHandle,
     expression_intervals: &[validation::ExpressionInterval],
     frames: Option<&validation::CallFrameResolver<'_>>,
+    whole_contract_cache: &mut Vec<(arena::Handle<checked_trees::ContractProofFact>, bool)>,
 ) -> bool {
     // The exact normal-call prefix owns completed nested operands and their
     // public guarantees. It must run before the source-replay fence: a call
@@ -173,19 +174,23 @@ fn captured_contract_proven(
     // replace them. It is therefore a capture proof, not a source fallback.
     if let typed_trees::domain::ProofFact::Expression(required) =
         program.proof_facts.get(contract.fact)
-        && (phase_profile::scope("05.d.7.3b.1.cap.0_call_guarantees", || {
+    {
+        let whole_proven = if let Some(&(_, cached)) = whole_contract_cache
+            .iter()
+            .find(|&&(handle, _)| handle == contract_handle)
+        {
+            cached
+        } else {
             // Normal-return equations name these completed occurrences. They
             // may compose through intermediate results that are not themselves
             // actuals of this call. This capture-owned proof must precede the
             // source-substitution fence; repeatability of either runtime call
             // is neither necessary nor inferred.
-            super::super::prover::call_guarantees::proves(
+            let result = super::super::prover::call_guarantees::proves(
                 program, facts, state, call, contexts, *required, frames,
-            )
-        }) || phase_profile::scope("05.d.7.3b.1.cap.1_current_values", || {
-            super::super::current_values::proves_call(program, state, call, *required, frames)
-        }) || phase_profile::scope("05.d.7.3b.1.cap.2_structural_req", || {
-            super::super::entailment::structural_call_requirement(
+            ) || super::super::current_values::proves_call(
+                program, state, call, *required, frames,
+            ) || super::super::entailment::structural_call_requirement(
                 program,
                 facts,
                 state,
@@ -193,10 +198,13 @@ fn captured_contract_proven(
                 *required,
                 Some(contract_handle),
                 frames,
-            )
-        }))
-    {
-        return true;
+            );
+            whole_contract_cache.push((contract_handle, result));
+            result
+        };
+        if whole_proven {
+            return true;
+        }
     }
     captured_expression_proven(
         program,
@@ -225,41 +233,36 @@ fn captured_expression_proven(
     expression_intervals: &[validation::ExpressionInterval],
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    if phase_profile::scope("05.d.7.3b.1.cap.3_captured_arith", || {
-        call_values::proves_captured_arithmetic_requirement(program, facts, state, call, expression)
-    }) {
+    if call_values::proves_captured_arithmetic_requirement(program, facts, state, call, expression)
+    {
         return true;
     }
     let prove_scalar = |expression| {
-        phase_profile::scope("05.d.7.3b.1.cap.4_prove_scalar", || {
-            let predicate = bound_contract_predicate(program, facts, contract, target, expression)?;
-            call_values::proves_bound_predicate(
-                program,
-                facts,
-                state,
-                call,
-                contexts,
-                &predicate,
-                frames,
-                &|observation| {
-                    actual_for_formal_place(
-                        program,
-                        facts,
-                        state,
-                        call,
-                        contract,
-                        target,
-                        &observation.place,
-                    )
-                },
-            )
-            .then_some(true)
-        })
+        let predicate = bound_contract_predicate(program, facts, contract, target, expression)?;
+        call_values::proves_bound_predicate(
+            program,
+            facts,
+            state,
+            call,
+            contexts,
+            &predicate,
+            frames,
+            &|observation| {
+                actual_for_formal_place(
+                    program,
+                    facts,
+                    state,
+                    call,
+                    contract,
+                    target,
+                    &observation.place,
+                )
+            },
+        )
+        .then_some(true)
     };
     if prove_scalar(expression) == Some(true)
-        || phase_profile::scope("05.d.7.3b.1.cap.5_float_req", || {
-            captured_float_requirement(program, facts, state, call, expression) == Some(true)
-        })
+        || captured_float_requirement(program, facts, state, call, expression) == Some(true)
     {
         return true;
     }

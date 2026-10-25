@@ -147,9 +147,8 @@ fn attributed(
     else {
         return false;
     };
-    facts.borrow.loans.iter().any(|(handle, loan)| {
-        facts.borrow.state_owns_loan(borrowing, handle)
-            && loan.statement_index == statement_index
+    facts.borrow.state_loans(borrowing).any(|(_, loan)| {
+        loan.statement_index == statement_index
             && loan.storage_owner == destination.root
             && loan.root == PlaceRoot::Symbol(source)
             && owner_path_matches(facts, loan, &destination.segments)

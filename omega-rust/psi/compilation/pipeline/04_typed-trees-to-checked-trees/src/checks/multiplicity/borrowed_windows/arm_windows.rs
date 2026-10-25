@@ -182,6 +182,10 @@ impl<'facts> ArmWindowPlan<'facts> {
         !self.frames.is_empty()
     }
 
+    pub(in crate::checks::multiplicity) fn has_edge_absent(&self) -> bool {
+        !self.edge_absent.is_empty()
+    }
+
     /// Record one eligible arm-scoped borrowed move: a non-empty borrowed
     /// place path that is neither the statement's production target nor a
     /// nominal-drop crossing. Unattributed events resolve through the

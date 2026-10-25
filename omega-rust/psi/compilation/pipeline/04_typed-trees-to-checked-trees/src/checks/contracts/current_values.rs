@@ -8,12 +8,19 @@ use typed_trees::statement::{StatementNode, TransitionTargetHandle};
 
 /// Current-state proof only. The exit owner separately requires exact incoming
 /// origins for every immutable invocation formal named by the guarantee.
-pub(crate) fn proves_exit(
-    program: &dyn ::validation::CheckingInput,
+pub(crate) fn proves_exit<'program>(
+    program: &'program dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     exit: &checked_trees::FlowExitFact,
     fact: &facts::Fact,
-    frames: Option<&validation::CallFrameResolver<'_>>,
+    frames: Option<&validation::CallFrameResolver<'program>>,
+    cached_exit_values: &mut Option<
+        Option<(
+            &'program typed_trees::machine::Machine,
+            CurrentScalarValues<'program>,
+            ExpressionHandle,
+        )>,
+    >,
 ) -> bool {
     let facts::FactPayload::ContractBooleanExpression {
         expression,
@@ -23,37 +30,44 @@ pub(crate) fn proves_exit(
     else {
         return false;
     };
-    let Some((machine, state)) = program.state_flow_site(exit.machine_symbol, exit.state_symbol)
+    let Some((machine, values, returned)) = cached_exit_values
+        .get_or_insert_with(|| {
+            let (machine, state) =
+                program.state_flow_site(exit.machine_symbol, exit.state_symbol)?;
+            let returned = match program
+                .statement_table
+                .statement_at(state, exit.statement_index)
+            {
+                Some(StatementNode::Expression(expression))
+                    if !exit.transition_target.is_valid() =>
+                {
+                    *expression
+                }
+                Some(StatementNode::Transition(_)) if exit.transition_target.is_valid() => {
+                    let typed_trees::statement::TransitionTargetNode::Value(expression) = program
+                        .statement_table
+                        .transition_target(exit.transition_target)
+                    else {
+                        return None;
+                    };
+                    *expression
+                }
+                _ => return None,
+            };
+            let mut values = CurrentScalarValues::at(
+                program,
+                machine,
+                state,
+                exit.statement_index,
+                exit.transition_target,
+                frames,
+            )?;
+            values.prepare_exit_return(returned);
+            Some((machine, values, returned))
+        })
+        .as_ref()
     else {
         return false;
-    };
-    let Some(mut values) = CurrentScalarValues::at(
-        program,
-        machine,
-        state,
-        exit.statement_index,
-        exit.transition_target,
-        frames,
-    ) else {
-        return false;
-    };
-    let returned = match program
-        .statement_table
-        .statement_at(state, exit.statement_index)
-    {
-        Some(StatementNode::Expression(expression)) if !exit.transition_target.is_valid() => {
-            *expression
-        }
-        Some(StatementNode::Transition(_)) if exit.transition_target.is_valid() => {
-            let typed_trees::statement::TransitionTargetNode::Value(expression) = program
-                .statement_table
-                .transition_target(exit.transition_target)
-            else {
-                return false;
-            };
-            *expression
-        }
-        _ => return false,
     };
     let origins = facts
         .flow
@@ -63,7 +77,7 @@ pub(crate) fn proves_exit(
         .iter()
         .filter(|origin| origin.contract == contract)
         .map(|origin| (origin.entry_parameter, origin.state_parameter));
-    let Some(goal) = values.postcondition(expression, returned, origins) else {
+    let Some(goal) = values.postcondition(expression, *returned, origins) else {
         return false;
     };
     values.proves(program, machine, &goal)

@@ -31,6 +31,7 @@ pub(crate) use arrivals::{
 pub use arrivals::{
     arrival_integer_expression_bounds, occurrence_collection_footprint_fits,
     occurrence_integer_expression_bounds, occurrence_integer_expression_fits_range,
+    occurrence_integer_expressions_bounds,
 };
 use projected_facts::ProjectedOperand;
 
@@ -1232,15 +1233,9 @@ pub(crate) fn incoming_guard_environments(
     }) {
         return cached;
     }
-    let mut environments = arrivals::incoming_environments(program, machine, frames, None);
-    for (state, (_, environment)) in program
-        .machine_states(machine)
-        .iter()
-        .zip(&mut environments)
-    {
-        requirements::seed_state_requirements(program, machine, state, frames, environment);
-    }
-    let environments = std::sync::Arc::new(environments);
+    let environments = std::sync::Arc::new(arrivals::incoming_environments(
+        program, machine, frames, None,
+    ));
     // Publish only after all arrivals and requirements are complete. The
     // mutex is never held while recursive source queries compute the batch.
     if let Some(memos) = memos
@@ -1271,10 +1266,8 @@ pub(crate) fn incoming_guard_environment(
             return environment.clone();
         }
     }
-    let mut environment = arrivals::incoming_environments(program, machine, frames, None)
+    arrivals::incoming_environments(program, machine, frames, None)
         .into_iter()
         .find_map(|(symbol, environment)| (symbol == state.symbol).then_some(environment))
-        .unwrap_or_default();
-    requirements::seed_state_requirements(program, machine, state, frames, &mut environment);
-    environment
+        .unwrap_or_default()
 }

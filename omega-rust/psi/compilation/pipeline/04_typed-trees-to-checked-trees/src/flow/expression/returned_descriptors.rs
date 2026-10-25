@@ -1,4 +1,6 @@
-//! Preserve a returned descriptor's body-derived association to evaluated
+//! Preserve exact body-derived descriptors or admitted local dispatch regions.
+//! Region coverage is exclusion-only; it does not manufacture an exact pointer.
+//! The body-derived association retains evaluated
 //! explicit actuals, after receiver separation. Declared lifetime relations still retain every owed input; the
 //! body relation supplies geometry only. Its observation discards pre-call
 //! predicates and pointee snapshots, so later field reads use current storage.
@@ -23,6 +25,16 @@ impl Execution<'_, '_, '_> {
         source_snapshot: Handle<checked_trees::FlowStorageSnapshot>,
     ) -> Handle<FlowOperandFact> {
         self.returned_descriptor(call, inputs, returned, path, retention, source_snapshot)
+            .or_else(|| {
+                self.capture_returned_region_descriptor(
+                    call,
+                    inputs,
+                    returned,
+                    path,
+                    retention,
+                    source_snapshot,
+                )
+            })
             .unwrap_or_default()
     }
 
@@ -213,7 +225,7 @@ impl Execution<'_, '_, '_> {
         }))
     }
 
-    fn returned_slot_path(
+    pub(super) fn returned_slot_path(
         &self,
         returned: TypeReferenceHandle,
         path: &[PlaceSegment],

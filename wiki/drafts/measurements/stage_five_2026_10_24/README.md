@@ -105,3 +105,22 @@ After rebasing onto `261a48af29f`, the same harness compared that base, rebuilt,
 | nested_record | 861.1 | 752.4 | 234.7 | 169.9 | 121.7 | 98.2 |
 
 Native images are SHA-identical across producers and exit 0.
+
+## Iteration 2: arithmetic domain memoization, difference-graph components, state-loan spans, and contract/exit reuse (base `448f6e11ca5`)
+
+Base `448f6e11ca5` on Windows x86_64. Retained changes:
+- `CheckingMemos` memoizes `mathematical_expression_nodes`, `expression_result_types`, `ordered_integer_meanings`, and `parameter_requires_intervals` (`requires_interval` and `declared_ensures_result_interval`), and stores subtree height `Option<u8>` in `bound_subtree_meanings` keyed by `(u32, u32, ExpressionHandle)` instead of `(u32, u32, ExpressionHandle, u8)` depth.
+- `DifferenceGraph::new` computes undirected connected components (`component: Vec<u32>`) and endpoint direction flags (`has_outgoing`, `has_incoming`), skipping Bellman-Ford (`nonnegative_gap`) whenever `source` and `destination` lie in different components or lack incident edges. `refine_place_interval` applies exact `subject == candidate` bounds before consulting congruence and skips relations whose endpoint cannot tighten `interval`. `excludes_integer_value` checks whether the literal relation excludes `value` before calling `comparison.same_value`.
+- `ArrivalWalk` and `incoming_environments` skip fixed-point iteration on states without in-machine state transitions/calls and skip condition narrowing on `Terminal` (`-> !`) transition arms; `RequirementSeeds` computes `self.required` lazily instead of reseeding after `incoming_environments`.
+- `CurrentScalarValues::bind_parameters` batches argument bound queries via `occurrence_integer_expressions_bounds`; `check_call_requires` caches whole-clause `(contract_handle, bool)` verdicts per call site; `check_exit_ensures` reuses one `CurrentScalarValues` instance per exit and short-circuits proved entailment/evidence-assignment clauses before building `missing_origins`.
+- `BorrowFacts::state_loans` slices each state's `HandleSpan<BorrowLoanFact>` instead of scanning `borrow.loans.iter()` across the program; empty-plan fast paths guard `conservation_plans`, `indexed_families`, `source_applications`, and `BorrowedStorageWindows`.
+
+On the 3 standard fact workloads (`length`, `dyn_dispatch`, `nested_record`, 5 interleaved rounds under concurrent host load), `05.c.prepare_typed_trees` improves by 25.9–97.0 ms (`263.6 -> 166.7 ms` on `length`), `05.d.2.prepare_typed_program` improves by 21.4–87.3 ms (`220.9 -> 133.6 ms` on `dyn_dispatch`), and all emitted native images are SHA-256 identical and exit 0.
+
+On multi-argument calling-plan witnesses (`--check --timings` with `OMEGA_PHASE_PROFILE=1`):
+
+| witness | Stage 05 base (`448f6e11ca5`) | Stage 05 cand | `prepare_typed_program` base | cand | `check_flow_call_contracts` base | cand | `ordered_relations.rows` base | cand |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `sixteen_arg_stack_calling_plan/other_machine` | 6,164.6 ms | 1,444.6 ms (4.27x) | 642.1 ms | 146.9 ms | 4,028.1 ms | 41.2 ms (97.7x) | 26,956 | 456 |
+| `thirtytwo_arg_stack_calling_plan/other_machine` | > 95,000 ms | 1,900.0 ms (> 50x) | — | 559.1 ms | — | 190.6 ms | — | 616 |
+

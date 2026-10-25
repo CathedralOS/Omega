@@ -185,6 +185,7 @@ foundations, product reports and publication keep independent ownership.
 | `omega/application/cli/src/main.rs` | Parse and dispatch; display outcomes |
 | `omega/application/build/src/build.rs` | Request admission, Build lifecycle, requested products, required tests and publication |
 | `omega/application/build/src/build_execution.rs` | Dependency jobs and Build activation readiness; mandatory final join |
+| `omega/application/build/src/package_commands.rs` | Admitted install/update target-review work; complete findings returned to package-owned publication |
 | `psi/compilation/driver/src/compiler.rs` | Source processing and checking through Terminal Psi |
 | `omega/compilation/driver/src/compiler.rs` | Terminal plus explicit realization inputs through native emission |
 | Terminal interpreter entrance | Load or borrow code, execute, suspend, install admitted bindings, resume |

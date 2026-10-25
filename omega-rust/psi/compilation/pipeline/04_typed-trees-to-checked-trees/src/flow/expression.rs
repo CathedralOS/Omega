@@ -41,6 +41,7 @@ mod dispatch;
 mod live_memberships;
 mod result_facts;
 mod returned_descriptors;
+mod returned_regions;
 mod stored_call_values;
 mod transitions;
 mod view_footprints;

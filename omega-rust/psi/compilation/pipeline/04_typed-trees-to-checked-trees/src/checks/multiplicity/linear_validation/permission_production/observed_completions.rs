@@ -96,6 +96,7 @@ pub(super) fn complete_at(
             .for_each_mut(|_, disposition| {
                 if disposition_ordinal >= disposition_start {
                     disposition.completion = expression;
+                    disposition.completion_constraints = completion.constraints;
                 }
                 disposition_ordinal += 1;
             });
@@ -294,21 +295,45 @@ pub(super) fn append(
                     || matches!(occurrence.step, StatementStep::Move { event, .. }
                         if moves.get(event).is_some_and(|event| event.root == place.root))
             };
+            // The exact completed result above retains no part of this home.
+            // Holding that result for an enclosing call therefore cannot keep
+            // its supplying descriptor storage borrowed. Other observations
+            // and moves still retain their own holds, including later uses.
             if occurrences.iter().enumerate().any(|(ordinal, later)| {
                 crate::checks::ownership_occurrences::routes_compatible(
                     &later.route,
                     &completion.route,
                 ) && uses_source(later)
-                    && (ordinal > end || later.held_until > end)
+                    && (ordinal > end
+                        || later.held_until > end
+                            && !matches!(later.step, StatementStep::Observe { expression, .. }
+                            if expression == observation.expression))
             }) {
                 selected.clear();
                 break;
             }
+            let unique_observation = observations
+                .iter()
+                .filter(|candidate| {
+                    candidate.expression == observation.expression
+                        && candidate.evaluation == evaluation
+                })
+                .count()
+                == 1;
             selected.push(SourceCompletion {
                 occurrence: end,
                 expression: capture.expression,
                 root: place.root,
                 type_reference,
+                // Preserve the observer epoch for its direct completion;
+                // distinct selected alternatives own their pre-join epoch.
+                constraints: unique_observation.then_some(
+                    if capture.expression == observation.expression {
+                        observation.constraints
+                    } else {
+                        capture.constraints
+                    },
+                ),
             });
         }
         completions.extend(selected);

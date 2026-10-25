@@ -89,9 +89,8 @@ pub(crate) fn require_unborrowed_completion(
                 .any(|(ended, held_until)| ended == loan && *held_until <= position)
         })
         .collect::<Vec<_>>();
-    for (handle, loan) in facts.borrow.loans.iter() {
-        if facts.borrow.state_owns_loan(borrow_state, handle)
-            && loan.statement_index == operand.statement_index
+    for (handle, loan) in facts.borrow.state_loans(borrow_state) {
+        if loan.statement_index == operand.statement_index
             && occurrences[..=position].iter().any(|occurrence| {
                 matches!(occurrence.step, StatementStep::Complete(expression)
                     if expression == loan.formation_expression)

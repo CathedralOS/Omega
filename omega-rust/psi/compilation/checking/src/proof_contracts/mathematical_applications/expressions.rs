@@ -9,11 +9,19 @@ use typed_trees::mathematical::{MathematicalBody, MathematicalType};
 use crate::expression_traversal::collect_expression_nodes;
 
 pub fn expression_nodes(program: &dyn crate::CheckingInput) -> Vec<ExpressionHandle> {
-    let mut seen = HashSet::new();
-    scoped_expression_nodes(program)
-        .into_iter()
-        .filter_map(|(_, expression)| seen.insert(expression).then_some(expression))
-        .collect()
+    crate::frozen_program::frozen_memo(
+        program,
+        |memos| &memos.mathematical_expression_nodes,
+        || {
+            let mut seen = HashSet::new();
+            scoped_expression_nodes(program)
+                .into_iter()
+                .filter_map(|(_, expression)| seen.insert(expression).then_some(expression))
+                .collect()
+        },
+    )
+    .as_ref()
+    .clone()
 }
 
 /// Preserve the declaration telescope even when an expression arena payload is
