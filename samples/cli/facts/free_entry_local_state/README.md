@@ -4,7 +4,7 @@ A free entry owns and cleans an ordinary local tally of 7, and the hosted contra
 
 Every place copies that sentence. The bound is code 7. The operation is the same: the free entry `start` owns an ordinary local `Tally`, a mark whose code is 7 cleans into that tally, and the entry exits 0 only when the tally reads 7. No place adds an entry parameter, a provisioned context, or a different bound. The entry name is `start`, not a reserved `main`.
 
-Parent outcome: `EXPLICIT-ENTRY-STORAGE` in `TASKS.md`. This row establishes the free-entry local clause of that acceptance: a hosted entry with no parameters owns and cleans ordinary local state, and an unprovided value parameter still rejects. It does not retire `NoneOrProvisionedZii`, and it does not establish static-backed exclusive state, an installed handoff, or rejection of invented backing, invalid initialization, or overlapping root claims.
+Parent outcome: `EXPLICIT-ENTRY-STORAGE` in `TASKS.md`. This row establishes the free-entry local clause of that acceptance: a hosted entry with no parameters owns and cleans ordinary local state, and an unprovided value parameter still rejects. The companion [installed-entry row](../installed_entry_storage/README.md) establishes explicitly lent static backing and declared handoff arguments; the [applied-zero row](../applied_zero_establishment/README.md) and [dynamic-selection controls](../dynamic_trait_dispatch/README.md) cover ordinary initialization validity. Those distinct obligations are not inferred from this tally row.
 
 | Place | Positive program | Reject twin | Transport |
 | --- | --- | --- | --- |
@@ -38,7 +38,7 @@ omega run --both samples/cli/facts/free_entry_local_state/target_body/main.omg
 
 The exit code 0 discriminates the cleanup. The tally starts at 0. `Mark::drop` requires code 7 and writes that code into the tally. The following transition accepts only `tally.total == 7`. A skipped hook leaves 0, and the `bad` state crashes.
 
-### Recorded on this machine
+### Historical Linux observations
 
 Host: Linux x86_64. Producer: `target/debug/omega`, dev profile, `opt-level` 1, compiler sources at `c2e06b875ba2f6a205dd49b408d937536833b190` (this change adds no Rust). Windows, macOS, and QEMU were not run.
 
@@ -58,13 +58,13 @@ The nine pass fixtures under `tests/omega/pass/facts/free_entry_local_state_thro
 - **Establishment:** `start` has no parameters, so the hosted signature is a free entry. The tally is an ordinary local the entry constructs. The mark's cleanup requirement `mark.code == 7` is established by the transported code, not by a post-hoc guard after cleanup. The transition reads the value the hook wrote.
 - **Identity and lifetime:** The tally is the entry's own local storage. The mark borrows that exact local, writes it, and ends before the read. No provisioned context is substituted for the local. A later write of a different tally would be a different fact.
 - **Composition:** Calls, joins, fields, constants, states, machines, and target bodies carry the same code 7 into the same cleanup. Each twin changes only the entry signature.
-- **Soundness boundaries:** An unprovided `u64` entry parameter is not invented by the mutable-context scan and is not given backing. All nine twins reject.
+- **Soundness boundaries:** Unprovided mutable-record entry parameters are never given backing by selection. All nine twins reject; the root additionally retains the unprovided `u64` control.
 - **Checked-to-Terminal Psi lowering (`Psi 05–07`):** The local, the mark, the cleanup hook, and the transition lower into Terminal Psi. `omega run --both` compares the interpreter with native execution.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` binds `start` on all four hosted targets. The tally and the mark use ordinary value and reference layouts. The free entry has no provisioned receiver lane.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** The tally is an ordinary stack local of the entry. Its cleanup is the entry's normal return cleanup, not a separate entry allocation.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** The hosted image runs the free entry and agrees with Terminal Psi on this machine.
 
-What remains open on `EXPLICIT-ENTRY-STORAGE`: static-backed state with exclusive access and no ambient globals; an installed handoff that receives exactly its declared arguments; rejection of invented backing, invalid initialization, and overlapping root claims; removal of `NoneOrProvisionedZii` and signature-scanned mutable-context provisioning, including migration of existing entry-context samples. Windows, macOS, and QEMU runs are not available on this Linux machine. Only `linux_x86_64` native execution is observed here; the other three `ProgramEntry` bindings are declared and unchecked on this host.
+This row establishes ordinary local ownership and cleanup, not every parent obligation. The companion rows above retain their own backing, qualification, partition, and rejection evidence. Current macOS ARM64 observations are recorded below; the earlier Linux observations remain bound to their historical producer. Windows and Linux ARM64 native execution remains unmeasured here.
 
 ## Automatic-context retirement baseline
 
@@ -92,5 +92,6 @@ places. The root scalar twin and all nine mutable-record twins reject with
 CLI observations. Their raw commands, exits, streams and binary digest are
 retained in the outcome's qualification/claim record. The earlier Linux runs
 above retain their original producer and source identities; they do not qualify
-this repair. Static-backed exclusive state and complete installed handoff
-acceptance remain open until their actual executions are recorded.
+this repair. The companion installed-entry row records actual macOS ARM64 execution and exact
+backing observations at checkpoint `2214d8fa1b3b11b32675f105e61c2d2ce3c55a04`;
+this tally row does not stand in for those measurements.
