@@ -317,13 +317,12 @@ impl Lowerer {
                 "seeded symbol resolution requires retained source custody",
             )]);
         };
-        let retained_sources = base.symbols.source_files().collect::<Vec<_>>();
-        if retained_sources.len() > sources.len()
-            || !retained_sources
-                .iter()
-                .copied()
-                .eq(sources.files().take(retained_sources.len()))
-        {
+        if base.symbols.source_map().is_some_and(|retained| {
+            !sources.retains_source_storage(&retained)
+                || retained
+                    .selected_files()
+                    .any(|file| !sources.source_is_selected(file.source_id))
+        }) {
             return Err(vec![Diagnostic::error(
                 "seeded symbol resolution source map does not retain the exact base frontier",
             )]);

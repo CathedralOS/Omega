@@ -245,7 +245,10 @@ fn retain_judgment(
     checks: &mut Vec<psi_compiler::RetainedCheck>,
     check: &psi_compiler::RetainedCheck,
 ) {
-    if !checks.iter().any(|retained| retained.same_judgment(check)) {
+    if !checks
+        .iter()
+        .any(|retained| retained.same_retained_check(check))
+    {
         checks.push(check.clone());
     }
 }

@@ -136,7 +136,8 @@ impl SymbolTable {
     /// already carry exact source custody and take precedence over this row.
     pub fn register_source_import(&mut self, reference_source: SourceId, path: &str) {
         if self.source_scoped_top_level_bindings.iter().any(|binding| {
-            binding.reference_source == reference_source
+            self.source_binding_is_selected(binding)
+                && binding.reference_source == reference_source
                 && binding
                     .module_import
                     .as_ref()
@@ -160,13 +161,26 @@ impl SymbolTable {
         reference_source: SourceId,
         path: &str,
     ) -> Result<(), String> {
-        for binding in self.source_scoped_bindings_for(reference_source) {
+        let mut inactive_import = false;
+        let mut selected_import = false;
+        // Admission diagnoses an explicitly supplied inactive import. Ordinary
+        // lookup reads only the index's current rows and must never see it.
+        for binding in self
+            .source_scoped_top_level_bindings
+            .iter()
+            .filter(|binding| binding.reference_source == reference_source)
+        {
             let Some(import) = &binding.module_import else {
                 continue;
             };
             if import.path.as_ref() != path || !import.exact_source {
                 continue;
             }
+            if !self.source_binding_is_selected(binding) {
+                inactive_import = true;
+                continue;
+            }
+            selected_import = true;
             let module = self.source_module(binding.declaration_source);
             if !module.is_valid() {
                 continue;
@@ -190,7 +204,13 @@ impl SymbolTable {
                 ));
             }
         }
-        Ok(())
+        if inactive_import && !selected_import {
+            Err(format!(
+                "import `{path}` refers to an inactive source instance"
+            ))
+        } else {
+            Ok(())
+        }
     }
 
     /// Return the declaration selected by a validated module import. Legacy
@@ -230,6 +250,42 @@ impl SymbolTable {
             .get(source.0)
             .copied()
             .unwrap_or_else(SymbolHandle::invalid)
+    }
+
+    pub(super) fn source_binding_is_selected(&self, binding: &SourceScopedTopLevelBinding) -> bool {
+        self.sources.as_deref().is_none_or(|sources| {
+            sources.source_is_selected(binding.reference_source)
+                && sources.source_is_selected(binding.declaration_source)
+        })
+    }
+
+    /// Selected files contributing to this namespace or any nested namespace.
+    /// The module's original spelling owner is not its activation membership.
+    pub(super) fn module_source_ids(
+        &self,
+        module: SymbolHandle,
+    ) -> impl Iterator<Item = SourceId> + '_ {
+        self.source_module_index
+            .iter()
+            .enumerate()
+            .filter_map(move |(position, leaf)| {
+                let source = SourceId(position);
+                if self
+                    .sources
+                    .as_deref()
+                    .is_some_and(|sources| !sources.source_is_selected(source))
+                {
+                    return None;
+                }
+                let mut ancestor = *leaf;
+                while ancestor.is_valid() {
+                    if ancestor == module {
+                        return Some(source);
+                    }
+                    ancestor = self.get(ancestor).parent;
+                }
+                None
+            })
     }
 
     /// Whether an authored domain reference may select `domain` from
@@ -454,6 +510,7 @@ impl SymbolTable {
                     .flatten()
                     .filter(|handle| self.symbol_module(*handle) == module),
             )
+            .filter(|symbol| self.symbol_source_is_selected(*symbol))
             .collect()
     }
 
@@ -467,9 +524,13 @@ impl SymbolTable {
             file.origin == source::SourceOrigin::User
                 && file.resolution_stratum
                     != source::SourceResolutionStratum::CurrentActivationExtension
-        }) || !self.module_symbols.is_empty()
+        }) || self
+            .module_symbols
+            .iter()
+            .any(|(_, symbol)| self.symbol_source_is_selected(*symbol))
             || self.source_scoped_top_level_bindings.iter().any(|binding| {
-                binding.reference_source == reference.source_id
+                self.source_binding_is_selected(binding)
+                    && binding.reference_source == reference.source_id
                     && binding
                         .module_import
                         .as_ref()

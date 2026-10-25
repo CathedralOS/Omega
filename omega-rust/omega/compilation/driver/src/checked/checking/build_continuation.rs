@@ -166,7 +166,7 @@ pub(super) fn complete_product_frontend(
     timings: &mut CompileTimings,
 ) -> Result<
     (
-        psi_compiler::PreparedSource,
+        Arc<psi_compiler::PreparedSource>,
         Arc<compilation_products::ComputedBuildConfig>,
         BuildAdmission,
     ),

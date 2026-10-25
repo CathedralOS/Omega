@@ -168,7 +168,7 @@ pub fn prepare_filesystem_scope(
                         .expect("retained source input belongs to validated package inputs")
                         .source_filesystem();
                     let mut required_members = Vec::new();
-                    for file in required_sources.files() {
+                    for file in required_sources.selected_files() {
                         // Toolchain and injected sources are not members of
                         // this package's inventory; virtual names need no
                         // physical or captured path resolution here.
@@ -194,7 +194,9 @@ pub fn prepare_filesystem_scope(
                     crate::capture_scoped_source_input(
                         &source_root,
                         request,
-                        required_sources.files().map(|file| file.path.clone()),
+                        required_sources
+                            .selected_files()
+                            .map(|file| file.path.clone()),
                     )
                 };
                 captured.map_err(|reason| {

@@ -149,7 +149,7 @@ impl SourceStorage {
         // namespace, never by hashing or trusting that display spelling.
         for file in self
             .sources
-            .files()
+            .selected_files()
             .filter(|file| file.origin == SourceOrigin::User && file.package_identity.is_none())
         {
             if generated
@@ -183,7 +183,7 @@ impl SourceStorage {
         // rename this complete captured source owner.
         let contracts = crate::toolchain_source_identities(
             self.sources
-                .files()
+                .selected_files()
                 .filter(|file| file.package_root != *core_root),
         )?;
         let identity = crate::anonymous_owner::derive(

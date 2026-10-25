@@ -109,6 +109,14 @@ impl SymbolTable {
         admit_toolchain: bool,
         token_bound_machines: &[SymbolHandle],
     ) -> Option<SymbolHandle> {
+        if occurrence.span.start != occurrence.span.end
+            && self
+                .sources
+                .as_deref()
+                .is_some_and(|sources| !sources.source_is_selected(occurrence.source_id))
+        {
+            return None;
+        }
         let qualified = path.split_once("::");
         let dependency =
             qualified.and_then(|(alias, _)| self.product_dependency_target(occurrence, alias));
@@ -121,6 +129,7 @@ impl SymbolTable {
         let mut ambiguous = false;
         for (symbol, is_public) in candidates {
             if !symbol.is_valid()
+                || !self.symbol_source_is_selected(symbol)
                 || !match dependency {
                     Some(package) => {
                         is_public && self.symbol_product_package_identity(symbol) == Some(package)
@@ -269,7 +278,9 @@ impl SymbolTable {
     /// format; compiler-internal consumers remain responsible for canonical
     /// framing.
     pub fn source_files(&self) -> impl Iterator<Item = &SourceFile> {
-        self.sources.iter().flat_map(|sources| sources.files())
+        self.sources
+            .iter()
+            .flat_map(|sources| sources.selected_files())
     }
 
     /// The authored symbol a generated symbol derives from, or `symbol`

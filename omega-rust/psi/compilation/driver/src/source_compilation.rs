@@ -68,7 +68,7 @@ impl PreparedSource {
 
     /// Transfer the coupled origin to checking. Deferred target recipes remain
     /// with that origin; retaining them grants no execution authority.
-    pub fn into_check_input(self) -> crate::SourceCheckInput {
+    pub fn into_check_input(self: Arc<Self>) -> crate::SourceCheckInput {
         crate::SourceCheckInput::from_source(self)
     }
 
@@ -222,11 +222,11 @@ impl SourceContinuation {
 }
 
 impl CompletedSource {
-    pub fn finish(self) -> PreparedSource {
-        PreparedSource {
+    pub fn finish(self) -> Arc<PreparedSource> {
+        Arc::new(PreparedSource {
             typing: self.typing,
             pending_pre_checks: self.pending_pre_checks,
-        }
+        })
     }
 
     /// Type a later generated stratum against the completed authored predecessor.
@@ -236,7 +236,7 @@ impl CompletedSource {
         mut self,
         extension: SourceExtensionRequest,
         observer: &mut impl PsiCompilationObserver,
-    ) -> Result<PreparedSource, Vec<Diagnostic>> {
+    ) -> Result<Arc<PreparedSource>, Vec<Diagnostic>> {
         let wire_schema_frontier = self.typing.typed().wire_schemas().len();
         let resolved_base = self.typing.resolved_base_for_extension()?;
         let (syntax, pre_checks) =
@@ -269,9 +269,9 @@ impl CompletedSource {
                 wire_schema_frontier,
                 self.typing.typed_mut(),
             )?);
-        Ok(PreparedSource {
+        Ok(Arc::new(PreparedSource {
             typing: self.typing,
             pending_pre_checks: self.pending_pre_checks,
-        })
+        }))
     }
 }

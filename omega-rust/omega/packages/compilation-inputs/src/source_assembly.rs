@@ -148,7 +148,7 @@ impl ImmutableSourceParseCheckpoint {
         self.validate_child(package_inputs)?;
         let mut source_storage = Arc::unwrap_or_clone(self.source_storage);
         let mut imports = ImportQueue::default();
-        for source in source_storage.sources.files() {
+        for source in source_storage.sources.selected_files() {
             imports.mark_loaded(&source.path, source.dependency_scope);
         }
         let mut generated_source_custody = match package_inputs {
@@ -310,7 +310,7 @@ impl ImmutableSourceParseCheckpoint {
         let source_file_count = source_storage.file_count();
         let build_scope_sources = source_storage
             .sources
-            .files()
+            .selected_files()
             .filter(|file| file.dependency_scope == source::DependencyScope::Build)
             .map(|file| file.source_id)
             .collect();
@@ -493,7 +493,7 @@ struct ParsingTimings<'timings>(&'timings mut CompileTimings);
 fn product_sources_mention_floats(source_storage: &crate::source_imports::SourceStorage) -> bool {
     source_storage
         .sources
-        .files()
+        .selected_files()
         .filter(|file| file.dependency_scope == source::DependencyScope::Product)
         .any(|file| {
             let text = file.source.as_ref();
@@ -520,7 +520,8 @@ fn product_sources_mention_floats(source_storage: &crate::source_imports::Source
                                 .source_span(handle),
                         )
                         .is_some_and(|file| {
-                            file.dependency_scope == source::DependencyScope::Product
+                            source_storage.sources.source_is_selected(file.source_id)
+                                && file.dependency_scope == source::DependencyScope::Product
                         })
             })
 }

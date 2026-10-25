@@ -166,7 +166,7 @@ impl ProjectSourceSelection {
             .map(|selected| {
                 storage
                     .sources
-                    .files()
+                    .selected_files()
                     .find(|file| {
                         storage
                             .filesystem

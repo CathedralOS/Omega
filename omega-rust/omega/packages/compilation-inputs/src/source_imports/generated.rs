@@ -68,7 +68,7 @@ pub fn admit_generated_extension(
         [] => Vec::new(),
         [logical_path] => vec![
             base_sources
-                .files()
+                .selected_files()
                 .any(|existing| existing.path == *logical_path),
         ],
         _ => {
@@ -87,7 +87,7 @@ pub fn admit_generated_extension(
                     }
                 }
             }
-            for existing in base_sources.files() {
+            for existing in base_sources.selected_files() {
                 if let Some(&position) = generated_positions.get(existing.path.as_path()) {
                     collisions[position] = true;
                 }

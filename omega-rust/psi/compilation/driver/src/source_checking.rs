@@ -18,12 +18,20 @@ pub use typed_trees_to_checked_trees::CheckedTreeProductSelection;
 #[derive(Debug, Clone)]
 pub struct RetainedCheck {
     judgment: typed_trees_to_checked_trees::RetainedCheck,
-    source: Option<crate::PreparedSource>,
+    source: Option<Arc<crate::PreparedSource>>,
 }
 
 impl RetainedCheck {
-    pub fn same_judgment(&self, other: &Self) -> bool {
+    /// Retention identity includes the source origin, not only the checked
+    /// result. An originless request may reuse that language judgment, but
+    /// cannot replace a source-backed continuation in the invocation store.
+    pub fn same_retained_check(&self, other: &Self) -> bool {
         self.judgment.same_judgment(&other.judgment)
+            && match (&self.source, &other.source) {
+                (None, None) => true,
+                (Some(left), Some(right)) => Arc::ptr_eq(left, right),
+                _ => false,
+            }
     }
 }
 
@@ -36,7 +44,7 @@ pub struct SourceCheckInput {
 
 enum CheckInputOwner {
     Typed(typed_trees::TypedTrees),
-    Source(crate::PreparedSource),
+    Source(Arc<crate::PreparedSource>),
 }
 
 impl From<typed_trees::TypedTrees> for SourceCheckInput {
@@ -48,7 +56,7 @@ impl From<typed_trees::TypedTrees> for SourceCheckInput {
 }
 
 impl SourceCheckInput {
-    pub(crate) fn from_source(source: crate::PreparedSource) -> Self {
+    pub(crate) fn from_source(source: Arc<crate::PreparedSource>) -> Self {
         Self {
             owner: CheckInputOwner::Source(source),
         }
@@ -74,13 +82,13 @@ impl SourceCheckInput {
     ) -> (
         typed_trees::TypedTrees,
         Vec<build_time_evaluation::PreCheckEvaluation>,
-        Option<crate::PreparedSource>,
+        Option<Arc<crate::PreparedSource>>,
     ) {
         match self.owner {
             CheckInputOwner::Typed(program) => (program, Vec::new(), None),
             CheckInputOwner::Source(source) => {
                 let origin = retain.then(|| source.clone());
-                let (program, recipes) = source.into_parts();
+                let (program, recipes) = Arc::unwrap_or_clone(source).into_parts();
                 (program, recipes, origin)
             }
         }

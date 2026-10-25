@@ -6,6 +6,375 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[test]
+fn inactive_backing_is_not_a_lookup_candidate_or_product_operand() {
+    let owner = PackageKeyIdentity::from_digest([9; 32]).expect("owner identity");
+    let mut sources = SourceMap::default();
+    let declarations = ["first", "second"].map(|name| {
+        sources
+            .add_with_metadata(
+                PathBuf::from(format!("kit/{name}.omg")),
+                String::from("shared Item"),
+                PathBuf::from("kit"),
+                Some(owner),
+                SourceOrigin::User,
+            )
+            .source_span(Span::new(7, 11))
+    });
+    let consumer = PackageKeyIdentity::from_digest([14; 32]).expect("consumer owner");
+    let importer = sources
+        .add_with_metadata(
+            PathBuf::from("consumer/main.omg"),
+            String::from("lookup"),
+            PathBuf::from("consumer"),
+            Some(consumer),
+            SourceOrigin::User,
+        )
+        .source_span(Span::new(0, 6));
+    let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources.clone())));
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let handles = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        declarations.map(|span| (SymbolKind::Data, SymbolNameRef::Source(span))),
+    ))
+    .collect::<Vec<_>>();
+    let mut symbols = builder.finish();
+    for span in declarations {
+        symbols
+            .register_source_module(
+                span.source_id,
+                [("shared", SourceSpan::new(span.source_id, Span::new(0, 6)))],
+            )
+            .expect("one module per source");
+    }
+    let module = symbols.source_module(declarations[0].source_id);
+    assert_eq!(symbols.source_module(declarations[1].source_id), module);
+
+    let mut current = sources.fork_source_selection().expect("sealed owners");
+    current.select_checked_instance(
+        PathBuf::from("kit/second.omg"),
+        String::from("shared Item"),
+        PathBuf::from("kit"),
+        Some(owner),
+        SourceOrigin::User,
+        source::SourceResolutionStratum::Base,
+        source::DependencyScope::Product,
+    );
+    current.select_checked_instance(
+        PathBuf::from("consumer/main.omg"),
+        String::from("lookup"),
+        PathBuf::from("consumer"),
+        Some(consumer),
+        SourceOrigin::User,
+        source::SourceResolutionStratum::Base,
+        source::DependencyScope::Product,
+    );
+    let stale_alias = symbols
+        .clone()
+        .begin_extension(
+            Some(Arc::new(current.clone())),
+            vec![crate::SourceScopedTopLevelBinding::module_import(
+                importer.source_id,
+                declarations[0].source_id,
+                "leaf::shared",
+                1,
+            )],
+        )
+        .finish();
+    assert!(
+        stale_alias
+            .validate_source_module_import(importer.source_id, "leaf::shared")
+            .is_err()
+    );
+    assert_eq!(
+        stale_alias.find_top_level_by_name_and_kinds_from_source(
+            "leaf::shared::Item",
+            &[SymbolKind::Data],
+            importer,
+        ),
+        None,
+        "an inactive imported file cannot lend its alias to an active sibling"
+    );
+    let selected = symbols
+        .begin_source_activation(Arc::new(current), Vec::new())
+        .expect("retained source coordinates")
+        .finish();
+    let occurrence = declarations[1];
+    assert_eq!(selected.source_files().count(), 2);
+    assert_eq!(
+        selected.root_children_named("Item").collect::<Vec<_>>(),
+        [handles[1]]
+    );
+    assert_eq!(selected.source_text(declarations[0]), "Item");
+    assert_eq!(selected.source_module(declarations[0].source_id), module);
+    assert_eq!(selected.source_module(occurrence.source_id), module);
+    assert!(selected.source_reference_can_see_symbol(occurrence, module));
+    assert_eq!(
+        selected
+            .child_handles(module)
+            .expect("module children")
+            .collect::<Vec<_>>(),
+        [handles[1]]
+    );
+    assert_eq!(
+        selected.find_top_level_by_name_and_kinds_from_source(
+            "Item",
+            &[SymbolKind::Data],
+            occurrence,
+        ),
+        Some(handles[1])
+    );
+    assert_eq!(
+        selected.find_top_level_by_name_and_kinds_from_source(
+            "Item",
+            &[SymbolKind::Data],
+            SourceSpan::default(),
+        ),
+        Some(handles[1])
+    );
+    assert_eq!(
+        selected.find_top_level_by_name_and_kinds_from_source(
+            "Item",
+            &[SymbolKind::Data],
+            declarations[0],
+        ),
+        None
+    );
+    for candidates in [
+        vec![(handles[0], true)],
+        vec![(handles[0], true), (handles[1], true)],
+    ] {
+        let expected = (candidates.len() == 2).then_some(handles[1]);
+        assert_eq!(
+            selected.find_product_declaration_from_source(
+                "shared::Item",
+                occurrence,
+                candidates.clone(),
+            ),
+            expected
+        );
+        assert_eq!(
+            selected.find_build_subject_declaration_from_source(
+                "shared::Item",
+                occurrence,
+                candidates,
+                &[],
+            ),
+            expected
+        );
+    }
+    assert_eq!(sources.files().count(), 3);
+    assert!(sources.source_is_selected(declarations[0].source_id));
+}
+
+#[test]
+fn current_import_roster_replaces_historical_authority_even_with_active_endpoints() {
+    let old_package = PackageKeyIdentity::from_digest([10; 32]).expect("old package");
+    let new_package = PackageKeyIdentity::from_digest([11; 32]).expect("new package");
+    let consumer = PackageKeyIdentity::from_digest([12; 32]).expect("consumer package");
+    let mut sources = SourceMap::default();
+    let declarations = [
+        ("old", old_package),
+        ("new", new_package),
+        ("consumer", consumer),
+    ]
+    .map(|(name, owner)| {
+        sources
+            .add_with_metadata(
+                PathBuf::from(format!("{name}/module.omg")),
+                String::from("shared Item"),
+                PathBuf::from(name),
+                Some(owner),
+                SourceOrigin::User,
+            )
+            .source_span(Span::new(7, 11))
+    });
+    let old_binding = crate::SourceScopedTopLevelBinding::module_import(
+        declarations[2].source_id,
+        declarations[0].source_id,
+        "leaf::shared",
+        1,
+    );
+    let new_binding = crate::SourceScopedTopLevelBinding::module_import(
+        declarations[2].source_id,
+        declarations[1].source_id,
+        "leaf::shared",
+        1,
+    );
+    let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
+        Some(Arc::new(sources.clone())),
+        vec![old_binding.clone()],
+    );
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let handles = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        declarations.map(|span| (SymbolKind::Data, SymbolNameRef::Source(span))),
+    ))
+    .collect::<Vec<_>>();
+    let mut symbols = builder.finish();
+    for span in &declarations[..2] {
+        symbols
+            .register_source_module(
+                span.source_id,
+                [("shared", SourceSpan::new(span.source_id, Span::new(0, 6)))],
+            )
+            .expect("dependency module");
+    }
+    let mut current = sources.fork_source_selection().expect("sealed owners");
+    for file in sources.files().skip(1) {
+        current.select_checked_instance(
+            file.path.clone(),
+            file.source.clone(),
+            file.package_root.clone(),
+            file.package_identity,
+            file.origin,
+            file.resolution_stratum,
+            file.dependency_scope,
+        );
+    }
+    // Even append-style resumption cannot let the inactive old binding reject
+    // or shadow an otherwise valid admitted replacement.
+    let extended = symbols
+        .clone()
+        .begin_extension(Some(Arc::new(current.clone())), vec![new_binding.clone()])
+        .finish();
+    extended
+        .validate_source_module_import(declarations[2].source_id, "leaf::shared")
+        .expect("current replacement is valid");
+    assert_eq!(
+        extended.find_top_level_by_name_and_kinds_from_source(
+            "leaf::shared::Item",
+            &[SymbolKind::Data],
+            declarations[2],
+        ),
+        Some(handles[1])
+    );
+    // Keeping the historical target active for another reason must not keep
+    // its old edge. Only the new activation's complete roster is authoritative.
+    let old_file = sources
+        .get(declarations[0].source_id)
+        .expect("historical source");
+    current.select_checked_instance(
+        old_file.path.clone(),
+        old_file.source.clone(),
+        old_file.package_root.clone(),
+        old_file.package_identity,
+        old_file.origin,
+        old_file.resolution_stratum,
+        old_file.dependency_scope,
+    );
+    let selected = symbols
+        .clone()
+        .begin_source_activation(Arc::new(current.clone()), vec![new_binding])
+        .expect("retained source backing")
+        .finish();
+    assert_eq!(
+        selected.find_top_level_by_name_and_kinds_from_source(
+            "leaf::shared::Item",
+            &[SymbolKind::Data],
+            declarations[2],
+        ),
+        Some(handles[1])
+    );
+    let without_binding = symbols
+        .begin_source_activation(Arc::new(current), Vec::new())
+        .expect("retained source backing")
+        .finish();
+    assert_eq!(
+        without_binding.find_top_level_by_name_and_kinds_from_source(
+            "leaf::shared::Item",
+            &[SymbolKind::Data],
+            declarations[2],
+        ),
+        None
+    );
+}
+
+#[test]
+fn inactive_bindings_cannot_change_declaration_collision_scopes() {
+    let dependency = PackageKeyIdentity::from_digest([15; 32]).expect("dependency");
+    let consumer = PackageKeyIdentity::from_digest([16; 32]).expect("consumer");
+    let mut sources = SourceMap::default();
+    let declarations = [
+        (
+            "authored",
+            dependency,
+            source::SourceResolutionStratum::Base,
+        ),
+        (
+            "generated",
+            dependency,
+            source::SourceResolutionStratum::DependencyActivationExtension,
+        ),
+        ("consumer", consumer, source::SourceResolutionStratum::Base),
+        (
+            "sibling",
+            dependency,
+            source::SourceResolutionStratum::DependencyActivationExtension,
+        ),
+    ]
+    .map(|(name, owner, stratum)| {
+        sources
+            .add_checked_instance(
+                PathBuf::from(format!("{name}.omg")),
+                "Item",
+                PathBuf::from("."),
+                Some(owner),
+                SourceOrigin::User,
+                stratum,
+                source::DependencyScope::Product,
+            )
+            .source_span(Span::new(0, 4))
+    });
+    let bindings = vec![
+        crate::SourceScopedTopLevelBinding::module_import(
+            declarations[2].source_id,
+            declarations[0].source_id,
+            "leaf::authored",
+            1,
+        ),
+        crate::SourceScopedTopLevelBinding::new(
+            declarations[0].source_id,
+            declarations[1].source_id,
+            "Item",
+        ),
+    ];
+    let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
+        Some(Arc::new(sources.clone())),
+        bindings,
+    );
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let handles = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        declarations.map(|span| (SymbolKind::Data, SymbolNameRef::Source(span))),
+    ))
+    .collect::<Vec<_>>();
+    let mut current = sources.fork_source_selection().expect("sealed owners");
+    for file in sources.files().skip(1) {
+        current.select_checked_instance(
+            file.path.clone(),
+            file.source.clone(),
+            file.package_root.clone(),
+            file.package_identity,
+            file.origin,
+            file.resolution_stratum,
+            file.dependency_scope,
+        );
+    }
+    let selected = builder
+        .finish()
+        .begin_extension(Some(Arc::new(current)), Vec::new())
+        .finish();
+    assert!(
+        selected.source_scopes_separate(handles[2], handles[1]),
+        "an inactive import cannot expose a generated sibling into the consumer"
+    );
+    assert!(
+        !selected.source_scopes_separate(handles[1], handles[3]),
+        "an inactive explicit binding cannot separate two current sibling declarations"
+    );
+}
+
+#[test]
 fn generated_children_retain_individual_origins_and_contiguous_parentage() {
     let package = PackageKeyIdentity::from_digest([8; 32]).unwrap();
     let (mut symbols, authored) = sourced_symbol_table([

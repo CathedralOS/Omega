@@ -10,6 +10,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SourceMap {
     files: Vec<SourceFile>,
+    selection: SourceSelection,
     /// Authorized product-scope dependency edges by requesting package:
     /// requester identity, then `alias -> target` identity. Only
     /// `DependencyPurpose::Product` edges may enter this roster; build-scope
@@ -20,12 +21,103 @@ pub struct SourceMap {
     product_dependencies: BTreeMap<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>,
 }
 
+/// Backing coordinates survive across requests; activation does not. Ordinary
+/// source maps select every appended file. A lineage fork selects only files
+/// admitted again for that compilation, without deleting historical payloads.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+enum SourceSelection {
+    #[default]
+    All,
+    Explicit(Vec<bool>),
+}
+
+impl SourceSelection {
+    fn includes(&self, source: SourceId) -> bool {
+        match self {
+            Self::All => true,
+            Self::Explicit(selected) => selected.get(source.0).copied().unwrap_or(false),
+        }
+    }
+}
+
 impl SourceMap {
     pub fn from_files(files: Vec<SourceFile>) -> Self {
         Self {
             files,
+            selection: SourceSelection::All,
             product_dependencies: BTreeMap::new(),
         }
+    }
+
+    /// Retain immutable coordinates, but no active sources or dependency edges.
+    /// The package owner must admit the new closure and its product edges anew.
+    /// Historical maps keep their own membership and diagnostic payloads.
+    pub fn fork_source_selection(&self) -> Result<Self, String> {
+        if let Some(file) = self
+            .files
+            .iter()
+            .find(|file| file.origin == SourceOrigin::User && file.package_identity.is_none())
+        {
+            return Err(format!(
+                "cannot retain source coordinates for {} before its package owner is sealed",
+                file.path.display()
+            ));
+        }
+        Ok(Self {
+            files: self.files.clone(),
+            selection: SourceSelection::Explicit(vec![false; self.files.len()]),
+            product_dependencies: BTreeMap::new(),
+        })
+    }
+
+    /// Current activation membership, independent of retained payload lookup.
+    pub fn source_is_selected(&self, source: SourceId) -> bool {
+        source.0 < self.files.len() && self.selection.includes(source)
+    }
+
+    /// Coordinate preservation compares backing, not current activation.
+    pub fn retains_source_storage(&self, predecessor: &Self) -> bool {
+        self.files.starts_with(&predecessor.files)
+    }
+
+    /// Reuse coordinates only for the exact bytes and checked source custody.
+    /// A changed owner, scope, origin or activation stratum is a new record;
+    /// activating an existing record never rewrites historical metadata.
+    pub fn select_checked_instance(
+        &mut self,
+        path: PathBuf,
+        source: impl Into<Arc<str>>,
+        package_root: PathBuf,
+        package_identity: Option<PackageKeyIdentity>,
+        origin: SourceOrigin,
+        resolution_stratum: SourceResolutionStratum,
+        dependency_scope: DependencyScope,
+    ) -> &SourceFile {
+        let source = source.into();
+        let retained = self.files.iter().position(|file| {
+            file.path == path
+                && file.source == source
+                && file.package_root == package_root
+                && file.package_identity == package_identity
+                && file.origin == origin
+                && file.resolution_stratum == resolution_stratum
+                && file.dependency_scope == dependency_scope
+        });
+        if let Some(position) = retained {
+            if let SourceSelection::Explicit(selected) = &mut self.selection {
+                selected[position] = true;
+            }
+            return &self.files[position];
+        }
+        self.add_checked_instance(
+            path,
+            source,
+            package_root,
+            package_identity,
+            origin,
+            resolution_stratum,
+            dependency_scope,
+        )
     }
 
     /// Install the completed default-build owner's metadata before resolution.
@@ -36,7 +128,7 @@ impl SourceMap {
         root: &std::path::Path,
         identity: PackageKeyIdentity,
     ) -> Result<(), String> {
-        for file in &self.files {
+        for file in self.selected_files() {
             if file.origin == SourceOrigin::User
                 && file.package_identity.is_none()
                 && file.package_root != root
@@ -47,7 +139,11 @@ impl SourceMap {
                 ));
             }
         }
+        let selection = &self.selection;
         for file in &mut self.files {
+            if !selection.includes(file.source_id) {
+                continue;
+            }
             if file.origin == SourceOrigin::User && file.package_identity.is_none() {
                 file.package_identity = Some(identity);
             }
@@ -156,6 +252,9 @@ impl SourceMap {
             resolution_stratum,
             source: source.into(),
         });
+        if let SourceSelection::Explicit(selected) = &mut self.selection {
+            selected.push(true);
+        }
 
         self.files
             .last()
@@ -209,6 +308,17 @@ impl SourceMap {
         reference: SourceSpan,
         declaration: SourceSpan,
     ) -> bool {
+        if let SourceSelection::Explicit(_) = &self.selection {
+            // Inactive is not missing metadata. The source-free exception
+            // below cannot grant access to a historical declaration, nor can
+            // an invalid source-backed reference borrow another activation.
+            if !self.source_is_selected(declaration.source_id)
+                || (reference.span.start != reference.span.end
+                    && !self.source_is_selected(reference.source_id))
+            {
+                return false;
+            }
+        }
         if reference.span.start == reference.span.end {
             return true;
         }
@@ -244,6 +354,7 @@ impl SourceMap {
         }
     }
 
+    /// Backing-coordinate frontier for appending a new source, not an active count.
     pub fn len(&self) -> usize {
         self.files.len()
     }
@@ -252,11 +363,19 @@ impl SourceMap {
         self.files.is_empty()
     }
 
-    /// Every exact source file retained by the frontend, in source-id order.
+    /// Every backing source record, including inactive historical payloads,
+    /// in source-id order. Current closure consumers use `selected_files`.
     /// Consumers that derive order-independent identity must sort their own
     /// canonical rows rather than treating load order as semantics.
     pub fn files(&self) -> impl Iterator<Item = &SourceFile> {
         self.files.iter()
+    }
+
+    /// Files consumed by this compilation, not the retained backing catalogue.
+    pub fn selected_files(&self) -> impl Iterator<Item = &SourceFile> {
+        self.files
+            .iter()
+            .filter(|file| self.selection.includes(file.source_id))
     }
 
     pub fn text_at(&self, source_span: SourceSpan) -> &str {
@@ -282,6 +401,140 @@ mod tests {
 
     use crate::{SourceId, SourceMap, SourceOrigin, SourceResolutionStratum, SourceSpan, Span};
     use semantic_vocabulary::PackageKeyIdentity;
+
+    #[test]
+    fn selected_sources_keep_coordinates_without_inheriting_activation_or_edges() {
+        let owner = PackageKeyIdentity::from_digest([5; 32]).expect("owner identity");
+        let dependency = PackageKeyIdentity::from_digest([6; 32]).expect("dependency identity");
+        let mut original = SourceMap::default();
+        let selected = original
+            .add_with_metadata(
+                PathBuf::from("kit/selected.omg"),
+                String::from("data Selected {}"),
+                PathBuf::from("kit"),
+                Some(owner),
+                SourceOrigin::User,
+            )
+            .source_span(Span::new(5, 13));
+        let sibling = original
+            .add_with_metadata(
+                PathBuf::from("kit/sibling.omg"),
+                String::from("data Sibling {}"),
+                PathBuf::from("kit"),
+                Some(owner),
+                SourceOrigin::User,
+            )
+            .source_span(Span::new(5, 12));
+        original.retain_product_dependency_scope([(owner, "old", dependency)]);
+
+        let mut current = original
+            .fork_source_selection()
+            .expect("sealed source owners");
+        assert_eq!(current.selected_files().count(), 0);
+        assert_eq!(current.files().count(), 2);
+        assert!(current.get(sibling.source_id).is_some());
+        assert_eq!(current.product_dependency_target(owner, "old"), None);
+        assert!(!current.reference_can_see_declaration(SourceSpan::default(), sibling));
+
+        let retained = current.select_checked_instance(
+            PathBuf::from("kit/selected.omg"),
+            String::from("data Selected {}"),
+            PathBuf::from("kit"),
+            Some(owner),
+            SourceOrigin::User,
+            SourceResolutionStratum::Base,
+            crate::DependencyScope::Product,
+        );
+        assert_eq!(retained.source_id, selected.source_id);
+        assert_eq!(current.selected_files().count(), 1);
+        assert!(current.reference_can_see_declaration(selected, selected));
+        assert!(!current.reference_can_see_declaration(selected, sibling));
+        assert!(!current.reference_can_see_declaration(sibling, selected));
+        assert!(!current.reference_can_see_declaration(
+            SourceSpan::new(SourceId(99), Span::new(1, 2)),
+            selected,
+        ));
+        assert!(original.source_is_selected(sibling.source_id));
+        assert_eq!(
+            original.product_dependency_target(owner, "old"),
+            Some(dependency)
+        );
+        assert!(original.reference_can_see_declaration(selected, sibling));
+        assert!(original.files().eq(current.files()));
+    }
+
+    #[test]
+    fn source_coordinate_reuse_requires_every_checked_owner_dimension() {
+        let owner = PackageKeyIdentity::from_digest([7; 32]).expect("owner identity");
+        let other_owner = PackageKeyIdentity::from_digest([8; 32]).expect("other owner");
+        let mut original = SourceMap::default();
+        original.add_with_metadata(
+            PathBuf::from("kit/module.omg"),
+            String::from("data Item {}"),
+            PathBuf::from("kit"),
+            Some(owner),
+            SourceOrigin::User,
+        );
+        let mut current = original
+            .fork_source_selection()
+            .expect("sealed source owners");
+        let variations = [
+            (
+                "data Other {}",
+                owner,
+                SourceOrigin::User,
+                SourceResolutionStratum::Base,
+                crate::DependencyScope::Product,
+            ),
+            (
+                "data Item {}",
+                other_owner,
+                SourceOrigin::User,
+                SourceResolutionStratum::Base,
+                crate::DependencyScope::Product,
+            ),
+            (
+                "data Item {}",
+                owner,
+                SourceOrigin::Toolchain,
+                SourceResolutionStratum::Base,
+                crate::DependencyScope::Product,
+            ),
+            (
+                "data Item {}",
+                owner,
+                SourceOrigin::User,
+                SourceResolutionStratum::DependencyActivationExtension,
+                crate::DependencyScope::Product,
+            ),
+            (
+                "data Item {}",
+                owner,
+                SourceOrigin::User,
+                SourceResolutionStratum::Base,
+                crate::DependencyScope::Build,
+            ),
+        ];
+        for (position, (text, package, origin, stratum, scope)) in
+            variations.into_iter().enumerate()
+        {
+            let selected = current.select_checked_instance(
+                PathBuf::from("kit/module.omg"),
+                text.to_owned(),
+                PathBuf::from("kit"),
+                Some(package),
+                origin,
+                stratum,
+                scope,
+            );
+            assert_eq!(selected.source_id, SourceId(position + 1));
+        }
+        assert!(!current.source_is_selected(SourceId(0)));
+        assert_eq!(current.get(SourceId(0)), original.get(SourceId(0)));
+        let mut unowned = SourceMap::default();
+        unowned.add(PathBuf::from("main.omg"), String::from("data Item {}"));
+        assert!(unowned.fork_source_selection().is_err());
+    }
 
     #[test]
     fn invalid_source_span_resolves_to_empty_text() {

@@ -485,6 +485,32 @@ impl SymbolTable {
         SymbolTableExtension { table: self }
     }
 
+    /// Start a new compilation view over retained declaration coordinates.
+    /// Unlike an extension within one activation, its complete loader-supplied
+    /// import roster replaces historical bindings, even when both endpoints
+    /// remain selected for unrelated imports. Backing is not import authority.
+    pub fn begin_source_activation(
+        mut self,
+        sources: Arc<SourceMap>,
+        source_scoped_top_level_bindings: Vec<SourceScopedTopLevelBinding>,
+    ) -> Result<SymbolTableExtension, String> {
+        if self
+            .sources
+            .as_deref()
+            .is_some_and(|previous| !sources.retains_source_storage(previous))
+        {
+            return Err(String::from(
+                "source activation changed retained source coordinates",
+            ));
+        }
+        self.sources = Some(sources);
+        self.source_scoped_top_level_bindings = source_scoped_top_level_bindings;
+        self.binding_source_index.clear();
+        self.module_path_index.clear();
+        self.module_scope_index.clear();
+        Ok(SymbolTableExtension { table: self })
+    }
+
     /// Mint a compiler-generated root declaration after symbol resolution.
     /// The generated name is owned by the table and authored symbol handles
     /// remain unchanged. Children must be installed once, as one batch, via
@@ -603,6 +629,7 @@ impl SymbolTable {
             .into_iter()
             .flatten()
             .map(|&(_, symbol)| symbol)
+            .filter(|symbol| self.symbol_source_is_selected(*symbol))
     }
 
     pub fn find_child_by_name(&self, parent: SymbolHandle, name: &str) -> Option<SymbolHandle> {
@@ -612,7 +639,7 @@ impl SymbolTable {
 
         let mut candidates = self
             .child_handles(parent)?
-            .filter(|symbol| self.name(*symbol) == name);
+            .filter(|symbol| self.name(*symbol) == name && self.symbol_source_is_selected(*symbol));
         let first = candidates.next()?;
         if self.get(parent).kind == SymbolKind::Module && candidates.next().is_some() {
             return None;
@@ -630,9 +657,11 @@ impl SymbolTable {
             return None;
         }
 
-        let mut candidates = self
-            .child_handles(parent)?
-            .filter(|symbol| self.get(*symbol).kind == kind && self.name(*symbol) == name);
+        let mut candidates = self.child_handles(parent)?.filter(|symbol| {
+            self.get(*symbol).kind == kind
+                && self.name(*symbol) == name
+                && self.symbol_source_is_selected(*symbol)
+        });
         let first = candidates.next()?;
         if self.get(parent).kind == SymbolKind::Module && candidates.next().is_some() {
             return None;
@@ -728,7 +757,9 @@ impl SymbolTable {
     }
 
     /// The bindings visible to `reference_source`, in binding order, via the
-    /// per-source index instead of a whole-list scan per lookup.
+    /// per-source index instead of a whole-list scan per lookup. Activation
+    /// is projected once here: lookup and collision consumers cannot recover
+    /// authority from a historical row by forgetting their own filter.
     pub(super) fn source_scoped_bindings_for(
         &self,
         reference_source: SourceId,
@@ -737,6 +768,9 @@ impl SymbolTable {
         let index = self.binding_source_index.0.get_or_init(|| {
             let mut index = BindingSourceIndex::default();
             for binding in &self.source_scoped_top_level_bindings {
+                if !self.source_binding_is_selected(binding) {
+                    continue;
+                }
                 index
                     .by_source
                     .entry(binding.reference_source)
@@ -820,6 +854,14 @@ impl SymbolTable {
         selection: TopLevelSelection,
     ) -> SymbolLookup {
         let reference_is_source_backed = reference.span.start != reference.span.end;
+        if reference_is_source_backed
+            && self
+                .sources
+                .as_deref()
+                .is_some_and(|sources| !sources.source_is_selected(reference.source_id))
+        {
+            return SymbolLookup::NotFound;
+        }
         // A dummy span may retain a real SourceId, but it has no lexical
         // occurrence. Do not let that id authorize a relative module path.
         if (reference_is_source_backed || selection == TopLevelSelection::Ordinary)
@@ -840,8 +882,7 @@ impl SymbolTable {
             .filter(|symbol| {
                 kinds.contains(&self.get(*symbol).kind)
                     && matches_candidate(*symbol)
-                    && (!reference_is_source_backed
-                        || self.source_reference_can_see_symbol(reference, *symbol))
+                    && self.source_reference_can_see_symbol(reference, *symbol)
             })
             .collect::<Vec<_>>();
 
@@ -1013,7 +1054,8 @@ impl SymbolTable {
             return false;
         }
         self.source_scoped_top_level_bindings.iter().any(|binding| {
-            binding.module_import.is_none()
+            self.source_binding_is_selected(binding)
+                && binding.module_import.is_none()
                 && binding.name.as_ref() == name
                 && (binding.declaration_source == left_span.source_id
                     || binding.declaration_source == right_span.source_id)
@@ -1030,16 +1072,39 @@ impl SymbolTable {
         reference: SourceSpan,
         symbol: SymbolHandle,
     ) -> bool {
-        if reference.span.start == reference.span.end {
-            return true;
-        }
         let Some(sources) = self.sources.as_deref() else {
             return true;
         };
         let Some(declaration) = self.provenance_source_span(symbol) else {
             return true;
         };
+        if self.get(symbol).kind == SymbolKind::Module
+            && !sources.source_is_selected(declaration.source_id)
+        {
+            // A logical namespace can have active contributors even when its
+            // first declaration belongs to retained, inactive backing.
+            return self.module_source_ids(symbol).any(|source| {
+                sources.reference_can_see_declaration(
+                    reference,
+                    SourceSpan::new(source, source::Span::default()),
+                )
+            });
+        }
         sources.reference_can_see_declaration(reference, declaration)
+    }
+
+    /// Current declaration membership; source-free vocabulary remains present.
+    /// Logical modules are present while any selected source contributes to them.
+    fn symbol_source_is_selected(&self, symbol: SymbolHandle) -> bool {
+        let Some(sources) = self.sources.as_deref() else {
+            return true;
+        };
+        let Some(declaration) = self.provenance_source_span(symbol) else {
+            return true;
+        };
+        sources.source_is_selected(declaration.source_id)
+            || (self.get(symbol).kind == SymbolKind::Module
+                && self.module_source_ids(symbol).next().is_some())
     }
 
     /// Whether a source-backed reference may select this declaration as a
