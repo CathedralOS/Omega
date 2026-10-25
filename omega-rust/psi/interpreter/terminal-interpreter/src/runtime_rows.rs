@@ -172,6 +172,15 @@ impl<Key: Ord, Value> RuntimeRows<Key, Value> {
     pub(crate) fn iter(&self) -> btree_map::Iter<'_, Key, Value> {
         self.rows.iter()
     }
+    pub(crate) fn iter_mut(&mut self) -> btree_map::IterMut<'_, Key, Value> {
+        self.rows.iter_mut()
+    }
+
+    /// Borrow the logical table for read-only custody and projection judgments.
+    /// Growth, removal and transfer still require this reservation owner.
+    pub(crate) fn as_map(&self) -> &BTreeMap<Key, Value> {
+        &self.rows
+    }
 }
 
 impl<'rows, Key, Value> IntoIterator for &'rows RuntimeRows<Key, Value> {

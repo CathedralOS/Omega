@@ -85,7 +85,7 @@ impl TerminalExecution<'_> {
                 crate::structural_inputs::case_membership::stored_case_at_projection(
                     &self.program.structural_types(),
                     self.structural_values.get(&current.place)?,
-                    &self.structural_cases,
+                    self.structural_cases.as_map(),
                     &current.path,
                 )
             };
@@ -199,7 +199,7 @@ impl TerminalExecution<'_> {
             crate::structural_inputs::case_membership::stored_case_at_projection(
                 &self.program.structural_types(),
                 &selected,
-                &self.structural_cases,
+                self.structural_cases.as_map(),
                 &current.path,
             )
         };
@@ -318,7 +318,7 @@ impl TerminalExecution<'_> {
                         crate::structural_inputs::case_membership::stored_case_at_projection(
                             &self.program.structural_types(),
                             root,
-                            &self.structural_cases,
+                            self.structural_cases.as_map(),
                             path,
                         )
                     },

@@ -369,7 +369,7 @@ impl TerminalExecution<'_> {
         .map_err(|error| error.in_argument_preparation("bind callee affine frontier"))?;
         let (remaining_claims, live_claims) = transfer_claims(
             &self.program.structural_types(),
-            &self.structural_cases,
+            self.structural_cases.as_map(),
             &self.live_claims,
             structural_arguments,
             claim_transfers,
@@ -389,7 +389,7 @@ impl TerminalExecution<'_> {
                 crate::structural_inputs::case_membership::stored_case_at_projection(
                     &self.program.structural_types(),
                     structural_values.get(&current.place)?,
-                    &self.structural_cases,
+                    self.structural_cases.as_map(),
                     &current.path,
                 )
             },

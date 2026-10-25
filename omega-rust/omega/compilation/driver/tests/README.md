@@ -331,12 +331,18 @@ The companion is not reconstructed from external artifact bytes or debug names.
 Description-query execution and production Build scheduling still use the tree
 engine and are not established by this provision.
 
-`runtime portable storage-cells <peak> <unsigned-result>` runs an authored helper
+`runtime portable storage-cells <peak> <unsigned-result|unit>` runs an authored helper
 with its exact live-cell ceiling and with one cell less, replenishing fuel one
-unit at a time. The sufficient run must return the authored scalar and report
+unit at a time. The sufficient run must return the authored scalar or Unit and report
 the exact peak. The short run must refuse for live storage, retain its activation
 without a result, and repeat the same refusal without changing usage. Teardown
 must release all live cells and payload bytes. This measures the named logical
 account, not process memory. `receiver_view_writeback_exit` covers a scalar record,
 an owned call result, and a copy that survives a write to the original.
 Enable with `OMEGA_CORPUS_HOST_PROVISIONS=1`; otherwise it is unrequested.
+
+Authored inspections compile independently through the public Inspection product.
+For positive fixtures they still run when native realization refuses; the row
+retains its native diagnostics and rejected verdict alongside the inspection
+facts. Such a result can establish Terminal-only behavior, never native
+acceptance. Intended-invalid fixtures do not execute inspection provisions.

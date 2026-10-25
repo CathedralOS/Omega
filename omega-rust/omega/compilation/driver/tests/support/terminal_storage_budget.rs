@@ -1,4 +1,4 @@
-//! Authored source helpers declare an exact live-cell peak and scalar oracle.
+//! Authored source helpers declare an exact live-cell peak and result oracle.
 //! Execute with that ceiling and one cell less, through ordinary public
 //! instantiation and fuel pauses. No synthesized IR or private storage access.
 use evaluation_accounting::{
@@ -19,6 +19,12 @@ fn describe(error: impl std::fmt::Debug) -> String {
     format!("{error:?}")
 }
 
+#[derive(Clone, Copy, Debug)]
+enum ExpectedResult {
+    Unit,
+    Unsigned(u64),
+}
+
 pub(super) fn observe(
     artifact: &CanonicalTerminalArtifact,
     cells: &str,
@@ -26,7 +32,14 @@ pub(super) fn observe(
     initial: Option<&str>,
 ) -> Result<(), String> {
     let peak: u64 = cells.parse().map_err(describe)?;
-    let expected: u64 = value.parse().map_err(describe)?;
+    let expected = if value == "unit" {
+        ExpectedResult::Unit
+    } else {
+        ExpectedResult::Unsigned(value.parse().map_err(describe)?)
+    };
+    if initial.is_some() && matches!(expected, ExpectedResult::Unit) {
+        return Err("primitive entry writeback requires an unsigned result oracle".to_owned());
+    }
     if peak < 2 {
         return Err("storage peak must allow a positive short budget".to_owned());
     }
@@ -40,7 +53,7 @@ pub(super) fn observe(
 fn observe_program(
     program: TerminalProgram<'_>,
     peak: u64,
-    expected: u64,
+    expected: ExpectedResult,
     initial: Option<&str>,
 ) -> Result<(), String> {
     let short = peak - 1;
@@ -102,13 +115,24 @@ fn observe_program(
             }
         };
         if ceiling == peak {
-            if !matches!(result, Ok(TerminalExecutionStatus::Complete(
-                TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
-                    value: IntegerValue::Unsigned(observed), ..
-                })
-            )) if observed == u128::from(expected))
-            {
-                return Err(format!("expected scalar {expected}, observed {result:?}"));
+            let matches = match (&result, expected) {
+                (
+                    Ok(TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)),
+                    ExpectedResult::Unit,
+                ) => true,
+                (
+                    Ok(TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+                        TerminalScalarValue::Integer {
+                            value: IntegerValue::Unsigned(observed),
+                            ..
+                        },
+                    ))),
+                    ExpectedResult::Unsigned(expected),
+                ) => *observed == u128::from(expected),
+                _ => false,
+            };
+            if !matches {
+                return Err(format!("expected {expected:?}, observed {result:?}"));
             }
             if sponsor.peak_live_cells() != peak {
                 return Err(format!(
@@ -121,7 +145,7 @@ fn observe_program(
                     instance.observe_borrowed_entry(0, &[]).map_err(describe)?,
                     TerminalEntryStorageValue::Storage(TerminalStorageContents::Scalar {
                         value: TerminalScalarValue::Integer { value: IntegerValue::Unsigned(observed), .. }, ..
-                    }) if observed == u128::from(expected)
+                    }) if matches!(expected, ExpectedResult::Unsigned(expected) if observed == u128::from(expected))
                 )
             {
                 return Err(

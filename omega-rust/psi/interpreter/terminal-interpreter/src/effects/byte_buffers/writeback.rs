@@ -208,11 +208,11 @@ impl BoundaryByteBufferBinding {
                 }
             }
             ByteSequenceBinding::MutableField { field, .. } => {
-                execution.invalidate_stored_provenance(&field.parent);
                 execution.structural_byte_sequence_fields.insert(
-                    field,
+                    field.clone(),
                     ByteSequenceBinding::Immutable(ByteSequenceView::new(buffer.bytes)),
-                );
+                )?;
+                execution.invalidate_stored_provenance(&field.parent);
             }
             ByteSequenceBinding::MutableOwner { home, .. } => {
                 *execution.byte_owner_bytes_mut(&home)? = ByteSequenceView::new(buffer.bytes);

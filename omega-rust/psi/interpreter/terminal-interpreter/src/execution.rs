@@ -108,7 +108,7 @@ pub struct TerminalExecution<'artifact> {
     /// A reference carrier owns this descriptor, never the referent's backing.
     /// Carrier identities survive structural call/return moves across frames.
     pub(crate) reference_referents:
-        BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
+        RuntimeRows<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
     /// Mutable primitive contents live outside call frames. Machine-local
     /// place maps are only views into this stable logical storage arena.
     pub(crate) structural_primitive_storage:
@@ -124,31 +124,31 @@ pub struct TerminalExecution<'artifact> {
         RuntimeRows<StructuralScalarRuntimeField, TerminalScalarValue>,
     /// Byte fields retain either owned payloads or borrowed descriptors. Moving
     /// a record relocates the slot, never the descriptor's backing/window.
-    pub(crate) structural_byte_sequence_fields: BTreeMap<
+    pub(crate) structural_byte_sequence_fields: RuntimeRows<
         StructuralByteSequenceRuntimeField,
         crate::byte_sequences::binding::ByteSequenceBinding,
     >,
     /// Stored element descriptors retain their original backing and window.
     /// Their field homes survive borrowed calls independently of frame-local IDs.
     pub(crate) structural_element_view_fields:
-        BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
+        RuntimeRows<StructuralRuntimePlace, crate::element_views::ElementView>,
     /// Ordinary byte descriptors at exact typed homes, including indexed
     /// aggregate slots. Bindings retain backing, window and access independently
     /// of descriptor ownership; activation-claim descriptors stay with their owner.
     pub(crate) structural_byte_descriptors:
-        BTreeMap<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
+        RuntimeRows<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
     /// Completed byte payloads addressed by exact typed storage home. Fixed
     /// byte arrays and stored shared descriptors reuse the backing representation;
     /// each observing operation separately authenticates its declared carrier.
-    pub(crate) structural_byte_storage: BTreeMap<StructuralRuntimePlace, ByteSequenceView>,
+    pub(crate) structural_byte_storage: RuntimeRows<StructuralRuntimePlace, ByteSequenceView>,
     /// Entry-provided discriminators remain attached to the original referent
     /// across projected and forwarded calls, independent of machine-local IDs.
-    pub(crate) structural_cases: BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
+    pub(crate) structural_cases: RuntimeRows<StructuralRuntimePlace, StructuralCaseContents>,
     /// Admitted opaque host payloads at their current typed storage homes.
     /// A storage relocation changes the key, not the host's forwarding token;
     /// this table grants no storage, loan, qualification or lifecycle authority.
     pub(crate) structural_host_atoms:
-        BTreeMap<StructuralRuntimePlace, crate::structural_storage::HostStructuralPayload>,
+        RuntimeRows<StructuralRuntimePlace, crate::structural_storage::HostStructuralPayload>,
     pub(crate) next_host_atom_collection_size: usize,
     pub(crate) scalar_array_values: RuntimeRows<PlaceId, TerminalScalarArrayValue>,
     /// Frame-local immutable descriptors or exact boundary-introduced mutable
@@ -500,9 +500,9 @@ impl<'artifact> TerminalExecution<'artifact> {
             borrowed_entry_storage,
             structural_values,
             aggregate_argument_backings: RuntimeRows::new(account.as_ref()),
-            reference_referents: BTreeMap::new(),
-            structural_element_view_fields: BTreeMap::new(),
-            structural_byte_descriptors: BTreeMap::new(),
+            reference_referents: RuntimeRows::new(account.as_ref()),
+            structural_element_view_fields: RuntimeRows::new(account.as_ref()),
+            structural_byte_descriptors: RuntimeRows::new(account.as_ref()),
             structural_primitive_storage: RuntimeRows::new(account.as_ref()),
             structural_primitive_entry_places: RuntimeRows::new(account.as_ref()),
             local_structural_identities,
@@ -511,10 +511,10 @@ impl<'artifact> TerminalExecution<'artifact> {
             private_entry_ram: Vec::new(),
             provider_storage: Default::default(),
             entry_storage_open: true,
-            structural_byte_sequence_fields: BTreeMap::new(),
-            structural_byte_storage: BTreeMap::new(),
-            structural_cases: BTreeMap::new(),
-            structural_host_atoms: BTreeMap::new(),
+            structural_byte_sequence_fields: RuntimeRows::new(account.as_ref()),
+            structural_byte_storage: RuntimeRows::new(account.as_ref()),
+            structural_cases: RuntimeRows::new(account.as_ref()),
+            structural_host_atoms: RuntimeRows::new(account.as_ref()),
             next_host_atom_collection_size: 1024,
             scalar_array_values: RuntimeRows::new(account.as_ref()),
             byte_sequence_values: RuntimeRows::new(account.as_ref()),
@@ -665,7 +665,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 crate::structural_storage::HostStructuralPayload::Opaque(value.opaque_identity)
             };
             self.structural_host_atoms
-                .insert(StructuralRuntimePlace::from(value), payload);
+                .insert(StructuralRuntimePlace::from(value), payload)?;
         }
         Ok(())
     }

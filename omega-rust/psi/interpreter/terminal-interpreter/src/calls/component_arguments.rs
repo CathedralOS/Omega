@@ -49,7 +49,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             &receiver.structural_parameters,
             &prepared.values,
             &self.program.structural_types(),
-            &self.structural_cases,
+            self.structural_cases.as_map(),
             self.account.as_ref(),
         )?;
         crate::custody::validate_boundary_requirements(receiver, |index| {
@@ -106,7 +106,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                             &argument.path,
                         )
                 })
-                || crate::custody::has_live_loan(&self.reference_referents, value)
+                || crate::custody::has_live_loan(self.reference_referents.as_map(), value)
             {
                 return Err(reject(
                     "component input lacks exact owned closed Inert type/custody",

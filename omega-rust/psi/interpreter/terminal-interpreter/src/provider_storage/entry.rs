@@ -53,7 +53,7 @@ impl TerminalExecution<'_> {
         if !crate::structural_inputs::case_membership::case_projection_in_value_is_active(
             &self.program.structural_types(),
             &result.value,
-            &self.structural_cases,
+            self.structural_cases.as_map(),
             path,
         )
         .map_err(|reason| format!("provider storage result case: {reason:?}"))?
@@ -81,7 +81,7 @@ impl TerminalExecution<'_> {
             })
             .map(|plan| &plan.storage)
             .ok_or("provider storage handback requires the returned Granted/Vacant extent")?;
-        if crate::custody::has_live_loan(&self.reference_referents, &value) {
+        if crate::custody::has_live_loan(self.reference_referents.as_map(), &value) {
             return Err("provider storage handback retains a live loan".into());
         }
         let home = StructuralRuntimePlace::from(&value);
@@ -90,7 +90,7 @@ impl TerminalExecution<'_> {
         // some unrelated claim in the same result is not ownership of this home.
         let returned_claim = returned_storage_claim(
             &self.program.structural_types(),
-            &self.structural_cases,
+            self.structural_cases.as_map(),
             result,
             &self.returned_claims,
             &home,
@@ -167,7 +167,7 @@ impl TerminalExecution<'_> {
                     crate::structural_inputs::case_membership::case_projection_in_value_is_active(
                         &self.program.structural_types(),
                         value,
-                        &self.structural_cases,
+                        self.structural_cases.as_map(),
                         &claim.path,
                     )
                     .is_ok_and(|active| active)
@@ -286,7 +286,7 @@ impl TerminalExecution<'_> {
         if !crate::structural_inputs::case_membership::case_projection_in_value_is_active(
             &self.program.structural_types(),
             root,
-            &self.structural_cases,
+            self.structural_cases.as_map(),
             &input.path,
         )
         .map_err(|reason| format!("provider storage entry case: {reason:?}"))?

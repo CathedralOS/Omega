@@ -160,7 +160,7 @@ pub(crate) fn stage_rejection_failure(
             .as_structural()
             .ok_or_else(malformed)?,
         failure.id,
-    );
+    )?;
     for (field, coordinate) in failure.fields.iter().zip(coordinates) {
         storage.stage_scalar_endpoint(
             &PrimitiveStorageEndpoint::ScalarField(StructuralScalarRuntimeField::case_payload(

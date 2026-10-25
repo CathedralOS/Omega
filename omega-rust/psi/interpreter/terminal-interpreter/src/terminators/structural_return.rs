@@ -314,7 +314,7 @@ impl TerminalExecution<'_> {
                 let mut active = Vec::new();
                 for row in &result.projected_qualifications {
                     if crate::structural_inputs::case_membership::case_projection_in_value_is_active(
-                        &self.program.structural_types(), &value, &self.structural_cases, &row.path,
+                        &self.program.structural_types(), &value, self.structural_cases.as_map(), &row.path,
                     )? {
                         if !value.projected_qualifications.contains(row) {
                             return Err(malformed());
