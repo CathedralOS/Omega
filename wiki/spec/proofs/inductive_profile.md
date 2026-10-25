@@ -148,7 +148,10 @@ the wrong source declaration. Therefore both are required:
 - A justification of the encoding scheme preserving formation, constructors,
   dependent induction and computation.
 - Independently checked application of that scheme to the exact declaration,
-  including parameters, indices, payloads, case constraints and recursive uses.
+  including parameters, indices, payloads, case-conditional default-domain
+  predicates and recursive uses. These predicates use the ordinary domain
+  interpretation; removing case-local clauses does not remove constrained
+  construction, dependent elimination or their correspondence obligations.
 
 Round-trip decoding or structural comparison may check retained structure; it
 does not prove semantic preservation. Primitive inductives would also require

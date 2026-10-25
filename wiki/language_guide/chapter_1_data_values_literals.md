@@ -121,17 +121,24 @@ values or byte offsets.
 
 ## Constraints On Individual Cases
 
-A case can have its own `where` clause:
+Use the data's default domain to constrain its active case. `self` names the
+whole value in that predicate:
 
 ```omega
-data Value<T> {
-    case Integer(value: i32) where T == i32;
-    case Boolean(value: bool) where T == bool;
+data Value<T>
+    where ((self in Value::Integer) && T == i32)
+       || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: i32);
+    case Boolean(value: bool);
 }
 
-data Interval {
+data Interval
+    where (self in Interval::Empty)
+       || ((self in Interval::Range) && self.lo <= self.hi)
+{
     case Empty;
-    case Range(lo: u64, hi: u64) where lo <= hi;
+    case Range(lo: u64, hi: u64);
 }
 ```
 
@@ -140,29 +147,34 @@ Matching Integer reveals `T == i32` in that arm, allowing its `i32` payload to b
 used as `T` without a cast. This is GADT-style type refinement through a case.
 
 The Range case shows the same mechanism for ordinary values. Constructing it
-must prove `lo <= hi`; matching it supplies that fact. The clause may use enclosing
-generic parameters, common fields, and its own payload, under the ordinary
-contract rules. It is not restricted to type equality and runs no implicit
-validator. Changes must re-establish the invariant before observation.
+must prove `lo <= hi`; matching it supplies that fact. The case test on the left
+of `&&` justifies reading the payload on its right. Reading an inactive payload
+is invalid, even inside a predicate. The data clause may use generic parameters,
+common fields and guarded projections of `self`. It runs no implicit validator.
+Changes must re-establish the invariant before observation.
 
 Type-wide constraints still apply. Zeroed `Value<bool>` does not skip Integer to
 become Boolean: it is unestablished storage until valid construction. A generic
 body can observe zeroed storage only after proving it valid from its own
 contract and flow facts, not because one later instantiation happens to work.
 
-These clauses do not introduce hidden case-local generic types or automatic
-boxing. See the [case-constraint specification](../spec/language/data_and_literals.md#case-constraints)
-and [matching rules](chapter_6_pattern_matching_dispatch.md). The compiler
-implements this contract; the `dependent/case_where_*` canaries pin its
-construction, match, coverage, and custody acceptance.
+Cases have no separate `where`; explicit subject binders such as
+`data Value<T>(item)` are not supported either. `self` is a predicate subject,
+not a machine receiver or stored field. Named domains use the same subject and
+reasoning, but a data default domain applies to every established value.
+No hidden case-local generic types or automatic boxing are introduced.
+See the [case-constraint specification](../spec/language/data_and_literals.md#case-constraints)
+and [matching rules](chapter_6_pattern_matching_dispatch.md). This is ratified
+source design; compiler migration and acceptance are tracked in
+[DOMAIN-DEFAULT-PREDICATE-UNIFICATION](../../TASKS.md), not claimed complete here.
 
 ## Cases Are Domains
 
 Each case also names the domain of values inhabiting it:
 
 ```omega
-domain Command::Interactive(command)
-    requires command in Command::Move | Command::Say;
+domain Command::Interactive
+    requires self in Command::Move | Command::Say;
 ```
 
 This is a subset of `Command`, not another enum with copied cases. Case

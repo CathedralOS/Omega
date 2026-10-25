@@ -54,9 +54,9 @@ data Command {
     case Say(text: [u8; 256]);
 }
 
-public domain Command::Inert(value)
+public domain Command::Inert
 requires
-    value in Command::None;
+    self in Command::None;
 
 public machine Command::empty() -> Command in Command::Inert {
     Command::None

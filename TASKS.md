@@ -510,9 +510,10 @@ helper that passes does not close an item.
   also removes data-subject conformances and `Self`; the three implementation
   migration tasks below own that work. Their authorization to break legacy tests
   and remove compatibility paths applies to this migration too. The parser
-  rejects `self` parameters and implicit `self` expressions
+  rejects `self` parameters and machine/state receiver expressions
   (`fail/machines/retired_self_receiver`); do not restore them to make an
-  unmigrated program pass.
+  unmigrated program pass. This does not prohibit the predicate-only subject
+  settled under **DOMAIN-DEFAULT-PREDICATE-UNIFICATION**.
   - Source remainder: the two memory canaries
     (**TOP-LEVEL-BOUNDARY-REQUIREMENTS** and **CHECKED-ASM-LABEL-CONTRACTS**).
     Build receiver calls remain for facets such as test groups; move their
@@ -1726,10 +1727,36 @@ defines the complete product bar.
   subject/view/range identity, subordinate-call obligations and descent on
   every complete mutual call cycle. Checked-only records do not close this.
 
+- **DOMAIN-DEFAULT-PREDICATE-UNIFICATION.** Implement the owner-ratified
+  [predicate subject](wiki/spec/language/domains.md#declaration-and-membership)
+  and [case-dependent default domains](wiki/spec/language/data_and_literals.md#case-constraints).
+  `self` denotes the exact constrained value only in data `where` and domain
+  `requires`. Remove explicit domain subject binders and case-level `where`,
+  including their parallel internal predicate paths; machine/state receivers
+  and `Self` stay rejected. No data subject-parameter syntax is introduced.
+  Migrate library, samples and fixtures in the same implementation change.
+
+  Carry one general predicate representation through formation, construction,
+  calls, matching, coverage, writes and erasure. Case membership plus the
+  established domain must recover type equality and guarded payload bounds;
+  merely recognizing a constructor or accepting a declaration is insufficient.
+  Do not assume a predicate's own goal to form its payload access or helper
+  call. Keep recursive/indexed data support and its checked encoding obligations,
+  exact subject identity, first-case zero gating and mutation restoration.
+
+  Acceptance: execute a generic typed extractor over Integer/Boolean and a
+  guarded Range payload consumer through native and Terminal Psi. Exercise the
+  same predicate as a default domain and a named generic domain, through the
+  applicable nine fact places. Reject mismatched case/type construction,
+  unguarded inactive payload access, reversed bounds, stale facts after writes,
+  invalid zero establishment and the retired syntax. Preserve existing
+  receiver-rejection controls. Existing `case_where_*` fixtures are migration
+  inputs, not evidence that this new contract is implemented.
+
 - **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete the settled
   [proposition-based scalar range contract](wiki/spec/language/domains.md#declaration-and-membership)
   and [generic inference rule](wiki/spec/language/generics.md): common fields use
-  data `where`, payloads case `where`, machine/state parameters `requires`,
+  data `where` (including guarded payload predicates), machine/state parameters `requires`,
   results `ensures`, locals the facts from initializers, guards and calls.
   Remove integer and float `T [lo..hi]` / `T [lo..=hi]` suffixes after their
   customers migrate; ordinary ranges, slices, arrays and bracketed multiplicity
@@ -6952,7 +6979,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
     beyond crash causes, including satisfier and static-machine-argument
     premises and guarantees. Prove indexes against symbolic `const` extents,
     case memberships, memberships inside larger facts, byte predicates and
-    stores affecting case-specific `where` facts. Represent storage origins
+    stores affecting case-conditional default-domain facts, with predicate-only
+    `self` and no case `where` or authored subject binder. Represent storage origins
     for returned references, reference fields and selected reference values;
     nonempty writes through an unknown origin must remain refused rather
     than acquire independent storage facts. Track payload paths on held-loan

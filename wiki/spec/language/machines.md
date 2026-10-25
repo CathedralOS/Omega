@@ -17,6 +17,9 @@ trait arguments. There is no conformance data subject or `Self` type binding
 ([conformances](conformances.md#data-and-code-are-independent)).
 There is no special `self` parameter,
 implicit receiver, bound-method value, or receiver-inserting call syntax.
+Predicate-only `self` in data/default-domain and named-domain predicates
+([domains](domains.md#declaration-and-membership)) is not a machine parameter
+and does not change this rule.
 Named decision: `no-data-code-attachment`, ratified 2026-10-22. A data declaration
 is not a machine owner or namespace. Declaring a machine under a data carrier,
 such as `machine Counter::increment`, is retired even with an explicit parameter.

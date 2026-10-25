@@ -432,7 +432,7 @@ types, scope, logical-hypothesis matching and implementation acceptance.
 
 For a decidable property, an ordinary measured machine can compute a Boolean.
 For example, a sequence-sortedness predicate recursively compares adjacent values.
-A domain with subject binder `(values)` can require `sorted(values) == true`;
+A domain can require `sorted(self) == true`;
 a checked runtime validator must
 establish that fact before qualification. This executable approach is useful
 but does not replace general mathematical predicates or nonconstructive existence.

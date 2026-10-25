@@ -167,11 +167,12 @@ every admitted alternative; one consumer cannot authorize an otherwise invalid
 generic body. Type parameters remain static even when their admissible set has
 several alternatives. No runtime type objects or RTTI are introduced.
 
-A [case `where` clause](data_and_literals.md#case-constraints) can state the same
-type equations for that constructor. Construction proves them; a case match
-recovers them as local facts, including when checking a result against an
-enclosing generic return type. The generic parameters remain fixed. This does
-not introduce constructor-local hidden types or change ordinary specialization
+A [case-dependent default domain](data_and_literals.md#case-constraints) can
+relate case membership to these type equations. Construction proves it; a case
+match combines its established predicates with the selected case to recover the
+equation, including when checking a result against an enclosing generic return
+type. Named generic domains use the same reasoning. The generic parameters
+remain fixed. This does not introduce constructor-local hidden types or change ordinary specialization
 and layout requirements.
 
 Comparisons of closed static types resolve during compilation. Types containing
@@ -193,8 +194,8 @@ A `where` type equation relates already declared binders. Its structural matchin
 may recover omitted type/value arguments from known type structure:
 
 ```omega
-domain<const Capacity: u64> u64::AtMost<Capacity>(value)
-    requires value <= Capacity;
+domain<const Capacity: u64> u64::AtMost<Capacity>
+    requires self <= Capacity;
 
 data TinyBytes<Length, const Capacity: u64>
 where

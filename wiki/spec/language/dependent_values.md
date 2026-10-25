@@ -96,8 +96,10 @@ invalidity only under otherwise-authorized access; they do not waive a reader or
 writer restriction. Fresh construction and policy installation follow the domain
 establishment rules, not an implicit file-local or constructor privilege.
 
-Anonymous interval constraints on common fields are written in the data `where`;
-constraints involving one case's payload are written in that case's `where`.
+Constraints on common fields and active-case payloads are written in data
+`where`. Its `self` denotes the complete value, as in named-domain predicates.
+Payload projections require a prior case guard; case declarations do not accept
+`where`. See [case-dependent default domains](data_and_literals.md#case-constraints).
 Bracketed scalar range suffixes are not a second default-domain syntax.
 
 Boundary provider slots are not data fields and add no default-domain obligation.
@@ -105,9 +107,9 @@ Provider planning must satisfy every demanded exact requirement application
 before realization; that independent check neither changes the containing data's
 validity nor manufactures authority or storage.
 
-[Case-local `where` clauses](data_and_literals.md#case-constraints) contribute
-conditions only for the active case. Common-field and type-wide obligations
-remain conjunctive with that case's payload validity and constraints. The zero
+[Case-dependent default predicates](data_and_literals.md#case-constraints) can
+relate the active case to type parameters and payload values. Common-field and
+data-level obligations remain conjunctive with that case's payload validity. The zero
 representation keeps the first declared case, even when its constraints fail
 for a particular specialization; there is no selection of a first possible case.
 

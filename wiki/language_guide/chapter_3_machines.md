@@ -17,6 +17,8 @@ All machines are static: every input is an ordinary declared parameter. Data
 does not own functions or provide a code namespace. Qualified paths name modules,
 trait requirements or named implementations, never an attachment to a data type.
 There is no special `self` parameter or receiver-style dot invocation.
+The `self` subject in data/domain predicates is separate: it names the value
+being constrained, never an implicit machine argument.
 
 Contracts state logical conditions; ordinary machines establish their
 conclusions. Traits and named conformances bundle mathematical operations,

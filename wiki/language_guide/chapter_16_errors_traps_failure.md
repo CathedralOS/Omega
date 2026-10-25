@@ -41,7 +41,7 @@ Facts can travel with the successful payload. For example, a table with sixteen
 entries can return a bounded index:
 
 ```omega
-domain u32::TableIndex(value) requires value < 16;
+domain u32::TableIndex requires self < 16;
 
 data Slot {
     case Found(index: u32::TableIndex);
