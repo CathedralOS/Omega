@@ -1,6 +1,7 @@
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use target::NativeTarget;
 
+use crate::machine_code::identity_encoding::{encode_conditional_branch_arm, encode_jump_arm};
 use crate::{ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFunctionLayout};
 
 use super::{
@@ -118,38 +119,14 @@ fn encode_functions(
                 match row.branch.as_deref() {
                     None => hasher.byte(0),
                     Some(crate::ResolvedBranchEvidence::Conditional(branch)) => {
-                        hasher.byte(1);
-                        hasher.byte(branch.predicate.rank());
-                        hasher.raw(&branch.source_block.0.to_le_bytes());
-                        hasher.raw(
-                            &branch
-                                .when_taken_edge
-                                .map_or(0, |edge| edge.get())
-                                .to_le_bytes(),
-                        );
-                        hasher.raw(&branch.when_taken_block.0.to_le_bytes());
-                        hasher.raw(&branch.when_taken_offset.to_le_bytes());
-                        hasher.raw(
-                            &branch
-                                .when_fallthrough_edge
-                                .map_or(0, |edge| edge.get())
-                                .to_le_bytes(),
-                        );
-                        hasher.raw(&branch.when_fallthrough_block.0.to_le_bytes());
-                        hasher.raw(&branch.when_fallthrough_offset.to_le_bytes());
-                        hasher.raw(&branch.byte_displacement.to_le_bytes());
+                        encode_conditional_branch_arm(hasher, branch);
                         selected_instructions::encode_machine_encoded_effects_identity(
                             hasher,
                             &branch.decoded_effects,
                         );
                     }
                     Some(crate::ResolvedBranchEvidence::Jump(jump)) => {
-                        hasher.byte(2);
-                        hasher.raw(&jump.source_block.0.to_le_bytes());
-                        hasher.raw(&jump.target_edge.map_or(0, |edge| edge.get()).to_le_bytes());
-                        hasher.raw(&jump.target_block.0.to_le_bytes());
-                        hasher.raw(&jump.target_offset.to_le_bytes());
-                        hasher.raw(&jump.byte_displacement.to_le_bytes());
+                        encode_jump_arm(hasher, jump);
                         selected_instructions::encode_machine_encoded_effects_identity(
                             hasher,
                             &jump.decoded_effects,
