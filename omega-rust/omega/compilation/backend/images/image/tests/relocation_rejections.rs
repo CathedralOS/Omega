@@ -1,5 +1,5 @@
-//! In-crate replay coverage for the fail-closed arms of the two native
-//! relocation patchers. The sibling target `text_relocation_envelope` pins
+//! In-crate replay coverage for the fail-closed arms of the native
+//! relocation patcher. The sibling target `text_relocation_envelope` pins
 //! the applied path - declared fields patched, evidence replayed. This
 //! target pins the rejections a malformed or hostile relocation plan must
 //! produce: every failure surfaces as a `Diagnostic` rather than a panic
@@ -13,7 +13,7 @@ use common::{BSS_ADDRESS, DATA_ADDRESS, TEXT_ADDRESS, layout};
 
 use image::{
     FinalImage, FinalImageInput, FinalImageLayout, FinalImageRelocation, FinalImageSection,
-    FinalImageSymbol, apply_aarch64_relocations, apply_x86_64_relocations, build_final_image,
+    FinalImageSymbol, apply_relocations, build_final_image,
     validate_final_text_relocation_envelope,
 };
 use object_file::{
@@ -125,7 +125,7 @@ fn x86_64_rel32_rejects_symbols_without_a_materialized_address() {
     ));
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
 
-    let diagnostic = apply_x86_64_relocations(&mut image, &layout(), "test image")
+    let diagnostic = apply_relocations(&mut image, &layout(), "test image")
         .expect_err("a sectionless symbol has no address to relocate to");
     assert!(
         diagnostic
@@ -154,7 +154,7 @@ fn x86_64_rel32_rejects_symbols_without_a_materialized_address() {
         RelocationKind::X86_64Relative32,
     ));
     let mut dangling_image = image_with(target, &object, &dangling, &encoded, &[]);
-    let diagnostic = apply_x86_64_relocations(&mut dangling_image, &layout(), "test image")
+    let diagnostic = apply_relocations(&mut dangling_image, &layout(), "test image")
         .expect_err("a dangling symbol handle has no address");
     assert!(
         diagnostic
@@ -209,7 +209,7 @@ fn x86_64_rel32_patches_at_the_signed_displacement_edge_and_rejects_past_it() {
     // relocation_address = text_address + 1 + 4. A data symbol exactly
     // i32::MAX above that end still fits the field.
     let mut in_range = image_with(target, &object, &relocations, &encoded, &data);
-    apply_x86_64_relocations(
+    apply_relocations(
         &mut in_range,
         &FinalImageLayout {
             text_address: TEXT_ADDRESS,
@@ -226,7 +226,7 @@ fn x86_64_rel32_patches_at_the_signed_displacement_edge_and_rejects_past_it() {
 
     // One byte further and the same plan must refuse rather than wrap.
     let mut out_of_range = image_with(target, &object, &relocations, &encoded, &data);
-    let diagnostic = apply_x86_64_relocations(
+    let diagnostic = apply_relocations(
         &mut out_of_range,
         &FinalImageLayout {
             text_address: TEXT_ADDRESS,
@@ -255,7 +255,7 @@ fn x86_64_rel32_patches_at_the_signed_displacement_edge_and_rejects_past_it() {
     let mut negative_edge = image_with(target, &object, &relocations, &encoded, &data);
     let high_text = 0x1_0000_0000u64;
     let negative_relocation_end = high_text + 5;
-    apply_x86_64_relocations(
+    apply_relocations(
         &mut negative_edge,
         &FinalImageLayout {
             text_address: high_text,
@@ -271,7 +271,7 @@ fn x86_64_rel32_patches_at_the_signed_displacement_edge_and_rejects_past_it() {
     );
 
     let mut negative_out_of_range = image_with(target, &object, &relocations, &encoded, &data);
-    let diagnostic = apply_x86_64_relocations(
+    let diagnostic = apply_relocations(
         &mut negative_out_of_range,
         &FinalImageLayout {
             text_address: high_text,
@@ -320,7 +320,7 @@ fn x86_64_rejects_addend_targets_that_overflow_the_address_space() {
         ));
         let mut image = image_with(target, &object, &relocations, &[0; 8], &[0; 8]);
 
-        let diagnostic = apply_x86_64_relocations(
+        let diagnostic = apply_relocations(
             &mut image,
             &FinalImageLayout {
                 text_address,
@@ -378,7 +378,7 @@ fn x86_64_rejects_patches_to_sections_without_backing_bytes() {
         relocations.push_record(record(SectionKind::Bss, 0, width, entry, 0, kind));
         let mut image = image_with(target, &object, &relocations, &encoded, &[]);
 
-        let diagnostic = apply_x86_64_relocations(&mut image, &layout(), "test image")
+        let diagnostic = apply_relocations(&mut image, &layout(), "test image")
             .expect_err("a relocation into .bss has no bytes to patch");
         assert!(
             diagnostic.message.contains(expected),
@@ -416,7 +416,7 @@ fn x86_64_rejects_patches_to_sections_without_backing_bytes() {
             addend: 0,
             kind: RelocationKind::X86_64Relative32,
         });
-    let diagnostic = apply_x86_64_relocations(&mut image, &layout(), "test image")
+    let diagnostic = apply_relocations(&mut image, &layout(), "test image")
         .expect_err("a sectionless record has no address base");
     assert!(
         diagnostic
@@ -439,7 +439,7 @@ fn x86_64_rejects_patches_to_sections_without_backing_bytes() {
         RelocationKind::X86_64Relative32,
     ));
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
-    let diagnostic = apply_x86_64_relocations(&mut image, &layout(), "test image")
+    let diagnostic = apply_relocations(&mut image, &layout(), "test image")
         .expect_err("a field past the text end cannot be patched");
     assert!(
         diagnostic
@@ -495,7 +495,7 @@ fn aarch64_distinguishes_imports_from_sectionless_symbols() {
         RelocationKind::Aarch64Branch26,
     ));
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
-    let diagnostic = apply_aarch64_relocations(&mut image, &layout(), "test image")
+    let diagnostic = apply_relocations(&mut image, &layout(), "test image")
         .expect_err("an import symbol cannot be bound by the static patcher");
     assert!(
         diagnostic.message.contains(
@@ -516,7 +516,7 @@ fn aarch64_distinguishes_imports_from_sectionless_symbols() {
         RelocationKind::Aarch64Branch26,
     ));
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
-    let diagnostic = apply_aarch64_relocations(&mut image, &layout(), "test image")
+    let diagnostic = apply_relocations(&mut image, &layout(), "test image")
         .expect_err("a sectionless symbol has no address");
     assert!(
         diagnostic
@@ -569,7 +569,7 @@ fn aarch64_rejects_foreign_kinds_overflowing_addends_and_non_text_fields() {
         RelocationKind::X86_64Relative32,
     ));
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
-    let diagnostic = apply_aarch64_relocations(&mut image, &layout(), "test image")
+    let diagnostic = apply_relocations(&mut image, &layout(), "test image")
         .expect_err("the AArch64 patcher refuses an x86-64 relocation kind");
     assert!(
         diagnostic
@@ -592,7 +592,7 @@ fn aarch64_rejects_foreign_kinds_overflowing_addends_and_non_text_fields() {
         RelocationKind::Absolute64,
     ));
     let mut image = image_with(target, &object, &relocations, &encoded, &[0; 8]);
-    let diagnostic = apply_aarch64_relocations(
+    let diagnostic = apply_relocations(
         &mut image,
         &FinalImageLayout {
             text_address: 0x1000,
@@ -621,7 +621,7 @@ fn aarch64_rejects_foreign_kinds_overflowing_addends_and_non_text_fields() {
         RelocationKind::Absolute64,
     ));
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
-    let diagnostic = apply_aarch64_relocations(&mut image, &layout(), "test image")
+    let diagnostic = apply_relocations(&mut image, &layout(), "test image")
         .expect_err("a relocation into .bss has no bytes to patch");
     assert!(
         diagnostic
@@ -641,7 +641,7 @@ fn aarch64_rejects_foreign_kinds_overflowing_addends_and_non_text_fields() {
         let mut relocations = RelocationPlan::with_target(target);
         relocations.push_record(record(SectionKind::Data, 0, 4, cell, 0, kind));
         let mut image = image_with(target, &object, &relocations, &encoded, &[0; 8]);
-        let diagnostic = apply_aarch64_relocations(&mut image, &layout(), "test image")
+        let diagnostic = apply_relocations(&mut image, &layout(), "test image")
             .expect_err("an instruction field kind refuses a non-text home");
         assert!(
             diagnostic
@@ -706,7 +706,7 @@ fn aarch64_field_relocations_pin_their_range_and_alignment_boundaries() {
 
     let in_range_pages: u64 = (1 << 20) - 1;
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
-    apply_aarch64_relocations(
+    apply_relocations(
         &mut image,
         &FinalImageLayout {
             text_address: TEXT_ADDRESS,
@@ -721,7 +721,7 @@ fn aarch64_field_relocations_pin_their_range_and_alignment_boundaries() {
     assert_eq!(decoded_page_delta, in_range_pages as u32);
 
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
-    let diagnostic = apply_aarch64_relocations(
+    let diagnostic = apply_relocations(
         &mut image,
         &FinalImageLayout {
             text_address: TEXT_ADDRESS,
@@ -757,7 +757,7 @@ fn aarch64_field_relocations_pin_their_range_and_alignment_boundaries() {
 
     let in_range_instructions: u64 = (1 << 25) - 1;
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
-    apply_aarch64_relocations(
+    apply_relocations(
         &mut image,
         &FinalImageLayout {
             text_address: TEXT_ADDRESS,
@@ -772,7 +772,7 @@ fn aarch64_field_relocations_pin_their_range_and_alignment_boundaries() {
     assert_eq!(patched & 0x03ff_ffff, in_range_instructions as u32);
 
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
-    let diagnostic = apply_aarch64_relocations(
+    let diagnostic = apply_relocations(
         &mut image,
         &FinalImageLayout {
             text_address: TEXT_ADDRESS,
@@ -803,7 +803,7 @@ fn aarch64_field_relocations_pin_their_range_and_alignment_boundaries() {
         RelocationKind::Aarch64Branch26,
     ));
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
-    let diagnostic = apply_aarch64_relocations(&mut image, &layout(), "test image")
+    let diagnostic = apply_relocations(&mut image, &layout(), "test image")
         .expect_err("a non-aligned branch target cannot be encoded");
     assert!(
         diagnostic
@@ -825,7 +825,7 @@ fn aarch64_field_relocations_pin_their_range_and_alignment_boundaries() {
         RelocationKind::Aarch64PageOffset12,
     ));
     let mut image = image_with(target, &object, &relocations, &encoded, &[]);
-    let diagnostic = apply_aarch64_relocations(&mut image, &layout(), "test image")
+    let diagnostic = apply_relocations(&mut image, &layout(), "test image")
         .expect_err("a field past the text end cannot be patched");
     assert!(
         diagnostic

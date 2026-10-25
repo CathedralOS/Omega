@@ -316,7 +316,7 @@ mod tests {
             data_address: 0x1_0000_4000,
             bss_address: 0x1_0000_5000,
         };
-        image::apply_aarch64_relocations(&mut image, &layout, "test Mach-O")
+        image::apply_relocations(&mut image, &layout, "test Mach-O")
             .expect("preferred pointer patch");
         info.validate_patched_preferred_pointers(&image, &layout)
             .expect("exact patched pointer");

@@ -3,7 +3,7 @@
 //! except the exact immediate fields named by checked relocation records.
 //! Until now this route was reached only through image-emission's
 //! `final_image_validation`; these tests pin the boundary inside the owning
-//! crate: relocations applied by the x86-64 and AArch64 patchers replay
+//! crate: relocations applied through the shared patcher replay
 //! through the envelope, each relocation kind masks only its declared field
 //! bits, an emitter-appended suffix stays outside text custody, malformed
 //! or overlapping fields fail closed, and the returned evidence digests
@@ -14,8 +14,7 @@ mod common;
 use common::layout;
 
 use image::{
-    FinalImageInput, apply_aarch64_relocations, apply_x86_64_relocations, build_final_image,
-    validate_final_text_relocation_envelope,
+    FinalImageInput, apply_relocations, build_final_image, validate_final_text_relocation_envelope,
 };
 use object_file::{
     ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan,
@@ -151,7 +150,7 @@ fn applied_x86_64_relocations_replay_through_the_text_envelope() {
         text_bytes: &encoded,
         data_bytes: &[],
     });
-    apply_x86_64_relocations(&mut image, &layout(), "test image")
+    apply_relocations(&mut image, &layout(), "test image")
         .expect("declared x86-64 relocations apply");
 
     // The patcher writes exactly what the layout dictates: rel32 measures
@@ -208,7 +207,7 @@ fn applied_x86_64_relocations_replay_through_the_text_envelope() {
         data_bytes: &[],
     });
     assert!(
-        apply_x86_64_relocations(&mut foreign_image, &layout(), "test image").is_err(),
+        apply_relocations(&mut foreign_image, &layout(), "test image").is_err(),
         "the x86-64 patcher refuses an AArch64 relocation kind",
     );
 }
@@ -290,7 +289,7 @@ fn applied_aarch64_relocations_replay_through_the_text_envelope() {
         text_bytes: &encoded,
         data_bytes: &[0; 0x40],
     });
-    apply_aarch64_relocations(&mut image, &layout(), "test image")
+    apply_relocations(&mut image, &layout(), "test image")
         .expect("declared AArch64 relocations apply");
 
     // adrp x0, cell@page(0x410000) from insn page 0x400000: delta 16 pages,
@@ -328,9 +327,9 @@ fn applied_aarch64_relocations_replay_through_the_text_envelope() {
 
 #[test]
 fn each_relocation_kind_masks_exactly_its_declared_field_bits() {
-    // The envelope carries the patch masks a second time as little-endian
-    // byte arrays; this table pins that second copy against the fields the
-    // ISA actually owns.
+    // The patchers and the envelope read one field-geometry declaration; these
+    // independently written byte masks pin it against the fields the ISA
+    // actually owns.
     for (kind, width, mask) in [
         (RelocationKind::X86_64Relative32, 4, &[0xff; 4][..]),
         (RelocationKind::Absolute64, 8, &[0xff; 8][..]),
