@@ -100,7 +100,7 @@ fn entry_state_handle(
 fn entry_state<'p>(
     parsed: &'p syntax_trees::SyntaxTrees,
     machine: &syntax_trees::item::Machine,
-) -> &'p syntax_trees::item::StateNode {
+) -> &'p syntax_trees::item::State {
     parsed.items.state(entry_state_handle(parsed, machine))
 }
 
