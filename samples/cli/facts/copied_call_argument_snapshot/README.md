@@ -386,9 +386,34 @@ a provider returning a different projection, forged descriptors and retagging an
 already admitted value. A bounded unused recipe remains valid. Those controls
 are under `tests/omega/{pass,fail}/generics/runtime_value_recipe_*`.
 
-The parent remains open. Inferred machine Value arguments still take a static
-specialization path and can import a callee-local recipe into the caller.
-An earlier mutable call also conservatively loses the post-state descriptor
+### Inferred runtime indices
+
+The same nine places have `inferred_indexed_byte_view/main.omg` witnesses and
+`inferred_indexed_byte_view/invalid/main.omg` twins, pinned under
+`tests/omega/{pass,fail}/facts/inferred_indexed_byte_view_argument_snapshot_through_*_exit`.
+Their consumer infers an ordinary machine Value argument from the completed
+`Counted` operand. Both direct and public producers toggle a separate counter;
+the caller checks each counter to detect repeated execution. The false-length
+twins change only the initial array from seven to eight elements and reject
+`Count == 7`.
+
+The optimized baseline at `a600523a236621d61c5033f0bed399346a297f15` tries to
+specialize the runtime index as a closed constant and imports the producer-local
+`source` spelling. Inference now retains the exact call, operand ordinal and
+represented descriptor. Source checking and executable retargeting consume the
+same completed-value capture. The logical index remains a value, while the
+shared executable instance specializes only its carrier. Each prepared cloned call
+retains its own authenticated operand capture; hidden scalar arguments observe an
+already completed value, preserving evaluation order and once-only effects.
+All nine positives execute with native and Terminal exit 0 on macOS ARM64,
+and their nine twins reject. `controls/cloned_inferred_capture` exercises a
+generic caller, `controls/statement_inferred_capture` exercises statement calls,
+and `controls/repeated_inferred_capture` compares two independently completed
+indices. Its unequal-index twin rejects; equality uses the normal observer’s
+established equations rather than assuming two distinct captures are unequal.
+Other-host execution remains unverified.
+
+The parent remains open. An earlier mutable call also conservatively loses the post-state descriptor
 correspondence needed by a later indexed result: the normal observer declines
 both the valid post-write index and the stale one. That refusal is not evidence
 of correct support for the valid ordering. General provider and cyclic result

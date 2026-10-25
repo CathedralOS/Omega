@@ -866,26 +866,49 @@ fn applicable_requirements_of<'program>(
         .collect()
 }
 
-/// Bind only the selected owner's machine parameters. Unsupported type/const
-/// telescopes remain unavailable rather than being silently erased. Concrete
-/// specialization and open modular checking use the same symbol correspondence.
+/// The same source application supplies closed and runtime scalar binders.
+/// Runtime values are observed by the completed-operand owner, never evaluated
+/// as fresh recipes in this declaration-only substitution query.
+#[derive(Clone, Copy)]
+pub(super) enum RuntimeScalarSubject {
+    Symbol(SymbolHandle),
+    Expression(ExpressionHandle),
+}
+
 pub(super) fn call_scalar_substitution(
     program: &dyn crate::CheckingInput,
     owner: &SelectedCallContract<'_>,
-    arguments: &[typed_trees::expression::StaticMachineArgument],
+    site: crate::CallSite<'_>,
+    mut observed: impl FnMut(RuntimeScalarSubject) -> Option<StructuralTerm>,
 ) -> Option<Vec<(typed_trees::signature::StateParameter, StructuralTerm)>> {
+    use typed_trees::static_applications::StaticMachineBindingValue;
+    let (application, arguments) = match site {
+        crate::CallSite::Expression { call, .. } => (
+            call.authored_machine_application,
+            call.machine_arguments.as_ref(),
+        ),
+        crate::CallSite::Statement(call) => (
+            call.authored_machine_application,
+            call.machine_arguments.as_ref(),
+        ),
+        crate::CallSite::TransitionNamed { .. } => (Default::default(), &[][..]),
+    };
     let parameters = match owner {
         SelectedCallContract::Concrete(machine, _) => program.machine_type_parameters(machine),
-        SelectedCallContract::Signature(signature) if !arguments.is_empty() => {
+        SelectedCallContract::Signature(signature) => {
             program.state_signature_type_parameters(signature)
         }
         _ => return arguments.is_empty().then(Vec::new),
     };
-    if parameters.len() != arguments.len() {
-        return None;
-    }
+    let retained = if application.is_valid() {
+        program
+            .expression_table
+            .static_machine_application_bindings(application)
+    } else {
+        &[]
+    };
     let mut result = Vec::new();
-    for (parameter, argument) in parameters.iter().zip(arguments) {
+    for (ordinal, parameter) in parameters.iter().enumerate() {
         let (typed_trees::data::TypeParameterKind::Const { type_reference }
         | typed_trees::data::TypeParameterKind::Value { type_reference }) = parameter.kind
         else {
@@ -897,18 +920,60 @@ pub(super) fn call_scalar_substitution(
         {
             return None;
         }
-        let value = match super::static_applications::constant_value(program, argument) {
-            Some(super::static_applications::ConstantValue::Integer(value)) => {
-                StructuralTerm::Integer(value)
+        let value = if let Some(binding) = retained
+            .iter()
+            .find(|binding| binding.parameter == parameter.symbol)
+        {
+            match binding.value {
+                StaticMachineBindingValue::Const(reference) => {
+                    if let Some(literal) =
+                        program.static_const_literal_from_type_reference(reference)
+                    {
+                        StructuralTerm::Integer(literal.value_bignum()?)
+                    } else if let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+                        program.type_reference_table.type_reference(reference)
+                        && symbol.is_valid()
+                        && program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
+                    {
+                        StructuralTerm::BoundValue(*symbol)
+                    } else {
+                        return None;
+                    }
+                }
+                StaticMachineBindingValue::RuntimeValue {
+                    subject,
+                    expression,
+                    ..
+                } if matches!(
+                    parameter.kind,
+                    typed_trees::data::TypeParameterKind::Value { .. }
+                ) =>
+                {
+                    if expression.is_valid() {
+                        observed(RuntimeScalarSubject::Expression(expression))?
+                    } else if subject.is_valid() {
+                        observed(RuntimeScalarSubject::Symbol(subject))?
+                    } else {
+                        return None;
+                    }
+                }
+                _ => return None,
             }
-            Some(_) => return None,
-            None if argument.symbol.is_valid()
-                && program.symbols.get(argument.symbol).kind
-                    == symbols::SymbolKind::TypeParameter =>
-            {
-                StructuralTerm::BoundValue(argument.symbol)
+        } else {
+            let argument = arguments.get(ordinal)?;
+            match super::static_applications::constant_value(program, argument) {
+                Some(super::static_applications::ConstantValue::Integer(value)) => {
+                    StructuralTerm::Integer(value)
+                }
+                Some(_) => return None,
+                None if argument.symbol.is_valid()
+                    && program.symbols.get(argument.symbol).kind
+                        == symbols::SymbolKind::TypeParameter =>
+                {
+                    StructuralTerm::BoundValue(argument.symbol)
+                }
+                None => return None,
             }
-            None => return None,
         };
         result.push((
             typed_trees::signature::StateParameter {
@@ -921,7 +986,10 @@ pub(super) fn call_scalar_substitution(
                 .as_str()
                 .into(),
                 type_reference,
-                is_const: true,
+                is_const: matches!(
+                    parameter.kind,
+                    typed_trees::data::TypeParameterKind::Const { .. }
+                ),
                 ..Default::default()
             },
             value,

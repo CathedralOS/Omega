@@ -36,9 +36,9 @@ pub(super) fn normalize_match(
     let subject = normalize_index_expression(program, dispatch.subject, context);
     let mut subjects = context.match_subjects.to_vec();
     if dispatch.capture.is_valid() {
-        if !table.contains_match_subject(dispatch.capture)
-            || table.match_subject(dispatch.capture).subject != dispatch.subject
-            || table.match_subject(dispatch.capture).definition != expression
+        if !table.contains_value_capture(dispatch.capture)
+            || table.value_capture(dispatch.capture).subject != dispatch.subject
+            || table.value_capture(dispatch.capture).definition != expression
             || subjects.contains(&dispatch.capture)
         {
             return unavailable(context);
@@ -133,7 +133,7 @@ pub(super) fn normalize_saved_subject(
 ) -> String {
     if !program
         .expression_table
-        .contains_match_subject(saved.capture)
+        .contains_value_capture(saved.capture)
         || !program
             .expression_table
             .expression_is_valid(saved.pattern_head)

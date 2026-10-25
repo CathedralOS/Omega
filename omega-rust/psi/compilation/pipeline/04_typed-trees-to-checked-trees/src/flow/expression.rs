@@ -125,7 +125,7 @@ pub(super) struct Execution<'a, 'b, 'plans> {
     /// Actual completed dispatch subjects in lexical evaluation scope. Alias
     /// reads borrow these captures; they never replay their source operands.
     match_subjects: Vec<(
-        Handle<typed_trees::expression::MatchSubjectCapture>,
+        Handle<typed_trees::expression::CompletedValueCapture>,
         checked_trees::FlowOperandFact,
     )>,
 }

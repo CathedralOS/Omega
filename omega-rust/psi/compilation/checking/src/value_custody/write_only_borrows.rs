@@ -2040,8 +2040,7 @@ fn expression_mentions_root(
 ) -> bool {
     match program.expression_table.expression(expression) {
         ExpressionNode::SavedSubject(saved) => program
-            .expression_table
-            .saved_subject_source(saved)
+            .saved_value_source(saved)
             .is_some_and(|subject| expression_mentions_root(program, subject, root)),
         ExpressionNode::Match(dispatch) => {
             expression_mentions_root(program, dispatch.subject, root)

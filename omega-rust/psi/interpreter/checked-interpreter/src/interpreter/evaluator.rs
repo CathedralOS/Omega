@@ -205,7 +205,7 @@ pub(crate) struct Frame {
     /// A cell preserves the original reference descriptor and backing; reading
     /// an alias never executes the source expression a second time.
     match_subjects: Vec<(
-        arena::Handle<typed_trees::expression::MatchSubjectCapture>,
+        arena::Handle<typed_trees::expression::CompletedValueCapture>,
         Cell,
     )>,
 }

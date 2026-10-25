@@ -7,7 +7,7 @@ use super::{
     SymbolKind, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
 };
 use crate::monomorphization::body_rewriting::{
-    cloned_expression_roots, rebind_state_scoped_range_endpoints,
+    cloned_expression_roots, rebind_state_value_parameters,
     reject_runtime_bound_static_occurrences, rewrite_cloned_calls, statement_span_handles,
     substitute_cloned_type_parameters,
 };
@@ -826,7 +826,7 @@ pub(super) fn clone_single_specialized_machine(
     // Range endpoints are value positions, not static positions: a binder
     // surviving in one names the realized trailing parameter so the clone's
     // declared `-> u64[0..=Bound]` keeps qualifying the captured subject.
-    rebind_state_scoped_range_endpoints(program, &cloned, &state_realized_parameters);
+    rebind_state_value_parameters(program, &cloned, &state_realized_parameters);
     reject_runtime_bound_static_occurrences(program, candidate, &cloned)
         .map_err(|diagnostic| vec![diagnostic])?;
     // A transition between cloned states forwards the containing state's

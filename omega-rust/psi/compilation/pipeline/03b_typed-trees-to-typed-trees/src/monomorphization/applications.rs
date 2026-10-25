@@ -41,9 +41,17 @@ pub(super) fn candidate_bindings(
             let value = if let Some(argument) = &candidate.runtime_value_bindings[ordinal] {
                 StaticMachineBindingValue::RuntimeValue {
                     type_reference: *actual,
-                    subject: argument.symbol,
-                    expression: const_arguments::runtime_subject_expression(program, argument)
-                        .unwrap_or_else(ExpressionHandle::invalid),
+                    subject: match argument {
+                        super::RuntimeValueBinding::Authored(argument) => argument.symbol,
+                        _ => SymbolHandle::invalid(),
+                    },
+                    expression: match argument {
+                        super::RuntimeValueBinding::Authored(argument) => {
+                            const_arguments::runtime_subject_expression(program, argument)
+                                .unwrap_or_else(ExpressionHandle::invalid)
+                        }
+                        _ => ExpressionHandle::invalid(),
+                    },
                 }
             } else {
                 StaticMachineBindingValue::Const(*actual)
@@ -222,6 +230,33 @@ pub(super) fn retain_call(
                 parameter: parameter.symbol,
                 value: StaticMachineBindingValue::Const(actual),
             });
+        }
+    }
+    // Source checking needs inferred values before executable retargeting,
+    // including inside an open generic caller. Reuse these exact expressions
+    // when realization later appends the ordinary hidden operands.
+    let runtime = candidate
+        .runtime_value_bindings
+        .iter()
+        .flatten()
+        .cloned()
+        .collect::<Vec<_>>();
+    let operands =
+        super::body_rewriting::runtime_value_operands(program, selection.lexical_state, &runtime);
+    let mut operands = operands.into_iter();
+    for binding in &mut bindings {
+        if let StaticMachineBindingValue::RuntimeValue {
+            subject,
+            expression,
+            ..
+        } = &mut binding.value
+        {
+            let Some(operand) = operands.next() else {
+                break;
+            };
+            if !subject.is_valid() {
+                *expression = operand;
+            }
         }
     }
     program

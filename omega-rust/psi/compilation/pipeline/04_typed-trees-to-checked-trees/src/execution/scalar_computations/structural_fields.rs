@@ -264,38 +264,44 @@ impl Builder<'_, '_> {
             }
             _ => return None,
         };
-        Some(self.insert(
-            field.primitive_type,
-            CheckedScalarComputationKind::StructuralField {
-                atomic_ordering: None,
-                result_type: validation::expression_type_reference_in_state(
-                    self.program,
-                    self.state,
-                    self.statement_index,
-                    expression,
-                )?,
-                source_expression: expression,
-                receiver_expression: match self.program.expression_table.expression(expression) {
-                    ExpressionNode::Member(member) => member.receiver,
-                    ExpressionNode::Indexed(indexed) => indexed.collection,
-                    _ => ExpressionHandle::invalid(),
-                },
-                source_type: field.type_reference,
-                receiver_value,
-                subject: CheckedUnitStructuralArgumentPlan {
-                    source,
-                    path: field.path,
-                    type_identity: validation::structural_type_identity(
+        Some(
+            self.insert(
+                field.primitive_type,
+                CheckedScalarComputationKind::StructuralField {
+                    atomic_ordering: None,
+                    result_type: validation::expression_type_reference_in_state(
                         self.program,
-                        field.carrier_type_reference,
-                        &[],
-                        &[],
-                    ),
-                    access: CheckedStructuralAccess::SharedBorrow,
+                        self.state,
+                        self.statement_index,
+                        expression,
+                    )?,
+                    source_expression: expression,
+                    receiver_expression: match self.program.expression_table.expression(expression)
+                    {
+                        ExpressionNode::Member(member) => self
+                            .program
+                            .saved_argument_source(member.receiver)
+                            .unwrap_or(member.receiver),
+                        ExpressionNode::Indexed(indexed) => indexed.collection,
+                        _ => ExpressionHandle::invalid(),
+                    },
+                    source_type: field.type_reference,
+                    receiver_value,
+                    subject: CheckedUnitStructuralArgumentPlan {
+                        source,
+                        path: field.path,
+                        type_identity: validation::structural_type_identity(
+                            self.program,
+                            field.carrier_type_reference,
+                            &[],
+                            &[],
+                        ),
+                        access: CheckedStructuralAccess::SharedBorrow,
+                    },
+                    field: field.field,
+                    field_identity: field.field_identity,
                 },
-                field: field.field,
-                field_identity: field.field_identity,
-            },
-        ))
+            ),
+        )
     }
 }

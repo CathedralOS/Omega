@@ -96,7 +96,7 @@ struct Candidate<'template> {
     const_bindings: Vec<Option<TypeReferenceHandle>>,
     /// A runtime Value slot binds its carrier here, while the exact call-site
     /// subject is retained separately and appended as an ordinary argument.
-    runtime_value_bindings: Vec<Option<StaticMachineArgument>>,
+    runtime_value_bindings: Vec<Option<RuntimeValueBinding>>,
     machine_bindings: Vec<Option<StaticMachineArgument>>,
     evidence_bindings: Vec<Option<StaticMachineArgument>>,
     conflicted: bool,
@@ -117,6 +117,19 @@ impl Candidate<'_> {
     }
 }
 
+/// A runtime binder either has an authored value operand or is eliminated
+/// from the represented descriptor of an earlier completed call argument.
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) enum RuntimeValueBinding {
+    Authored(StaticMachineArgument),
+    CapturedArgument {
+        site: CallSite,
+        position: u32,
+        source: ExpressionHandle,
+        descriptor: SymbolHandle,
+    },
+}
+
 struct CalleeState {
     symbol: SymbolHandle,
     candidate_index: usize,
@@ -125,7 +138,7 @@ struct CalleeState {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum CallSite {
+pub(crate) enum CallSite {
     Statement(StatementHandle),
     Expression(ExpressionHandle),
 }
@@ -145,7 +158,7 @@ struct CallSelection {
     type_bindings: Vec<Option<TypeReferenceHandle>>,
     const_bindings: Vec<Option<TypeReferenceHandle>>,
     /// See `Candidate::runtime_value_bindings`.
-    runtime_value_bindings: Vec<Option<StaticMachineArgument>>,
+    runtime_value_bindings: Vec<Option<RuntimeValueBinding>>,
     machine_bindings: Vec<Option<StaticMachineArgument>>,
     evidence_bindings: Vec<Option<StaticMachineArgument>>,
     conflicted: bool,

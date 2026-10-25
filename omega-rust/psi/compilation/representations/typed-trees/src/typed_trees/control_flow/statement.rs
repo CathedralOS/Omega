@@ -240,6 +240,10 @@ impl StatementTable {
         }
     }
 
+    pub fn statement_is_valid(&self, handle: StatementHandle) -> bool {
+        self.statements.is_valid(handle)
+    }
+
     pub fn statement(&self, handle: StatementHandle) -> &StatementNode {
         self.statements.get(handle)
     }
