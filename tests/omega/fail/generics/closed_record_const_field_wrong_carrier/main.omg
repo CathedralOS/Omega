@@ -1,0 +1,12 @@
+// Scalar and aggregate const field arguments retain their separate carriers.
+data Configuration [copy] { minimum: u64; }
+data Chosen<const Setting: Configuration> {}
+data Gate<const Number: u64> where Number == 0 { code: u8; }
+data Holder {
+    gate: Gate<0>;
+    selected: Chosen<(Configuration { minimum: true })>;
+}
+machine main() -> u8 {
+    let holder: Holder;
+    holder.gate.code
+}
