@@ -1,0 +1,36 @@
+// The selected value of a copied first argument remains 7 when the second argument replaces its former descriptor home with a view of 9.
+// Expected rejection: a recursive result does not preserve its input descriptor extent
+data View<'storage> [copy] { bytes: &'storage [u8]; sibling: &'storage [u8]; }
+machine overwrite<'storage>(slot: &mut View<'storage>, replacement: &'storage [u8]) -> u64 {
+    slot.bytes = replacement;
+    0
+}
+machine seven(value: u64) -> u64
+requires value == 7
+ensures result == 7
+{ value }
+machine receive<'storage>(selected: View<'storage>, ignored: u64) -> u64
+requires selected.bytes.len == 7
+ensures result == 7
+{ seven(selected.bytes.len) }
+machine retain_view<'storage>(selected: View<'storage>, remaining: u64)
+requires remaining <= 2
+terminates by remaining -> Nat::Descending in 0..=2;
+-> View<'storage>
+ensures result.bytes.len == selected.bytes.len, result.sibling.len == selected.sibling.len
+{
+    transition remaining > 0 {
+        true -> retain_view(View { bytes: "12345678", sibling: selected.sibling }, remaining - 1)
+        false -> selected
+    }
+}
+machine main() crashes Trap {
+    let mut original: View = View { bytes: "1234567", sibling: "tail" };
+    let observed: u64 = receive(retain_view(original, 2), overwrite(&mut original, "123456789"));
+    let difference: u64 = observed - 7;
+    transition difference == 0 && original.bytes.len == 9 && original.sibling.len == 4 {
+        true -> done() false -> wrong()
+    }
+}
+machine done() {}
+machine wrong() crashes Trap { crash Trap; }

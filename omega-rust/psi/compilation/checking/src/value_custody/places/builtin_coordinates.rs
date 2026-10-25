@@ -619,7 +619,22 @@ pub fn value_has_builtin_coordinates(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    value_has_builtin_coordinates_with_types(program, machine, state, expression, |source| {
+        crate::expression_result_type_reference(program, machine, state, source)
+    })
+}
+
+/// Completed contextual operands may supply carriers unavailable to the
+/// context-free query. The resolver contributes types only; every selector and
+/// endpoint still authenticates its selected builtin meaning here.
+pub fn value_has_builtin_coordinates_with_types(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
     mut expression: ExpressionHandle,
+    collection_type: impl Fn(ExpressionHandle) -> Option<typed_trees::types::TypeReferenceHandle>,
 ) -> bool {
     for depth in 0..program.expression_table.expression_count() {
         let Some(node) = program
@@ -632,12 +647,7 @@ pub fn value_has_builtin_coordinates(
             ExpressionNode::Borrow(borrow) => expression = borrow.target,
             ExpressionNode::Member(member) => expression = member.receiver,
             ExpressionNode::Indexed(indexed) => {
-                let collection = crate::expression_result_type_reference(
-                    program,
-                    machine,
-                    state,
-                    indexed.collection,
-                );
+                let collection = collection_type(indexed.collection);
                 if !indexed_operation_has_builtin_meaning(
                     program,
                     machine,

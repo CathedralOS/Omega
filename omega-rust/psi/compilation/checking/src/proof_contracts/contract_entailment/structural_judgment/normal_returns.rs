@@ -1079,7 +1079,7 @@ impl<'program> StructuralJudge<'program> {
                     && (matches!(node, ExpressionNode::Call(_))
                         || matches!(node, ExpressionNode::Indexed(indexed)
                             if program.expression_table.range_node(indexed.index).is_some()
-                                && crate::value_custody::places::place_has_builtin_coordinates(program, scope.0, Some(scope.1), expression))
+                                && judge.completed_builtin_coordinates(expression, scope))
                         || judge.storage_observation_invalidated(expression)
                         || discarded_value_has_no_own_effects(program, scope, expression)
                         || matches!(node, ExpressionNode::Cast(cast)
@@ -1223,12 +1223,7 @@ impl<'program> StructuralJudge<'program> {
                         .flatten();
                     let collection_measure =
                         |collection: &StructuralTerm, collection_source| {
-                            let receiver = crate::expression_result_type_reference(
-                                program,
-                                scope.0,
-                                scope.1,
-                                collection_source,
-                            )?;
+                            let receiver = judge.completed_collection_type(collection_source, scope)?;
                             super::super::structural_terms::observed_collection_measure(
                                 program,
                                 receiver,
@@ -1317,6 +1312,45 @@ impl<'program> StructuralJudge<'program> {
             .map(|paths| paths.into_iter().flatten().collect())
     }
 
+    /// Operand completion retains the actual contextual carrier. Receiving
+    /// types alone cannot authenticate an indexed source or its geometry.
+    fn completed_collection_type(
+        &self,
+        expression: ExpressionHandle,
+        scope: ValueScope<'_>,
+    ) -> Option<TypeReferenceHandle> {
+        crate::expression_result_type_reference(self.program, scope.0, scope.1, expression).or_else(
+            || {
+                let (_, value) = self
+                    .normal_results
+                    .iter()
+                    .rev()
+                    .find(|(source, _)| *source == expression)?;
+                match value {
+                    StructuralTerm::CapturedValue { result_type, .. }
+                    | StructuralTerm::Application { result_type, .. } => Some(*result_type),
+                    StructuralTerm::ObservedValue { observed_type, .. } => Some(*observed_type),
+                    _ => None,
+                }
+                .filter(|reference| reference.is_valid())
+            },
+        )
+    }
+
+    fn completed_builtin_coordinates(
+        &self,
+        expression: ExpressionHandle,
+        scope: ValueScope<'_>,
+    ) -> bool {
+        crate::value_custody::places::value_has_builtin_coordinates_with_types(
+            self.program,
+            scope.0,
+            scope.1,
+            expression,
+            |source| self.completed_collection_type(source, scope),
+        )
+    }
+
     fn normal_value_type_reference(
         &self,
         expression: ExpressionHandle,
@@ -1328,20 +1362,10 @@ impl<'program> StructuralJudge<'program> {
                 let indexed = program.expression_table.indexed_node(expression)?;
                 program.expression_table.range_node(indexed.index)?;
                 crate::slice_view_shell(program, scope.2, &[])?;
-                if !crate::value_custody::places::place_has_builtin_coordinates(
-                    program,
-                    scope.0,
-                    Some(scope.1),
-                    expression,
-                ) {
+                if !self.completed_builtin_coordinates(expression, scope) {
                     return None;
                 }
-                let source = crate::expression_result_type_reference(
-                    program,
-                    scope.0,
-                    scope.1,
-                    indexed.collection,
-                )?;
+                let source = self.completed_collection_type(indexed.collection, scope)?;
                 let source_element =
                     crate::value_custody::places::collection_element_type_reference(
                         program, source,

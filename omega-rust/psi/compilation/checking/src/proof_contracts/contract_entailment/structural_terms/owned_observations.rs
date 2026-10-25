@@ -30,6 +30,9 @@ pub(in crate::proof_contracts::contract_entailment) fn owned_projection_observat
 ) -> StructuralTerm {
     if crate::reference_shell(program, declared).is_some() {
         super::descriptor_only_observation(declared, value.into_collection_descriptor())
+    } else if matches!(&value, StructuralTerm::ObservedValue { observed_type, descriptor: None, .. } if *observed_type == declared)
+    {
+        value
     } else {
         StructuralTerm::ObservedValue {
             observed_type: declared,
