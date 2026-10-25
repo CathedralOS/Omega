@@ -73,7 +73,7 @@ impl Default for BlockBindings {
             claims: BTreeMap::new(),
             projected_sources: BTreeSet::new(),
             affine_destinations: BTreeSet::new(),
-            aggregate_payload: Default::default(),
+            aggregate_payload: crate::record::storage::ConstructorStorage::new(None),
             identity_cursor: None,
         }
     }

@@ -37,7 +37,7 @@ pub(crate) fn restore(
     }
     let mut decoder = ValueImageDecoder {
         execution,
-        storage: ConstructorStorage::default(),
+        storage: ConstructorStorage::new(execution.account.as_ref()),
         home: destination.clone(),
         active: Vec::new(),
     };

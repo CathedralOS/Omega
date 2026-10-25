@@ -29,6 +29,25 @@ machine frame_sequence() { frame_nested(); frame_nested(); }
 
 machine copy_array(values: [u32; 3]) -> [u32; 3] { values }
 machine empty_array_result() -> [u32; 0] { [] }
+data Cell { value: u32; }
+machine record_storage() -> u32 {
+    let cell: Cell = Cell { value: 37 };
+    cell.value
+}
+machine move_cell(cell: Cell) -> Cell { cell }
+machine moved_record_storage() -> u32 {
+    let cell: Cell = Cell { value: 37 };
+    let moved: Cell = move_cell(cell);
+    moved.value
+}
+data CopyCell [copy] { value: u32; }
+machine copy_cell(cell: CopyCell) -> CopyCell { cell }
+machine copied_record_storage() -> u32 {
+    let mut original: CopyCell = CopyCell { value: 37 };
+    let copied: CopyCell = copy_cell(original);
+    original.value = 99;
+    copied.value
+}
 machine array_result() -> [u32; 3] {
     let original: [u32; 3] = [11, 22, 33];
     let mut copied: [u32; 3] = copy_array(original);
