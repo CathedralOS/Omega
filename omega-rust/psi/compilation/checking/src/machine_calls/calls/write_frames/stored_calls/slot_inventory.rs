@@ -12,7 +12,7 @@ pub(super) fn destination_inventory(
     (!inventory.template_dependent).then_some(inventory.slots)
 }
 
-/// Opaque calls with possible reference outputs require a complete call-site
+/// Public or opaque calls with reference outputs require a complete call-site
 /// relation even when failed attribution produced no loans. This is an
 /// obligation query, not provider admission and not an empty-summary fallback.
 pub(in crate::machine_calls::calls::write_frames) fn provider_output_relation_required(
@@ -21,10 +21,9 @@ pub(in crate::machine_calls::calls::write_frames) fn provider_output_relation_re
     target: symbols::SymbolHandle,
     call_expression: ExpressionHandle,
 ) -> bool {
-    let parameters = if let Some((definition, signature)) =
-        crate::selected_requirement_signature(program, target)
-        && definition.is_boundary
-    {
+    let parameters = if let Some(slot) = program.dynamic_slot_by_symbol(target) {
+        &slot.parameters
+    } else if let Some((_, signature)) = crate::selected_requirement_signature(program, target) {
         let signature = if call_expression.is_valid() {
             let Some(call) = program.expression_table.call_node(call_expression) else {
                 return true;
@@ -180,7 +179,7 @@ pub(crate) fn provider_completion_covers_writable_slots(
             parameters
                 .get(position)
                 .is_some_and(|parameter| parameter.symbol == slot.origin.local_symbol)
-                && opaque_outputs::owner_segments(&output.owner_path).as_ref()
+                && declared_outputs::owner_segments(&output.owner_path).as_ref()
                     == Some(&slot.origin.local_segments)
                 && output.access == slot.access
         })

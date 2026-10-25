@@ -407,8 +407,7 @@ defines the complete product bar.
   - **Computed calls and state transfers:** finish selected mixed scalar/structural
     operands, effectful arguments/returns, nested mutable-argument calls,
     dependent/public-trait results, cyclic/opaque/provider/dependent result
-    composition (public mutating-provider post-state contracts consumed by dependent
-    producers, copied returns through ranked identities and public local-dyn slots, and returned
+    composition (copied returns through ranked identities and public local-dyn slots, and returned
     window extents as mathematical endpoint differences), and runtime-dispatched
     value construction on the common `EstablishStructuralValue` route through
     ordinary argument evaluation. Preserve once-only field/operand order,
@@ -416,7 +415,7 @@ defines the complete product bar.
     affine cleanup, and occurrence-bound routed memberships through completed
     children, copies, and nested projections (retaining
     `samples/cli/facts/copied_call_argument_snapshot` including
-    `copied_call_argument_snapshot/*/{indexed_byte_view,inferred_indexed_byte_view,post_write_indexed_byte_view}`
+    `copied_call_argument_snapshot/*/{indexed_byte_view,inferred_indexed_byte_view,post_write_indexed_byte_view,public_post_write_indexed_byte_view}`
     and `samples/cli/facts/matched_field_windows` across all nine places).
   - **Loan locals and projected storage (REFERENCE-LOCAL-BINDING-ROUTES):**
     reference-valued locals from every admitted producer keep their loan

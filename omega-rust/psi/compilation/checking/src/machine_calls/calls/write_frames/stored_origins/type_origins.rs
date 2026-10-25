@@ -214,7 +214,9 @@ fn walk_declared_origins(
             continue;
         }
         match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Unit => {}
+            // A selector beside a real reference contributes no additional
+            // leaf; the enclosing case guards and sibling loans stay intact.
+            TypeReferenceNode::Unit | TypeReferenceNode::DynamicTrait { .. } => {}
             TypeReferenceNode::Constrained { base_type, .. } => {
                 pending.push(walk.push(Some(step), *base_type, None)?);
             }

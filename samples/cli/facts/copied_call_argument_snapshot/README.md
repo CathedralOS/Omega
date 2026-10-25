@@ -413,12 +413,9 @@ indices. Its unequal-index twin rejects; equality uses the normal observer’s
 established equations rather than assuming two distinct captures are unequal.
 Other-host execution remains unverified.
 
-The parent remains open. An earlier mutable call also conservatively loses the post-state descriptor
-correspondence needed by a later indexed result: the normal observer declines
-both the valid post-write index and the stale one. That refusal is not evidence
-of correct support for the valid ordering. General provider and cyclic result
-composition remain required; this row establishes neither those paths nor the
-full RUNTIME-VALUE-GENERICS acceptance.
+The parent remains open. The post-write productions below establish earlier-operand
+descriptor observations. General opaque-provider and cyclic result composition
+remain required; this does not establish full RUNTIME-VALUE-GENERICS acceptance.
 
 ## Requirements and evidence
 
@@ -458,10 +455,33 @@ consume admitted call guarantees; erased integer arithmetic retains its meaning
 when compared by the existing scoped integer engine. Inverse alias invalidation
 remains conservative.
 
-This discharges STATE-LOCAL-VALUE-FRONTIER's earlier-operand descriptor observation
-requirement for direct mutators with direct/public dependent producers. A separate
-public mutating-provider contract path remains unfinished; it is not established
-by these programs. The old-extent control rejects, and borrowing an owned home
+The same nine places also contain
+[`public_post_write_indexed_byte_view/main.omg`](local/public_post_write_indexed_byte_view/main.omg)
+with matching `invalid/main.omg` twins, pinned under
+`tests/omega/{pass,fail}/facts/public_post_write_indexed_byte_view_argument_snapshot_through_*_exit`.
+Here an ordinary public `Installing` requirement establishes the changed extent;
+the named implementation deliberately renames its formals. Fresh optimized
+baseline `4d987059e887d2712b1c7679f6577008f8f5e20d` rejects the valid public
+postcondition and wrongly accepts a separate implementation promising the wrong
+mutable formal. Law correspondence now preserves applied declaration identity,
+selected operator meaning, and positional formal roles.
+
+The public call retains its complete evaluated operands, including the selector's
+empty data frontier. Checked stored-output summaries join every selectable body
+without importing private predicates. The captured supplier roster preserves both
+the replaced view and its unchanged image-backed sibling. Terminal descriptor
+replay likewise joins current executable post-state effects while keeping result
+guarantees requirement-owned. An opaque lifetime debt never establishes spatial
+containment or access authority. Mixed selector/data records retain their real
+borrows, and an alternative implementation that also changes the sibling executes
+through the same route.
+
+These productions discharge STATE-LOCAL-VALUE-FRONTIER's earlier-operand descriptor
+observation requirement for direct and public mutators with direct/public dependent
+producers. All nine public positives execute with native and Terminal exit 0;
+their false-length twins reject the indexed consumer. Missing public guarantees,
+wrong formal/field guarantees, and mutation through a live selector-record data
+borrow also reject. The old-extent control rejects, and borrowing an owned home
 already consumed by an earlier operand still rejects.
 
 The type invariant establishes the extent, operand captures preserve its exact

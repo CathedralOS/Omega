@@ -8,6 +8,9 @@ use super::*;
 /// contents intact; an empty new-source set is not permission to drop them.
 #[derive(Clone)]
 pub struct StoredReferenceEffect {
+    /// Every descriptor alternative has a checked supplier. A lifetime-only
+    /// debt is retained independently and cannot complete pointer coverage.
+    pub suppliers_complete: bool,
     /// Static alternatives carry no local loan but remain value alternatives.
     pub has_static_values: bool,
     pub destination: LocalWriteOrigin,

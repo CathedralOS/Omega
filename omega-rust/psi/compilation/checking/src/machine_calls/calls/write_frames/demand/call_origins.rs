@@ -207,7 +207,11 @@ impl<'program> CallFrameResolver<'program> {
                     receiver: Some(Vec::new()),
                     arguments: Vec::new(),
                 };
-                let callee_is_resolved = frames::machine_state_by_symbol(program, target).is_some();
+                // Concrete entries and instantiated dynamic slots receive all
+                // data through explicit operands. A trait namespace retained
+                // on the call is not an implicit receiver storage origin.
+                let callee_is_resolved = frames::machine_state_by_symbol(program, target).is_some()
+                    || program.dynamic_slot_by_symbol(target).is_some();
                 // A nested call can follow effects in an enclosing operand. The
                 // prefix owner has not captured those substatement updates.
                 // Reuse its expression inventory and frame query; do not

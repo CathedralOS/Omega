@@ -7,6 +7,7 @@
 //! propositions and `slot_bindings.rs` binds carrier slots and shapes
 //! diagnostics.
 
+mod declaration_correspondence;
 mod inherited_requirements;
 mod law_guarantees;
 mod operator_contracts;
@@ -141,6 +142,22 @@ pub(crate) fn check_law_conformance(
         }
     }
 
+    // Exact declaration correspondence needs no operation-slot rewriting.
+    // Other laws still use the existing selected-slot and closed-constant
+    // normalization below; these are distinct semantic judgments.
+    let correspondence = declaration_correspondence::DeclarationCorrespondence::new(
+        program,
+        machine,
+        entry_state,
+        application,
+        requirement,
+    );
+    let positional_bindings = requirement_parameters
+        .iter()
+        .zip(&satisfier_parameters)
+        .map(|(required, provided)| (required.clone(), StructuralTerm::Variable(provided.clone())))
+        .collect::<Vec<_>>();
+
     for law_conjunct in &law_conjuncts {
         if crate::proof_contracts::contract_results::expression_uses_reserved_result(
             program,
@@ -149,6 +166,12 @@ pub(crate) fn check_law_conformance(
             // Selected content and other functional guarantees may not have
             // first-order terms. Their exact result occurrence still keeps
             // them out of law matching; ordinary exit proof remains required.
+            continue;
+        }
+        if let Some(source) = correspondence.as_ref().and_then(|correspondence| {
+            correspondence.matching_guarantee(program, *law_conjunct, &proven_conjuncts)
+        }) {
+            matches.push((*law_conjunct, source));
             continue;
         }
         let Some(binary) = program.expression_table.binary_node(*law_conjunct) else {
@@ -222,7 +245,9 @@ pub(crate) fn check_law_conformance(
             [(&proven_left, &proven_right), (&proven_right, &proven_left)]
                 .into_iter()
                 .any(|(first, second)| {
-                    let mut bindings: Vec<(String, StructuralTerm)> = Vec::new();
+                    // Post-state guarantees belong to fixed invocation roles.
+                    // A permutation of mutable formals proves a different clause.
+                    let mut bindings = positional_bindings.clone();
                     diagnostic_shape_match(&law_left, first, &requirement_parameters, &mut bindings)
                         && diagnostic_shape_match(
                             &law_right,
