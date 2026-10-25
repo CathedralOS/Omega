@@ -844,15 +844,9 @@ impl std::error::Error for SelectionDecodeError {}
 #[cfg(test)]
 mod tests;
 
-/// Lowercase hex rendering for byte payloads in manifests and identities.
-pub fn hex(bytes: &[u8]) -> String {
-    use std::fmt::Write;
-    let mut output = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        write!(output, "{byte:02x}").unwrap();
-    }
-    output
-}
+/// Lowercase hex rendering for byte payloads in manifests and identities:
+/// the digest module's renderer is the crate's one hex implementation.
+pub use crate::digest_encoder::hex;
 
 /// Tagged optional u64 payload: 0 discriminant, or 1 followed by 8 LE bytes.
 pub fn encode_option_u64(bytes: &mut Vec<u8>, value: Option<u64>) {
