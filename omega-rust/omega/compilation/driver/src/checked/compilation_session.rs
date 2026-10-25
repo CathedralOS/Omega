@@ -27,6 +27,7 @@ use std::sync::Arc;
 
 #[derive(Default)]
 pub struct CompilationSession {
+    pub(super) source_catalogue: source::SourceCatalogue,
     sources: Vec<PreparedSource>,
     pure_builds: build_evaluation::PureBuildCompilation,
     checks: RetainedCompilationChecks,
@@ -125,6 +126,7 @@ impl CompilationSession {
                 self.reuse(),
                 &self.pure_builds,
                 &mut self.selections,
+                &mut self.source_catalogue,
             )?;
             if let Ok(selected) = &outcome.result {
                 self.retain(&selected.retained_checks);
@@ -142,8 +144,13 @@ impl CompilationSession {
         request: CheckedCompileRequest,
     ) -> Result<PreparedPackageBuild, CompileFailure> {
         let source = self.prepare_source(&request)?;
-        let prepared =
-            prepare_package_build_worker(request, source, self.reuse(), &self.pure_builds)?;
+        let prepared = prepare_package_build_worker(
+            request,
+            source,
+            self.reuse(),
+            &self.pure_builds,
+            &mut self.source_catalogue,
+        )?;
         if let Some(check) = prepared.retained_build_check() {
             retain_judgment(&mut self.checks.sibling_build_checks, check);
         }
@@ -180,7 +187,12 @@ impl CompilationSession {
         {
             return Ok(prepared.source.fork());
         }
-        let mut source = prepare_checked_source(root_path, inputs.clone(), collect_timings)?;
+        let mut source = prepare_checked_source(
+            root_path,
+            inputs.clone(),
+            collect_timings,
+            &mut self.source_catalogue,
+        )?;
         self.sources.push(PreparedSource {
             root: root_path.to_path_buf(),
             inputs,
@@ -211,6 +223,7 @@ impl CompilationSession {
             parsed,
             execution,
             Some(&self.pure_builds),
+            &mut self.source_catalogue,
         )
         .map_err(CompileFailure::into_diagnostics)?;
         let checked = super::check_product_source(

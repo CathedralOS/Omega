@@ -164,6 +164,7 @@ pub(super) fn complete_product_frontend(
     sources: &mut BuildSourceCustody,
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
+    catalogue: &mut source::SourceCatalogue,
 ) -> Result<
     (
         Arc<psi_compiler::PreparedSource>,
@@ -188,6 +189,7 @@ pub(super) fn complete_product_frontend(
         &base_sources,
         package_inputs,
         &computed_build_config.generated_sources,
+        catalogue,
     )? {
         let (sources, units) = extension.parse(&base_sources, timings)?;
         // Extension failures can name generated units absent from base_sources.

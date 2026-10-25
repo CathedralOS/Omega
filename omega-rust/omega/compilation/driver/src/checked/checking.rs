@@ -30,6 +30,7 @@ pub(crate) fn prepare_checked_source(
     root_path: &Path,
     package_sources: Option<std::sync::Arc<package_compilation::PackageCompilationSourceInputs>>,
     collect_timings: bool,
+    catalogue: &mut source::SourceCatalogue,
 ) -> Result<PreparedCheckedSource, Vec<Diagnostic>> {
     let mut timings = if collect_timings {
         CompileTimings::enabled()
@@ -40,6 +41,7 @@ pub(crate) fn prepare_checked_source(
         root_path,
         package_sources,
         &mut timings,
+        catalogue,
     )?;
     Ok(PreparedCheckedSource::from_parsed(sources, timings))
 }
@@ -49,6 +51,7 @@ pub(crate) fn prepare_checked_source(
 fn prepare_typed_frontier(
     source: PreparedCheckedSource,
     child: &CheckedExecutionRequest<'_>,
+    catalogue: &mut source::SourceCatalogue,
 ) -> Result<(TypedCompilationFrontier, CompileTimings), Vec<Diagnostic>> {
     let (sources, mut timings, retention) =
         match source.into_frontier(child.package_inputs, child.build_execution_profile)? {
@@ -64,7 +67,8 @@ fn prepare_typed_frontier(
         };
     counters::record_source_assembly();
     let assembly_started = std::time::Instant::now();
-    let (source_file_count, syntax) = sources.assemble(child.package_inputs, &mut timings)?;
+    let (source_file_count, syntax) =
+        sources.assemble(child.package_inputs, &mut timings, catalogue)?;
     timings.add_completed(
         artifacts::compile_timings::SOURCE_ASSEMBLY,
         assembly_started.elapsed().as_micros(),
@@ -98,6 +102,7 @@ pub(super) fn prepare_package_build_worker(
     source: PreparedCheckedSource,
     reuse: SettledCheckReuse,
     owner: &build_evaluation::PureBuildCompilation,
+    catalogue: &mut source::SourceCatalogue,
 ) -> Result<PreparedPackageBuild, CompileFailure> {
     let selected_target =
         target::TargetProfile::from_omega_target_name(request.target_name.as_deref())
@@ -127,7 +132,7 @@ pub(super) fn prepare_package_build_worker(
         permit_unsettled_fused_service_fields: false,
         settled_check_reuse: reuse,
     };
-    let prepared = prepare_build_source(&request.root_path, source, child, Some(owner))?;
+    let prepared = prepare_build_source(&request.root_path, source, child, Some(owner), catalogue)?;
     let base_sources = prepared.built.base_sources.clone();
     PreparedPackageBuild::seal(
         request.root_path,
@@ -151,6 +156,7 @@ pub(super) fn select_checked_worker(
     reuse: SettledCheckReuse,
     pure_build_compilation: &build_evaluation::PureBuildCompilation,
     selections: &mut psi_compiler::ProductSelections,
+    catalogue: &mut source::SourceCatalogue,
 ) -> Result<SelectedCompileOutcome, CompileFailure> {
     // Target admission precedes source loading, including for fresh requests.
     let selected_target_profile = request
@@ -186,6 +192,7 @@ pub(super) fn select_checked_worker(
         child,
         Some(pure_build_compilation),
         selections,
+        catalogue,
     )
 }
 
@@ -199,6 +206,7 @@ pub(crate) fn select_prepared_source(
     child: CheckedExecutionRequest<'_>,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
     selections: &mut psi_compiler::ProductSelections,
+    catalogue: &mut source::SourceCatalogue,
 ) -> Result<SelectedCompileOutcome, CompileFailure> {
     let selected_target_profile = child.selected_target_profile;
     let package_inputs = child.package_inputs;
@@ -206,7 +214,8 @@ pub(crate) fn select_prepared_source(
     let permit_unsettled_fused_service_fields = child.permit_unsettled_fused_service_fields;
     let settled_check_reuse = child.settled_check_reuse.clone();
 
-    let prepared = prepare_build_source(root_path, source, child, pure_build_compilation)?;
+    let prepared =
+        prepare_build_source(root_path, source, child, pure_build_compilation, catalogue)?;
     Ok(select_completed_build(
         prepared,
         selected_target_profile,
@@ -215,6 +224,7 @@ pub(crate) fn select_prepared_source(
         permit_unsettled_fused_service_fields,
         settled_check_reuse,
         selections,
+        catalogue,
     ))
 }
 
@@ -225,11 +235,12 @@ fn prepare_build_source(
     source: PreparedCheckedSource,
     child: CheckedExecutionRequest<'_>,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
+    catalogue: &mut source::SourceCatalogue,
 ) -> Result<PreparedBuild, CompileFailure> {
     source.admit_root(root_path)?;
     child.admit_package_inputs()?;
 
-    let (frontier, mut timings) = prepare_typed_frontier(source, &child)?;
+    let (frontier, mut timings) = prepare_typed_frontier(source, &child, catalogue)?;
     let base_sources = frontier.base_sources.clone();
     let package_inputs = child.package_inputs;
     let (built, build_sources) = timed(&mut timings, BUILD_AND_CHECKED_CONTINUATION, |timings| {
@@ -255,15 +266,18 @@ pub(crate) fn prepare_product_source(
     source: PreparedCheckedSource,
     child: CheckedExecutionRequest<'_>,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
+    catalogue: &mut source::SourceCatalogue,
 ) -> Result<PreparedProductSource, CompileFailure> {
     let package_inputs = child.package_inputs;
-    let prepared = prepare_build_source(root_path, source, child, pure_build_compilation)?;
-    complete_prepared_build(prepared, package_inputs).map_err(CompileFailure::from)
+    let prepared =
+        prepare_build_source(root_path, source, child, pure_build_compilation, catalogue)?;
+    complete_prepared_build(prepared, package_inputs, catalogue).map_err(CompileFailure::from)
 }
 
 pub(super) fn complete_prepared_build(
     prepared: PreparedBuild,
     package_inputs: Option<&PackageCompilationInputs>,
+    catalogue: &mut source::SourceCatalogue,
 ) -> Result<PreparedProductSource, Vec<Diagnostic>> {
     let PreparedBuild {
         mut built,
@@ -277,6 +291,7 @@ pub(super) fn complete_prepared_build(
         &mut build_sources,
         package_inputs,
         &mut timings,
+        catalogue,
     )
     .map_err(|mut diagnostics| {
         attribute_diagnostics(&mut diagnostics, &base_sources, package_inputs);
@@ -300,12 +315,13 @@ pub(super) fn select_completed_build(
     permit_unsettled_fused_service_fields: bool,
     settled_check_reuse: SettledCheckReuse,
     selections: &mut psi_compiler::ProductSelections,
+    catalogue: &mut source::SourceCatalogue,
 ) -> SelectedCompileOutcome {
     let independent_components = prepared
         .built
         .computed_build_config
         .independent_components();
-    match complete_prepared_build(prepared, package_inputs).and_then(|source| {
+    match complete_prepared_build(prepared, package_inputs, catalogue).and_then(|source| {
         check_product_source(
             source,
             package_inputs,

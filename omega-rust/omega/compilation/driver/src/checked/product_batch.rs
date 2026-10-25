@@ -49,15 +49,17 @@ impl CompilationSession {
                 .built
                 .computed_build_config
                 .independent_components();
-            let checked = complete_prepared_build(prepared, Some(&inputs)).and_then(|source| {
-                check_product_source(
-                    source,
-                    Some(&inputs),
-                    &rollback,
-                    self.reuse(),
-                    &mut self.selections,
-                )
-            });
+            let checked =
+                complete_prepared_build(prepared, Some(&inputs), &mut self.source_catalogue)
+                    .and_then(|source| {
+                        check_product_source(
+                            source,
+                            Some(&inputs),
+                            &rollback,
+                            self.reuse(),
+                            &mut self.selections,
+                        )
+                    });
             match checked {
                 Ok(mut source) => {
                     let completion_timings = std::mem::replace(&mut source.timings, first_timings);

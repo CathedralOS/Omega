@@ -66,6 +66,7 @@ impl BuildSourceCustody {
         base_sources: &std::sync::Arc<source::SourceMap>,
         package_inputs: Option<&'inputs PackageCompilationInputs>,
         generated_sources: &[build_output::PackageGeneratedSource],
+        catalogue: &mut source::SourceCatalogue,
     ) -> Result<
         Option<(
             crate::source_imports::GeneratedSourceExtension,
@@ -89,6 +90,7 @@ impl BuildSourceCustody {
             package_root,
             Some(package_inputs.root()),
             generated_sources,
+            catalogue,
         )?;
         let source_file_count = self
             .source_file_count

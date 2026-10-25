@@ -19,6 +19,9 @@ pub(crate) struct SourceStorage {
     pub resolved_imports: Vec<super::ResolvedSourceImport>,
     default_package_root: PathBuf,
     default_package_identity: Option<PackageKeyIdentity>,
+    /// Provisional anonymous owners stay in a local coordinate space until
+    /// sealing; their metadata must not rewrite an invocation-wide prefix.
+    catalogued: bool,
     anonymous_capture: Option<std::sync::Arc<source::CapturedSourceTree>>,
     anonymous_core_capture: Option<(PathBuf, std::sync::Arc<source::CapturedSourceTree>)>,
     package_roots: Vec<RegisteredPackageRoot>,
@@ -39,6 +42,7 @@ impl SourceStorage {
     pub fn prepare(
         root_path: &Path,
         package_inputs: Option<&crate::PackageCompilationInputs>,
+        catalogue: &mut source::SourceCatalogue,
     ) -> Result<Self, Vec<Diagnostic>> {
         match package_inputs {
             Some(package_inputs) => {
@@ -53,6 +57,8 @@ impl SourceStorage {
                     super::bundled_core_root()?,
                     package_inputs.source_filesystem().clone(),
                 );
+                storage.catalogued = true;
+                storage.sources = catalogue.begin_selection();
                 for (identity, source_root) in package_inputs.packages() {
                     storage.register_reconciled_package_root(source_root.to_path_buf(), identity);
                 }
@@ -297,25 +303,41 @@ impl SourceStorage {
         contents: source::SourceContents,
         origin_override: Option<SourceOrigin>,
         resolution_stratum: source::SourceResolutionStratum,
-    ) -> source::LoadedSource {
+        catalogue: &mut source::SourceCatalogue,
+    ) -> Result<source::LoadedSource, Vec<Diagnostic>> {
         let (package_root, package_identity, origin) =
             self.source_metadata(&contents.path, origin_override);
-        let admitted = self.sources.select_checked_instance(
-            contents.path,
-            contents.source,
-            package_root,
-            package_identity,
-            origin,
-            resolution_stratum,
-            contents.scope,
-        );
-        source::LoadedSource {
+        let admitted = if self.catalogued {
+            catalogue
+                .admit_checked_instance(
+                    &mut self.sources,
+                    contents.path,
+                    contents.source,
+                    package_root,
+                    package_identity,
+                    origin,
+                    resolution_stratum,
+                    contents.scope,
+                )
+                .map_err(|message| vec![Diagnostic::error(message)])?
+        } else {
+            self.sources.select_checked_instance(
+                contents.path,
+                contents.source,
+                package_root,
+                package_identity,
+                origin,
+                resolution_stratum,
+                contents.scope,
+            )
+        };
+        Ok(source::LoadedSource {
             source_id: admitted.source_id,
             path: admitted.path.clone(),
             source: admitted.source.clone(),
             origin: Some(admitted.origin),
             scope: admitted.dependency_scope,
-        }
+        })
     }
 
     /// Parser roots already name the admitted records. Attaching them allocates
@@ -490,16 +512,20 @@ mod tests {
         let text: Arc<str> = Arc::from("public data Shared {} // retained bytes");
         let retained = Arc::downgrade(&text);
         let mut storage = SourceStorage::default();
+        let mut catalogue = source::SourceCatalogue::default();
         let loaded = [DependencyScope::Build, DependencyScope::Product].map(|scope| {
-            storage.admit_source(
-                source::SourceContents {
-                    path: PathBuf::from("shared.omg"),
-                    source: text.clone(),
-                    scope,
-                },
-                Some(SourceOrigin::Toolchain),
-                SourceResolutionStratum::Base,
-            )
+            storage
+                .admit_source(
+                    source::SourceContents {
+                        path: PathBuf::from("shared.omg"),
+                        source: text.clone(),
+                        scope,
+                    },
+                    Some(SourceOrigin::Toolchain),
+                    SourceResolutionStratum::Base,
+                    &mut catalogue,
+                )
+                .unwrap()
         });
         let mut parsed = ParsedSources::default();
         parsed.batch = parsed
@@ -550,29 +576,40 @@ mod tests {
 
     #[test]
     fn source_admission_keeps_retained_coordinates_in_current_frontier_order() {
-        let mut original = SourceStorage::default();
+        let mut catalogue = source::SourceCatalogue::default();
+        let mut original = SourceStorage {
+            catalogued: true,
+            ..SourceStorage::default()
+        };
         let contents = |name: &str| source::SourceContents {
             path: PathBuf::from(name),
             source: Arc::from("retained contents"),
             scope: DependencyScope::Product,
         };
         for name in ["first.omg", "unused.omg", "last.omg"] {
-            original.admit_source(
-                contents(name),
-                Some(SourceOrigin::Toolchain),
-                SourceResolutionStratum::Base,
-            );
+            original
+                .admit_source(
+                    contents(name),
+                    Some(SourceOrigin::Toolchain),
+                    SourceResolutionStratum::Base,
+                    &mut catalogue,
+                )
+                .unwrap();
         }
         let mut current = SourceStorage {
             sources: original.sources.fork_source_selection().unwrap(),
+            catalogued: true,
             ..SourceStorage::default()
         };
         let loaded = ["last.omg", "first.omg", "new.omg"].map(|name| {
-            current.admit_source(
-                contents(name),
-                Some(SourceOrigin::Toolchain),
-                SourceResolutionStratum::Base,
-            )
+            current
+                .admit_source(
+                    contents(name),
+                    Some(SourceOrigin::Toolchain),
+                    SourceResolutionStratum::Base,
+                    &mut catalogue,
+                )
+                .unwrap()
         });
         assert_eq!(loaded.each_ref().map(|file| file.source_id.0), [2, 0, 3]);
         let mut parsed = ParsedSources::default();

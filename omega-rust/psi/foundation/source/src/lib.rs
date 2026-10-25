@@ -36,7 +36,7 @@ pub use source_file::{
     DependencyScope, SourceFile, SourceOrigin, SourcePosition, SourceResolutionStratum,
 };
 pub use source_file_system::SourceFileSystem;
-pub use source_map::SourceMap;
+pub use source_map::{SourceCatalogue, SourceMap};
 pub use source_snapshot::{
     SourceSnapshot, SourceSnapshotEntry, SourceSnapshotError, SourceSnapshotMetadata,
     SourceSnapshotStorage, source_snapshot_path_is_canonical,

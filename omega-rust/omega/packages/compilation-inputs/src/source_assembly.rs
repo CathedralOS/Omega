@@ -92,6 +92,7 @@ impl ImmutableSourceParseCheckpoint {
         root_path: &Path,
         package_sources: Option<Arc<crate::PackageCompilationSourceInputs>>,
         timings: &mut CompileTimings,
+        catalogue: &mut source::SourceCatalogue,
     ) -> Result<Self, Vec<Diagnostic>> {
         let package_inputs = package_sources
             .map(|sources| PackageCompilationInputs::from_parts(sources, Default::default()))
@@ -102,15 +103,16 @@ impl ImmutableSourceParseCheckpoint {
                     .map(|error| Diagnostic::error(error.to_string()))
                     .collect::<Vec<_>>()
             })?;
-        Self::prepare(root_path, package_inputs.as_ref(), timings)
+        Self::prepare(root_path, package_inputs.as_ref(), timings, catalogue)
     }
 
     pub fn prepare(
         root_path: &Path,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
+        catalogue: &mut source::SourceCatalogue,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let mut source_storage = SourceStorage::prepare(root_path, package_inputs)?;
+        let mut source_storage = SourceStorage::prepare(root_path, package_inputs, catalogue)?;
         let project = ProjectSourceSelection::prepare(root_path, &source_storage.filesystem)?;
         let mut imports = ImportQueue::default();
         for (path, scope) in project.sources() {
@@ -123,6 +125,7 @@ impl ImmutableSourceParseCheckpoint {
             package_inputs,
             PackageImportPhase::TargetIndependent,
             timings,
+            catalogue,
         )?;
         let build_source_id = project.build_source_id(&source_storage)?;
         let application = validate_selected_build_role(&source_storage, build_source_id)?;
@@ -144,6 +147,7 @@ impl ImmutableSourceParseCheckpoint {
         self,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
+        catalogue: &mut source::SourceCatalogue,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
         self.validate_child(package_inputs)?;
         let mut source_storage = Arc::unwrap_or_clone(self.source_storage);
@@ -157,6 +161,7 @@ impl ImmutableSourceParseCheckpoint {
                 &mut imports,
                 package_inputs,
                 timings,
+                catalogue,
             )?,
             None => Vec::new(),
         };
@@ -178,6 +183,7 @@ impl ImmutableSourceParseCheckpoint {
             package_inputs,
             PackageImportPhase::ExactTarget(None),
             timings,
+            catalogue,
         )?;
         // Core query results are ordinary source-backed data. Load their
         // canonical declarations even for an import-free query occurrence;
@@ -204,6 +210,7 @@ impl ImmutableSourceParseCheckpoint {
             package_inputs,
             PackageImportPhase::ExactTarget(None),
             timings,
+            catalogue,
         )?;
         // Every target's entry contract joins the set; the selected target
         // only decides which one realizes the program entry later.
@@ -222,6 +229,7 @@ impl ImmutableSourceParseCheckpoint {
                 package_inputs,
                 PackageImportPhase::ExactTarget(None),
                 timings,
+                catalogue,
             )?;
         }
         let mut source_scoped_top_level_bindings = Vec::new();
@@ -236,7 +244,8 @@ impl ImmutableSourceParseCheckpoint {
                 },
                 Some(SourceOrigin::Toolchain),
                 SourceResolutionStratum::Base,
-            );
+                catalogue,
+            )?;
             if let Some(build_source_id) = prelude.alias_for {
                 source_scoped_top_level_bindings.push(symbols::SourceScopedTopLevelBinding::new(
                     build_source_id,
@@ -285,7 +294,8 @@ impl ImmutableSourceParseCheckpoint {
                 },
                 Some(SourceOrigin::User),
                 SourceResolutionStratum::Base,
-            );
+                catalogue,
+            )?;
             let codec_source_id = admitted.source_id;
             let parsed = SourceInput([admitted].into_iter().collect()).append(
                 &mut source_storage.syntax_trees,
@@ -388,6 +398,7 @@ fn append_dependency_generated_sources_to_storage(
     imports: &mut ImportQueue,
     package_inputs: &PackageCompilationInputs,
     timings: &mut CompileTimings,
+    catalogue: &mut source::SourceCatalogue,
 ) -> Result<Vec<(source::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
     let entries = crate::source_imports::admit_dependency_generated_sources(package_inputs)?;
 
@@ -413,7 +424,8 @@ fn append_dependency_generated_sources_to_storage(
             },
             Some(SourceOrigin::User),
             SourceResolutionStratum::DependencyActivationExtension,
-        );
+            catalogue,
+        )?;
         let source_id = admitted.source_id;
         let parsed = SourceInput([admitted].into_iter().collect()).append(
             &mut source_storage.syntax_trees,
@@ -442,6 +454,7 @@ fn load_imports(
     package_inputs: Option<&PackageCompilationInputs>,
     phase: PackageImportPhase,
     timings: &mut CompileTimings,
+    catalogue: &mut source::SourceCatalogue,
 ) -> Result<Vec<PendingPackageImport>, Vec<Diagnostic>> {
     let mut retained_requests = Vec::new();
     while imports.has_pending() {
@@ -460,9 +473,14 @@ fn load_imports(
         let admitted = loaded
             .into_iter()
             .map(|contents| {
-                source_storage.admit_source(contents, None, SourceResolutionStratum::Base)
+                source_storage.admit_source(
+                    contents,
+                    None,
+                    SourceResolutionStratum::Base,
+                    catalogue,
+                )
             })
-            .collect();
+            .collect::<Result<_, _>>()?;
         let parsed = SourceInput(admitted).append(
             &mut source_storage.syntax_trees,
             &mut ParsingTimings(timings),
