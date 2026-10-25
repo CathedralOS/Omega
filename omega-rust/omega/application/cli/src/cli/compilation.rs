@@ -3,7 +3,8 @@
 use super::arguments::CompileArguments;
 use compiler::CompilerRequestOutcome;
 use omega_build::{
-    BuildError, BuildRequest, BuildTargets, ProjectProduct, TargetBuildOutcome, build,
+    BuildError, BuildRequest, BuildTargets, NativeDestination, ProjectProduct, TargetBuildOutcome,
+    build,
 };
 
 pub(crate) fn compile_project_command(arguments: CompileArguments) {
@@ -32,7 +33,10 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
         product: if arguments.check_only {
             ProjectProduct::Check
         } else {
-            ProjectProduct::NativeArtifact
+            ProjectProduct::Native {
+                destination: NativeDestination::Published,
+                private_entry_ram: Vec::new(),
+            }
         },
         timings: arguments.timings,
         offline: arguments.offline,

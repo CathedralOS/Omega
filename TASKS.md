@@ -2792,8 +2792,9 @@ crash and native exit behavior.
   shared by roots and callables, including explicit stages 07-09; backend frame
   construction and evidence joins remain cohesive backend operations. Product
   orchestration retains identities with ordered work. The application Build
-  entrance owns project preparation, directory admission and product publication;
-  package dependency/Build activation scheduling still needs migration. Psi
+  entrance owns project preparation, directory admission and product publication
+  for both compilation and `run`; retained execution products use the same route.
+  Package dependency/Build activation scheduling still needs migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
   Psi 00-07 and Build execute

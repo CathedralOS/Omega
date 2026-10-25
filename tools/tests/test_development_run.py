@@ -74,6 +74,31 @@ class DevelopmentRun(unittest.TestCase):
         self.assert_exit(result, 0)
         self.assertFalse((self.project / "omega.lock").exists())
 
+    def test_unlocked_both_compares_the_retained_product(self):
+        result = self.invoke("run", "--both", "main.omg")
+        self.assert_exit(result, 0)
+        self.assertIn("native exit 0", result.stdout + result.stderr)
+        self.assertIn("interp exit: 0", result.stdout + result.stderr)
+        self.assertFalse((self.project / "omega.lock").exists())
+
+    def test_both_replays_multiple_inputs_from_one_compilation(self):
+        inputs = self.project / "inputs"
+        inputs.mkdir()
+        for name, content in (("first", b"one\n"), ("second", b"two\n")):
+            (inputs / f"{name}.stdin").write_bytes(content)
+        result = self.invoke("run", "--both", "--inputs", inputs,
+                             "--outputs", self.project / "outputs", "main.omg")
+        self.assert_exit(result, 0)
+        for name in ("first", "second"):
+            self.assertIn(f"case {name}: native exit 0; interp exit 0", result.stderr)
+        self.assertFalse((self.project / "omega.lock").exists())
+
+    def test_run_preserves_private_entry_initialization_refusals(self):
+        result = self.invoke("run", "--both", "--entry-ram", "1=2900000003000000", "main.omg")
+        self.assert_exit(result, 200)
+        self.assertIn("private entry RAM initializer answers no declared entry position", result.stderr)
+        self.assertNotIn("native exit", result.stderr)
+
     def test_check_does_not_claim_or_publish_the_output_directory(self):
         output = self.project / "check-output"
         result = self.invoke("--check", "--build-dir", output, "--target", self.target, "main.omg")

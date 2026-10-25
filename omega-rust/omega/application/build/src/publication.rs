@@ -3,17 +3,17 @@
 //! The compiler stops at an in-memory semantic product. Choosing a path and
 //! making bytes visible is command/product policy, not compilation.
 
-use crate::{BuildError, BuildOutcome, ProjectProduct, TargetBuildOutcome};
+use crate::{BuildError, BuildOutcome, NativeDestination, ProjectProduct, TargetBuildOutcome};
 use artifacts::compile_timings::{CompileTimings, StageMeta};
 use compiler::CompileReport;
 use std::path::{Path, PathBuf};
 
-/// Preserve every target's outcome. Checks publish no bytes; native/artifact
-/// products publish only into their own admitted canonical directory.
+/// Preserve every target's outcome. Checks and retained native requests publish
+/// no bytes; published products use their own admitted canonical directory.
 pub(crate) fn publish_products(
     work: Vec<crate::build_directory::TargetWork>,
     mut reports: Vec<(target::TargetProfile, Result<CompileReport, BuildError>)>,
-    product: ProjectProduct,
+    product: &ProjectProduct,
     timings: &mut CompileTimings,
 ) -> Vec<TargetBuildOutcome> {
     let mut outcomes = Vec::with_capacity(work.len());
@@ -49,13 +49,20 @@ pub(crate) fn publish_products(
 
 fn publish_product(
     report: CompileReport,
-    product: ProjectProduct,
+    product: &ProjectProduct,
     directory: &Path,
     timings: &mut CompileTimings,
 ) -> Result<BuildOutcome, BuildError> {
     let (report, executable_path) = match product {
-        ProjectProduct::Check => (report, None),
-        ProjectProduct::NativeArtifact => timings
+        ProjectProduct::Check
+        | ProjectProduct::Native {
+            destination: NativeDestination::Retained,
+            ..
+        } => (report, None),
+        ProjectProduct::Native {
+            destination: NativeDestination::Published,
+            ..
+        } => timings
             .record_result(
                 StageMeta::new("publish", "retained product", "published product"),
                 || publish_compilation(report, directory),

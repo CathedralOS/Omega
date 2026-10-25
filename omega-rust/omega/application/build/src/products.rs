@@ -13,14 +13,20 @@ pub(crate) fn compile(
     targets: &[TargetProfile],
 ) -> Result<Vec<(TargetProfile, Result<CompileReport, BuildError>)>, BuildError> {
     let mut reports = Vec::with_capacity(targets.len());
-    match (prepared, request.product) {
-        (Some(prepared), ProjectProduct::NativeArtifact) => {
+    match (prepared, &request.product) {
+        (
+            Some(prepared),
+            ProjectProduct::Native {
+                private_entry_ram, ..
+            },
+        ) => {
             let mut product = packages::PreparedLocalProjectNativeRequest::for_targets(
                 prepared,
                 directory,
                 targets.to_vec(),
             )
             .with_optimization_rollback(request.optimization_rollback.clone())
+            .with_private_entry_ram(private_entry_ram.clone())
             .with_timings(request.timings);
             if let Some(snapshot) = &request.build_snapshot {
                 product = product.with_build_snapshot(snapshot.clone());
@@ -56,7 +62,7 @@ pub(crate) fn compile(
         (None, product) => {
             let product = match product {
                 ProjectProduct::Check => RequestedCompileProduct::Check,
-                ProjectProduct::NativeArtifact => RequestedCompileProduct::NativeArtifact,
+                ProjectProduct::Native { .. } => RequestedCompileProduct::NativeArtifact,
             };
             let explicit = !matches!(request.targets, BuildTargets::Host);
             let profiles = targets
@@ -71,6 +77,12 @@ pub(crate) fn compile(
             .with_requested_product(product)
             .with_optimization_rollback(request.optimization_rollback.clone())
             .with_timings(request.timings);
+            if let ProjectProduct::Native {
+                private_entry_ram, ..
+            } = &request.product
+            {
+                compilation = compilation.with_private_entry_ram(private_entry_ram.clone());
+            }
             if let Some(snapshot) = &request.build_snapshot {
                 compilation = compilation.with_build_snapshot(snapshot.clone());
             }

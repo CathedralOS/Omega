@@ -18,11 +18,11 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
     } else {
         CompileTimings::default()
     };
-    let check_workspace = match request.product {
+    let check_workspace = match &request.product {
         ProjectProduct::Check => {
             Some(TemporaryDirectory::create("check", false).map_err(BuildError::CheckWorkspace)?)
         }
-        ProjectProduct::NativeArtifact => None,
+        ProjectProduct::Native { .. } => None,
     };
     // Placement belongs to the authored source, never its resolver snapshot.
     let base_directory = match &check_workspace {
@@ -77,7 +77,7 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
     Ok(publication::publish_products(
         work,
         reports,
-        request.product,
+        &request.product,
         &mut timings,
     ))
 }
