@@ -100,6 +100,11 @@ pub(crate) fn scalar_storage_read_with_selectors(
             .collect::<Option<Vec<_>>>()?;
         let mut reference = projection.selected_type;
         if path.is_empty() {
+            // Structural projection already enters a borrowed formal's referent
+            // namespace. Authenticate access on the declared carrier, not on
+            // the scalar endpoint returned by that projection.
+            let parameter = authored_parameters.get(usize::try_from(parameter_position).ok()?)?;
+            reference = parameter.type_reference;
             let shell = validation::reference_shell(program, reference)?;
             if !matches!(
                 shell.access,
