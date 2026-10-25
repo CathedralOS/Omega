@@ -512,12 +512,13 @@ impl CompileReport {
                 product.runtime_provisions.as_mut()
             }
             CompileProduct::RetainedNativeArtifact(product)
-                if product.artifact.target().object_format == target::ObjectFormat::MachO =>
+                if product.artifact.target().object_format == target::ObjectFormat::MachO
+                    || product.artifact.target() == target::NativeTarget::windows_x64() =>
             {
                 product.runtime_provisions.as_mut()
             }
             _ => return Err(
-                "component files require their distinct ELF or Mach-O process publication contract"
+                "component files require an admitted ELF, Mach-O, or Windows x86-64 process publication contract"
                     .into(),
             ),
         }

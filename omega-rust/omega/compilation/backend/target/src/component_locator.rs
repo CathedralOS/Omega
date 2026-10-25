@@ -27,8 +27,9 @@ impl NormalizedComponentLocator {
                 | TargetProfile::LinuxArm64
                 | TargetProfile::MacosX64
                 | TargetProfile::MacosArm64
+                | TargetProfile::WindowsX64
         ) {
-            return Err("component linkage requires an admitted ELF or Mach-O target");
+            return Err("component linkage requires an admitted ELF, Mach-O, or Windows PE target");
         }
         if image_digest == [0; 32] || slot_commitment == [0; 32] {
             return Err("component linkage requires exact image and export-slot commitments");
@@ -86,6 +87,7 @@ impl NormalizedComponentLocator {
         let suffix = match self.target {
             TargetProfile::LinuxX64 | TargetProfile::LinuxArm64 => "so",
             TargetProfile::MacosX64 | TargetProfile::MacosArm64 => "dylib",
+            TargetProfile::WindowsX64 => "dll",
             _ => unreachable!("component locator construction admits only supported containers"),
         };
         format!(
@@ -204,6 +206,26 @@ pub fn component_export_slot(
     digest.raw(semantic_subject);
     digest.raw(calling_application);
     digest.finish()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::NormalizedComponentLocator;
+    use crate::TargetProfile;
+
+    #[test]
+    fn windows_component_locator_names_a_pe_sibling() {
+        let locator = NormalizedComponentLocator::for_image(
+            TargetProfile::WindowsX64,
+            b"component bytes",
+            [7; 32],
+        )
+        .expect("windows x86-64 is an admitted component target");
+        let name = locator.image_filename();
+        assert!(name.starts_with("libomega-component-"));
+        assert!(name.ends_with(".dll"));
+        assert!(locator.export_symbol().starts_with("__omega_slot_"));
+    }
 }
 
 fn hexadecimal(bytes: &[u8; 32]) -> String {

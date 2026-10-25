@@ -116,10 +116,20 @@ pub(crate) fn install_import_thunks(
                     }
                 }
             }
-            FinalImageImportPlan::Normalized(target::NormalizedImportLocator::Component(_)) => {
-                return Err(Diagnostic::error(
-                    "ELF component locator cannot enter PE import planning",
-                ));
+            FinalImageImportPlan::Normalized(target::NormalizedImportLocator::Component(
+                component,
+            )) => {
+                if component.target() != TargetProfile::WindowsX64
+                    || component.target().native_target() != image.target
+                {
+                    return Err(Diagnostic::error(
+                        "component locator is not applicable to this PE image target",
+                    ));
+                }
+                (
+                    component.image_filename().into_bytes(),
+                    PeImportLookup::ByName(component.export_symbol().into_bytes()),
+                )
             }
             FinalImageImportPlan::None => {
                 return Err(Diagnostic::error(format!(
