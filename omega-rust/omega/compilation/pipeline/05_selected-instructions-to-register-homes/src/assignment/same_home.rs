@@ -10,8 +10,7 @@ use selected_instructions::{FunctionLiveRanges, VirtualRegisterId};
 
 pub(super) struct SameHomeComponents {
     registers: Vec<VirtualRegisterId>,
-    roots: Vec<usize>,
-    leader_by_id: Vec<u32>,
+    root_by_id: Vec<u32>,
     member_offsets: Vec<u32>,
     member_targets: Vec<VirtualRegisterId>,
 }
@@ -45,12 +44,12 @@ impl SameHomeComponents {
             roots[right] = left;
         }
         let max_id = registers.last().map_or(0, |reg| reg.0 as usize + 1);
-        let mut leader_by_id = vec![u32::MAX; max_id];
+        let mut root_by_id = vec![u32::MAX; max_id];
         let mut counts = vec![0u32; registers.len()];
         for position in 0..roots.len() {
             let r = root(&roots, position);
             roots[position] = r;
-            leader_by_id[registers[position].0 as usize] = registers[r].0;
+            root_by_id[registers[position].0 as usize] = r as u32;
             counts[r] += 1;
         }
         let mut member_offsets = vec![0u32; registers.len() + 1];
@@ -67,8 +66,7 @@ impl SameHomeComponents {
         }
         Self {
             registers,
-            roots,
-            leader_by_id,
+            root_by_id,
             member_offsets,
             member_targets,
         }
@@ -76,18 +74,35 @@ impl SameHomeComponents {
 
     #[inline]
     pub(super) fn leader(&self, register: VirtualRegisterId) -> VirtualRegisterId {
-        self.leader_by_id
+        self.root_by_id
             .get(register.0 as usize)
             .copied()
-            .filter(|&leader| leader != u32::MAX)
-            .map_or(register, VirtualRegisterId)
+            .filter(|&r| r != u32::MAX)
+            .map_or(register, |r| self.registers[r as usize])
+    }
+
+    #[inline]
+    pub(super) fn has_multiple_members(&self, register: VirtualRegisterId) -> bool {
+        let Some(&r) = self
+            .root_by_id
+            .get(register.0 as usize)
+            .filter(|&&r| r != u32::MAX)
+        else {
+            return false;
+        };
+        let r = r as usize;
+        self.member_offsets[r + 1] - self.member_offsets[r] > 1
     }
 
     pub(super) fn members(&self, register: VirtualRegisterId) -> Vec<VirtualRegisterId> {
-        let Ok(position) = self.registers.binary_search(&register) else {
+        let Some(&r) = self
+            .root_by_id
+            .get(register.0 as usize)
+            .filter(|&&r| r != u32::MAX)
+        else {
             return vec![register];
         };
-        let r = self.roots[position];
+        let r = r as usize;
         let start = self.member_offsets[r] as usize;
         let end = self.member_offsets[r + 1] as usize;
         self.member_targets[start..end].to_vec()
@@ -99,11 +114,15 @@ impl SameHomeComponents {
         register: VirtualRegisterId,
         mut f: impl FnMut(VirtualRegisterId),
     ) {
-        let Ok(position) = self.registers.binary_search(&register) else {
+        let Some(&r) = self
+            .root_by_id
+            .get(register.0 as usize)
+            .filter(|&&r| r != u32::MAX)
+        else {
             f(register);
             return;
         };
-        let r = self.roots[position];
+        let r = r as usize;
         let start = self.member_offsets[r] as usize;
         let end = self.member_offsets[r + 1] as usize;
         for &member in &self.member_targets[start..end] {
