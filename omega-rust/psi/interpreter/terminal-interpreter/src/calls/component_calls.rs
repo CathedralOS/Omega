@@ -79,6 +79,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             // checks finished before preparing it; commit the ordinary transfer
             // before allowing that child to consume the original atoms.
             self.live_affine_frontier = prepared.remaining_affine;
+            self.local_structural_identities
+                .commit_cursor(prepared.identity_cursor);
             self.live_claims = prepared.remaining_claims;
             for place in prepared.retired_sources {
                 self.structural_values

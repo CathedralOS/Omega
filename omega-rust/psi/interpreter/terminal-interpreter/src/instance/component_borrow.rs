@@ -50,6 +50,7 @@ impl ComponentBorrowedStorage {
         caller: &TerminalExecution<'_>,
         source: &TerminalStructuralValue,
         presentation: Arc<ComponentTypePresentation>,
+        reference_home: u64,
     ) -> Result<(), TerminalInterpretError> {
         if caller.program.identity != self.receiver
             || source.structural_type != presentation.source()
@@ -62,6 +63,13 @@ impl ComponentBorrowedStorage {
             )
         };
         let home = StructuralRuntimePlace::from(source);
+        // Each imported view has a private descriptor home. Source path keys
+        // belong to the caller's artifact and must never compete with already
+        // presented child field keys when overlapping views are imported.
+        let destination_home = StructuralRuntimePlace {
+            opaque_identity: reference_home,
+            path: Vec::new(),
+        };
         let within = |stored: &StructuralRuntimePlace| {
             stored.opaque_identity == home.opaque_identity && stored.path.starts_with(&home.path)
         };
@@ -116,12 +124,12 @@ impl ComponentBorrowedStorage {
             presentations,
         };
         let origins = Arc::get_mut(&mut self.origins).ok_or_else(malformed)?;
-        if let Some(previous) = origins.get(&home) {
+        if let Some(previous) = origins.get(&destination_home) {
             if previous != &origin {
                 return Err(malformed());
             }
         } else {
-            origins.insert(home.clone(), origin)?;
+            origins.insert(destination_home.clone(), origin)?;
         }
         let mut found = false;
         for (stored, payload) in
@@ -138,7 +146,7 @@ impl ComponentBorrowedStorage {
             presentation
                 .present_path(&mut suffix)
                 .map_err(|_| malformed())?;
-            let mut destination = home.clone();
+            let mut destination = destination_home.clone();
             destination.path.extend(suffix);
             if let Some(previous) = self.atoms.get(&destination) {
                 if !matches!(previous, HostStructuralPayload::Opaque(previous) if *previous == identity)

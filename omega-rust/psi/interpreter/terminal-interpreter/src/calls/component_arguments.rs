@@ -27,6 +27,7 @@ pub(super) struct PreparedComponentArguments {
     pub(super) retired_sources: Vec<PlaceId>,
     pub(super) remaining_claims: BTreeMap<ClaimId, crate::execution::LiveClaim>,
     pub(super) borrowed_storage: crate::instance::ComponentBorrowedStorage,
+    pub(super) identity_cursor: Option<u64>,
 }
 
 impl<'artifact> TerminalExecution<'artifact> {
@@ -115,6 +116,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         };
         let mut borrowed_storage =
             crate::instance::ComponentBorrowedStorage::new(selected, self.account.as_ref());
+        let mut identity_cursor = self.local_structural_identities.cursor();
         let mut remaining_affine = self.live_affine_frontier.clone();
         let receiver_types = self.program.structural_types();
         let provider_types = provider.program.structural_types();
@@ -153,7 +155,15 @@ impl<'artifact> TerminalExecution<'artifact> {
                 {
                     return Err(malformed());
                 }
-                borrowed_storage.capture(self, value, presentation.clone())?;
+                let reference_home = self
+                    .local_structural_identities
+                    .allocate_staged(&mut identity_cursor)?;
+                borrowed_storage.capture(self, value, presentation.clone(), reference_home)?;
+                // This is a private reference descriptor, not another referent
+                // occurrence. Its original storage/namespace lives in the
+                // checked loan; only the ordinary Copy field read can copy.
+                value.opaque_identity = reference_home;
+                value.path.clear();
                 value.structural_type = supplied.structural_type;
                 selected
                     .present_input_memberships(&mut value.qualifications)
@@ -334,6 +344,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             retired_sources,
             remaining_claims,
             borrowed_storage,
+            identity_cursor,
         })
     }
 }
