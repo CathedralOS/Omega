@@ -2283,21 +2283,16 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         let mut memberships = self.live_memberships(skipped);
         let incoming = self.live_memberships(*evaluated);
         live_memberships::retain_common(&mut memberships, &incoming);
-        let retained: Vec<_> = self
-            .context
-            .contexts
-            .semantic_context_refs
-            .span_or_empty(skipped)
-            .iter()
-            .filter(|reference| {
-                self.context
-                    .contexts
-                    .semantic_context_refs
-                    .span_or_empty(*evaluated)
-                    .contains(reference)
-            })
-            .copied()
-            .collect();
+        let retained = reference_spans::intersect_semantic_contexts_in_order(
+            self.context
+                .contexts
+                .semantic_context_refs
+                .span_or_empty(skipped),
+            self.context
+                .contexts
+                .semantic_context_refs
+                .span_or_empty(*evaluated),
+        );
         *evaluated = HandleSpan::empty();
         for reference in retained {
             reference_spans::append_flow_reference(
@@ -2306,47 +2301,19 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 reference,
             );
         }
-        let retained: Vec<_> = self
-            .context
-            .contexts
-            .constraint_refs
-            .span_or_empty(skipped_constraints)
-            .iter()
-            .filter(|reference| {
-                self.context
-                    .contexts
-                    .constraint_refs
-                    .span_or_empty(*evaluated_constraints)
-                    .contains(reference)
-            })
-            .copied()
-            .collect();
         // Semantic evidence meets, while carried loan debts remain live if
-        // either path retains them. Dropping a call-produced descriptor here
-        // would permit a later operand to mutate its possible backing.
-        let mut retained = retained;
-        for reference in self
-            .context
-            .contexts
-            .constraint_refs
-            .span_or_empty(skipped_constraints)
-            .iter()
-            .chain(
-                self.context
-                    .contexts
-                    .constraint_refs
-                    .span_or_empty(*evaluated_constraints),
-            )
-        {
-            if matches!(
-                reference.kind,
-                checked_trees::FlowConstraintKind::BorrowLoan { .. }
-                    | checked_trees::FlowConstraintKind::BorrowIncomingReference { .. }
-            ) && !retained.contains(reference)
-            {
-                retained.push(*reference);
-            }
-        }
+        // either path retains them. The common reference owner preserves
+        // exact identity, existing duplicates and first-encounter debt order.
+        let retained = reference_spans::meet_constraint_references_in_order(
+            self.context
+                .contexts
+                .constraint_refs
+                .span_or_empty(skipped_constraints),
+            self.context
+                .contexts
+                .constraint_refs
+                .span_or_empty(*evaluated_constraints),
+        );
         *evaluated_constraints = HandleSpan::empty();
         for reference in retained {
             reference_spans::append_flow_reference(
