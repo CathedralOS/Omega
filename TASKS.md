@@ -345,7 +345,13 @@ helper that passes does not close an item.
     `Selected<Base + 4>` application and its lower-bound contract through all
     nine places, including const evaluation and private package projection,
     with native/Terminal exit 0 on Linux x86-64 and construct-only reject twins.
-    Other hosts remain unexecuted for that row. The reference producer now
+    Other hosts remain unexecuted for that row. The reference producer's
+    `samples/cli/facts/open_record_const_implementation` row projects the
+    substituted nominal-record field `Configuration { minimum: Base + 4 }` at
+    Base = 3 through all nine places, with native/Terminal exit 0 on Windows
+    x86-64 and Reading-mismatch reject twins. Other hosts remain unexecuted
+    for that row. Nested field chains use the same projection. Case-payload
+    fields remain outside this row. The reference producer now
     specializes exact named calling-policy inline plan captures and nested data
     arguments before plan evaluation. `samples/cli/facts/generic_calling_policy`
     qualifies the closed `GenericPolicy<Box<u64>, 8>` result placement across all

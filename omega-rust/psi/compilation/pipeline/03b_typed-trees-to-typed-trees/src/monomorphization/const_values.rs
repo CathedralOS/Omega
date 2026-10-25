@@ -1,11 +1,20 @@
 //! Materialize selected const binders without capturing same-spelled names.
+//!
+//! A nominal-record const is a constructor value, not a scalar spelling.
+//! `Required.minimum` is a use of that value. Replacing only the receiver
+//! name leaves the projection on the constructor, and diagnostics then show
+//! the carrier (`Configuration.minimum`) instead of the substituted field.
+//! Open field expressions become canonical when an enclosing const closes;
+//! projection reads the constructor's declared field either way. A case
+//! payload keeps its case, and a non-constructor value keeps the receiver
+//! substitution.
 
 use super::Candidate;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{
-    CanonicalConstValue, DecodedCanonicalConstValue, boolean_literal_spelling,
+    CanonicalConstValue, boolean_literal_spelling,
 };
-use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix};
+use numerics::literals::{IntegerLanding, IntegerLiteral};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
@@ -65,37 +74,170 @@ pub(super) fn substitute(
             .filter(|(handle, _)| {
                 expression_start.is_none_or(|start| handle.arena_index() as usize >= start)
             })
-            .filter_map(|(handle, expression)| {
-                let ExpressionNode::Name(path) = expression else {
-                    return None;
-                };
-                (binder.is_valid()
-                    && path.symbol == *binder
-                    && path.head_symbol == *binder
-                    && program
-                        .expression_table
-                        .name_path_members(path.members)
-                        .len()
-                        == 1)
-                    .then_some(handle)
-            })
+            .filter_map(|(handle, _)| exact_binder_name(program, handle, *binder).then_some(handle))
             .collect::<Vec<_>>();
-        if occurrences.is_empty() {
+        let projections = nominal_record_projections(program, *binder, expression_start);
+        if occurrences.is_empty() && projections.is_empty() {
             continue;
         }
-        for occurrence in occurrences {
-            // Each use owns its literal children and their checking context.
-            let replacement = binding
-                .and_then(|binding| value(program, binding, *declared_type))
-                .ok_or_else(|| Diagnostic::error(format!(
+        // Each use owns its literal children and their checking context.
+        let replacement = binding
+            .and_then(|binding| value(program, binding, *declared_type))
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
                     "machine `{}` cannot materialize const parameter `{name}` as its declared value type `{}`",
                     candidate.template.template_name,
                     program.display_type_reference(*declared_type),
-                )))?;
-            *program.expression_table.expression_mut(occurrence) = replacement;
+                ))
+            })?;
+        let mut projected_receivers = Vec::new();
+        for projection in &projections {
+            let Some(projected) = project_nominal_fields(program, &replacement, &projection.fields)
+            else {
+                continue;
+            };
+            *program.expression_table.expression_mut(projection.outer) = projected;
+            projected_receivers.push(projection.root);
+        }
+        for occurrence in occurrences {
+            if projected_receivers.contains(&occurrence) {
+                continue;
+            }
+            *program.expression_table.expression_mut(occurrence) = replacement.clone();
         }
     }
     Ok(())
+}
+
+fn exact_binder_name(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    binder: symbols::SymbolHandle,
+) -> bool {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    binder.is_valid()
+        && path.symbol == binder
+        && path.head_symbol == binder
+        && program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            == 1
+}
+
+struct NominalField {
+    symbol: symbols::SymbolHandle,
+    name: typed_trees::name::Identifier,
+    case_variant: Option<typed_trees::name::Identifier>,
+}
+
+struct NominalProjection {
+    outer: ExpressionHandle,
+    root: ExpressionHandle,
+    /// Fields from the constructor outward: `value.a.b` is `[a, b]`.
+    fields: Vec<NominalField>,
+}
+
+/// Outermost field chains in this clone whose root name is the const binder.
+/// An inner projection is not its own substitution; the outer node is rewritten
+/// to the selected field so the constructor does not stay under the projection.
+fn nominal_record_projections(
+    program: &TypedTrees,
+    binder: symbols::SymbolHandle,
+    expression_start: Option<usize>,
+) -> Vec<NominalProjection> {
+    let in_clone = |handle: ExpressionHandle| {
+        expression_start.is_none_or(|start| handle.arena_index() as usize >= start)
+    };
+    let members = program
+        .expression_table
+        .iter_expressions()
+        .filter(|(handle, expression)| {
+            in_clone(*handle) && matches!(expression, ExpressionNode::Member(_))
+        })
+        .map(|(handle, _)| handle)
+        .collect::<Vec<_>>();
+    let mut receivers = Vec::new();
+    for handle in &members {
+        if let ExpressionNode::Member(member) = program.expression_table.expression(*handle) {
+            receivers.push(member.receiver);
+        }
+    }
+    let mut projections = Vec::new();
+    for outer in members {
+        if receivers.contains(&outer) {
+            continue;
+        }
+        let mut fields = Vec::new();
+        let mut current = outer;
+        let root = loop {
+            let ExpressionNode::Member(member) = program.expression_table.expression(current)
+            else {
+                break current;
+            };
+            let step = NominalField {
+                symbol: member.member_symbol,
+                name: member.member.clone(),
+                case_variant: member.case_variant.clone(),
+            };
+            let receiver = member.receiver;
+            fields.push(step);
+            current = receiver;
+        };
+        if !exact_binder_name(program, root, binder) {
+            continue;
+        }
+        fields.reverse();
+        projections.push(NominalProjection {
+            outer,
+            root,
+            fields,
+        });
+    }
+    projections
+}
+
+fn project_nominal_fields(
+    program: &TypedTrees,
+    value: &ExpressionNode,
+    fields: &[NominalField],
+) -> Option<ExpressionNode> {
+    let mut projected = value.clone();
+    for field in fields {
+        projected = project_nominal_field(program, &projected, field)?;
+    }
+    Some(projected)
+}
+
+fn project_nominal_field(
+    program: &TypedTrees,
+    value: &ExpressionNode,
+    field: &NominalField,
+) -> Option<ExpressionNode> {
+    let ExpressionNode::StructLiteral(literal) = value else {
+        return None;
+    };
+    if let Some(case_variant) = &field.case_variant {
+        if literal.case_name.as_ref() != Some(case_variant) {
+            return None;
+        }
+    } else if literal.case_name.is_some() || literal.case_symbol.is_some() {
+        return None;
+    }
+    let selected = program
+        .expression_table
+        .struct_fields(literal.fields)
+        .iter()
+        .find(|declared| {
+            if field.symbol.is_valid() {
+                declared.field_symbol == field.symbol
+            } else {
+                declared.name.as_str() == field.name.as_str()
+            }
+        })?;
+    Some(program.expression_table.expression(selected.value).clone())
 }
 
 pub(crate) fn value(
@@ -103,6 +245,17 @@ pub(crate) fn value(
     binding: TypeReferenceHandle,
     declared_type: TypeReferenceHandle,
 ) -> Option<ExpressionNode> {
+    // An open constructor or arithmetic recipe is already the const value.
+    // Canonical atoms below are the closed form of that same recipe.
+    if let TypeReferenceNode::ConstExpression(expression) =
+        program.type_reference_table.type_reference(binding)
+    {
+        let expression = *expression;
+        if !program.expression_table.expression_is_valid(expression) {
+            return None;
+        }
+        return Some(program.expression_table.expression(expression).clone());
+    }
     let TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(binding)
     else {
