@@ -1216,13 +1216,20 @@ impl TypedTrees {
         // keep physical slots distinct. That suffix is not part of the
         // authored overload: every body in the family has the same path,
         // including when the declaration belongs to a module.
-        let module_path = module.is_valid().then(|| {
-            format!(
-                "{}::{}",
-                self.symbols.display_path(module, "::"),
-                machine.name
-            )
-        });
+        let parent = self.symbols.get(machine.symbol).parent;
+        let module_path = if self.symbols.get(parent).kind == symbols::SymbolKind::Machine {
+            // Sibling declarations share a scope; identically named helpers
+            // in different machines are different callable families.
+            Some(self.symbols.display_path(machine.symbol, "::"))
+        } else {
+            module.is_valid().then(|| {
+                format!(
+                    "{}::{}",
+                    self.symbols.display_path(module, "::"),
+                    machine.name
+                )
+            })
+        };
         Some(self.named_callable_identity_parts(
             module_path.as_deref().unwrap_or(machine.name.as_str()),
             machine.symbol,

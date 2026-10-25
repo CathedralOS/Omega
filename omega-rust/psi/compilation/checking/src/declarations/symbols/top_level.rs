@@ -77,6 +77,7 @@ struct MachineSymbol<'program> {
     name: &'program str,
     machine: &'program Machine,
     symbol: SymbolHandle,
+    nested: bool,
 }
 
 #[derive(Debug)]
@@ -158,9 +159,11 @@ impl<'program> TopLevelSymbols<'program> {
                     previous
                         .iter()
                         .filter(|previous| {
-                            !program
-                                .symbols
-                                .source_scopes_separate(previous.symbol, machine.symbol)
+                            program.symbols.get(previous.symbol).parent
+                                == program.symbols.get(machine.symbol).parent
+                                && !program
+                                    .symbols
+                                    .source_scopes_separate(previous.symbol, machine.symbol)
                         })
                         .collect::<Vec<_>>()
                 })
@@ -200,6 +203,11 @@ impl<'program> TopLevelSymbols<'program> {
                 name: machine.name.as_str(),
                 machine,
                 symbol: machine.symbol,
+                nested: program
+                    .symbols
+                    .get(program.symbols.get(machine.symbol).parent)
+                    .kind
+                    == SymbolKind::Machine,
             });
             machines_by_name
                 .entry(machine.name.as_str())
@@ -317,7 +325,7 @@ impl<'program> TopLevelSymbols<'program> {
     pub fn machine(&self, name: &str) -> Option<&'program Machine> {
         self.machines
             .iter()
-            .find(|symbol| symbol.name == name)
+            .find(|symbol| !symbol.nested && symbol.name == name)
             .map(|symbol| symbol.machine)
     }
 
@@ -346,7 +354,7 @@ impl<'program> TopLevelSymbols<'program> {
     fn machine_symbol(&self, name: &str) -> SymbolHandle {
         self.machines
             .iter()
-            .find(|symbol| symbol.name == name)
+            .find(|symbol| !symbol.nested && symbol.name == name)
             .map(|symbol| symbol.symbol)
             .unwrap_or_else(SymbolHandle::invalid)
     }

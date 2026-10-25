@@ -392,6 +392,7 @@ pub(crate) fn assign_symbols(
     const_declarations: &[crate::resolution::lowerer::PendingConstDeclaration],
     namespace_declarations: &NamespaceDeclarations,
     generic_origin_frontier: usize,
+    nested_machine_scopes: &[(usize, usize)],
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let mut symbols = build_symbol_table(
         program,
@@ -399,11 +400,18 @@ pub(crate) fn assign_symbols(
         source_scoped_top_level_bindings,
         const_declarations,
         !namespace_declarations.modules.is_empty(),
+        nested_machine_scopes,
     );
     namespace_declarations.install(&mut symbols)?;
     let has_sources = sources.is_some() || !namespace_declarations.modules.is_empty();
-    let symbols =
-        symbol_table::insert_selected_machine_children(program, symbols, sources, 0, has_sources);
+    let symbols = symbol_table::insert_selected_machine_children(
+        program,
+        symbols,
+        sources,
+        0,
+        has_sources,
+        nested_machine_scopes,
+    );
     let diagnostics = assign_program_symbols(program, &symbols, generic_origin_frontier);
     program.symbols = symbols;
     namespace_declarations.record_import_selections(program)?;
@@ -422,6 +430,7 @@ pub(crate) fn assign_symbols_against_resolved_base(
     const_declarations: &[crate::resolution::lowerer::PendingConstDeclaration],
     namespace_declarations: &NamespaceDeclarations,
     generic_origin_frontier: usize,
+    nested_machine_scopes: &[(usize, usize)],
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     symbol_table::extend_symbol_table(
         program,
@@ -429,6 +438,7 @@ pub(crate) fn assign_symbols_against_resolved_base(
         source_scoped_top_level_bindings,
         roots,
         const_declarations,
+        nested_machine_scopes,
     );
     namespace_declarations.install(&mut program.symbols)?;
     let table = std::mem::take(&mut program.symbols);
@@ -438,6 +448,7 @@ pub(crate) fn assign_symbols_against_resolved_base(
         Some(sources),
         roots.machines,
         true,
+        nested_machine_scopes,
     );
     let symbols = program.symbols.clone();
     let diagnostics = assign_program_symbols(program, &symbols, generic_origin_frontier);
@@ -524,6 +535,7 @@ pub(crate) fn assign_declarations(
             &lowerer.pending_const_declarations,
             &lowerer.namespace_declarations,
             lowerer.bound_generic_application_origins,
+            &lowerer.nested_machine_scopes,
         )?,
         Some(roots) => {
             let sources = lowerer.sources.take().ok_or_else(|| {
@@ -539,6 +551,7 @@ pub(crate) fn assign_declarations(
                 &lowerer.pending_const_declarations,
                 &lowerer.namespace_declarations,
                 lowerer.bound_generic_application_origins,
+                &lowerer.nested_machine_scopes,
             )?;
         }
     }

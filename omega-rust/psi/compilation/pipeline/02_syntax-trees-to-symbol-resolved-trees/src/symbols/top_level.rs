@@ -210,12 +210,13 @@ pub(super) fn assign_top_level_symbols(
         declaration,
         declaration.alias.is_some()
     );
-    bind_cohort!(
-        program.roots.machines,
-        SymbolKind::Machine,
-        declaration,
-        true
-    );
+    for machine in program.roots.machines.iter() {
+        if !machine.symbol.is_valid() || symbols.get(machine.symbol).kind != SymbolKind::Machine {
+            diagnostics.push(diagnostics::Diagnostic::error(
+                "machine declaration has no indexed lexical identity",
+            ));
+        }
+    }
     bind_cohort!(
         program.roots.propositions,
         SymbolKind::Proposition,

@@ -28,6 +28,7 @@ pub(super) fn extend_symbol_table(
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     roots: crate::resolution::lowerer::RootWatermarks,
     const_declarations: &[crate::resolution::lowerer::PendingConstDeclaration],
+    nested_machine_scopes: &[(usize, usize)],
 ) {
     let has_sources = true;
     let mut extension = std::mem::take(&mut program.symbols)
@@ -71,6 +72,12 @@ pub(super) fn extend_symbol_table(
         program.conformances[index].symbol = symbol;
     }
     for index in roots.machines..program.machines.len() {
+        if nested_machine_scopes
+            .iter()
+            .any(|(_, child)| *child == index)
+        {
+            continue;
+        }
         let machine = program.machines[index].clone();
         let symbol = extension.insert_top_level([machine_symbol_seed(&machine, has_sources)])[0];
         program.machines[index].symbol = symbol;
@@ -169,13 +176,26 @@ pub(super) fn extend_symbol_table(
 }
 
 pub(super) fn build_symbol_table(
-    program: &SymbolResolvedTrees,
+    program: &mut SymbolResolvedTrees,
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     const_declarations: &[crate::resolution::lowerer::PendingConstDeclaration],
     has_authored_modules: bool,
+    nested_machine_scopes: &[(usize, usize)],
 ) -> SymbolTable {
     let has_sources = sources.is_some() || has_authored_modules;
+    let root_machines = program
+        .machines
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| {
+            !nested_machine_scopes
+                .iter()
+                .any(|(_, child)| child == index)
+        })
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+    let mut machine_symbols = vec![symbols::SymbolHandle::invalid(); program.machines.len()];
     let root_operator_names = program
         .operators
         .iter()
@@ -216,10 +236,9 @@ pub(super) fn build_symbol_table(
                     .map(|alias| symbol_seed(SymbolKind::Conformance, alias, has_sources))
             }))
             .chain(
-                program
-                    .machines
+                root_machines
                     .iter()
-                    .map(|machine| machine_symbol_seed(machine, has_sources)),
+                    .map(|index| machine_symbol_seed(&program.machines[*index], has_sources)),
             )
             .chain(program.propositions.iter().map(|proposition| {
                 symbol_seed(SymbolKind::Proposition, &proposition.name, has_sources)
@@ -318,8 +337,8 @@ pub(super) fn build_symbol_table(
     }
     // Machine children require namespace-aware attachment selection. Their root
     // headers already exist; publish children after the namespace is installed.
-    for _ in &program.machines {
-        let _ = root_children.next();
+    for index in root_machines {
+        machine_symbols[index] = root_children.next().expect("indexed machine header");
     }
     for proposition in &program.propositions {
         if let Some(proposition_symbol) = root_children.next() {
@@ -371,36 +390,49 @@ pub(super) fn build_symbol_table(
         }
     }
 
-    builder.finish()
+    let table = builder.finish();
+    for (index, symbol) in machine_symbols.into_iter().enumerate() {
+        program.machines[index].symbol = symbol;
+    }
+    table
 }
 
 /// Add the selected declaration cohort's own children after root identities
 /// exist. Carrier qualification supplies neither field aliases nor storage.
 pub(super) fn insert_selected_machine_children(
-    program: &SymbolResolvedTrees,
+    program: &mut SymbolResolvedTrees,
     table: SymbolTable,
     sources: Option<Arc<SourceMap>>,
     first_machine: usize,
     has_sources: bool,
+    nested_machine_scopes: &[(usize, usize)],
 ) -> SymbolTable {
-    let selections = table
-        .child_handles(table.root())
-        .into_iter()
-        .flatten()
-        .filter(|handle| table.get(*handle).kind == SymbolKind::Machine)
-        .zip(program.machines.iter())
-        .skip(first_machine)
-        .collect::<Vec<_>>();
     let mut extension = table.begin_extension(sources.clone(), Vec::new());
-    for (symbol, machine) in selections {
-        insert_machine_symbol_children(
+    // Lowering keeps parents before descendants. Allocate every sibling header
+    // with its owner's other declarations before resolving any implementation.
+    for index in first_machine..program.machines.len() {
+        let children = nested_machine_scopes
+            .iter()
+            .filter(|(parent, _)| *parent == index)
+            .map(|(_, child)| *child)
+            .collect::<Vec<_>>();
+        let nested = children
+            .iter()
+            .map(|child| program.machines[*child].clone())
+            .collect::<Vec<_>>();
+        let machine = &program.machines[index];
+        let selected = insert_machine_symbol_children(
             &mut extension,
             program,
-            symbol,
+            machine.symbol,
             machine,
             has_sources,
             sources.as_deref(),
+            &nested,
         );
+        for (child, symbol) in children.into_iter().zip(selected) {
+            program.machines[child].symbol = symbol;
+        }
     }
     extension.finish()
 }

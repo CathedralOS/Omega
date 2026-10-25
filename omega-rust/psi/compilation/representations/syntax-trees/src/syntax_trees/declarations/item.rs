@@ -300,6 +300,18 @@ impl ItemTable {
         self.items.get(handle)
     }
 
+    pub fn nested_machine_items(&self, handles: HandleSpan<Item>) -> &[Item] {
+        self.items.span_or_empty(handles)
+    }
+
+    pub fn insert_nested_machines(
+        &mut self,
+        machines: impl IntoIterator<Item = Machine>,
+    ) -> HandleSpan<Item> {
+        self.items
+            .insert_many(machines.into_iter().map(Item::Machine))
+    }
+
     pub fn mathematical_definition(
         &self,
         handle: MathematicalDefinitionHandle,

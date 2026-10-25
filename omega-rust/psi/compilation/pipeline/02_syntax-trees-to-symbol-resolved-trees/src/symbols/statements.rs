@@ -40,7 +40,7 @@ fn assign_machine_references(
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let attached_machines = super::scope::attached_machines(program);
     let trait_scopes = super::scope::TraitLexicalScopes::of(program);
-    let conformance_scopes = super::scope::ConformanceTypeScopes::of(program)?;
+    let conformance_scopes = super::scope::DeclarationTypeScopes::of(program, symbols)?;
     let SymbolResolvedTrees {
         roots:
             symbol_resolved_trees::SymbolResolvedRoots {

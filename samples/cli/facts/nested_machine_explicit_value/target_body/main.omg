@@ -1,0 +1,45 @@
+// A nested machine consumes explicit value 41 and establishes result 42 before exact result - 42.
+// Expected exit: 0
+windows_x86_64 machine produce() -> u32 ensures result == 42u32 {
+    step(41u32)
+    machine step(value: u32) -> u32
+    requires value == 41u32
+    ensures result == 42u32
+    {
+        value + 1u32
+    }
+}
+linux_x86_64 machine produce() -> u32 ensures result == 42u32 {
+    step(41u32)
+    machine step(value: u32) -> u32
+    requires value == 41u32
+    ensures result == 42u32
+    {
+        value + 1u32
+    }
+}
+macos_arm64 machine produce() -> u32 ensures result == 42u32 {
+    step(41u32)
+    machine step(value: u32) -> u32
+    requires value == 41u32
+    ensures result == 42u32
+    {
+        value + 1u32
+    }
+}
+linux_arm64 machine produce() -> u32 ensures result == 42u32 {
+    step(41u32)
+    machine step(value: u32) -> u32
+    requires value == 41u32
+    ensures result == 42u32
+    {
+        value + 1u32
+    }
+}
+machine main() crashes Trap {
+    let result: u32 = produce();
+    let remainder: u32 = result - 42u32;
+    transition remainder == 0u32 { true -> done() false -> wrong() }
+}
+machine done() {}
+machine wrong() crashes Trap { crash Trap; }

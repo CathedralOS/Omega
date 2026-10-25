@@ -449,6 +449,7 @@ pub(super) fn append_named_probe(
         name: name.clone(),
         generic_data_template: Default::default(),
         default_body_trait: Default::default(),
+        nested_machines: Default::default(),
         where_facts: HandleSpan::empty(),
         attached_data: None,
         spelling: None,
