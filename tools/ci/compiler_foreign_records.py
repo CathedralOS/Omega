@@ -4,6 +4,7 @@
 import ctypes
 import hashlib
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -63,5 +64,6 @@ def authenticate_windows_lldiv(output):
 
 
 if __name__ == "__main__":
+    os.environ["OMEGA_LIBRARY_ROOT"] = str(compiler_pilot.ROOT / "source/library")
     authenticate_windows_lldiv(compiler_pilot.ROOT / "build/compiler-foreign-records")
     sys.exit(compiler_pilot.run_suite("compiler-foreign-records", POSITIVES, NEGATIVES))
