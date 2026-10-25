@@ -1,6 +1,8 @@
 // Expected exit: 0
 // Build settings need the same Unit-return mutable-receiver writeback as this
 // ordinary record. The replacement has static backing; the caller observes it.
+use omega::language::core::activation;
+
 data Settings<'storage> { identifier: &'storage [u8]; revision: u32; signature: [u8; 3]; }
 
 machine replace_identifier<'storage>(settings: &mut Settings<'storage>) {
@@ -57,6 +59,52 @@ machine primitive_storage() -> u32 {
 machine primitive_entry(value: &mut u32) -> u32 {
     write_number(value);
     value
+}
+data Choice [copy] { case Chosen(value: u32); case Empty; }
+machine case_storage() -> u32 {
+    let choice: Choice = Choice::Chosen { value: 37 };
+    transition choice {
+        Choice::Chosen { value } -> chosen(value)
+        Choice::Empty -> empty()
+    }
+    state chosen(value: u32) { value }
+    state empty() { 0 }
+}
+data ByteHolder<'storage> { bytes: &'storage [u8]; }
+machine byte_field_storage() -> u32 {
+    let holder: ByteHolder = ByteHolder { bytes: "%" };
+    holder.bytes[0] as u32
+}
+// Selected independently as a Terminal inspection: result-case storage must
+// be funded before split/merge consumes the original activation claims.
+machine activation_storage_budget() crashes Trap {
+    transition Activation::try_claim<16>(8) {
+        ActivationClaimAttempt::Established { claim } -> divide(claim)
+        ActivationClaimAttempt::Rejected -> bad()
+    }
+    state divide(claim: ActivationClaim) {
+        transition ActivationClaim::split<8>(claim, 4) {
+            ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
+            ActivationClaimSplit::Rejected { claim } -> release_bad(claim)
+        }
+    }
+    state merge_children(lower: ActivationClaim, upper: ActivationClaim) {
+        transition ActivationClaim::merge(lower, upper) {
+            ActivationClaimMerge::Covered { claim } -> release(claim)
+            ActivationClaimMerge::Rejected { lower, upper } -> release_pair(lower, upper)
+        }
+    }
+    state release_pair(lower: ActivationClaim, upper: ActivationClaim) {
+        ActivationClaim::release(upper);
+        ActivationClaim::release(lower);
+        crash Trap;
+    }
+    state release_bad(claim: ActivationClaim) {
+        ActivationClaim::release(claim);
+        crash Trap;
+    }
+    state release(claim: ActivationClaim) { ActivationClaim::release(claim); }
+    state bad() { crash Trap; }
 }
 machine array_result() -> [u32; 3] {
     let original: [u32; 3] = [11, 22, 33];

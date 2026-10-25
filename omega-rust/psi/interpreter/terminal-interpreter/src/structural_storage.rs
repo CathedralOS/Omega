@@ -169,7 +169,7 @@ impl crate::execution::TerminalExecution<'_> {
             home.opaque_identity != changed.opaque_identity
                 || (!changed.path.starts_with(&home.path) && !home.path.starts_with(&changed.path))
         });
-        for (home, payload) in &mut self.structural_host_atoms {
+        for (home, payload) in self.structural_host_atoms.iter_mut() {
             if home.opaque_identity == changed.opaque_identity
                 && changed.path.starts_with(&home.path)
             {

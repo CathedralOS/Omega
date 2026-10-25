@@ -73,7 +73,7 @@ impl TerminalExecution<'_> {
             }
             let selected = ConstructorValue::resolve(self, parent)?;
             if let ConstructorValue::Placed(value) = &selected
-                && (crate::custody::has_live_loan(&self.reference_referents, value)
+                && (crate::custody::has_live_loan(self.reference_referents.as_map(), value)
                     || self.reference_referents.keys().any(|carrier| {
                         carrier.opaque_identity == value.opaque_identity
                             && terminal_semantics::structural_paths_may_overlap(
@@ -110,7 +110,7 @@ impl TerminalExecution<'_> {
                     crate::structural_inputs::case_membership::stored_case_at_projection(
                         &self.program.structural_types(),
                         root,
-                        &self.structural_cases,
+                        self.structural_cases.as_map(),
                         path,
                     ) == Some(case)
                 },
@@ -151,7 +151,7 @@ impl TerminalExecution<'_> {
                             && crate::structural_inputs::case_membership::stored_case_at_projection(
                                 &self.program.structural_types(),
                                 root,
-                                &self.structural_cases,
+                                self.structural_cases.as_map(),
                                 &path,
                             )
                             .is_some_and(|selected| selected != *case)

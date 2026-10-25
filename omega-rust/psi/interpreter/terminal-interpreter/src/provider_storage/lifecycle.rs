@@ -162,7 +162,7 @@ impl TerminalExecution<'_> {
             StructuralRuntimePlace::from(&value),
             result.structural_type,
             ready.id,
-        );
+        )?;
         let child = ConstructorValue::resolve(self, extent)?;
         storage.stage(self, extent, &child, &destination, true)?;
         // Remove the old descriptor from the staged constructor. Its replacement
@@ -313,7 +313,7 @@ impl TerminalExecution<'_> {
         );
         let root = StructuralRuntimePlace::from(&value);
         let mut storage = ConstructorStorage::new(self.account.as_ref());
-        storage.stage_case(root.clone(), result.structural_type, rejected.id);
+        storage.stage_case(root.clone(), result.structural_type, rejected.id)?;
         let mut frontier = self.live_affine_frontier.clone();
         let mut consumed = Vec::new();
         let mut transported = BTreeMap::new();
@@ -333,7 +333,7 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
             if let ConstructorValue::Placed(placed) = &child
-                && crate::custody::has_live_loan(&self.reference_referents, placed)
+                && crate::custody::has_live_loan(self.reference_referents.as_map(), placed)
             {
                 return Err(TerminalInterpretError::ContentTransformationMismatch(
                     "placement rejection cannot transfer a borrowed input",

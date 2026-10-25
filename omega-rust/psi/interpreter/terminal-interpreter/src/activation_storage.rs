@@ -41,6 +41,17 @@ pub(crate) struct RuntimeActivationStorage {
     split_children: BTreeMap<StructuralRuntimePlace, (ActivationClaimId, ActivationClaimId)>,
 }
 
+/// Both possible division outcomes need one case row and one result binding.
+/// Fund those rows before split/merge consumes any source claim. Selection
+/// replaces the staged case in place; publication only transfers paid rows.
+struct PreparedActivationDivision {
+    cases: RuntimeRows<
+        StructuralRuntimePlace,
+        crate::structural_inputs::case_membership::StructuralCaseContents,
+    >,
+    values: RuntimeRows<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
+}
+
 impl TerminalExecution<'_> {
     pub(crate) fn execute_establish_activation_claim(
         &mut self,
@@ -94,7 +105,7 @@ impl TerminalExecution<'_> {
                     rejected_case
                 },
             },
-        );
+        )?;
         if established {
             let site = ActivationClaimSiteId::from_normalized_identity(operation.id.get())
                 .map_err(|_| malformed())?;
@@ -122,7 +133,7 @@ impl TerminalExecution<'_> {
                 self.account.as_ref(),
             )?;
             self.structural_byte_storage
-                .insert(home.clone(), ByteSequenceView::new(bytes));
+                .insert(home.clone(), ByteSequenceView::new(bytes))?;
             self.activation_storage
                 .owners
                 .insert(home.clone(), owner.clone());
@@ -226,7 +237,7 @@ impl TerminalExecution<'_> {
             .get(home)
             .ok_or_else(malformed)?;
         if frame != (self.call_stack.len(), self.current_machine)
-            || crate::custody::has_live_loan(&self.reference_referents, &selected)
+            || crate::custody::has_live_loan(self.reference_referents.as_map(), &selected)
         {
             return Err(malformed()
                 .in_argument_preparation("activation release frame or live reference loan"));
@@ -418,6 +429,7 @@ impl TerminalExecution<'_> {
         if !self.structural_byte_storage.contains_key(&home) {
             return Err(malformed());
         }
+        let publication = self.prepare_activation_division(operation, rejected_case)?;
         let covered = self
             .activation_storage
             .ledgers
@@ -446,6 +458,7 @@ impl TerminalExecution<'_> {
             capacity,
             &referent,
             claim_type,
+            publication,
         )
     }
 
@@ -495,6 +508,7 @@ impl TerminalExecution<'_> {
         else {
             return Err(malformed());
         };
+        let publication = self.prepare_activation_division(operation, rejected_case)?;
         if lower_home != upper_home {
             let claim_type = self
                 .activation_storage
@@ -509,6 +523,7 @@ impl TerminalExecution<'_> {
                 capacity,
                 referent,
                 claim_type,
+                publication,
             );
         }
         let home = lower_home.clone();
@@ -550,6 +565,7 @@ impl TerminalExecution<'_> {
                 capacity,
                 &referent,
                 claim_type,
+                publication,
             )
         } else {
             let claim_type = self
@@ -565,8 +581,35 @@ impl TerminalExecution<'_> {
                 capacity,
                 &referent,
                 claim_type,
+                publication,
             )
         }
+    }
+
+    fn prepare_activation_division(
+        &mut self,
+        operation: &Operation,
+        fallback_case: semantic_vocabulary::StructuralCaseId,
+    ) -> Result<PreparedActivationDivision, TerminalInterpretError> {
+        let result = operation.result.structural().ok_or_else(malformed)?;
+        let value = TerminalStructuralValue::minted(
+            self.local_structural_identities.allocate()?,
+            result.structural_type,
+            Vec::new(),
+        );
+        let mut cases = RuntimeRows::new(self.account.as_ref());
+        cases.insert(
+            StructuralRuntimePlace::from(&value),
+            crate::structural_inputs::case_membership::StructuralCaseContents {
+                structural_type: result.structural_type,
+                case: fallback_case,
+            },
+        )?;
+        let mut values = RuntimeRows::new(self.account.as_ref());
+        values.insert(result.place, value)?;
+        self.structural_cases.validate_append(&cases)?;
+        self.structural_values.validate_append(&values)?;
+        Ok(PreparedActivationDivision { cases, values })
     }
 
     fn publish_activation_division(
@@ -577,21 +620,15 @@ impl TerminalExecution<'_> {
         capacity: u64,
         referent: &TerminalStructuralValue,
         claim_type: semantic_vocabulary::StructuralTypeId,
+        mut publication: PreparedActivationDivision,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         let result = operation.result.structural().ok_or_else(malformed)?;
-        let value = TerminalStructuralValue::minted(
-            self.local_structural_identities.allocate()?,
-            result.structural_type,
-            Vec::new(),
-        );
-        let root = StructuralRuntimePlace::from(&value);
-        self.structural_cases.insert(
-            root,
-            crate::structural_inputs::case_membership::StructuralCaseContents {
-                structural_type: result.structural_type,
-                case,
-            },
-        );
+        let value = publication
+            .values
+            .get(&result.place)
+            .ok_or_else(malformed)?;
+        let root = StructuralRuntimePlace::from(value);
+        publication.cases.get_mut(&root).ok_or_else(malformed)?.case = case;
         for binding in &result.claims {
             let Some(StructuralPathSegment::Field(field)) = binding.path.last() else {
                 continue;
@@ -632,7 +669,8 @@ impl TerminalExecution<'_> {
             (current.place == result.place && current.path.is_empty()).then_some(case)
         })?;
         self.live_affine_frontier = frontier;
-        self.structural_values.insert(result.place, value)?;
+        self.structural_cases.append(&mut publication.cases)?;
+        self.structural_values.append(&mut publication.values)?;
         Ok(OperationFlow::Advance)
     }
 }

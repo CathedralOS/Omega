@@ -460,7 +460,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 &opaque_parameters,
                 &boundary_arguments.values,
                 &self.program.structural_types(),
-                &self.structural_cases,
+                self.structural_cases.as_map(),
                 self.account.as_ref(),
             )?;
             validate_boundary_requirements(boundary_declaration, |index| {
@@ -484,7 +484,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             let mut prepared_arguments = boundary_arguments.into_call_arguments(
                 &select_positions(&callee.structural_parameters, &opaque_positions)?,
                 &self.program.structural_types(),
-                &self.structural_cases,
+                self.structural_cases.as_map(),
                 self.account.as_ref(),
             )?;
             for position in owned_arrays {
@@ -583,7 +583,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             &boundary_declaration.structural_parameters,
             &boundary_arguments.values,
             &self.program.structural_types(),
-            &self.structural_cases,
+            self.structural_cases.as_map(),
             self.account.as_ref(),
         )?;
         validate_boundary_requirements(boundary_declaration, |index| {

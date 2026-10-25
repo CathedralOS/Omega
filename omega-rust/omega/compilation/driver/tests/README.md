@@ -331,7 +331,7 @@ The companion is not reconstructed from external artifact bytes or debug names.
 Description-query execution and production Build scheduling still use the tree
 engine and are not established by this provision.
 
-`runtime portable storage-cells <peak> <unsigned-result>` runs an authored helper
+`runtime portable storage-cells <peak> <unsigned-result|unit>` runs an authored helper
 with its exact live-cell ceiling and with one cell less, replenishing fuel one
 unit at a time. The sufficient run must return the authored scalar and report
 the exact peak. The short run must refuse for live storage, retain its activation
