@@ -164,6 +164,54 @@ fn inactive_backing_is_not_a_lookup_candidate_or_product_operand() {
     }
     assert_eq!(sources.files().count(), 3);
     assert!(sources.source_is_selected(declarations[0].source_id));
+
+    let restored = selected
+        .begin_source_activation(Arc::new(sources.clone()), Vec::new())
+        .expect("same backing, a later declaration cohort")
+        .finish();
+    assert!(
+        !restored.source_reference_can_see_symbol(declarations[0], handles[0]),
+        "reloading bytes cannot resurrect a declaration removed from the predecessor"
+    );
+    assert_eq!(
+        restored.root_children_named("Item").collect::<Vec<_>>(),
+        [handles[1]]
+    );
+    let mut extension = restored.begin_extension(Some(Arc::new(sources.clone())), Vec::new());
+    let current = extension
+        .append_children(
+            root,
+            [(SymbolKind::Data, SymbolNameRef::Source(declarations[0]))],
+        )
+        .handle_at(0);
+    let mut restored = extension.finish();
+    restored
+        .register_source_module(
+            declarations[0].source_id,
+            [(
+                "shared",
+                SourceSpan::new(declarations[0].source_id, Span::new(0, 6)),
+            )],
+        )
+        .expect("the new cohort rejoins the logical namespace");
+    let restored = restored
+        .begin_source_activation(Arc::new(sources), Vec::new())
+        .expect("keep both current declarations")
+        .finish();
+    assert_eq!(
+        restored.root_children_named("Item").collect::<Vec<_>>(),
+        [handles[1], current]
+    );
+    assert_eq!(
+        restored.find_top_level_by_name_and_kinds_from_source(
+            "Item",
+            &[SymbolKind::Data],
+            declarations[0],
+        ),
+        None,
+        "both current declarations still collide in their shared module"
+    );
+    assert!(restored.source_reference_can_see_symbol(declarations[0], current));
 }
 
 #[test]

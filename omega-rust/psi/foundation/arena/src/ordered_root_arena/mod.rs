@@ -65,6 +65,22 @@ impl<T: Default> OrderedRootArena<T> {
         }
     }
 
+    /// Select existing roots without moving or retiring their backing rows.
+    /// Handles already published by the producer keep their exact payloads;
+    /// only this view's ordered roster changes.
+    pub fn retain(&mut self, mut keep: impl FnMut(&T) -> bool) {
+        let retained = self
+            .handles
+            .span_or_empty(self.roots)
+            .iter()
+            .copied()
+            .filter(|handle| keep(self.storage.get(*handle)))
+            .collect::<Vec<_>>();
+        if retained.len() != self.roots.len() {
+            self.roots = self.handles.insert_many(retained);
+        }
+    }
+
     pub fn for_each_mut(&mut self, mut visit: impl FnMut(&mut T)) {
         let handles = self.handles.span_or_empty(self.roots);
         let storage = &mut self.storage;
@@ -87,9 +103,9 @@ impl<T: Default> OrderedRootArena<T> {
         None
     }
 
-    /// Combined freshness of declaration storage and ordered root selection.
-    /// In-place rewrites and pruning both invalidate consumers, while retained
-    /// declaration handles continue to name the same storage.
+    /// Combined freshness of backing payloads and the selected root roster.
+    /// Same-length rewrites and membership changes invalidate consumers while
+    /// retained declaration handles continue to name the same storage.
     #[inline]
     pub fn revision(&self) -> u64 {
         self.storage
@@ -198,5 +214,24 @@ mod tests {
         *arena.find_mut(|value| *value == 20).expect("root exists") = 25;
 
         assert_eq!(arena.iter().copied().collect::<Vec<_>>(), [10, 25]);
+    }
+
+    #[test]
+    fn selecting_roots_preserves_backing_handles_and_moves_freshness() {
+        let mut arena = OrderedRootArena::<usize>::new();
+        let first = arena.push(1);
+        let second = arena.push(2);
+        let before = arena.revision();
+        arena.retain(|value| *value == 2);
+        assert_eq!(arena.iter().copied().collect::<Vec<_>>(), [2]);
+        assert_eq!(*arena.storage.get(first), 1);
+        assert_eq!(*arena.storage.get(second), 2);
+        assert_ne!(before, arena.revision());
+        let selected = arena.revision();
+        arena.retain(|_| true);
+        assert_eq!(selected, arena.revision());
+        arena.push(3);
+        assert_eq!(arena.iter().copied().collect::<Vec<_>>(), [2, 3]);
+        assert_eq!(*arena.storage.get(second), 2);
     }
 }

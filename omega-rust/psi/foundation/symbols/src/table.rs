@@ -40,6 +40,10 @@ pub struct SymbolTable {
     /// a linear scan per lookup would cost `O(#sources)` on every
     /// module-qualified name walk.
     source_module_index: Vec<SymbolHandle>,
+    /// Declaration membership at the last activation frontier. Later allocations
+    /// belong to the new cohort. Selecting a source again does not resurrect
+    /// an older declaration that already left its predecessor's view.
+    inherited_symbols: Vec<bool>,
     root_names: RootNameIndexCache,
     /// `source_scoped_top_level_bindings` bucketed by reference source,
     /// because three lookup paths scanned the whole binding list per query.
@@ -195,6 +199,7 @@ impl SymbolTableBuilder {
             supplemental_children: SupplementalChildren::default(),
             module_symbols: Arena::new(),
             source_module_index: Vec::new(),
+            inherited_symbols: Vec::new(),
             root_names: RootNameIndexCache::default(),
             binding_source_index: BindingSourceIndexCache::default(),
             module_path_index: ModulePathIndexCache::default(),
@@ -271,6 +276,7 @@ impl SymbolTable {
             supplemental_children,
             module_symbols,
             source_module_index,
+            inherited_symbols,
             root_names: _,
             binding_source_index: _,
             module_path_index: _,
@@ -294,6 +300,7 @@ impl SymbolTable {
             || root != &base.root
             || module_symbols != &base.module_symbols
             || source_module_index != &base.source_module_index
+            || inherited_symbols != &base.inherited_symbols
         {
             return false;
         }
@@ -503,9 +510,29 @@ impl SymbolTable {
                 "source activation changed retained source coordinates",
             ));
         }
+        let mut inherited = vec![false; self.symbols.len() + 1];
+        for (handle, _) in self.symbols.nodes().iter() {
+            inherited[handle.arena_index() as usize] = self.symbol_source_is_selected(handle)
+                && self
+                    .provenance_source_span(handle)
+                    .is_none_or(|span| sources.source_is_selected(span.source_id));
+        }
+        if let Some(previous) = self.sources.as_deref() {
+            for (position, module) in self.source_module_index.iter_mut().enumerate() {
+                let source = SourceId(position);
+                if sources.source_is_selected(source) && !previous.source_is_selected(source) {
+                    // This file is a new declaration cohort, not a second module
+                    // declaration in the old cohort. Its parsed module will join
+                    // the existing logical namespace without reviving old members.
+                    *module = SymbolHandle::invalid();
+                }
+            }
+        }
+        self.inherited_symbols = inherited;
         self.sources = Some(sources);
         self.source_scoped_top_level_bindings = source_scoped_top_level_bindings;
         self.binding_source_index.clear();
+        self.root_names.clear();
         self.module_path_index.clear();
         self.module_scope_index.clear();
         Ok(SymbolTableExtension { table: self })
@@ -1075,12 +1102,14 @@ impl SymbolTable {
         let Some(sources) = self.sources.as_deref() else {
             return true;
         };
+        if self.get(symbol).kind != SymbolKind::Module && !self.inherited_symbol_is_selected(symbol)
+        {
+            return false;
+        }
         let Some(declaration) = self.provenance_source_span(symbol) else {
             return true;
         };
-        if self.get(symbol).kind == SymbolKind::Module
-            && !sources.source_is_selected(declaration.source_id)
-        {
+        if self.get(symbol).kind == SymbolKind::Module {
             // A logical namespace can have active contributors even when its
             // first declaration belongs to retained, inactive backing.
             return self.module_source_ids(symbol).any(|source| {
@@ -1099,12 +1128,24 @@ impl SymbolTable {
         let Some(sources) = self.sources.as_deref() else {
             return true;
         };
+        if self.get(symbol).kind == SymbolKind::Module {
+            return self.provenance_source_span(symbol).is_none()
+                || self.module_source_ids(symbol).next().is_some();
+        }
+        if !self.inherited_symbol_is_selected(symbol) {
+            return false;
+        }
         let Some(declaration) = self.provenance_source_span(symbol) else {
             return true;
         };
         sources.source_is_selected(declaration.source_id)
-            || (self.get(symbol).kind == SymbolKind::Module
-                && self.module_source_ids(symbol).next().is_some())
+    }
+
+    fn inherited_symbol_is_selected(&self, symbol: SymbolHandle) -> bool {
+        self.inherited_symbols
+            .get(symbol.arena_index() as usize)
+            .copied()
+            .unwrap_or(true)
     }
 
     /// Whether a source-backed reference may select this declaration as a
