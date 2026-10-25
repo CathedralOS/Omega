@@ -8,7 +8,7 @@
 //! `total_scalar_identities` the identity rules' shared traversal, and
 //! `phi_translated_accounting` the join-parameter provenance accounting.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use optimization_core::{
     AcceptedObligationFactIdentity, AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
@@ -453,6 +453,110 @@ where
                     leader_result: *leader_result,
                     redundant_result: *redundant_result,
                     scalar_type: *scalar_type,
+                },
+            })?);
+        }
+    }
+    Ok(candidates)
+}
+
+/// One phi-translated rule's per-function expression roster: the in-scope
+/// leader rows, and the redundancy rows the rule rewrites onto them with each
+/// row's own payload `E` — unit for the obligation-free rule, the accepted
+/// obligation fact for the proof-certified and compatible-policy ones.
+pub(super) type PhiTranslatedScalarGvnRows<K, E> = (
+    Vec<(K, NodeLocation, OperationId, ValueId, ScalarType)>,
+    Vec<(K, NodeLocation, OperationId, ValueId, ScalarType, E)>,
+);
+
+/// One located phi-translated redundancy resolved through the accounting the
+/// rule's own candidate constructor consumes.
+pub(super) struct PhiTranslatedScalarGvnMatch<E> {
+    pub affected_blocks: Vec<BlockId>,
+    pub provenance: Vec<optimization_unit::ProvenanceRewrite>,
+    pub extras: E,
+    pub patch: optimization_unit::PhiTranslatedScalarGvnRewrite,
+}
+
+/// The shared phi-translated scalar CSE proposal: per function each rule
+/// names its own leader/redundancy roster (its expression keys, eligibility
+/// and payloads), then every redundant whose incoming joins all translate the
+/// key to an existing in-scope leader becomes one candidate. `rows` owns the
+/// rule's classification; `key_references_parameters` and `translate` name
+/// that key's operand query and join translation; `emit` is the rule's
+/// candidate constructor.
+pub(super) fn propose_phi_translated_scalar_gvn<K, E>(
+    unit: &PsiOptimizationUnit,
+    analyses: crate::RuleAnalysisView<'_>,
+    rows: impl Fn(
+        &PsiOptimizationUnit,
+        &PsiOptimizationFunction,
+        &EffectSummaryAnalysis,
+        &BTreeMap<ValueId, ScalarType>,
+    ) -> PhiTranslatedScalarGvnRows<K, E>,
+    key_references_parameters: impl Fn(K, &BTreeSet<ValueId>) -> bool,
+    translate: impl Fn(K, &BTreeMap<ValueId, ValueId>) -> Option<K>,
+    emit: impl Fn(
+        PhiTranslatedScalarGvnMatch<E>,
+    ) -> Result<PsiRewriteCandidate, crate::RuleProposalError>,
+) -> Result<Vec<PsiRewriteCandidate>, crate::RuleProposalError>
+where
+    K: Ord + Copy,
+    E: Copy,
+{
+    let Some(crate::AnalysisProduct::ControlFlowGraph(_)) =
+        analyses.get(AnalysisKind::ControlFlowGraph)
+    else {
+        return Err(crate::RuleProposalError::MissingAnalysis(
+            AnalysisKind::ControlFlowGraph,
+        ));
+    };
+    let Some(crate::AnalysisProduct::Dominators(dominators)) =
+        analyses.get(AnalysisKind::Dominators)
+    else {
+        return Err(crate::RuleProposalError::MissingAnalysis(
+            AnalysisKind::Dominators,
+        ));
+    };
+    let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        let machine_dominators = dominators
+            .function(function.machine)
+            .map(|(_, rows)| rows.as_slice())
+            .unwrap_or_default();
+        let value_types = function_value_types(function);
+        let (leaders, redundants) = rows(unit, function, effects, &value_types);
+        for (key, redundant, redundant_operation, redundant_result, scalar_type, extras) in
+            redundants
+        {
+            let Some((incoming, affected_blocks, provenance, parameter_position)) =
+                phi_translated_accounting::collect_phi_translated_incoming(
+                    function,
+                    redundant,
+                    redundant_result,
+                    scalar_type,
+                    use_definitions,
+                    &value_types,
+                    machine_dominators,
+                    &leaders,
+                    |parameters| key_references_parameters(key, parameters),
+                    |translation| translate(key, translation),
+                )
+            else {
+                continue;
+            };
+            candidates.push(emit(PhiTranslatedScalarGvnMatch {
+                affected_blocks,
+                provenance,
+                extras,
+                patch: optimization_unit::PhiTranslatedScalarGvnRewrite {
+                    redundant,
+                    redundant_operation,
+                    redundant_result,
+                    scalar_type,
+                    parameter_position,
+                    incoming,
                 },
             })?);
         }
