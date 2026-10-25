@@ -260,7 +260,9 @@ pub(super) fn actions(
             disposition_handle,
             source.clone(),
             replaced.then_some(destination.path.as_slice()),
-        )? {
+        )
+        .ok()?
+        {
             let action_path = match &action {
                 CheckedNormalCleanupAction::Discard(action) => &action.path,
                 CheckedNormalCleanupAction::InvokeNominal(action) => &action.path,

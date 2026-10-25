@@ -55,15 +55,18 @@ fn selected_actions(
                 source.clone(),
             )?);
         }
-        actions.extend(disposition_actions(
-            program,
-            facts,
-            targets,
-            shapes,
-            disposition_handle,
-            source.clone(),
-            None,
-        )?);
+        actions.extend(
+            disposition_actions(
+                program,
+                facts,
+                targets,
+                shapes,
+                disposition_handle,
+                source.clone(),
+                None,
+            )
+            .ok()?,
+        );
     }
     if let Some(retirement) = retirement {
         super::actions::finish_home(&mut actions, retirement);
@@ -964,7 +967,8 @@ fn finalize_value_completions(
             handle,
             source.clone(),
             None,
-        )?;
+        )
+        .ok()?;
         let retirement = super::actions::home_retirement(program, shapes, disposition, source)?;
         let position = completions
             .iter()

@@ -1240,6 +1240,7 @@ impl<'program> ShapeCollector<'program> {
         // shell, not reach add_type's referent-oriented fallback as plain T.
         let field_type_reference =
             substituted_formal_type(self.program, field.type_reference, substitutions);
+        let mut byte_sequence_type_identity = Default::default();
         let field_type = if field.relevance.is_erased() {
             CheckedUnitStructuralFieldType::Erased {
                 type_identity: self.program.type_identity(TypeIdentityRequest {
@@ -1277,7 +1278,8 @@ impl<'program> ShapeCollector<'program> {
                 )
             })
         {
-            self.add_type(field_type_reference, binders, substitutions)?;
+            byte_sequence_type_identity =
+                self.add_type(field_type_reference, binders, substitutions)?;
             let declared = typed_trees::byte_predicates::type_reference_domain_predicates(
                 self.program,
                 field_type_reference,
@@ -1381,6 +1383,7 @@ impl<'program> ShapeCollector<'program> {
             ),
             relevance: field.relevance,
             field_type,
+            byte_sequence_type_identity,
             storage: None,
             qualification_carriers,
         })
