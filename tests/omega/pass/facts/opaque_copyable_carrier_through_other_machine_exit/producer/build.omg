@@ -1,0 +1,9 @@
+machine build(builder: &mut Build) {
+ Build::package(builder, "opaque_copyable_address_producer");
+ Build::select_representation<InternetAddress, AddressRepresentation>(builder);
+ Build::select_provider<AddressBridge, AddressBridgeProvider>(builder);
+ Build::bind(builder, linux_x86_64::ProgramEntry, component_entry);
+ Build::bind(builder, linux_arm64::ProgramEntry, component_entry);
+ Build::bind(builder, macos_arm64::ProgramEntry, component_entry);
+ Build::bind(builder, windows_x86_64::ProgramEntry, component_entry);
+}

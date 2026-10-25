@@ -120,9 +120,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         O::ElementViewLength { source, .. } | O::ByteSequenceLength { source, .. } => {
             places.insert(source.place);
         }
-        O::ReleaseActivationClaim { source, .. } => {
-            places.insert(source.place);
-        }
+        O::ReleaseActivationClaim { source, .. } => { places.insert(source.place); }
         O::ReleaseReference { source, .. } => {
             places.insert(*source);
         }

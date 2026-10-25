@@ -218,11 +218,12 @@ pub fn project_dependency_rows(
         else {
             continue;
         };
-        let operands =
-            direct_build_call_operands(syntax_trees, call).map_err(|failure| match failure {
+        let operands = direct_build_call_operands(syntax_trees, call).map_err(|failure| {
+            match failure {
                 DirectBuildCallError::WrongReceiver => DependencyRowError::WrongReceiver,
                 DirectBuildCallError::WrongArguments => DependencyRowError::WrongArguments,
-            })?;
+            }
+        })?;
         let (alias, source) = if operation.takes_alias() {
             let [alias, source] = operands else {
                 return Err(DependencyRowError::WrongArguments);

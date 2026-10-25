@@ -427,7 +427,7 @@ fn implementation_block_origin_round_trips_without_a_fabricated_source_block() {
             register_model::RegisterOperandAccess::Use,
         )
         .blocks[0]
-            .clone();
+        .clone();
     block.origin = SelectedBlockOrigin::EdgeTransfer {
         edge: EdgeId::new(71).unwrap(),
         target: BlockId::new(91).unwrap(),

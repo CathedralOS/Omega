@@ -417,14 +417,14 @@ mod tests {
             1,
         );
         let symbol_handle = crate::test_support::versioned_import(
-            &mut image,
-            "__omega_relative_layout_import",
-            b"liblayout.so",
-            b"layout_call",
-            b"LAYOUT_1",
-            target,
-            "versioned import locator",
-        );
+        &mut image,
+        "__omega_relative_layout_import",
+        b"liblayout.so",
+        b"layout_call",
+        b"LAYOUT_1",
+        target,
+        "versioned import locator",
+    );
         crate::test_support::import_call_indexed_payloads(image, symbol_handle, target)
     }
 
