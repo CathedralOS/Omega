@@ -1104,7 +1104,7 @@ impl<'program> Evaluator<'program> {
                         )?);
                     }
                     StatementNode::RootBinding(binding) => {
-                        self.execute_root_binding(statement_handle, binding, &mut frame)?;
+                        self.execute_root_binding(binding, &mut frame)?;
                     }
                     StatementNode::Call(call) => {
                         self.eval_call_statement(statement_handle, call, &mut frame)?;

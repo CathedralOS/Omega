@@ -9,6 +9,7 @@ use checked_interpreter::MeasuredBuildMachineEvaluation;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::product_operand::ProductEntryCompatibility;
 
 mod numeric_imports;
 #[cfg(test)]
@@ -298,7 +299,7 @@ pub struct BuildMachineInvocation<'a> {
     pub arguments: Vec<BuildTimeValue>,
     pub mode: BuildMachineExecutionMode,
     pub sponsor: Option<&'a BuildEvaluationSponsor>,
-    pub product_entry_compatibility: Option<&'a dyn checked_interpreter::ProductEntryCompatibility>,
+    pub product_entry_compatibility: Option<&'a dyn ProductEntryCompatibility>,
 }
 
 /// Evaluate one build machine and measure its evaluation. All build-machine

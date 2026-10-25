@@ -9,14 +9,15 @@ mod evaluator;
 use crate::{
     BuildEvaluationSponsor, BuildMachineEvaluationFailure, BuildMachineEvaluationFailureKind,
     BuildTimeOperationEvaluation, EvaluationObservations, EvaluationUsage, FilesystemAccess,
-    FilesystemMetadataLayout, InterpretOutcome,
-    MeasuredBuildMachineEvaluation, MeasuredEvaluation, SelectedBuildTimeBinaryOperator,
+    FilesystemMetadataLayout, InterpretOutcome, MeasuredBuildMachineEvaluation, MeasuredEvaluation,
+    SelectedBuildTimeBinaryOperator,
 };
 use build_time_values::BuildTimeValue;
 use checked_trees::CheckedTrees;
 use evaluator::{CONST_EVAL_STEP_BUDGET, Evaluator, Halt, STEP_BUDGET, ambient_step_budget};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::product_operand::ProductEntryCompatibility;
 
 /// Options for [`interpret_entry`]. `Default` selects the hermetic
 /// virtual filesystem and the compiler host's checked standard metadata
@@ -220,67 +221,6 @@ impl<'program> BuildMachineProgram<'program> {
             Self::Typed(typed) => typed,
             Self::Checked(checked) => &checked.typed,
             Self::CheckedClosure { execution, .. } => &execution.typed,
-        }
-    }
-}
-
-/// Source-signature compatibility for the narrowly designated product-entry
-/// query. The build owner supplies target meaning; Psi retains lexical lookup
-/// and exact-symbol selection without depending on target or native crates.
-/// This check must not execute the entry or require the build's unfinished
-/// provider, receiver-provision, or layout settlement. Final admission rechecks
-/// the selected declaration after the build completes.
-/// Every declaration handle and parameter must come from the supplied program;
-/// sharing a Rust lifetime alone does not establish arena identity.
-pub trait ProductEntryCompatibility: Sync {
-    fn validate_entry(
-        &self,
-        program: &TypedTrees,
-        declaration: ProductEntryDeclaration<'_>,
-        slot: &str,
-    ) -> Result<(), String>;
-}
-
-/// Declaration data needed by the Build owner's entry-slot judgment. This view
-/// carries no executable state or statement span. The query issuer retains the
-/// exact selected symbol and its lexical authority separately; this is neither
-/// an issued description nor evidence that the product has been admitted.
-///
-/// The backing program still supplies type identities and any computations
-/// required by the interface, including predicates on a provisioned context.
-/// Removing the entry body does not authorize dropping those dependencies.
-#[derive(Clone, Copy)]
-pub struct ProductEntryDeclaration<'program> {
-    pub name: &'program str,
-    pub attached_data_symbol: SymbolHandle,
-    pub type_parameters: &'program [typed_trees::data::TypeParameter],
-    pub entry: Option<ProductEntrySignature<'program>>,
-}
-
-#[derive(Clone, Copy)]
-pub struct ProductEntrySignature<'program> {
-    pub parameters: &'program [typed_trees::signature::StateParameter],
-    pub return_type: typed_trees::types::TypeReferenceHandle,
-}
-
-impl<'program> ProductEntryDeclaration<'program> {
-    /// Project the existing complete-program producer onto the declaration
-    /// boundary. A missing entry stays missing; it is never an empty body.
-    pub fn from_machine(
-        program: &'program TypedTrees,
-        machine: &'program typed_trees::machine::Machine,
-    ) -> Self {
-        Self {
-            name: machine.name.as_str(),
-            attached_data_symbol: machine.attached_data_symbol,
-            type_parameters: program.machine_type_parameters(machine),
-            entry: program
-                .machine_states(machine)
-                .first()
-                .map(|entry| ProductEntrySignature {
-                    parameters: program.state_parameters(entry),
-                    return_type: entry.return_type,
-                }),
         }
     }
 }

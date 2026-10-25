@@ -19,6 +19,7 @@ use super::product_providers::PRODUCT_PROVIDER_DESCRIPTION_TYPE;
 use crate::interpreter::evaluator::{
     BTreeMap, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value,
 };
+use language_semantics::declaration_selection::DescribedProductSchema;
 
 /// The marker type name carried by issued `ProductTypeSchema` values. An
 /// authored `ProductTypeSchema {}` has the declared type name instead and is
@@ -208,7 +209,7 @@ impl<'program> Evaluator<'program> {
                 Halt::Resource("product-schema description allocation was refused".to_owned())
             })?;
         self.product_schema_descriptions
-            .push(crate::DescribedProductSchema {
+            .push(DescribedProductSchema {
                 schema_symbol: definition.symbol,
                 canonical_path,
             });

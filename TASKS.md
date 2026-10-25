@@ -2945,7 +2945,12 @@ crash and native exit behavior.
   cache-miss recovery. Package policy selects discovery/bound passes and owns
   occurrence reuse, evidence joins and optional cache writes. Application Build
   owns audit session lifetime and target execution; package completion retains
-  ordered report joins and unchanged-file checks. Terminal Build/helper activation
+  ordered report joins and unchanged-file checks. Product query interfaces and
+  description payloads now belong to the source model, not its checked-tree
+  executor. Executed root bindings carry their lexical selection directly;
+  final admission no longer reopens an execution statement, and provider planning
+  no longer directly depends on the checked interpreter. These in-process records
+  do not yet supply serialized Terminal operation authority. Terminal Build/helper activation
   scheduling still needs migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
