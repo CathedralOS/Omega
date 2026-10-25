@@ -22,7 +22,12 @@ checkout credentials are not retained, and untrusted code runs on an ephemeral
 GitHub-hosted Linux runner, not the owner's machine. No repository secrets are
 passed to compiler tests.
 
-The job builds the optimized CLI and corpus runner, then uses the existing
+Admission runs `cargo check --locked -p omega`, checking the CLI's Rust dependency
+closure on Linux, plus seven cheap smoke-adapter refusal tests. It does not link
+an executable or establish compiler/runtime correctness. Changes to independent
+workspaces still need their author's focused validation.
+
+Manual dispatch with `smoke=true` additionally builds the optimized CLI and corpus runner, then uses the existing
 corpus gate for three positives, four intended rejections, and actual native
 and Terminal execution of the three positives. `compiler_pilot.py` also requires
 the exact observation roster, source revision, clean tree, expected rejection
@@ -30,7 +35,7 @@ fragments, and both-engine agreement. Golden movement alone may pass; source
 rejection, missing execution, wrong results, missing rows, and infrastructure
 failures cannot. Nothing records new goldens.
 
-The report and exact corpus runner are uploaded under `compiler-pilot-SHA-attempt`.
+For that optional smoke, the report and exact corpus runner are uploaded under `compiler-pilot-SHA-attempt`.
 `summary.json` separates build and test timings and names the producer digest.
 Cargo dependencies/build outputs are cached, but Cargo still checks freshness
 on every candidate. A cache hit never substitutes for executing the tests.
@@ -38,7 +43,7 @@ The job has a 30-minute timeout; a cold build is measured separately from warm
 queue behavior. PR revisions cancel their superseded PR jobs; queue jobs do not
 cancel one another.
 
-This is a Linux smoke gate for proving integration, **not** the full compiler
+This is a Linux compile gate for proving integration, **not** the full compiler
 acceptance, cross-host coverage, or Cathedral UEFI acceptance. Existing
 assignment-specific tests and required semantic review remain the author's
 responsibility. Do not silently replace them with these three programs.
@@ -58,13 +63,13 @@ which is eligible for GitHub's native queue. See GitHub's
    existing named ruleset before updating it; do not create duplicates. The
    required `compiler-pilot` check is bound to the GitHub Actions application
    (ID 15368), not an arbitrary user-authored status.
-4. Create two independent harmless PRs and one PR that deliberately changes a
-   smoke fixture's expected exit to the wrong value. These changes stay on the
-   isolated pilot branches; the bad oracle must never reach main.
+4. Create two independent harmless PRs and one PR with an intentional Rust
+   `compile_error!` in the CLI. These changes stay on the isolated pilot branches;
+   the broken source must never reach main.
 5. Observe the two good PRs' checks, enqueue them normally, and observe their
    `merge_group` checks and resulting pilot history. Do not rebase their source
-   branches when the first merges. The bad PR must report its actual runtime
-   mismatch and remain unmerged. Do not use an admin merge override.
+   branches when the first merges. The bad PR must report the actual Rust
+   compile error and remain unmerged. Do not use an admin merge override.
 
 Useful commands (Python 3 and GitHub CLI work on macOS and Windows):
 
@@ -72,6 +77,7 @@ Useful commands (Python 3 and GitHub CLI work on macOS and Windows):
 python tools/tests/test_compiler_pilot.py -v
 python tools/ci/compiler_pilot.py
 gh workflow run compiler-pilot.yml --ref integration-pilot
+gh workflow run compiler-pilot.yml --ref integration-pilot -f smoke=true
 gh api --method POST repos/CathedralOS/Omega/rulesets --input tools/ci/pilot-ruleset.json
 gh pr create --base integration-pilot --head ci-pilot/CHANGE
 gh pr checks NUMBER
@@ -86,16 +92,33 @@ failed-control diagnostic, and cold/warm durations in this document after the
 experiment. Local adapter tests alone do not prove a working queue.
 
 Cutover requires both good PRs to merge through successful integration checks,
-the bad oracle to prevent merging, and the second PR to survive the base moving
+the compile error to prevent merging, and the second PR to survive the base moving
 without an author-side rebase. Also demonstrate a subsequent submission reuses
 the warm base cache. Record any extra queue rebuild rather than claiming exactly
 one build when GitHub legitimately recreates an affected group.
 
-Before moving agents, select the required production checks from actual compiler
-and customer acceptance, provide supported-host coverage, update the canonical
-landing instructions/skills, and retire the superseded main publication loop.
-Keep semantic review proportional to the change; do not recreate the old
-receipt/rebase loop around GitHub's tested integration candidate.
+The owner's rollout policy is a small admission gate, not full qualification.
+Start with `cargo check --locked -p omega`; executable smoke is optional manual
+dispatch, not admission. The first cold executable smoke passed but took over
+15 minutes, so it is not the required gate. Do not make a full suite, every customer boot, all-platform
+validation, or repeated submitter review a prerequisite for adopting the queue.
+The submitter owns focused change-specific validation once; the queue owns the
+integrated candidate. Main movement alone does not send that author back through
+review. Actual conflicts, a failed gate, or a changed semantic premise require
+action; a new integration SHA alone does not.
+
+Broader regressions and supported-host/customer coverage run after merge and on
+a schedule, with named repair or revert ownership. A red signal is recorded and
+acted on, not relabeled green. Release qualification remains separate. This
+accepts that main can temporarily contain defects; it does not claim that the
+small gate establishes full compiler correctness. Report cold/warm build time,
+smoke time, queue delay, and time to repair or revert separately.
+
+Before switching agents, update the canonical landing instructions/skills and
+drain or migrate existing publication reservations. Retire the superseded main
+publication loop instead of rebuilding its receipt/rebase requirements around
+GitHub's tested integration candidate. The isolated pilot does not silently
+block agents still using the existing path.
 
 Rollback leaves main alone: close the pilot PRs and disable only the named pilot
 ruleset/workflow. Keep run artifacts and observations. No main branch protection,
