@@ -683,7 +683,6 @@ defines the complete product bar.
     and writes to any possible retained backing. Retain returned window extents
     as mathematical endpoint differences, including symbolic, inclusive and open
     bounds, without deriving endpoint formation or bounds from the result.
-    Multi-input callable-region refinement remains unqualified.
     Selected payload returns use ordinary
     expression continuations with captured backing across conditional arms and
     cyclic argument permutations; element origins retain logical window indices.

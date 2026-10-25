@@ -248,7 +248,7 @@ attempting a write to actual or same-lifetime sibling backing; both must reject.
 Acceptance is native/Terminal exit 0 for all nine computed places and both
 controls, with all nine source-9 twins and backing controls rejecting. These runs
 are for macOS ARM64. Other-host execution, general opaque/provider and dependent
-results remain open. Multi-input callable-region refinement remains unqualified.
+results remain open.
 
 ### Returned window extents
 
@@ -280,6 +280,45 @@ inclusive bounds, open suffixes and empty windows. Their pins are
 refusals. Acceptance is observed native/Terminal exit 0 on macOS ARM64 for both
 controls and all nine places, plus fact-sensitive rejection of their twins.
 Other-host execution remains unverified.
+
+### Applied callable field regions
+
+The computed byte-view row now composes the existing ranked/dynamic result’s
+`bytes` projection with a separate `sibling` input through `Composing::compose`.
+Both named implementations construct a `View` from two explicit references;
+the second returns an immutable local copy. Every place retains this same
+production, length 7, overwrite to 9 and consuming operation. The source-9
+reject twins require the `Composing::compose` result to fail at `receive`, as
+well as the existing returned-window obligation. Earlier producers and their
+once-only replacement counter remain exercised inside the composed expression.
+
+The fresh baseline rejects both conformance maps in all nine places. Preparing
+a declaration field retains its lexical owner; scoped lifetime traversal must
+use the active application frame for that schema, including its fresh invocation
+regions. That frame now carries its region map together with Type substitutions.
+A supplied operand outside the active frames still re-enters its captured scope.
+The result relation remains the conservative union of every matching input;
+field names and length guarantees cannot choose a referent. Nested-call result
+discovery also uses the shared completed-carrier classifier, removing a dynamic-only
+borrow-free restriction that had rejected a projection of the existing result.
+Call custody and cleanup still belong to the common call planner.
+
+`controls/dynamic_multi_input_window` is the original failing two-input dynamic
+window program, pinned as
+`pass/borrows/runtime_dyn_multi_input_window_snapshot_exit`.
+`controls/nested_applied_regions` applies one nested field schema twice with
+independent result lifetimes, pinned as
+`pass/borrows/runtime_nested_callable_field_regions_exit`.
+`fail/borrows/dyn_multi_input_result_retains_actual_backing` and
+`dyn_multi_input_result_retains_other_region` reject writes to either retained
+input while consuming just the result’s byte field. Swapped nested output
+regions, ambiguous two-input result elision and a shared candidate for mutable
+output reject in `nested_callable_field_regions_swapped`,
+`callable_multi_input_elision_needs_relation` and
+`callable_shared_candidate_cannot_supply_mutable_result`. Existing captured/fresh
+scope controls remain part of focused validation. Runtime qualification is
+macOS ARM64 native/Terminal agreement; other-host execution and the broader
+opaque/provider/dependent result acceptance remain open.
 
 ## Requirements and evidence
 
