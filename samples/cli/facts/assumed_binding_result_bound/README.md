@@ -28,8 +28,10 @@ accompanied by `<place>/invalid/` reject twins and `<place>/controls/insufficien
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | [other_machine/controls/insufficient_bound/main.omg](other_machine/controls/insufficient_bound/main.omg) | root-assumed bound forwarded through another machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | [target_body/controls/insufficient_bound/main.omg](target_body/controls/insufficient_bound/main.omg) | root-assumed bound consumed across target-scoped body implementations |
 
-Run each place with `omega run <place>/main.omg` after inspecting and accepting
-its exact package risk row through `omega update`.
+Run each place with `omega run --both <place>/main.omg`. Public Build
+evaluation of that place's `assume_binding_contract` projects the exact root
+Product risk rows for the activation. No `omega update` lock is required, and
+a retained lock must still match those rows.
 
 ## Requirements and Evidence
 
@@ -119,12 +121,13 @@ full ASSUMED-BINDING-CONTRACTS board outcome. Unsupported authority
 establishment, invocation correspondence and operational/lifetime
 relationships fail closed.
 
-## Fixture consent and update invalidation
+## Fixture consent and evaluated risk rows
 
-The nine corpus entry fixtures explicitly opt into repository test consent
-with `accepted_assumed_bindings.txt`. The existing fixture package support
-projects fresh exact root/target risk rows and supplies them through
-ordinary package compilation. Production execution still requires its
-accepted lock. Changing `Actual::get` from 1 to 0 after acceptance rejects
-before execution because the source identity changed; the original source
-is restored after this control.
+Each place's root Build is the Product decision for an activation with no
+retained lock. Evaluation records `assume_binding_contract`, and product
+admission projects the **Extremely high risk - assumed binding contract**
+rows from that checked compilation. The nine corpus fixtures still opt into
+the same projection with `accepted_assumed_bindings.txt` when a test supplies
+historical rows. A retained lock that differs from the fresh rows rejects.
+Changing the accepted relationship or its source closure invalidates a
+retained lock before execution.

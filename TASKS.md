@@ -4638,10 +4638,11 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   [`Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)`](wiki/spec/build/assumed_binding_contracts.md)
   delivers the bounded scalar-result link through public Build evaluation,
   provider installation, native call custody and exact package risk consent.
-  `samples/cli/facts/assumed_binding_result_bound` exercises the same result
-  bound across nine places. Input-side authority issuance, broader invocation
-  correspondence and the complete acceptance below remain; unsupported
-  authority or independent compatibility relationships fail closed.
+  `samples/cli/facts/assumed_binding_result_bound` carries that exit bound
+  and its evaluated Product risk rows across nine places. Input-side authority
+  issuance, broader invocation correspondence, refutable-connection audit, and
+  the install/update/audit acceptance below remain; unsupported authority or
+  independent compatibility relationships fail closed.
 
   Retain exact entry/exit assumptions, authorized issuer/subject mapping and
   the selected implementation closure through erasure and inlining. Both
