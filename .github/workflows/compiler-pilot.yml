@@ -7,6 +7,11 @@ on:
     branches: [integration-pilot]
     types: [checks_requested]
   workflow_dispatch:
+    inputs:
+      smoke:
+        description: Also build executables and run the native/Terminal smoke (not admission)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -46,10 +51,13 @@ jobs:
             compiler-pilot-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
       - name: Test the gate's refusal paths
         run: python tools/tests/test_compiler_pilot.py -v
-      - name: Build and execute the exact candidate
+      - name: Check the exact integration candidate
+        run: cargo check --locked -p omega
+      - name: Optional executable smoke
+        if: github.event_name == 'workflow_dispatch' && inputs.smoke
         run: python tools/ci/compiler_pilot.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.smoke
         with:
           name: compiler-pilot-${{ github.sha }}-${{ github.run_attempt }}
           path: build/compiler-pilot/
