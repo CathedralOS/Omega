@@ -12,6 +12,12 @@ use disposable workspaces and do not claim the requested product directory.
 by execution. The CLI owns argument spelling, console output and process exits,
 not this lifecycle. Shared temporary directories belong to `platform-custody`.
 
+Native requests name a retained or published destination. `omega run` uses the
+same preparation and compilation route, retaining its product for Terminal
+replay before publication consumes it. Private entry RAM belongs to that native
+request and reaches both package and standalone compilation. Execution owns
+input replay, native invocation and comparison, not a second project compiler.
+
 This is the project application owner, not another compiler pipeline. It depends
 on facades and product contracts, not intermediate source representations or
 stage crates. The deeper dependency/Build activation scheduler still lives in

@@ -23,10 +23,21 @@ use diagnostics::Diagnostic;
 use package_manager::operations as packages;
 use std::path::PathBuf;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub enum ProjectProduct {
     Check,
-    NativeArtifact,
+    Native {
+        destination: NativeDestination,
+        private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
+    },
+}
+
+/// Retention transfers the in-memory product to a consumer such as `run`,
+/// which needs Terminal comparison before publication consumes the artifact.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeDestination {
+    Retained,
+    Published,
 }
 
 /// Target identity and output placement are explicit, not inferred from an
@@ -99,6 +110,18 @@ impl std::fmt::Display for BuildError {
 impl std::error::Error for BuildError {}
 
 impl BuildError {
+    /// Preserve structured compiler refusals when an execution consumer needs
+    /// their exceeded-provision classification, not just display text.
+    pub fn into_diagnostics(self) -> Vec<Diagnostic> {
+        match self {
+            Self::Diagnostics(diagnostics)
+            | Self::PackageNative(packages::CompilePreparedLocalProjectNativeError::Native(
+                diagnostics,
+            )) => diagnostics,
+            error => vec![Diagnostic::error(error.to_string())],
+        }
+    }
+
     /// Only compilation refusals consisting entirely of exceeded private
     /// provisions are Incomplete; preparation and publication refusals reject.
     pub fn outcome(&self) -> compiler::CompilerRequestOutcome {

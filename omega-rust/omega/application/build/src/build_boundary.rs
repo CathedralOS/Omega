@@ -20,6 +20,10 @@ fn application_depends_on_facades_not_language_stages() {
     assert!(cli.contains("use omega_build::{"));
     assert!(!cli.contains("prepare_local_project_for_targets("));
     assert!(!cli.contains("publish_compilation("));
+    let execution = include_str!("../../cli/src/execution/compilation.rs");
+    assert!(execution.contains("omega_build::build("));
+    assert!(!execution.contains("prepare_local_project("));
+    assert!(!execution.contains("compiler::compile("));
 }
 
 #[test]
