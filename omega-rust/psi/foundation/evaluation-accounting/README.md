@@ -17,8 +17,9 @@ storage owners move leases across frames/maps and share an owning backing lease
 through `Arc`; copy-on-write must reserve the overlapping replacement before it
 allocates. `EvaluationStorageLease::absorb` joins existing reservations only
 within the exact invocation, without charging again. `truncate_cells` retires
-that owner's removed rows without changing its payload reservation. Result publication must reserve copied live storage and charge
-cumulative result custody before allocating or exposing a result. Custody is not
+that owner's removed rows without changing its payload reservation. Result preparation
+reserves copied live storage before allocation; publication charges cumulative
+result custody before exposing the completed result. Custody is not
 refunded on teardown or retry.
 
 The checked-tree measurement preserves schema 7, state/statement/expression
@@ -58,8 +59,21 @@ aliases share one reservation; mutation funds any detached replacement first.
 Frame-local descriptor tables now use that same row reservation owner; staged
 arguments and joins transfer their leases instead of reallocating unpaid maps.
 Failed return installation retains the outgoing backing and continuation even
-after partial caller installation. Global descriptor/placed/case storage and
-cumulative result custody still need their real lifetime hooks.
+after partial caller installation. Global descriptor/placed/case rows and provider
+records now carry their own leases, as do codec and field-transfer payloads.
+
+Terminal result publication charges one envelope cell even for Unit, followed
+by its actual retained payload rows and array/case elements. Immutable byte
+backings count their full retained length once per backing identity within the
+publication, including windows and descriptor/reference edges. Provider allocation
+records and recursively retained resident custody count once per owning handle;
+provider-supplied bytes, metadata and borrowed referent contents are not owned
+result payloads. A returned descriptor's presentation identity is not authority
+to include coincident referent storage. Scalar-case inspection shares its funded
+payload, just like packed-array inspection. Root descriptors retain their backing
+until instance close. Failed publication keeps the complete outgoing custody;
+cached completion and inspection do not charge again. Independent invocations
+and component completions share cumulative ceilings and each publication pays.
 These partial snapshots are not complete Build usage or storage budgeting; do
 not publish them as production Build accounting receipts. The ordinary
 package-aware CLI remains on the checked Build evaluator until accounting and

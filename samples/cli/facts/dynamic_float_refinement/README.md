@@ -174,3 +174,6 @@ Full 8-layer specification and lowering evidence:
 ## What remains open
 
 Broader interval arithmetic chains, non-orderable float NaN handling across arithmetic domains, suspending dynamic traits, and product-source compiler parity remain governed under the wider `DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION` and `wiki/spec/language/numeric_values.md` roadmap.
+
+The [named mathematical interval production](alias_contract/README.md) carries
+the same IEEE guarantee through checked aliases and public caller preconditions.

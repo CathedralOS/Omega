@@ -652,8 +652,8 @@ pass/calls/boundary_call_nested_call_argument_exit built 13138ms exit:70 @5f6688
 pass/calls/builtin_named_machine_call_exit built 13120ms exit:7 interpreter-exit:7 interpreter:agrees @5f668826adf3+wt
 pass/calls/by_value_case_param_self_write_exit built 10020ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/calls/call_local_reassign checked 4658ms @5f668826adf3+wt
-pass/calls/callback_private_deep_forwarded_record rejected 19953ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$f62fd2ac2fe74b9e$0 state entry after statement 0: value does not establish Registration::drop clause `registration.atom == 0 && registration.released`
+pass/calls/callback_private_deep_forwarded_record rejected 15069ms interpreter:unchecked @e06334c63dc4+wt
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Registrar::register),parameters(closed-requirement\\(template\\(named-callable\\\\\\(path\\\\\\(Registrar::register\\\\\\)\\\\\\,parameters\\\\\\(parameter\\\\\\\\\\\\\\(mutable\\\\\\\\\\\\\\(no\\\\\\\\\\\\\\)\\\\\\\\\\\\\\,const\\\\\\\\\\\\\\(no\\\\\\\\\\\\\\)\\\\\\\\\\\\\\,ref\\\\\\\\\\\\\\(array\\\\\\\\\\\\\\(named\\\\\\\\\\\\\\(name\\\\\\\\\\\\\\(u8\\\\\\\\\\\\\\)\\\\\\\\\\\\\\)\\\\\\\\\\\\\\,literal\\\\\\\\\\\\\\(13\\\\\\\\\\\\\\)\\\\\\\\\\\\\\)\\\\\\\\\\\\\\)\\\\\\\\\\\\\\)\\\\\\\\\\\\\\,parameter\\\\\\\\\\\\\\(mutable\\\\\\\\\\\\\\(no\\\\\\\\\\\\\\)\\\\\\\\\\\\\\,const\\\\\\\\\\\\\\(no\\\\\\\\\\\\\\)\\\\\\\\\\\\\\,constrained\\\\\\\\\\\\\\(named\\\\\\\\\\\\\\(name\\\\\\\\\\\\\\(nominal\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\(package-owner\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\(32:0101010101010101010101010101010101010101010101010101010101010101\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\)\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\,path\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\(Registration\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\)\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\)\\\\\\\\\\\\\\)\\\\\\\\\\\\\\)\\\\\\\\\\\\\\,declared-domain\\\\\\\\\\\\\\(name\\\\\\\\\\\\\\(package:0101010101010101010101010101010101010101010101010101010101010101:product::Registration::Held\\\\\\\\\\\\\\)\\\\\\\\\\\\\\)\\\\\\\\\\\\\\,declared-domain\\\\\\\\\\\\\\(name\\\\\\\\\\\\\\(package:0101010101010101010101010101010101010101010101010101010101010101:product::Registration::Vacant\\\\\\\\\\\\\\)\\\\\\\\\\\\\\)\\\\\\\\\\\\\\)\\\\\\\\\\\\\\)\\\\\\\\\\\\\\,parameter\\\\\\\\\\\\\\(mutable\\\\\\\\\\\\\\(no\\\\\\\\\\\\\\)\\\\\\\\\\\\\\,const\\\\\\\\\\\\\\(no\\\\\\\\\\\\\\)\\\\\\\\\\\\\\,named\\\\\\\\\\\\\\(name\\\\\\\\\\\\\\(i32\\\\\\\\\\\\\\)\\\\\\\\\\\\\\)\\\\\\\\\\\\\\)\\\\\\)\\\\\\,result-dispatch\\\\\\(\\\\\\)\\\\\\)\\)\\,trait-application\\(trait-application\\\\\\(declaration\\\\\\(nominal\\\\\\\\\\\\\\(package-owner\\\\\\\\\\\\\\(32:0101010101010101010101010101010101010101010101010101010101010101\\\\\\\\\\\\\\)\\\\\\\\\\\\\\,path\\\\\\\\\\\\\\(Registrar\\\\\\\\\\\\\\)\\\\\\\\\\\\\\)\\\\\\)\\\\\\,arguments\\\\\\(\\\\\\)\\\\\\,lifetimes\\\\\\(\\\\\\)\\\\\\)\\)\\,local-arguments\\(named\\(name\\(nominal\\\\\\(package-owner\\\\\\(32:0101010101010101010101010101010101010101010101010101010101010101\\\\\\)\\\\\\,path\\\\\\(Handler::call::call\\\\\\)\\\\\\)\\)\\)\\)\\,parameters\\(parameter\\\\\\(mutable\\\\\\(no\\\\\\)\\\\\\,const\\\\\\(no\\\\\\)\\\\\\,ref\\\\\\(array\\\\\\(named\\\\\\(name\\\\\\(u8\\\\\\)\\\\\\)\\\\\\,literal\\\\\\(13\\\\\\)\\\\\\)\\\\\\)\\\\\\)\\\\\\,parameter\\\\\\(mutable\\\\\\(no\\\\\\)\\\\\\,const\\\\\\(no\\\\\\)\\\\\\,constrained\\\\\\(named\\\\\\(name\\\\\\(nominal\\\\\\\\\\\\\\(package-owner\\\\\\\\\\\\\\(32:0101010101010101010101010101010101010101010101010101010101010101\\\\\\\\\\\\\\)\\\\\\\\\\\\\\,path\\\\\\\\\\\\\\(Registration\\\\\\\\\\\\\\)\\\\\\\\\\\\\\)\\\\\\)\\\\\\)\\\\\\,declared-domain\\\\\\(name\\\\\\(package:0101010101010101010101010101010101010101010101010101010101010101:product::Registration::Held\\\\\\)\\\\\\)\\\\\\,declared-domain\\\\\\(name\\\\\\(package:0101010101010101010101010101010101010101010101010101010101010101:product::Registration::Vacant\\\\\\)\\\\\\)\\\\\\)\\\\\\)\\\\\\,parameter\\\\\\(mutable\\\\\\(no\\\\\\)\\\\\\,const\\\\\\(no\\\\\\)\\\\\\,named\\\\\\(name\\\\\\(i32\\\\\\)\\\\\\)\\\\\\)\\)\\)),result-dispatch())` has no admitted installation for selected provider `RegistrarProvider` adapter `named-callable(path(RegistrarProvider::register$specialized$072aa3d7d951dcb8$0),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(array\\(named\\(name\\(u8\\)\\)\\,literal\\(13\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(nominal\\\\\\(package-owner\\\\\\(32:0101010101010101010101010101010101010101010101010101010101010101\\\\\\)\\\\\\,path\\\\\\(Registration\\\\\\)\\\\\\)\\)\\)\\,declared-domain\\(name\\(package:0101010101010101010101010101010101010101010101010101010101010101:product::Registration::Held\\)\\)\\,declared-domain\\(name\\(package:0101010101010101010101010101010101010101010101010101010101010101:product::Registration::Vacant\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())`
 pass/calls/callback_scalar_loan_permutation rejected 25922ms interpreter:unchecked @5f668826adf3+wt
 	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/calls/caller_result_binding_mutable_loan_exit built 14653ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
@@ -1881,17 +1881,17 @@ pass/effects/checked_boundary_unused_callback checked 2028ms @5f668826adf3+wt
 pass/effects/checked_callback_provider_ceiling checked 1820ms @5f668826adf3+wt
 pass/effects/core_critical_service_catalog checked 1975ms @5f668826adf3+wt
 pass/effects/exact_synchronous_callback_rows checked 1520ms @5f668826adf3+wt
-pass/effects/generic_callback_schema_reach checked 1528ms @5f668826adf3+wt
+pass/effects/generic_callback_schema_reach built 2343ms exit:0 interpreter-exit:0 interpreter:agrees @e06334c63dc4+wt
 pass/effects/graphics_provider_declares_filesystem_write checked 2493ms @5f668826adf3+wt
 pass/effects/gui_semantic_services checked 11496ms @5f668826adf3+wt
 pass/effects/nominal_callback_const_reach checked 2596ms @5f668826adf3+wt
-pass/effects/nominal_callback_dependency checked 2474ms @5f668826adf3+wt
+pass/effects/nominal_callback_dependency built 1974ms exit:0 interpreter-exit:0 interpreter:agrees @e06334c63dc4+wt
 pass/effects/reach_inferred_wrapper checked 2637ms @5f668826adf3+wt
 pass/effects/reach_through_machine_param checked 2737ms @5f668826adf3+wt
 pass/effects/reviewed_service_rows_exit built 6838ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/effects/root_service_audit checked 2484ms @5f668826adf3+wt
 pass/effects/runtime_empty_boundary_reach_exit built 5951ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
-pass/effects/static_boundary_callback_reach checked 1758ms @5f668826adf3+wt
+pass/effects/static_boundary_callback_reach built 1950ms exit:0 interpreter-exit:0 interpreter:agrees @e06334c63dc4+wt
 pass/effects/structural_callback_reach checked 2004ms @5f668826adf3+wt
 pass/effects/top_level_callback_provider_ceiling checked 1468ms @5f668826adf3+wt
 pass/effects/windows_filesystem_capability_rows checked 28012ms @5f668826adf3+wt
@@ -4364,6 +4364,15 @@ pass/facts/nineteen_variant_enum_payload_bound_through_other_machine_exit built 
 pass/facts/nineteen_variant_enum_payload_bound_through_other_state_exit built 3290ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/nineteen_variant_enum_payload_bound_through_parameter_exit built 2395ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/nineteen_variant_enum_payload_bound_through_target_body_exit built 2944ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/facts/nominal_callback_reach_through_call_result_exit built 2024ms exit:0 interpreter-exit:0 interpreter:agrees @e06334c63dc4+wt
+pass/facts/nominal_callback_reach_through_const_name_exit built 1999ms exit:0 interpreter-exit:0 interpreter:agrees @e06334c63dc4+wt
+pass/facts/nominal_callback_reach_through_field_exit built 2069ms exit:0 interpreter-exit:0 interpreter:agrees @e06334c63dc4+wt
+pass/facts/nominal_callback_reach_through_local_exit built 2115ms exit:0 interpreter-exit:0 interpreter:agrees @e06334c63dc4+wt
+pass/facts/nominal_callback_reach_through_match_join_exit built 2150ms exit:0 interpreter-exit:0 interpreter:agrees @e06334c63dc4+wt
+pass/facts/nominal_callback_reach_through_other_machine_exit built 1925ms exit:0 interpreter-exit:0 interpreter:agrees @e06334c63dc4+wt
+pass/facts/nominal_callback_reach_through_other_state_exit built 2046ms exit:0 interpreter-exit:0 interpreter:agrees @e06334c63dc4+wt
+pass/facts/nominal_callback_reach_through_parameter_exit built 2091ms exit:0 interpreter-exit:0 interpreter:agrees @e06334c63dc4+wt
+pass/facts/nominal_callback_reach_through_target_body_exit built 1455ms exit:0 interpreter-exit:0 interpreter:agrees @e06334c63dc4+wt
 pass/facts/nominal_declaration_owner_through_call_result built 2980ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/nominal_declaration_owner_through_const_name built 2929ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/nominal_declaration_owner_through_field built 2984ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt

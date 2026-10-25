@@ -1214,7 +1214,7 @@ pub(super) fn refine_place_interval(
     else {
         return interval;
     };
-    let mut comparison = ValueComparison::new(&environment.ordered_values);
+    let mut comparison: Option<ValueComparison<'_>> = None;
     for exact_only in [true, false] {
         for relation in &environment.ordered_values {
             let RelationConstraint::MinimumDifference(distance) = relation.constraint else {
@@ -1251,7 +1251,10 @@ pub(super) fn refine_place_interval(
                 let matched = if exact_only {
                     &subject == candidate
                 } else {
-                    &subject != candidate && comparison.same_value(&subject, candidate)
+                    &subject != candidate
+                        && comparison
+                            .get_or_insert_with(|| ValueComparison::new(&environment.ordered_values))
+                            .same_value(&subject, candidate)
                 };
                 if matched {
                     interval = interval.intersect(if subject_on_left {
@@ -1398,92 +1401,9 @@ fn ordered_gaps<'relations>(
 }
 
 pub(super) fn ordered_gaps_with_comparison<'relations>(
-    relations: &'relations [Relation],
+    _relations: &'relations [Relation],
     value: &'relations Operand,
     comparison: &mut congruence::ValueComparison<'relations>,
 ) -> Vec<(&'relations Operand, i64)> {
-    ordered_gaps_by(relations, value, |left, right| {
-        comparison.same_value(left, right)
-    })
-}
-
-fn ordered_gaps_by<'relations>(
-    relations: &'relations [Relation],
-    value: &'relations Operand,
-    mut same_value: impl FnMut(&Operand, &Operand) -> bool,
-) -> Vec<(&'relations Operand, i64)> {
-    let mut operands: Vec<&'relations Operand> = vec![value];
-    let mut indexed_relations = Vec::with_capacity(relations.len());
-    for relation in relations {
-        let left_idx = operands
-            .iter()
-            .position(|existing| *existing == &relation.left)
-            .unwrap_or_else(|| {
-                let idx = operands.len();
-                operands.push(&relation.left);
-                idx
-            });
-        let right_idx = operands
-            .iter()
-            .position(|existing| *existing == &relation.right)
-            .unwrap_or_else(|| {
-                let idx = operands.len();
-                operands.push(&relation.right);
-                idx
-            });
-        if let Some(floor) = relation.minimum_difference() {
-            indexed_relations.push((left_idx, right_idx, floor));
-        }
-    }
-    let count = operands.len();
-    let mut same_cache: Vec<Option<bool>> = vec![None; count * count];
-    let mut same_indexed = |left_idx: usize, right_idx: usize| -> bool {
-        if left_idx == right_idx {
-            return true;
-        }
-        let cell = left_idx * count + right_idx;
-        if let Some(cached) = same_cache[cell] {
-            return cached;
-        }
-        let result = same_value(operands[left_idx], operands[right_idx]);
-        same_cache[cell] = Some(result);
-        same_cache[right_idx * count + left_idx] = Some(result);
-        result
-    };
-    let mut dist: Vec<(usize, &'relations Operand, i64)> = vec![(0, value, 0)];
-    for _ in 1..count {
-        let mut improved = false;
-        for &(left_idx, right_idx, floor) in &indexed_relations {
-            let Some(gap) = dist
-                .iter()
-                .find(|&&(known_idx, _, _)| same_indexed(known_idx, right_idx))
-                .map(|&(_, _, gap)| gap)
-            else {
-                continue;
-            };
-            let Some(gap) = gap.checked_add(floor) else {
-                continue;
-            };
-            match dist
-                .iter_mut()
-                .find(|(known_idx, _, _)| same_indexed(*known_idx, left_idx))
-            {
-                Some((_, _, known)) if *known >= gap => {}
-                Some((_, _, known)) => {
-                    *known = gap;
-                    improved = true;
-                }
-                None => {
-                    dist.push((left_idx, operands[left_idx], gap));
-                    improved = true;
-                }
-            }
-        }
-        if !improved {
-            break;
-        }
-    }
-    dist.into_iter()
-        .map(|(_, operand, gap)| (operand, gap))
-        .collect()
+    comparison.ordered_gaps(value)
 }

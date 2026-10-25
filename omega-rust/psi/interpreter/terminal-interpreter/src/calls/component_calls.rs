@@ -34,12 +34,6 @@ impl<'artifact> TerminalExecution<'artifact> {
                 "component dispatch reached another operation".to_owned(),
             ));
         };
-        if !completion_receipts.is_empty() {
-            return Err(reject(
-                "component invocation needs an exact completion-receipt transfer carrier"
-                    .to_owned(),
-            ));
-        }
         // Dispatch reaches this lane only under an admitted installation
         // supply, so this roster is the receiving host's — the raw lane
         // carries an empty one and can never select a component provider.
@@ -64,9 +58,11 @@ impl<'artifact> TerminalExecution<'artifact> {
             let receiver = self.program.verified_boundary_machine(boundary)?;
             let prepared = self.prepare_component_arguments(
                 structural_arguments,
+                completion_receipts,
                 receiver,
                 binding.provider_program(),
                 selected.provider_boundary(),
+                selected.candidate(),
             )?;
             binding
                 .prepare(
@@ -81,6 +77,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             // checks finished before preparing it; commit the ordinary transfer
             // before allowing that child to consume the original atoms.
             self.live_affine_frontier = prepared.remaining_affine;
+            self.live_claims = prepared.remaining_claims;
             for place in prepared.retired_sources {
                 self.structural_values
                     .remove(&place)
@@ -128,6 +125,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             .program
             .verified_boundary_machine(&selected.provider_boundary())?
             .result;
+        let mut result_claims = self.live_claims.clone();
         let returned = match (&receiver, supplied, completed.value()) {
             (
                 BoundaryMachineResult::Unit,
@@ -160,9 +158,12 @@ impl<'artifact> TerminalExecution<'artifact> {
                     || !right.qualifications.is_empty()
                     || !left.projected_qualifications.is_empty()
                     || !right.projected_qualifications.is_empty()
-                    || !returned.claims.is_empty()
                     || receiver_type.owns_linear_claim
-                    || !receiver_type.no_code_affine_cleanup
+                        != (left.multiplicity == terminal_psi::StructuralMultiplicity::Linear)
+                    || provider_type.owns_linear_claim != receiver_type.owns_linear_claim
+                    || (!receiver_type.owns_linear_claim
+                        && (!receiver_type.no_code_affine_cleanup
+                            || !provider_type.no_code_affine_cleanup))
                     || !self
                         .program
                         .catalogs
@@ -187,18 +188,56 @@ impl<'artifact> TerminalExecution<'artifact> {
                 // key; retain the same nonrecycled host token and exact payload.
                 let mut value = returned.value.clone();
                 value.structural_type = left.structural_type;
+                let claims = completed.returned_claims().ok_or_else(|| {
+                    reject("component return lost its owned claim bindings".to_owned())
+                })?;
                 if let OperationResult::Structural(result) = &operation.result {
                     if self.structural_values.contains_key(&result.place)
+                        || self
+                            .live_claims
+                            .values()
+                            .any(|claim| claim.place == Some(result.place))
                         || self
                             .live_affine_frontier
                             .iter()
                             .any(|value| value.place == result.place)
-                        || !result.claims.is_empty()
                     {
                         return Err(reject(
                             "component receiving result place still owns custody".to_owned(),
                         ));
                     }
+                    if receiver_type.owns_linear_claim {
+                        if claims.len() != 1
+                            || !claims[0].path.is_empty()
+                            || returned.claims != [claims[0].claim]
+                            || result.claims.len() != 1
+                            || !result.claims[0].path.is_empty()
+                        {
+                            return Err(reject(
+                                "linear component result lacks exactly one whole returned claim"
+                                    .to_owned(),
+                            ));
+                        }
+                    } else if !claims.is_empty()
+                        || !returned.claims.is_empty()
+                        || !result.claims.is_empty()
+                    {
+                        return Err(reject(
+                            "nonlinear component result carries unexpected claims".to_owned(),
+                        ));
+                    }
+                    for claim in &result.claims {
+                        crate::custody::bind_result_claim(
+                            &mut result_claims,
+                            claim,
+                            result.place,
+                            result.multiplicity,
+                        )?;
+                    }
+                } else {
+                    return Err(reject(
+                        "component structural result has no receiving home".to_owned(),
+                    ));
                 }
                 self.local_structural_identities
                     .reserve_host_at_cursor(&value, self.local_structural_identities.cursor())?;
@@ -214,6 +253,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         let candidate = completed.candidate();
         let instance_namespace = completed.instance_namespace();
         self.commit_boundary_result(&operation.result, &receiver, returned)?;
+        self.live_claims = result_claims;
         self.effects
             .push(crate::effects::TerminalEffect::ComponentCall {
                 operation: operation.id,

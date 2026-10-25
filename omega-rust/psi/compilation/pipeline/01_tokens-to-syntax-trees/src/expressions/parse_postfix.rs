@@ -811,7 +811,7 @@ fn parse_static_value_alternatives<'tokens, 'source>(
         || rest.at_punctuation(PunctuationKind::Greater))
         || matches!(
             scratch.expressions.expression(expression),
-            ExpressionNode::Name(_) | ExpressionNode::Member(_)
+            ExpressionNode::Name(_)
         )
     {
         return Ok(None);

@@ -38,8 +38,7 @@ pub(crate) fn parse_body<'tokens, 'source>(
     }
 
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut state_start = Handle::invalid();
-    let mut state_count = 0u32;
+    let mut states = crate::handle_spans::HandleSpanBuilder::new();
     let mut nested_machines = Vec::new();
     let implicit_entry_name = entry_name
         .clone()
@@ -62,7 +61,7 @@ pub(crate) fn parse_body<'tokens, 'source>(
             machine_parameters,
             machine_return_type,
         )?;
-        let handle = append_machine_state(syntax_trees, &mut state_start, &mut state_count, state);
+        let handle = append_machine_state(syntax_trees, &mut states, state);
         debug_assert!(handle.is_valid());
         input = rest;
     }
@@ -109,12 +108,12 @@ pub(crate) fn parse_body<'tokens, 'source>(
             state.return_type = machine_return_type;
         }
 
-        append_machine_state(syntax_trees, &mut state_start, &mut state_count, state);
+        append_machine_state(syntax_trees, &mut states, state);
         input = rest;
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let states = HandleSpan::from_parts_or_empty(state_start, state_count);
+    let states = states.finish();
 
     Ok(((states, false, nested_machines), input))
 }
@@ -231,17 +230,11 @@ fn parse_implicit_entry_state<'tokens, 'source>(
 
 fn append_machine_state(
     syntax_trees: &mut SyntaxTrees,
-    state_start: &mut Handle<StateHandle>,
-    state_count: &mut u32,
+    states: &mut crate::handle_spans::HandleSpanBuilder<StateHandle>,
     state: State,
 ) -> Handle<StateHandle> {
     let handle = syntax_trees.items.insert_state(&state);
     let handle = syntax_trees.items.append_state_handle(handle);
-    if *state_count == 0 {
-        *state_start = handle;
-    }
-    *state_count = state_count
-        .checked_add(1)
-        .expect("machine state span count overflow");
+    states.push(handle);
     handle
 }

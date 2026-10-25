@@ -589,13 +589,19 @@ impl<'a> Elaborator<'a> {
                 let callee =
                     self.elaborate_callee(handle, target_symbol, &target, &static_arguments)?;
                 let mut inputs = Vec::new();
+                let mut prefix = callee;
                 for argument in self
                     .program
                     .expression_table
                     .expression_handles(call.arguments)
                     .to_vec()
                 {
-                    inputs.push(self.source_expression_input(argument)?);
+                    let input = self.source_application_input(argument, prefix)?;
+                    prefix = self.arena.insert(Term::Apply {
+                        function: prefix,
+                        argument: input.term,
+                    });
+                    inputs.push(input);
                 }
                 Ok(self.apply_source_inputs(handle, callee, inputs))
             }
@@ -793,6 +799,22 @@ impl<'a> Elaborator<'a> {
         };
         for ((_, value), position) in &self.numeric_literals {
             retain(*position, PreparedConstantMeaning::Integer(value.clone()));
+        }
+        for ((carrier, bits), position) in &self.float_literals {
+            let format = if self.float32 == Some(*carrier) {
+                numerics::literals::FloatFormat::F32
+            } else if self.float64 == Some(*carrier) {
+                numerics::literals::FloatFormat::F64
+            } else {
+                continue;
+            };
+            retain(
+                *position,
+                PreparedConstantMeaning::FloatLiteral {
+                    format,
+                    bits: *bits,
+                },
+            );
         }
         for (value, position) in self.boolean_literals.iter().enumerate() {
             if let Some(position) = position {

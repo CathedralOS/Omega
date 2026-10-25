@@ -14,3 +14,7 @@ effects = { path = "../../plans/provider-evidence" }
 optimization-core = { path = "../../../../foundation/optimization-core" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
+
+[dev-dependencies]
+# The source guards delegate their scan to the shared audit crate.
+source-audit = { path = "../../../../../psi/foundation/source-audit" }

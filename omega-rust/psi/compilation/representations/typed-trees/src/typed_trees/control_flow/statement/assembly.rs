@@ -7,8 +7,10 @@ use super::StatementTable;
 use crate::name::Identifier;
 use arena::{Handle, HandleSpan};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssemblyControlFlow {
+    /// The intersection of instruction and register-view catalog demands.
+    pub target_requirement: language_core::inline_assembly::AsmTargetApplicability,
     /// Catalog-generated arithmetic and ZF operations: their selected meaning
     /// must remain builtin, independently of authored token overloads.
     pub primitives: HandleSpan<crate::expression::ExpressionHandle>,
@@ -17,6 +19,18 @@ pub struct AssemblyControlFlow {
         language_core::inline_assembly::ASM_SCRATCH_SLOT_COUNT],
     pub blocks: HandleSpan<AssemblyBlock>,
     pub statement_count: u32,
+}
+impl Default for AssemblyControlFlow {
+    fn default() -> Self {
+        Self {
+            target_requirement: Default::default(),
+            primitives: Default::default(),
+            scratch: [crate::expression::ExpressionHandle::invalid();
+                language_core::inline_assembly::ASM_SCRATCH_SLOT_COUNT],
+            blocks: Default::default(),
+            statement_count: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,6 +114,7 @@ impl StatementTable {
             }
         }
         self.insert_assembly(AssemblyControlFlow {
+            target_requirement: graph.target_requirement,
             blocks,
             statement_count: graph.statement_count,
             scratch: graph.scratch,

@@ -5,11 +5,9 @@
 //! ordering, copies, branch agreement and mutation epochs; this adapter only
 //! authenticates declared subjects for checking-only value comparison.
 
-use super::citations::CitationFacts;
-use super::structural_case_arms::structural_arm_judge;
-use super::structural_judgment::{StructuralJudge, StructuralTerm};
+use super::structural_judgment::StructuralTerm;
 use super::structural_prefix::{
-    StructuralPrefixSite, StructuralPrefixVisitor, observe_runtime_state_prefix,
+    PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor, observe_runtime_state_prefix,
 };
 use crate::machine_calls::calls::CallSite;
 use facts::PlaceSegment;
@@ -241,26 +239,16 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
             in_transition_target: self.in_transition_target,
         }
     }
-    fn visit<'program>(
-        &mut self,
-        program: &'program dyn crate::CheckingInput,
-        machine: &typed_trees::machine::Machine,
-        judge: &StructuralJudge<'program>,
-        environment: &[(String, StructuralTerm)],
-        hypotheses: &[(String, StructuralTerm)],
-        equations: &[(StructuralTerm, StructuralTerm)],
-        guarantees: &CitationFacts,
-    ) {
-        let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
-        if judge.hypotheses_contradictory {
-            return;
-        }
-        guarantees.intake(&mut judge);
+    fn entered(&mut self) {
         self.seen = true;
-        let Some(state) = program.state_in_machine(machine, self.state) else {
-            self.valid = false;
-            return;
-        };
+    }
+
+    fn unresolved(&mut self, _machine: &typed_trees::machine::Machine) {
+        self.valid = false;
+    }
+
+    fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
+        let (program, machine, state, judge, environment) = observation;
         let (entries, leading) = match self.call {
             CallSite::Expression { expression, call } => {
                 let Some(owner) = super::specification_calls::selected_call_contract(

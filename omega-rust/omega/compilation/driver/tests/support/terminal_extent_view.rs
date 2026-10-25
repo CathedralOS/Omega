@@ -1,9 +1,16 @@
 //! Borrowed nonresident access must use the exact admitted provider allocation.
 //! These are embedding inputs, not authority produced by numeric addresses.
+#[path = "terminal_provision.rs"]
+mod terminal_provision;
+
 use access_plans::{
     AtomicCapability, BoundaryReach, ExternalCapability, ExternalReadBehavior, PeerWritability,
     ResourceProfile, ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion,
     StableCapability, TransferRule,
+};
+use evaluation_accounting::{
+    BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+    TerminalStorageScheduleIdentity,
 };
 use extents::{
     AddressSpaceId, Extent, ExtentLineageId, ExtentProvenanceId, ExtentProviderIssuance,
@@ -13,13 +20,14 @@ use semantic_vocabulary::IntegerValue;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     ProviderInstallationSelection, TerminalExecutionResult, TerminalExecutionStatus,
-    TerminalInstanceError, TerminalProgram, TerminalProviderStorageInput,
-    TerminalRuntimeSupplyRequest, TerminalScalarValue, TerminalStructuralInputs,
-    TerminalStructuralScalarFieldValue, TerminalStructuralValue, admit_provider_installation,
+    TerminalInstanceCloseError, TerminalInstanceError, TerminalProgram,
+    TerminalProviderStorageInput, TerminalRuntimeSupplyRequest, TerminalScalarValue,
+    TerminalStructuralInputs, TerminalStructuralScalarFieldValue, TerminalStructuralValue,
+    admit_provider_installation,
 };
 use terminal_psi::StructuralTypeShape;
 
-fn allocation(provenance: u64) -> Extent {
+pub(super) fn allocation(provenance: u64, length: u64) -> Extent {
     ExtentRootGrant::from_admitted_provider(
         ExtentProviderIssuance::from_normalized_identities([
             1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
@@ -33,7 +41,7 @@ fn allocation(provenance: u64) -> Extent {
         ExtentProvenanceId::from_normalized_identity(provenance).unwrap(),
         MappingEraId::from_normalized_identity(25).unwrap(),
     )
-    .mint(4096, 16)
+    .mint(4096, length)
     .unwrap()
 }
 
@@ -42,23 +50,22 @@ pub(super) fn observe(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     writes: bool,
 ) -> Result<(), String> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| exercise(artifact, writes))).map_err(
-        |failure| {
-            failure
-                .downcast_ref::<String>()
-                .cloned()
-                .or_else(|| {
-                    failure
-                        .downcast_ref::<&str>()
-                        .map(|message| (*message).to_owned())
-                })
-                .unwrap_or_else(|| "external extent view provision failed".to_owned())
+    terminal_provision::result(
+        || {
+            let loaded = TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap();
+            for program in [TerminalProgram::borrow(artifact.view()), loaded] {
+                exercise(artifact, &program, writes);
+            }
         },
+        "external extent view provision failed",
     )
 }
 
-fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact, writes: bool) {
-    let program = TerminalProgram::borrow(artifact.view());
+fn exercise(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    program: &TerminalProgram<'_>,
+    writes: bool,
+) {
     let module = program.module();
     let plan = module
         .placement_lifecycle_plans
@@ -110,17 +117,39 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact, writes: bool) 
     else {
         panic!("extent record");
     };
-    for (second_word, compatible_transfer, bind_backing, crosswire, writable) in [
-        (41_u64, true, true, false, writes),
-        (99, true, true, false, writes),
-        (41, false, true, false, writes),
-        (41, true, false, false, writes),
-        (41, true, true, true, writes),
+    for (second_word, compatible_transfer, bind_backing, crosswire, writable, payload_ceiling) in [
+        (41_u64, true, true, false, writes, 8),
+        (99, true, true, false, writes, 8),
+        (41, false, true, false, writes, 8),
+        (41, true, false, false, writes, 8),
+        (41, true, true, true, writes, 8),
+        (41, true, true, false, writes, 7),
+        (41, true, true, false, writes, 1),
     ]
     .into_iter()
-    .chain(writes.then_some((41, true, true, false, false)))
+    .chain(writes.then_some((41, true, true, false, false, 8)))
     {
-        let allocation = allocation(24);
+        let measurement = EvaluationMeasurementIdentity::TerminalPsi {
+            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+        };
+        let sponsor = BuildEvaluationSponsor::new_with_measurement(
+            BuildEvaluationSponsorLimits::new(
+                1_000_000,
+                8,
+                2,
+                2,
+                100_000,
+                payload_ceiling,
+                1000,
+                1000,
+            )
+            .unwrap(),
+            measurement,
+        )
+        .unwrap();
+        let account = sponsor.begin_invocation(measurement, 1_000_000).unwrap();
+        let allocation = allocation(24, 16);
         let profile = ResourceProfileGrant::from_admitted_provider(
             ResourceProfileReceiptId::from_normalized_identity(31).unwrap(),
             &allocation,
@@ -181,6 +210,7 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact, writes: bool) 
             .collect::<Vec<_>>();
         let mut instance = program
             .instantiate(terminal_interpreter::TerminalInstantiation {
+                account: Some(&account),
                 scalar_arguments: &[],
                 structural_inputs: TerminalStructuralInputs {
                     arguments: &values,
@@ -192,21 +222,46 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact, writes: bool) 
             })
             .unwrap();
         if bind_backing {
+            let before = sponsor.live_storage_cells();
             let bytes = [17_u64.to_le_bytes(), second_word.to_le_bytes()].concat();
             // Identical geometry and profile contents cannot authorize another
             // issuance. Only the SDK input's provenance changes in this control.
             let (supplied_allocation, matching_allocation) = if crosswire {
-                (self::allocation(124), Some(allocation))
+                (self::allocation(124, 16), Some(allocation))
             } else {
                 (allocation, None)
             };
-            let result = instance.bind_provider_storage(TerminalProviderStorageInput {
+            let mut input = TerminalProviderStorageInput {
                 argument_index: 0,
                 path: Vec::new(),
                 extent: supplied_allocation,
                 profile,
                 bytes,
-            });
+            };
+            if second_word == 41 && compatible_transfer && !crosswire && writable == writes {
+                // Leave room for only one of the two records. Failure must
+                // return the same backing and allow retry on this instance.
+                let held = account.reserve_storage(100_000 - before - 1, 0).unwrap();
+                let pointer = input.bytes.as_ptr();
+                let failure = instance
+                    .bind_provider_storage(input)
+                    .expect_err("provider binding must reserve both records before publication");
+                assert!(
+                    failure.reason.contains("AllowanceExhausted(LiveStorage)"),
+                    "{}",
+                    failure.reason
+                );
+                assert_eq!(failure.input.bytes.as_ptr(), pointer);
+                assert_eq!(
+                    failure.input.bytes,
+                    [17_u64.to_le_bytes(), second_word.to_le_bytes()].concat()
+                );
+                assert_eq!(sponsor.live_storage_cells(), 99_999);
+                input = failure.input;
+                drop(held);
+                assert_eq!(sponsor.live_storage_cells(), before);
+            }
+            let result = instance.bind_provider_storage(input);
             if crosswire {
                 let failure =
                     result.expect_err("equal geometry cannot crosswire profile authority");
@@ -231,9 +286,38 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact, writes: bool) 
             } else {
                 result.unwrap();
             }
+            assert_eq!(
+                sponsor.live_storage_cells(),
+                before + 2,
+                "provider allocation and descriptor must each own one live cell"
+            );
         }
-        let result = instance.invoke(&mut TerminalFuelMeter::unbounded());
-        if !bind_backing {
+        let mut meter = TerminalFuelMeter::with_invocation(account.clone(), Some(0)).unwrap();
+        let result = loop {
+            match instance.invoke(&mut meter) {
+                Ok(TerminalExecutionStatus::SponsorExhausted(_)) => meter.replenish(1).unwrap(),
+                result => break result,
+            }
+        };
+        assert_eq!(
+            sponsor.live_payload_bytes(),
+            0,
+            "transfer scratch retires before return or refusal"
+        );
+        if payload_ceiling < 8 {
+            let refusal = result
+                .as_ref()
+                .expect_err("field transfer must reserve its complete footprint");
+            assert!(
+                format!("{refusal:?}").contains("AllowanceExhausted(LiveStorage)"),
+                "{refusal:?}"
+            );
+            assert!(instance.result().is_none());
+            assert_eq!(instance.close(), Err(TerminalInstanceCloseError::Busy));
+            let usage = *account.snapshot().unwrap().record();
+            assert_eq!(instance.invoke(&mut meter), Err(refusal.clone()));
+            assert_eq!(*account.snapshot().unwrap().record(), usage);
+        } else if !bind_backing {
             assert!(
                 matches!(result, Err(TerminalInstanceError::Execution(_))),
                 "{result:?}"
@@ -267,11 +351,18 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact, writes: bool) 
                 1,
                 "original extent claim remains owned"
             );
+            assert_eq!(
+                account.snapshot().unwrap().record().peak_live_payload_bytes,
+                8
+            );
         }
         eprintln!(
             "external extent second_word={second_word}, transfer={compatible_transfer}, bound={bind_backing}, writable={writable}: {result:?}"
         );
         // Neither success nor rejection manufactures vacancy for host handback.
         assert!(instance.take_returned_provider_storage(&[]).is_err());
+        drop(instance);
+        assert_eq!(sponsor.live_storage_cells(), 0);
+        assert_eq!(sponsor.live_payload_bytes(), 0);
     }
 }

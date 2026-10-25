@@ -46,7 +46,7 @@ use crate::obligations::{
     BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
     BoundedStateReturnObligation, BoundedTransitionArgumentObligation, ProofPlan,
 };
-use crate::obligations::{IntegerRange, RecipeRangeBound};
+use crate::obligations::{FloatRange, IntegerRange, ProofConstraint, RecipeRangeBound};
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use typed_trees::expression::ExpressionNode;
@@ -148,26 +148,17 @@ pub(crate) fn check_bounded_assignment<'program>(
         }
     }
 
-    if let Some(target_range) =
-        float_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
-    {
-        let Some(value_range) = float_range_for_assignment(proof_plan, obligation) else {
-            diagnostics.push(cannot_prove_bounded_assignment_float(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
-            return None;
-        };
-
-        if !target_range.contains_range(&value_range) {
-            diagnostics.push(cannot_prove_bounded_assignment_float(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
-        }
+    if discharge_declared_float_range(
+        proof_plan,
+        obligation,
+        obligation.constraints,
+        diagnostics,
+        float_range_for_assignment,
+        cannot_prove_bounded_assignment_float,
+    ) {
+        return None;
     }
+
     if diagnostics.len() == diagnostics_before {
         checked_range
     } else {
@@ -392,25 +383,15 @@ pub(crate) fn check_bounded_initializer(
         }
     }
 
-    if let Some(target_range) =
-        float_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
-    {
-        let Some(value_range) = float_range_for_initializer(proof_plan, obligation) else {
-            diagnostics.push(cannot_prove_bounded_initializer_float(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
-            return;
-        };
-
-        if !target_range.contains_range(&value_range) {
-            diagnostics.push(cannot_prove_bounded_initializer_float(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
-        }
+    if discharge_declared_float_range(
+        proof_plan,
+        obligation,
+        obligation.constraints,
+        diagnostics,
+        float_range_for_initializer,
+        cannot_prove_bounded_initializer_float,
+    ) {
+        return;
     }
 }
 
@@ -484,25 +465,15 @@ pub(crate) fn check_bounded_state_return<'program>(
         }
     }
 
-    if let Some(target_range) =
-        float_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
-    {
-        let Some(value_range) = float_range_for_return_value(proof_plan, obligation) else {
-            diagnostics.push(cannot_prove_bounded_return_float(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
-            return;
-        };
-
-        if !target_range.contains_range(&value_range) {
-            diagnostics.push(cannot_prove_bounded_return_float(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
-        }
+    if discharge_declared_float_range(
+        proof_plan,
+        obligation,
+        obligation.constraints,
+        diagnostics,
+        float_range_for_return_value,
+        cannot_prove_bounded_return_float,
+    ) {
+        return;
     }
 }
 
@@ -648,25 +619,15 @@ pub(crate) fn check_bounded_call_argument(
         )));
     }
 
-    if let Some(target_range) =
-        float_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
-    {
-        let Some(argument_range) = float_range_for_call_argument(proof_plan, obligation) else {
-            diagnostics.push(cannot_prove_bounded_call_float(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
-            return;
-        };
-
-        if !target_range.contains_range(&argument_range) {
-            diagnostics.push(cannot_prove_bounded_call_float(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
-        }
+    if discharge_declared_float_range(
+        proof_plan,
+        obligation,
+        obligation.constraints,
+        diagnostics,
+        float_range_for_call_argument,
+        cannot_prove_bounded_call_float,
+    ) {
+        return;
     }
 }
 
@@ -846,32 +807,49 @@ pub(crate) fn check_bounded_transition_argument(
         }
     }
 
-    if let Some(target_range) =
-        float_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
-    {
-        // The declared range is the goal. A co-located comparison of this
-        // argument and surviving refuted exits constrain its ordered values.
-        // Unlike integer complements, false IEEE comparisons retain NaN;
-        // guard effects must also preserve the consumed observation.
-        let Some(argument_range) =
-            guarded_float_range_for_transition_argument(proof_plan, obligation)
-        else {
-            diagnostics.push(cannot_prove_bounded_transition_float(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
-            return;
-        };
-
-        if !target_range.contains_range(&argument_range) {
-            diagnostics.push(cannot_prove_bounded_transition_float(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
-        }
+    // The declared range is the goal. A co-located comparison of this
+    // argument and surviving refuted exits constrain its ordered values.
+    // Unlike integer complements, false IEEE comparisons retain NaN;
+    // guard effects must also preserve the consumed observation.
+    if discharge_declared_float_range(
+        proof_plan,
+        obligation,
+        obligation.constraints,
+        diagnostics,
+        guarded_float_range_for_transition_argument,
+        cannot_prove_bounded_transition_float,
+    ) {
+        return;
     }
+}
+
+/// Discharge one obligation's declared float range: a value range that
+/// cannot be produced refuses and aborts the obligation, and a range
+/// outside the declared one refuses while the caller's remaining checks
+/// continue. `range` names the obligation's own range owner and `refuse`
+/// its own diagnostic, so each obligation keeps its exact refusal text.
+/// Returns `true` when the caller must abort.
+fn discharge_declared_float_range<O>(
+    proof_plan: &ProofPlan,
+    obligation: &O,
+    constraints: arena::HandleSpan<ProofConstraint>,
+    diagnostics: &mut Vec<Diagnostic>,
+    range: fn(&ProofPlan, &O) -> Option<FloatRange>,
+    refuse: fn(&ProofPlan, &O, FloatRange) -> Diagnostic,
+) -> bool {
+    let Some(target_range) =
+        float_range_from_constraints(type_constraints(proof_plan, constraints))
+    else {
+        return false;
+    };
+    let Some(value_range) = range(proof_plan, obligation) else {
+        diagnostics.push(refuse(proof_plan, obligation, target_range));
+        return true;
+    };
+    if !target_range.contains_range(&value_range) {
+        diagnostics.push(refuse(proof_plan, obligation, target_range));
+    }
+    false
 }
 
 /// Decide a declared range with a retained constant recipe at an endpoint.

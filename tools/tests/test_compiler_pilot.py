@@ -3,7 +3,9 @@
 from copy import deepcopy
 from pathlib import Path
 import sys
+import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ci"))
 import compiler_pilot as pilot
@@ -11,6 +13,42 @@ import compiler_cleanup as cleanup
 
 
 class CompilerPilotTests(unittest.TestCase):
+    def test_first_host_keeps_unknown_history_separate_from_other_host_results(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            corpus = root / "tests/omega"
+            corpus.mkdir(parents=True)
+            other = corpus / "corpus_both_macos_arm64.txt"
+            other.write_text("an existing host's measured rows\n", encoding="utf-8")
+            output = root / "build"
+            output.mkdir()
+            with patch.object(pilot, "ROOT", root):
+                baseline = pilot.observation_golden(output, both=True, target="linux_arm64")
+                with self.assertRaisesRegex(ValueError, "published corpus baseline"):
+                    pilot.observation_golden(output, both=False, target="linux_arm64")
+            self.assertEqual(baseline.parent, output)
+            self.assertTrue(all(line.startswith("#") for line in baseline.read_text().splitlines()))
+            self.assertFalse((corpus / "corpus_both_linux_arm64.txt").exists())
+            self.assertEqual(other.read_text(), "an existing host's measured rows\n")
+            # Missing historical rows never permit a failed authored oracle.
+            report = self.report(True)
+            report["oracle_failures"] = ["expected native 0, observed timeout"]
+            with self.assertRaises(ValueError):
+                self.validate(report, True)
+
+    def test_existing_matching_host_baseline_is_preserved(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            baseline = root / "tests/omega/corpus_both_linux_arm64.txt"
+            baseline.parent.mkdir(parents=True)
+            original = b"existing matching-host observations\n"
+            baseline.write_bytes(original)
+            with patch.object(pilot, "ROOT", root):
+                self.assertEqual(pilot.observation_golden(
+                    root / "absent-output", both=True, target="linux_arm64"), baseline)
+            self.assertEqual(baseline.read_bytes(), original)
+            self.assertFalse((root / "absent-output").exists())
+
     def report(self, both=False):
         fixtures = pilot.POSITIVES if both else pilot.POSITIVES + pilot.NEGATIVES
         return dict(schema="omega-corpus-verdict-v1", revision="a" * 40, dirty=False,

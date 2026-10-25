@@ -2,31 +2,14 @@
 
 use crate::{
     FixedPrecoloredIntervalError, FixedPrecoloredIntervalValidationReceipt,
-    ValidatedFixedPrecoloredIntervals, ValidatedLiveRanges,
+    ValidatedFixedPrecoloredIntervals,
 };
 use register_homes::{FixedPrecoloredIntervalPlan, fixed_precolored_interval_plan_identity};
-use selected_instructions::VirtualFixedConstraintSite;
 /// Admit a freshly produced plan with its receipt; the producer calls this
 /// instead of replaying its own output.
 pub(crate) fn seal_fixed_precolored_intervals(
-    ranges: &ValidatedLiveRanges,
     candidate: FixedPrecoloredIntervalPlan,
 ) -> Result<ValidatedFixedPrecoloredIntervals, FixedPrecoloredIntervalError> {
-    let all = candidate
-        .functions
-        .iter()
-        .flat_map(|function| &function.intervals)
-        .collect::<Vec<_>>();
-    let inspected_register_count = ranges
-        .plan()
-        .functions
-        .iter()
-        .map(|function| function.virtual_registers.len())
-        .sum();
-    let entry_interval_count = all
-        .iter()
-        .filter(|row| matches!(row.site, VirtualFixedConstraintSite::Entry))
-        .count();
     let receipt = FixedPrecoloredIntervalValidationReceipt {
         identity: fixed_precolored_interval_plan_identity(&candidate),
         ranges: candidate.ranges,
@@ -37,11 +20,6 @@ pub(crate) fn seal_fixed_precolored_intervals(
         fuel_schedule: candidate.fuel_schedule,
         policy: candidate.policy,
         usage: candidate.usage,
-        function_count: candidate.functions.len(),
-        inspected_register_count,
-        interval_count: all.len(),
-        entry_interval_count,
-        operand_interval_count: all.len() - entry_interval_count,
     };
     Ok(ValidatedFixedPrecoloredIntervals {
         plan: candidate,

@@ -27,6 +27,7 @@ impl PsiOptimizationRule for DominatorTotalScalarGvnRule {
             unit,
             analyses,
             super::function_value_types,
+            |value_types, _, _, operation| total_scalar_expression(operation, value_types),
             |value_types, _, _, operation| {
                 total_scalar_expression(operation, value_types).map(|row| (row, ()))
             },

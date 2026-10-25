@@ -83,33 +83,20 @@ impl OperationFrame<'_, '_> {
         if let Source::ByteSequenceSubslice { .. } = &source.source
             && let Some(range) = super::super::view_ranges::range(source)
         {
-            let storage = super::super::view_ranges::storage(
+            let (range_source, establishment) = super::super::view_ranges::stage_source(
                 identities,
                 self.checked,
                 self.state,
                 statement_index,
                 source,
                 self.structural_types.declarations(),
-            )?;
-            let whole = storage
-                .requires_establishment()
-                .then(|| allocate_dense(self.next_place).map(place_id))
-                .transpose()?;
-            let (range_source, establishment) = storage.bind(
-                identities,
-                self.checked,
-                self.state,
                 &bindings,
-                whole,
-                self.structural_types.declarations(),
+                self.next_place,
+                self.values,
+                self.next_value,
+                self.operations,
             )?;
-            if let Some(establishment) = establishment {
-                let declaration = super::super::view_ranges::establish(
-                    &establishment,
-                    self.values,
-                    self.next_value,
-                    self.operations,
-                )?;
+            if let Some(declaration) = establishment {
                 self.private_places.push(declaration);
             }
             let destination = place_id(allocate_dense(self.next_place)?);

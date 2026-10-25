@@ -72,3 +72,8 @@ premise to the earlier construction. No caller guard repairs a missing fact.
 - [Establishment and witness loans](../../../../wiki/spec/language/dependent_values.md#establishment-and-witness-loans)
 - [Default domains and zero initialization](../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization)
 
+
+The [forwarded production](forwarded/README.md) carries this same fact through
+runtime-valued generic results and inferred member-call temporaries. Its nine
+places and reject twins extend this folder's production coverage; they do not
+close the parent outcome's remaining computed-index or effectful compositions.

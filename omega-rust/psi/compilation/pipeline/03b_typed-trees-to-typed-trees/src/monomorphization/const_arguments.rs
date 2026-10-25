@@ -2,14 +2,14 @@
 //! to immutable checking, not this loop.
 
 use symbols::SymbolKind;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
+use typed_trees::expression::{ExpressionHandle, StaticMachineArgument};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 pub(super) use validation::expression_traversal::collect_type_expressions;
 pub(super) use validation::static_arguments::{
     forwarded_type, is_runtime_value_expression, is_runtime_value_subject, spelling,
 };
 
-/// The call or member already stored as this argument's const-expression
+/// The ordinary expression stored as this argument's const-expression
 /// payload. Field projections spelled `name.member` are not in that payload;
 /// they stay on `evidence_projection` until the value-binder slot reads them.
 pub(super) fn runtime_subject_expression(
@@ -25,10 +25,7 @@ pub(super) fn runtime_subject_expression(
     else {
         return None;
     };
-    match program.expression_table.expression(*expression) {
-        ExpressionNode::Call(_) | ExpressionNode::Member(_) => Some(*expression),
-        _ => None,
-    }
+    Some(*expression)
 }
 
 /// Resolve the exact value-scope subject one runtime `Value` argument

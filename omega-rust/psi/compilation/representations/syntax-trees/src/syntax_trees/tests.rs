@@ -1159,8 +1159,8 @@ fn syntax_signature_copy_preserves_operational_keyword_sources() {
     });
 
     let mut copied_trees = SyntaxTrees::new(Default::default());
-    let copied = copied_trees
-        .copy_state_signature_node_from(&source, source.items.state_signature(signature));
+    let copied =
+        copied_trees.copy_state_signature_from(&source, source.items.state_signature(signature));
 
     assert_eq!(
         copied.suspends_keyword_source_spans,

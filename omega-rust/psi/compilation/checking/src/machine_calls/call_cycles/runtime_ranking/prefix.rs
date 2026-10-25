@@ -158,7 +158,7 @@ pub(super) fn preserves_rank(
                 })
         }
         StatementNode::Transition(_) => frames.is_some_and(|frames| {
-            preserves(frames.statement_value_write_frame(machine, statement))
+            preserves(frames.transition_operand_write_frame(machine, statement))
         }),
         StatementNode::Expression(expression) => {
             operand_has_admitted_meaning(program, machine, state, *expression)

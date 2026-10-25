@@ -2193,15 +2193,26 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             }
         }
     }
-    if outcome.is_ok() && fixture_dir.join(terminal_inspection::ORACLE).exists() {
-        outcome = terminal_inspection::inspect(main, &fixture_dir).map(|observations| {
-            facts.extend(observations);
-        });
-        facts.push(if outcome.is_ok() {
-            "terminal-inspections:match".to_owned()
-        } else {
-            "terminal-inspections:failed".to_owned()
-        });
+    // Named inspections have their own public Terminal producer. A native
+    // realization refusal must remain visible without hiding that independent
+    // observation. Intended-invalid fixtures still never execute provisions.
+    if tier != "fail"
+        && rollback_error.is_none()
+        && fixture_dir.join(terminal_inspection::ORACLE).exists()
+    {
+        match terminal_inspection::inspect(main, &fixture_dir) {
+            Ok(observations) => {
+                facts.extend(observations);
+                facts.push("terminal-inspections:match".to_owned());
+            }
+            Err(mut errors) => {
+                facts.push("terminal-inspections:failed".to_owned());
+                match &mut outcome {
+                    Ok(()) => outcome = Err(errors),
+                    Err(existing) => existing.append(&mut errors),
+                }
+            }
+        }
     }
     let errors: &[diagnostics::Diagnostic] =
         outcome.as_ref().err().map(Vec::as_slice).unwrap_or(&[]);

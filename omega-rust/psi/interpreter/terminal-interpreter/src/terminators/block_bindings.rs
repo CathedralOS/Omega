@@ -189,7 +189,7 @@ impl BlockBindings {
             crate::custody::consume_projected_ownership(
                 &execution.program.structural_types(),
                 &values,
-                &execution.structural_cases,
+                execution.structural_cases.as_map(),
                 &mut frontier,
                 &mut claims,
                 argument,
@@ -239,7 +239,7 @@ impl BlockBindings {
                 TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
                     crate::custody::validate_nominal_cleanup_action(
                         &execution.program.structural_types(),
-                        &execution.structural_cases,
+                        execution.structural_cases.as_map(),
                         &execution.program.machines(),
                         &values,
                         &frontier,
@@ -249,7 +249,7 @@ impl BlockBindings {
                     crate::custody::begin_nominal_cleanup(
                         &execution.program.structural_types(),
                         &values,
-                        &execution.structural_cases,
+                        execution.structural_cases.as_map(),
                         &mut frontier,
                         &mut claims,
                         cleanup,
@@ -265,7 +265,7 @@ impl BlockBindings {
                     crate::custody::consume_affine_discard(
                         &execution.program.structural_types(),
                         &values,
-                        &execution.structural_cases,
+                        execution.structural_cases.as_map(),
                         &mut frontier,
                         &claims,
                         discard,
@@ -799,7 +799,7 @@ impl TerminalExecution<'_> {
             &resolved_arguments,
             &source_parameters,
             &self.program.structural_types(),
-            &self.structural_cases,
+            self.structural_cases.as_map(),
             self.account.as_ref(),
         )
         .map_err(|error| error.in_argument_preparation("bind captured state arrivals"))?;
@@ -815,7 +815,7 @@ impl TerminalExecution<'_> {
                 if crate::structural_inputs::case_membership::case_projection_is_active(
                     &self.program.structural_types(),
                     &structural,
-                    &self.structural_cases,
+                    self.structural_cases.as_map(),
                     parameter.place,
                     &binding.path,
                 )? {
@@ -919,7 +919,7 @@ impl TerminalExecution<'_> {
                 std::slice::from_ref(parameter),
                 std::slice::from_ref(&captured),
                 &self.program.structural_types(),
-                &self.structural_cases,
+                self.structural_cases.as_map(),
                 self.account.as_ref(),
             )?;
             let captured = admitted

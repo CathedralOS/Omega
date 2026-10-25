@@ -115,11 +115,22 @@ pub(crate) struct ReferenceByteRegion {
 /// Ownership transfers deliberately keep using ordinary map removal instead.
 pub(crate) fn discard_structural_value(
     values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
-    referents: &mut BTreeMap<StructuralRuntimePlace, ReferenceReferent>,
-    element_views: &mut BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
+    referents: &mut RuntimeRows<StructuralRuntimePlace, ReferenceReferent>,
+    element_views: &mut RuntimeRows<StructuralRuntimePlace, crate::element_views::ElementView>,
     place: PlaceId,
+    machine: &terminal_psi::TerminalMachine,
 ) -> Option<TerminalStructuralValue> {
     let value = values.remove(&place)?;
+    // A borrowed signature/block binding names the supplying descriptor's
+    // physical cells. Ending this loan retires its binding, not those cells:
+    // the owner can still observe or lend its stored descriptor afterward.
+    // Owned carriers keep ordinary subtree disposal, including moved inputs.
+    if machine
+        .structural_parameter(place)
+        .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
+    {
+        return Some(value);
+    }
     // Carrier paths belong to the discarded owner. Captured backing values
     // are map payloads, not descendants to dispose along with that owner.
     referents.retain(|carrier, _| {
@@ -750,7 +761,7 @@ impl TerminalExecution<'_> {
             crate::structural_inputs::case_membership::active_projected_qualifications(
                 &self.program.structural_types(),
                 &referent,
-                &self.structural_cases,
+                self.structural_cases.as_map(),
                 &required_paths,
             )?;
         let mut required_projected = Vec::new();
@@ -764,7 +775,7 @@ impl TerminalExecution<'_> {
             crate::structural_inputs::case_membership::active_projected_qualifications(
                 &self.program.structural_types(),
                 &referent,
-                &self.structural_cases,
+                self.structural_cases.as_map(),
                 &referent.projected_qualifications,
             )?;
         let mut projected = Vec::new();
@@ -817,7 +828,7 @@ impl TerminalExecution<'_> {
                 byte_region,
                 aggregate_view,
             },
-        );
+        )?;
         self.structural_values.insert(result.place, carrier)?;
         self.live_affine_frontier.insert(StructuralAffineDiscard {
             place: result.place,
@@ -1360,7 +1371,7 @@ impl TerminalExecution<'_> {
             if !crate::structural_inputs::case_membership::case_projection_in_value_is_active(
                 &types,
                 &value,
-                &self.structural_cases,
+                self.structural_cases.as_map(),
                 prefix,
             )? {
                 return Ok(None);
@@ -1930,7 +1941,7 @@ impl TerminalExecution<'_> {
             if !crate::structural_inputs::case_membership::case_projection_in_value_is_active(
                 &self.program.structural_types(),
                 carrier,
-                &self.structural_cases,
+                self.structural_cases.as_map(),
                 &origin.path,
             )? {
                 continue;

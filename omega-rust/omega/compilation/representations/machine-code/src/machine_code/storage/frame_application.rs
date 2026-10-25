@@ -12,18 +12,7 @@ use optimization_core::{
 use selected_instructions::{SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::{EdgeId, MachineId};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct FunctionFragmentFrameApplicationIdentity([u8; 32]);
-
-impl FunctionFragmentFrameApplicationIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+register_homes::identity_newtype! { pub struct FunctionFragmentFrameApplicationIdentity([u8; 32]); }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FunctionAppliedFrameEpilogue {

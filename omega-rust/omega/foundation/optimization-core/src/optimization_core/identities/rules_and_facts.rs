@@ -44,11 +44,7 @@ impl OptimizationRuleSetIdentity {
     ) -> Result<Self, DuplicateOptimizationRuleIdentity> {
         let mut seen = BTreeSet::new();
         let mut canonical = Vec::with_capacity(8 + rules.len() * IDENTITY_WIDTH);
-        canonical.extend_from_slice(
-            &u64::try_from(rules.len())
-                .expect("ordered optimization rule count fits u64")
-                .to_le_bytes(),
-        );
+        crate::codec_bytes::push_count_u64(&mut canonical, rules.len());
         for rule in rules {
             if !seen.insert(*rule) {
                 return Err(DuplicateOptimizationRuleIdentity(*rule));

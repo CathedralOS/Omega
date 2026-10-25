@@ -336,7 +336,7 @@ pub(crate) fn selected_block_digest_with_encoding(
         encode_block_header(&mut bytes, block);
         hasher.raw(&bytes);
         for page in &pages {
-            hasher.raw(page);
+            hasher.raw(page.as_ref());
         }
         for page_idx in pages.len()..full_pages {
             bytes.clear();

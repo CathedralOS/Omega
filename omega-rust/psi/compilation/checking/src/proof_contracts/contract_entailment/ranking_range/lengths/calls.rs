@@ -6,9 +6,10 @@
 //! reinterpreted here, and future facts cannot describe an earlier descriptor.
 
 use crate::proof_contracts::contract_entailment as entailment;
-use entailment::citations::CitationFacts;
-use entailment::structural_judgment::{StructuralJudge, StructuralTerm};
-use entailment::structural_prefix::{StructuralPrefixSite, StructuralPrefixVisitor};
+use entailment::structural_judgment::StructuralTerm;
+use entailment::structural_prefix::{
+    PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor,
+};
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
@@ -112,27 +113,12 @@ impl StructuralPrefixVisitor for NormalReturnLength {
         self.site
     }
 
-    fn visit<'program>(
-        &mut self,
-        program: &'program dyn crate::CheckingInput,
-        machine: &Machine,
-        judge: &StructuralJudge<'program>,
-        environment: &[(String, StructuralTerm)],
-        hypotheses: &[(String, StructuralTerm)],
-        equations: &[(StructuralTerm, StructuralTerm)],
-        guarantees: &CitationFacts,
-    ) {
-        let mut judge = entailment::structural_case_arms::structural_arm_judge(
-            program, judge, hypotheses, equations,
-        );
-        if judge.hypotheses_contradictory {
-            return;
-        }
-        guarantees.intake(&mut judge);
-        let Some(state) = program.state_in_machine(machine, self.site.state) else {
-            self.recognized = false;
-            return;
-        };
+    fn unresolved(&mut self, _machine: &Machine) {
+        self.recognized = false;
+    }
+
+    fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
+        let (program, machine, state, judge, environment) = observation;
         let Some(outcomes) = judge.normal_operation_results(
             self.site.statement_index,
             self.expression,

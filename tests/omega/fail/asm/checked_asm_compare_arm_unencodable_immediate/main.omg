@@ -1,0 +1,1 @@
+linux_arm64 machine main() { asm { mov w0, 37; cmp w0, 4097 } }

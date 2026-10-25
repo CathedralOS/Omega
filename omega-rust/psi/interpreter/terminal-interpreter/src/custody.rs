@@ -85,9 +85,13 @@ pub(crate) fn commit_cleanup_action(
         crate::structural_inputs::case_membership::StructuralCaseContents,
     >,
     machines: &crate::program::ProgramDeclarations<'_, TerminalMachine>,
+    current_machine: &TerminalMachine,
     structural_values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
-    reference_referents: &mut BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
-    element_views: &mut BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
+    reference_referents: &mut RuntimeRows<
+        StructuralRuntimePlace,
+        crate::reference::ReferenceReferent,
+    >,
+    element_views: &mut RuntimeRows<StructuralRuntimePlace, crate::element_views::ElementView>,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     live_claims: &mut BTreeMap<ClaimId, LiveClaim>,
     action: &TerminalAffineCleanupAction,
@@ -105,6 +109,7 @@ pub(crate) fn commit_cleanup_action(
                 reference_referents,
                 element_views,
                 *place,
+                current_machine,
             )
             .is_none()
                 || !remove_affine_root(frontier, *place)
@@ -155,7 +160,7 @@ pub(crate) fn commit_cleanup_action(
             // owned descriptor inside it is instead a descendant: the parent
             // hook borrows the intact carrier before the ordered child actions
             // dispose those descriptors, never their external referents.
-            if has_live_loan(reference_referents, &value) {
+            if has_live_loan(reference_referents.as_map(), &value) {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
             begin_nominal_cleanup(

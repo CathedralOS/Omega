@@ -15,13 +15,7 @@ pub fn analyze_liveness<S: ValidatedSelectedAnalysis>(
     selected: &S,
 ) -> Result<ValidatedLiveness, LivenessError> {
     let plan = compute::compute_terminal_liveness(selected)?;
-    Ok(validate::admit_validated_liveness(
-        selected,
-        plan,
-        &[],
-        &[],
-        &[],
-    ))
+    Ok(validate::admit_validated_liveness(plan, &[], &[]))
 }
 
 /// Reuse unchanged function computations from `previous_liveness`; the new
@@ -34,11 +28,9 @@ pub fn analyze_liveness_reusing(
     let (plan, carried) =
         compute::compute_terminal_liveness_reusing(previous, previous_liveness, selected)?;
     Ok(validate::admit_validated_liveness(
-        selected,
         plan,
         &carried,
         &previous_liveness.function_digests,
-        &previous_liveness.function_counts,
     ))
 }
 
@@ -54,13 +46,6 @@ pub struct LivenessValidationReceipt {
     pub(crate) selected: SelectedInstructionPlanIdentity,
     pub(crate) optimization_unit: OptimizationUnitIdentity,
     pub(crate) fuel_schedule: FuelScheduleIdentity,
-    pub(crate) function_count: usize,
-    pub(crate) block_count: usize,
-    pub(crate) virtual_register_count: usize,
-    pub(crate) instruction_count: usize,
-    pub(crate) successor_count: usize,
-    pub(crate) tied_pair_count: usize,
-    pub(crate) early_clobber_count: usize,
 }
 
 impl LivenessValidationReceipt {
@@ -79,34 +64,6 @@ impl LivenessValidationReceipt {
     pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
         self.fuel_schedule
     }
-
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-
-    pub const fn block_count(self) -> usize {
-        self.block_count
-    }
-
-    pub const fn virtual_register_count(self) -> usize {
-        self.virtual_register_count
-    }
-
-    pub const fn instruction_count(self) -> usize {
-        self.instruction_count
-    }
-
-    pub const fn successor_count(self) -> usize {
-        self.successor_count
-    }
-
-    pub const fn tied_pair_count(self) -> usize {
-        self.tied_pair_count
-    }
-
-    pub const fn early_clobber_count(self) -> usize {
-        self.early_clobber_count
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -116,8 +73,6 @@ pub struct ValidatedLiveness {
     /// Each function's share of the receipt identity, kept so a successor
     /// plan that carries a function over unchanged need not hash it again.
     pub(crate) function_digests: std::sync::Arc<[[u8; 32]]>,
-    /// Report-only counts, bound to the same admitted function as its digest.
-    pub(crate) function_counts: std::sync::Arc<[validate::FunctionCounts]>,
 }
 
 impl ValidatedLiveness {

@@ -8,12 +8,13 @@
 //! The legacy Nat/monus bridge still selects its relation from exact authored
 //! contract occurrences, never from a program-wide spelling search.
 
-use super::citations::{CitationFacts, machine_requires_facts};
+use super::citations::machine_requires_facts;
 use super::law_conformance::collect_equality_conjuncts;
-use super::structural_case_arms::{recognize_structural_case_arms, structural_arm_judge};
+use super::structural_case_arms::recognize_structural_case_arms;
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use super::structural_prefix::{
-    StructuralPrefixSite, StructuralPrefixVisitor, expression_is_transition_target,
+    PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor,
+    expression_is_transition_target,
 };
 use super::structural_terms::{selected_application_machine, structural_term};
 use symbols::SymbolHandle;
@@ -93,26 +94,16 @@ impl StructuralPrefixVisitor for StrictDecrease {
         self.site
     }
 
-    fn visit<'program>(
-        &mut self,
-        program: &'program dyn crate::CheckingInput,
-        machine: &Machine,
-        judge: &StructuralJudge<'program>,
-        environment: &[(String, StructuralTerm)],
-        hypotheses: &[(String, StructuralTerm)],
-        equations: &[(StructuralTerm, StructuralTerm)],
-        guarantees: &CitationFacts,
-    ) {
+    fn entered(&mut self) {
         self.seen = true;
-        let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
-        if judge.hypotheses_contradictory {
-            return;
-        }
-        guarantees.intake(&mut judge);
-        let Some(state) = program.state_in_machine(machine, self.site.state) else {
-            self.proven = false;
-            return;
-        };
+    }
+
+    fn unresolved(&mut self, _machine: &Machine) {
+        self.proven = false;
+    }
+
+    fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
+        let (program, machine, state, judge, environment) = observation;
         let Some(argument) = structural_term(
             program,
             Some((machine, state, Default::default())),

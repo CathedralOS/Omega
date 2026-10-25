@@ -124,6 +124,33 @@ macro_rules! image_digest {
     };
 }
 
+/// The rejection carrier every container backend returns when a route refuses
+/// while retaining its complete original inputs — one owner for the accessor
+/// pair, the `Display` over the carried diagnostic, and the `Error` marker.
+///
+/// The backend keeps its own carrier declaration: the name, visibility,
+/// `#[must_use]` message and retained fields are that route's custody decision
+/// and stay written at the route. Invoke with the fields in `into_parts`
+/// order; the diagnostic is appended to the returned tuple.
+#[macro_export]
+macro_rules! rejection_carrier {
+    ($name:ident; $($field:ident: $ty:ty),+ $(,)?) => {
+        impl $name {
+            pub const fn diagnostic(&self) -> &diagnostics::Diagnostic {
+                &self.diagnostic
+            }
+
+            pub fn into_parts(self) -> ($($ty,)+ diagnostics::Diagnostic) {
+                ($(self.$field,)+ self.diagnostic)
+            }
+        }
+
+        diagnostics::diagnostic_display!($name);
+
+        impl std::error::Error for $name {}
+    };
+}
+
 mod builder;
 pub mod codec_bytes;
 mod final_image;

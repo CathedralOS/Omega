@@ -53,6 +53,14 @@ pub(super) fn validate<'a, 'p>(
         );
     }
     calls::validate_asm_value_destination(program, machine, state, assignment, diagnostics);
+    let atomic = atomic_operations::atomic_assignment_carrier(program, assignment);
+    let resident_type = |reference| {
+        if atomic.is_some() {
+            crate::atomic_resident_type_reference(program, reference).unwrap_or(reference)
+        } else {
+            reference
+        }
+    };
     let assignment_target_type =
         places::declared_place_type(program, machine, state, assignment.target)
             // An indexed target (`self.xs[i] = ..`) has no member path, so
@@ -65,7 +73,8 @@ pub(super) fn validate<'a, 'p>(
                     current_state,
                     assignment.target,
                 )
-            });
+            })
+            .map(resident_type);
     // Weakening is about the target's STATIC qualification, so retain
     // the Constrained shell that the older representation/class checks
     // intentionally unwrap above.
@@ -111,7 +120,16 @@ pub(super) fn validate<'a, 'p>(
     // type. Its generated resident-update model is neither a source value nor
     // evidence that each input fits. Ordinary assignment has one delivered RHS;
     // store, swap, fetch and compare-exchange use the same delivery checks below.
-    let atomic = atomic_operations::atomic_assignment_carrier(program, assignment);
+    if let Some(event) = &atomic
+        && !crate::place_is_atomic_storage(program, machine, current_state, event.place)
+        && !current_state.is_some_and(|state| {
+            placed_views::assignment_is_placed_atomic_operation(program, machine, state, assignment)
+        })
+    {
+        diagnostics.push(diagnostics::Diagnostic::error(format!(
+            "{owner} requires dedicated atomic storage or an admitted placed atomic accessor; ordinary write authority does not authorize an atomic event"
+        )));
+    }
     let ordinary_value = [assignment.value];
     let delivered_values = atomic.as_ref().map_or(ordinary_value.as_slice(), |atomic| {
         atomic.operands.as_slice()

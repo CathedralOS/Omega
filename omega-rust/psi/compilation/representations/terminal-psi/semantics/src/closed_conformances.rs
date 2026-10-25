@@ -292,7 +292,7 @@ fn validate_definition(schema: &ClosedConformanceSchema) -> Result<(), &'static 
     }
 }
 
-fn argument_matches(
+pub(crate) fn argument_matches(
     module: &TerminalModule,
     expected: &ClosedReachArgument,
     actual: &ClosedReachParameter,

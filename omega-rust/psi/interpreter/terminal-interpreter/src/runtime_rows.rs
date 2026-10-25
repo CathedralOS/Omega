@@ -9,6 +9,22 @@ use evaluation_accounting::{
 };
 use std::collections::{BTreeMap, btree_map};
 
+fn reserve_row(
+    lease: &mut Option<EvaluationStorageLease>,
+    account: Option<&EvaluationInvocationAccount>,
+) -> Result<(), TerminalInterpretError> {
+    if let Some(lease) = lease {
+        lease.grow(1, 0).map_err(TerminalInterpretError::Storage)?;
+    } else if let Some(account) = account {
+        *lease = Some(
+            account
+                .reserve_storage(1, 0)
+                .map_err(TerminalInterpretError::Storage)?,
+        );
+    }
+    Ok(())
+}
+
 #[derive(Debug)]
 pub(crate) struct RuntimeRows<Key, Value> {
     rows: BTreeMap<Key, Value>,
@@ -45,19 +61,25 @@ impl<Key: Ord, Value> RuntimeRows<Key, Value> {
         match self.rows.entry(key) {
             btree_map::Entry::Occupied(mut entry) => Ok(Some(entry.insert(value))),
             btree_map::Entry::Vacant(entry) => {
-                if let Some(lease) = &mut self.lease {
-                    lease.grow(1, 0).map_err(TerminalInterpretError::Storage)?;
-                } else if let Some(account) = &self.account {
-                    self.lease = Some(
-                        account
-                            .reserve_storage(1, 0)
-                            .map_err(TerminalInterpretError::Storage)?,
-                    );
-                }
+                reserve_row(&mut self.lease, self.account.as_ref())?;
                 entry.insert(value);
                 Ok(None)
             }
         }
+    }
+
+    /// Reserve a new receiving row and retain its mutable home before a
+    /// transaction commits external writes or retires source custody.
+    pub(crate) fn insert_vacant(
+        &mut self,
+        key: Key,
+        value: Value,
+    ) -> Result<&mut Value, TerminalInterpretError> {
+        let btree_map::Entry::Vacant(entry) = self.rows.entry(key) else {
+            return Err(malformed());
+        };
+        reserve_row(&mut self.lease, self.account.as_ref())?;
+        Ok(entry.insert(value))
     }
 
     fn retire_removed_rows(&mut self) {
@@ -171,6 +193,15 @@ impl<Key: Ord, Value> RuntimeRows<Key, Value> {
     }
     pub(crate) fn iter(&self) -> btree_map::Iter<'_, Key, Value> {
         self.rows.iter()
+    }
+    pub(crate) fn iter_mut(&mut self) -> btree_map::IterMut<'_, Key, Value> {
+        self.rows.iter_mut()
+    }
+
+    /// Borrow the logical table for read-only custody and projection judgments.
+    /// Growth, removal and transfer still require this reservation owner.
+    pub(crate) fn as_map(&self) -> &BTreeMap<Key, Value> {
+        &self.rows
     }
 }
 
@@ -326,6 +357,24 @@ mod tests {
         right.insert(3, 9).unwrap();
         assert_eq!(sponsor.live_storage_cells(), 2);
         drop(right);
+        assert_eq!(sponsor.live_storage_cells(), 0);
+    }
+
+    #[test]
+    fn vacant_receiving_row_is_funded_before_mutation_and_never_replaces() {
+        let sponsor = sponsor(1);
+        let account = sponsor
+            .begin_invocation(sponsor.measurement(), 100)
+            .unwrap();
+        let mut rows = RuntimeRows::new(Some(&account));
+        let receiving = rows.insert_vacant(1u32, 7u32).unwrap();
+        assert_eq!(sponsor.live_storage_cells(), 1);
+        *receiving = 8;
+        assert!(rows.insert_vacant(1, 99).is_err());
+        assert!(rows.insert_vacant(2, 99).is_err());
+        assert_eq!(rows.get(&1), Some(&8));
+        assert_eq!(rows.get(&2), None);
+        drop(rows);
         assert_eq!(sponsor.live_storage_cells(), 0);
     }
 }

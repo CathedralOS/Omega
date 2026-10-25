@@ -2,54 +2,41 @@
 //! Planning records coordinates; the consumer owns selective evaluation.
 use super::{StatementNode, StatementPlanner, lower_index_expression, retain_subslice_endpoints};
 
-pub(crate) fn plan(planner: StatementPlanner<'_, '_>, statement: &StatementNode) {
-    let StatementPlanner {
-        program,
-        operators,
-        exact_integer_casts,
-        machine,
-        state,
-        parameters,
-        scalar_parameters,
-        parameter_types,
-        statement_ordinal,
-        statement_index,
-        locals,
-        expressions,
-        source_bindings,
-        binding_symbols,
-        ..
-    } = planner;
-    for (expression, site) in
-        super::super::subslice_endpoints::sites(program, machine, state, statement_index, statement)
-    {
+pub(crate) fn plan(planner: &mut StatementPlanner<'_, '_>, statement: &StatementNode) {
+    for (expression, site) in super::super::subslice_endpoints::sites(
+        planner.program,
+        planner.machine,
+        planner.state,
+        planner.statement_index,
+        statement,
+    ) {
         let endpoints = super::super::subslice_endpoints::subslice_endpoints(
-            program,
-            operators,
+            planner.program,
+            planner.operators,
             expression,
             site,
             |endpoint| {
                 lower_index_expression(
-                    program,
-                    operators,
+                    planner.program,
+                    planner.operators,
                     endpoint,
-                    scalar_parameters,
-                    parameters,
-                    parameter_types,
-                    locals,
-                    exact_integer_casts,
+                    planner.scalar_parameters,
+                    planner.parameters,
+                    planner.parameter_types,
+                    planner.locals,
+                    planner.exact_integer_casts,
                 )
             },
         );
         retain_subslice_endpoints(
             endpoints,
-            state.symbol,
-            statement_ordinal,
-            scalar_parameters,
-            locals,
-            expressions,
-            source_bindings,
-            binding_symbols,
+            planner.state.symbol,
+            planner.statement_ordinal,
+            planner.scalar_parameters,
+            planner.locals,
+            planner.expressions,
+            planner.source_bindings,
+            planner.binding_symbols,
         );
     }
 }

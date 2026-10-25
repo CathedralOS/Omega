@@ -7,6 +7,7 @@
 mod call_origins;
 mod normal_subjects;
 mod result_transport;
+mod transfer_operands;
 
 pub(crate) use normal_subjects::InvocationReferenceSubject;
 
@@ -267,6 +268,22 @@ impl<'program> CallFrameResolver<'program> {
             self.program,
             machine,
             state,
+            &self.tables.symbols,
+            &mut FrameInference::default(),
+        )
+        .and_then(super::stored_calls::public_effects)
+    }
+
+    /// Closed dispatch joins the checked slot-output relation of every possible
+    /// realization. These are custody suppliers, never private predicate facts.
+    pub fn dynamic_stored_reference_effects(
+        &self,
+        target: SymbolHandle,
+    ) -> Option<Vec<super::StoredReferenceEffect>> {
+        let slot = self.program.dynamic_slot_by_symbol(target)?;
+        super::stored_calls::dynamic_effects(
+            self.program,
+            slot,
             &self.tables.symbols,
             &mut FrameInference::default(),
         )
@@ -1320,6 +1337,21 @@ impl<'program> CallFrameResolver<'program> {
         statement: &StatementNode,
     ) -> NormalizedWriteFrame {
         let expressions = statement_value_expression_roots(self.program, statement);
+        self.statement_expression_roots_write_frame(
+            current_machine,
+            machine_symbols,
+            statement,
+            &expressions,
+        )
+    }
+
+    fn statement_expression_roots_write_frame(
+        &self,
+        current_machine: &'program Machine,
+        machine_symbols: &MachineSymbols<'program>,
+        statement: &StatementNode,
+        expressions: &[ExpressionHandle],
+    ) -> NormalizedWriteFrame {
         if !expressions
             .iter()
             .any(|expression| expression_has_calls(self.program, *expression))
@@ -1334,7 +1366,7 @@ impl<'program> CallFrameResolver<'program> {
             &self.caches.state_write_collections,
             |inference, prefix| {
                 let mut written = Vec::new();
-                for expression in expressions {
+                for &expression in expressions {
                     collect_expression_call_written_paths(
                         self.program,
                         expression,

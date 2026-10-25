@@ -693,16 +693,31 @@ impl<'program> CurrentScalarValues<'program> {
                 numerics::bignum::BigInt::from_i64(value),
             ));
         }
-        // An exact ensured result is that integer at every use. A proper
-        // interval stays a term: `0 <= result < 26` does not select one end.
+        // A completed call publishes all of its public result bounds. An
+        // exact interval is a constant; a proper interval belongs to this
+        // observed occurrence, not a replay of an effectful or dynamic call.
         if let Some(call) = program.expression_table.call_node(expression)
-            && let Some((Some(low), Some(high))) =
+            && let Some((low, high)) =
                 validation::normal_return_integer_bounds(program, machine.symbol, expression, call)
-            && low == high
         {
-            return Some(ScopedArithmeticValue::Integer(
-                numerics::bignum::BigInt::from_i64(low),
-            ));
+            if let (Some(low), Some(high)) = (low, high)
+                && low == high
+            {
+                return Some(ScopedArithmeticValue::Integer(
+                    numerics::bignum::BigInt::from_i64(low),
+                ));
+            }
+            let reference =
+                validation::expression_result_type_reference(program, machine, state, expression)?;
+            let primitive = integer_carrier(program, reference)?;
+            return Some(ScopedArithmeticValue::BoundedInteger {
+                value: Box::new(ScopedArithmeticValue::Atom {
+                    identity: format!("state:{:?}:call-result:{expression:?}", state.symbol),
+                    unsigned: unsigned(primitive),
+                }),
+                minimum: low.map(numerics::bignum::BigInt::from_i64),
+                maximum: high.map(numerics::bignum::BigInt::from_i64),
+            });
         }
         if let ExpressionNode::Member(_) = program.expression_table.expression(expression) {
             if let Some(value) = length_occurrence(program, expression, &self.lengths)

@@ -3,7 +3,7 @@ use crate::declarations::machines::parse_machine;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{ConformanceMember, Item, State};
 use tokens::{KeywordKind, PunctuationKind};
@@ -58,8 +58,7 @@ fn parse_conformance_members<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<ConformanceMember>> {
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut member_start = Handle::invalid();
-    let mut member_count = 0u32;
+    let mut members = crate::handle_spans::HandleSpanBuilder::new();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (member, rest) = if input.at_keyword(KeywordKind::Machine) {
@@ -113,18 +112,12 @@ fn parse_conformance_members<'tokens, 'source>(
         };
 
         let handle = syntax_trees.items.append_conformance_member(member);
-        if member_count == 0 {
-            member_start = handle;
-        }
-        member_count = member_count
-            .checked_add(1)
-            .expect("conformance member span count overflow");
+        members.push(handle);
         input = rest;
     }
 
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let members = HandleSpan::from_parts_or_empty(member_start, member_count);
-    Ok((members, input))
+    Ok((members.finish(), input))
 }
 
 fn normalize_conformance_machine_entry(

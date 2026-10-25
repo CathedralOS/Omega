@@ -9,52 +9,28 @@
 use super::{
     CheckedScalarExpressionRole, LoweredCallArguments, ScalarLocal, StatementPlanner,
     lower_direct_call_binding_arguments, lower_return_expression, lower_selected_operator_operands,
-    retain_call_arguments, retain_expression_call_arguments,
+    retain_call_arguments,
 };
 
 pub(super) fn plan(
-    planner: StatementPlanner<'_, '_>,
+    planner: &mut StatementPlanner<'_, '_>,
     local: &typed_trees::statement::TableLocalData,
 ) {
-    let StatementPlanner {
-        program,
-        operators,
-        exact_integer_casts,
-        machine,
-        state,
-        parameters,
-        scalar_parameters,
-        parameter_types,
-        statement_ordinal,
-        locals,
-        expressions,
-        proof_terms,
-        source_bindings,
-        binding_symbols,
-        ..
-    } = planner;
-    if let Some(carrier) = validation::atomic_once_carrier(program, local.initial_value) {
+    if let Some(carrier) = validation::atomic_once_carrier(planner.program, local.initial_value) {
         if let Some(operands) = super::super::atomic_operands::lower_carrier(
-            program,
-            operators,
-            machine,
-            state,
+            planner.program,
+            planner.operators,
+            planner.machine,
+            planner.state,
             carrier,
-            scalar_parameters,
-            parameters,
-            parameter_types,
-            locals,
-            exact_integer_casts,
+            planner.scalar_parameters,
+            planner.parameters,
+            planner.parameter_types,
+            planner.locals,
+            planner.exact_integer_casts,
         ) {
             for (source, role, value) in operands {
-                super::record_scalar_value_pair(
-                    source_bindings,
-                    expressions,
-                    binding_symbols,
-                    scalar_parameters,
-                    locals,
-                    state.symbol,
-                    statement_ordinal,
+                planner.record_scalar_value_pair(
                     role,
                     symbols::SymbolHandle::invalid(),
                     source,
@@ -70,26 +46,26 @@ pub(super) fn plan(
     retain_call_arguments(
         LoweredCallArguments {
             scalar_arguments: lower_selected_operator_operands(
-                program,
-                operators,
-                machine,
-                state,
-                statement_ordinal,
+                planner.program,
+                planner.operators,
+                planner.machine,
+                planner.state,
+                planner.statement_ordinal,
                 local,
-                scalar_parameters,
-                parameters,
-                parameter_types,
-                locals,
-                exact_integer_casts,
+                planner.scalar_parameters,
+                planner.parameters,
+                planner.parameter_types,
+                planner.locals,
+                planner.exact_integer_casts,
             ),
             proof_terms: Vec::new(),
         },
-        scalar_parameters,
-        locals,
-        expressions,
-        proof_terms,
-        source_bindings,
-        binding_symbols,
+        planner.scalar_parameters,
+        planner.locals,
+        planner.expressions,
+        planner.proof_terms,
+        planner.source_bindings,
+        planner.binding_symbols,
     );
     // Structural call results establish their own operation
     // place even when the local later lends mutable access.
@@ -97,54 +73,43 @@ pub(super) fn plan(
     // found through the same cast chain an assignment's
     // call is.
     if (!local.is_mutable
-        || program
+        || planner
+            .program
             .primitive_type_reference(local.type_reference)
             .is_none())
-        && let Some(expression) = super::value_call_expression(program, local.initial_value)
+        && let Some(expression) = super::value_call_expression(planner.program, local.initial_value)
     {
-        retain_expression_call_arguments(
-            program,
-            operators,
-            state,
-            statement_ordinal,
-            expression,
-            scalar_parameters,
-            parameters,
-            parameter_types,
-            locals,
-            exact_integer_casts,
-            expressions,
-            proof_terms,
-            source_bindings,
-            binding_symbols,
-        );
+        planner.retain_expression_call_arguments(expression);
     }
     // An element-spelling `let` (`let v: u8 = arr[a..b]`) binds the
     // same view an explicit `&[u8]` spelling does: when the
     // initializer's own result type is a borrowed slice view the local
     // plans like a view local — its endpoints mint under the subslice
     // roles and no scalar binding enters the roster.
-    let Some(primitive_type) = program
+    let Some(primitive_type) = planner
+        .program
         .primitive_type_reference(local.type_reference)
         .filter(|_| {
             local.is_mutable
                 || validation::expression_result_type_reference(
-                    program,
-                    machine,
-                    state,
+                    planner.program,
+                    planner.machine,
+                    planner.state,
                     local.initial_value,
                 )
-                .and_then(|result| validation::slice_view_shell(program, result, &[]))
+                .and_then(|result| validation::slice_view_shell(planner.program, result, &[]))
                 .is_none()
         })
     else {
-        if let Some(binding) = super::super::primitive_reference_read::local(program, local) {
-            locals.push(binding);
+        if let Some(binding) = super::super::primitive_reference_read::local(planner.program, local)
+        {
+            planner.locals.push(binding);
         }
         return;
     };
     let binding_ordinal = u32::try_from(
-        locals
+        planner
+            .locals
             .iter()
             .filter(|local: &&ScalarLocal| local.is_value_binding())
             .count(),
@@ -158,57 +123,49 @@ pub(super) fn plan(
         };
         if !local.is_mutable
             && let Some(arguments) = lower_direct_call_binding_arguments(
-                program,
-                operators,
-                state.symbol,
-                statement_ordinal,
+                planner.program,
+                planner.operators,
+                planner.state.symbol,
+                planner.statement_ordinal,
                 binding_ordinal,
                 local.initial_value,
-                scalar_parameters,
-                parameters,
-                parameter_types,
-                locals,
-                exact_integer_casts,
+                planner.scalar_parameters,
+                planner.parameters,
+                planner.parameter_types,
+                planner.locals,
+                planner.exact_integer_casts,
             )
         {
             retain_call_arguments(
                 arguments,
-                scalar_parameters,
-                locals,
-                expressions,
-                proof_terms,
-                source_bindings,
-                binding_symbols,
+                planner.scalar_parameters,
+                planner.locals,
+                planner.expressions,
+                planner.proof_terms,
+                planner.source_bindings,
+                planner.binding_symbols,
             );
         } else if let Some(initializer) =
-            crate::values::zeroed_scalar_local_initializer(program, local).or_else(|| {
+            crate::values::zeroed_scalar_local_initializer(planner.program, local).or_else(|| {
                 lower_return_expression(
-                    program,
-                    operators,
+                    planner.program,
+                    planner.operators,
                     local.initial_value,
-                    scalar_parameters,
-                    parameters,
-                    parameter_types,
-                    locals,
+                    planner.scalar_parameters,
+                    planner.parameters,
+                    planner.parameter_types,
+                    planner.locals,
                     primitive_type,
-                    exact_integer_casts,
+                    planner.exact_integer_casts,
                 )
             })
         {
-            super::record_scalar_value_pair(
-                source_bindings,
-                expressions,
-                binding_symbols,
-                scalar_parameters,
-                locals,
-                state.symbol,
-                statement_ordinal,
-                role,
-                local.symbol,
-                local.initial_value,
-                initializer,
-            );
+            planner.record_scalar_value_pair(role, local.symbol, local.initial_value, initializer);
         }
     }
-    locals.push(ScalarLocal::from_local_data(program, local, primitive_type));
+    planner.locals.push(ScalarLocal::from_local_data(
+        planner.program,
+        local,
+        primitive_type,
+    ));
 }

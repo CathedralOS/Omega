@@ -40,7 +40,7 @@ impl CurrentScalarValues<'_> {
         )
     }
 
-    fn machine_value_bindings(
+    pub(crate) fn machine_value_bindings(
         &self,
         callee: &Machine,
         site: CallSite<'_>,

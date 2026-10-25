@@ -939,10 +939,10 @@ fn collect_type(
                 program, reference, definition, owner_path, visiting, output, template,
             )
         }
-        TypeReferenceNode::Unit => true,
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::DynamicTrait { .. } => false,
+        // Implementation selection stores no user-state lifetime. References
+        // to selector storage were handled above as ordinary references.
+        TypeReferenceNode::Unit | TypeReferenceNode::DynamicTrait { .. } => true,
+        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Slice { .. } => false,
     }
 }
 

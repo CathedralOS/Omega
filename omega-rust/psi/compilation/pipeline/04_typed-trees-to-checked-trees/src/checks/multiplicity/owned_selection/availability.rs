@@ -32,6 +32,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
     statement_index: usize,
     statement: &StatementNode,
     places: &mut [LinearPlace],
+    remaining: &super::super::cleanup_dispositions::RemainingCustody,
     evaluated_observations: &[super::super::linear_validation::ObservedCustody],
     claim_identities: &mut super::super::linear_obligations::ClaimIdentityAllocator,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -44,6 +45,12 @@ pub(in crate::checks::multiplicity) fn record_statement(
         StatementNode::Expression(expression) if statement_index + 1 == statements.len() => {
             (*expression, SymbolHandle::invalid(), state.return_type)
         }
+        StatementNode::Assignment(assignment) => (
+            assignment.value,
+            SymbolHandle::invalid(),
+            validation::assignment_stored_value_type(program, machine, state, assignment)
+                .ok_or_else(unsupported)?,
+        ),
         _ => return Ok(false),
     };
     // This receipt binds the receiving owner's result selection. Operand
@@ -124,7 +131,11 @@ pub(in crate::checks::multiplicity) fn record_statement(
                 consumed.push((symbol, path.clone()));
             }
         }
-        if consumed.len() > 1 || (!consumed.is_empty() && symbol_leaves != terminals) {
+        if (consumed.len() > 1 || (!consumed.is_empty() && symbol_leaves != terminals))
+            && !consumed.iter().all(|(symbol, path)| {
+                remaining.definitely_transferred(facts::PlaceRoot::Symbol(*symbol), path)
+            })
+        {
             return Err(Diagnostic::error(
                 "linear match custody requires every reachable arm to move the same live source place; a distinct source, a fresh arm, or a different projected path leaves an obligation live on only some edges",
             ));
@@ -165,6 +176,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
             })
             .count()
             != terminal_count
+            && !remaining.definitely_transferred(*root, path)
         {
             return Err(Diagnostic::error(
                 "linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges",
@@ -341,7 +353,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
                 .ok_or_else(unsupported)?;
             if !place.live
                 || !place.ever_established
-                || place.conditional
+                || (place.conditional && !remaining.definitely_transferred(*root, claim_path))
                 || place.multiplicity != Multiplicity::Linear
             {
                 return Err(Diagnostic::error(

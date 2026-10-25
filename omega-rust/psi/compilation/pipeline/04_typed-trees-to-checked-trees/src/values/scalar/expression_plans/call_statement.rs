@@ -2,44 +2,31 @@
 
 use super::{StatementPlanner, lower_call_arguments, retain_call_arguments};
 
-pub(crate) fn plan(planner: StatementPlanner<'_, '_>, call: &typed_trees::statement::TableCall) {
-    let StatementPlanner {
-        program,
-        operators,
-        exact_integer_casts,
-        state,
-        parameters,
-        scalar_parameters,
-        parameter_types,
-        statement_ordinal,
-        locals,
-        expressions,
-        proof_terms,
-        source_bindings,
-        binding_symbols,
-        ..
-    } = planner;
+pub(crate) fn plan(
+    planner: &mut StatementPlanner<'_, '_>,
+    call: &typed_trees::statement::TableCall,
+) {
     if let Some(arguments) = lower_call_arguments(
-        program,
-        operators,
-        state,
-        statement_ordinal,
+        planner.program,
+        planner.operators,
+        planner.state,
+        planner.statement_ordinal,
         0,
         &validation::CallSite::Statement(call),
-        scalar_parameters,
-        parameters,
-        parameter_types,
-        locals,
-        exact_integer_casts,
+        planner.scalar_parameters,
+        planner.parameters,
+        planner.parameter_types,
+        planner.locals,
+        planner.exact_integer_casts,
     ) {
         retain_call_arguments(
             arguments,
-            scalar_parameters,
-            locals,
-            expressions,
-            proof_terms,
-            source_bindings,
-            binding_symbols,
+            planner.scalar_parameters,
+            planner.locals,
+            planner.expressions,
+            planner.proof_terms,
+            planner.source_bindings,
+            planner.binding_symbols,
         );
     }
 }
