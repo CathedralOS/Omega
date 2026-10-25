@@ -34,7 +34,7 @@ pub(super) fn observe_portable(
         ["cleanup-resume"] => cleanup_resume::observe(artifact),
         ["mutable-boundary"] => mutable_boundary::observe(artifact),
         ["build-bindings", slots, entry, identifier] => {
-            build_bindings::observe(artifact, bindings, slots, entry, identifier)
+            build_bindings::observe(artifact, bindings, requests, slots, entry, identifier)
         }
         ["external-extent-view"] => extent_view::observe(artifact, false),
         ["external-extent-view-write"] => extent_view::observe(artifact, true),

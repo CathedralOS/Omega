@@ -118,7 +118,7 @@ pub fn lower_machine(
         exact_toolchain_sources,
         &mut lowered,
     )
-    .map_err(LoweringError::Unsupported)?;
+    .map_err(LoweringError::InvalidDeclarationIdentity)?;
     lowered.semantic_module.identities = identities.build();
     // Debug identity binds the whole semantic module, including retained
     // boundary/callback applications and the final interned identity table.
@@ -281,7 +281,7 @@ fn lower_terminal_selection(
         &source_machine_ids,
         &mut lowered.semantic_module,
     )
-    .map_err(LoweringError::Unsupported)?;
+    .map_err(LoweringError::InvalidDeclarationIdentity)?;
     retain_nominal_cleanup_roles(checked, &source_machine_ids, &mut lowered.semantic_module)?;
     closed_reach_applications::retain_closed_reach_applications(
         identities,

@@ -12,7 +12,7 @@ use crate::PackageCompilationInputs;
 use crate::source_imports::{
     GeneratedSourceExtension, ImportQueue, PackageImportPhase, PendingPackageImport,
     ProjectSourceSelection, SourceStorage, discover_imports, discover_imports_with_packages,
-    discover_package_imports, validate_package_source_frontier, validate_selected_build_role,
+    discover_package_imports, validate_package_source_frontier,
 };
 use artifacts::compile_timings::{CompileTimings, StageMeta};
 use diagnostics::Diagnostic;
@@ -31,11 +31,6 @@ pub struct AssembledSyntax {
     /// authority is attached to this source, never reconstructed from a leaf
     /// filename after imports have expanded the source frontier.
     pub build_source_id: Option<source::SourceId>,
-    /// The validated authored application declaration (name and artifact-only
-    /// intent) when the selected build root declares `Build::application(builder, ...)`;
-    /// `None` for package/workspace roles or a missing build root. Publication
-    /// never re-derives it.
-    pub application: Option<build_declarations::ApplicationDeclaration>,
     pub source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
     /// Sources the build scope owns: the selected build entry, the
@@ -56,11 +51,6 @@ pub struct ImmutableSourceParseCheckpoint {
     root_path: PathBuf,
     source_storage: Arc<SourceStorage>,
     build_source_id: Option<source::SourceId>,
-    /// The validated `Build::application` declaration retained at
-    /// parse-checkpoint custody; its name supplies the `.app` basename and
-    /// inner executable leaf, and its artifact-only intent narrows the
-    /// admitted route, all without revisiting source text.
-    application: Option<build_declarations::ApplicationDeclaration>,
     package_imports: Arc<[PendingPackageImport]>,
     package_source_inputs: Option<Arc<crate::PackageCompilationSourceInputs>>,
 }
@@ -76,7 +66,6 @@ impl ImmutableSourceParseCheckpoint {
             root_path: self.root_path.clone(),
             source_storage: self.source_storage.clone(),
             build_source_id: self.build_source_id,
-            application: self.application.clone(),
             package_imports: self.package_imports.clone(),
             package_source_inputs: self.package_source_inputs.clone(),
         }
@@ -125,12 +114,10 @@ impl ImmutableSourceParseCheckpoint {
             timings,
         )?;
         let build_source_id = project.build_source_id(&source_storage)?;
-        let application = validate_selected_build_role(&source_storage, build_source_id)?;
         Ok(Self {
             root_path: root_path.to_path_buf(),
             source_storage: Arc::new(source_storage),
             build_source_id,
-            application,
             package_imports: package_imports.into(),
             package_source_inputs: package_inputs.map(PackageCompilationInputs::source_inputs),
         })
@@ -318,7 +305,6 @@ impl ImmutableSourceParseCheckpoint {
             syntax_trees: source_storage.syntax_trees,
             sources: Arc::new(source_storage.sources),
             build_source_id: self.build_source_id,
-            application: self.application,
             source_scoped_top_level_bindings,
             generated_source_custody,
             build_scope_sources,

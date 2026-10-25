@@ -34,8 +34,8 @@ pub(crate) use package_selection::{
 };
 pub use paths::bundled_core_root;
 pub(crate) use paths::bundled_omega_root;
+pub(crate) use project::ProjectSourceSelection;
 pub use project::project_roots;
-pub(crate) use project::{ProjectSourceSelection, validate_selected_build_role};
 
 use crate::PackageCompilationInputs;
 use bindings::{ImportOccurrence, direct_source_import};

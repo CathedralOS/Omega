@@ -116,6 +116,7 @@ pub fn evaluate_build(
         return Ok(EvaluatedBuild {
             configuration: Arc::new(crate::ComputedBuildConfig {
                 config: crate::BuildConfig::default(),
+                project_declaration: None,
                 optimization_report_request:
                     optimization_core::OptimizationReportRequest::Suppressed,
                 evaluation_usage: None,

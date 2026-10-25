@@ -108,6 +108,7 @@ impl BuildConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComputedBuildConfig {
     pub config: BuildConfig,
+    pub project_declaration: Option<build_declarations::BuildDeclaration>,
     pub optimization_report_request: optimization_core::OptimizationReportRequest,
     pub evaluation_usage: Option<package_compilation::BuildEvaluationUsage>,
     pub observation_summary: Option<package_compilation::BuildObservationSummary>,

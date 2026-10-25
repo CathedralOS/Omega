@@ -46,6 +46,8 @@ pub enum LoweringError {
     InvalidControlGraph(terminal_semantics::control_graph::ControlGraphError),
     InvalidServiceParameterShape(checked_trees::CheckedServiceParameterError),
     InvalidServiceIdentity(String),
+    /// Preserve the declaration and provenance reason from source identity closure.
+    InvalidDeclarationIdentity(String),
     InvalidFloatMeaningProjection(FloatMeaningProjectionLoweringError),
     InvalidQuotientCorrespondence(Vec<String>),
     InvalidUnitMachinePlan {

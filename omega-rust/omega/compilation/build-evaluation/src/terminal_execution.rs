@@ -21,6 +21,13 @@ use terminal_interpreter::{
 use crate::terminal_bindings::TerminalBuildBindingHost;
 use crate::terminal_requests::{IssuedBuildRequest, TerminalBuildRequestHost};
 
+pub(crate) fn measurement() -> evaluation_accounting::EvaluationMeasurementIdentity {
+    evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
+        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
+    }
+}
+
 /// Normal-return values only. Dependency requests remain with the coordinator,
 /// whose mandatory join precedes normalized Build publication.
 pub(crate) struct TerminalBuildCompletion {

@@ -11,7 +11,7 @@ pub(super) fn retain(
     checked: &CheckedTrees,
     sources: &[(source::SourceId, [u8; 32])],
     lowered: &mut LoweredPsi,
-) -> Result<(), &'static str> {
+) -> Result<(), String> {
     // Index the requested applications, not every emitted source call. Multiple
     // static-machine parameters at one call share its registrar operation.
     let mut requested = checked
@@ -56,7 +56,9 @@ pub(super) fn retain(
             .take_while(|(candidate, _, _)| *candidate == key)
         {
             if registrar.replace(operation).is_some() {
-                return Err("callback application names multiple emitted registrar operations");
+                return Err(
+                    "callback application names multiple emitted registrar operations".into(),
+                );
             }
         }
     }

@@ -43,7 +43,6 @@ pub(crate) fn evaluate_build_and_continue(
         source_file_count,
         generated_source_custody,
         base_sources,
-        application,
     } = frontier;
     let build_input = source.build_input();
     let build_evaluation::EvaluatedBuild {
@@ -67,9 +66,7 @@ pub(crate) fn evaluate_build_and_continue(
             evaluation_sponsor,
             snapshot: build_snapshot.as_ref(),
             restricted_build_grants,
-            artifact_only: application
-                .as_ref()
-                .is_some_and(|application| application.artifact_only),
+            artifact_only: false,
             prior_checks: settled_check_reuse
                 .prior
                 .build
@@ -88,7 +85,12 @@ pub(crate) fn evaluate_build_and_continue(
         base_source_consumption_commitment,
     };
     let admission = BuildAdmission {
-        application,
+        application: match &computed_build_config.project_declaration {
+            Some(build_declarations::BuildDeclaration::Application(application)) => {
+                Some(application.clone())
+            }
+            _ => None,
+        },
         selected_build_machine_identity: computed_build_config
             .selected_machine_identity(source.typed())?,
         restricted_build_requests,
@@ -114,7 +116,6 @@ pub(super) fn lower_typed_frontier(
 ) -> Result<TypedCompilationFrontier, Vec<Diagnostic>> {
     let generated_source_custody = std::mem::take(&mut syntax.generated_source_custody);
     let base_sources = syntax.sources.clone();
-    let application = syntax.application.take();
     // Only build helpers select an execution target here. Product families
     // retain a canonical frontend shared by every requested product target.
     let build_scope_sources = std::mem::take(&mut syntax.build_scope_sources);
@@ -152,7 +153,6 @@ pub(super) fn lower_typed_frontier(
         source_file_count,
         generated_source_custody,
         base_sources,
-        application,
     })
 }
 

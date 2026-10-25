@@ -2,6 +2,7 @@
 //! writeback. Product bodies stay inert; fuel pauses resume the same activation.
 
 use build_evaluation::terminal_bindings::TerminalBuildBindingHost;
+use build_evaluation::terminal_requests::TerminalBuildRequestHost;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalEffectHandler, TerminalEntryStorageError, TerminalEntryStorageValue,
@@ -12,6 +13,7 @@ use terminal_interpreter::{
 pub(super) fn observe(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     bindings: &psi_compiler::TerminalBuildBindings,
+    requests: &psi_compiler::TerminalBuildRequests,
     slots: &str,
     entry: &str,
     identifier: &str,
@@ -20,6 +22,7 @@ pub(super) fn observe(
         exercise(
             artifact,
             bindings,
+            requests,
             &slots.split(',').collect::<Vec<_>>(),
             entry,
             if identifier == "-" { "" } else { identifier },
@@ -41,6 +44,7 @@ pub(super) fn observe(
 fn exercise(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     bindings: &psi_compiler::TerminalBuildBindings,
+    requests: &psi_compiler::TerminalBuildRequests,
     slots: &[&str],
     entry: &str,
     expected_identifier: &str,
@@ -55,6 +59,10 @@ fn exercise(
         );
         for foreign in [false, true] {
             let host = TerminalBuildBindingHost::new(artifact, bindings, original.clone()).unwrap();
+            let project =
+                TerminalBuildRequestHost::new(artifact, requests, original.clone(), None).unwrap();
+            let request_calls = requests.calls_for(artifact).unwrap();
+            let binding_calls = bindings.calls_for(artifact).unwrap();
             let mut receiver = original.clone();
             if foreign {
                 receiver.opaque_identity += 1;
@@ -71,10 +79,18 @@ fn exercise(
                 })
                 .unwrap();
             let imports = instance.unbound_imports().collect::<Vec<_>>();
+            let mut expected_imports = binding_calls
+                .iter()
+                .map(|call| call.boundary)
+                .chain(request_calls.iter().map(|call| call.boundary))
+                .collect::<Vec<_>>();
+            expected_imports.sort();
+            expected_imports.dedup();
+            let mut actual_imports = imports.clone();
+            actual_imports.sort();
             assert_eq!(
-                imports.len(),
-                2,
-                "prepare and commit, not product execution"
+                actual_imports, expected_imports,
+                "only source-issued project requests and binding effects, not product execution"
             );
             for boundary in &imports {
                 let declaration = artifact
@@ -83,9 +99,15 @@ fn exercise(
                     .iter()
                     .find(|item| item.id == *boundary)
                     .unwrap();
-                instance
-                    .bind_import(*boundary, host.adapter(declaration.into()))
-                    .unwrap();
+                if request_calls.iter().any(|call| call.boundary == *boundary) {
+                    instance
+                        .bind_import(*boundary, project.adapter(declaration.into()))
+                        .unwrap();
+                } else {
+                    instance
+                        .bind_import(*boundary, host.adapter(declaration.into()))
+                        .unwrap();
+                }
             }
             if foreign {
                 let error = instance
@@ -98,6 +120,7 @@ fn exercise(
                 );
                 drop(instance);
                 assert!(host.into_executed().unwrap().is_empty());
+                assert!(project.drain_requests().unwrap().is_empty());
                 continue;
             }
             let mut fuel = TerminalFuelMeter::with_allowance(0);
@@ -122,10 +145,20 @@ fn exercise(
             let mut identifier_bytes = vec![0; bytes.len()];
             bytes.copy_to(&mut identifier_bytes).unwrap();
             assert_eq!(identifier_bytes, expected_identifier.as_bytes());
+            let project_requests = project.drain_requests().unwrap();
+            let executed_project_calls = instance.effects().iter().filter(|effect| {
+                matches!(effect, terminal_interpreter::TerminalEffect::BoundaryCall { operation, boundary, .. }
+                    if request_calls.iter().any(|call| call.operation == *operation && call.boundary == *boundary))
+            }).count();
+            assert_eq!(
+                project_requests.len(),
+                executed_project_calls,
+                "each executed project operation issues one request"
+            );
             assert_eq!(
                 instance.effects().len(),
-                slots.len() * 2,
-                "one preparation and commit per executed binding"
+                slots.len() * 2 + project_requests.len(),
+                "one preparation and commit per binding plus the executed project requests"
             );
             let commit = instance.effects().iter().find(|effect| matches!(effect, terminal_interpreter::TerminalEffect::BoundaryCall { structural_arguments, .. } if structural_arguments.is_empty())).unwrap().clone();
             drop(instance);

@@ -22,7 +22,6 @@ pub struct TypedCompilationFrontier {
     pub source_file_count: usize,
     pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
     pub base_sources: Arc<source::SourceMap>,
-    pub application: Option<build_declarations::ApplicationDeclaration>,
 }
 
 /// Immutable parsing shared by exact checked children. Forks share storage;
