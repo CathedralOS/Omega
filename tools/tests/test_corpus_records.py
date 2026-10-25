@@ -303,6 +303,46 @@ class CompareRecords(unittest.TestCase):
                 self.assertEqual(corpus_records.compare_records(head, base)["losses"],
                                  [f"pass/a/x: interpreter agrees -> {previous}"])
 
+    def test_successful_publication_is_a_gain_after_refusing_a_positive(self):
+        for tier in ("pass", "run"):
+            for previous in ("rejected", "incomplete"):
+                for current in ("checked", "built"):
+                    with self.subTest(tier=tier, previous=previous, current=current):
+                        fixture = f"{tier}/a/generated"
+                        base = [self.row(fixture, previous, facts={"published": "none"})]
+                        head = [self.row(fixture, current, facts={"published": "files/source.omg"})]
+                        result = corpus_records.compare_records(base, head)
+                        self.assertEqual(result["losses"], [])
+                        self.assertIn(f"{fixture}: published none -> files/source.omg", result["gains"])
+                        self.assertIn(f"{fixture}: published files/source.omg -> none",
+                                      corpus_records.compare_records(head, base)["losses"])
+
+    def test_publication_repair_preserves_existing_inventory_obligations(self):
+        cases = [
+            ("pass/a/empty", "checked", "checked", "none", "files/source.omg"),
+            ("pass/a/previous", "rejected", "checked", "files/old.omg", "files/source.omg"),
+            ("pass/a/failed", "rejected", "rejected", "none", "files/source.omg"),
+            ("fail/a/invalid", "rejected", "checked", "none", "files/source.omg"),
+        ]
+        for fixture, previous, current, before, after in cases:
+            with self.subTest(fixture=fixture):
+                base = [self.row(fixture, previous, facts={"published": before})]
+                head = [self.row(fixture, current, facts={"published": after})]
+                self.assertIn(f"{fixture}: published {before} -> {after}",
+                              corpus_records.compare_records(base, head)["losses"])
+
+    def test_publication_gain_does_not_hide_an_exit_or_promised_refusal_loss(self):
+        base = [self.row("pass/a/generated", "rejected",
+                         facts={"published": "none", "exit": "70"})]
+        head = [self.row("pass/a/generated", "checked",
+                         facts={"published": "files/source.omg", "exit": "71"})]
+        self.assertEqual(corpus_records.compare_records(base, head)["losses"],
+                         ["pass/a/generated: exit 70 -> 71"])
+        base[0]["expected_satisfied"] = True
+        base[0]["facts"]["native-rejection"] = "match"
+        self.assertIn("pass/a/generated: published none -> files/source.omg",
+                      corpus_records.compare_records(base, head)["losses"])
+
     def test_new_agreement_does_not_hide_a_changed_exit(self):
         base = [self.row("pass/a/x", "built", facts={"exit": "70", "interpreter": "declined"})]
         head = [self.row("pass/a/x", "built", facts={"exit": "71", "interpreter": "agrees"})]
