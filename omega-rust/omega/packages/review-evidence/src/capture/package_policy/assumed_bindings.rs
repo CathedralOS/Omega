@@ -132,31 +132,111 @@ pub(super) fn project(input: &PackageReviewInput<'_>) -> Result<Vec<String>, Vec
 /// Audit classification only: a recognized contradiction does not veto an
 /// explicitly accepted semantic link or grant any proposition. Unknown clauses
 /// retain their complete canonical text above and establish no consistency.
+///
+/// The comparison is the retained literal integer bounds on the result and on
+/// each positional parameter. A missing bound is the whole integer range, so
+/// one side's precondition is unproved rather than refuted. Authority
+/// qualifications are not integer bounds and stay outside this classification.
 fn assessment(
     required: &[crate::record::PackageReviewCallableContract],
     supplied: &[crate::record::PackageReviewCallableContract],
 ) -> String {
-    let required = result_interval(required);
-    let supplied = result_interval(supplied);
-    if required.0 <= required.1
-        && supplied.0 <= supplied.1
-        && (required.1 < supplied.0 || supplied.1 < required.0)
-    {
-        format!(
-            "refuted exit connection: disjoint declared integer result bounds caller {required:?}, supplier {supplied:?}"
-        )
+    use crate::record::PackageReviewContractKind as Kind;
+    let mut findings = Vec::new();
+    let mut parameters = parameter_subjects(required);
+    parameters.extend(parameter_subjects(supplied));
+    parameters.sort_unstable();
+    parameters.dedup();
+    for index in parameters {
+        let caller = literal_integer_interval(required, Kind::Requires, &Subject::Parameter(index));
+        let supplier =
+            literal_integer_interval(supplied, Kind::Requires, &Subject::Parameter(index));
+        if disjoint(caller, supplier) {
+            findings.push(format!(
+                "refuted entry connection: disjoint declared integer parameter {index} bounds caller {}, supplier {}",
+                bound_text(caller),
+                bound_text(supplier)
+            ));
+        }
+    }
+    let caller = literal_integer_interval(required, Kind::Ensures, &Subject::Result);
+    let supplier = literal_integer_interval(supplied, Kind::Ensures, &Subject::Result);
+    if disjoint(caller, supplier) {
+        findings.push(format!(
+            "refuted exit connection: disjoint declared integer result bounds caller {}, supplier {}",
+            bound_text(caller),
+            bound_text(supplier)
+        ));
+    }
+    if findings.is_empty() {
+        "unproved connection; no contradiction established by the retained literal integer bound audit".to_owned()
     } else {
-        "unproved connection; no contradiction established by the retained literal-result comparison audit".to_owned()
+        findings.join("; ")
     }
 }
 
-fn result_interval(contracts: &[crate::record::PackageReviewCallableContract]) -> (i128, i128) {
+enum Subject {
+    Result,
+    Parameter(u32),
+}
+
+fn bound_text(bounds: (i128, i128)) -> String {
+    let end = |value: i128| {
+        if value == i128::MIN || value == i128::MAX {
+            "unbounded".to_owned()
+        } else {
+            value.to_string()
+        }
+    };
+    format!("({}, {})", end(bounds.0), end(bounds.1))
+}
+
+fn disjoint(left: (i128, i128), right: (i128, i128)) -> bool {
+    left.0 <= left.1 && right.0 <= right.1 && (left.1 < right.0 || right.1 < left.0)
+}
+
+fn parameter_subjects(contracts: &[crate::record::PackageReviewCallableContract]) -> Vec<u32> {
+    use crate::record::{
+        PackageReviewContractExpression as Expression, PackageReviewContractFact as Fact,
+        PackageReviewContractKind as Kind,
+    };
+    fn visit(expression: &Expression, found: &mut Vec<u32>) {
+        match expression {
+            Expression::Binary { left, right, .. } => {
+                if let Expression::Parameter(index) = left.as_ref() {
+                    found.push(*index);
+                }
+                visit(left, found);
+                visit(right, found);
+            }
+            _ => {}
+        }
+    }
+    let mut found = Vec::new();
+    for contract in contracts
+        .iter()
+        .filter(|contract| contract.kind() == Kind::Requires && contract.result_case().is_none())
+    {
+        if let Fact::Expression(expression) = contract.fact() {
+            visit(expression, &mut found);
+        }
+    }
+    found.sort_unstable();
+    found.dedup();
+    found
+}
+
+fn literal_integer_interval(
+    contracts: &[crate::record::PackageReviewCallableContract],
+    kind: crate::record::PackageReviewContractKind,
+    subject: &Subject,
+) -> (i128, i128) {
     use crate::record::{
         PackageReviewContractBinaryOperator as Operator,
         PackageReviewContractExpression as Expression, PackageReviewContractFact as Fact,
-        PackageReviewContractKind as Kind, PackageReviewContractOperatorMeaning as Meaning,
+        PackageReviewContractOperatorMeaning as Meaning,
     };
-    fn visit(expression: &Expression, bounds: &mut (i128, i128)) {
+    fn visit(expression: &Expression, subject: &Subject, bounds: &mut (i128, i128)) {
         let Expression::Binary {
             meaning: Meaning::Builtin,
             operator,
@@ -167,14 +247,21 @@ fn result_interval(contracts: &[crate::record::PackageReviewCallableContract]) -
             return;
         };
         if *operator == Operator::And {
-            visit(left, bounds);
-            visit(right, bounds);
+            visit(left, subject, bounds);
+            visit(right, subject, bounds);
             return;
         }
-        let (Expression::Result, Expression::Integer(value)) = (left.as_ref(), right.as_ref())
-        else {
+        let matches_subject = match (subject, left.as_ref()) {
+            (Subject::Result, Expression::Result) => true,
+            (Subject::Parameter(index), Expression::Parameter(parameter)) => index == parameter,
+            _ => false,
+        };
+        let Expression::Integer(value) = right.as_ref() else {
             return;
         };
+        if !matches_subject {
+            return;
+        }
         let Ok(value) = value.parse::<i128>() else {
             return;
         };
@@ -201,10 +288,10 @@ fn result_interval(contracts: &[crate::record::PackageReviewCallableContract]) -
     let mut bounds = (i128::MIN, i128::MAX);
     for contract in contracts
         .iter()
-        .filter(|contract| contract.kind() == Kind::Ensures && contract.result_case().is_none())
+        .filter(|contract| contract.kind() == kind && contract.result_case().is_none())
     {
         if let Fact::Expression(expression) = contract.fact() {
-            visit(expression, &mut bounds);
+            visit(expression, subject, &mut bounds);
         }
     }
     bounds
