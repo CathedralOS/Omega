@@ -843,123 +843,48 @@ const MSR_WRITE_OPERANDS: &[AsmOperandConstraint] = &[
     AsmOperandConstraint::read("MSR index", "ecx", "u32", u32::MAX as u64),
     AsmOperandConstraint::read("value", "edx:eax", "u64", u64::MAX),
 ];
-const CR0_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "cr0",
-    "u64",
-)];
-const CR2_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "cr2",
-    "u64",
-)];
-const CR3_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "cr3",
-    "u64",
-)];
-const CR4_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "cr4",
-    "u64",
-)];
-const CR0_WRITE_OPERANDS: &[AsmOperandConstraint] =
-    &[AsmOperandConstraint::read("value", "cr0", "u64", u64::MAX)];
-const CR3_WRITE_OPERANDS: &[AsmOperandConstraint] =
-    &[AsmOperandConstraint::read("value", "cr3", "u64", u64::MAX)];
-const CR4_WRITE_OPERANDS: &[AsmOperandConstraint] =
-    &[AsmOperandConstraint::read("value", "cr4", "u64", u64::MAX)];
+/// The `destination` place operand a control- or system-register read
+/// presents: one `u64` writable place named by the architectural register
+/// itself, which the mnemonic has already folded out of the operand list.
+const fn register_destination_operand(target_register: &'static str) -> AsmOperandConstraint {
+    AsmOperandConstraint::write_place("destination", target_register, "u64")
+}
+/// The `value` operand a control- or system-register write consumes: one
+/// `u64` read bounded at the type's maximum.
+const fn register_value_operand(target_register: &'static str) -> AsmOperandConstraint {
+    AsmOperandConstraint::read("value", target_register, "u64", u64::MAX)
+}
+const CR0_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("cr0")];
+const CR2_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("cr2")];
+const CR3_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("cr3")];
+const CR4_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("cr4")];
+const CR0_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("cr0")];
+const CR3_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("cr3")];
+const CR4_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("cr4")];
 // AArch64 system-register access folds the named register into the source
 // spelling (`read_sctlr_el1` realizes as `mrs`, `write_sctlr_el1` as `msr`),
 // so each contract carries a single `u64` place or value operand whose
 // architectural target is the register itself.
-const SCTLR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "sctlr_el1",
-    "u64",
-)];
-const TCR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "tcr_el1",
-    "u64",
-)];
-const TTBR0_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "ttbr0_el1",
-    "u64",
-)];
-const TTBR1_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "ttbr1_el1",
-    "u64",
-)];
-const MAIR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "mair_el1",
-    "u64",
-)];
-const VBAR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "vbar_el1",
-    "u64",
-)];
-const TPIDR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "tpidr_el1",
-    "u64",
-)];
-const ESR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "esr_el1",
-    "u64",
-)];
-const FAR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "far_el1",
-    "u64",
-)];
-const SCTLR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
-    "value",
-    "sctlr_el1",
-    "u64",
-    u64::MAX,
-)];
-const TCR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
-    "value",
-    "tcr_el1",
-    "u64",
-    u64::MAX,
-)];
-const TTBR0_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
-    "value",
-    "ttbr0_el1",
-    "u64",
-    u64::MAX,
-)];
-const TTBR1_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
-    "value",
-    "ttbr1_el1",
-    "u64",
-    u64::MAX,
-)];
-const MAIR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
-    "value",
-    "mair_el1",
-    "u64",
-    u64::MAX,
-)];
-const VBAR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
-    "value",
-    "vbar_el1",
-    "u64",
-    u64::MAX,
-)];
-const TPIDR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
-    "value",
-    "tpidr_el1",
-    "u64",
-    u64::MAX,
-)];
+const SCTLR_EL1_READ_OPERANDS: &[AsmOperandConstraint] =
+    &[register_destination_operand("sctlr_el1")];
+const TCR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("tcr_el1")];
+const TTBR0_EL1_READ_OPERANDS: &[AsmOperandConstraint] =
+    &[register_destination_operand("ttbr0_el1")];
+const TTBR1_EL1_READ_OPERANDS: &[AsmOperandConstraint] =
+    &[register_destination_operand("ttbr1_el1")];
+const MAIR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("mair_el1")];
+const VBAR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("vbar_el1")];
+const TPIDR_EL1_READ_OPERANDS: &[AsmOperandConstraint] =
+    &[register_destination_operand("tpidr_el1")];
+const ESR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("esr_el1")];
+const FAR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("far_el1")];
+const SCTLR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("sctlr_el1")];
+const TCR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("tcr_el1")];
+const TTBR0_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("ttbr0_el1")];
+const TTBR1_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("ttbr1_el1")];
+const MAIR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("mair_el1")];
+const VBAR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("vbar_el1")];
+const TPIDR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("tpidr_el1")];
 const NO_CLOBBERS: &[&str] = &[];
 const PORT_OUT_CLOBBERS: &[&str] = &["rax", "rdx", "r10", "r11", "r15"];
 const PORT_IN_CLOBBERS: &[&str] = &["rax", "rdx", "r10", "r15"];
