@@ -416,7 +416,7 @@ defines the complete product bar.
     affine cleanup, and occurrence-bound routed memberships through completed
     children, copies, and nested projections (retaining
     `samples/cli/facts/copied_call_argument_snapshot` including
-    `copied_call_argument_snapshot/*/{indexed_byte_view,inferred_indexed_byte_view,post_write_indexed_byte_view,public_post_write_indexed_byte_view,ranked_indexed_byte_view,computed_ranked_indexed_byte_view}`
+    `copied_call_argument_snapshot/*/{indexed_byte_view,inferred_indexed_byte_view,post_write_indexed_byte_view,public_post_write_indexed_byte_view,ranked_indexed_byte_view,computed_ranked_indexed_byte_view,captured_window_indices}`
     and `samples/cli/facts/matched_field_windows` across all nine places).
   - **Loan locals and projected storage (REFERENCE-LOCAL-BINDING-ROUTES):**
     reference-valued locals from every admitted producer keep their loan
@@ -2047,21 +2047,6 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   hosts with nested raw-provider closure checks and occurrence-bound close
   classifications, while failed acquisition, handle escape, or unproved close
   retains conservative authority.
-
-- **R5.** Carry complete caller-visible may-write summaries through source
-  checking (`omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/`
-  and `omega-rust/psi/compilation/checking/src/borrow_contracts.rs`) under
-  [invocation contracts](wiki/spec/language/state_contracts.md) and
-  [subject preservation](wiki/spec/language/termination.md#subject-preservation):
-  - Complete ordinary parser-gate package admission through the normal project
-    authority review without bypassing the standard library's `FloatMeaning`
-    proof contracts: `omega update --project tests/psi/parser --target
-    linux_x86_64` must publish accepted inputs before the parser check.
-    Retain the may-write nine-place fact rows and their overlapping rejects.
-
-  Acceptance: all R5 nine-place fact rows and finite write-cycle / parameter-permutation
-  witnesses pass `omega run --both` with overlapping twins rejecting, and
-  `omega --check tests/psi/parser/main.omg` converges.
 
 - **TR3-TR8.** (Also covers **`BLOCKEXEC`**.) Execute ordinary named machines
   through a selected task runtime and deliver the `source/library/blocking-executor/`

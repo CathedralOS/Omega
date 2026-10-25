@@ -1047,6 +1047,11 @@ fail/borrows/copied_shared_descendant_keeps_owner rejected 502ms expected @7fd97
 	state `drop$specialized$9e8160205d459d88$0` receives an owned value while local borrow `views` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 fail/borrows/cyclic_arrival_duplicates_exclusive_reference rejected 2043ms expected @a92f16431042
 	state `spin` receives `sibling` as mutable more than once
+fail/borrows/dependent_window_region_retains_backing rejected 1165ms expected @c0a374fa75ca+wt
+	state `receive_inferred$specialized$1814538dc046bb3b$0` receives `storage` while local borrow `direct` is still active
+	state `disturb` receives `storage` while local borrow `direct` is still active
+	a completed copied argument retains backing storage overlapping a staged exclusive loan in machine `main`, state `entry`, statement 4
+	statement 4 mutates `storage[2]` while local borrow `direct` is still active (borrowed at statement 2)
 fail/borrows/direct_mutable_reference_from_immutable_bytes rejected 1121ms expected @a92f16431042
 	argument `bytes` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/direct_reference_array_duplicate_mutable rejected 7375ms expected @a92f16431042
@@ -5762,6 +5767,33 @@ fail/facts/copied_call_argument_snapshot_through_target_body_rejected rejected 1
 	cannot prove requires contract for call receive from main: source == 7 (needs fact `first == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call receive from main: source == 7 (needs fact `first == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call receive from main: source == 7 (needs fact `first == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_captured_window_index_argument_snapshot_through_call_result rejected 1079ms expected @c0a374fa75ca+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_captured_window_index_argument_snapshot_through_const_name rejected 1170ms expected @c0a374fa75ca+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_captured_window_index_argument_snapshot_through_field rejected 1185ms expected @c0a374fa75ca+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_captured_window_index_argument_snapshot_through_local rejected 1248ms expected @c0a374fa75ca+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_captured_window_index_argument_snapshot_through_match_join rejected 1070ms expected @c0a374fa75ca+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_captured_window_index_argument_snapshot_through_other_machine rejected 947ms expected @c0a374fa75ca+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_captured_window_index_argument_snapshot_through_other_state rejected 1266ms expected @c0a374fa75ca+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_captured_window_index_argument_snapshot_through_parameter rejected 822ms expected @c0a374fa75ca+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_captured_window_index_argument_snapshot_through_target_body rejected 803ms expected @c0a374fa75ca+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/copied_case_before_later_argument_through_call_result_rejected rejected 541ms expected @fd2b4fad69e5+wt
 	cannot prove requires contract for call read_payload from main: chosen == constructor:78:package:0101010101010101010101010101010101010101010101010101010101010101::Slot12:name:Present (needs fact `before == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/copied_case_before_later_argument_through_const_name_rejected rejected 542ms expected @fd2b4fad69e5+wt
@@ -16744,6 +16776,27 @@ fail/generics/dependent_const_named_carrier rejected 742ms expected @a92f1643104
 	const parameter `Count` of `Parent` has an invalid named value: named constant `Upper` has type `u32`, expected `u64`
 fail/generics/dependent_const_recursive_caller_carrier rejected 737ms expected @a92f16431042
 	const parameter `Count` of `Token` requires a `B` value, not integer `4`
+fail/generics/dependent_window_parameter_index_mismatch rejected 772ms expected @c0a374fa75ca+wt
+	machine `receive` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+	cannot prove requires contract for call seven from receive: dependent_parameter(2, 8, saved) == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/generics/dependent_window_requirement_cannot_form_own_difference rejected 410ms expected @c0a374fa75ca+wt
+	data `Counted` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Counted` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	exact arithmetic in machine `snapshot` requires contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `Direct::snapshot` requires contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/generics/dependent_window_result_needs_order rejected 388ms expected @c0a374fa75ca+wt
+	exact arithmetic in value argument `Count` of `Counted` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in value argument `Count` of `Counted` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in value argument `Count` of `Counted` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	data `Counted` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	exact arithmetic in construction of `Counted` field `Count` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	data `Counted` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	exact arithmetic in construction of `Counted` field `Count` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `snapshot` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `Direct::snapshot` state `snapshot` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/generics/dependent_window_result_wrong_extent rejected 373ms expected @c0a374fa75ca+wt
+	data `Counted` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Counted` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/generics/empty_attached_value_body rejected 799ms expected @a92f16431042
 	machine `Box::read` state `read` declares a return type but its body is empty -- it can never produce the value (callers would silently bind 0). Return a value or drop the `-> T`.
 	argument `value` for state `read` expects `&Box<Payload>`, got `named value`
@@ -20830,6 +20883,9 @@ pass/borrows/runtime_copied_byte_predicate_snapshot_exit checked 2198ms check-ta
 pass/borrows/runtime_copied_range_record_domains_exit checked 2254ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_copyable_carrier_retirement_exit checked 2258ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_cyclic_field_loan_release_exit checked 5940ms check-target:macos_arm64 @a92f16431042
+pass/borrows/runtime_dependent_window_byte_payload_exit checked 934ms check-target:macos_arm64 @c0a374fa75ca+wt
+pass/borrows/runtime_dependent_window_image_sibling_exit checked 1717ms check-target:macos_arm64 @c0a374fa75ca+wt
+pass/borrows/runtime_dependent_window_region_disjoint_write_exit checked 1518ms check-target:macos_arm64 @c0a374fa75ca+wt
 pass/borrows/runtime_descriptor_replacement_exit checked 2138ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_direct_immutable_scalar_loan_exit checked 2129ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_discarded_reference_release_exit checked 5873ms check-target:macos_arm64 @a92f16431042
@@ -21582,7 +21638,7 @@ pass/collections/runtime_narrow_computed_selector_read_exit checked 2768ms check
 pass/collections/runtime_nested_array_view_call_write_exit checked 2680ms check-target:macos_arm64 @a92f16431042
 pass/collections/runtime_nested_const_row_indexed_read_exit checked 8920ms check-target:macos_arm64 @a92f16431042
 pass/collections/runtime_nested_fixed_array_projected_write_exit checked 9005ms check-target:macos_arm64 @a92f16431042
-pass/collections/runtime_nested_record_element_window_store_exit checked 2923ms check-target:macos_arm64 @a92f16431042
+pass/collections/runtime_nested_record_element_window_store_exit checked 2210ms check-target:macos_arm64 @036605466510+wt
 pass/collections/runtime_nested_selected_element_extents_exit checked 3786ms check-target:macos_arm64 @a92f16431042
 pass/collections/runtime_offset_view_case_observation_exit checked 4142ms check-target:macos_arm64 @a92f16431042
 pass/collections/runtime_ordered_computed_selector_reads_exit checked 3249ms check-target:macos_arm64 @a92f16431042
@@ -23043,7 +23099,7 @@ pass/facts/computed_nested_state_loan_through_other_state_exit checked 2813ms ch
 pass/facts/computed_nested_state_loan_through_parameter_exit checked 2706ms check-target:macos_arm64 @a92f16431042
 pass/facts/computed_nested_state_loan_through_target_body_exit checked 2235ms check-target:macos_arm64 @a92f16431042
 pass/facts/computed_record_window_mixed_lifecycle_exit checked 14790ms check-target:macos_arm64 @a92f16431042
-pass/facts/computed_record_window_original_exit checked 15052ms check-target:macos_arm64 @a92f16431042
+pass/facts/computed_record_window_original_exit checked 5396ms check-target:macos_arm64 @036605466510+wt
 pass/facts/computed_record_window_through_call_result_exit checked 14698ms check-target:macos_arm64 @a92f16431042
 pass/facts/computed_record_window_through_const_name_exit checked 14938ms check-target:macos_arm64 @a92f16431042
 pass/facts/computed_record_window_through_field_exit checked 15035ms check-target:macos_arm64 @a92f16431042
@@ -23113,6 +23169,15 @@ pass/facts/copied_call_argument_snapshot_through_other_machine_exit checked 2558
 pass/facts/copied_call_argument_snapshot_through_other_state_exit checked 2515ms check-target:macos_arm64 @a92f16431042
 pass/facts/copied_call_argument_snapshot_through_parameter_exit checked 2597ms check-target:macos_arm64 @a92f16431042
 pass/facts/copied_call_argument_snapshot_through_target_body_exit checked 2605ms check-target:macos_arm64 @a92f16431042
+pass/facts/copied_captured_window_index_argument_snapshot_through_call_result checked 1447ms check-target:macos_arm64 @c0a374fa75ca+wt
+pass/facts/copied_captured_window_index_argument_snapshot_through_const_name checked 1678ms check-target:macos_arm64 @c0a374fa75ca+wt
+pass/facts/copied_captured_window_index_argument_snapshot_through_field checked 1502ms check-target:macos_arm64 @c0a374fa75ca+wt
+pass/facts/copied_captured_window_index_argument_snapshot_through_local checked 1501ms check-target:macos_arm64 @c0a374fa75ca+wt
+pass/facts/copied_captured_window_index_argument_snapshot_through_match_join checked 1530ms check-target:macos_arm64 @c0a374fa75ca+wt
+pass/facts/copied_captured_window_index_argument_snapshot_through_other_machine checked 1448ms check-target:macos_arm64 @c0a374fa75ca+wt
+pass/facts/copied_captured_window_index_argument_snapshot_through_other_state checked 1596ms check-target:macos_arm64 @c0a374fa75ca+wt
+pass/facts/copied_captured_window_index_argument_snapshot_through_parameter checked 1450ms check-target:macos_arm64 @c0a374fa75ca+wt
+pass/facts/copied_captured_window_index_argument_snapshot_through_target_body checked 1661ms check-target:macos_arm64 @c0a374fa75ca+wt
 pass/facts/copied_case_before_later_argument_through_call_result_exit checked 689ms check-target:macos_arm64 @fd2b4fad69e5+wt
 pass/facts/copied_case_before_later_argument_through_const_name_exit checked 675ms check-target:macos_arm64 @fd2b4fad69e5+wt
 pass/facts/copied_case_before_later_argument_through_field_exit checked 674ms check-target:macos_arm64 @fd2b4fad69e5+wt
@@ -27754,6 +27819,7 @@ pass/generics/runtime_const_extent_origin_exit checked 6102ms check-target:macos
 pass/generics/runtime_constructor_equation_binder_carriers_exit checked 3057ms check-target:macos_arm64 @a92f16431042
 pass/generics/runtime_container_setter_matrix_exit checked 5593ms check-target:macos_arm64 @a92f16431042
 pass/generics/runtime_copied_indexed_case_subject_exit checked 7527ms check-target:macos_arm64 @a92f16431042
+pass/generics/runtime_dependent_window_parameter_index_exit checked 1563ms check-target:macos_arm64 @c0a374fa75ca+wt
 pass/generics/runtime_equation_constructor_selected_const_exit checked 1988ms check-target:macos_arm64 @a92f16431042
 pass/generics/runtime_equation_named_array_actual_exit checked 1961ms check-target:macos_arm64 @a92f16431042
 pass/generics/runtime_finite_recursive_reference_catalog_exit checked 1896ms check-target:macos_arm64 @a92f16431042
@@ -28404,10 +28470,11 @@ pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit checked 6184ms check
 pass/ownership/runtime_borrowed_carried_loan_transform_exit checked 5634ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_borrowed_carrier_repeated_repair_exit checked 6222ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_borrowed_case_inventory_insert_exit checked 5396ms check-target:macos_arm64 @a92f16431042
-pass/ownership/runtime_borrowed_case_restore_variants_exit checked 2447ms check-target:macos_arm64 @a92f16431042
+pass/ownership/runtime_borrowed_case_restore_variants_exit checked 2563ms check-target:macos_arm64 @036605466510+wt
 pass/ownership/runtime_borrowed_case_result_restore_exit checked 2421ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_borrowed_content_partition_exit checked 2428ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_borrowed_content_partition_nested_reverse_exit checked 2665ms check-target:macos_arm64 @a92f16431042
+pass/ownership/runtime_borrowed_match_repeated_repair_exit checked 2898ms check-target:macos_arm64 @036605466510+wt
 pass/ownership/runtime_borrowed_operand_order_exit checked 2064ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_borrowed_projected_claim_transform_exit checked 5709ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_borrowed_projected_linear_return_exit checked 2607ms check-target:macos_arm64 @a92f16431042
@@ -28428,8 +28495,7 @@ pass/ownership/runtime_captured_selector_call_exit checked 2456ms check-target:m
 pass/ownership/runtime_captured_selector_partial_cleanup_exit rejected 2001ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "selection pass-through of partially moved roots requires retained residual frontier correspondence", gap: None })
 pass/ownership/runtime_carried_loan_field_replacement_exit checked 5994ms check-target:macos_arm64 @a92f16431042
-pass/ownership/runtime_case_alternative_custody_exit incomplete 2797ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
-	`apply` has no executable body: this compiler does not lower its declaration of it yet (reference result has no complete captured origin paths)
+pass/ownership/runtime_case_alternative_custody_exit checked 2375ms check-target:macos_arm64 @036605466510+wt
 pass/ownership/runtime_complete_array_reference_store_exit checked 1904ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_computed_selector_snapshot_window_exit checked 1954ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_declared_linear_local_assignment_exit checked 5610ms check-target:macos_arm64 @a92f16431042
@@ -29976,8 +30042,7 @@ run/slices/folded_window_endpoint_effects checked 3019ms check-target:macos_arm6
 run/slices/matched_computed_window_end checked 3107ms check-target:macos_arm64 @a92f16431042
 run/slices/matched_record_window_lower_bound incomplete 2976ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	`main` has no executable body: this compiler does not lower a state of it yet (normal-exit cleanup); in state `main::entry`
-run/slices/mutable_window_call_argument incomplete 3250ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
-	`main` has no executable body: this compiler does not lower a call of it yet (state graph: structural result has duplicate dispositions); in state `main::entry`, statement 1
+run/slices/mutable_window_call_argument checked 1778ms check-target:macos_arm64 @036605466510+wt
 run/slices/returned_record_fixed_array_window checked 2756ms check-target:macos_arm64 @a92f16431042
 run/slices/returned_record_parameter_length checked 2992ms check-target:macos_arm64 @a92f16431042
 run/state_owned_nested_borrow checked 2417ms check-target:macos_arm64 @a92f16431042

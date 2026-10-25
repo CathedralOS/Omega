@@ -2,11 +2,12 @@
 //! record. No second evaluator or synthesized Terminal machine supplies results.
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
+#[path = "support/terminal_mutable_boundary.rs"]
+mod terminal_mutable_boundary;
 
 use compiler::{CheckedCompileRequest, CompilationSession};
 use fixture_package_inputs::{repo_root, reviewed_repository_fixture_package_inputs};
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerValue};
-use terminal_codec::CanonicalTerminalArtifact;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalEntryStorageError, TerminalEntryStorageValue, TerminalExecutionResult,
@@ -336,29 +337,6 @@ fn array_result_storage_outlives_the_completed_instance() {
     execute(true, peak - 1, true);
 }
 
-fn field(artifact: &CanonicalTerminalArtifact, name: &str) -> Path {
-    let program = TerminalProgram::borrow(artifact.view());
-    let entry = program.entry().unwrap();
-    let root = entry.structural_parameters[0].structural_type;
-    let declaration = artifact
-        .semantic_module()
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == root)
-        .unwrap();
-    let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
-        panic!("record entry");
-    };
-    let identities = &artifact.semantic_module().identities;
-    Path::Field(
-        fields
-            .iter()
-            .find(|field| identities.text(field.identity) == Some(name))
-            .unwrap()
-            .id,
-    )
-}
-
 #[test]
 fn completed_helpers_return_original_entry_storage_to_the_embedding() {
     for (machine, identifier) in [
@@ -367,7 +345,7 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
     ] {
         let (produced, admission, initial) = produce(machine);
         let artifact = produced.artifact().expect("portable inspection product");
-        let identifier_path = [field(artifact, "identifier")];
+        let identifier_path = [terminal_mutable_boundary::field(artifact, "identifier")];
         for loaded in [false, true] {
             let program = if loaded {
                 TerminalProgram::load_envelope(&artifact.to_bytes()).expect("external artifact")
@@ -424,7 +402,7 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                 identifier,
             );
             if machine == "configure" {
-                let signature_path = [field(artifact, "signature")];
+                let signature_path = [terminal_mutable_boundary::field(artifact, "signature")];
                 assert_bytes(
                     instance.observe_borrowed_entry(0, &signature_path).unwrap(),
                     &[0, 9, 0],
@@ -447,7 +425,10 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                 );
                 assert!(matches!(
                     instance
-                        .observe_borrowed_entry(0, &[field(artifact, "revision")])
+                        .observe_borrowed_entry(
+                            0,
+                            &[terminal_mutable_boundary::field(artifact, "revision")]
+                        )
                         .unwrap(),
                     TerminalEntryStorageValue::Storage(TerminalStorageContents::Scalar {
                         value: TerminalScalarValue::Integer {
@@ -477,7 +458,10 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                 );
                 let TerminalEntryStorageValue::Storage(TerminalStorageContents::Case(selected)) =
                     instance
-                        .observe_borrowed_entry(0, &[field(artifact, "subsystem")])
+                        .observe_borrowed_entry(
+                            0,
+                            &[terminal_mutable_boundary::field(artifact, "subsystem")],
+                        )
                         .unwrap()
                 else {
                     panic!("Build subsystem retains its selected case");
@@ -529,7 +513,7 @@ fn owned_inputs_and_failed_activations_do_not_return_borrowed_storage() {
     for machine in ["consume", "fail_after_write"] {
         let (produced, _, _) = produce(machine);
         let artifact = produced.artifact().expect("portable inspection product");
-        let identifier_path = [field(artifact, "identifier")];
+        let identifier_path = [terminal_mutable_boundary::field(artifact, "identifier")];
         let program = TerminalProgram::borrow(artifact.view());
         let arguments = [TerminalStructuralValue::minted(
             79,

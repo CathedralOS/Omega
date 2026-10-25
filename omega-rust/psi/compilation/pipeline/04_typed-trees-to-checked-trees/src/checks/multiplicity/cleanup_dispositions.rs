@@ -17,6 +17,9 @@ pub(crate) struct RemainingCustody {
     // Moved regions and conditional claim regions that were never established
     // both lie outside the owner's cleanup complement.
     excluded: Vec<(PlaceRoot, Vec<PlaceSegment>)>,
+    // A transfer is definite on each path where its selected case exists.
+    // Joins require transfer or authenticated case absence on BOTH edges.
+    definite_excluded: Vec<(PlaceRoot, Vec<PlaceSegment>)>,
     // Tag observations are facts, not transfers. They intersect at joins and
     // are invalidated by writes; unioning them can erase every live alternative.
     inactive_cases: Vec<(PlaceRoot, Vec<PlaceSegment>)>,
@@ -82,6 +85,16 @@ impl RemainingCustody {
                 .filter(|(candidate, _)| *candidate == root)
                 .all(|entry| self.excluded.contains(entry))
             && self
+                .definite_excluded
+                .iter()
+                .filter(|(candidate, _)| *candidate == root)
+                .all(|entry| other.definite_excluded.contains(entry))
+            && other
+                .definite_excluded
+                .iter()
+                .filter(|(candidate, _)| *candidate == root)
+                .all(|entry| self.definite_excluded.contains(entry))
+            && self
                 .inactive_cases
                 .iter()
                 .filter(|(candidate, _)| *candidate == root)
@@ -103,9 +116,19 @@ impl RemainingCustody {
     /// cleanup retains the exact skipped-path frontier separately; this join
     /// never turns possible custody into unconditional disposal authority.
     pub(super) fn join(&mut self, sibling: &Self) {
+        let mut definite = self.definite_excluded.clone();
+        for entry in &sibling.definite_excluded {
+            if !definite.contains(entry) {
+                definite.push(entry.clone());
+            }
+        }
+        definite.retain(|(root, path)| {
+            self.definitely_absent(*root, path) && sibling.definitely_absent(*root, path)
+        });
         for (root, path) in &sibling.excluded {
             self.remove(*root, path);
         }
+        self.definite_excluded = definite;
         self.inactive_cases
             .retain(|observation| sibling.inactive_cases.contains(observation));
         self.zero_images
@@ -514,6 +537,16 @@ impl RemainingCustody {
                         segments: output.segments.insert_many(path.iter().copied()),
                     })
                     .collect::<Vec<_>>();
+                let definite_exclusions = exclusions
+                    .iter()
+                    .filter(|place| {
+                        let path = output.segments.span_or_empty(place.segments);
+                        self.definite_excluded
+                            .iter()
+                            .any(|(root, removed)| *root == place.root && path.starts_with(removed))
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
                 let disposition = output.dispositions.append(ContextualCleanupDisposition {
                     selection: Default::default(),
                     machine: event.machine_symbol,
@@ -526,6 +559,7 @@ impl RemainingCustody {
                     disposed_type: typed_trees::types::TypeReferenceHandle::invalid(),
                     path: event.segments,
                     exclusions: output.exclusions.insert_many(exclusions),
+                    definite_exclusions: output.exclusions.insert_many(definite_exclusions),
                     inactive_cases: output.exclusions.insert_many(inactive_cases),
                     establishment_ordered,
                     zero_image,
@@ -575,6 +609,8 @@ impl RemainingCustody {
                 // A strict child cannot revive its consumed containing owner.
                 self.excluded
                     .retain(|(root, removed)| *root != event.root || !removed.starts_with(path));
+                self.definite_excluded
+                    .retain(|(root, removed)| *root != event.root || !removed.starts_with(path));
                 // A conditional claim with no live establishment denotes an
                 // absent payload, not a dead value available for cleanup. The
                 // whole root is different: a linear local's obligation-free
@@ -616,7 +652,7 @@ impl RemainingCustody {
                 {
                     frontier.retire(path);
                 }
-                self.remove(event.root, path);
+                self.transfer_storage(event.root, path);
             }
         }
     }
@@ -631,6 +667,110 @@ impl RemainingCustody {
             .any(|(candidate, inactive)| *candidate == root && inactive == path)
         {
             self.inactive_cases.push((root, path.to_vec()));
+        }
+    }
+
+    fn definitely_absent(&self, root: PlaceRoot, path: &[PlaceSegment]) -> bool {
+        self.definite_excluded
+            .iter()
+            .chain(&self.inactive_cases)
+            .any(|(candidate, removed)| *candidate == root && path.starts_with(removed))
+    }
+
+    pub(super) fn definitely_transferred(&self, root: PlaceRoot, path: &[PlaceSegment]) -> bool {
+        self.definite_excluded
+            .iter()
+            .any(|(candidate, removed)| *candidate == root && path.starts_with(removed))
+    }
+
+    /// A checked case projection authenticates the active tag at this actual
+    /// transfer. Nested claim events cannot select a case their whole source
+    /// expression merely contains. Borrowed routes confer no owned cleanup.
+    pub(super) fn observe_selected_transfer(
+        &mut self,
+        program: &dyn validation::CheckingInput,
+        state: symbols::SymbolHandle,
+        statement: usize,
+        root: PlaceRoot,
+        expression: typed_trees::expression::ExpressionHandle,
+        event_path: &[PlaceSegment],
+    ) {
+        let Some(place) = validation::ownership_place_from_expression_in_state(
+            program, state, statement, expression,
+        ) else {
+            return;
+        };
+        if place.root != root || !event_path.starts_with(&place.segments) {
+            return;
+        }
+        for (position, segment) in place.segments.iter().enumerate() {
+            if let PlaceSegment::Case { variant } = segment {
+                self.select_owned_case(
+                    program,
+                    state,
+                    statement,
+                    &validation::CanonicalPlace {
+                        root: place.root,
+                        segments: place.segments[..position].to_vec(),
+                    },
+                    *variant,
+                    true,
+                );
+            }
+        }
+    }
+
+    /// Tag observations retain only exact owned storage. Both guard selection
+    /// and selected value transfers use this same declaration/authority walk.
+    pub(super) fn select_owned_case(
+        &mut self,
+        program: &dyn validation::CheckingInput,
+        state: symbols::SymbolHandle,
+        statement: usize,
+        place: &validation::CanonicalPlace,
+        variant: symbols::SymbolHandle,
+        positive: bool,
+    ) {
+        if !crate::flow::stable_case_subject(place)
+            || !(0..=place.segments.len()).all(|length| {
+                validation::canonical_place_type_reference(
+                    program,
+                    state,
+                    statement,
+                    &validation::CanonicalPlace {
+                        root: place.root,
+                        segments: place.segments[..length].to_vec(),
+                    },
+                )
+                .is_some_and(|reference| validation::reference_shell(program, reference).is_none())
+            })
+        {
+            return;
+        }
+        let Some(data) =
+            validation::canonical_place_type_reference(program, state, statement, place)
+                .and_then(|reference| program.closed_data_definition(reference))
+        else {
+            return;
+        };
+        let variants = program
+            .data_members(data)
+            .iter()
+            .filter_map(|member| match member {
+                typed_trees::data::DataMember::Variant(row) => Some(row.symbol),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if !variants.contains(&variant) {
+            return;
+        }
+        for excluded in variants
+            .into_iter()
+            .filter(|candidate| (*candidate == variant) != positive)
+        {
+            let mut path = place.segments.clone();
+            path.push(PlaceSegment::Case { variant: excluded });
+            self.exclude_absent_case(place.root, &path);
         }
     }
 
@@ -681,6 +821,15 @@ impl RemainingCustody {
     /// carrier transfer: retaining that home would dispose it on the edge.
     pub(super) fn transfer_storage(&mut self, root: PlaceRoot, path: &[PlaceSegment]) {
         self.remove(root, path);
+        if !self
+            .definite_excluded
+            .iter()
+            .any(|(candidate, removed)| *candidate == root && path.starts_with(removed))
+        {
+            self.definite_excluded
+                .retain(|(candidate, removed)| *candidate != root || !removed.starts_with(path));
+            self.definite_excluded.push((root, path.to_vec()));
+        }
     }
 
     /// A checked normal-continuation disposition retires the containing home,
@@ -715,6 +864,7 @@ impl RemainingCustody {
                 disposed_type: Default::default(),
                 path: Default::default(),
                 exclusions,
+                definite_exclusions: Default::default(),
                 inactive_cases: Default::default(),
                 establishment_ordered: false,
                 zero_image: false,
@@ -733,6 +883,8 @@ impl RemainingCustody {
     ) {
         self.invalidate_case_observations(program, root, path);
         self.excluded
+            .retain(|(candidate, removed)| *candidate != root || !removed.starts_with(path));
+        self.definite_excluded
             .retain(|(candidate, removed)| *candidate != root || !removed.starts_with(path));
         if let Some((_, frontier)) = self
             .constructing

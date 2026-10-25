@@ -26,7 +26,10 @@ machine observe(sibling: &mut u64) -> u64 { sibling = 19; sibling }
 machine repair(holder: &mut Holder, succeed: bool) {
     let alias: &mut Token = &mut holder.token;
     let first: Outcome = attempt(alias, succeed, observe(&mut holder.sibling));
-    alias = recover(first);
+    alias = match first {
+        Outcome::Success { token } -> token
+        Outcome::Failure { token } -> token
+    };
     let detached: Token = alias;
     let second: Outcome = attempt(detached, succeed, observe(&mut holder.sibling));
     drop(recover(second));

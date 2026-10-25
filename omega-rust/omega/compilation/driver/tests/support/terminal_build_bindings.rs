@@ -1,5 +1,7 @@
 //! The complete source Build entry, with real host binding effects and helper
 //! writeback. Product bodies stay inert; fuel pauses resume the same activation.
+#[path = "terminal_provision.rs"]
+mod terminal_provision;
 
 use build_evaluation::terminal_bindings::TerminalBuildBindingHost;
 use build_evaluation::terminal_requests::TerminalBuildRequestHost;
@@ -18,27 +20,19 @@ pub(super) fn observe(
     entry: &str,
     identifier: &str,
 ) -> Result<(), String> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        exercise(
-            artifact,
-            bindings,
-            requests,
-            &slots.split(',').collect::<Vec<_>>(),
-            entry,
-            if identifier == "-" { "" } else { identifier },
-        )
-    }))
-    .map_err(|failure| {
-        failure
-            .downcast_ref::<String>()
-            .cloned()
-            .or_else(|| {
-                failure
-                    .downcast_ref::<&str>()
-                    .map(|message| (*message).to_owned())
-            })
-            .unwrap_or_else(|| "full Build binding provision failed".to_owned())
-    })
+    terminal_provision::result(
+        || {
+            exercise(
+                artifact,
+                bindings,
+                requests,
+                &slots.split(',').collect::<Vec<_>>(),
+                entry,
+                if identifier == "-" { "" } else { identifier },
+            )
+        },
+        "full Build binding provision failed",
+    )
 }
 
 fn exercise(

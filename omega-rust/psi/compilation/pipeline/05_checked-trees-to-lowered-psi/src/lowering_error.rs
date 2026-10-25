@@ -59,6 +59,13 @@ pub enum LoweringError {
         gap: Option<Diagnostic>,
     },
     Unsupported(&'static str),
+    MissingSelectionFrontier {
+        machine: String,
+        state: String,
+        statement_index: u32,
+        local: String,
+        formation_statement: u32,
+    },
     NonDenseStructuralResult {
         reason: &'static str,
         completed_bindings: usize,

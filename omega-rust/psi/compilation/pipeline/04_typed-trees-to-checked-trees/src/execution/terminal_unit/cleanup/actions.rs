@@ -236,10 +236,12 @@ pub(super) fn disposition_actions(
         {
             validation::CleanupCaseReachability::Inactive => continue,
             validation::CleanupCaseReachability::Selected => {}
-            // An uncertain earlier transfer needs its own selected custody
-            // join. A tag condition alone cannot establish that transfer.
+            // A runtime tag cannot establish a transfer. The custody producer
+            // must additionally prove absence on every edge where it is active.
             validation::CleanupCaseReachability::Runtime => {
-                return Err("cleanup exclusion has no selected transfer custody");
+                if !case_evidence.definitely_transferred(excluded) {
+                    return Err("cleanup exclusion has no selected transfer custody");
+                }
             }
         }
         // The contextual row remembers earlier transfers under the original

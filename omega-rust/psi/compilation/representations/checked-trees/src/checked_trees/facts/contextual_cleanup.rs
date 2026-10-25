@@ -182,6 +182,10 @@ pub struct ContextualCleanupDisposition {
     /// subtrees below use this family's segment arena instead.
     pub path: HandleSpan<PlaceSegment>,
     pub exclusions: HandleSpan<Place>,
+    /// Excluded regions proved transferred on every predecessor where their
+    /// case is active. A possible exclusion alone cannot justify disposing a
+    /// runtime-selected complement. These are exact members of `exclusions`.
+    pub definite_exclusions: HandleSpan<Place>,
     /// Alternatives proved inactive at this occurrence. Unlike transferred
     /// subtrees, these do not make an intact nominal owner partially moved.
     /// Paths use the same place/segment arenas as exclusions.

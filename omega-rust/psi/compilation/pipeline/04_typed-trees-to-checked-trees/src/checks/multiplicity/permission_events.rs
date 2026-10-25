@@ -424,6 +424,7 @@ pub(crate) fn prepare_permission_events(
                                 statement_index,
                                 &statements[statement_index],
                                 places,
+                                remaining,
                                 &evaluated.observations,
                                 &mut claim_identities,
                                 shared_call_frames,

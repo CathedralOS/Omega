@@ -534,3 +534,36 @@ ordinary full write-frame query remains unchanged. The four hosted entries remai
 present. Linux and Windows execution are unverified here; Windows native
 validation remains owner-deferred. Opaque/provider-backed and remaining cyclic
 result compositions stay open on the parent task.
+
+## Window indices retain completed endpoint operands
+
+The selected value of a copied first argument remains 7 when the second argument
+replaces its former descriptor home with a view of 9.
+
+`<place>/captured_window_indices/main.omg` produces `Counted<end - start>` through
+both a direct call and a public `Counting` call. The start operand completes as 2;
+the later end operand resets its former home to 0 and returns 9. The returned
+window retains extent 7, which `receive_inferred`, `seven` and exact subtraction
+consume before the former descriptor home is replaced. The endpoint reset and
+once-only counters remain runtime oracles. Each twin changes only the end
+producer's result to 8 and rejects the unchanged `Count == 7` obligation.
+
+Fresh main `a61700a1889` rejects all nine positives while preparing their runtime
+index descriptor. Executable recipes now copy their expression graphs and retain
+selected operation meaning. Callable type formation consumes its exact incoming
+requirements through the ordinary integer judgment; a requirement cannot form
+its own partial operand. Symbolic windows retain body-derived enclosing regions
+through the same typed source-path query as custody replay. These regions prove
+neither descriptor equality nor permission ancestry. Authenticated image scope
+and declared lifetime debts remain separate obligations.
+
+The nine positive and negative places are pinned as
+`tests/omega/{pass,fail}/facts/copied_captured_window_index_argument_snapshot_through_*`.
+The `dependent_window_*` controls reject missing order, self-forming requirements,
+wrong window extent, mismatched parameter indices and writes to retained backing.
+Their positive counterparts exercise an unrelated write, an image-backed sibling
+and a dependent parameter application. `runtime_dependent_window_byte_payload_exit`
+also reads byte 49 through the returned `Counted` value, checking the nonzero
+window offset independently of its extent. Native/Terminal observations are macOS
+ARM64 exit 0; other-host execution remains unverified. General opaque/provider
+result composition and the parent capability remain open.
