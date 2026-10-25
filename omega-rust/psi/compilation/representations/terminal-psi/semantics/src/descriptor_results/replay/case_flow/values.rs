@@ -225,7 +225,8 @@ impl Storage {
                 &mut BTreeSet::new(),
             );
             let owned = match row.definition {
-                DescriptorDefinition::Parameter { access, .. } => access == StructuralAccess::Owned,
+                DescriptorDefinition::Parameter { access, .. }
+                | DescriptorDefinition::Arrival { access } => access == StructuralAccess::Owned,
                 DescriptorDefinition::Local => {
                     machine
                         .payload_producers
