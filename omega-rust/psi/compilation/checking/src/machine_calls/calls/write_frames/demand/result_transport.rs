@@ -28,13 +28,16 @@ impl CallFrameResolver<'_> {
         indices: &[Option<usize>],
     ) -> Option<Vec<ReferenceResultTransport>> {
         let state = self.program.state_by_symbol(symbol)?;
-        if self.program.state_parameters(state).len() != indices.len() {
+        let formal_count = self.program.state_parameters(state).len();
+        if formal_count != indices.len() {
             return None;
         }
         if !indices.iter().any(Option::is_some) {
             return self.reference_result_transports(symbol);
         }
-        if let Some(ordinary) = self.reference_result_transports(symbol)
+        let ordinary = self.reference_result_transports(symbol);
+        let ordinary_count = ordinary.as_ref().map(Vec::len);
+        if let Some(ordinary) = ordinary
             && !ordinary.iter().any(|transport| {
                 let source = match transport {
                     ReferenceResultTransport::Reference(leaf) => &leaf.source,
@@ -50,7 +53,22 @@ impl CallFrameResolver<'_> {
         }
         let mut inference = FrameInference::default();
         inference.with_invocation(self.program, state, &[], indices, |inference| {
-            self.result_transports_in_context(symbol, inference)
+            let context_installed = inference.selects_state(state);
+            let result = self.result_transports_in_context(symbol, inference);
+            if result.is_none()
+                && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+            {
+                eprintln!(
+                    "CHECKSITE returned-transport-query-refusal target={:?} formal_count={} index_count={} indices={:?} ordinary_count={:?} context_installed={}",
+                    symbol,
+                    formal_count,
+                    indices.len(),
+                    &indices[..indices.len().min(8)],
+                    ordinary_count,
+                    context_installed,
+                );
+            }
+            result
         })
     }
 
