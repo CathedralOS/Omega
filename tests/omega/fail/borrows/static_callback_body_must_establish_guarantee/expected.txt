@@ -1,0 +1,2 @@
+cannot prove ensures contract for exit from keep
+result.bytes.len == source.bytes.len

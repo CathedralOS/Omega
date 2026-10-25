@@ -320,6 +320,50 @@ scope controls remain part of focused validation. Runtime qualification is
 macOS ARM64 native/Terminal agreement; other-host execution and the broader
 opaque/provider/dependent result acceptance remain open.
 
+### Static callable result contracts
+
+Each computed byte-view place now returns its existing composed value through
+`retain_callback<callback_keep>` before the later overwrite. The callback’s fresh
+invocation contract declares both descriptor-length guarantees; the wrapper
+proves those guarantees through that public signature. It does not inspect the
+selected callback body. All earlier ranked/dynamic producers, separate input
+regions, the length-7 consumer and the once-only replacement counter remain in
+the same expression. The source-9 twins still reject at that consumer and at the
+existing returned-window obligation.
+
+The fresh baseline rejects both wrapper guarantees in all nine places. Shared
+contract discovery now recognizes the static callable binder’s declared
+signature. Completed locals in the straight-line proof path publish through the
+same storage-binding operation as the general statement path. This preserves the
+executed result’s identity after a conservative call frame retires earlier
+storage observations; it does not revive an old initializer or pointee contents.
+No special field, callback implementation or source arrangement supplies an
+extra equation.
+
+`controls/static_callback` preserves the original failing wrapper, pinned as
+`pass/borrows/runtime_static_callback_snapshot_exit`.
+`controls/writing_static_callback` retains a named callback result while the
+callback toggles a mutable counter, pinned as
+`pass/borrows/runtime_writing_static_callback_snapshot_exit`. The runtime oracle
+checks that the callback ran once and that overwriting the original descriptor
+left the result’s length at 7.
+
+The reject controls are `fail/borrows/static_callback_requires_public_field_guarantee`
+(a stronger selected implementation cannot replace a missing public clause),
+`static_callback_body_must_establish_guarantee` (the body must prove its promise),
+`static_callback_guarantee_needs_entry_premise` (a guarantee cannot establish its
+own call’s precondition), and
+`static_callback_result_does_not_restore_entry_contents` (a returned reference
+does not restore facts about contents changed by the call). Qualification is
+native/Terminal agreement on macOS ARM64; other-host execution remains open.
+
+The next dependent-return gap is distinct: a runtime-indexed borrow-carrying
+result still cannot name a field-valued index subject such as
+`Counted<'storage, (source.bytes.len)>`. Its snapshot must remain the old value
+after a later descriptor overwrite; replacing that subject with a constant or
+dropping the index would change the requirement. This and general provider
+result composition remain part of the parent acceptance.
+
 ## Requirements and evidence
 
 - Establishment: initial 7 and the completed operand capture establish the fact; checked call/arrival contracts carry it, never the later 9 or an unproved goal.

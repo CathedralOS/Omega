@@ -673,7 +673,10 @@ defines the complete product bar.
     Retain completed descriptor operands across later argument-driven slot
     replacement, including direct views and constructed children with local backing.
     Complete remaining cyclic, opaque/provider and dependent result composition
-    through the same producer and custody relationships. Retain copied returns
+    through the same producer and custody relationships. Runtime-indexed returned
+    carriers still need field-valued index subjects in their result applications;
+    those subjects must retain their captured values across later slot writes,
+    without requiring a closed integer constant or erasing the dependency. Retain copied returns
     through ranked identities and public local-dyn slots, including immutable
     local copies, contextual windows, disjoint writes, borrowed record fields,
     stored array elements and later replacement of former slots. Descriptor-leaf

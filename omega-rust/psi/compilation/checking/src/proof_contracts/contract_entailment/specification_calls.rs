@@ -595,7 +595,16 @@ fn signature_by_symbol(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&StateSignature> {
-    crate::selected_requirement_signature(program, symbol).map(|(_, signature)| signature)
+    crate::selected_requirement_signature(program, symbol)
+        .map(|(_, signature)| signature)
+        .or_else(|| {
+            // A static callable binder owns a public signature just as a
+            // trait requirement does. Import that declared contract before
+            // considering a selected body's stronger private guarantees.
+            program
+                .machine_parameter_signature(symbol)
+                .map(|(_, signature)| signature)
+        })
 }
 
 pub(super) fn owner_symbol(owner: &SelectedCallContract<'_>) -> SymbolHandle {
