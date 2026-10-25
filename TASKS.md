@@ -2912,7 +2912,9 @@ crash and native exit behavior.
   compilation to answer component demands. Compiler evidence owns semantic-binding
   nomination; package review consumes proposals and scopes consumer permissions,
   rather than interpreting checked machines, traits, reaches or provider plans.
-  Checked-state retention, package-owned review orchestration and Terminal
+  Review consumes a compiler-issued evidence product and opaque source owner;
+  checked-state custody, nomination and demand-driven component publication stay
+  behind the compiler facade. Package-owned review orchestration and Terminal
   Build/helper activation scheduling still need migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.

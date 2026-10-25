@@ -12,6 +12,7 @@ pub mod encoding;
 pub mod permission_acceptance;
 pub mod record;
 
+pub use capture::{PackageReviewProjectionError, project_package_review};
 pub use capture::{
     SemanticBindingProjectionError, candidate_hosted_exit_bindings, candidate_service_bindings,
     candidate_target_entry_binding,

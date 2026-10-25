@@ -17,7 +17,7 @@ use std::collections::BTreeSet;
 use symbols::SymbolHandle;
 
 /// Projection failures without resolver or consumer-policy ownership.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SemanticBindingProjectionError {
     Ambiguous {
         role: AcceptedSemanticBindingRole,

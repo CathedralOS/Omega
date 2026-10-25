@@ -38,6 +38,7 @@ pub use crate::checked::{
     settled_check_totals, source_assembly_invocation_count, typed_frontier_reuse_count,
 };
 pub use build_evaluation::BuildSnapshotRequest;
+pub use checked::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
 pub use compilation_products::{
     CompileFailure, CompileOptions, CompileOutcomes, CompileRequest, CompileTargetOutcome,
     CompilerRequestOutcome, RequestedCompileProduct,

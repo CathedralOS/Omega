@@ -2,6 +2,36 @@
 //! representations remain legitimate dependencies; transform crates do not.
 
 #[test]
+fn package_review_retains_products_not_checked_compiler_state() {
+    for source in [
+        include_str!(
+            "../../../packages/package-manager/src/review/candidate/compilation/package_pass.rs"
+        ),
+        include_str!(
+            "../../../packages/package-manager/src/review/candidate/compilation/policy.rs"
+        ),
+        include_str!("../../../packages/package-manager/src/review/candidate/review_cache.rs"),
+    ] {
+        for forbidden in [
+            "compiler::CheckedCompilation",
+            ".check_package_build(",
+            ".execution()",
+            ".build_admission()",
+            "project_checked_package_policy(",
+            "publish_checked_component(",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "package review interprets {forbidden}"
+            );
+        }
+    }
+    let review = include_str!("checked/package_review.rs");
+    assert!(!review.contains("pub fn checked("));
+    assert!(!review.contains("Deref"));
+}
+
+#[test]
 fn package_binding_policy_does_not_interpret_checked_source() {
     let policy =
         include_str!("../../../packages/package-manager/src/review/candidate/semantic_bindings.rs");
