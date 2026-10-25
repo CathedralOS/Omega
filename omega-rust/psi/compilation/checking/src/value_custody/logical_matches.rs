@@ -186,3 +186,41 @@ pub fn expression_has_closed_value_captures(
             && (!saved.pattern_head.is_valid() || expressions.contains(&saved.pattern_head))
     })
 }
+
+/// One owner-specific observation under an authenticated logical capture.
+#[derive(Clone)]
+pub struct LogicalMatchBinding<Subject> {
+    pub capture: LogicalRecordCapture,
+    pub observed: Subject,
+}
+
+/// Resolve only aliases of an active owned match, retaining the relative
+/// nominal projection. The consumer still checks its own observation's type
+/// and readable path; this operation supplies no producer value or premise.
+pub fn logical_saved_subject_projection<Subject: Clone>(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    bindings: &[LogicalMatchBinding<Subject>],
+) -> Option<(Subject, Vec<facts::PlaceSegment>)> {
+    let mut leaf = expression;
+    for _ in 0..64 {
+        match program.expression_table.expression(leaf) {
+            ExpressionNode::Member(member) => leaf = member.receiver,
+            ExpressionNode::Indexed(indexed) => leaf = indexed.collection,
+            ExpressionNode::Borrow(borrow) => leaf = borrow.target,
+            ExpressionNode::SavedSubject(saved) => {
+                let place = crate::canonical_place_from_expression(program, expression)?;
+                let facts::PlaceRoot::Expression(anchor) = place.root else {
+                    return None;
+                };
+                let binding = bindings.iter().rev().find(|binding| {
+                    binding.capture.anchor() == anchor
+                        && binding.capture.permits_alias(program, saved)
+                })?;
+                return Some((binding.observed.clone(), place.segments));
+            }
+            _ => return None,
+        }
+    }
+    None
+}

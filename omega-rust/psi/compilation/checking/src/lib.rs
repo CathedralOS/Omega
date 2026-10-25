@@ -354,7 +354,8 @@ pub use value_custody::literals::{
     scalar_array_preserves_memberships,
 };
 pub use value_custody::logical_matches::{
-    LogicalRecordCapture, expression_has_closed_value_captures, logical_record_match_capture,
+    LogicalMatchBinding, LogicalRecordCapture, expression_has_closed_value_captures,
+    logical_record_match_capture, logical_saved_subject_projection,
 };
 pub use value_custody::places::ownership_place_from_expression_in_state;
 pub use value_custody::places::{assignment_value_type, declared_place_type_raw};

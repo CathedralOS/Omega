@@ -774,6 +774,57 @@ fn stable_predicate_inputs(
     if !ordinary_arguments(program, invocation) {
         return false;
     }
+    // Resolve closed logical bindings to exact formal observations before
+    // checking capture preservation. Saved aliases are not invocation inputs.
+    let parameters = invocation.callable.parameters(program);
+    if let Some(predicate) = crate::values::lower_callable_scalar_contract_predicate(
+        program,
+        &facts.operators,
+        invocation.callable.owner_symbol(),
+        parameters,
+        invocation.callable.result_type(),
+        expression,
+        true,
+        &mut 4096,
+    ) {
+        let result = CanonicalPlace {
+            root: PlaceRoot::Expression(expression),
+            segments: Vec::new(),
+        };
+        if let Some(bound) = boolean_predicates::bind_parameters(
+            program,
+            invocation.callable.owner_symbol(),
+            invocation.callable.target_symbol(),
+            parameters,
+            Some((&result, invocation.callable.result_type())),
+            predicate,
+        ) {
+            let arguments = validation::call_site_argument_expressions(program, &invocation.site);
+            return bound.bindings.iter().all(|binding| {
+                if binding.place.root == result.root {
+                    return true;
+                }
+                let Some(position) = parameters
+                    .iter()
+                    .position(|formal| binding.place.root == PlaceRoot::Symbol(formal.symbol))
+                else {
+                    return false;
+                };
+                let Some(actual) = arguments.get(position) else {
+                    return false;
+                };
+                stable_captured_projection(
+                    program,
+                    facts,
+                    caller,
+                    invocation,
+                    position,
+                    *actual,
+                    &binding.place.segments,
+                )
+            });
+        }
+    }
     let mut occurrences = Vec::new();
     crate::facts::contract_occurrences::append_expression_occurrences(
         program,
@@ -790,14 +841,6 @@ fn stable_predicate_inputs(
         let Some((actual, path)) = actual_projection(program, invocation, occurrence) else {
             return false;
         };
-        let Some(call) = invocation_fact(facts, caller, invocation) else {
-            return false;
-        };
-        let Some((operands, receiver_offset)) =
-            crate::flow::captured_call_operands(program, &facts.flow, caller, call)
-        else {
-            return false;
-        };
         let Some(formal) = formal_place(program, invocation, occurrence) else {
             return false;
         };
@@ -809,27 +852,40 @@ fn stable_predicate_inputs(
         else {
             return false;
         };
-        let Some(operand) = operands.get(receiver_offset + position) else {
-            return false;
-        };
-        if operand.expression != actual
-            || validation::project_type_reference_from_segments(
-                program,
-                operand.type_reference,
-                &path,
-            )
-            .is_none()
-        {
-            return false;
-        }
-        // Stable owned projections keep their captured contents even when
-        // the aggregate carries a separate semantic/linear qualification.
-        // Every prefix must remain owned: a scalar behind a reference is live
-        // storage, not a detached scalar merely because its final type is u64.
-        // Calls returning views retain the existing exact-place/write judge.
-        stable_owned_projection(program, operand.type_reference, &path)
-            || stable_value(program, actual, &mut Vec::new())
+        stable_captured_projection(program, facts, caller, invocation, position, actual, &path)
     })
+}
+
+fn stable_captured_projection(
+    program: &dyn ::validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
+    caller: &FlowStateFact,
+    invocation: &Invocation<'_>,
+    position: usize,
+    actual: ExpressionHandle,
+    path: &[facts::PlaceSegment],
+) -> bool {
+    let Some(call) = invocation_fact(facts, caller, invocation) else {
+        return false;
+    };
+    let Some((operands, receiver_offset)) =
+        crate::flow::captured_call_operands(program, &facts.flow, caller, call)
+    else {
+        return false;
+    };
+    let Some(operand) = operands.get(receiver_offset + position) else {
+        return false;
+    };
+    if operand.expression != actual
+        || validation::project_type_reference_from_segments(program, operand.type_reference, path)
+            .is_none()
+    {
+        return false;
+    }
+    // Reference prefixes remain live storage; preserve the existing exact-place
+    // or detached-copy judgment rather than reconstructing an input value.
+    stable_owned_projection(program, operand.type_reference, path)
+        || stable_value(program, actual, &mut Vec::new())
 }
 
 fn stable_owned_projection(

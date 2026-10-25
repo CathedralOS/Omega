@@ -90,23 +90,15 @@ impl Reader<'_> {
         depth: usize,
     ) -> Option<FieldPath> {
         self.charge(depth)?;
-        let leaf = self.saved_projection_leaf(expression)?;
-        let ExpressionNode::SavedSubject(saved) = self.program.expression_table.expression(leaf)
-        else {
-            return None;
-        };
-        let place = validation::canonical_place_from_expression(self.program, expression)?;
-        let facts::PlaceRoot::Expression(anchor) = place.root else {
-            return None;
-        };
-        let binding = self.logical_captures.iter().rev().find(|binding| {
-            binding.capture.anchor() == anchor && binding.capture.permits_alias(self.program, saved)
-        })?;
-        let mut observed = binding.observed.clone();
+        let (mut observed, segments) = validation::logical_saved_subject_projection(
+            self.program,
+            expression,
+            &self.logical_captures,
+        )?;
         observed.path.extend(
             super::super::super::structural_fields::structural_projection_path(
                 self.program,
-                &place.segments,
+                &segments,
             )?,
         );
         observed.type_reference =

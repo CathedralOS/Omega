@@ -305,10 +305,7 @@ struct FieldPath {
     type_reference: TypeReferenceHandle,
 }
 
-struct LogicalMatchBinding {
-    capture: validation::LogicalRecordCapture,
-    observed: FieldPath,
-}
+type LogicalMatchBinding = validation::LogicalMatchBinding<FieldPath>;
 
 /// One comparison operand, resolved once: its carrier selects the comparison
 /// family and the same resolution lowers it.
