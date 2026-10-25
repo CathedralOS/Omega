@@ -1,13 +1,15 @@
 data Pair { left: u64; right: u32; }
+data Cell { value: u64; }
 machine size_of<Value>() -> u64 { 7 }
-machine align_of() -> u64 { 3 }
+machine align_of(cell: &mut Cell) -> u64 { cell.value = 8; 3 }
+machine done() {}
+machine bad() crashes Trap { crash Trap; }
 machine main() crashes Trap {
+    let mut cell: Cell = Cell { value: 0 };
     let size: u64 = size_of<Pair>();
-    let alignment: u64 = align_of();
-    transition size == 7 && alignment == 3 {
+    let alignment: u64 = align_of(&mut cell);
+    transition size == 7 && alignment == 3 && cell.value == 8 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
 }

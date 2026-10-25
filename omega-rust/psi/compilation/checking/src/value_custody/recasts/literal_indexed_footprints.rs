@@ -261,6 +261,8 @@ fn maximum_recast_footprint(
     collection: ExpressionHandle,
     target_type: TypeReferenceHandle,
 ) -> Option<usize> {
+    let layout_context = crate::LayoutCheckingContext::for_owner(program, machine.symbol);
+    let program: &dyn crate::CheckingInput = &layout_context;
     let backing = crate::value_custody::places::declared_place_type_raw(
         program,
         machine,

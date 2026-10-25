@@ -41,6 +41,8 @@ pub fn stored_integer_source_reach(
     state: &State,
     source: &crate::LocalWriteSource,
 ) -> Result<StoredIntegerReach, ()> {
+    let layout_context = crate::LayoutCheckingContext::for_owner(program, state.symbol);
+    let program: &dyn crate::CheckingInput = &layout_context;
     let targets =
         crate::layout_checking_targets(program, source_layout_roots(program, state, source)?)?;
     let mut reach = StoredIntegerReach::default();

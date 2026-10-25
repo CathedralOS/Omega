@@ -32,6 +32,7 @@ pub fn proof_application_machines(
     target: TargetProfile,
     selected_product: bool,
     providers: &[crate::SelectedProviderReviewProvenance],
+    guarded_owners: &[SymbolHandle],
 ) -> Vec<SymbolHandle> {
     let provider_edges: Vec<_> = providers
         .iter()
@@ -44,7 +45,15 @@ pub fn proof_application_machines(
                 .zip(selected.provider.row_realizations.iter().copied())
         })
         .collect();
-    application_machines(checked, target, selected_product, &provider_edges)
+    let selected_rows: Vec<_> = provider_edges.iter().map(|(_, body)| *body).collect();
+    application_machines(
+        checked,
+        target,
+        selected_product,
+        &provider_edges,
+        guarded_owners,
+        &selected_rows,
+    )
 }
 
 /// Conservative demand discovery may follow every checked candidate. It
@@ -76,7 +85,7 @@ pub fn target_has_proof_demand(
                 .map(|clause| (clause.requirement_symbol, machine.symbol)),
         );
     }
-    application_machines(checked, target, false, &candidates)
+    application_machines(checked, target, false, &candidates, &[], &[])
         .iter()
         .any(|machine| owners.contains(machine))
 }
@@ -86,6 +95,8 @@ fn application_machines(
     target: TargetProfile,
     selected_product: bool,
     provider_edges: &[(SymbolHandle, SymbolHandle)],
+    guarded_owners: &[SymbolHandle],
+    selected_rows: &[SymbolHandle],
 ) -> Vec<SymbolHandle> {
     let typed = &checked.typed;
     let plan = &checked.facts.operational;
@@ -93,7 +104,9 @@ fn application_machines(
     for machine in typed.machines() {
         let authored = typed.machine_authored_target(machine);
         if authored.is_some_and(|name| name == target.target_name())
-            || (selected_product && authored.is_none())
+            || (selected_product
+                && authored.is_none()
+                && (machine.is_public || !guarded_owners.contains(&machine.symbol)))
         {
             pending.push(Application {
                 machine: machine.symbol,
@@ -101,6 +114,26 @@ fn application_machines(
             });
         }
     }
+    // A validated application records the exact body/context pairs that
+    // produced its geometry. Its ordinary private policy and callees are not
+    // independent applications in an unrelated output target. Multiple uses
+    // contribute their full rosters; equal geometry grants no extra context.
+    pending.extend(typed.plan_laid_layouts.iter().flat_map(|layout| {
+        layout
+            .target_layouts(typed)
+            .iter()
+            .filter(|row| row.target.as_str() == target.target_name())
+            .map(|row| Application {
+                machine: row.machine,
+                bindings: Vec::new(),
+            })
+    }));
+    // An admitted interface owns all of its rows, including uncalled ones.
+    // Candidate rows used by demand discovery do not enter this root set.
+    pending.extend(selected_rows.iter().map(|machine| Application {
+        machine: *machine,
+        bindings: Vec::new(),
+    }));
     let mut visited = Vec::new();
     let mut machines = Vec::new();
     while let Some(mut application) = pending.pop() {

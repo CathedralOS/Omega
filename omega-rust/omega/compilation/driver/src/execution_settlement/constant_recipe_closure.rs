@@ -73,6 +73,17 @@ pub(super) fn close_constant_recipes(
                 }
             }
         }
+        for row in typed
+            .plan_laid_layouts
+            .iter()
+            .flat_map(|layout| layout.target_layouts(typed))
+        {
+            let target = target::TargetProfile::from_canonical_target_name(row.target.as_str())
+                .map_err(|reason| vec![reason])?;
+            if !proof_targets.contains(&target) {
+                proof_targets.push(target);
+            }
+        }
     }
     closed_facts.constant_predicate_obligations.clear();
     closed_facts.integer_range_obligations.clear();
@@ -83,6 +94,8 @@ pub(super) fn close_constant_recipes(
         .map(|row| row.caller())
         .chain(range_rows.iter().map(|row| row.owner()))
         .collect();
+    let mut capsules = Vec::new();
+    let mut guarded_owners = Vec::new();
     for target in proof_targets {
         if target != selected_target_profile
             && !provider_planning::target_machines::target_has_proof_demand(
@@ -103,11 +116,34 @@ pub(super) fn close_constant_recipes(
             .map_or(selected_provider_provenance, |selected| {
                 selected.selected_provider_provenance.as_slice()
             });
+        // Establish private ownership only through admitted context roots and
+        // their actual invocation edges. Candidate-provider discovery above
+        // decides what to prepare; it cannot remove a latent body obligation.
+        for owner in provider_planning::target_machines::proof_application_machines(
+            shared,
+            target,
+            false,
+            provenance,
+            &[],
+        ) {
+            if !guarded_owners.contains(&owner) {
+                guarded_owners.push(owner);
+            }
+        }
+        capsules.push((target, supplemental));
+    }
+    for (target, supplemental) in capsules {
+        let provenance = supplemental
+            .as_ref()
+            .map_or(selected_provider_provenance, |selected| {
+                selected.selected_provider_provenance.as_slice()
+            });
         let applications = provider_planning::target_machines::proof_application_machines(
             shared,
             target,
             target == selected_target_profile,
             provenance,
+            &guarded_owners,
         );
         let predicate_applications: Vec<_> = predicate_rows
             .iter()

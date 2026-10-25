@@ -40,9 +40,10 @@ pub use foreign_locator::{
     NormalizedForeignLocator, evaluated_syscall_identity_digest, normalize_foreign_locator,
 };
 pub use target_profile::{
-    Architecture, HostedIntrinsicBundle, NativeTarget, ObjectFormat, ProgramEntryCallingConvention,
-    ProgramEntryPhysicalContractPackage, ProgramEntrySchema, ProgramEntrySlotDeclaration,
-    ProgramEntryVisibleParameters, TargetProfile, TargetWireIdentityError,
+    Architecture, HostedIntrinsicBundle, NativeTarget, ObjectFormat, PhysicalLayoutContext,
+    ProgramEntryCallingConvention, ProgramEntryPhysicalContractPackage, ProgramEntrySchema,
+    ProgramEntrySlotDeclaration, ProgramEntryVisibleParameters, TargetProfile,
+    TargetWireIdentityError,
 };
 pub use target_semantics::{
     SymbolicTargetObservationApplication, TargetEntryStackGuarantee, TargetSemantics, UefiX86_64,

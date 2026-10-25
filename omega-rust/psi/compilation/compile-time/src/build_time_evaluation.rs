@@ -7,6 +7,15 @@
 use std::sync::Arc;
 use typed_trees::references::DeclarationSelection;
 
+/// Availability of query inputs in one named context, before policy execution.
+/// An absent member of a materialized dependency is not a pending producer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LayoutContextInputs {
+    Ready,
+    Pending,
+    Unavailable { application: symbols::SymbolHandle },
+}
+
 /// Layout answers supplied by the physical layout owner before source checking.
 /// Only target-invariant answers may replace occurrences in the portable input;
 /// unresolved or guarded answers retain their query requests.
@@ -26,13 +35,17 @@ pub trait LayoutQueryPreparation {
         Vec<(typed_trees::name::Identifier, symbols::SymbolHandle)>,
         Vec<diagnostics::Diagnostic>,
     >;
+    /// Explicit producer capabilities for an open library surface. These are
+    /// candidates whose input availability must be established independently
+    /// of policy results; declared execution/body contexts remain mandatory.
+    fn library_contexts(&self) -> Vec<typed_trees::name::Identifier>;
     /// Close only this private evaluation input under the exact named context.
     fn prepare_context(
         &self,
         program: &mut typed_trees::TypedTrees,
         selection: &DeclarationSelection,
         target: &str,
-    ) -> Result<(), Vec<diagnostics::Diagnostic>>;
+    ) -> Result<LayoutContextInputs, Vec<diagnostics::Diagnostic>>;
 }
 
 /// Work ownership is narrower than executable lookup. Product work excludes

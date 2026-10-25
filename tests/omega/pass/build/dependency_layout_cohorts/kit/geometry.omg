@@ -1,17 +1,95 @@
 use omega::language::core::layout;
 
+data DependencyHeader { address: addr; }
 public data DependencyPolicy {}
 public data DependencyPayload [copy] { value: u32; }
 public data DependencyView { payload: DependencyPolicy<DependencyPayload>; }
 
 public machine DependencyPolicy::plan(schema: Schema) -> Plan {
+    // A no-entry library supplies geometry without choosing a host deployment.
+    let extent: u64 = size_of<DependencyHeader>();
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 4 } };
-    Plan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 4 }
+    Plan { entries: entries, entry_count: 1, size_fixed: extent, size_is_dynamic: false, align: 4 }
 }
 
 public machine dependency_observation() -> u32 {
     let bytes: [u8; 8] = [17, 0, 0, 0, 34, 0, 0, 0];
     let view: &DependencyView = &bytes[0] as &DependencyView;
+    let joined: u32 = joint_layout_observation(view);
+    match joined == 34u32 { true -> view.payload.value, false -> 0u32 }
+}
+
+// The source has six contexts and the destination four. Recasting checks their
+// shared contexts, without demanding missing geometry in either operand.
+machine joint_layout_observation(view: &DependencyView) -> u32 {
+    let compatible: &JointView = view as &JointView;
+    compatible.payload.value
+}
+
+data JointPolicy {}
+data JointView { payload: JointPolicy<ScopedPayload>; }
+machine JointPolicy::plan(schema: Schema) -> Plan {
+    let underlying_extent: u64 = size_of<ScopedBasePolicy<ScopedPayload>>();
+    let extent: u64 = match underlying_extent >= 4u64 { true -> 8u64, false -> 0u64 };
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 4 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: extent, size_is_dynamic: false, align: 4 }
+}
+
+// Private geometry used only by one authored body must retain that guard.
+
+data ScopedBasePolicy {}
+data ScopedPayload [copy] { value: u32; }
+data ScopedPolicy {}
+data ScopedView { payload: ScopedPolicy<ScopedPayload>; }
+data ScopedSeed { payload: ScopedBasePolicy<ScopedPayload>; }
+
+macos_arm64 machine ScopedBasePolicy::plan(schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 4 }
+}
+
+linux_arm64 machine ScopedBasePolicy::plan(schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 4 }
+}
+
+linux_x86_64 machine ScopedBasePolicy::plan(schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: 4, size_is_dynamic: false, align: 4 }
+}
+
+windows_x86_64 machine ScopedBasePolicy::plan(schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: 4, size_is_dynamic: false, align: 4 }
+}
+
+machine require_scoped_extent() requires size_of<ScopedBasePolicy<ScopedPayload>>() == 8 {}
+machine ScopedPolicy::plan(schema: Schema) -> Plan {
+    require_scoped_extent();
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 8 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: 12, size_is_dynamic: false, align: 4 }
+}
+public macos_arm64 machine scoped_dependency_observation() -> u32 {
+    let mut seed: ScopedSeed;
+    seed.payload.value = 7;
+    let mut view: ScopedView;
+    view.payload.value = 51;
     view.payload.value
 }
+
+windows_x86_64 machine windows_scoped_backing() -> u32 {
+    let bytes: [u8; 4] = [7, 0, 0, 0];
+    let view: &ScopedSeed = &bytes[0] as &ScopedSeed;
+    view.payload.value
+}
+
+public linux_x86_64 machine scoped_dependency_observation() -> u32 { 51 }
+public linux_arm64 machine scoped_dependency_observation() -> u32 { 51 }
+public windows_x86_64 machine scoped_dependency_observation() -> u32 { 51 }

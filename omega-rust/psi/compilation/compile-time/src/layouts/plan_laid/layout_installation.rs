@@ -97,6 +97,9 @@ pub(crate) fn prepare_plan_laid_layouts_in(
         return Ok(Vec::new());
     }
     let applications = bind_applications(typed, records)?;
+    let library_contexts = queries
+        .map(|queries| queries.library_contexts())
+        .unwrap_or_default();
     let mut context_roots = queries
         .map(|queries| queries.context_roots())
         .transpose()?
@@ -127,6 +130,40 @@ pub(crate) fn prepare_plan_laid_layouts_in(
                 ));
             }
         }
+        // An open library declaration supplies capabilities only to its own
+        // dependency closure. A private helper used exclusively by guarded
+        // bodies inherits those guards; merely sharing the catalog does not
+        // make its policy run in every physical context. Public declarations
+        // remain open even when a guarded caller also reaches them. Unreached
+        // private declarations still owe ordinary source formation.
+        let library_demand = if library_contexts.is_empty() {
+            None
+        } else {
+            let roots: Vec<_> = typed_trees::references::collect_program_declarations(typed)
+                .into_iter()
+                .filter(|symbol| domain.contains(*symbol))
+                .filter(|symbol| {
+                    !typed.machine(*symbol).is_some_and(|machine| {
+                        typed.machine_authored_target(machine).is_some()
+                            || machine.target_family_interface
+                    })
+                })
+                .filter(|symbol| {
+                    typed_trees::visibility::declaration_visibility(typed, *symbol)
+                        .is_some_and(|visibility| visibility.is_public())
+                        || !context_demands
+                            .iter()
+                            .any(|(_, demand)| demand.contains(*symbol))
+                })
+                .collect();
+            Some(
+                crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
+                    typed,
+                    &roots,
+                    &[],
+                ),
+            )
+        };
         let input_revision = typed.type_reference_table.revision();
         let previous_work = domain.work().clone();
         let mut waiting = Vec::new();
@@ -136,23 +173,86 @@ pub(crate) fn prepare_plan_laid_layouts_in(
                 application_prerequisites(typed, application, authority.clone(), domain, queries)?;
             let contexts = match (prerequisites, queries) {
                 (ApplicationPrerequisites::Ready, _) => Vec::new(),
-                (ApplicationPrerequisites::LayoutQueries, Some(_)) => {
-                    let mut contexts: Vec<_> = context_roots
+                (ApplicationPrerequisites::LayoutQueries, Some(queries)) => {
+                    let layout = typed
+                        .plan_laid_layout(application)
+                        .expect("bound application");
+                    if typed
+                        .target_machine_families
                         .iter()
-                        .filter(|(_, root)| {
-                            context_demands.iter().any(|(owner, demand)| {
-                                owner == root && demand.contains(application)
+                        .any(|family| family.canonical == layout.policy_plan_machine_symbol)
+                    {
+                        // An authored family already owns its mandatory input
+                        // roster. Each member is prepared under its own guard.
+                        Vec::new()
+                    } else {
+                        let mut contexts: Vec<_> = context_roots
+                            .iter()
+                            .filter(|(_, root)| {
+                                context_demands.iter().any(|(owner, demand)| {
+                                    owner == root && demand.contains(application)
+                                })
                             })
-                        })
-                        .map(|(target, _)| target.clone())
-                        .collect();
-                    contexts.sort_by(|left, right| left.as_str().cmp(right.as_str()));
-                    contexts.dedup();
-                    if contexts.is_empty() {
-                        waiting.push((record, application));
-                        continue;
+                            .map(|(target, _)| target.clone())
+                            .collect();
+                        let mandatory = contexts.clone();
+                        if library_demand
+                            .as_ref()
+                            .is_some_and(|demand| demand.contains(application))
+                        {
+                            let selected = domain.demanded_roots(
+                                typed,
+                                &[layout.schema_symbol, layout.policy_plan_machine_symbol],
+                            );
+                            let mut pending_inputs = false;
+                            for context in &library_contexts {
+                                // Query work is selected, but layout lookup
+                                // still needs the admitted catalog's installed
+                                // applications and authored family identities.
+                                // A policy query's generic operand does not
+                                // independently root the synthesized value type.
+                                let mut inputs = domain.execution_program(typed);
+                                match queries.prepare_context(
+                                    &mut inputs,
+                                    selected.work(),
+                                    context.as_str(),
+                                )? {
+                                    crate::LayoutContextInputs::Ready => {
+                                        contexts.push(context.clone())
+                                    }
+                                    crate::LayoutContextInputs::Pending => pending_inputs = true,
+                                    crate::LayoutContextInputs::Unavailable {
+                                        application: dependency,
+                                    } => {
+                                        if mandatory.contains(context) {
+                                            return Err(vec![Diagnostic::error(format!(
+                                                "layout `{}` requires context `{context}`, but input layout `{}` has no member there",
+                                                record.synthetic_name,
+                                                typed.symbols.name(dependency),
+                                            ))]);
+                                        }
+                                    }
+                                }
+                            }
+                            if pending_inputs {
+                                waiting.push((record, application));
+                                continue;
+                            }
+                            if contexts.is_empty() {
+                                return Err(vec![Diagnostic::error(format!(
+                                    "layout `{}` has no physical context providing its query inputs",
+                                    record.synthetic_name,
+                                ))]);
+                            }
+                        }
+                        contexts.sort_by(|left, right| left.as_str().cmp(right.as_str()));
+                        contexts.dedup();
+                        if contexts.is_empty() {
+                            waiting.push((record, application));
+                            continue;
+                        }
+                        contexts
                     }
-                    contexts
                 }
                 _ => {
                     waiting.push((record, application));
@@ -321,7 +421,16 @@ fn install_plan_laid_layout(
         let execution = if let (Some(queries), Some(target)) = (queries, target) {
             contextual = execution.clone();
             let selected = domain.demanded_roots(typed, &[schema_symbol, machine_symbol]);
-            queries.prepare_context(&mut contextual, selected.work(), target)?;
+            match queries.prepare_context(&mut contextual, selected.work(), target)? {
+                crate::LayoutContextInputs::Ready => {}
+                crate::LayoutContextInputs::Pending => return Ok(None),
+                crate::LayoutContextInputs::Unavailable { application } => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "policy input layout `{}` has no geometry in required context `{target}`",
+                        typed.symbols.name(application),
+                    ))]);
+                }
+            }
             if crate::const_evaluation::data_layout_queries::pending_layout_queries_need_operator_selection(
                 &contextual, selected.work(),
             ) {

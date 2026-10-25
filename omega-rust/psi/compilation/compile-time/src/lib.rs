@@ -30,7 +30,7 @@ mod reflection;
 mod syntax_probes;
 mod wire_demands;
 
-pub use build_time_evaluation::LayoutQueryPreparation;
+pub use build_time_evaluation::{LayoutContextInputs, LayoutQueryPreparation};
 
 pub use language_semantics::wire::WireCompatibilityDemand;
 pub use wire_demands::harvest_wire_compatibility_demands;

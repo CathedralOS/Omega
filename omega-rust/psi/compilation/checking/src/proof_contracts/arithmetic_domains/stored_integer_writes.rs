@@ -33,6 +33,8 @@ pub(crate) fn validate_stored_integer_write(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<CheckedStoredIntegerWrite> {
+    let layout_context = crate::LayoutCheckingContext::for_owner(program, machine.symbol);
+    let program: &dyn crate::CheckingInput = &layout_context;
     let destination_primitive =
         places::declared_place_type_raw(program, machine, state, destination)
             .map(|reference| places::assignment_value_type(program, reference))
@@ -157,6 +159,8 @@ pub fn stored_integer_source_projections(
     source: &crate::LocalWriteSource,
     suffix: &[PlaceSegment],
 ) -> Result<Vec<(SymbolHandle, IntegerType)>, ()> {
+    let layout_context = crate::LayoutCheckingContext::for_owner(program, state.symbol);
+    let program: &dyn crate::CheckingInput = &layout_context;
     let targets =
         crate::layout_checking_targets(program, source_layout_roots(program, state, source)?)?;
     let mut projections = Vec::new();

@@ -22,6 +22,7 @@
 //! already rejected at lowering, where the operand was admitted as a data
 //! type.
 
+use build_time_evaluation::LayoutContextInputs;
 use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::expression::ExpressionNode;
 use checked_trees::typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
@@ -51,6 +52,7 @@ impl build_time_evaluation::LayoutQueryPreparation for SourceLayoutQueries<'_> {
             selection,
             QueryScope::Invariant,
         )
+        .map(|_| ())
     }
 
     fn context_roots(
@@ -87,30 +89,41 @@ impl build_time_evaluation::LayoutQueryPreparation for SourceLayoutQueries<'_> {
         Ok(roots)
     }
 
+    fn library_contexts(&self) -> Vec<typed_trees::name::Identifier> {
+        if !self.root_bindings.is_empty() {
+            return Vec::new();
+        }
+        target::PhysicalLayoutContext::catalog()
+            .map(|context| typed_trees::name::Identifier::from(context.profile().target_name()))
+            .collect()
+    }
+
     fn prepare_context(
         &self,
         program: &mut TypedTrees,
         selection: &typed_trees::references::DeclarationSelection,
         target: &str,
-    ) -> Result<(), Vec<Diagnostic>> {
+    ) -> Result<LayoutContextInputs, Vec<Diagnostic>> {
+        if !typed_trees::references::collect_selected_program_references(program, selection)
+            .expressions.into_iter().any(|expression| matches!(program.expression_table.expression(expression), ExpressionNode::Call(call) if call.layout_query.is_some())) {
+            return Ok(LayoutContextInputs::Ready);
+        }
         let profile = target::TargetProfile::from_canonical_target_name(target)
             .map_err(|diagnostic| vec![diagnostic])?;
-        if matches!(
-            profile,
-            target::TargetProfile::CrossPlatformCli
-                | target::TargetProfile::LocalUnchecked
-                | target::TargetProfile::AlphaBootstrap
-        ) {
-            return Err(vec![Diagnostic::error(format!(
+        let context = target::PhysicalLayoutContext::from_profile(profile).ok_or_else(|| {
+            vec![Diagnostic::error(format!(
                 "layout context `{target}` requires an explicit physical deployment target"
-            ))]);
-        }
-        fold_data_layout_queries(
+            ))]
+        })?;
+        fold_queries(
             program,
-            profile,
             self.opaque_representation_selections,
-            true,
             selection,
+            QueryScope::Selected {
+                target: context.profile(),
+                native: context.native_target(),
+                allow_pending: true,
+            },
         )
     }
 }
@@ -120,6 +133,7 @@ enum QueryScope {
     Invariant,
     Selected {
         target: target::TargetProfile,
+        native: target::NativeTarget,
         allow_pending: bool,
     },
 }
@@ -149,9 +163,18 @@ pub fn fold_data_layout_queries(
         selection,
         QueryScope::Selected {
             target,
+            native: target.native_target(),
             allow_pending: defer_uninstalled_plans,
         },
     )
+    .and_then(|inputs| match inputs {
+        LayoutContextInputs::Ready | LayoutContextInputs::Pending => Ok(()),
+        LayoutContextInputs::Unavailable { application } => Err(vec![Diagnostic::error(format!(
+            "layout application `{}` has no input geometry in context `{}`",
+            program.symbols.name(application),
+            target.target_name(),
+        ))]),
+    })
 }
 
 fn fold_queries(
@@ -159,7 +182,7 @@ fn fold_queries(
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     selection: &checked_trees::typed_trees::references::DeclarationSelection,
     scope: QueryScope,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<LayoutContextInputs, Vec<Diagnostic>> {
     // The proof-only classification is computed over the typed program;
     // a `size_of<Nat>` over recursive data must name the
     // classification instead of reporting the layout builder's zero default.
@@ -222,6 +245,7 @@ fn fold_queries(
             }
             closed
         });
+    let mut inputs = LayoutContextInputs::Ready;
     for (handle, query, reference) in queries {
         let operand = query.operand.type_reference;
         let spelling = query.kind.target_name();
@@ -245,7 +269,10 @@ fn fold_queries(
         }
         let measured = layout::query_type_reference_layout(
             layout_program.as_ref().unwrap_or(program),
-            selected_target.map(target::TargetProfile::native_target),
+            match scope {
+                QueryScope::Selected { native, .. } => Some(native),
+                QueryScope::Invariant => None,
+            },
             opaque_representation_selections,
             operand,
         )
@@ -253,6 +280,31 @@ fn fold_queries(
         let geometry = match measured {
             layout::TypeLayoutQuery::Ready(geometry) => geometry,
             layout::TypeLayoutQuery::Pending(prerequisite) => {
+                // Availability is an input roster fact, not an evaluation
+                // failure: a completed guarded dependency has no such member.
+                // Unfinished plans/extents remain pending and cannot disappear
+                // from the library domain merely because they are not ready.
+                let unavailable = match (selected_target, prerequisite) {
+                    (Some(target), layout::LayoutQueryPrerequisite::PlanGeometry(application)) => {
+                        program
+                            .plan_laid_layout(application)
+                            .filter(|plan| {
+                                plan.is_materialized()
+                                    && plan
+                                        .geometry_for_target(program, Some(target.target_name()))
+                                        .is_none()
+                            })
+                            .map(|_| application)
+                    }
+                    _ => None,
+                };
+                if let Some(application) = unavailable {
+                    inputs = LayoutContextInputs::Unavailable { application };
+                    continue;
+                }
+                if inputs == LayoutContextInputs::Ready {
+                    inputs = LayoutContextInputs::Pending;
+                }
                 if !matches!(
                     scope,
                     QueryScope::Selected {
@@ -297,7 +349,7 @@ fn fold_queries(
             });
         *program.expression_table.expression_mut(handle) = ExpressionNode::Integer(literal);
     }
-    Ok(())
+    Ok(inputs)
 }
 
 /// A `layout_type_reference` of an unresolved fixed array returns the

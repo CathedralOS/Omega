@@ -25,6 +25,8 @@ pub(super) fn validate_construction(
     diagnostics: &mut Vec<Diagnostic>,
     statement_index: usize,
 ) -> Vec<CheckedStoredIntegerWrite> {
+    let layout_context = crate::LayoutCheckingContext::for_owner(program, machine.symbol);
+    let program: &dyn crate::CheckingInput = &layout_context;
     if program.plan_laid_layout(literal.type_symbol).is_none() {
         return Vec::new();
     }

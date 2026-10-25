@@ -23,7 +23,8 @@ ensures
     player.health = 0;
 }
 
-machine break_valid(player: &mut Player) {
+// An ordinary same-named callable retains its writes; only align_of is a query.
+machine size_of<T>(player: &mut Player, measured: u64) {
     player.health = 200;
 }
 
@@ -38,6 +39,6 @@ ensures
 
 machine Main::main(main: &mut Main) {
     mark_valid(&mut main.player);
-    break_valid(&mut main.player);
+    size_of<u8>(&mut main.player, align_of<u64>());
     heal(&mut main.player);
 }

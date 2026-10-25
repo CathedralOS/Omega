@@ -22,6 +22,17 @@ impl<'a> LayoutCheckingContext<'a> {
     pub fn new(input: &'a dyn CheckingInput, target: Option<&'a str>) -> Self {
         Self { input, target }
     }
+
+    /// Authored bodies own their target guard even in a portable library.
+    /// An enclosing exact guard propagates through an unscoped helper.
+    pub fn for_owner(input: &'a dyn CheckingInput, owner: symbols::SymbolHandle) -> Self {
+        let typed = input.typed_program();
+        let authored = typed
+            .machine_by_symbol(owner)
+            .or_else(|| typed.machine_holding_state(owner))
+            .and_then(|machine| typed.machine_authored_target(machine));
+        Self::new(input, input.layout_target().or(authored))
+    }
 }
 
 impl CheckingInput for LayoutCheckingContext<'_> {
@@ -38,10 +49,14 @@ impl CheckingInput for LayoutCheckingContext<'_> {
     fn authored_declaration_selections(&self) -> &AuthoredDeclarationSelections {
         self.input.authored_declaration_selections()
     }
-    // Memos were prepared without this guard. Reusing them could mix distinct
-    // representation judgments even though the semantic source is unchanged.
+    // A changed guard cannot borrow unguarded representation judgments.
+    // Merely carrying the same owner/context need not discard its memos.
     fn checking_memos(&self) -> Option<&CheckingMemos> {
-        None
+        if self.target == self.input.layout_target() {
+            self.input.checking_memos()
+        } else {
+            None
+        }
     }
     fn proof_only_classification(&self) -> Arc<ProofOnlyClassification> {
         // Containment and erasure are fixed by the typed program, not this
@@ -68,6 +83,7 @@ pub(crate) fn layout_application_is_complete(
     layout: &PlanLaidLayout,
 ) -> bool {
     let span = match layout.realizations {
+        PlanLaidRealizations::Pending => return false,
         PlanLaidRealizations::TargetFamily(span) => span,
         PlanLaidRealizations::TargetContexts { contexts, layouts } => {
             let (Some(contexts), Some(rows)) = (
@@ -174,7 +190,7 @@ fn discover_layout_checking_targets(
 ) -> Result<Vec<Option<&str>>, ()> {
     let mut pending: Vec<_> = roots.into_iter().collect();
     let mut visited = Vec::new();
-    let mut targets = Vec::new();
+    let mut targets: Option<Vec<Option<&str>>> = None;
     while let Some(reference) = pending.pop() {
         if !reference.is_valid() || visited.contains(&reference) {
             continue;
@@ -201,9 +217,22 @@ fn discover_layout_checking_targets(
                     if !layout_application_is_complete(program, layout) {
                         return Err(());
                     }
-                    for row in layout.target_layouts(program.typed_program()) {
-                        if !targets.contains(&Some(row.target.as_str())) {
-                            targets.push(Some(row.target.as_str()));
+                    let rows = layout.target_layouts(program.typed_program());
+                    if !rows.is_empty() {
+                        // Every operand must exist in the same context. Input
+                        // preparation has already enforced mandatory demands;
+                        // absence there cannot disappear at this domain join.
+                        match &mut targets {
+                            None => {
+                                targets =
+                                    Some(rows.iter().map(|row| Some(row.target.as_str())).collect())
+                            }
+                            Some(targets) => targets.retain(|target| {
+                                rows.iter().any(|row| *target == Some(row.target.as_str()))
+                            }),
+                        }
+                        if targets.as_ref().is_some_and(Vec::is_empty) {
+                            return Err(());
                         }
                     }
                 }
@@ -216,8 +245,5 @@ fn discover_layout_checking_targets(
             }
         }
     }
-    if targets.is_empty() {
-        targets.push(None);
-    }
-    Ok(targets)
+    Ok(targets.unwrap_or_else(|| vec![None]))
 }

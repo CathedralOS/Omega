@@ -41,6 +41,8 @@ pub(crate) fn judge_scalar_recast(
     source_borrow_access: Option<language_core::ReferenceAccess>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let layout_context = crate::LayoutCheckingContext::for_owner(program, machine.symbol);
+    let program: &dyn crate::CheckingInput = &layout_context;
     let source = strip_mutable(program, cast.value);
     let source_type = crate::value_custody::places::declared_place_type_raw(
         program,

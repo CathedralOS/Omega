@@ -60,6 +60,49 @@ pub enum TargetProfile {
     AlphaBootstrap,
 }
 
+/// A catalogued context with concrete physical layout inputs. Recognition of a
+/// deployment profile is weaker: adapter profiles resolve against their host,
+/// and Alpha has no native geometry. Neither is a library layout capability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PhysicalLayoutContext {
+    profile: TargetProfile,
+    native: NativeTarget,
+}
+
+impl PhysicalLayoutContext {
+    pub fn from_profile(profile: TargetProfile) -> Option<Self> {
+        match profile {
+            TargetProfile::LinuxArm64
+            | TargetProfile::LinuxX64
+            | TargetProfile::MacosArm64
+            | TargetProfile::MacosX64
+            | TargetProfile::WindowsX64
+            | TargetProfile::UefiX64 => Some(Self {
+                profile,
+                native: profile.native_target(),
+            }),
+            TargetProfile::CrossPlatformCli
+            | TargetProfile::LocalUnchecked
+            | TargetProfile::AlphaBootstrap => None,
+        }
+    }
+
+    /// Capabilities supplied by this producer, not requested output targets or
+    /// a promise that every source operand has a layout in every context.
+    pub fn catalog() -> impl Iterator<Item = Self> {
+        TargetProfile::ALL
+            .into_iter()
+            .filter_map(Self::from_profile)
+    }
+
+    pub const fn profile(self) -> TargetProfile {
+        self.profile
+    }
+    pub const fn native_target(self) -> NativeTarget {
+        self.native
+    }
+}
+
 /// Stable, domain-separated identity of one deployment profile.
 ///
 /// Source spelling and enum order are presentation details. Retained target

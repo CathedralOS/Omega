@@ -257,11 +257,16 @@ pub(crate) fn expression_call_only_observes_operands(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
-    matches!(
-        classify_expression_call_intrinsic(program, call),
-        Some(
-            AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(_)
-                | AuthoredDeclarationSelectionIntrinsic::StorageAddress
+    // Lowering forms this request only for the compiler operation, with no
+    // receiver or runtime arguments. Its effect must survive physical query
+    // folding: replacing geometry with an integer cannot remove caller writes.
+    // A resolved same-spelled declaration carries no layout_query request.
+    call.layout_query.is_some()
+        || matches!(
+            classify_expression_call_intrinsic(program, call),
+            Some(
+                AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(_)
+                    | AuthoredDeclarationSelectionIntrinsic::StorageAddress
+            )
         )
-    )
 }
