@@ -96,6 +96,13 @@ pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
     entry_contexts: &[facts::FactContextHandle],
     fact: &facts::Fact,
     call_frames: Option<&validation::CallFrameResolver<'program>>,
+    cached_exit_values: &mut Option<
+        Option<(
+            &'program typed_trees::machine::Machine,
+            crate::checks::current_scalar_values::CurrentScalarValues<'program>,
+            typed_trees::expression::ExpressionHandle,
+        )>,
+    >,
 ) -> bool {
     matches!(
         fact.payload,
@@ -110,8 +117,14 @@ pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
         },
         entry_contexts,
         fact,
-    ) || super::current_values::proves_exit(program, facts, exit_flow, fact, call_frames)
-        || scalars::proves(program, facts, exit_flow, entry_contexts, fact, call_frames))
+    ) || super::current_values::proves_exit(
+        program,
+        facts,
+        exit_flow,
+        fact,
+        call_frames,
+        cached_exit_values,
+    ) || scalars::proves(program, facts, exit_flow, entry_contexts, fact, call_frames))
 }
 
 pub(super) fn check_exit_ensures(
@@ -133,6 +146,7 @@ pub(super) fn check_exit_ensures(
         .iter()
         .map(|context_ref| context_ref.context)
         .collect();
+    let mut cached_exit_values = None;
     for ensures_context in facts
         .flow
         .semantic_constraint_contexts(exit_flow.ensures_constraints)
@@ -164,72 +178,15 @@ pub(super) fn check_exit_ensures(
             if admitted_boundary_result {
                 continue;
             }
-            let missing_origins = facts
-                .flow
-                .control
-                .exit_parameter_origins
-                .span_or_empty(exit_flow.parameter_origins)
-                .iter()
-                .filter(|origin| {
-                    Some(origin.contract) == contract
-                        && !origin.state_parameter.is_valid()
-                        && !origin.retained_referent_type.is_valid()
-                })
-                .map(|origin| program.symbols.name(origin.entry_parameter))
-                .collect::<Vec<_>>();
-            let proved = if matches!(
-                fact.payload,
-                facts::FactPayload::ContractBooleanExpression { .. }
-            ) {
-                live_contexts_prove_scalar_postcondition(
-                    program,
-                    facts,
-                    exit_flow,
-                    &entry_contexts,
-                    fact,
-                    call_frames,
-                )
-            } else {
-                semantic_contexts_prove_contract_fact(
-                    program,
-                    facts,
-                    facts::ProgramPoint::Statement {
-                        machine_symbol: exit_flow.machine_symbol,
-                        state_symbol: exit_flow.state_symbol,
-                        statement_index: exit_flow.statement_index,
-                    },
-                    &entry_contexts,
-                    fact,
-                )
-            };
-            // Issuer authority establishes the exact returned subject. It
-            // cannot discharge an otherwise unproved guarantee about an input,
-            // even when the same declaration also issues a qualified result.
-            let authorized_route = match fact.payload {
-                facts::FactPayload::ContractDomainMembership {
-                    domain_symbol,
-                    value,
-                    ..
-                } => validation::reserved_result_owner(program, value).is_some_and(|(owner, _)| {
-                    if owner != state_flow.machine_symbol && owner != state_flow.state_symbol {
-                        return false;
-                    }
-                    program.machine(state_flow.machine_symbol).is_some_and(|machine| {
-                        crate::facts::qualification_evidence::machine_has_checked_domain_establishment(
-                            program,
-                            machine,
-                            domain_symbol,
-                        )
-                    })
-                }),
+            let checked_entailment = match fact.payload {
+                facts::FactPayload::ContractBooleanExpression { expression, .. } => {
+                    entailment.expressions.contains(&expression)
+                }
                 _ => false,
             };
-            let route_predicates_satisfied = match fact.payload {
-                facts::FactPayload::ContractDomainMembership { domain_symbol, .. } => program
-                    .domain_definition(domain_symbol)
-                    .is_none_or(|domain| !domain.predicate_body.is_present() || proved),
-                _ => true,
-            };
+            if checked_entailment {
+                continue;
+            }
             // Named witness-bearing `ensures` lanes are discharged by the
             // separate evidence-forwarding proof pass. That pass validates
             // exact term identity, proposition/interface agreement,
@@ -249,52 +206,129 @@ pub(super) fn check_exit_ensures(
                 }),
                 _ => false,
             };
-            let float_meaning_reflexivity = direct_result_float_meaning_reflexivity_proves_exit(
-                facts,
-                state_flow.machine_symbol,
-                fact,
-            );
-            let checked_entailment = match fact.payload {
-                facts::FactPayload::ContractBooleanExpression { expression, .. } => {
-                    entailment.expressions.contains(&expression)
-                }
-                _ => false,
-            };
-            let satisfied = checked_entailment
-                || evidence_assignment
-                || (missing_origins.is_empty()
-                    && (proved
-                        || result_domains::proves_result_domain(
+            if evidence_assignment {
+                continue;
+            }
+            let missing_origins = facts
+                .flow
+                .control
+                .exit_parameter_origins
+                .span_or_empty(exit_flow.parameter_origins)
+                .iter()
+                .filter(|origin| {
+                    Some(origin.contract) == contract
+                        && !origin.state_parameter.is_valid()
+                        && !origin.retained_referent_type.is_valid()
+                })
+                .map(|origin| program.symbols.name(origin.entry_parameter))
+                .collect::<Vec<_>>();
+            let mut proved_cache = None;
+            let mut is_proved = || {
+                *proved_cache.get_or_insert_with(|| {
+                    if matches!(
+                        fact.payload,
+                        facts::FactPayload::ContractBooleanExpression { .. }
+                    ) {
+                        live_contexts_prove_scalar_postcondition(
                             program,
                             facts,
                             exit_flow,
                             &entry_contexts,
                             fact,
+                            call_frames,
+                            &mut cached_exit_values,
                         )
-                        || super::content_preservation::proves_exit(
+                    } else {
+                        semantic_contexts_prove_contract_fact(
                             program,
                             facts,
-                            state_flow,
-                            exit_flow,
+                            facts::ProgramPoint::Statement {
+                                machine_symbol: exit_flow.machine_symbol,
+                                state_symbol: exit_flow.state_symbol,
+                                statement_index: exit_flow.statement_index,
+                            },
+                            &entry_contexts,
                             fact,
-                            content_plans,
                         )
-                        || crate::checks::content::proves_composed_exit(
-                            facts, exit_flow, fact, content_plans,
-                        )
-                        || super::integer_embeddings::proves_exit_equality(
-                            program, state_flow, exit_flow, fact,
-                        )
-                        || super::integer_embeddings::proves_embedded_literal_exit(
-                            program, state_flow, exit_flow, fact,
-                        )
-                        || float_meaning_reflexivity
-                        || super::entailment::integral_parameter_reflexivity(program, fact)
-                        || super::entailment::transparent_proposition_proves_exit(
-                            program, facts, entailment, state_flow, fact,
-                        )
-                        || collection_premises_prove_exit(program, state_flow, fact)
-                        || (authorized_route && route_predicates_satisfied)))
+                    }
+                })
+            };
+            let satisfied = (missing_origins.is_empty()
+                && (is_proved()
+                    || result_domains::proves_result_domain(
+                        program,
+                        facts,
+                        exit_flow,
+                        &entry_contexts,
+                        fact,
+                    )
+                    || super::content_preservation::proves_exit(
+                        program,
+                        facts,
+                        state_flow,
+                        exit_flow,
+                        fact,
+                        content_plans,
+                    )
+                    || crate::checks::content::proves_composed_exit(
+                        facts, exit_flow, fact, content_plans,
+                    )
+                    || super::integer_embeddings::proves_exit_equality(
+                        program, state_flow, exit_flow, fact,
+                    )
+                    || super::integer_embeddings::proves_embedded_literal_exit(
+                        program, state_flow, exit_flow, fact,
+                    )
+                    || direct_result_float_meaning_reflexivity_proves_exit(
+                        facts,
+                        state_flow.machine_symbol,
+                        fact,
+                    )
+                    || super::entailment::integral_parameter_reflexivity(program, fact)
+                    || super::entailment::transparent_proposition_proves_exit(
+                        program, facts, entailment, state_flow, fact,
+                    )
+                    || collection_premises_prove_exit(program, state_flow, fact)
+                    || {
+                        // Issuer authority establishes the exact returned subject. It
+                        // cannot discharge an otherwise unproved guarantee about an input,
+                        // even when the same declaration also issues a qualified result.
+                        let authorized_route = match fact.payload {
+                            facts::FactPayload::ContractDomainMembership {
+                                domain_symbol,
+                                value,
+                                ..
+                            } => validation::reserved_result_owner(program, value).is_some_and(
+                                |(owner, _)| {
+                                    if owner != state_flow.machine_symbol
+                                        && owner != state_flow.state_symbol
+                                    {
+                                        return false;
+                                    }
+                                    program.machine(state_flow.machine_symbol).is_some_and(
+                                        |machine| {
+                                            crate::facts::qualification_evidence::machine_has_checked_domain_establishment(
+                                                program,
+                                                machine,
+                                                domain_symbol,
+                                            )
+                                        },
+                                    )
+                                },
+                            ),
+                            _ => false,
+                        };
+                        authorized_route
+                            && match fact.payload {
+                                facts::FactPayload::ContractDomainMembership {
+                                    domain_symbol,
+                                    ..
+                                } => program.domain_definition(domain_symbol).is_none_or(
+                                    |domain| !domain.predicate_body.is_present() || is_proved(),
+                                ),
+                                _ => true,
+                            }
+                    }))
                 // A re-entered parameter has no exact origin, so every route
                 // above is vetoed; a proved header invariant is the guarantee
                 // itself at the header and needs no origin.

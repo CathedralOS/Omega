@@ -442,9 +442,8 @@ fn carried_exclusive_referents(
         )?;
         actual.segments.extend(projection.remaining);
         let owner_root = actual.root.as_symbol()?;
-        for (handle, loan) in borrow.loans.iter() {
-            if !borrow.state_owns_loan(caller_state, handle)
-                || !loan.kind.is_exclusive()
+        for (_, loan) in borrow.state_loans(caller_state) {
+            if !loan.kind.is_exclusive()
                 || loan.owner_symbol != owner_root
                 || !owner_path_overlaps(program, borrow.loan_owner_path(loan), &actual.segments)
             {

@@ -51,6 +51,9 @@ impl Elaborator<'_> {
     }
 
     pub(super) fn retain_source_evidence_carriers(&mut self) -> Result<(), Vec<Diagnostic>> {
+        if self.indexed_families.is_empty() {
+            return Ok(());
+        }
         let mut families = self.indexed_families.values().cloned().collect::<Vec<_>>();
         families.sort_by_key(|family| family.symbol.arena_index());
         for family in families {
@@ -317,6 +320,9 @@ impl Elaborator<'_> {
         use proof_admission::{Signature, Term, judgment_assumption_closure};
         use typed_trees::domain::ProofFact;
         use typed_trees::signature::SignatureContractKind;
+        if self.indexed_families.is_empty() {
+            return Ok(());
+        }
         let machines = self.program.machines().to_vec();
         for machine in &machines {
             let Some(entry) = self.program.machine_states(machine).first() else {
@@ -690,6 +696,11 @@ impl Elaborator<'_> {
     /// Retain each exact immutable erased local use from its checked initializer.
     /// A use cannot acquire evidence merely from its receiving destination.
     pub(super) fn retain_source_evidence_aliases(&mut self) -> Result<(), Vec<Diagnostic>> {
+        if self.prepared.source_evidence.is_empty()
+            && self.prepared.source_constructors.is_empty()
+        {
+            return Ok(());
+        }
         let owners = validation::expression_owners::OwnerEnvironmentIndex::new(
             self.program,
             &arena::Arena::default(),

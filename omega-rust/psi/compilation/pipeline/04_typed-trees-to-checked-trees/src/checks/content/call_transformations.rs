@@ -28,6 +28,9 @@ pub(crate) fn observe_call_completion(
     evaluation: FlowPermissionEvaluation,
     events: &[FlowPermissionEventFact],
 ) {
+    if facts.qualifications.content.conservation_plans.is_empty() {
+        return;
+    }
     let Some(state_flow) = facts.flow.control.state(machine, state) else {
         return;
     };

@@ -99,12 +99,7 @@ fn check_stored_output_relations(
             if borrowing.loans.is_empty() {
                 continue;
             }
-            for (_, loan) in facts
-                .borrow
-                .loans
-                .iter()
-                .filter(|(handle, _)| facts.borrow.state_owns_loan(borrowing, *handle))
-            {
+            for (_, loan) in facts.borrow.state_loans(borrowing) {
                 if facts.borrow.loan_owner_path(loan).is_empty()
                     || !program
                         .state_parameters(state)

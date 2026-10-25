@@ -389,6 +389,7 @@ pub use proof_contracts::arithmetic_domains::normal_return_integer_bounds;
 pub use proof_contracts::arithmetic_domains::normal_return_length_collection;
 pub use proof_contracts::arithmetic_domains::occurrence_integer_expression_bounds;
 pub use proof_contracts::arithmetic_domains::occurrence_integer_expression_fits_range;
+pub use proof_contracts::arithmetic_domains::occurrence_integer_expressions_bounds;
 pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;
 pub use proof_contracts::arithmetic_domains::validate_ordered_requirement_call_totality;
 pub use proof_contracts::arithmetic_domains::{

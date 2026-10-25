@@ -18,7 +18,7 @@ use crate::proof_contracts::arithmetic_domains::expression_analysis::{
 use symbols::SymbolHandle;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
-use super::requirements::{RequirementSeeds, machine_written_paths, seed_state_requirements};
+use super::requirements::{RequirementSeeds, machine_written_paths};
 
 mod transition_arguments;
 
@@ -82,6 +82,52 @@ pub fn occurrence_integer_expression_bounds(
     .interval?;
     let (low, high) = (interval.low?, interval.high?);
     (low <= high).then_some((low, high))
+}
+
+pub fn occurrence_integer_expressions_bounds(
+    program: &dyn crate::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expressions: &[ExpressionHandle],
+) -> Vec<(ExpressionHandle, Option<(i64, i64)>)> {
+    if expressions.is_empty() {
+        return Vec::new();
+    }
+    let Some(observations) = expression_observations(
+        program,
+        machine_symbol,
+        state_symbol,
+        Some(statement_index),
+        expressions.to_vec(),
+    ) else {
+        return expressions
+            .iter()
+            .map(|expression| (*expression, None))
+            .collect();
+    };
+    expressions
+        .iter()
+        .map(|expression| {
+            let bounds = observations
+                .binary_search_by_key(
+                    &(expression.arena_index(), expression.generation()),
+                    |observation| {
+                        (
+                            observation.expression.arena_index(),
+                            observation.expression.generation(),
+                        )
+                    },
+                )
+                .ok()
+                .and_then(|pos| observations[pos].interval)
+                .and_then(|interval| {
+                    let (low, high) = (interval.low?, interval.high?);
+                    (low <= high).then_some((low, high))
+                });
+            (*expression, bounds)
+        })
+        .collect()
 }
 
 /// Judge a closed bound at one exact value occurrence. Independent operand
@@ -248,6 +294,7 @@ pub(crate) fn occurrence_value_environments(
             .map(ExpressionObservation::environment)
             .collect(),
         infer_call_bodies: true,
+        collect_arrivals: false,
     };
     walk.state(state, &mut environment);
     OccurrenceValueEnvironments {
@@ -262,18 +309,42 @@ fn expression_observation(
     statement_index: Option<usize>,
     expression: ExpressionHandle,
 ) -> Option<ExpressionObservation> {
+    expression_observations(
+        program,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        vec![expression],
+    )?
+    .pop()
+}
+
+fn expression_observations(
+    program: &dyn crate::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: Option<usize>,
+    mut expressions: Vec<ExpressionHandle>,
+) -> Option<Vec<ExpressionObservation>> {
+    expressions.retain(|expression| expression.is_valid());
+    expressions
+        .sort_unstable_by_key(|expression| (expression.arena_index(), expression.generation()));
+    expressions.dedup();
+    if expressions.is_empty() {
+        return Some(Vec::new());
+    }
     let (machine, state) = program.machine_state(machine_symbol, state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let order = program
         .statement_table
         .finite_execution_order(state.statement_nodes)
         .ok()??;
-    let (prefix, observed_statements) = match statement_index {
+    let (prefix, single_target) = match statement_index {
         Some(index) => {
             let position = order.iter().position(|source| *source == index)?;
-            (&order[..position], &order[position..position + 1])
+            (&order[..position], Some(&statements[index]))
         }
-        None => (&order[..0], order.as_slice()),
+        None => (&order[..0], None),
     };
     let frames = CallFrameResolver::new(program);
     let mut environment = incoming_guard_environment(program, machine, state, frames.as_ref());
@@ -284,6 +355,7 @@ fn expression_observation(
         arrivals: Vec::new(),
         observations: Vec::new(),
         infer_call_bodies: true,
+        collect_arrivals: false,
     };
     if !walk.statements(
         state,
@@ -292,19 +364,26 @@ fn expression_observation(
     ) {
         return None;
     }
-    walk.observations.push(ExpressionObservation {
-        include_bounds: true,
-        recipe: None,
-        expression,
-        interval: None,
-        environment: None,
-    });
-    walk.statements(
-        state,
-        observed_statements.iter().map(|index| &statements[*index]),
-        &mut environment,
-    );
-    walk.observations.pop()
+    walk.observations = expressions
+        .into_iter()
+        .map(|expression| ExpressionObservation {
+            include_bounds: true,
+            recipe: None,
+            expression,
+            interval: None,
+            environment: None,
+        })
+        .collect();
+    if let Some(statement) = single_target {
+        walk.observe_single_statement(state, statement, &mut environment);
+    } else {
+        walk.statements(
+            state,
+            order.iter().map(|index| &statements[*index]),
+            &mut environment,
+        );
+    }
+    Some(walk.observations)
 }
 
 /// A captured invocation supplies immutable entry values. This uses the same
@@ -344,6 +423,10 @@ pub(super) fn incoming_environments(
                 machine_written.as_deref(),
             )
         })
+        .collect::<Vec<_>>();
+    let has_in_machine_arrivals = states
+        .iter()
+        .map(|state| state_has_in_machine_arrivals(program, machine, state))
         .collect::<Vec<_>>();
     // A source body starts at its ordinary entry; a selected state call
     // starts at that exact declaration. The external arrival is immutable in
@@ -398,56 +481,80 @@ pub(super) fn incoming_environments(
             }
             external
         });
-    // One round per state propagates acyclic chains. Cycles also contribute in
-    // every round, starting with their full declared parameter domains. There
-    // is no assumption that a seed guard is an inductive loop invariant.
-    // A state's walk reads only its own incoming environment, so its arrivals
-    // are kept until that environment changes, and every round rejoins all
-    // kept arrivals in state order.
-    let mut arrivals = vec![Vec::new(); states.len()];
-    let mut stale = vec![true; states.len()];
-    for _ in 0..=states.len() {
-        for (index, ((state, (_, environment)), state_seeds)) in
-            states.iter().zip(&current).zip(&seeds).enumerate()
-        {
-            if !stale[index] {
-                continue;
+    if let Some(external) = &external
+        && let Some((_, slot)) = current.get_mut(external_index)
+    {
+        *slot = external.clone();
+    }
+    let mut external_received_arrival = false;
+    if has_in_machine_arrivals.iter().any(|&has| has) {
+        // One round per state propagates acyclic chains. Cycles also contribute in
+        // every round, starting with their full declared parameter domains. There
+        // is no assumption that a seed guard is an inductive loop invariant.
+        // A state's walk reads only its own incoming environment, so its arrivals
+        // are kept until that environment changes, and every round rejoins all
+        // kept arrivals in state order.
+        let mut arrivals = vec![Vec::new(); states.len()];
+        let mut stale = vec![true; states.len()];
+        for round in 0..=states.len() {
+            for (index, ((state, (_, environment)), state_seeds)) in
+                states.iter().zip(&current).zip(&seeds).enumerate()
+            {
+                if !stale[index] || !has_in_machine_arrivals[index] {
+                    continue;
+                }
+                let mut walk = ArrivalWalk {
+                    program,
+                    machine,
+                    frames,
+                    arrivals: Vec::new(),
+                    observations: Vec::new(),
+                    infer_call_bodies: invocation.is_none(),
+                    collect_arrivals: true,
+                };
+                let mut environment = environment.clone();
+                if round > 0 || index != external_index || invocation.is_some() {
+                    state_seeds.apply(program, machine, state, &mut environment);
+                }
+                walk.state(state, &mut environment);
+                arrivals[index] = walk.arrivals;
             }
-            let mut walk = ArrivalWalk {
-                program,
-                machine,
-                frames,
-                arrivals: Vec::new(),
-                observations: Vec::new(),
-                infer_call_bodies: invocation.is_none(),
-            };
-            let mut environment = environment.clone();
-            state_seeds.apply(program, machine, state, &mut environment);
-            walk.state(state, &mut environment);
-            arrivals[index] = walk.arrivals;
+            let mut joined: Vec<Option<ValueEnvironment>> = vec![None; states.len()];
+            if let Some(external) = &external {
+                joined[external_index] = Some(external.clone());
+            }
+            external_received_arrival = false;
+            for (target, environment) in arrivals.iter().flatten() {
+                if *target == external_index {
+                    external_received_arrival = true;
+                }
+                joined[*target] = Some(match joined[*target].take() {
+                    Some(previous) => previous.join(environment),
+                    None => environment.clone(),
+                });
+            }
+            let next = states
+                .iter()
+                .zip(joined)
+                .map(|(state, environment)| (state.symbol, environment.unwrap_or_default()))
+                .collect::<Vec<_>>();
+            if next == current {
+                current = next;
+                break;
+            }
+            for ((stale, (_, next)), (_, current)) in stale.iter_mut().zip(&next).zip(&current) {
+                *stale = next != current;
+            }
+            current = next;
         }
-        let mut joined: Vec<Option<ValueEnvironment>> = vec![None; states.len()];
-        if let Some(external) = &external {
-            joined[external_index] = Some(external.clone());
+    }
+    for (index, ((state, (_, environment)), state_seeds)) in
+        states.iter().zip(&mut current).zip(&seeds).enumerate()
+    {
+        if index == external_index && invocation.is_none() && !external_received_arrival {
+            continue;
         }
-        for (target, environment) in arrivals.iter().flatten() {
-            joined[*target] = Some(match joined[*target].take() {
-                Some(previous) => previous.join(environment),
-                None => environment.clone(),
-            });
-        }
-        let next = states
-            .iter()
-            .zip(joined)
-            .map(|(state, environment)| (state.symbol, environment.unwrap_or_default()))
-            .collect::<Vec<_>>();
-        if next == current {
-            return next;
-        }
-        for ((stale, (_, next)), (_, current)) in stale.iter_mut().zip(&next).zip(&current) {
-            *stale = next != current;
-        }
-        current = next;
+        state_seeds.apply(program, machine, state, environment);
     }
     current
 }
@@ -634,7 +741,6 @@ fn discover_normal_return_interval(
             let mut environment = incoming.iter().find_map(|(symbol, environment)| {
                 (*symbol == state.symbol).then(|| environment.clone())
             })?;
-            seed_state_requirements(program, machine, state, frames.as_ref(), &mut environment);
             let mut walk = ArrivalWalk {
                 program,
                 machine,
@@ -648,6 +754,7 @@ fn discover_normal_return_interval(
                     environment: None,
                 }],
                 infer_call_bodies: false,
+                collect_arrivals: false,
             };
             walk.state(state, &mut environment);
             let observed = walk.observations.pop()?;
@@ -695,6 +802,7 @@ struct ArrivalWalk<'program, 'frames> {
     arrivals: Vec<(usize, ValueEnvironment)>,
     observations: Vec<ExpressionObservation>,
     infer_call_bodies: bool,
+    collect_arrivals: bool,
 }
 
 impl ArrivalWalk<'_, '_> {
@@ -784,6 +892,33 @@ impl ArrivalWalk<'_, '_> {
             self.frames
                 .and_then(|frames| frames.expression_may_write_paths(self.machine, expression)),
         );
+    }
+
+    fn should_arrive(&self, symbol: SymbolHandle) -> bool {
+        self.collect_arrivals
+            && symbol.is_valid()
+            && self
+                .program
+                .machine_states(self.machine)
+                .iter()
+                .any(|state| state.symbol == symbol)
+    }
+
+    fn visit_call_or_target(
+        &mut self,
+        source: &State,
+        symbol: SymbolHandle,
+        arguments: &[ExpressionHandle],
+        environment: &mut ValueEnvironment,
+    ) {
+        if self.should_arrive(symbol) {
+            let intervals = self.arguments(source, arguments, environment);
+            self.arrive(source, symbol, arguments, &intervals, environment);
+        } else {
+            for argument in arguments {
+                self.expression(source, *argument, environment);
+            }
+        }
     }
 
     fn arguments(
@@ -915,8 +1050,7 @@ impl ArrivalWalk<'_, '_> {
                 path, arguments, ..
             } => {
                 let arguments = self.program.statement_table.expression_handles(*arguments);
-                let intervals = self.arguments(source, arguments, environment);
-                self.arrive(source, path.symbol, arguments, &intervals, environment);
+                self.visit_call_or_target(source, path.symbol, arguments, environment);
             }
             TransitionTargetNode::Value(expression) => {
                 self.expression(source, *expression, environment)
@@ -955,37 +1089,65 @@ impl ArrivalWalk<'_, '_> {
         for statement in statements {
             match statement {
                 StatementNode::Transition(transition) => {
-                    let mut selected = environment.clone();
-                    let mut fallback = environment.clone();
+                    let target_needs_walk = transition.target.is_valid()
+                        && !matches!(
+                            self.program
+                                .statement_table
+                                .transition_target(transition.target),
+                            TransitionTargetNode::Terminal
+                        );
+                    let continuation_needs_walk = transition.continuation.is_valid()
+                        && !matches!(
+                            self.program
+                                .statement_table
+                                .transition_target(transition.continuation),
+                            TransitionTargetNode::Terminal
+                        );
+                    let mut selected = None;
+                    let mut fallback = None;
                     if let TransitionGuardNode::When(condition) = transition.guard {
-                        selected = super::evaluated_condition_environment(
-                            self.program,
-                            self.machine,
-                            Some(source),
-                            condition,
-                            true,
-                            environment,
-                        );
-                        fallback = super::evaluated_condition_environment(
-                            self.program,
-                            self.machine,
-                            Some(source),
-                            condition,
-                            false,
-                            environment,
-                        );
+                        if target_needs_walk {
+                            selected = Some(super::evaluated_condition_environment(
+                                self.program,
+                                self.machine,
+                                Some(source),
+                                condition,
+                                true,
+                                environment,
+                            ));
+                        }
+                        if continuation_needs_walk || !transition.continuation.is_valid() {
+                            fallback = Some(super::evaluated_condition_environment(
+                                self.program,
+                                self.machine,
+                                Some(source),
+                                condition,
+                                false,
+                                environment,
+                            ));
+                        }
                         // Discover call occurrences separately from the exact
                         // selected-path facts supplied to state arrivals.
                         self.expression(source, condition, environment);
                     }
-                    self.target(source, transition.target, &mut selected);
-                    self.target(source, transition.continuation, &mut fallback);
+                    if target_needs_walk {
+                        let mut selected_env =
+                            selected.unwrap_or_else(|| environment.clone());
+                        self.target(source, transition.target, &mut selected_env);
+                    }
+                    if continuation_needs_walk {
+                        let mut fallback_env =
+                            fallback.as_ref().cloned().unwrap_or_else(|| environment.clone());
+                        self.target(source, transition.continuation, &mut fallback_env);
+                    }
                     if transition.continuation.is_valid()
                         || transition.guard == TransitionGuardNode::Always
                     {
                         return false;
                     }
-                    *environment = fallback;
+                    if let Some(fallback_env) = fallback {
+                        *environment = fallback_env;
+                    }
                 }
                 StatementNode::LocalData(local) => {
                     self.expression(source, local.initial_value, environment);
@@ -1194,14 +1356,7 @@ impl ArrivalWalk<'_, '_> {
                         .program
                         .statement_table
                         .expression_handles(call.arguments);
-                    let intervals = self.arguments(source, arguments, environment);
-                    self.arrive(
-                        source,
-                        call.target_symbol,
-                        arguments,
-                        &intervals,
-                        environment,
-                    );
+                    self.visit_call_or_target(source, call.target_symbol, arguments, environment);
                     self.cross_writes(
                         source,
                         environment,
@@ -1247,6 +1402,43 @@ impl ArrivalWalk<'_, '_> {
             }
         }
         true
+    }
+
+    fn observe_single_statement(
+        &mut self,
+        source: &State,
+        statement: &StatementNode,
+        environment: &mut ValueEnvironment,
+    ) {
+        match statement {
+            StatementNode::Transition(_) => {
+                self.statements(source, std::iter::once(statement), environment);
+            }
+            StatementNode::LocalData(local) => {
+                self.expression(source, local.initial_value, environment);
+            }
+            StatementNode::Assignment(assignment) => {
+                self.expression(source, assignment.target, environment);
+                self.expression(source, assignment.value, environment);
+            }
+            StatementNode::Call(call) => {
+                let arguments = self
+                    .program
+                    .statement_table
+                    .expression_handles(call.arguments);
+                for argument in arguments {
+                    self.expression(source, *argument, environment);
+                }
+            }
+            StatementNode::Expression(expression) => {
+                self.expression(source, *expression, environment);
+            }
+            StatementNode::RootBinding(binding) => {
+                self.expression(source, binding.receiver, environment);
+                self.expression(source, binding.implementation_operand, environment);
+            }
+            StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
+        }
     }
 
     fn expression(
@@ -1315,14 +1507,7 @@ impl ArrivalWalk<'_, '_> {
                     .program
                     .expression_table
                     .expression_handles(call.arguments);
-                let intervals = self.arguments(source, arguments, environment);
-                self.arrive(
-                    source,
-                    call.target_symbol,
-                    arguments,
-                    &intervals,
-                    environment,
-                );
+                self.visit_call_or_target(source, call.target_symbol, arguments, environment);
                 self.expression_effects(source, expression, environment);
             }
             ExpressionNode::Binary(binary) => {
@@ -1439,4 +1624,111 @@ fn is_reference(program: &dyn crate::CheckingInput, reference: TypeReferenceHand
         TypeReferenceNode::Constrained { base_type, .. } => is_reference(program, *base_type),
         _ => false,
     }
+}
+
+fn state_has_in_machine_arrivals(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+) -> bool {
+    let states = program.machine_states(machine);
+    let is_machine_state = |symbol: SymbolHandle| {
+        symbol.is_valid() && states.iter().any(|candidate| candidate.symbol == symbol)
+    };
+    let mut stack = Vec::new();
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        match statement {
+            StatementNode::Transition(transition) => {
+                if let TransitionGuardNode::When(condition) = transition.guard {
+                    stack.push(condition);
+                }
+                for target in [transition.target, transition.continuation] {
+                    if !target.is_valid() {
+                        continue;
+                    }
+                    match program.statement_table.transition_target(target) {
+                        TransitionTargetNode::Named {
+                            path, arguments, ..
+                        } => {
+                            if is_machine_state(path.symbol) {
+                                return true;
+                            }
+                            stack.extend_from_slice(
+                                program.statement_table.expression_handles(*arguments),
+                            );
+                        }
+                        TransitionTargetNode::Value(expression) => stack.push(*expression),
+                        TransitionTargetNode::Terminal => {}
+                    }
+                }
+            }
+            StatementNode::LocalData(local) => stack.push(local.initial_value),
+            StatementNode::Assignment(assignment) => {
+                stack.push(assignment.target);
+                stack.push(assignment.value);
+            }
+            StatementNode::Call(call) => {
+                if is_machine_state(call.target_symbol) {
+                    return true;
+                }
+                stack.extend_from_slice(program.statement_table.expression_handles(call.arguments));
+            }
+            StatementNode::Expression(expression) => stack.push(*expression),
+            StatementNode::RootBinding(binding) => {
+                stack.push(binding.receiver);
+                stack.push(binding.implementation_operand);
+            }
+            StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
+        }
+    }
+    while let Some(expression) = stack.pop() {
+        if !expression.is_valid() {
+            continue;
+        }
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                stack.push(dispatch.subject);
+                for arm in program.expression_table.match_arms(dispatch.arms) {
+                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        stack.push(pattern);
+                    }
+                    stack.push(arm.value);
+                }
+            }
+            ExpressionNode::Call(call) => {
+                if is_machine_state(call.target_symbol) {
+                    return true;
+                }
+                stack.push(call.receiver);
+                stack.extend_from_slice(program.expression_table.expression_handles(call.arguments));
+            }
+            ExpressionNode::Binary(binary) => {
+                stack.push(binary.left);
+                stack.push(binary.right);
+            }
+            ExpressionNode::Unary(unary) => stack.push(unary.operand),
+            ExpressionNode::Member(member) => stack.push(member.receiver),
+            ExpressionNode::Indexed(indexed) => {
+                stack.push(indexed.collection);
+                stack.push(indexed.index);
+            }
+            ExpressionNode::Atomic(atomic) => stack.push(atomic.value),
+            ExpressionNode::Cast(cast) => stack.push(cast.value),
+            ExpressionNode::Borrow(borrow) => stack.push(borrow.target),
+            ExpressionNode::Range(range) => {
+                stack.push(range.start);
+                stack.push(range.end);
+            }
+            ExpressionNode::ArrayLiteral(values) => {
+                stack.extend_from_slice(program.expression_table.expression_handles(*values));
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                for field in program.expression_table.struct_fields(literal.fields) {
+                    stack.push(field.value);
+                }
+            }
+            ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
+        }
+    }
+    false
 }

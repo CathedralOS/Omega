@@ -129,7 +129,7 @@ impl Execution<'_, '_, '_> {
         {
             return;
         }
-        let Some(reference) = validation::expression_result_type_reference(
+        let Some(reference) = self.context.expression_result_type_at(
             self.program,
             self.machine,
             self.state,

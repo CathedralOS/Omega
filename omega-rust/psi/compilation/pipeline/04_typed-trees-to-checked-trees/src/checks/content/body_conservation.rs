@@ -33,6 +33,9 @@ pub(crate) fn observe_body_completion(
     evaluation_events: &[checked_trees::FlowPermissionEventFact],
     location: CompletedClaimLocation,
 ) -> Vec<arena::Handle<ContentBodyConservationFact>> {
+    if facts.qualifications.content.conservation_plans.is_empty() {
+        return Vec::new();
+    }
     let mut observed = Vec::new();
     let entry = program
         .machine_states(machine)
