@@ -134,6 +134,12 @@ impl OperationFrame<'_, '_> {
                     &prepared.path,
                     copy,
                     prepared.access,
+                    crate::emission::completed_place::endpoint_use(
+                        identities,
+                        self.checked,
+                        self.structural_types.declarations(),
+                        parameter,
+                    )?,
                 )?
             } else if prepared.path.is_empty() && !copy {
                 Vec::new()
@@ -178,10 +184,7 @@ impl OperationFrame<'_, '_> {
                     progress.next += 1;
                     return Ok(captured);
                 }
-                Frontier::Address {
-                    prefix,
-                    structural_type,
-                } => {
+                Frontier::Capture { prefix, capture } => {
                     let prefix = prefix.checked_sub(progress.removed_path).ok_or(
                         LoweringError::Unsupported(
                             "actual place frontier precedes its saved address",
@@ -203,6 +206,15 @@ impl OperationFrame<'_, '_> {
                         self.evaluation,
                         self.operations,
                     )?;
+                    let (structural_type, qualifications, projected) =
+                        crate::emission::completed_place::present_capture(
+                            &capture,
+                            source.access,
+                            self.structural_types.declarations(),
+                            self.calls.domain_declarations,
+                            qualifications,
+                            projected,
+                        )?;
                     let place = super::place_id(super::allocate_dense(self.next_place)?);
                     crate::emission::completed_address::capture_into(
                         source.place,
@@ -247,6 +259,8 @@ impl OperationFrame<'_, '_> {
                         &self.parameters,
                         self.evaluation,
                         self.operations,
+                        self.calls.structural_types,
+                        self.calls.domain_declarations,
                     )?;
                     self.private_places.push(declaration);
                     self.operations.register_structural_materialization(
@@ -322,9 +336,19 @@ pub(crate) fn emit_snapshot(
     parameters: &[terminal_psi::StructuralParameterDeclaration],
     evaluation: &super::Evaluation,
     operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
 ) -> Result<terminal_psi::StructuralPlaceDeclaration, LoweringError> {
-    let (qualifications, projected_qualifications) =
+    let (mut qualifications, mut projected_qualifications) =
         selected_memberships(source, parameters, evaluation, operations)?;
+    terminal_semantics::present_structural_memberships(
+        types.iter(),
+        domains.iter(),
+        structural_type,
+        &mut qualifications,
+        &mut projected_qualifications,
+    )
+    .map_err(LoweringError::Unsupported)?;
     let producer = operations.allocate();
     operations.push(terminal_psi::Operation {
         static_reach_binding: None,

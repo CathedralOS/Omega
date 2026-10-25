@@ -634,8 +634,14 @@ fn loans_live_at_call(
     }
     let exiting_source =
         source_exiting_without_local_loan_carriers(program, state_flow, borrow_call, call_frames);
-    let ended_before_call =
-        super::reads::loans_ended_before_call(program, facts, state_flow, borrow_call);
+    let boundary = super::calls::InvocationBoundary::at(program, facts, state_flow, borrow_call);
+    let ended_before_call = super::reads::loans_ended_before_call(
+        program,
+        facts,
+        state_flow,
+        borrow_call,
+        boundary.as_ref(),
+    );
     loans
         .filter(|loan_handle| {
             !super::selected_retirement::before_call(

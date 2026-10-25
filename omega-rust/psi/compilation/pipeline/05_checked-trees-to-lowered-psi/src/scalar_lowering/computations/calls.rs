@@ -367,6 +367,12 @@ impl Expansion<'_> {
                             &actual.path,
                             copy,
                             actual.access,
+                            crate::emission::completed_place::endpoint_use(
+                                identities,
+                                self.checked,
+                                self.structural_types,
+                                parameter,
+                            )?,
                         )?
                     } else if actual.path.is_empty() && !copy {
                         Vec::new()
@@ -416,10 +422,7 @@ impl Expansion<'_> {
                                 );
                                 operands.push(Operand::Snapshot(value));
                             }
-                            Frontier::Address {
-                                prefix,
-                                structural_type,
-                            } => {
+                            Frontier::Capture { prefix, capture } => {
                                 let length = prefix.checked_sub(removed).ok_or(
                                     LoweringError::Unsupported(
                                         "computed place frontier precedes its saved address",
@@ -437,17 +440,23 @@ impl Expansion<'_> {
                                     access => access,
                                 };
                                 operands.push(Operand::Structural {
-                                    effect: LoweredScalarEffect::CaptureStructuralAddress {
+                                    effect: LoweredScalarEffect::CaptureStructuralPlace {
                                         source,
                                         place,
-                                        structural_type,
+                                        capture: capture.clone(),
                                         access,
                                     },
                                     value: None,
                                 });
                                 actual.source = place.into();
                                 actual.path.drain(..length);
-                                actual.root_type = Some(structural_type);
+                                // Descriptor identity is chosen later from actual
+                                // memberships. Emission does not use this planning
+                                // cache; never publish a speculative physical type.
+                                actual.root_type = match capture {
+                                    crate::emission::completed_place::Capture::Address(identity) => Some(identity),
+                                    crate::emission::completed_place::Capture::DescriptorValue { .. } => None,
+                                };
                                 actual.selector_positions.clear();
                                 removed = prefix;
                             }

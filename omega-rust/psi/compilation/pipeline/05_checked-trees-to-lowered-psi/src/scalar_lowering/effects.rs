@@ -286,10 +286,10 @@ pub(crate) fn emit(
                     evaluation.retire_structural_home(*place);
                 }
             }
-            LoweredScalarEffect::CaptureStructuralAddress {
+            LoweredScalarEffect::CaptureStructuralPlace {
                 source,
                 place,
-                structural_type,
+                capture,
                 access,
             } => {
                 let mut source = source.emit(values, calls, next_value, operations)?;
@@ -306,6 +306,15 @@ pub(crate) fn emit(
                     evaluation,
                     operations,
                 )?;
+                let (structural_type, qualifications, projected) =
+                    crate::emission::completed_place::present_capture(
+                        capture,
+                        *access,
+                        calls.structural_types,
+                        calls.domain_declarations,
+                        qualifications,
+                        projected,
+                    )?;
                 evaluation.current = span.id;
                 evaluation.operation_start = span.operation_start;
                 std::mem::swap(&mut evaluation.parameters, &mut span.parameters);
@@ -317,7 +326,7 @@ pub(crate) fn emit(
                 let captured = crate::emission::completed_address::capture_into(
                     source.place,
                     source.path,
-                    *structural_type,
+                    structural_type,
                     *access,
                     qualifications,
                     projected,
@@ -359,6 +368,8 @@ pub(crate) fn emit(
                     &parameters,
                     evaluation,
                     operations,
+                    calls.structural_types,
+                    calls.domain_declarations,
                 )?;
                 environment.private_places.push(declaration);
             }

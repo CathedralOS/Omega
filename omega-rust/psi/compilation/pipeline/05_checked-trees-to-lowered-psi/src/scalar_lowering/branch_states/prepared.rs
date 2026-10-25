@@ -342,11 +342,11 @@ pub(crate) enum LoweredScalarEffect {
     CompleteArgumentSnapshots {
         places: Vec<PlaceId>,
     },
-    /// Save an already authorized place endpoint before later operand effects.
-    CaptureStructuralAddress {
+    /// Retain an authorized address or observed descriptor before later effects.
+    CaptureStructuralPlace {
         source: crate::emission::operation_emission::calls::PreparedStructuralArgument,
         place: PlaceId,
-        structural_type: StructuralTypeId,
+        capture: crate::emission::completed_place::Capture,
         access: terminal_psi::StructuralAccess,
     },
     /// Snapshot a copyable value while retaining its checked carrier custody.

@@ -157,8 +157,14 @@ pub(super) fn check_call_access_conflicts<'p>(
         borrow_call,
         call_frames,
     );
-    let ended_before_call =
-        super::super::reads::loans_ended_before_call(program, facts, state_flow, borrow_call);
+    let boundary = super::staging::InvocationBoundary::at(program, facts, state_flow, borrow_call);
+    let ended_before_call = super::super::reads::loans_ended_before_call(
+        program,
+        facts,
+        state_flow,
+        borrow_call,
+        boundary.as_ref(),
+    );
     let active_loans: Vec<_> = facts
         .flow
         .borrow_loan_constraints(entry_constraints)
@@ -379,6 +385,24 @@ pub(super) fn check_call_access_conflicts<'p>(
             )));
         }
 
+        // Earlier nested calls retain their own entry checks. Once their
+        // borrow-free result completes, their direct input accesses are no
+        // longer held by this later invocation. Stored child loans stay in
+        // active_loans and still constrain every continuing access.
+        if boundary.as_ref().is_some_and(|boundary| {
+            boundary.access_finished_before_call(
+                program,
+                facts,
+                state_flow,
+                borrow_call,
+                index,
+                accesses.len(),
+                access,
+            )
+        }) {
+            continue;
+        }
+
         for (loan_handle, loan) in &active_loans {
             // An owned carrier retains its backing with the transferred loan.
             // A caller-owned slot instead needs exact intermediate retention:
@@ -459,49 +483,6 @@ pub(super) fn check_call_access_conflicts<'p>(
             }
             let detail =
                 active_loan_detail(state_flow, facts, *loan_handle, borrow_call.statement_index);
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                eprintln!(
-                    "CHECKSITE call-live-loan-conflict machine={:?} state={:?} statement={} ordinal={} call={:?} access_index={} access_count={} access={:?} access_segments={:?} loan_handle={:?} loan={:?} loan_segments={:?} loan_owner_path={:?} ended_before_call={:?}",
-                    state_flow.machine_symbol,
-                    state_flow.state_symbol,
-                    borrow_call.statement_index,
-                    borrow_call.call_ordinal,
-                    borrow_call,
-                    index,
-                    accesses.len(),
-                    access,
-                    facts.borrow.access_segments(access),
-                    loan_handle,
-                    loan,
-                    facts.borrow.loan_segments(loan),
-                    facts.borrow.loan_owner_path(loan),
-                    ended_before_call,
-                );
-                eprintln!(
-                    "CHECKSITE call-live-loan-slots current={:?}",
-                    facts
-                        .borrow
-                        .reference_slot_effects
-                        .span_or_empty(borrow_call.reference_slot_effects),
-                );
-                if facts.borrow.calls.is_valid(loan.established_by_call) {
-                    let supplier = facts.borrow.calls.get(loan.established_by_call);
-                    eprintln!(
-                        "CHECKSITE call-live-loan-supplier call={:?} slots={:?}",
-                        supplier,
-                        facts
-                            .borrow
-                            .reference_slot_effects
-                            .span_or_empty(supplier.reference_slot_effects),
-                    );
-                }
-                for backing in &operand_backings[index].places {
-                    eprintln!(
-                        "CHECKSITE call-live-loan-backing place={:?} lineage={:?}",
-                        backing.place, backing.lineage,
-                    );
-                }
-            }
             diagnostics.push(Diagnostic::error(format!(
                 "state `{target_name}` receives `{}` while local borrow `{}` is still active{}",
                 borrow_access_label(program, &facts.borrow, access),

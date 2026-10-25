@@ -99,6 +99,7 @@ impl Emission<'_, '_, '_> {
             &prepared,
             false,
             access,
+            crate::emission::completed_place::EndpointUse::Storage,
         )?;
         // This producer consumes its final endpoint immediately: the copy or
         // reference establishment follows before another actual can execute.
@@ -120,10 +121,7 @@ impl Emission<'_, '_, '_> {
                         source_count,
                     )?;
                 }
-                Frontier::Address {
-                    prefix,
-                    structural_type,
-                } => {
+                Frontier::Capture { prefix, capture } => {
                     if last_selector.is_none_or(|last| frontier_position > last) {
                         continue;
                     }
@@ -158,6 +156,15 @@ impl Emission<'_, '_, '_> {
                     let (qualifications, projected) =
                         crate::unit::attached_unit::operation_frame::completed_arguments::selected_memberships(
                             &source, &[], self.evaluation, self.operations,
+                        )?;
+                    let (structural_type, qualifications, projected) =
+                        crate::emission::completed_place::present_capture(
+                            &capture,
+                            access,
+                            self.structural_types,
+                            self.domain_declarations,
+                            qualifications,
+                            projected,
                         )?;
                     place = crate::emission::completed_address::capture(
                         source.place,

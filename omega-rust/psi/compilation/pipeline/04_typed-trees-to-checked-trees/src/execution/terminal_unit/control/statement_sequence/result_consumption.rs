@@ -463,20 +463,8 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     trace: &super::super::super::LocalConstructionTrace,
 ) -> Option<()> {
     trace.phase("reference retirement: transport");
-    let authored_state = super::reference_retirement::transport::trace_query(
-        machine,
-        state,
-        "release-authored-state",
-        program.state_by_symbol(state),
-        &statement_index,
-    )?;
-    let borrowing = super::reference_retirement::transport::trace_query(
-        machine,
-        state,
-        "release-unique-borrow-state",
-        super::reference_retirement::unique_borrow_state(facts, machine, state),
-        &statement_index,
-    )?;
+    let authored_state = program.state_by_symbol(state)?;
+    let borrowing = super::reference_retirement::unique_borrow_state(facts, machine, state)?;
     if borrowing.is_none_or(|borrowing| borrowing.loans.is_empty())
         && !operations
             .iter()
