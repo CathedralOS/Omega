@@ -6014,6 +6014,27 @@ fail/facts/disjoint_windows_through_target_body_overlap rejected 1576ms expected
 	statement 4 reads `a[0]` while local borrow `b` is still active (borrowed at statement 1)
 fail/facts/domain_geometry_conserved_result_wrong_partition rejected 2490ms expected @a92f16431042
 	cannot prove ensures contract for exit from split at statement 3: Bounded.content(old(&whole)) == separate(Bounded.content(&result.left), Bounded.content(&result.right))
+fail/facts/dyn_dispatch_payload_alias_through_call_result_public_bound_weakened rejected 719ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_const_name_public_bound_weakened rejected 692ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_field_public_bound_weakened rejected 533ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_local_public_bound_weakened rejected 538ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_match_join_public_bound_weakened rejected 519ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_other_machine_public_bound_weakened rejected 544ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `forward` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_other_state_public_bound_weakened rejected 741ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `main` state `evaluate` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_parameter_public_bound_weakened rejected 565ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_target_body_public_bound_weakened rejected 718ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/dyn_dispatch_selector_payload_bound_through_call_result_rejected rejected 941ms expected @a92f16431042
 	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/dyn_dispatch_selector_payload_bound_through_const_name_rejected rejected 940ms expected @a92f16431042
@@ -6035,6 +6056,24 @@ fail/facts/dyn_dispatch_selector_payload_bound_through_target_body_rejected reje
 	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dynamic_float_alias_through_call_result_outside_interval rejected 4218ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
+fail/facts/dynamic_float_alias_through_const_name_outside_interval rejected 2920ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
+fail/facts/dynamic_float_alias_through_field_outside_interval rejected 2549ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
+fail/facts/dynamic_float_alias_through_local_outside_interval rejected 2605ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
+fail/facts/dynamic_float_alias_through_match_join_outside_interval rejected 2551ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
+fail/facts/dynamic_float_alias_through_other_machine_outside_interval rejected 2670ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
+fail/facts/dynamic_float_alias_through_other_state_outside_interval rejected 2565ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
+fail/facts/dynamic_float_alias_through_parameter_outside_interval rejected 2429ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
+fail/facts/dynamic_float_alias_through_target_body_outside_interval rejected 3146ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
 fail/facts/dynamic_float_refinement_through_call_result_outside_interval rejected 5351ms expected @a92f16431042
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
 fail/facts/dynamic_float_refinement_through_const_name_outside_interval rejected 11147ms expected @a92f16431042
@@ -17819,6 +17858,24 @@ fail/proofs/disjunctive_domain_wrong_subject rejected 2147ms expected @a92f16431
 	construction of `Checked` field `value` is not proven in domain `Pair::Small` in invalid state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 fail/proofs/domain_mathematical_narrow_import rejected 570ms expected @a92f16431042
 	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
+fail/proofs/dyn_requirement_distinct_observations rejected 619ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `main` state `entry` local `invalid` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/proofs/dyn_requirement_float_alias_inequality rejected 3712ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures upper(result)`; callers of the requirement assume it
+fail/proofs/dyn_requirement_float_alias_negated rejected 2987ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures upper(result)`; callers of the requirement assume it
+fail/proofs/dyn_requirement_float_alias_strict rejected 2690ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures strict(result)`; callers of the requirement assume it
+fail/proofs/dyn_requirement_float_literal_qualification rejected 1216ms expected @e06334c63dc4+wt
+	invalid mathematical application `positive(0.0)`: mathematical argument does not preserve its declared carrier and policy
+fail/proofs/dyn_requirement_float_literal_wrong_format rejected 980ms expected @e06334c63dc4+wt
+	invalid mathematical application `value_ok(0.0)`: mathematical argument does not preserve its declared carrier and policy
+fail/proofs/dyn_requirement_float_nonhost_wider rejected 3883ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call accept from main: public_interval(observed, 0.0, 0.5) (needs fact `public_interval(value, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/dyn_requirement_float_nonreflexive rejected 3559ms expected @e06334c63dc4+wt
+	cannot prove ensures contract for exit from claim at statement 0: reflexive(value)
+fail/proofs/dyn_requirement_float_public_only rejected 3281ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call accept from main: public_interval(observed, 0.0, 0.5) (needs fact `public_interval(value, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/embedded_address_bound_not_strict rejected 2621ms expected @a92f16431042
 	exact arithmetic in machine `offset` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 fail/proofs/embedded_successor_call_requirement_weakened_bound rejected 3252ms expected @a92f16431042
@@ -22777,6 +22834,15 @@ pass/facts/double_indexed_rmw_through_other_machine_exit checked 2127ms check-ta
 pass/facts/double_indexed_rmw_through_other_state_exit checked 2813ms check-target:macos_arm64 @a92f16431042
 pass/facts/double_indexed_rmw_through_parameter_exit checked 2368ms check-target:macos_arm64 @a92f16431042
 pass/facts/double_indexed_rmw_through_target_body_exit checked 2393ms check-target:macos_arm64 @a92f16431042
+pass/facts/dyn_dispatch_payload_alias_through_call_result_exit checked 2792ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dyn_dispatch_payload_alias_through_const_name_exit checked 2537ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dyn_dispatch_payload_alias_through_field_exit checked 3087ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dyn_dispatch_payload_alias_through_local_exit checked 2068ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dyn_dispatch_payload_alias_through_match_join_exit checked 1936ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dyn_dispatch_payload_alias_through_other_machine_exit checked 2025ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dyn_dispatch_payload_alias_through_other_state_exit checked 1999ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dyn_dispatch_payload_alias_through_parameter_exit checked 2213ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dyn_dispatch_payload_alias_through_target_body_exit checked 2199ms check-target:macos_arm64 @e06334c63dc4+wt
 pass/facts/dyn_dispatch_selector_payload_bound_through_call_result_exit checked 2670ms check-target:macos_arm64 @a92f16431042
 pass/facts/dyn_dispatch_selector_payload_bound_through_const_name_exit checked 2700ms check-target:macos_arm64 @a92f16431042
 pass/facts/dyn_dispatch_selector_payload_bound_through_field_exit checked 2697ms check-target:macos_arm64 @a92f16431042
@@ -22786,6 +22852,15 @@ pass/facts/dyn_dispatch_selector_payload_bound_through_other_machine_exit checke
 pass/facts/dyn_dispatch_selector_payload_bound_through_other_state_exit checked 2625ms check-target:macos_arm64 @a92f16431042
 pass/facts/dyn_dispatch_selector_payload_bound_through_parameter_exit checked 2670ms check-target:macos_arm64 @a92f16431042
 pass/facts/dyn_dispatch_selector_payload_bound_through_target_body_exit checked 2212ms check-target:macos_arm64 @a92f16431042
+pass/facts/dynamic_float_alias_through_call_result_exit checked 5975ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dynamic_float_alias_through_const_name_exit checked 6034ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dynamic_float_alias_through_field_exit checked 6329ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dynamic_float_alias_through_local_exit checked 5545ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dynamic_float_alias_through_match_join_exit checked 5484ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dynamic_float_alias_through_other_machine_exit checked 5858ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dynamic_float_alias_through_other_state_exit checked 4722ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dynamic_float_alias_through_parameter_exit checked 5066ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dynamic_float_alias_through_target_body_exit checked 4501ms check-target:macos_arm64 @e06334c63dc4+wt
 pass/facts/dynamic_float_refinement_through_call_result_exit checked 12367ms check-target:macos_arm64 @a92f16431042
 pass/facts/dynamic_float_refinement_through_const_name_exit checked 12312ms check-target:macos_arm64 @a92f16431042
 pass/facts/dynamic_float_refinement_through_field_exit checked 12745ms check-target:macos_arm64 @a92f16431042
@@ -27950,6 +28025,9 @@ pass/proofs/descriptor_bound_call_after_element_call rejected 2012ms regressed-f
 	cannot prove requires contract for call demand from filter: partition.count <= partition.records.len (needs fact `partition.count <= partition.records.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/proofs/disjunctive_domain_result_exit checked 2015ms check-target:macos_arm64 @a92f16431042
 pass/proofs/domain_mathematical_selection_exit checked 1948ms check-target:macos_arm64 @a92f16431042
+pass/proofs/dyn_requirement_float_alias_rounding_exit checked 5089ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/proofs/dyn_requirement_float_provider_alias_exit checked 5319ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/proofs/dyn_requirement_float_raw_use_exit checked 5912ms check-target:macos_arm64 @e06334c63dc4+wt
 pass/proofs/embed_collection_length checked 1709ms @a92f16431042
 pass/proofs/embed_returned_length checked 1520ms @a92f16431042
 pass/proofs/embedded_address_bounds_exit checked 7933ms check-target:macos_arm64 @a92f16431042
