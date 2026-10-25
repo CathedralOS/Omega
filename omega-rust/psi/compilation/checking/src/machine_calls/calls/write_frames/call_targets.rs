@@ -26,6 +26,35 @@ pub(super) fn call_argument_types(
     site: super::caller_aliases::CallerWriteSite<'_>,
     symbols: &TopLevelSymbols<'_>,
 ) -> Vec<TypeReferenceHandle> {
+    // Named operators use the same selected occurrence and complete public
+    // formal roster as call admission. Their namespace is not an argument;
+    // retaining these types keeps detached scalar actuals independent of the
+    // caller's storage-origin inventory. Unknown selections add no context.
+    let call_site = match site {
+        super::caller_aliases::CallerWriteSite::Expression(expression) => program
+            .expression_table
+            .call_node(expression)
+            .filter(|call| program.call_has_no_runtime_receiver_for_target(call))
+            .map(|call| crate::machine_calls::calls::CallSite::Expression { expression, call }),
+        _ => None,
+    };
+    if let Some(call_site) = call_site
+        && typed_trees::operator::declaration_by_symbol(program, call_site.target_symbol(program))
+            .is_some()
+    {
+        if let Some(parameters) = call_site.parameters(program, current_machine.symbol)
+            && parameters.len()
+                == crate::machine_calls::calls::call_site_argument_expressions(program, &call_site)
+                    .len()
+        {
+            // A value-receiver spelling may bind the first operator formal
+            // outside call.arguments. It cannot shift this explicit roster.
+            return parameters
+                .iter()
+                .map(|parameter| parameter.type_reference)
+                .collect();
+        }
+    }
     // A dynamic slot has already instantiated its complete operand roster,
     // including the independent selector. The public declaration omits that
     // lane, so reading it here would shift every actual's type by one position.

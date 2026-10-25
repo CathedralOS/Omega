@@ -207,11 +207,24 @@ impl<'program> CallFrameResolver<'program> {
                     receiver: Some(Vec::new()),
                     arguments: Vec::new(),
                 };
-                // Concrete entries and instantiated dynamic slots receive all
-                // data through explicit operands. A trait namespace retained
-                // on the call is not an implicit receiver storage origin.
-                let callee_is_resolved = frames::machine_state_by_symbol(program, target).is_some()
-                    || program.dynamic_slot_by_symbol(target).is_some();
+                // Exact callable entries carry their data in explicit operands.
+                // Named expression calls also share the typed representation's
+                // namespace/arity judgment, including bodyless operators. A
+                // selected code qualifier supplies no caller storage; an unknown
+                // or value receiver keeps chronological origin capture below.
+                let callee_has_explicit_parameters =
+                    frames::machine_state_by_symbol(program, target).is_some()
+                        || program.dynamic_slot_by_symbol(target).is_some()
+                        || crate::selected_requirement_signature(program, target).is_some()
+                        || match site {
+                            CallerWriteSite::Expression(expression) => program
+                                .expression_table
+                                .call_node(expression)
+                                .is_some_and(|call| {
+                                    program.call_has_no_runtime_receiver_for_target(call)
+                                }),
+                            _ => false,
+                        };
                 // A nested call can follow effects in an enclosing operand. The
                 // prefix owner has not captured those substatement updates.
                 // Reuse its expression inventory and frame query; do not
@@ -221,7 +234,7 @@ impl<'program> CallFrameResolver<'program> {
                 let preceding_effect = nested_effect
                     || (receiver_expression.is_valid()
                         && self.operand_may_change_origins(machine, receiver_expression, prefix));
-                if !callee_is_resolved
+                if !callee_has_explicit_parameters
                     && (!receiver_members.is_empty() || receiver_expression.is_valid())
                 {
                     result.receiver = if receiver_expression.is_valid() {

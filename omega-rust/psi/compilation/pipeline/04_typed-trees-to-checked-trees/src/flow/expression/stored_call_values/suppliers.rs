@@ -437,6 +437,9 @@ impl Execution<'_, '_, '_> {
                     };
                     if self.context.control.operand_retentions.is_valid(retention) {
                         let profile = self.context.control.operand_retentions.get_mut(retention);
+                        // This profile describes only the newly captured supplier.
+                        // An unchanged descriptor is a separate Incoming alternative;
+                        // its backing must be resolved independently at the join.
                         profile.immutable_image = suppliers_known
                             && effect
                                 .sources
@@ -444,8 +447,7 @@ impl Execution<'_, '_, '_> {
                                 .all(|source| source.lifetime_access.is_none())
                             && source_images.len() == effect.sources.len()
                             && source_images.iter().all(Option::is_some)
-                            && (effect.has_static_values || !effect.sources.is_empty())
-                            && !effect.retains_incoming;
+                            && (effect.has_static_values || !effect.sources.is_empty());
                         profile.suppliers = suppliers;
                     }
                     // Only descriptor identity and lifetime cross. Earlier
