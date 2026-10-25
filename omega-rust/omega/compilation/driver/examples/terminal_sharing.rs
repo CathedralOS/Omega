@@ -4,15 +4,30 @@
 //! distinct-entry customer for Windows and Linux. Both native products must
 //! borrow one Terminal allocation; this does not execute a foreign-host image.
 //! Optional arguments select another corpus root followed by its target names.
+//! Prefix `--check` or `--terminal` to measure those stops. `--reject TARGET`
+//! expects that target to refuse while its siblings still produce their outputs.
 
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
 use artifacts::compile_timings::counters;
-use compiler::{CompileRequest, RequestedCompileProduct};
+use compiler::{CompileOutputKind, CompileRequest, RequestedCompileProduct};
 
 fn main() {
-    let mut arguments = std::env::args().skip(1);
+    let mut arguments = std::env::args().skip(1).peekable();
+    let mut product = RequestedCompileProduct::NativeArtifact;
+    let mut rejected_target = None;
+    while arguments
+        .peek()
+        .is_some_and(|argument| argument.starts_with("--"))
+    {
+        match arguments.next().as_deref() {
+            Some("--check") => product = RequestedCompileProduct::Check,
+            Some("--terminal") => product = RequestedCompileProduct::TerminalArtifact,
+            Some("--reject") => rejected_target = Some(arguments.next().expect("rejected target")),
+            flag => panic!("unknown measurement flag: {flag:?}"),
+        }
+    }
     let root = fixture_package_inputs::repo_root().join(arguments.next().unwrap_or_else(|| {
         "tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg".to_owned()
     }));
@@ -20,9 +35,20 @@ fn main() {
     if target_names.is_empty() {
         target_names = vec!["windows_x86_64".to_owned(), "linux_x86_64".to_owned()];
     }
+    // The standalone request normalizes target order before compilation.
+    target_names.sort_by_key(|name| {
+        target::TargetProfile::ALL
+            .iter()
+            .position(|profile| profile.target_name() == name)
+    });
     let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
         &root,
-        Some(&target_names[0]),
+        Some(
+            target_names
+                .iter()
+                .find(|name| rejected_target.as_ref() != Some(name))
+                .expect("one admitted target for fixture preparation"),
+        ),
     )
     .expect("fixture package admission");
     let targets = target_names
@@ -36,7 +62,7 @@ fn main() {
         std::env::temp_dir().join(format!("omega-terminal-sharing-{}", std::process::id())),
         targets,
     )
-    .with_requested_product(RequestedCompileProduct::NativeArtifact);
+    .with_requested_product(product);
     if let Some(inputs) = prepared.package_inputs {
         request = request.with_package_inputs(inputs);
     }
@@ -44,35 +70,83 @@ fn main() {
     let builds_before = counters::build_execution_count();
     let checks_before = counters::settled_check_totals().0;
     let terminals_before = counters::terminal_production_count();
-    let reports: Vec<_> = compiler::compile(request)
+    let outcomes = compiler::compile(request)
         .expect("request admission")
-        .into_outcomes()
-        .into_iter()
-        .map(|outcome| outcome.into_result().expect("native product"))
-        .collect();
-    assert_eq!(reports.len(), target_names.len());
-    let first = reports[0]
-        .retained_native_artifact()
-        .expect("first native artifact")
-        .psi_artifact();
-    for report in &reports[1..] {
-        let second = report
-            .retained_native_artifact()
-            .expect("second native artifact")
-            .psi_artifact();
-        assert!(
-            std::ptr::eq(first, second),
-            "native products must retain one Terminal allocation"
+        .into_outcomes();
+    assert_eq!(outcomes.len(), target_names.len());
+    let mut reports = Vec::new();
+    let mut rejections = 0;
+    for (outcome, name) in outcomes.into_iter().zip(&target_names) {
+        assert_eq!(
+            outcome
+                .target_profile()
+                .map(|profile| profile.target_name()),
+            Some(name.as_str())
         );
-        assert_eq!(first.manifest().semantic(), second.manifest().semantic());
+        let result = outcome.into_result();
+        if rejected_target.as_ref() == Some(name) {
+            let diagnostics = result.expect_err("target must refuse");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("ProgramEntry")),
+                "expected missing-entry refusal, got {diagnostics:?}"
+            );
+            rejections += 1;
+        } else {
+            reports.push(result.expect("requested product"));
+        }
+    }
+    assert_eq!(rejections, usize::from(rejected_target.is_some()));
+    assert!(!reports.is_empty());
+    let expected_kind = match product {
+        RequestedCompileProduct::Check => CompileOutputKind::CheckOnly,
+        RequestedCompileProduct::TerminalArtifact => CompileOutputKind::TerminalArtifact,
+        RequestedCompileProduct::NativeArtifact => CompileOutputKind::RetainedNativeArtifact,
+    };
+    for report in &reports {
+        assert_eq!(report.output_kind(), expected_kind);
+    }
+    if product != RequestedCompileProduct::Check {
+        let artifacts: Vec<_> = reports
+            .iter()
+            .map(|report| {
+                report
+                    .artifact()
+                    .or_else(|| {
+                        report
+                            .retained_native_artifact()
+                            .map(|native| native.psi_artifact())
+                    })
+                    .expect("portable artifact")
+            })
+            .collect();
+        for artifact in &artifacts[1..] {
+            assert!(
+                std::ptr::eq(artifacts[0], *artifact),
+                "products must retain one Terminal allocation"
+            );
+            assert_eq!(
+                artifacts[0].manifest().semantic(),
+                artifact.manifest().semantic()
+            );
+        }
     }
     let sources = counters::product_source_completion_count() - sources_before;
     let builds = counters::build_execution_count() - builds_before;
     let checks = counters::settled_check_totals().0 - checks_before;
     let terminals = counters::terminal_production_count() - terminals_before;
-    assert_eq!((sources, builds, checks, terminals), (1, 1, 2, 1));
+    assert_eq!(
+        (sources, builds, checks, terminals),
+        (
+            1,
+            1,
+            2,
+            u64::from(product != RequestedCompileProduct::Check)
+        )
+    );
     println!(
-        "native_products={} source_completions={sources} builds={builds} checks={checks} terminal_productions={terminals} shared_allocation=true",
+        "product={product:?} products={} rejected={rejections} source_completions={sources} builds={builds} checks={checks} terminal_productions={terminals}",
         reports.len()
     );
 }

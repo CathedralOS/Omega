@@ -8,7 +8,7 @@ use compilation_products::NativeProductRequest;
 /// Consume the retained Terminal product through the source-free native
 /// pipeline. This operation never enters Psi production. The stop and its
 /// Build requirements were admitted by
-/// `CheckedCompilation::prepare_product_report`; nothing is re-admitted here.
+/// `ProductReportPlan::prepare`; nothing is re-admitted here.
 pub(crate) fn produce_native_product(
     request: NativeProductRequest,
     checked: &CheckedCompilation,

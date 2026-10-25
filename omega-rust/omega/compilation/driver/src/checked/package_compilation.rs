@@ -140,7 +140,12 @@ impl CompilationSession {
                 match selected.result {
                     Ok(selected) => {
                         positions.push((position, root));
-                        products.push(Ok((selected, path, product, permissions)));
+                        products.push(Ok(crate::product_execution::ProductRequest {
+                            realization: selected,
+                            root: path,
+                            product,
+                            permissions,
+                        }));
                     }
                     Err(failure) => {
                         outcomes[position] = Some(Err(PackageCompileFailure {
