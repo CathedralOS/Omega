@@ -14,13 +14,102 @@ use checked_trees::{
     CheckedUnitStructuralArgumentSourcePlan,
 };
 
-pub(super) struct PrimitiveReferenceObservation {
+/// A typed scalar observation keeps the complete source carrier and final
+/// qualified scalar type beside each explicit readable descriptor crossing.
+/// It is preparation data, not a grant to read or copy the source value.
+pub(super) struct ScalarObservation {
     pub(super) type_reference: typed_trees::types::TypeReferenceHandle,
     pub(super) primitive_type: typed_trees::types::PrimitiveType,
     pub(super) domain: numerics::arithmetic::ArithmeticDomain,
+    result_type: typed_trees::types::TypeReferenceHandle,
+    path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
 }
 
 impl Builder<'_, '_> {
+    fn scalar_observation_type(
+        &self,
+        source_type: typed_trees::types::TypeReferenceHandle,
+    ) -> Option<ScalarObservation> {
+        use typed_trees::types::TypeReferenceNode;
+        let mut reference = source_type;
+        let mut result_type = source_type;
+        let mut visited = Vec::new();
+        let mut path = Vec::new();
+        loop {
+            if !self
+                .program
+                .type_reference_table
+                .contains_type_reference(reference)
+                || visited.contains(&reference)
+            {
+                return None;
+            }
+            visited.push(reference);
+            // A stored view is already a descriptor value. Its elements do
+            // not become a scalar by interpreting its spelling as a pointer.
+            if validation::stored_view_shell(self.program, reference, &[]).is_some() {
+                return None;
+            }
+            match self.program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+                TypeReferenceNode::Reference {
+                    referee, access, ..
+                } if access.is_readable() => {
+                    path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+                    result_type = *referee;
+                    reference = *referee;
+                }
+                TypeReferenceNode::Reference { .. } => return None,
+                _ => {
+                    let primitive_type = self.program.primitive_type_reference(reference)?;
+                    return Some(ScalarObservation {
+                        type_reference: source_type,
+                        result_type,
+                        primitive_type,
+                        domain: self
+                            .program
+                            .arithmetic_domain_for_type_reference(result_type),
+                        path,
+                    });
+                }
+            }
+        }
+    }
+
+    fn publish_scalar_observation(
+        &mut self,
+        expression: ExpressionHandle,
+        receiver_value: checked_trees::CheckedStructuralValueHandle,
+        observation: ScalarObservation,
+    ) -> CheckedScalarComputationHandle {
+        self.insert(
+            observation.primitive_type,
+            CheckedScalarComputationKind::StructuralField {
+                atomic_ordering: None,
+                result_type: observation.result_type,
+                source_expression: expression,
+                receiver_expression: expression,
+                source_type: observation.type_reference,
+                receiver_value,
+                subject: CheckedUnitStructuralArgumentPlan {
+                    projection_evaluations: Default::default(),
+                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                        expression,
+                    },
+                    path: observation.path,
+                    type_identity: validation::stored_structural_type_identity(
+                        self.program,
+                        observation.type_reference,
+                        &[],
+                        &[],
+                    ),
+                    access: CheckedStructuralAccess::SharedBorrow,
+                },
+                field: symbols::SymbolHandle::invalid(),
+                field_identity: Default::default(),
+            },
+        )
+    }
     /// Read the scalar endpoint of an ordinary completed value projection.
     /// The projection owns selection from the saved descriptor, including any
     /// subsequent live reference crossings. It never re-reads the old carrier.
@@ -35,37 +124,15 @@ impl Builder<'_, '_> {
             self.statement_index,
             expression,
         )?;
-        if self.program.primitive_type_reference(reference) != Some(expected) {
+        let observation = self.scalar_observation_type(reference)?;
+        if observation.primitive_type != expected {
             return None;
         }
+        // This is the actual selected-copy receiver. Its captured descriptor
+        // must complete before a scalar consumer follows its referent; a live
+        // read of the old source slot is never a substitute for this value.
         let receiver_value = self.retain_structural_argument(expression, reference)?;
-        Some(self.insert(
-            expected,
-            CheckedScalarComputationKind::StructuralField {
-                atomic_ordering: None,
-                result_type: reference,
-                source_expression: expression,
-                receiver_expression: expression,
-                source_type: reference,
-                receiver_value,
-                subject: CheckedUnitStructuralArgumentPlan {
-                    projection_evaluations: Default::default(),
-                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                        expression,
-                    },
-                    path: Vec::new(),
-                    type_identity: validation::stored_structural_type_identity(
-                        self.program,
-                        reference,
-                        &[],
-                        &[],
-                    ),
-                    access: CheckedStructuralAccess::SharedBorrow,
-                },
-                field: symbols::SymbolHandle::invalid(),
-                field_identity: Default::default(),
-            },
-        ))
+        Some(self.publish_scalar_observation(expression, receiver_value, observation))
     }
 
     /// A scalar read finishes its fresh reference receiver before a later
@@ -130,33 +197,7 @@ impl Builder<'_, '_> {
         let receiver_value = self.structural_value(expression, reference)?;
         let statement = u32::try_from(self.statement_index).ok()?;
         self.retain_structural_root(statement, expression, reference, receiver_value);
-        Some(self.insert(
-            expected,
-            CheckedScalarComputationKind::StructuralField {
-                atomic_ordering: None,
-                result_type: validation::reference_shell(self.program, reference)?.referee,
-                source_expression: expression,
-                receiver_expression: expression,
-                source_type: reference,
-                receiver_value,
-                subject: CheckedUnitStructuralArgumentPlan {
-                    projection_evaluations: Default::default(),
-                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                        expression,
-                    },
-                    path: vec![checked_trees::CheckedUnitStructuralPathSegment::Referent],
-                    type_identity: validation::stored_structural_type_identity(
-                        self.program,
-                        reference,
-                        &[],
-                        &[],
-                    ),
-                    access: CheckedStructuralAccess::SharedBorrow,
-                },
-                field: symbols::SymbolHandle::invalid(),
-                field_identity: Default::default(),
-            },
-        ))
+        Some(self.publish_scalar_observation(expression, receiver_value, observation))
     }
 
     /// Receiving positions and arithmetic operands ask the same type question.
@@ -165,7 +206,7 @@ impl Builder<'_, '_> {
     pub(super) fn primitive_reference_observation_type(
         &self,
         expression: ExpressionHandle,
-    ) -> Option<PrimitiveReferenceObservation> {
+    ) -> Option<ScalarObservation> {
         if validation::canonical_place_from_expression_in_state(
             self.program,
             self.state,
@@ -184,17 +225,10 @@ impl Builder<'_, '_> {
             self.statement_index,
             expression,
         )?;
-        let shell = validation::reference_shell(self.program, reference)?;
-        if !shell.access.is_readable() {
-            return None;
-        }
-        Some(PrimitiveReferenceObservation {
-            type_reference: reference,
-            primitive_type: self.program.primitive_type_reference(shell.referee)?,
-            domain: self
-                .program
-                .arithmetic_domain_for_type_reference(shell.referee),
-        })
+        let observation = self.scalar_observation_type(reference)?;
+        // This entrance is specifically a computed reference read. Direct
+        // primitive captured values use the same typed observation above.
+        (!observation.path.is_empty()).then_some(observation)
     }
 
     pub(super) fn structural_scalar_field(

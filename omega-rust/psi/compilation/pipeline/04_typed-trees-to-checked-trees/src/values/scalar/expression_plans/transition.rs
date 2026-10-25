@@ -65,8 +65,7 @@ pub(crate) fn plan(
             && let TransitionTargetNode::Value(expression) =
                 program.statement_table.transition_target(target)
             && let Some(result_type) = result_type
-        {
-            let return_expression = lower_return_expression(
+            && let Some(return_expression) = lower_return_expression(
                 program,
                 operators,
                 *expression,
@@ -76,26 +75,8 @@ pub(crate) fn plan(
                 locals,
                 result_type,
                 exact_integer_casts,
-            );
-            if return_expression.is_none() {
-                super::trace_return_plan_refusal(
-                    program,
-                    state,
-                    statement_ordinal,
-                    if continuation {
-                        CheckedScalarExpressionRole::ContinuationReturn
-                    } else {
-                        CheckedScalarExpressionRole::Return
-                    },
-                    *expression,
-                    result_type,
-                    locals,
-                    "transition value has no pure scalar plan",
-                );
-            }
-            let Some(return_expression) = return_expression else {
-                continue;
-            };
+            )
+        {
             let role = if continuation {
                 CheckedScalarExpressionRole::ContinuationReturn
             } else {
