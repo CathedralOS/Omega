@@ -35,7 +35,7 @@ pub use layout_reports::{
     normalized_layout_plan_report_fingerprint, normalized_native_layout_plan_report_fingerprint,
 };
 pub use materialization::field_codec::{
-    decode_aggregate_field, decode_aggregate_field_into, update_scalar_field,
+    decode_aggregate_field, decode_aggregate_field_into, stage_scalar_field, update_scalar_field,
 };
 pub use materialization::field_values::{
     AggregateFieldSchema, AggregateFieldValue, ScalarFieldSchema, ScalarFieldValue,
