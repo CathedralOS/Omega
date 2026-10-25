@@ -32,7 +32,7 @@ payloads and such a read is refused conservatively rather than proved.)
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | both slots are produced by `present(...)` call results |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both slots are produced by `match true` joins |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | both payloads are the named constants `CHOSEN` and `UNSELECTED` |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | the one evaluated flag and both payload loans reach the successor state `pick`, which records the selected range there |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | the one evaluated flag and both payload loans reach the successor machine `pick`, which records the selected range there |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine (`forward`) supplies the loans to `apply` |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of the four target bodies of `apply` selects and writes |
 
@@ -73,7 +73,7 @@ construct's own input or selection, and checking fails closed during compile-tim
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `chosen` is reassigned while the range loan is live | `statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `chosen` is reassigned while the range loan is live | `statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `chosen` is reassigned while the range loan is live | `statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `chosen` is reassigned in `pick` while the range loan is live | `statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3)` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `chosen` is reassigned in `pick` while the range loan is live | `statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3)` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `chosen` is reassigned in `apply` while the range loan is live | `statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each target body reassigns `chosen` while the range loan is live | `statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)` |
 
@@ -104,7 +104,7 @@ and nine fail fixtures (each a byte-identical copy of its place twin plus the pi
    active …`), so the unselected payload cannot be reached through the source while the range is
    recorded.
 3. **Composition:** the loan composes with local payloads, record fields, parameters, call
-   results, match joins, constants, a successor state, a forwarding machine and four target
+   results, match joins, constants, a successor machine, a forwarding machine and four target
    bodies; `<place>/main.omg` and `<place>/invalid/main.omg` differ only in the construct's own
    obligation (a write to the source while the range loan is live).
 4. **Soundness boundaries:** every twin rejects during proof checking with its authored

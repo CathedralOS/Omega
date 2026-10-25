@@ -22,7 +22,7 @@ Every place performs the same operation: dispatch the inline `combine` member of
 | call result | `call_result/` | the dyn trait selector is obtained from a call result before dispatching combine | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
 | match join | `match_join/` | both arms of a match join yield the dyn trait selector before dispatching combine | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
 | const name | `const_name/` | a named constant defines the exact target value for subtraction | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
-| another state | `other_state/` | a successor state receives the dyn trait selector and bounded operands to dispatch combine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
+| a nested machine | `other_state/` | a successor machine receives the dyn trait selector and bounded operands to dispatch combine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
 | another machine | `other_machine/` | a forwarding machine transports the dyn trait selector and bounded operands to dispatch combine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
 | another target body | `target_body/` | each hosted target body dispatches combine through the dyn trait selector | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
 

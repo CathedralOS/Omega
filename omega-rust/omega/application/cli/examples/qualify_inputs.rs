@@ -9,10 +9,8 @@
 //! Streams and exact semantic statuses are retained for an independent oracle
 //! validator. This is repository qualification tooling, not shipped CLI coverage.
 
-use package_manager::operations::{
-    LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
-    compile_prepared_local_project_for_native, prepare_local_project,
-};
+use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
+use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};

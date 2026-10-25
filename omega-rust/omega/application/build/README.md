@@ -5,11 +5,19 @@ single explicit target or batch, and a check, native or named Terminal inspectio
 product. Inspection has one target context and uses a private workspace without
 native publication. The entrance
 admits output directories, prepares the project, requests products through
-package/compiler facades, and publishes ordered outcomes. A target's directory
+package admission and compiler facades, and publishes ordered outcomes. A target's directory
 refusal stays beside that target; it does not hide successful siblings. Checks
 use disposable workspaces and do not claim the requested product directory.
 
 [products.rs](src/products.rs) translates package and standalone product demands.
+[project_compilation.rs](src/project_compilation.rs) shows ordinary package
+compilation: admit the target batch, invoke one compiler session, then reconcile
+package identities and dispose staging. Package management returns requests; it
+does not invoke this route. Its completion owner retains acquisition custody and
+one aggregate sponsor until every target returns. An inadmissible target remains
+an ordered refusal beside successful siblings. A failed staging close is reported.
+The prepared-project native/check/inspection APIs here also serve SDK callers;
+package-management compilation exports have been removed.
 [publication.rs](src/publication.rs) publishes admitted products and is also used
 by execution. The CLI owns argument spelling, console output and process exits,
 not this lifecycle. Shared temporary directories belong to `platform-custody`.
@@ -28,8 +36,9 @@ does not acquire sources or execute code.
 
 This is the project application owner, not another compiler pipeline. It depends
 on facades and product contracts, not intermediate source representations or
-stage crates. The deeper dependency/Build activation scheduler still lives in
-package management and the old compiler coordinator. Moving it here, completing
+stage crates. Candidate review still invokes checking in package management;
+the deeper dependency/Build activation scheduler remains in the old compiler
+coordinator. Moving those responsibilities, completing
 Psi's facade, and replacing the checked-tree Build evaluator with Terminal
 continuations remain explicit obligations of the
 [ownership migration](../../../pipeline.md#build-and-compiler-ownership-migration).

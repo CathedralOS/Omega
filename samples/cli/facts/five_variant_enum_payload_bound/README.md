@@ -15,7 +15,7 @@ Every place performs the same operation: route a 5-variant tagged enum packet `P
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a contracted helper call returns the 5-variant packet before matching and interval discharge |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield 5-variant packets and join before matching and interval discharge |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant supplies the 5-variant packet before matching and interval discharge |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the 5-variant packet before matching and interval discharge |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the 5-variant packet before matching and interval discharge |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine receives and passes the 5-variant packet to extraction |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies matches the 5-variant packet and discharges interval |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- At runtime, with `p == Packet::Epsilon { v: 60u64 }`, `res == 60u64`, `headroom == 80u64 - 60u64 == 20u64`, `margin == 60u64 - 40u64 == 20u64`, and `headroom + margin == 40u64`. The transition `probe() == 40 { true -> done() _ -> bad() }` exits 0. If 5-variant enum matching or exact interval calculations evaluate incorrectly, execution transitions to `state bad() { crash Trap; }`, causing a native signal 5 / STATUS_ILLEGAL_INSTRUCTION trap crash (exit 3221225501 / 255).
+- At runtime, with `p == Packet::Epsilon { v: 60u64 }`, `res == 60u64`, `headroom == 80u64 - 60u64 == 20u64`, `margin == 60u64 - 40u64 == 20u64`, and `headroom + margin == 40u64`. The transition `probe() == 40 { true -> done() _ -> bad() }` exits 0. If 5-variant enum matching or exact interval calculations evaluate incorrectly, execution transitions to `machine bad() { crash Trap; }`, causing a native signal 5 / STATUS_ILLEGAL_INSTRUCTION trap crash (exit 3221225501 / 255).
 - Measured discrimination: A 1-token perturbation changing `probe() == 40` to `probe() == 41` was tested under `sample_native_gate.py`, where execution took the `bad()` branch and immediately failed the oracle gate with `exit 3221225501 != 0` (STATUS_ILLEGAL_INSTRUCTION trap). Both execution engines fail closed on incorrect results.
 - In each invalid twin, variant `Epsilon`'s bound is widened from `80u64` to `81u64` (`case Epsilon(v: u64) where v >= 40 && v <= 81;`). Variant destructuring establishes `res in [40, 81]`, which fails the required interval `res >= 40 && res <= 80` on `verify_payload`. Proof obligation checking statically detects the violated contract, failing closed with `cannot prove requires contract for call`. None reaches native execution.
 

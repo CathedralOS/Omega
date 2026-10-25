@@ -30,7 +30,7 @@ which exits 71 on a mismatch.
 | Call result | [call result](call_result/main.omg) | [cleanup](call_result/invalid/main.omg) |
 | Match join | [both incoming arms](match_join/main.omg) | [cleanup](match_join/invalid/main.omg) |
 | Const name | [named construction inputs](const_name/main.omg) | [cleanup](const_name/invalid/main.omg) |
-| Another state | [owned arrivals](other_state/main.omg) | [cleanup](other_state/invalid/main.omg) |
+| A nested machine | [owned arrivals](other_state/main.omg) | [cleanup](other_state/invalid/main.omg) |
 | Another machine | [owned forwarding](other_machine/main.omg) | [cleanup](other_machine/invalid/main.omg) |
 | Target body | [four checked bodies](target_body/main.omg) | [cleanup](target_body/invalid/main.omg) |
 
@@ -178,7 +178,7 @@ contract or turning a description into execution authority.
 | Call result | [call result](independent/call_result/main.omg) | [cleanup](independent/call_result/invalid/main.omg) |
 | Match join | [both incoming arms](independent/match_join/main.omg) | [cleanup](independent/match_join/invalid/main.omg) |
 | Const name | [named construction inputs](independent/const_name/main.omg) | [cleanup](independent/const_name/invalid/main.omg) |
-| Another state | [owned arrivals](independent/other_state/main.omg) | [cleanup](independent/other_state/invalid/main.omg) |
+| A nested machine | [owned arrivals](independent/other_state/main.omg) | [cleanup](independent/other_state/invalid/main.omg) |
 | Another machine | [owned forwarding](independent/other_machine/main.omg) | [cleanup](independent/other_machine/invalid/main.omg) |
 | Target body | [four checked bodies](independent/target_body/main.omg) | [cleanup](independent/target_body/invalid/main.omg) |
 

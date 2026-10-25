@@ -50,7 +50,6 @@ pub mod evidence;
 pub mod inspection;
 pub mod names;
 mod placed_plans;
-pub(crate) mod retained_prefix;
 mod selection_exclusions;
 pub use selection_exclusions::AuthoredSelectionExclusions;
 mod trait_and_machine_tables;

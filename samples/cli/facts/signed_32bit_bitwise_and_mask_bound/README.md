@@ -28,7 +28,7 @@ Each positive place exits 0 in both Terminal Psi and native execution (`omega ru
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating `raw & 63i32` with `raw = 116i32` produces `masked = 52i32` within static interval `40i32..63i32`, discharging exact subtractions `63i32 - masked` (`11i32`) and `masked - 40i32` (`12i32`) and returning `0i32`. In `main`, `transition probe() == 0` transitions to `state done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition probe() == 0` to `transition probe() == 1`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- In every positive place, evaluating `raw & 63i32` with `raw = 116i32` produces `masked = 52i32` within static interval `40i32..63i32`, discharging exact subtractions `63i32 - masked` (`11i32`) and `masked - 40i32` (`12i32`) and returning `0i32`. In `main`, `transition probe() == 0` transitions to `machine done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition probe() == 0` to `transition probe() == 1`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 - Each invalid twin widens the bitwise mask to `127i32` (producing `116 & 127 = 116i32 > 63i32`), failing closed at compile time under the **Contract precondition** / **Contract postcondition** obligation class. None reaches native execution.
 
 ### Acceptance Gate

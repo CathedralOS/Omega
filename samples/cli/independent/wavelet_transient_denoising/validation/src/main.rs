@@ -5,9 +5,8 @@ use bounded_process::{
     BoundedProcessPrepared, run_bounded_process,
 };
 use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
-use package_manager::operations::{
-    LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
-};
+use package_manager::operations::{LocalProjectPreparationOptions};
+use omega_build::{PreparedLocalProjectNativeRequest};
 use std::{fs, path::PathBuf, process::Command, time::Duration};
 
 fn main() {
@@ -33,7 +32,7 @@ fn run() {
     )
     .unwrap()
     .unwrap();
-    let report = package_manager::operations::compile_prepared_local_project_for_native(
+    let report = omega_build::compile_prepared_local_project_for_native(
         PreparedLocalProjectNativeRequest::new(prepared, directory.join("product"), profile),
     )
     .unwrap();

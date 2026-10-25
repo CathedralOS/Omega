@@ -21,7 +21,7 @@ reason to withhold a separately established promise.
 | [call result](call_result/main.omg) | direct completed call |
 | [match join](match_join/main.omg) | either returned arm |
 | [const name](const_name/main.omg) | the same bound named by `FLOOR` |
-| [another state](other_state/main.omg) | checked state arrival |
+| [a nested machine](other_state/main.omg) | checked state arrival |
 | [another machine](other_machine/main.omg) | forwarding result contract |
 | [another target body](target_body/main.omg) | four hosted consuming bodies |
 

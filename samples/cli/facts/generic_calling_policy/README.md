@@ -34,7 +34,7 @@ Width-4 rejects as
 | Call result | [main](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
 | Match join | [main](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
 | Const name | [main](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| Another state | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
+| A nested machine | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
 | Another machine | [main](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
 | Another target body | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 
@@ -63,7 +63,7 @@ recorded separately.
 2. **Identity and lifetime.** The same selected implementation application owns
    the inline capture and boundary contract. Runtime scalar copies, fields and
    state/parameter transfers retain the returned carrier. The rejection branch
-   borrows immutable diagnostic text. Calls and named-state returns preserve
+   borrows immutable diagnostic text. Calls and nested-machine returns preserve
    its literal-issued image backing and substitute every invocation-relative
    lifetime debt. Unknown origins and whole moved subtrees still require their
    complete captured source relations.
@@ -108,7 +108,7 @@ build-time requirement. Exact selected-body admission/execution now reaches
 normal program-entry preparation without that refusal. Native production next
 exposed incomplete captured reference origins while lowering a target helper
 returning `BoundaryPlanResult`. Exact literal-issued image backing now survives
-ordinary call and named-state result substitution without becoming a caller
+ordinary call and nested-machine result substitution without becoming a caller
 parameter or manufacturing a loan. The unchanged root then ran with native exit
 0 and Terminal interpreter exit 0. Temporary tracing was removed. The root and
 all nine canonical positives then passed public `omega run --both` at exit 0;

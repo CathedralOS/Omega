@@ -54,7 +54,7 @@ is an explicit maintenance action; validation never rewrites expected results.
 The bisection midpoint uses an owned mutable `f64` parameter. Its update and
 return exercise invocation-local scalar storage; the caller keeps its bracket
 endpoint. Compiler fixture `runtime_owned_mutable_float_parameter_exit` also
-checks `f32`, named-state arrival, caller isolation, and signed zero, alongside
+checks `f32`, nested-machine arrival, caller isolation, and signed zero, alongside
 immutable-mutation and live-loan refusal controls.
 
 For a faster finite suite, build the supported runner with

@@ -22,11 +22,11 @@ satisfies Tests::arithmetic
         _ -> passed()
     }
 
-    state failed() {
+    machine failed() {
         crash Trap;
     }
 
-    state passed() { }
+    machine passed() { }
 }
 
 machine subtraction_is_correct()
@@ -37,11 +37,11 @@ satisfies Tests::arithmetic
         _ -> passed()
     }
 
-    state failed() {
+    machine failed() {
         crash Trap;
     }
 
-    state passed() { }
+    machine passed() { }
 }
 ```
 

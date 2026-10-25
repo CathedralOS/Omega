@@ -20,7 +20,7 @@ Every positive place and the root witness bind `ProgramEntry` across all four ho
 | call result | `call_result/` | a producer machine returns the pair under contract, then left is mutated | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
 | match join | `match_join/` | both branches of a boolean match expression yield the pair under contract before mutation | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
 | const name | `const_name/` | a named constant INIT_RIGHT initializes pair.right before left is mutated | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
-| another state | `other_state/` | an internal state transition transfers the pair to a successor state before mutation | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
+| a nested machine | `other_state/` | an terminal machine transfer transfers the pair to a successor machine before mutation | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
 | another machine | `other_machine/` | an associated Relay machine receives the pair and mutates left while preserving right | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
 | another target body | `target_body/` | each of the four hosted target bodies receives the pair and verifies disjoint preservation | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
 

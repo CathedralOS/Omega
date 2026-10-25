@@ -47,9 +47,9 @@ and cleanup under the permitted observation contract.
 
 Named decision: `boundary-requirement-static-call-form`, settled 2026-10-14.
 
-A call invokes a machine; an internal state jump transfers within the current
-machine. Transition dispatch may also select a final call whose result completes
-the enclosing machine. A named machine call selects a static path and supplies
+A call invokes a machine, nested or top-level. Transition dispatch may select a
+final call whose result completes the current invocation, not an arbitrary
+lexical ancestor. A named machine call selects a static path and supplies
 every ordinary parameter explicitly. A qualified declaration such as
 `Buffer::clear(buffer: &mut Buffer)` is called as `Buffer::clear(&mut buffer)`,
 not `buffer.clear()`. The qualification establishes a namespace and semantic
@@ -99,9 +99,8 @@ Right-hand-side effects still invalidate the facts they overlap as they occur.
 After evaluating the value, the store invalidates and replaces facts about the
 captured destination, as specified by
 [mutation and subject identity](state_contracts.md#mutation-and-subject-identity).
-A block introduces local scope and cleanup edges, not a new machine or
-state. A terminal value completes the invocation. A call-shaped arm resolving
-to a local state is an internal transfer; one resolving to a machine is a
+A block introduces local scope and cleanup edges, not a new machine declaration.
+A terminal value completes the invocation. A call-shaped transition arm is a
 [terminal call](state_contracts.md#terminal-calls-in-transition-arms), with
 ordinary call, suspension and completion obligations.
 
@@ -250,7 +249,7 @@ when it needs an independently selected provider.
 Removing operator punctuation must not silently turn required supply into an
 admitted theorem declaration or vice versa.
 
-The body accepts ordinary machine contracts, states, and transitions and obeys
+The body accepts ordinary machine contracts, nested machines, and transitions and obeys
 ordinary ownership, effects, termination, evaluation, and cleanup rules. A public
 machine may delegate to private helpers without exposing those helpers for
 consumer selection. Token calls and named calls retain the same declaration/body

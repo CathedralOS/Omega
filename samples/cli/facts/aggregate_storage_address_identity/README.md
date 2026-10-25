@@ -24,7 +24,7 @@ its constant value; the constant itself is never given storage by this query.
 | call result | `call_result/main.omg` | `call_result/invalid/main.omg` |
 | match join | `match_join/main.omg` | `match_join/invalid/main.omg` |
 | const name | `const_name/main.omg` | `const_name/invalid/main.omg` |
-| another state | `other_state/main.omg` | `other_state/invalid/main.omg` |
+| a nested machine | `other_state/main.omg` | `other_state/invalid/main.omg` |
 | another machine | `other_machine/main.omg` | `other_machine/invalid/main.omg` |
 | another target body | `target_body/main.omg` | `target_body/invalid/main.omg` |
 

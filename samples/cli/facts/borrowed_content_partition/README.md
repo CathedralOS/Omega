@@ -28,7 +28,7 @@ different authentic returned claim. Checking retains those alternatives and
 lowering specializes the ordinary continuation's claim namespace without
 relocating the storage or manufacturing common lineage. Separate fixtures
 exercise a surviving sibling loan and its stable address, scalar results,
-nested matches, borrowed ingress, returned owners and a named-state backedge.
+nested matches, borrowed ingress, returned owners and a nested-machine backedge.
 Cathedral's retained physical backing and monotonic retirement/reset remain
 parent acceptance, not claims established by this program.
 
@@ -56,7 +56,7 @@ The requirement coverage is:
   conservation supplies the detached and residual owners.
 - Identity and lifetime: a brief exclusive loan restores the exact strategy;
   both detached results remain owned until `finish` consumes them.
-- Composition: fields, parameters, nested call results, matches, constants, named states,
+- Composition: fields, parameters, nested call results, matches, constants, nested machines,
   forwarding machines and target bodies retain the same size obligations.
 - Soundness boundaries: the 17-unit twins fail at unchanged call contracts;
   the original custody, restoration and conservation controls remain relevant.

@@ -59,6 +59,10 @@ pub(crate) fn named_carrier_path(
 
 /// Translate an occurrence's symbolic owner path through its declarations.
 /// Common fields and active payload fields keep distinct nominal namespaces.
+/// A stored descriptor can belong to a borrowed containing record or array.
+/// Owner selectors name that declared storage, so unwrap its reference shells
+/// as `origin_owner_path` does in the reverse direction. This translates an
+/// already captured loan path; it neither forms a borrow nor grants access.
 pub(crate) fn carrier_path(
     program: &dyn ::validation::CheckingInput,
     mut reference: typed_trees::types::TypeReferenceHandle,
@@ -67,7 +71,9 @@ pub(crate) fn carrier_path(
     let mut output = Vec::with_capacity(owner_path.len());
     let mut payload = None;
     for segment in owner_path {
-        reference = validation::peel_declared_constraints(program, reference);
+        reference = program
+            .type_reference_table
+            .peeled_type_reference(reference);
         match segment {
             BorrowLoanOwnerSegment::FixedIndex(element_index) => {
                 let typed_trees::types::TypeReferenceNode::FixedArray {

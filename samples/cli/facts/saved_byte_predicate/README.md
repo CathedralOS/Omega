@@ -6,7 +6,7 @@ Parent: **R5**, caller-visible mutation summaries and their current-content cons
 
 `ascii_only(view)` executes once. A separate buffer receives byte 255, and the saved decision must still justify `inspect(view)`'s ASCII requirement. `inspect` returns the observed byte; the program traps unless it is 65. Each reject twin changes only the store target to `view[0]`, making that saved decision insufficient. The Boolean snapshot itself remains a value after the write.
 
-The nine places vary the observed byte storage's carrier or executing body: local array, record field, borrowed parameter, array call result, joined array result, named constant initializer, named state, another machine and target body. Every place executes the same saved-observation/write/contract-consumption operation. All four hosted entry bindings are authored; execution here is Linux x86-64 only.
+The nine places vary the observed byte storage's carrier or executing body: local array, record field, borrowed parameter, array call result, joined array result, named constant initializer, nested machine, another machine and target body. Every place executes the same saved-observation/write/contract-consumption operation. All four hosted entry bindings are authored; execution here is Linux x86-64 only.
 
 | Place | Positive | Overlapping twin |
 |---|---|---|
@@ -16,7 +16,7 @@ The nine places vary the observed byte storage's carrier or executing body: loca
 | call result | [source](call_result/main.omg) | [reject](call_result/invalid/main.omg) |
 | match join | [source](match_join/main.omg) | [reject](match_join/invalid/main.omg) |
 | const name | [source](const_name/main.omg) | [reject](const_name/invalid/main.omg) |
-| another state | [source](other_state/main.omg) | [reject](other_state/invalid/main.omg) |
+| a nested machine | [source](other_state/main.omg) | [reject](other_state/invalid/main.omg) |
 | another machine | [source](other_machine/main.omg) | [reject](other_machine/invalid/main.omg) |
 | target body | [source](target_body/main.omg) | [reject](target_body/invalid/main.omg) |
 

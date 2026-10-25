@@ -18,7 +18,7 @@ accompanied by `<place>/invalid/` reject twins:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | bitwise XOR result returned across machine call boundary |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | bitwise XOR result converged across match join arms |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | raw input provided by named compile-time constant |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | bitwise XOR result forwarded across state machine transition |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | bitwise XOR result forwarded across state machine transition |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | bitwise XOR result forwarded through intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | bitwise XOR result verified across target-scoped machine bodies |
 
@@ -74,7 +74,7 @@ Full 8-layer specification and lowering evidence:
   - `call_result`: helper machine `produce_xored()` computes bitwise XOR and returns the result across call boundary with ensures contract.
   - `match_join`: bitwise XOR result converges through match arms into a unified value.
   - `const_name`: input `RAW` is declared as a compile-time named constant `const RAW: i16 = 59;`.
-  - `other_state`: bitwise XOR result is passed across a transition edge into successor state `step(forwarded: i16)`.
+  - `other_state`: bitwise XOR result is passed across a transition edge into successor machine `step(forwarded: i16)`.
   - `other_machine`: bitwise XOR result is forwarded through intermediate machine `runner()`.
   - `target_body`: bitwise XOR result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in widening the XOR operand to `127i16` (where `xored` reaches `68i16 > 63i16`), proving that downstream contract verification `requires xored >= 40 && xored <= 63` strictly fails closed when the post-XOR value exceeds 63.

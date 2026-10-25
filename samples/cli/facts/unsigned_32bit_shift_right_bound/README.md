@@ -15,7 +15,7 @@ Every place performs the same operation: shift a bounded 32-bit unsigned value (
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a contracted helper call returns the bounded 32-bit operand before right shift and subtraction |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the bounded 32-bit operand and join before right shift and subtraction |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant supplies the bounded 32-bit operand before right shift and subtraction |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the bounded 32-bit operand and shift count before right shift and subtraction |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the bounded 32-bit operand and shift count before right shift and subtraction |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate machine forwards the bounded 32-bit operand and shift count to the shift machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies shifts the bounded 32-bit operand and subtracts 60u32 |
 
@@ -55,7 +55,7 @@ re-recorded at the integrated base, because main had moved 25 `.rs` files.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- At runtime, `val == 240u32` shifted right by `2u32` evaluates to `60u32`. Exact 32-bit subtraction `60u32 - 60u32 == 0u32`. The transition `probe() == 0 { true -> done() _ -> bad() }` exits 0. If 32-bit logical right shift or exact subtraction evaluates incorrectly, execution transitions to `state bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
+- At runtime, `val == 240u32` shifted right by `2u32` evaluates to `60u32`. Exact 32-bit subtraction `60u32 - 60u32 == 0u32`. The transition `probe() == 0 { true -> done() _ -> bad() }` exits 0. If 32-bit logical right shift or exact subtraction evaluates incorrectly, execution transitions to `machine bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
 - In each invalid twin, `val` lower bound is weakened to `200u32` (or constant `200u32`) so `shifted` can evaluate to `50u32`. Proof obligation checking statically detects that `shifted - 60u32` can underflow below zero, failing closed with `may overflow \`u32\``. None reaches native execution.
 
 Check all nine invalid twins with:

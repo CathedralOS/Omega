@@ -51,13 +51,21 @@ pub struct FlowReferentFormation {
     pub segments: HandleSpan<facts::PlaceSegment>,
 }
 
-/// Storage lifetimes retained by one completed view. This is a dependency
-/// frontier, not an address or extent proof and not disposition authority.
+/// Independent lifetime dependencies and spatial associations of one completed
+/// view. Roots form only a dependency frontier; descriptor and enclosure links
+/// establish geometry separately. None supplies disposition authority.
 /// A valid view row with no roots is known empty. An aggregate has no own
 /// view dependency; its declared leaves still require independent coverage.
 /// An invalid retention handle means that dependency was unavailable.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FlowOperandRetention {
+    /// Checked pre-interpretation storage enclosing this pointer. Recasts and
+    /// ordinary placed views retain the completed source capture, not its later
+    /// descriptor home. This is a conservative compatibility footprint only:
+    /// no scalar identity, pointee contents, access or ancestry follows from it.
+    /// Zero withholds enclosure evidence. Reference-valued children need their
+    /// own pointer relation and cannot inherit their containing storage's scope.
+    pub enclosing_storage: Handle<FlowOperandFact>,
     /// Body-derived association to a completed returned descriptor. This is
     /// a post-call observation, not an evaluated child, loan authority, scalar
     /// equality or a snapshot of the referent. Zero withholds exact geometry.

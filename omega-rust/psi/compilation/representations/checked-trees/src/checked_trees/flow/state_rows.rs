@@ -1,38 +1,34 @@
 //! Machine-local flow rows, in their original arena order.
 //!
 //! Consumers already know the owning machine, but repeatedly scanned every
-//! machine's states to find its calls and statements. Stable grouping retains
-//! duplicate rows and full symbol generations; first-match and unique readers
-//! deliberately keep their distinct rules. The table owns the arena and index
-//! together. Mutable arena access clears the index, including replacement by
-//! an unrelated arena with the same revision during product pruning.
-//! That ownership boundary supplies freshness directly; readers need not walk
-//! every arena page to recompute a revision before looking up one state.
+//! machine's states to find its calls and statements. The table owns the
+//! arena and its two groupings — by owning machine and by state symbol —
+//! together; stable grouping retains duplicate rows and full symbol
+//! generations, and the first-match and unique readers keep their distinct
+//! rules. Mutable arena access clears the groupings, including replacement
+//! by an unrelated arena with the same revision during product pruning.
 
 use super::{FlowControlFacts, FlowStateFact};
-use arena::{Handle, OwnedIndex};
-type Arena<T> = arena::PagedArenaSet<T>;
+use crate::checked_trees::keyed_rows::KeyedRows;
+use arena::Handle;
 use symbols::SymbolHandle;
-
-#[derive(Clone, Default)]
-struct MachineStateRows {
-    rows: Vec<(SymbolHandle, Handle<FlowStateFact>)>,
-    by_state: Vec<(SymbolHandle, Handle<FlowStateFact>)>,
-}
+type Arena<T> = arena::PagedArenaSet<T>;
 
 /// Flow-state storage and its derived machine relationships share one owner.
 /// Arena mutation is exposed for producers, but cannot retain a stale index.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowStateTable {
     arena: Arena<FlowStateFact>,
-    machine_rows: OwnedIndex<MachineStateRows, ()>,
+    machine_rows: KeyedRows<SymbolHandle, FlowStateFact>,
+    state_rows: KeyedRows<SymbolHandle, FlowStateFact>,
 }
 
 impl From<Arena<FlowStateFact>> for FlowStateTable {
     fn from(arena: Arena<FlowStateFact>) -> Self {
         Self {
             arena,
-            machine_rows: OwnedIndex::default(),
+            machine_rows: KeyedRows::default(),
+            state_rows: KeyedRows::default(),
         }
     }
 }
@@ -48,66 +44,39 @@ impl std::ops::Deref for FlowStateTable {
 impl std::ops::DerefMut for FlowStateTable {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.machine_rows.clear();
+        self.state_rows.clear();
         &mut self.arena
     }
-}
-
-fn key(symbol: SymbolHandle) -> (u32, u32) {
-    (symbol.arena_index(), symbol.generation())
 }
 
 impl FlowControlFacts {
     fn with_machine_rows<Result>(
         &self,
         machine: SymbolHandle,
-        read: impl FnOnce(&[(SymbolHandle, Handle<FlowStateFact>)]) -> Result,
+        read: impl FnOnce(&[Handle<FlowStateFact>]) -> Result,
     ) -> Result {
-        self.with_state_rows(|index| {
-            let start = index
-                .rows
-                .partition_point(|(owner, _)| key(*owner) < key(machine));
-            let end = start + index.rows[start..].partition_point(|(owner, _)| *owner == machine);
-            read(&index.rows[start..end])
-        })
-    }
-
-    fn with_state_rows<Result>(&self, read: impl FnOnce(&MachineStateRows) -> Result) -> Result {
-        self.states.machine_rows.with(
-            (),
-            || {
-                let mut rows: Vec<_> = self
-                    .states
-                    .iter()
-                    .map(|(handle, state)| (state.machine_symbol, handle))
-                    .collect();
-                rows.sort_by_key(|(machine, _)| key(*machine));
-                let mut by_state: Vec<_> = self
-                    .states
-                    .iter()
-                    .map(|(handle, state)| (state.state_symbol, handle))
-                    .collect();
-                by_state.sort_by_key(|(state, _)| key(*state));
-                MachineStateRows { rows, by_state }
-            },
+        self.states.machine_rows.with_rows(
+            &self.states.arena,
+            |state| state.machine_symbol,
+            &machine,
             read,
         )
     }
 
     /// First recorded row with this exact state symbol.
     pub fn state_by_symbol(&self, state: SymbolHandle) -> Option<&FlowStateFact> {
-        self.with_state_rows(|index| {
-            let start = index
-                .by_state
-                .partition_point(|(candidate, _)| key(*candidate) < key(state));
-            let (candidate, handle) = index.by_state.get(start)?;
-            (*candidate == state).then(|| self.states.get(*handle))
-        })
+        self.states.state_rows.with_rows(
+            &self.states.arena,
+            |row| row.state_symbol,
+            &state,
+            |rows| rows.first().map(|handle| self.states.get(*handle)),
+        )
     }
 
     /// First recorded row with this exact machine and state identity.
     pub fn state(&self, machine: SymbolHandle, state: SymbolHandle) -> Option<&FlowStateFact> {
         self.with_machine_rows(machine, |rows| {
-            rows.iter().find_map(|(_, handle)| {
+            rows.iter().find_map(|handle| {
                 let row = self.states.get(*handle);
                 (row.state_symbol == state).then_some(row)
             })
@@ -121,7 +90,7 @@ impl FlowControlFacts {
         state: SymbolHandle,
     ) -> Option<&FlowStateFact> {
         self.with_machine_rows(machine, |rows| {
-            let mut matching = rows.iter().filter_map(|(_, handle)| {
+            let mut matching = rows.iter().filter_map(|handle| {
                 let row = self.states.get(*handle);
                 (row.state_symbol == state).then_some(row)
             });
@@ -131,12 +100,10 @@ impl FlowControlFacts {
     }
 
     /// Every row of a machine, preserving arena order even for duplicate states.
-    /// References borrow the arena, not the derived index's lock.
+    /// References borrow the arena, not the derived grouping's lock.
     pub fn machine_states(&self, machine: SymbolHandle) -> Vec<&FlowStateFact> {
         self.with_machine_rows(machine, |rows| {
-            rows.iter()
-                .map(|(_, handle)| self.states.get(*handle))
-                .collect()
+            rows.iter().map(|handle| self.states.get(*handle)).collect()
         })
     }
 }

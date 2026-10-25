@@ -15,7 +15,7 @@ Every place performs the same operation: define bounded signed 8-bit inputs `lhs
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the product result is returned from a callee invocation |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the product result so the joined binding preserves the bounds |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant rhs multiplies the bounded lhs |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the product result to a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the product result to a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the product result through an intermediate machine call |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 8-bit signed exact multiplication and verifies the bounds |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating `lhs * rhs` with inputs `8i8` and `9i8` establishes product `72i8` within static interval `30i8..100i8`. Passing `prod` to `verify_prod(prod)` satisfies its contract `prod >= 30 && prod <= 100`. `verify_prod` evaluates exact subtraction `100 - 72 == 28i8` and returns `(28 - 28) as i32 == 0i32`. In `main`, `transition res == 0` transitions to `state done() {}`, terminating with native exit 0. If multiplication or contract satisfaction returns an unexpected value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
+- In every positive place, evaluating `lhs * rhs` with inputs `8i8` and `9i8` establishes product `72i8` within static interval `30i8..100i8`. Passing `prod` to `verify_prod(prod)` satisfies its contract `prod >= 30 && prod <= 100`. `verify_prod` evaluates exact subtraction `100 - 72 == 28i8` and returns `(28 - 28) as i32 == 0i32`. In `main`, `transition res == 0` transitions to `machine done() {}`, terminating with native exit 0. If multiplication or contract satisfaction returns an unexpected value, execution branches to `machine bad() { crash Trap; }`, causing exit 255.
 - Each invalid twin widens the `rhs` bound (e.g. `rhs <= 11i8` or `const RHS: i8 = 11`), so `lhs * rhs` can reach `110i8 > 100i8`. Calling `verify_prod(prod)` fails closed at compile time with `cannot prove requires contract for call verify_prod`. None reaches native execution.
 
 Check all nine invalid twins with:

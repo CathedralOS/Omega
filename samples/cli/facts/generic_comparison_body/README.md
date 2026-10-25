@@ -30,7 +30,7 @@ of the comparison's operands changes.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a call result returns each operand |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield an operand |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants are the operands |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives both operands |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives both operands |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine supplies both operands |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | one body per hosted target uses the operands |
 
@@ -60,7 +60,7 @@ Measured at base `c1c6bc8cb8ec886f645976a82e496d4191937339` on macOS arm64
 - All nine twins exit 200 at compile time with the row's own obligation —
   `cannot prove requires contract for call hold ... direct == false` — from
   `main` state `entry` (local, field, parameter, call result, match join,
-  const name, another machine), `main` state `check` (another state), and
+  const name, another machine), `main` state `check` (a nested machine), and
   `observe` state `entry` for each of the four target bodies.
 - `python3 tools/sample_native_gate.py --cli <producer> --facts --filter
   cli/facts/generic_comparison_body` reports 9/9 samples meeting their
@@ -80,8 +80,8 @@ unchanged and keep their `@c1c6bc8cb8ec+wt` stamp.
 ### The oracle discriminates
 
 `hold(direct)` carries `requires direct == false`, and the program reaches
-`state done() {}` (exit 0) only through it; a true recorded boolean takes
-`state bad() { crash Trap; }`. The twin keeps the same caller, the same
+`machine done() {}` (exit 0) only through it; a true recorded boolean takes
+`machine bad() { crash Trap; }`. The twin keeps the same caller, the same
 obligation and the same operands, and changes only the generic body's own
 returned literal: the refusal is the fact's own negative, not an unrelated
 failure. The comparison's operands never select the result — the body-wide join
@@ -104,7 +104,7 @@ twin, only `same`'s body changes from `false` to `true` (one line; verified by
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | same fragment, `from main`, state `entry` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | same fragment, `from main`, state `entry` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | same fragment, `from main`, state `entry` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | same fragment, `from main`, state `check` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | same fragment, `from main`, state `check` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | same fragment, `from main`, state `entry` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | same fragment per target body, `from observe` |
 

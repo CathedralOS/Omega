@@ -10,6 +10,18 @@ from private ranking witnesses and provider progress premises.
 
 ## Graph and frontier
 
+Source nested machines have already undergone lexical resolution and explicit
+argument elaboration. Terminal machine identities are flat; no runtime lexical
+parent, captured environment or special source-state invocation survives.
+Ordinary calls retain a continuation, while terminal calls forward completion.
+An implementation may inline/fuse them into these blocks only while preserving
+each invocation's checked contract, argument transfer, loans and cleanup.
+
+Recursive components are reconstructed across machine calls as well as within
+lowered block graphs. Constant-stack terminal cycles may become block backedges;
+that transformation preserves their joint ranking/progress evidence and resource
+accounting. Source nesting does not bound the component or justify any edge.
+
 The verifier derives each strongly connected component (SCC) from the actual
 graph, including its members, entries, exits, and internal edges. Component
 identity binds the owning machine and canonical topology. A producer may cite
@@ -102,7 +114,8 @@ a measure. For the natural-rank form:
 
 Removing strict edges must leave an acyclic graph: every cycle encounters
 descent, not just the cycles selected by a traversal. Preserving implementation
-steps do not relax the authored state-transition decrease requirement.
+steps obey the same joint every-cycle descent rule as source machine transfers;
+there is no separate source-state decrease rule.
 
 Rank substitution follows the actual selected scalar and structural successor
 arguments. A length observation belongs to its descriptor binding; rebinding

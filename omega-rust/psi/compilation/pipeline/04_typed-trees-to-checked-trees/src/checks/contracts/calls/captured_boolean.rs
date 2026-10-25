@@ -30,13 +30,12 @@ pub(super) fn judgment(
         else {
             return None;
         };
-        let contract_call = crate::flow::proof_contract_call(
-            &facts.proof,
+        let contract_call = facts.proof.contract_call_at(&(
             state.machine_symbol,
             state.state_symbol,
             call.statement_index,
             call.call_ordinal,
-        )?;
+        ))?;
         let mut seen = false;
         for reference in facts
             .proof
@@ -493,13 +492,12 @@ fn source_substitution_preserves_captures(
     else {
         return None;
     };
-    let contract_call = crate::flow::proof_contract_call(
-        &facts.proof,
+    let contract_call = facts.proof.contract_call_at(&(
         state.machine_symbol,
         state.state_symbol,
         call.statement_index,
         call.call_ordinal,
-    )?;
+    ))?;
     let mut occurrences = Vec::new();
     crate::facts::contract_occurrences::append_expression_occurrences(
         program,

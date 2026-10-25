@@ -97,7 +97,7 @@ instead require the complete validated footprint and overlap judgment.
 
 Transitions may transport references only while their storage outlives the
 target path. Persistent fields retain exact field/case/index provenance across
-states only under valid source correspondence; a coincident name or runtime
+control-flow edges only under valid source correspondence; a coincident name or runtime
 index cannot supply it. Reference copies still denote live storage, unlike
 integer snapshots. [Live-fact invalidation](state_contracts.md#mutation-and-subject-identity)
 and loan authority remain separate checks.

@@ -145,8 +145,9 @@ fn retain_captured_lineage(
     candidates: Vec<aliases::ResolvedPlace>,
 ) -> Option<Vec<ResolvedAlias>> {
     let root = place.root;
-    let (_, borrow_state) =
-        crate::flow::borrow_state_fact(&facts.borrow, state.machine_symbol, state.state_symbol)?;
+    let (_, borrow_state) = facts
+        .borrow
+        .first_state_borrow(state.machine_symbol, state.state_symbol)?;
     // A current cut may contain different generations on mutually exclusive
     // paths. They are alternatives of one exact observed descriptor slot;
     // earlier saved operands retain their distinct, earlier cut. Authenticate

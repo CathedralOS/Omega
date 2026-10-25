@@ -20,7 +20,7 @@ Every positive place and the root witness bind `ProgramEntry` across all four ho
 | call result | `call_result/` | a producer machine returns the sign-extended i32 scalar under postcondition ensures result >= 300i32 && result <= 500i32 | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
 | match join | `match_join/` | both branches of a boolean match expression yield the sign-extended i32 scalar before subtraction | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
 | const name | `const_name/` | a named constant BASE_NARROW defines the bounded i16 operand before sign-extension | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
-| another state | `other_state/` | an internal state transition transfers the sign-extended i32 scalar to a successor state with entry contract | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
+| a nested machine | `other_state/` | an terminal machine transfer transfers the sign-extended i32 scalar to a successor machine with entry contract | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
 | another machine | `other_machine/` | an associated Relay machine sign-extends and forwards the i32 scalar to the caller under postcondition | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
 | another target body | `target_body/` | each of the four hosted target bodies sign-extends the i16 scalar and discharges subtraction | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
 
@@ -46,7 +46,7 @@ All 10 samples report `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, sign-extending `narrow = 400i16` (`300i16 <= narrow <= 500i16`) to `i32` yields `wide = 400i32` within static interval `300i32..500i32`. Passing `wide` to `verify_wide(wide)` satisfies its contract `wide >= 300i32 && wide <= 500i32`, evaluates exact subtractions `500i32 - 400i32 == 100i32` and `400i32 - 300i32 == 100i32`, and returns `0i32`. In `main`, `transition exit_code == 0i32` transitions to `state done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition exit_code == 0i32` to `transition exit_code == 1i32`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- In every positive place, sign-extending `narrow = 400i16` (`300i16 <= narrow <= 500i16`) to `i32` yields `wide = 400i32` within static interval `300i32..500i32`. Passing `wide` to `verify_wide(wide)` satisfies its contract `wide >= 300i32 && wide <= 500i32`, evaluates exact subtractions `500i32 - 400i32 == 100i32` and `400i32 - 300i32 == 100i32`, and returns `0i32`. In `main`, `transition exit_code == 0i32` transitions to `machine done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition exit_code == 0i32` to `transition exit_code == 1i32`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 - Each place carries a fact-sensitive reject twin at `<place>/invalid/main.omg` where the narrow bound is widened to `501i16` (`501i32`), failing closed at compile time under the **Contract precondition** obligation class because `wide <= 500i32` cannot be established for `verify_wide`. Check each twin with:
 
 ```sh
@@ -69,7 +69,7 @@ omega --check samples/cli/facts/narrow_to_wide_signed_16to32_extension/target_bo
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
 

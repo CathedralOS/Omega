@@ -6,7 +6,7 @@ dependency.
 
 - `Sample { readings: backing[1..3] }` — slice field initialized from
   an exclusive subrange of a local array.
-- `state read(...) requires 1 < values.len;` — a state restates the
+- `machine read(...) requires 1 < values.len;` — a state restates the
   callee guard's bound as its own requires clause.
 - `Counts::clone(&mut merged)` — `&mut` reborrow weakens to the
   callee's shared loan.

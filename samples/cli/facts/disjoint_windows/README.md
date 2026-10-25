@@ -27,7 +27,7 @@ through both writes and subsequent readback.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `call_result/controls/overlap/` | result guaranteeing equality to 2 |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `match_join/controls/overlap/` | both arms establish 2; caller exercises both |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `const_name/controls/overlap/` | named constant 2 |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `other_state/controls/overlap/` | successor parameter requiring 2 |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `other_state/controls/overlap/` | successor parameter requiring 2 |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `other_machine/controls/overlap/` | forwarding call to machine requiring 2 |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `target_body/controls/overlap/` | four target-scoped bodies requiring 2 |
 

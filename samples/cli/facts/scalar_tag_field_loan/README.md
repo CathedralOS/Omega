@@ -10,7 +10,7 @@ while computing `value ^ 0`.
 The row exercises the loan through [a local](local/main.omg),
 [a field](field/main.omg), [a parameter](parameter/main.omg),
 [a call result](call_result/main.omg), [a match join](match_join/main.omg),
-[a constant name](const_name/main.omg), [another state](other_state/main.omg),
+[a constant name](const_name/main.omg), [a nested machine](other_state/main.omg),
 [another machine](other_machine/main.omg), and
 [target-scoped bodies](target_body/main.omg).
 Each sibling `invalid/main.omg` adds only a write to the borrowed backing before

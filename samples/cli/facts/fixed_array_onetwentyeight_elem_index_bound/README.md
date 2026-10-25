@@ -15,7 +15,7 @@ Every place performs the same operation: define a 128-element fixed-size array `
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the index arrives from a helper call with an ensures result < 128 contract |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both branches of a match expression produce in-bounds indices |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant bounds the index contract for the fixed-size array |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a transition to a successor state forwards the bounded index and array |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a transition to a successor machine forwards the bounded index and array |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the bounded index and array to the reader |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies reads the array element using the bounded index |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating fixed-size array indexing on `[u64; 128]` with index `73u64` statically verified to satisfy `idx < 128u64` retrieves element `73u64`. In `main`, `transition elem == 73` transitions to `state done() {}`, terminating with native exit 0. If indexing produces any unexpected value, execution branches to `state bad() { crash Trap; }`, causing a Trap crash.
+- In every positive place, evaluating fixed-size array indexing on `[u64; 128]` with index `73u64` statically verified to satisfy `idx < 128u64` retrieves element `73u64`. In `main`, `transition elem == 73` transitions to `machine done() {}`, terminating with native exit 0. If indexing produces any unexpected value, execution branches to `machine bad() { crash Trap; }`, causing a Trap crash.
 - Measured discrimination: perturbing `elem == 73` to `elem == 74` on `main.omg` causes native execution to crash with STATUS_ILLEGAL_INSTRUCTION (-1073741795) and the Terminal Psi interpreter to crash with `Trap (host presentation agrees)`. Both engines trap and reject the perturbation.
 - Each invalid twin widens the index bound contract to `idx <= 128` (or `LIMIT = 129`), so the index may reach or exceed length 128. Fixed-size array indexing `arr[idx]` fails closed at compile time with `cannot prove index ... is within length 128`. None reaches native execution.
 

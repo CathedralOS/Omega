@@ -5,7 +5,7 @@ whose exact address conversion requires an explicit 64-bit address model.
 That platform premise is a caller obligation, not a universal address-width
 rule or authority to access memory.
 
-The same symbolic builtin occurs alongside a recast bound in a named state's
+The same symbolic builtin occurs alongside a recast bound in a nested machine's
 contract. An authored parameter and nominal constant named `Bound` retain
 their separate identities. The program checks the converted address, both
 authored values, and a bounded byte-region read.

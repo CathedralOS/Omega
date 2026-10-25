@@ -186,7 +186,7 @@ Scalar indexing requires `0 <= index < live_length`. Unsigned type range proves
 the lower bound; a signed index needs evidence of nonnegativity. The upper bound
 must refer to the current collection, through enforced types, constants, live
 guards, or a selected accessor's checked contract. Mutation invalidates stale
-facts under [state contracts](state_contracts.md#mutation-and-subject-identity).
+facts under [invocation contracts](state_contracts.md#mutation-and-subject-identity).
 Range windows have the separate obligations in [numeric values](numeric_values.md#collection-bounds).
 
 A fixed array `[T; N]` has length exactly `N`. A growable collection's live length

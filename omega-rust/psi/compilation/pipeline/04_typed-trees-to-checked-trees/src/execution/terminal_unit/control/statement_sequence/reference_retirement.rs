@@ -170,7 +170,7 @@ pub(super) fn unique_borrow_state(
 ) -> Option<Option<&checked_trees::StateBorrowFact>> {
     facts
         .borrow
-        .with_state_index(|index| match index.bucket(machine, state) {
+        .with_state_borrows(machine, state, |rows| match rows {
             [] => Some(None),
             [handle] => Some(Some(facts.borrow.states.get(*handle))),
             _ => None,

@@ -187,6 +187,8 @@ pub struct CheckingContext<'program> {
 
 impl<'program> CheckingContext<'program> {
     fn reset_context_sensitive_memos(&mut self) {
+        // Call-frame queries also consume the prepared effect and reach plans.
+        // Only the full-input equality paths may share their cached results.
         let memos = std::mem::take(&mut self.memos);
         self.memos = Arc::new(Arc::try_unwrap(memos).map_or_else(
             |shared| shared.clone_typed_tree_memos(),
@@ -285,9 +287,6 @@ impl<'program> CheckingContext<'program> {
     ) -> Self {
         self.prepared_mathematics = mathematics;
         self.reset_context_sensitive_memos();
-        if let Some(memos) = Arc::get_mut(&mut self.memos) {
-            memos.call_frames = Arc::default();
-        }
         self
     }
 

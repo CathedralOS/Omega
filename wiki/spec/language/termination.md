@@ -75,10 +75,12 @@ storage capacity. Its lower bound establishes the floor. Short form without
 elaborated to an explicit view. A uniquely visible user measure is not a default;
 adding another declaration cannot reinterpret existing code.
 
-Terminating state cycles require strict descent on every cyclic transition.
-Mutually recursive calls instead use one joint ranking for the entire strongly
-connected call component: edges may preserve rank only if every complete cycle
-contains strict descent. A DFS-selected subset of cycles is insufficient.
+Terminating recursive machines use one joint ranking for the entire strongly
+connected call component, whether declarations are nested or top-level and
+whether an edge is an ordinary call or terminal transfer. Edges may preserve
+rank only if every complete cycle contains strict descent. A DFS-selected
+subset of cycles is insufficient. There is no separate source-state ranking
+rule; lexical containment is not a recursion or induction boundary.
 The exact source spelling for differently shaped mutual participants remains
 undetermined; the joint-cycle semantic rule is settled.
 
@@ -110,8 +112,13 @@ lowering. After recursive cycles lower to backedges, the runtime call graph is
 acyclic for activation-storage planning. This is context-sensitive eligibility
 of one machine construct, not a separate proof language.
 
-A transition backedge remains within its activation. A productive transition
-loop without a termination promise may run forever and owes no rank; productivity
+A lowered iteration backedge adds no activation. Lexical nesting does not
+prescribe frame ownership: tail-position cycles must preserve their constant
+stack bound, including explicit borrowed backing and cleanup, in the interpreter
+and native realization alike. A staged implementation must reject unsupported
+cases explicitly rather than accept frame-growing replacements for old loops.
+A productive terminal-transfer cycle without a termination promise may run
+forever and owes no rank; productivity
 alone proves no fairness or eventual response. When termination of an algorithm
 cannot be proved, a bounded API takes explicit fuel and returns exhaustion as an
 ordinary case. That algorithm-visible budget is distinct from
@@ -186,7 +193,7 @@ discarded. Forwarding an unused recursive reference creates no dependency.
 
 Progress evidence follows exact identity-preserving lineage, explicit contract
 substitution, or checked qualification-preserving transitions. A value merely
-descending from another value is insufficient. [State contracts](state_contracts.md)
+descending from another value is insufficient. [Invocation contracts](state_contracts.md)
 governs capture and invalidation; these additional constraints apply to premises:
 
 - Owned replacement captures the source value at assignment, not later source
@@ -208,11 +215,13 @@ governs capture and invalidation; these additional constraints apply to premises
   unrelated unknown reference does not erase established correspondence, but
   unknown writes and exposed bindings cannot prove preservation.
 
-State arrivals retain independent field origins and every finite entry-subject
+Machine arrivals retain independent field origins and every finite entry-subject
 alternative. A finite permutation is not ambiguity or unbounded premise growth;
 repeated projection without a finite closure cannot preserve the original
-qualification. Named-state and entry backedges use exact target-state formals,
-not the machine's still-forming summary as if the jump were a nested call.
+qualification. Recursive arrivals use exact target formals and checked cycle
+evidence, not a still-forming contract summary as proof of itself. Source
+nesting neither supplies an induction hypothesis nor bypasses strict descent
+when a recursive contract is cited as proof.
 Reference identity may transport an existing live qualification, never establish
 a missing or invalidated one. Bounded source-certificate support remains beside
 [checked progress](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/README.md#flow-ranges-and-progress).

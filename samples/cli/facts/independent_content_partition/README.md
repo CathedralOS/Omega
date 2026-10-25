@@ -9,7 +9,7 @@ conservation mechanism using a numeric model, not physical backing.
 
 Each place issues a 48-unit region at 10, partitions 16 units, and observes
 children (10, 16) and (26, 32). Both selector values execute. The nine places
-are local, field, parameter, call result, match join, const name, another state,
+are local, field, parameter, call result, match join, const name, a nested machine,
 another machine, and another target body. Run
 `omega run --both samples/cli/facts/independent_content_partition/<place>/main.omg`.
 Each `invalid/main.omg` removes only the second owner's conservation equation.

@@ -40,7 +40,7 @@ machine Body::set_mass(body: &mut Body, mass: i32)
 The caller supplies the range fact. The assignment transports it to `body.mass`,
 which proves the postcondition. A missing proof normally produces a diagnostic;
 an author does not get a runtime check merely by writing `requires`.
-[State contracts](../spec/language/state_contracts.md) owns fact transport and
+[Invocation contracts](../spec/language/state_contracts.md) owns fact transport and
 [default domains](../spec/language/dependent_values.md#default-domains-and-zero-initialization)
 owns establishment gates.
 
@@ -66,11 +66,11 @@ machine Player::take_damage(player: &mut Player, amount: i32)
         false -> settle(&mut player, next)
     }
 
-    state floored(player: &mut Player) {
+    machine floored(player: &mut Player) {
         player.health = 0;
     }
 
-    state settle(player: &mut Player, next: i32)
+    machine settle(player: &mut Player, next: i32)
     requires next in 0..=100
     {
         player.health = next;
@@ -79,9 +79,9 @@ machine Player::take_damage(player: &mut Player, amount: i32)
 ```
 
 Both operands lie in `0..=100`, so subtraction fits `i32`. The false arm adds
-`next >= 0`; the existing upper bound gives `next <= 100`. Each state can
+`next >= 0`; the existing upper bound gives `next <= 100`. Each helper can
 therefore establish the field's range and the machine's postcondition.
-`next` is invocation-local scratch, passed only to the state that needs it;
+`next` is invocation-local scratch, passed only to the helper that needs it;
 it is not a persistent `Player` field. Both transitions pass `player` explicitly.
 
 Facts describe exact values or storage at particular program points. A copied

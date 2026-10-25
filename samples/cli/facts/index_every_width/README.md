@@ -21,7 +21,7 @@ and carries an authored `expected_native_exit.txt` containing `0` beside its ent
 | call_result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | contracted helper call results supply each width index |
 | match_join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | match arms join on bounded width indices before indexing |
 | const_name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constant indices bound and index the array |
-| other_state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | state transition passes bounded width indices to successor state |
+| other_state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | state transition passes bounded width indices to successor machine |
 | other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | forwarding machine routes bounded width indices to indexing machine |
 | target_body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped machine bodies execute indexing across all hosted targets |
 
@@ -62,7 +62,7 @@ Every twin rejects with `cannot prove index ... is within length 4` naming that 
 - **Parent outcome:** `ONE-INTEGER-BOUNDS-ENGINE` / `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`).
 - **Requirement established:** End-to-end nine-place fact preservation and fixed-size array/slice indexing across all integer widths (`u8`, `u16`, `u32`, `u64`, `i8`, `i16`, `i32`, `i64`). The proved in-bounds premise `0 <= index <= 3` satisfies the index demand `0 <= index < 4` without inserting runtime bounds assertions, with exact agreement between Terminal Psi and native execution across hosted targets.
 - **Pinned fixtures:** positive places and reject twins under `tests/omega/pass/facts/index_every_width_through_*_exit` and `tests/omega/fail/facts/index_every_width_through_*_rejected`.
-- **Authority:** [Counts, indices, and addresses](../../../../wiki/spec/language/counts_and_addresses.md#bounds-and-lowering) (scalar indexing requires `0 <= index < live_length`; signed widths require nonnegativity evidence), [numeric values](../../../../wiki/spec/language/numeric_values.md) (propositions as bounds, same-width and multi-width scalar rules), and [state contracts](../../../../wiki/spec/language/state_contracts.md#bindings-and-arrivals) (all-predecessor joins and fact lifetime).
+- **Authority:** [Counts, indices, and addresses](../../../../wiki/spec/language/counts_and_addresses.md#bounds-and-lowering) (scalar indexing requires `0 <= index < live_length`; signed widths require nonnegativity evidence), [numeric values](../../../../wiki/spec/language/numeric_values.md) (propositions as bounds, same-width and multi-width scalar rules), and [invocation contracts](../../../../wiki/spec/language/state_contracts.md#bindings-and-arrivals) (all-predecessor joins and fact lifetime).
 
 Full 8-layer specification and lowering evidence:
 

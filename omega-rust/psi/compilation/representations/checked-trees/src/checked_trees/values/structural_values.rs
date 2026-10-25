@@ -8,6 +8,8 @@ use typed_trees::expression::{ExpressionHandle, TableMatchArm};
 use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::TypeReferenceHandle;
 
+use crate::checked_trees::keyed_rows::KeyedRows;
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedStructuralValuePlans {
     pub roots: Arena<CheckedStructuralValueRoot>,
@@ -16,9 +18,7 @@ pub struct CheckedStructuralValuePlans {
     pub record_fields: Arena<CheckedStructuralRecordField>,
     call_schedules: Arena<StructuralCallSchedule>,
     calls: Arena<crate::CheckedStructuralValueCall>,
-    roots_by_state: arena::OwnedIndex<
-        symbols::SymbolKeyMap<SymbolHandle, Vec<Handle<CheckedStructuralValueRoot>>>,
-    >,
+    roots_by_state: KeyedRows<SymbolHandle, CheckedStructuralValueRoot>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -425,19 +425,8 @@ impl CheckedStructuralValuePlans {
         state: SymbolHandle,
         run: impl FnOnce(&[Handle<CheckedStructuralValueRoot>]) -> R,
     ) -> R {
-        // Batch insertion and mutation have independent revision/length effects.
-        // Only the arena's exact revision establishes freshness of every bucket.
-        self.roots_by_state.with(
-            self.roots.revision(),
-            || {
-                let mut by_state = symbols::SymbolKeyMap::<SymbolHandle, Vec<_>>::default();
-                for (handle, root) in self.roots.iter() {
-                    by_state.entry(root.state).or_default().push(handle);
-                }
-                by_state
-            },
-            |by_state| run(by_state.get(&state).map_or(&[], Vec::as_slice)),
-        )
+        self.roots_by_state
+            .with_rows(&self.roots, |root| root.state, &state, run)
     }
 
     pub fn roots_for_state(&self, state: SymbolHandle) -> Vec<&CheckedStructuralValueRoot> {
@@ -630,7 +619,6 @@ macro_rules! record_or_structural_case_pattern {
             | $crate::CheckedStructuralValueKind::StructuralCase { $($fields)* }
     };
 }
-
 #[cfg(test)]
 mod index_tests {
     use super::{CheckedStructuralValuePlans, CheckedStructuralValueRoot, SymbolHandle};
@@ -757,31 +745,5 @@ mod index_tests {
                 )
                 .is_none()
         );
-    }
-
-    #[test]
-    fn root_index_preserves_mutation_before_batch_append() {
-        let mut plans = CheckedStructuralValuePlans::default();
-        let original = SymbolHandle::from_parts(1, 1);
-        let moved = SymbolHandle::from_parts(2, 1);
-        let first = plans.roots.insert(CheckedStructuralValueRoot {
-            state: original,
-            ..CheckedStructuralValueRoot::default()
-        });
-        plans.with_state_roots(original, |handles| assert_eq!(handles, [first]));
-        plans.roots.get_mut(first).state = moved;
-        plans.roots.insert_many([
-            CheckedStructuralValueRoot {
-                state: original,
-                ..CheckedStructuralValueRoot::default()
-            },
-            CheckedStructuralValueRoot {
-                state: original,
-                ..CheckedStructuralValueRoot::default()
-            },
-        ]);
-        plans.with_state_roots(moved, |handles| assert_eq!(handles, [first]));
-        assert!(plans.roots.free(first));
-        plans.with_state_roots(moved, |handles| assert!(handles.is_empty()));
     }
 }

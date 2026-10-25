@@ -118,7 +118,7 @@ contract, consumer and runtime oracle.
 | call result | [call result](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
 | match join | [match join](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
 | const name | [const name](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| another state | [another state](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
+| a nested machine | [a nested machine](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
 | another machine | [another machine](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
 | another target body | [target body](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 

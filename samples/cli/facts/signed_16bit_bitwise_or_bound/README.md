@@ -18,7 +18,7 @@ accompanied by `<place>/invalid/` reject twins:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | bitwise OR result returned across machine call boundary |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | bitwise OR result converged across match join arms |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | base input provided by named compile-time constant |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | bitwise OR result forwarded across state machine transition |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | bitwise OR result forwarded across state machine transition |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | bitwise OR result forwarded through intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | bitwise OR result verified across target-scoped machine bodies |
 
@@ -74,7 +74,7 @@ Full 8-layer specification and lowering evidence:
   - `call_result`: helper machine `produce_combined()` computes bitwise OR and returns the result across call boundary with ensures contract.
   - `match_join`: bitwise OR result converges through match arms into a unified value.
   - `const_name`: input `BASE_VAL` is declared as a compile-time named constant `const BASE_VAL: i16 = 20;`.
-  - `other_state`: bitwise OR result is passed across a transition edge into successor state `step(forwarded: i16)`.
+  - `other_state`: bitwise OR result is passed across a transition edge into successor machine `step(forwarded: i16)`.
   - `other_machine`: bitwise OR result is forwarded through intermediate machine `runner()`.
   - `target_body`: bitwise OR result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in widening the OR mask to `64i16` (where `combined` reaches `84i16 > 63i16`), proving that downstream contract verification `requires combined >= 40 && combined <= 63` strictly fails closed when the post-OR value exceeds 63.

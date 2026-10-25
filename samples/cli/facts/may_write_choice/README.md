@@ -4,7 +4,7 @@ Choosing one of two mutable inputs and writing through that result preserves a d
 
 The helper `choose` returns either mutable `u64`. `overwrite` writes `9` through that result while evaluating an operand of `add`. The other input starts at `1` and stays there. Indexing `[4, 7, 8, 9]` with that preserved bound reads `7`. The runtime check also requires the chosen slot to become `9` and the operand marker to stay `1`. Exit is `0` only when all three hold. Each reject twin changes only `pick_chosen` from `true` to `false`, so the write overlaps the index bound and the stale bound must be rejected.
 
-This witnesses **R5** in `TASKS.md`: caller-visible may-write summaries under [state contracts](../../../../wiki/spec/language/state_contracts.md). It does not close nested helpers, named-state results, codec arguments, finite write cycles, or parameter-permutation write sets.
+This witnesses **R5** in `TASKS.md`: caller-visible may-write summaries under [invocation contracts](../../../../wiki/spec/language/state_contracts.md). It does not close nested helpers, nested-machine results, codec arguments, finite write cycles, or parameter-permutation write sets.
 
 [`written_selector/main.omg`](written_selector/main.omg) exercises the same
 disjoint-bound preservation after `choose` replaces its Boolean selector. The
@@ -40,7 +40,7 @@ are focused controls, not another place matrix.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a call returns the preserved index bound |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the preserved index |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `LIMIT` names the index bound |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the index |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the index |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | another machine receives the index |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body reloads the index |
 
@@ -75,7 +75,7 @@ Each `invalid/` project is `intended-invalid`. The source differs only by passin
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `cannot prove` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove` |
 

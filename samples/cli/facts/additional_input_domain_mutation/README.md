@@ -22,7 +22,7 @@ and [write-only authority](../../../../wiki/spec/terminal-psi/structural_access.
 | Call result | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) |
 | Match join | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) |
 | Const name | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) |
-| Another state | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) |
+| A nested machine | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) |
 | Another machine | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) |
 | Target body | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) |
 

@@ -21,6 +21,25 @@ and migrates its consumers together, retaining each consumer's frozen oracles,
 invalid controls and host evidence. Extraction is a separately bounded outcome,
 not permission for a broad library rewrite.
 
+## Nested-machine migration
+
+The [ratified machine model](../wiki/spec/language/machines.md#nested-machines-and-identity)
+replaces source `state` declarations with arbitrarily nested `machine`
+declarations. Sample READMEs describe that end state ahead of the source/compiler
+migration. Existing `.omg` files, fixture names and `other_state/` paths may still
+use the retired spelling; they are migration inputs, not a compatibility promise
+or evidence that arbitrary nesting already works. Historical run records retain
+their original producer and meaning.
+
+The nine-place row distinguishes a lexically nested machine (`other_state/`)
+from another non-nested machine (`other_machine/`); those paths remain stable
+while their programs migrate. Preserve each fact and its oracle. Renaming alone
+does not prove nested visibility, ordinary call/return, exact contracts, explicit
+loans, cleanup or constant-stack cycles. `NESTED-MACHINE-UNIFICATION` in
+[TASKS.md](../TASKS.md) owns that end-to-end migration, including libraries and
+affected samples/invalid controls. Do not rewrite a failed witness to evade its
+contract, capture its parent's locals, or replace a loop with growing recursion.
+
 ## Project roles and discovery
 
 `python3 tools/sample_projects.py` derives the current catalog from existing

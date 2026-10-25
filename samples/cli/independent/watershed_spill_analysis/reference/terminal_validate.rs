@@ -3,8 +3,8 @@
 // artifact and provider provisions, then checks both engines for every fixture.
 // No checked-tree interpretation, artifact reconstruction or trust bypass.
 use std::{fs, path::{Path, PathBuf}, process::{Command, Stdio}};
-use package_manager::operations::{prepare_local_project, LocalProjectPreparationOptions,
-    PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
+use package_manager::operations::{prepare_local_project, LocalProjectPreparationOptions};
+use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use terminal_runtime::{TerminalRuntimeRequest, TerminalDomainExitDelegation, TerminalClockSnapshot};
 use terminal_interpreter::TerminalExecutionStatus;
 

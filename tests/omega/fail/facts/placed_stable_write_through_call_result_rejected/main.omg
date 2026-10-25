@@ -26,11 +26,18 @@ machine StablePlacement::plan(schema: Schema) -> PlacementPlan {
 
 machine forward<'storage>(view: &'storage mut Placed<StablePlacement, Value>) -> &'storage mut Placed<StablePlacement, Value> { view }
 
+machine write_pair(view: &mut Placed<StablePlacement, Value>, other: &mut Placed<StablePlacement, Value>) {
+    let observed: u64 = placed_read(&other.number);
+    placed_write(&mut view.number, 29u64);
+}
+
 machine main() crashes Trap {
     let mut value: Value = Value { number: 17 };
+    let mut companion: Value = Value { number: 43 };
+    let companion_view: &mut Placed<StablePlacement, Value> = Placed::view_mut<StablePlacement, Value>(&mut companion);
     let view: &mut Placed<StablePlacement, Value> = forward(Placed::view_mut<StablePlacement, Value>(&mut value));
-    placed_write(&mut view.number, 29u64);
-    transition value.number == 29 {
+    write_pair(view, companion_view);
+    transition value.number == 29 && companion.number == 43 {
         true -> done()
         _ -> wrong()
     }

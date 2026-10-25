@@ -584,7 +584,7 @@ unit, charged before execution.
 | `StructuralByteViewFieldStore` | Destination root, path, optional final shared borrowed-view field (absent with an empty path: the whole declared descriptor home), established readable descriptor source, and optional exact byte-predicate obligation. No length, capacity or bytes are retained: the slot takes the source's backing and extent. |
 | `ByteSequenceStore` | Whole bounded-owned destination parameter, whole immutable source, exact dominating source-length observation, and capacity obligation. The destination's primitive byte qualifications remain required after replacement. |
 | `StructuralByteSequenceFieldByteStore` | Destination parameter, carrier path, bounded-owned field, exact runtime `u64` index, `u8` value, current field-length observation, and index obligation. |
-| `ByteSequenceWrite` | Whole mutable borrowed view or established bounded-owned byte home (entry, state parameter or local), exact runtime `u64` index, `u8` value, current same-place length observation, and index/predicate obligation. Owned source bindings must be mutable; immutable literal descriptors never supply write authority. It needs no synthetic record or field identity. |
+| `ByteSequenceWrite` | Whole mutable borrowed view or established bounded-owned byte home (entry, block parameter or local), exact runtime `u64` index, `u8` value, current same-place length observation, and index/predicate obligation. Owned source bindings must be mutable; immutable literal descriptors never supply write authority. It needs no synthetic record or field identity. |
 
 These are non-observing Unit operations. Their names describe effects: a mutable
 borrow may perform a non-observing store without first discarding read authority.
@@ -597,9 +597,9 @@ mutable or write-only parameter, or an established owned primitive local.
 A projected primitive store retains the corresponding mutable/write-only borrow
 or whole established owned root; unrestricted and affine roots are admitted,
 while linear, qualified and claim-bearing roots require further support.
-An entry parameter and a state parameter use the same declaration-based
+An entry parameter and a block parameter use the same declaration-based
 access rules. The place must name that parameter's exact owner and position;
-forwarding through a state does not grant new access or discard predicates.
+forwarding through a block or nested machine does not grant new access or discard predicates.
 This applies to bounded-byte field replacement as well as scalar stores.
 Field-store admission independently checks the
 complete home declaration, path, field, access, qualifications/claims,

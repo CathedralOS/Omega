@@ -21,7 +21,7 @@ the qualification for this repair executes on `macos_arm64`, not all four hosts.
 | Call result | [program](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
 | Match join | [program](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
 | Const name | [program](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| Another state | [program](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
+| A nested machine | [program](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
 | Another machine | [program](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
 | Target body | [program](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 

@@ -20,7 +20,7 @@ and exits 0 only when both hold. Only the transport of the two operands changes.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | calls with declared `ensures result <= 50` supply both operands |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms keep the operands in range, and both arms run |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `const CEILING: u64 = 50` bounds both operands |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives both bounded operands |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives both bounded operands |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the operands |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies multiplies |
 
@@ -46,7 +46,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- Corrupting the runtime expectation in `main()` (e.g. `probe(30, 40) == 1201`) branches to `state bad() { crash Trap; }`, causing native execution to terminate with signal 5 and Terminal Psi to terminate with `crash: Trap`, agreeing on exit 255.
+- Corrupting the runtime expectation in `main()` (e.g. `probe(30, 40) == 1201`) branches to `machine bad() { crash Trap; }`, causing native execution to terminate with signal 5 and Terminal Psi to terminate with `crash: Trap`, agreeing on exit 255.
 - Each invalid twin removes an operand bound (or in `const_name`, widens the ceiling from 50 to 100), causing proof checking to fail closed with `may overflow` (or `cannot prove ensures contract`), preventing execution entirely.
 
 Check all nine invalid twins with:

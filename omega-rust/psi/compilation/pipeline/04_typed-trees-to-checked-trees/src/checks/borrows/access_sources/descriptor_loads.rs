@@ -323,8 +323,9 @@ fn current_incoming<'facts>(
     {
         return None;
     }
-    let (_, borrow_state) =
-        crate::flow::borrow_state_fact(&facts.borrow, state.machine_symbol, state.state_symbol)?;
+    let (_, borrow_state) = facts
+        .borrow
+        .first_state_borrow(state.machine_symbol, state.state_symbol)?;
     if !facts
         .borrow
         .state_owns_incoming_reference(borrow_state, identity)

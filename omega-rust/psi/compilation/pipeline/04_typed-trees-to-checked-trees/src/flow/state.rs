@@ -10,7 +10,6 @@ use crate::flow::append_flow_contexts_for_points;
 use crate::flow::append_state_exit_facts;
 use crate::flow::append_state_statement_flow_facts;
 use crate::flow::appended_span_since;
-use crate::flow::borrow_state_fact;
 use crate::flow::filter_expired_borrow_loans;
 use crate::flow::project_constraint_refs_to_active_contexts;
 use crate::flow::retained_constraint_refs;
@@ -33,7 +32,7 @@ pub(super) fn build_state_flow_fact<'plans>(
     declaration_groups: [facts::FactContextGroup; 2],
 ) {
     let Some((borrow_state_handle, borrow_state)) =
-        borrow_state_fact(borrow, machine.symbol, state.symbol)
+        borrow.first_state_borrow(machine.symbol, state.symbol)
     else {
         return;
     };

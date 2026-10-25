@@ -26,6 +26,8 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
 
+use super::keyed_rows::KeyedRows;
+
 pub use facts::{
     CheckedBooleanExpression, CheckedByteSequenceOperand, CheckedIeeeFloatComparisonKind,
     CheckedIntegerBinaryKind, CheckedIntegerComparisonKind, CheckedIntegerMathExpression,
@@ -224,9 +226,7 @@ pub struct CheckedScalarExpressionPlans {
     pub source_bindings: Arena<CheckedScalarExpressionBindings>,
     pub binding_symbols: Arena<SymbolHandle>,
     #[doc(hidden)]
-    pub state_index: arena::OwnedIndex<
-        symbols::SymbolKeyMap<SymbolHandle, Vec<Handle<CheckedScalarExpressionBindings>>>,
-    >,
+    pub state_index: KeyedRows<SymbolHandle, CheckedScalarExpressionBindings>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -264,21 +264,8 @@ impl CheckedScalarExpressionPlans {
             &symbols::SymbolKeyMap<SymbolHandle, Vec<Handle<CheckedScalarExpressionBindings>>>,
         ) -> R,
     ) -> R {
-        self.state_index.with(
-            self.source_bindings.revision(),
-            || {
-                let mut bindings_by_state =
-                    symbols::SymbolKeyMap::<SymbolHandle, Vec<_>>::default();
-                for (handle, binding) in self.source_bindings.iter() {
-                    bindings_by_state
-                        .entry(binding.state)
-                        .or_default()
-                        .push(handle);
-                }
-                bindings_by_state
-            },
-            run,
-        )
+        self.state_index
+            .with_groups(&self.source_bindings, |binding| binding.state, run)
     }
 
     /// Select one custody row and one plan at the exact source coordinate.

@@ -15,7 +15,7 @@ Every place performs the same operation: query the byte size (`size_of<[u64; 4]>
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the size and alignment are returned from contracted helper call results before subtracting |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms evaluate the size and alignment queries and join before subtracting |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants evaluate size_of and align_of before subtracting |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the size and alignment queries before subtracting |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the size and alignment queries before subtracting |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine delegates the subtraction to the geometry query machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies evaluates size_of and align_of and subtracts |
 
@@ -46,7 +46,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 
 The recorded 0 exit is strictly discriminative:
 - At runtime, `size_of<[u64; 4]>() == 32u64` and `align_of<[u64; 4]>() == 8u64`. Exact subtraction `32u64 - (8u64 * 4u64) == 0u64`. The transition `diff == 0 { true -> done() _ -> bad() }` exits 0.
-- A 1-token perturbation of the demanded value (changing `transition diff == 0` to `transition diff == 1` in `main.omg`) routes execution to `state bad() { crash Trap; }`, trapping both engines with `native exit -1073741795` (Windows trap / `native signal 5` on Unix) and `interp crash: Trap (host presentation agrees)`. Restoring `transition diff == 0` restores `native exit 0` and `interp exit: 0`.
+- A 1-token perturbation of the demanded value (changing `transition diff == 0` to `transition diff == 1` in `main.omg`) routes execution to `machine bad() { crash Trap; }`, trapping both engines with `native exit -1073741795` (Windows trap / `native signal 5` on Unix) and `interp crash: Trap (host presentation agrees)`. Restoring `transition diff == 0` restores `native exit 0` and `interp exit: 0`.
 
 ### Reject Twins
 
@@ -66,7 +66,7 @@ omega --check samples/cli/facts/fixed_array_layout_geometry/<place>/invalid/main
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact arithmetic range (`u64` underflow `[-8, -8]`) | `exact arithmetic may overflow` / `bounds [-8, -8] lie outside [0, 18446744073709551615]` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact arithmetic range (`u64` underflow `[-8, -8]`) | `exact arithmetic may overflow` / `bounds [-8, -8] lie outside [0, 18446744073709551615]` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact arithmetic range (`u64` underflow `[-8, -8]`) | `exact arithmetic may overflow` / `bounds [-8, -8] lie outside [0, 18446744073709551615]` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic range (`u64` underflow `[-8, -8]`) | `exact arithmetic may overflow` / `bounds [-8, -8] lie outside [0, 18446744073709551615]` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic range (`u64` underflow `[-8, -8]`) | `exact arithmetic may overflow` / `bounds [-8, -8] lie outside [0, 18446744073709551615]` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact arithmetic range (`u64` underflow `[-8, -8]`) | `exact arithmetic may overflow` / `bounds [-8, -8] lie outside [0, 18446744073709551615]` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact arithmetic range (`u64` underflow `[-8, -8]`) | `exact arithmetic may overflow` / `bounds [-8, -8] lie outside [0, 18446744073709551615]` |
 

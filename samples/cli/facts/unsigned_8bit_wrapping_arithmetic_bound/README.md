@@ -18,7 +18,7 @@ accompanied by `<place>/invalid/` reject twins:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | wrapping addition result returned across machine call boundary |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | wrapping addition result converged across match join arms |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | wrapping inputs provided by named compile-time constants |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | wrapping addition result forwarded across state machine transition |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | wrapping addition result forwarded across state machine transition |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | wrapping addition result forwarded through intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | wrapping addition result verified across target-scoped machine bodies |
 
@@ -51,7 +51,7 @@ Each positive place wraps `60u8 + 15u8` in the `Wrapping` domain, statically est
 `sum >= 50u8 && sum <= 100u8`; the consuming exact subtractions `100u8 - sum` and `sum - 50u8` are
 proved underflow-free and evaluate to `25u8` each, so `transition check == 0` reaches `done()` and the
 program exits 0. Perturbing that single token in the root witness (`transition check == 0` to
-`transition check == 1`) takes `state bad() { crash Trap; }` instead and exits 255 reporting
+`transition check == 1`) takes `machine bad() { crash Trap; }` instead and exits 255 reporting
 `native signal 5` with `interp crash: Trap (host presentation agrees)`, so the authored 0
 discriminates between correct evaluation and faulty execution.
 
@@ -139,7 +139,7 @@ Full 8-layer specification and lowering evidence:
   - `call_result`: helper machine `produce_sum()` computes wrapping addition and returns the result across call boundary with ensures contract.
   - `match_join`: wrapping addition result converges through match arms into a unified value.
   - `const_name`: inputs `LHS` and `RHS` are declared as compile-time named constants `const LHS: u8 in Wrapping = 60; const RHS: u8 in Wrapping = 15;`.
-  - `other_state`: wrapping addition result is passed across a transition edge into successor state `step(forwarded: u8)`.
+  - `other_state`: wrapping addition result is passed across a transition edge into successor machine `step(forwarded: u8)`.
   - `other_machine`: wrapping addition result is forwarded through intermediate machine `runner()`.
   - `target_body`: wrapping addition result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in widening inputs to `lhs = 85, rhs = 20` (where `sum` reaches `105u8 > 100u8`), proving that downstream contract verification `requires sum >= 50 && sum <= 100` strictly fails closed when the post-wrapping sum exceeds 100.

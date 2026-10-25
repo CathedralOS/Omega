@@ -196,12 +196,8 @@ fn resolve_descriptor_places_with_loans(
     place: CapturedPlace,
 ) -> Option<Vec<ResolvedPlace>> {
     let borrow = &facts.borrow;
-    let state_borrow = borrow.with_state_index(|index| {
-        index
-            .bucket(state_flow.machine_symbol, state_flow.state_symbol)
-            .first()
-            .map(|handle| borrow.states.get(*handle))
-    })?;
+    let (_, state_borrow) =
+        borrow.first_state_borrow(state_flow.machine_symbol, state_flow.state_symbol)?;
     // A stored descriptor can be a whole reference binding or a reference
     // leaf inside a completed carrier. The live loan's exact owner path names
     // that descriptor; an access to its enclosing owned record is independent.

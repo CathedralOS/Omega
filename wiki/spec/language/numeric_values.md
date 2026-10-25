@@ -36,7 +36,7 @@ builtins. Library placement does not authorize a dependency from `core` to `std`
 ## Literal landing and destinations
 
 A suffixed integer or float literal retains its chosen carrier or format through
-storage, call arguments, state transitions, and returns. An incompatible
+storage, call arguments, terminal transfers, and returns. An incompatible
 destination rejects rather than erasing the suffix. Anonymous numeric arguments
 land at the selected explicit parameter; an implicit receiver does not shift that
 pairing. Anonymous fixed-integer expressions retain exact rational intermediates

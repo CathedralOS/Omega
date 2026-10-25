@@ -168,8 +168,22 @@ State-edge and return-expression effects use the same chronological owner.
 Borrow comparisons consume captured descriptor backing separately from its
 former home; access authority remains with the original loan judgments. Terminal
 argument preparation establishes descriptor values at their authored positions,
-including views with existing or projected homes. General cyclic, opaque and
-dependent result composition remains open under the parent acceptance.
+including views with existing or projected homes.
+
+The computed row's replacement helper now reads the descriptor it installed in
+borrowed storage, copies it to a local, and returns that completed copy. The
+field place uses an intermediate constructed carrier; the other-machine place
+uses a nested borrowed record. On baseline `ef5fad42548`, source checking
+succeeded but all nine places refused production at `reference retirement:
+transport`. Translating a loan owner's path must look through the containing
+record's reference/constraint shells, just as the inverse owner-path translation
+does. The checked loan occurrence still owns access and backing; this geometry
+translation grants neither. The same nine positives now run with native/Terminal
+exit 0 on macOS ARM64; their nine source-9 twins retain the `receive` refusal.
+Backing writes after copying, parent-loan conflicts and write-only reads still
+reject. General cyclic, opaque and dependent result composition remains open
+under the parent acceptance, as does source admission of returned descriptors
+projected through an array element.
 
 ## Requirements and evidence
 

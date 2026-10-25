@@ -15,7 +15,7 @@ Every place performs the same operation: add the inner header limit (`<= 50`) an
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | envelope is returned from a contracted forwarding call |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield an envelope, preserving bounds across the join |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | inner bound is governed by a named constant |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | successor state receives the envelope and sums its fields |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | successor machine receives the envelope and sums its fields |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | forwarding machine passes the envelope to another machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies preserves the bound |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- The probe machine computes `sum = envelope.header.limit + envelope.payload`. The main transition checks `envelope.header.tag == 7 && sum == 42`. If either the untouched tag field is corrupted or the sum fails to compute correctly, execution transitions to `state bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
+- The probe machine computes `sum = envelope.header.limit + envelope.payload`. The main transition checks `envelope.header.tag == 7 && sum == 42`. If either the untouched tag field is corrupted or the sum fails to compute correctly, execution transitions to `machine bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
 - Each invalid twin removes or widens the inner header bound (`header.limit <= 50`), so the sum is no longer provably in range. 8 twins fail closed with compile-time proof obligation error `exact arithmetic in machine \`sum_envelope\` state \`entry\` terminal expression may overflow \`u64\``, while `const_name/invalid/main.omg` fails closed with `cannot prove ensures contract for exit from sum_envelope at statement 0: result <= 100`.
 
 Check all nine invalid twins with:

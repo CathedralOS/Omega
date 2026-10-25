@@ -225,45 +225,6 @@ impl TypedTrees {
         Ok(Some(signature))
     }
 
-    /// Retained rows must keep both the handle and the key it names. Unused
-    /// query keys may grow independently after cloning; they are not storage
-    /// obligations. Compare only keys referenced by the retained signatures.
-    pub(crate) fn retains_callable_application_identities(&self, base: &Self) -> bool {
-        base.applied_callable_signatures
-            .iter()
-            .all(|(_, prepared)| {
-                let mut applications = match prepared.owner {
-                    AppliedCallableOwner::Trait { application, .. } => vec![application],
-                    AppliedCallableOwner::RequirementInstance {
-                        trait_application_identity,
-                        portable_trait_application_identity,
-                        ..
-                    } => vec![
-                        trait_application_identity,
-                        portable_trait_application_identity,
-                    ],
-                    _ => return true,
-                };
-                if let AppliedCallableOwner::RequirementInstance {
-                    portable_local_arguments,
-                    ..
-                } = prepared.owner
-                {
-                    applications.extend_from_slice(
-                        base.callable_argument_identities
-                            .span_or_empty(portable_local_arguments),
-                    );
-                }
-                applications.into_iter().all(|application| {
-                    let Some(key) = base.type_identity_text(application) else {
-                        return false;
-                    };
-                    self.type_identities
-                        .with(|table| table.text(application) == Some(key.as_str()))
-                })
-            })
-    }
-
     /// Applied logical signature for one exact declaring scope. Its complete
     /// trait application remains separate from requirement authority.
     pub fn applied_callable_signature(

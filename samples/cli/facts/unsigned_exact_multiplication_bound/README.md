@@ -21,7 +21,7 @@ Claim Ticket: `849de924ec9d4048a9e827cd93136e05`
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | The bounded product is returned from a helper machine call before exact subtraction. |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | The bounded product is unified across conditional branches before exact subtraction. |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Named constants supply the bounds for discharging exact subtraction on the product. |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | The bounded product is transported across an explicit state transition before exact subtraction. |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | The bounded product is transported across an explicit state transition before exact subtraction. |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Another machine forwards the bounded product before exact subtraction. |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Target-scoped machine bodies perform exact multiplication and bounds subtraction across all hosted targets. |
 

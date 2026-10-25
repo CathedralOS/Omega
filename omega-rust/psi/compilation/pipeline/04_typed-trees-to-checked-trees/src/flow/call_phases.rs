@@ -126,13 +126,12 @@ pub(super) fn build_call_exit_contexts(
         proof,
         semantic,
         build,
-        super::proof_contract_call(
-            proof,
+        proof.contract_call_at(&(
             machine.symbol,
             state.symbol,
             borrow_call.statement_index,
             borrow_call.call_ordinal,
-        ),
+        )),
         argument_sources,
         ensured.contexts,
     );

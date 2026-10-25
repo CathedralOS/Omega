@@ -50,3 +50,41 @@ fn build_entrance_shows_the_ordered_project_lifecycle() {
         "product identity comes from its outcome"
     );
 }
+
+#[test]
+fn ordinary_package_operations_admit_instead_of_execute() {
+    let admission =
+        include_str!("../../../packages/package-manager/src/operations/accepted_compilation.rs");
+    for forbidden in [
+        ".compile_packages(",
+        ".check_package(",
+        "CompilationSession",
+    ] {
+        assert!(
+            !admission.contains(forbidden),
+            "admission executes {forbidden}"
+        );
+    }
+    let exports = include_str!("../../../packages/package-manager/src/operations/mod.rs");
+    for removed in [
+        "mod compile_project",
+        "mod check_project",
+        "compile_prepared_local_project",
+    ] {
+        assert!(
+            !exports.contains(removed),
+            "obsolete package execution route: {removed}"
+        );
+    }
+    let execution = include_str!("project_compilation.rs");
+    let admit = execution
+        .find("admit_project_compilation(request)")
+        .unwrap();
+    let compile = execution
+        .find("compiler.compile_packages(admitted.requests)")
+        .unwrap();
+    let reconcile = execution
+        .find("admitted.completion.complete(products)")
+        .unwrap();
+    assert!(admit < compile && compile < reconcile);
+}

@@ -74,7 +74,7 @@ whole-program request. Native production consumes each
 target's retained Terminal artifact without a second scheduling pass. Product
 reports belong to their product owners.
 
-Accepted package compilation supplies dependency-ordered
+Application Build requests package admission, then supplies dependency-ordered
 `PackageCompilationRequest`s together to the session's
 [`compile_packages`](src/checked/package_compilation.rs) entrance, with the
 requested product and root permission consent supplied up front. That operation
@@ -89,11 +89,16 @@ a description. [Product batching](src/checked/product_batch.rs) partitions the
 admitted root and component continuations by complete source input and checks each partition
 once. Matching members borrow its checked program and sealed source custody;
 each retains its own Build receipts, charges, timings and target settlement.
+Request identity and product policy travel with each frontier and source
+continuation. Component destinations travel with their checked products. These
+batches restore authored ordering before returning, without parallel metadata
+arrays or indexed empty result slots. Component publication borrows ready work
+for shared Terminal production and retains refusals in the same ordered roster.
 This is work partitioning within the submitted batch, not a historical cache.
 Opaque pending evaluation authorities must be the same retained authority;
 matching paths or settings alone never establish interchangeable continuations.
-`mbx run -p package-manager --example package_batch` asserts whole-invocation
-work through the public package route. Counters start before local-project
+`mbx run -p omega-build --example package_batch` asserts whole-invocation
+work through the application Build route. Counters start before local-project
 preparation and remain checked when production rejects. Its default two-target
 fixture requires one Build execution, two settled checks (Build and Product),
 one source completion and one shared Terminal allocation. `--check` preserves
@@ -106,8 +111,8 @@ The ordinary dependency control retains two different Builds and one Product
 check rather than merging their work:
 
 ```sh
-mbx run -p package-manager --example package_batch -- tests/omega/pass/build/package_batch_distinct_builds/main.omg 1 1 2 3
-mbx run -p package-manager --example package_batch -- --check --targets linux_x86_64 tests/omega/fail/build/unrequested_target_entry_returns_value/main.omg 1 0 1 2
+mbx run -p omega-build --example package_batch -- tests/omega/pass/build/package_batch_distinct_builds/main.omg 1 1 2 3
+mbx run -p omega-build --example package_batch -- --check --targets linux_x86_64 tests/omega/fail/build/unrequested_target_entry_returns_value/main.omg 1 0 1 2
 ```
 
 The latter must reject `foreign_launch` because `ProgramEntry` has no result,
@@ -117,7 +122,9 @@ expected Builds to the default equal-source fixture must fail its assertion.
 Counts are process-wide: run each measurement alone.
 
 `mbx run -p compiler --example package_batch_sources` submits three products
-from two real source roots to the compiler's public package facade. Equal
+from two real source roots to the compiler's public package facade, interleaved
+with a rejected empty package plan. The exact rejection stays at its submitted
+position without affecting the three products. Equal
 consumers share one checked/Terminal cohort; the different root retains another.
 The batch requires two Builds, four checks, two source completions and two
 Terminal productions, with shared storage only for the equal-source pair.
@@ -126,11 +133,13 @@ package audit. Its fixture preparation legitimately performs another two Builds
 and four checks in its own sessions, so the whole measurement asserts four
 Builds/eight checks rather than hiding setup cost. These workflow measurements
 advance `BUILD-EVALUATES-ONCE`; they do not close its remaining target-row work.
-The package operation owns one compiler-stack worker; preparing Builds and
+The application request enters one compiler-stack worker; preparing Builds and
 checking source cohorts do not spawn additional workers.
 
-Package operations receive reports or Terminal inspections, never a checked
-checkpoint to return for production. The compiler compares fresh supplied
+Ordinary package operations return admitted requests and retain custody for
+result reconciliation; they do not invoke compilation. Application Build
+receives reports or Terminal inspections, never a checked checkpoint to return
+for production. The compiler compares fresh supplied
 permissions with the exact root Product consent before native production,
 using the independent package-evidence projection owner. Inspection is an
 explicit product with no native authority. Standalone inspection and corpus

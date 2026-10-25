@@ -2,17 +2,17 @@
 
 A returned f64 equals the live field it came from.
 
-`read_kept` records `result == item.kept && result == 7.0` on the returned float. `agree` reads that record as `saved == item.kept && saved == 7.0`. Every place copies that sentence and performs the same operation: one completed call returns the `f64` field of a live `&Ends`, and the caller passes that result and the same live field to `agree(observed, current)`, whose `requires observed == current && observed == 7.0` is discharged from the callee's `ensures`. Exit 0 means the recorded equality survived the transport; any mismatch reaches `state bad() { crash Trap; }`. Only the transport of the returned value changes.
+`read_kept` records `result == item.kept && result == 7.0` on the returned float. `agree` reads that record as `saved == item.kept && saved == 7.0`. Every place copies that sentence and performs the same operation: one completed call returns the `f64` field of a live `&Ends`, and the caller passes that result and the same live field to `agree(observed, current)`, whose `requires observed == current && observed == 7.0` is discharged from the callee's `ensures`. Exit 0 means the recorded equality survived the transport; any mismatch reaches `machine bad() { crash Trap; }`. Only the transport of the returned value changes.
 
 ## Owning requirement
 
-Parent outcome: **`STATE-LOCAL-VALUE-FRONTIER`** (`TASKS.md`), subhead *Saved observations and arithmetic*: "A saved read of one array element stays equal to that live element and to 7 across a write to a different element … Float probes cover local, field, parameter, match join, const name and another state, with actual overlapping-write twins. Float call result, other machine and target body still fail that equality with no loan; those transports and remaining case/generic/reference composition stay open."
+Parent outcome: **`STATE-LOCAL-VALUE-FRONTIER`** (`TASKS.md`), subhead *Saved observations and arithmetic*: "A saved read of one array element stays equal to that live element and to 7 across a write to a different element … Float probes cover local, field, parameter, match join, const name and a nested machine, with actual overlapping-write twins. Float call result, other machine and target body still fail that equality with no loan; those transports and remaining case/generic/reference composition stay open."
 
 The requirement this row establishes: a completed call's result contract `result == item.kept` is instantiated at the call site with the actual returned value, and that instantiated equality between the returned `f64` and the live field of the caller's borrowed argument reaches the consuming call's `requires` unchanged. Establishment, identity and invalidation, composition, and the checked-to-native lowering of that fact are demonstrated; the *other* carriers the subhead still names (case, generic, reference composition, and the no-loan result transports) remain open under the same item.
 
 ### Measured on base `3b7e1df0ff1`
 
-The folder carried `local`, `call_result`, `other_machine` and `target_body`, each with a reject twin, and had no root `main.omg`. The five missing places are authored here, and each one refuses nothing: the compiler already transports the recorded equality through a record field, an explicit parameter, a match join, a const-named operand and a successor state. This row is therefore coverage for those five places, not a compiler repair.
+The folder carried `local`, `call_result`, `other_machine` and `target_body`, each with a reject twin, and had no root `main.omg`. The five missing places are authored here, and each one refuses nothing: the compiler already transports the recorded equality through a record field, an explicit parameter, a match join, a const-named operand and a successor machine. This row is therefore coverage for those five places, not a compiler repair.
 
 ### Not a variant
 
@@ -29,7 +29,7 @@ This row is not a repeat of a neighbouring float or call-result row. `call_resul
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the completed call's result is the consumed value |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | the callee returns a `match` over a runtime `flag` whose arms both yield the live field, so the join carries it |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant is the recorded value the returned result is compared against |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state `check(saved, current)` receives the returned value and the live field and consumes them |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine `check(saved, current)` receives the returned value and the live field and consumes them |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `accept(&item, saved)` publishes `saved == item.kept && saved == 7.0` on its own `requires` and forwards both |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies reads the record and consumes the returned value |
 
@@ -70,7 +70,7 @@ Measured with a fresh `opt-level 1` compiler built from this tree at `cdc409f338
 
 ### The oracle discriminates
 
-Exit 0 is strict. Corrupting the consuming comparison in the `local` place from `transition agree(saved, item.kept) == 7.0` to `== 9.0` leaves the equality proved and changes the observed value, so the machine leaves `done()` and reaches `state bad() { crash Trap; }`: `native signal 4` with `interp crash: Trap (host presentation agrees)`, CLI exit 255 against the authored 0. Both engines refuse the wrong observation.
+Exit 0 is strict. Corrupting the consuming comparison in the `local` place from `transition agree(saved, item.kept) == 7.0` to `== 9.0` leaves the equality proved and changes the observed value, so the machine leaves `done()` and reaches `machine bad() { crash Trap; }`: `native signal 4` with `interp crash: Trap (host presentation agrees)`, CLI exit 255 against the authored 0. Both engines refuse the wrong observation.
 
 ## Reject twins
 
@@ -124,8 +124,8 @@ machine main() crashes Trap {
     let item: Ends = Ends { kept: KEPT, other: 1.0 };
     let saved: f64 = read_kept(&item);
     transition agree(saved, item.kept) == KEPT { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 ```
 

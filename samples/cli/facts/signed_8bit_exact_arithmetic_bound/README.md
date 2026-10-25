@@ -15,7 +15,7 @@ Every place performs the same operation: define bounded signed 8-bit parameters 
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the sum of the 8-bit signed addition is returned from a callee invocation |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the sum so the joined binding preserves the addition bounds |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant rhs adds to the bounded lhs |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the sum to a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the sum to a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the sum through an intermediate machine call |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 8-bit signed exact addition and subtraction |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating `lhs + rhs` with inputs `30i8` and `25i8` establishes sum `55i8` within static interval `35i8..80i8`. Because `35i8 <= sum <= 80i8`, the consuming exact subtraction `80i8 - sum` is provably safe within the signed 8-bit range `[-128, 127]` and yields `25i8`. `res == 25` is checked in `main`: `transition res == 25` transitions to `state done() {}`, terminating with native exit 0. If addition or subtraction returns an unexpected value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
+- In every positive place, evaluating `lhs + rhs` with inputs `30i8` and `25i8` establishes sum `55i8` within static interval `35i8..80i8`. Because `35i8 <= sum <= 80i8`, the consuming exact subtraction `80i8 - sum` is provably safe within the signed 8-bit range `[-128, 127]` and yields `25i8`. `res == 25` is checked in `main`: `transition res == 25` transitions to `machine done() {}`, terminating with native exit 0. If addition or subtraction returns an unexpected value, execution branches to `machine bad() { crash Trap; }`, causing exit 255.
 - Each invalid twin widens the `rhs` bound (e.g. `rhs <= 90i8` or `const RHS: i8 = 90`), so `lhs + rhs` can reach `135` which exceeds the maximum representable 8-bit signed value `127`. Evaluating `lhs + rhs` fails closed at compile time with `error: exact arithmetic in machine ... may overflow \`i8\`: the operands are not provably in range`. None reaches native execution.
 
 Check all nine invalid twins with:

@@ -297,8 +297,10 @@ fn collect_formal_argument_accesses(
     if let Some(kind) = forwarded_access
         && let Some(place) = collection.borrow_access_place(argument)
     {
+        let first_access = collection.access_count();
         read::collect_place_evaluation_reads(collection, argument);
         collection.append_argument_access(place, kind, argument);
+        collection.bind_completed_argument(first_access);
         return;
     }
     // An unborrowed actual to a shared formal lends the storage it names:

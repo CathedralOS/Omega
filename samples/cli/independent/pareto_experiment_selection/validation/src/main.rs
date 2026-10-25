@@ -3,10 +3,8 @@
 //! artifact and its admitted provisions. No source evaluator, invented provider,
 //! recompilation per row, compiler modification, or expected-value guest code.
 use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
-use package_manager::operations::{
-    LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
-    compile_prepared_local_project_for_native, prepare_local_project,
-};
+use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
+use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use std::path::{Path, PathBuf};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
 

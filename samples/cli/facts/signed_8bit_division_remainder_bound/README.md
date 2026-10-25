@@ -15,7 +15,7 @@ Every place performs the same operation: define bounded signed 8-bit inputs `div
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the remainder result is returned from a callee invocation |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the remainder result so the joined binding preserves the bounds |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant divisor divides the bounded dividend |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the remainder result to a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the remainder result to a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the remainder result through an intermediate machine call |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 8-bit signed remainder and verifies the bounds |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating `dividend % divisor` with inputs `43i8` and `16i8` establishes remainder `11i8` within static interval `0i8..15i8`. Passing `rem` to `verify_rem(rem)` satisfies its contract `rem >= 0 && rem <= 15`. `verify_rem` evaluates exact subtraction `15 - 11 == 4i8` and returns `(4 - 4) as i32 == 0i32`. In `main`, `transition res == 0` transitions to `state done() {}`, terminating with native exit 0. If remainder or contract satisfaction returns an unexpected value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
+- In every positive place, evaluating `dividend % divisor` with inputs `43i8` and `16i8` establishes remainder `11i8` within static interval `0i8..15i8`. Passing `rem` to `verify_rem(rem)` satisfies its contract `rem >= 0 && rem <= 15`. `verify_rem` evaluates exact subtraction `15 - 11 == 4i8` and returns `(4 - 4) as i32 == 0i32`. In `main`, `transition res == 0` transitions to `machine done() {}`, terminating with native exit 0. If remainder or contract satisfaction returns an unexpected value, execution branches to `machine bad() { crash Trap; }`, causing exit 255.
 - Each invalid twin widens the `divisor` bound (e.g. `divisor <= 17i8` or `const DIVISOR: i8 = 17`), so `dividend % divisor` can reach `16i8 > 15i8`. Calling `verify_rem(rem)` fails closed at compile time with `cannot prove requires contract for call verify_rem`. None reaches native execution.
 
 Check all nine invalid twins with:

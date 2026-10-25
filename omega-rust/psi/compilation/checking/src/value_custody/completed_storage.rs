@@ -59,6 +59,8 @@ impl StoredOperand {
     }
 }
 
+mod backing;
+pub use backing::{direct_referent_places, reference_backing_places};
 mod captures;
 mod descriptor_suppliers;
 mod reference_captures;
@@ -69,3 +71,6 @@ pub use captures::{
 };
 pub use descriptor_suppliers::descriptor_suppliers;
 pub use reference_captures::{reference_captures_at_path, reference_sources_at_path};
+
+mod frozen_references;
+pub use frozen_references::{FrozenReferenceSelection, frozen_reference_leaf};

@@ -40,22 +40,25 @@ SaturatingIncrement satisfies Incrementable<Counter>
 {
     machine increment(counter: &mut Counter) {
         transition counter.value < i32::Maximum {
-            true -> bump(counter)
+            true -> bump(&mut counter)
             _ -> saturated()
         }
 
-        state bump(counter: &mut Counter) {
+        machine bump(counter: &mut Counter)
+        requires counter.value < i32::Maximum;
+        {
             counter.value = counter.value + 1;
         }
 
-        state saturated() { }
+        machine saturated() { }
     }
 }
 ```
 
 This trait promises only the callable shape, not a law requiring strict addition
 at the maximum value. This named implementation intentionally saturates; the
-guard proves that its addition fits `i32`.
+guard establishes the nested helper's requirement, which proves that its
+addition fits `i32`. The helper does not implicitly capture the guard's facts.
 
 The implementation remains an ordinary machine. The enclosing conformance
 block gives the compiler and programmer one closed, reviewable unit that binds

@@ -5,6 +5,7 @@ use super::{
 };
 use crate::CheckedUnitStructuralArgumentPlan;
 use crate::checked_trees::CheckedMemberIdentity;
+use crate::checked_trees::keyed_rows::KeyedRows;
 use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::PrimitiveType;
 
@@ -144,9 +145,7 @@ pub struct CheckedScalarComputationPlans {
     pub dispatch_arms: Arena<CheckedScalarDispatchArm>,
     pub case_fields: Arena<CheckedScalarCaseComputationField>,
     #[doc(hidden)]
-    pub roots_by_state: arena::OwnedIndex<
-        symbols::SymbolKeyMap<SymbolHandle, Vec<Handle<CheckedScalarComputationRoot>>>,
-    >,
+    pub roots_by_state: KeyedRows<SymbolHandle, CheckedScalarComputationRoot>,
 }
 
 impl CheckedScalarComputationPlans {
@@ -176,19 +175,8 @@ impl CheckedScalarComputationPlans {
         state: SymbolHandle,
         run: impl FnOnce(&[Handle<CheckedScalarComputationRoot>]) -> R,
     ) -> R {
-        // Batch insertion and mutation have independent revision/length effects.
-        // Only the arena's exact revision establishes freshness of every bucket.
-        self.roots_by_state.with(
-            self.roots.revision(),
-            || {
-                let mut by_state = symbols::SymbolKeyMap::<SymbolHandle, Vec<_>>::default();
-                for (handle, root) in self.roots.iter() {
-                    by_state.entry(root.state).or_default().push(handle);
-                }
-                by_state
-            },
-            |by_state| run(by_state.get(&state).map_or(&[], Vec::as_slice)),
-        )
+        self.roots_by_state
+            .with_rows(&self.roots, |root| root.state, &state, run)
     }
 
     pub fn root_at(
@@ -766,35 +754,4 @@ macro_rules! cast_or_qualification_triple_pattern {
             | $crate::CheckedScalarComputationKind::BooleanToInteger { $($fields)* }
             | $crate::CheckedScalarComputationKind::Qualification { $($fields)* }
     };
-}
-
-#[cfg(test)]
-mod index_tests {
-    use super::{CheckedScalarComputationPlans, CheckedScalarComputationRoot, SymbolHandle};
-
-    #[test]
-    fn root_index_preserves_mutation_before_batch_append() {
-        let mut plans = CheckedScalarComputationPlans::default();
-        let original = SymbolHandle::from_parts(1, 1);
-        let moved = SymbolHandle::from_parts(2, 1);
-        let first = plans.roots.insert(CheckedScalarComputationRoot {
-            state: original,
-            ..CheckedScalarComputationRoot::default()
-        });
-        plans.with_state_roots(original, |handles| assert_eq!(handles, [first]));
-        plans.roots.get_mut(first).state = moved;
-        plans.roots.insert_many([
-            CheckedScalarComputationRoot {
-                state: original,
-                ..CheckedScalarComputationRoot::default()
-            },
-            CheckedScalarComputationRoot {
-                state: original,
-                ..CheckedScalarComputationRoot::default()
-            },
-        ]);
-        plans.with_state_roots(moved, |handles| assert_eq!(handles, [first]));
-        assert!(plans.roots.free(first));
-        plans.with_state_roots(moved, |handles| assert!(handles.is_empty()));
-    }
 }

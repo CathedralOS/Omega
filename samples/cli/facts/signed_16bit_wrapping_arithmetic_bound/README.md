@@ -15,7 +15,7 @@ Every place performs the same operation: define bounded signed 16-bit inputs `lh
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the wrapping sum result is returned from a callee invocation |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the wrapping sum result so the joined binding preserves the bounds |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant rhs is added via wrapping addition to the bounded lhs |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the wrapping sum result to a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the wrapping sum result to a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the wrapping sum result through an intermediate machine call |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 16-bit signed wrapping addition and verifies the bounds |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating wrapping addition with inputs `400i16` and `80i16` produces `sum == 480i16` within static interval `350i16..600i16`. Passing `sum` to `verify_sum(sum)` satisfies its contract `value >= 350 && value <= 600`. `verify_sum` evaluates exact subtractions `head = 600 - 480 == 120i16` and `tail = 480 - 350 == 130i16`, sums them to `250i16`, and returns `250i16`. In `main`, `transition res == 250` transitions to `state done() {}`, terminating with native exit 0. If wrapping addition or contract satisfaction returns an unexpected value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
+- In every positive place, evaluating wrapping addition with inputs `400i16` and `80i16` produces `sum == 480i16` within static interval `350i16..600i16`. Passing `sum` to `verify_sum(sum)` satisfies its contract `value >= 350 && value <= 600`. `verify_sum` evaluates exact subtractions `head = 600 - 480 == 120i16` and `tail = 480 - 350 == 130i16`, sums them to `250i16`, and returns `250i16`. In `main`, `transition res == 250` transitions to `machine done() {}`, terminating with native exit 0. If wrapping addition or contract satisfaction returns an unexpected value, execution branches to `machine bad() { crash Trap; }`, causing exit 255.
 - Each invalid twin widens the `rhs` bound (e.g. `rhs <= 101i16` or `const RHS: i16 = 101;`), so `sum` reaches `601i16 > 600i16`. Calling `verify_sum(sum)` fails closed at compile time with `cannot prove requires contract for call verify_sum`. None reaches native execution.
 
 Check all nine invalid twins with:

@@ -502,7 +502,7 @@ helper that passes does not close an item.
   `runtime_dyn_selector_record_field_exit` stores one. Copying or rebinding a
   selector neither captures data nor changes its borrow lifetime.
 
-- **STATIC-MACHINE-MIGRATION.** (new-scope) Eliminate machine/state `self`
+- **STATIC-MACHINE-MIGRATION.** (new-scope) Eliminate machine `self`
   receivers, implicit receiver calls and data-owned machine declarations under the
   [static-machine contract](wiki/spec/language/machines.md#static-declarations-and-explicit-state).
   This is an owner decision, not an optional compatibility mode. The
@@ -662,7 +662,11 @@ defines the complete product bar.
     Retain completed descriptor operands across later argument-driven slot
     replacement, including direct views and constructed children with local backing.
     Complete remaining cyclic, opaque and dependent result composition through
-    the same producer and custody relationships.
+    the same producer and custody relationships: ranked structural returns still
+    lose descriptor-length equalities at recursive exits, and returned descriptors
+    projected through stored array elements lack completed backing at simultaneous
+    call admission. Preserve copied returns from mutated borrowed record fields
+    through the existing computed-descriptor fact row.
     Keep
     `pass/ownership/runtime_{captured_exclusive_argument,exclusive_argument_before_descriptor_retarget}_exit`
     and `runtime_{fixed_selector_collection_capture,index_before_descriptor_retarget,fixed_selector_owned_argument}_exit`
@@ -1636,7 +1640,7 @@ defines the complete product bar.
   working directory.
 
 - **TERMINATION-RANKING-CHECKS.** Carry exact rank/endpoint evidence through
-  ordinary calls, named states and native execution under the
+  ordinary calls, nested machines and native execution under the
   [termination contract](wiki/spec/language/termination.md). Owners:
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/ranking/`,
   `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/`
@@ -1722,7 +1726,7 @@ defines the complete product bar.
 
   Keep `pass/termination/runtime_float_requirement_integer_rank_exit` for
   mixed IEEE requirements and independent bounded integer ranks through calls,
-  named states, saved guards and public results; stale captures, NaN and false
+  nested machines, saved guards and public results; stale captures, NaN and false
   integer conjuncts reject. IEEE predicates supply no integer bounds.
 
   External result controls still refuse corpus production with
@@ -1738,6 +1742,57 @@ defines the complete product bar.
   reject. Keep the private-witness/public-guarantee split, exact
   subject/view/range identity, subordinate-call obligations and descent on
   every complete mutual call cycle. Checked-only records do not close this.
+
+- **NESTED-MACHINE-UNIFICATION.** Implement the owner-ratified
+  [single machine declaration model](wiki/spec/language/machines.md#nested-machines-and-identity)
+  and [invocation contracts](wiki/spec/language/state_contracts.md), replacing
+  source `state` with arbitrarily nested named machines. The spec/guide/sample
+  README sweep precedes implementation; renamed prose is not compiler acceptance.
+  This is one end-to-end outcome, not separate parser and backend handoffs.
+
+  Resolve recursive lexical scopes and forward references; keep ordinary
+  overload/shadowing rules and exact declaration/generic identities. Nested
+  helpers are visible only in their enclosing declaration scope, not exported
+  by a parent or accessible by qualification through a sibling. Reject runtime
+  capture, enclosing-local use, hidden context parameters and executable code
+  after trailing declarations. Permit value/Unit completion before declarations,
+  not only transitions. Elaborate static declaration context, then use flat
+  machine identities and explicit arguments downstream; no runtime nesting tree.
+
+  Unify ordinary-call and terminal-transfer checking around the complete callee
+  contract. Ordinary calls resume; terminal calls forward completion. Preserve
+  exact actuals/snapshots, live facts and write invalidation, result/Unit
+  postconditions, effects/markers, loans, invariant/hole restoration, cleanup
+  and linear custody. Parent entry facts never become ambient helper premises.
+  Remove state-only return, effect, ownership and progress shortcuts; joint SCC
+  ranking covers nested/sibling/ancestor/top-level edges without self-justifying
+  recursive evidence. Preserve proof-only non-tail recursion versus runtime
+  tail-only cycles. Update Terminal production, codecs/checking, both interpreters,
+  native lowering and WCSU together: nesting does not mandate a frame, and
+  runtime cycles remain constant-stack with all live backing accounted for.
+
+  Migration may establish one level before general depth, but each landed step
+  must execute its supported path and reject unsupported cases honestly. Migrate
+  affected bundled/product Omega source, samples and fixtures with each semantic
+  change; remove the retired parser/declaration/dispatch paths, not a permanent
+  compatibility mode. Add explicit result contracts where old states implicitly
+  used their enclosing result. Retained IR basic blocks are not legacy source
+  states. Coordinate the distinct static-receiver migration without reintroducing
+  `self` receivers. No algorithm rewrite may evade a newly exposed compiler gap.
+
+  Acceptance: source-to-Terminal/native execution agreement for three-level
+  nesting, ordinary helper call with continuation, sibling/ancestor terminal
+  cycles, generic enclosing declaration context and explicit borrowed/local
+  data. Preserve authored results, exact fact-sensitive reject twins and the
+  applicable nine-place row (`other_state/` becomes the nested-machine place;
+  existing paths remain migration coordinates). Reject inaccessible descendants,
+  accidental capture, stale parent facts, mismatched results, missing exact call
+  markers, unclosed restoration, invalid loan escape, lost linear custody,
+  unjustified recursion and retired `state` syntax. Demonstrate bounded physical
+  stack on a long cycle, including live borrowed backing and completion cleanup;
+  a finite small loop or source checking alone is insufficient. Finish the
+  full affected sample/corpus migration and both compiler implementations before
+  closure; retain historical results as historical, not new-language evidence.
 
 - **DOMAIN-DEFAULT-PREDICATE-UNIFICATION.** Implement the owner-ratified
   [predicate subject](wiki/spec/language/domains.md#declaration-and-membership)
@@ -2838,7 +2893,12 @@ crash and native exit behavior.
   named Terminal inspections use the same project lifecycle.
   Hosted Terminal execution is an application consumer, no longer a compiler
   export; it consumes source-free retained provisions from their native owner.
-  Package dependency/Build activation scheduling still needs migration. Psi
+  Ordinary prepared-project compilation is scheduled by Build from package-admitted
+  plans; package completion retains custody, identity reconciliation and disposal.
+  Package frontiers, source cohorts and component publication carry caller identity
+  with work and results, rather than reconstructing parallel result tables.
+  Candidate review and compiler-internal dependency/Build activation scheduling
+  still need migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
   Psi 00-07 and Build execute
@@ -3009,7 +3069,7 @@ crash and native exit behavior.
     become a fresh affine `EstablishReference` result. Descriptor cleanup stays
     separate from backing permission and keeps each registered result's complete
     leaf group; whole-owner root releases remain distinct. Returned shared views
-    cannot grant mutation or escape activation-owned storage. Named-state forwarding and Unit
+    cannot grant mutation or escape activation-owned storage. Nested-machine forwarding and Unit
     completion must not regain source-shape gates.
   - **STATE-LOCAL-VALUE-FRONTIER** owns integration with the composed caller.
 
@@ -3046,9 +3106,11 @@ crash and native exit behavior.
 
 - **TRANSITION-TAIL-CALL-TO-MACHINE.** Terminal machine calls in attached Unit
   transition arms complete the caller for every result and operand form, per
-  [state contracts](wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms):
+  [invocation contracts](wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms):
   a terminal call is an ordinary invocation whose normal result completes the
-  caller; an internal state target remains a jump.
+  caller. Nested targets follow that same rule under
+  **NESTED-MACHINE-UNIFICATION**; old state-specific observations below are
+  migration evidence, not a source-state exception.
   - Where: `calls/runtime_guarded_reference_return_crash` has matching native
     and captured Terminal trap outcomes on Linux x86-64. Matching-host native
     qualification for the strengthened fixture remains on Linux ARM64,
@@ -4502,7 +4564,7 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   shared reads, computed and signed indices, exact-once authored argument order,
   later mutation, private joins and dynamic Unit calls retain the selected
   caller cell and leave neighbors untouched. Retain the same exact-once
-  selector effects across named-state loans, including contract-fixed indices,
+  selector effects across nested-machine loans, including contract-fixed indices,
   in `samples/cli/facts/computed_nested_state_loan`. Keep the selected-extent and
   shared-authority refusal controls. Include the constrained shared-field
   [authored witness](tests/omega/pass/layouts/runtime_indexed_restricted_field_read/README.md)
@@ -5049,7 +5111,7 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     engines (Windows x86-64). The overlapping-window twin
     `fail/slices/cyclic_element_view_overlapping_write_rejected` rejects
     `receives items as mutable more than once`. Call-result descriptor
-    retirement and exclusive reborrowing stay as they are. Acyclic named-state
+    retirement and exclusive reborrowing stay as they are. Acyclic nested-machine
     subslice forwarding retains caller backing for scalar and record writes
     (controls: `slices/runtime_mutable_subslice_state_forwarding_exit`,
     `slices/runtime_dynamic_record_subslice_state_forwarding_exit`), including
@@ -5675,7 +5737,7 @@ wait for Cathedral's instruction coverage. The interpreter is
     `samples/cli/facts/body_bearing_comparison` exits 0 on both engines (direct
     comparison false, match result 11). All nine transport places now carry that
     sentence — local (including a copied marked carrier), field, parameter, call
-    result, match join, const name, another state, another machine, and a target
+    result, match join, const name, a nested machine, another machine, and a target
     body — each with a reject twin, and the eighteen fixtures
     `tests/omega/{pass,fail}/facts/body_bearing_comparison_through_*` are pinned
     with recorded golden rows. The selected body's boolean result is recorded on
@@ -5721,7 +5783,7 @@ wait for Cathedral's instruction coverage. The interpreter is
     A call inside an abstract signature is the premise, and the signature
     records that call's result: all nine transport places now carry that
     sentence — local, field, parameter, call result, match join, const name,
-    another state, another machine, and a target body — each with a reject
+    a nested machine, another machine, and a target body — each with a reject
     twin, and the eighteen fixtures
     `tests/omega/{pass,fail}/facts/abstract_signature_call_through_*` are
     pinned with recorded golden rows. Measured at `c1c6bc8cb8e` on macOS arm64
@@ -5743,7 +5805,7 @@ wait for Cathedral's instruction coverage. The interpreter is
     supplies `NoKept` instead of `YesKept` and rejects `Proof.holds(kept)`.
     Keep
     `body_bearing_comparison/returned_boolean`: a body-wide Boolean result
-    joins every normal exit, named-state destination and selected target body;
+    joins every normal exit, nested-machine destination and selected target body;
     a first literal cannot erase a different or unknown return. Keep its
     actual-result and false-premise controls when extending body inference.
     Preserve
@@ -6020,7 +6082,7 @@ wait for Cathedral's instruction coverage. The interpreter is
   A common concrete result, including an ordinary sum, uses structural block
   parameters and per-leaf publication; regression fixtures are
   `tests/omega/pass/traits/runtime_finite_family_*_result_exit`, with qualified
-  linear, affine-cleanup, correlated-case and named-state forwarding coverage.
+  linear, affine-cleanup, correlated-case and nested-machine forwarding coverage.
   Borrowed descriptor results still need a public slot-relative returned-loan
   origin contract; do not infer one from the selected implementation.
   Structural field reads rooted in entry content claims retain their separate
@@ -6199,7 +6261,7 @@ wait for Cathedral's instruction coverage. The interpreter is
   permission rows and the broad filesystem-summary replacement.
 
 - **R5.** Carry complete caller-visible may-write summaries through source
-  checking under [state contracts](wiki/spec/language/state_contracts.md) and
+  checking under [invocation contracts](wiki/spec/language/state_contracts.md) and
   [subject preservation](wiki/spec/language/termination.md#subject-preservation):
   a helper that picks either mutable input and writes through its result in a
   value expression must keep a disjoint index-bound fact and invalidate the
@@ -6222,7 +6284,7 @@ wait for Cathedral's instruction coverage. The interpreter is
   recognizer per reference spelling.
 
   Acceptance: the direct helper-choice row, the nested-helper row, the
-  named-state row, the codec-argument row, the computed-receiver row, and
+  nested-machine row, the codec-argument row, the computed-receiver row, and
   the stored-rebind row each keep the disjoint index bound and exit 0 on
   both engines across the nine places, and each overlapping twin rejects
   the stale bound. The codec row's write is the exclusive cursor of one

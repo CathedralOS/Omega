@@ -3,19 +3,33 @@
 //! Project Build orchestration independent of CLI parsing and process exits.
 //!
 //! `build.rs` owns output admission, project preparation, product requests and
-//! publication. Compiler facades own language stages; package management still
-//! owns dependency/review scheduling while the broader ownership migration is
-//! unfinished. This entrance is not yet the Terminal Build activation scheduler.
+//! publication. Project compilation admits a package batch, invokes the compiler,
+//! and returns its outcomes to package-owned identity reconciliation and disposal.
+//! Review and compiler-internal dependency scheduling remain separate migration
+//! work. This entrance is not yet the Terminal Build activation scheduler.
 
 mod build;
 mod build_directory;
+mod check_project;
+mod native_project;
 mod products;
+mod project_compilation;
 pub mod publication;
 
 #[cfg(test)]
 mod build_boundary;
 
 pub use build::build;
+pub use check_project::{
+    CheckPreparedLocalProjectError, CheckedProjectTargetOutcome, PreparedLocalProjectCheckRequest,
+    ProjectInspectionError, check_prepared_local_project_for_targets,
+    inspect_prepared_local_project,
+};
+pub use native_project::{
+    CompilePreparedLocalProjectNativeError, CompiledProjectTargetOutcome,
+    PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native,
+    compile_prepared_local_project_for_native_targets,
+};
 
 use artifacts::compile_timings::CompileTimings;
 use compiler::{CompileReport, OptimizationRollback};
@@ -107,9 +121,9 @@ pub struct TargetBuildOutcome {
 pub enum BuildError {
     Diagnostics(Vec<Diagnostic>),
     Preparation(packages::PrepareLocalProjectError),
-    PackageCheck(packages::CheckPreparedLocalProjectError),
-    PackageNative(packages::CompilePreparedLocalProjectNativeError),
-    Inspection(package_manager::review::CompileResolvedPackageReviewsError),
+    PackageCheck(CheckPreparedLocalProjectError),
+    PackageNative(CompilePreparedLocalProjectNativeError),
+    Inspection(ProjectInspectionError),
     Publication(String),
     CheckWorkspace(std::io::Error),
     BuildDirectory(String),
@@ -144,9 +158,9 @@ impl BuildError {
     pub fn into_diagnostics(self) -> Vec<Diagnostic> {
         match self {
             Self::Diagnostics(diagnostics)
-            | Self::PackageNative(packages::CompilePreparedLocalProjectNativeError::Native(
-                diagnostics,
-            )) => diagnostics,
+            | Self::PackageNative(CompilePreparedLocalProjectNativeError::Native(diagnostics)) => {
+                diagnostics
+            }
             error => vec![Diagnostic::error(error.to_string())],
         }
     }
@@ -156,9 +170,9 @@ impl BuildError {
     pub fn outcome(&self) -> compiler::CompilerRequestOutcome {
         match self {
             Self::Diagnostics(diagnostics)
-            | Self::PackageNative(packages::CompilePreparedLocalProjectNativeError::Native(
-                diagnostics,
-            )) => compiler::CompilerRequestOutcome::of_refusal(diagnostics),
+            | Self::PackageNative(CompilePreparedLocalProjectNativeError::Native(diagnostics)) => {
+                compiler::CompilerRequestOutcome::of_refusal(diagnostics)
+            }
             _ => compiler::CompilerRequestOutcome::Reject,
         }
     }

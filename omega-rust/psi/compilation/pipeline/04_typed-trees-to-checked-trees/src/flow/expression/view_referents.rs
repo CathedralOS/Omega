@@ -427,8 +427,9 @@ impl Execution<'_, '_, '_> {
             // independent loan checking still owns every access permission.
             return true;
         }
-        let Some((_, state)) =
-            super::super::borrow_state_fact(self.borrow, self.machine.symbol, self.state.symbol)
+        let Some((_, state)) = self
+            .borrow
+            .first_state_borrow(self.machine.symbol, self.state.symbol)
         else {
             return false;
         };

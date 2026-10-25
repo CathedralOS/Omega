@@ -1,10 +1,10 @@
-# May-write named state
+# May-write nested machine
 
 An outer helper that calls an inner helper to pick one of two mutable inputs and write through that result preserves a disjoint index-bound fact on the other input.
 
-`choose` returns either mutable `u64`. `relay` returns that choice from the named state `hand`. `overwrite` writes `9` through the named-state result while evaluating an operand of `add`. The other input starts at `1` and stays there. Indexing `[4, 7, 8, 9]` with that preserved bound reads `7`. Exit is `0` only when the marker stays `1`, the chosen slot becomes `9`, and the index reads `7`. Each reject twin changes only the Boolean passed to `relay` from `true` to `false`.
+`choose` returns either mutable `u64`. `relay` returns that choice from the nested machine `hand`. `overwrite` writes `9` through the nested-machine result while evaluating an operand of `add`. The other input starts at `1` and stays there. Indexing `[4, 7, 8, 9]` with that preserved bound reads `7`. Exit is `0` only when the marker stays `1`, the chosen slot becomes `9`, and the index reads `7`. Each reject twin changes only the Boolean passed to `relay` from `true` to `false`.
 
-This witnesses the named-state part of **R5** in `TASKS.md`: caller-visible may-write summaries under [state contracts](../../../../wiki/spec/language/state_contracts.md). It does not close codec arguments, finite write cycles, parameter-permutation write sets, or parser convergence.
+This witnesses the nested-machine part of **R5** in `TASKS.md`: caller-visible may-write summaries under [invocation contracts](../../../../wiki/spec/language/state_contracts.md). It does not close codec arguments, finite write cycles, parameter-permutation write sets, or parser convergence.
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
@@ -15,7 +15,7 @@ This witnesses the named-state part of **R5** in `TASKS.md`: caller-visible may-
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a call returns the preserved index bound |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the preserved index |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `LIMIT` names the index bound |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the index |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the index |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | another machine receives the index |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body reloads the index |
 
@@ -41,13 +41,13 @@ Corpus rows: nine `checked` (check-target:macos_arm64) positives and nine `rejec
 
 ## Requirements and evidence
 
-Parent outcome: **R5** (`TASKS.md`). This folder establishes named-state may-write summaries.
+Parent outcome: **R5** (`TASKS.md`). This folder establishes nested-machine may-write summaries.
 
 1. **Establishment.** `other` is initialized to `1`, or a parameter requires `other < 4`, before the write. The index uses that bound. No later equality guard re-establishes it.
 2. **Identity and lifetime.** The bound names the other mutable input. Writing the chosen input invalidates only that input. The reject twin writes the other input and retires the bound.
-3. **Composition.** `relay` jumps to `hand`, `hand` returns `choose`, `overwrite` writes through that named-state result, and `add` evaluates that write as an operand. The preserved bound is then used by a local, field, parameter, call result, match join, const bound, state arrival, forwarding machine, or target body.
+3. **Composition.** `relay` jumps to `hand`, `hand` returns `choose`, `overwrite` writes through that nested-machine result, and `add` evaluates that write as an operand. The preserved bound is then used by a local, field, parameter, call result, match join, const bound, state arrival, forwarding machine, or target body.
 4. **Soundness boundaries.** The summary is a may-write footprint. It does not grant a loan, a move, or a linear claim. The overlapping candidate cannot keep the stale index bound.
-5. **Checked-to-Terminal Psi lowering (`Psi 05–07`).** The named-state choice, operand write, and proved index lower into Terminal Psi and execute with the interpreter on `omega run --both`.
+5. **Checked-to-Terminal Psi lowering (`Psi 05–07`).** The nested-machine choice, operand write, and proved index lower into Terminal Psi and execute with the interpreter on `omega run --both`.
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`).** Each positive binds `ProgramEntry` on all four hosted targets. The two `u64` inputs and the fixed byte array use ordinary value and reference lanes.
 7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`).** Native execution stores `9` through the chosen referent and reloads the other input as the index.
 8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission).** `omega run --both` agrees on exit `0` for every positive place.

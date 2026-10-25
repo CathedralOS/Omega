@@ -19,7 +19,7 @@ The nine places carry the bitwise mask range bound through each language constru
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | masked value returned across machine call boundary | `tests/omega/pass/facts/wrapping_integer_arithmetic_through_call_result_exit` | `tests/omega/fail/facts/wrapping_integer_arithmetic_through_call_result_rejected` |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | masked value preserved across match convergence join | `tests/omega/pass/facts/wrapping_integer_arithmetic_through_match_join_exit` | `tests/omega/fail/facts/wrapping_integer_arithmetic_through_match_join_rejected` |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | masked value constrained against named constant | `tests/omega/pass/facts/wrapping_integer_arithmetic_through_const_name_exit` | `tests/omega/fail/facts/wrapping_integer_arithmetic_through_const_name_rejected` |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | masked value passed as an argument across state machine transition | `tests/omega/pass/facts/wrapping_integer_arithmetic_through_other_state_exit` | `tests/omega/fail/facts/wrapping_integer_arithmetic_through_other_state_rejected` |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | masked value passed as an argument across state machine transition | `tests/omega/pass/facts/wrapping_integer_arithmetic_through_other_state_exit` | `tests/omega/fail/facts/wrapping_integer_arithmetic_through_other_state_rejected` |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | masked value forwarded through another machine | `tests/omega/pass/facts/wrapping_integer_arithmetic_through_other_machine_exit` | `tests/omega/fail/facts/wrapping_integer_arithmetic_through_other_machine_rejected` |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | masked value consumed across target-scoped machine bodies | `tests/omega/pass/facts/wrapping_integer_arithmetic_through_target_body_exit` | `tests/omega/fail/facts/wrapping_integer_arithmetic_through_target_body_rejected` |
 
@@ -44,7 +44,7 @@ Measured on macOS arm64 with the factsr1 shared generation producer `gen-f1b0d33
 
 ### The oracle discriminates
 
-Perturbing the root oracle's single comparison (`transition diff == 27u64` -> `transition diff == 28u64`) sends both engines to `state bad() { crash Trap; }` instead of `done()`: the perturbed program exits 255 reporting `native signal 5` and `interp crash: Trap (host presentation agrees)`. The authored exit `0` therefore strictly discriminates between correct evaluation and faulty execution.
+Perturbing the root oracle's single comparison (`transition diff == 27u64` -> `transition diff == 28u64`) sends both engines to `machine bad() { crash Trap; }` instead of `done()`: the perturbed program exits 255 reporting `native signal 5` and `interp crash: Trap (host presentation agrees)`. The authored exit `0` therefore strictly discriminates between correct evaluation and faulty execution.
 
 ### Reject twins
 

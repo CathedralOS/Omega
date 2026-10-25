@@ -18,7 +18,7 @@ accompanied by `<place>/invalid/` reject twins:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | dyn selector returned across call boundary |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | dyn selector preserved across match convergence join |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | dispatched result subtracted against named constant |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | dyn selector and data operand passed across state transition |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | dyn selector and data operand passed across state transition |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | dyn selector and data operand forwarded through another machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | dyn selector and data operand consumed across target-scoped machine bodies |
 
@@ -39,7 +39,7 @@ the sibling `named_conformance_dispatch_*` and `length_*` rows:
 | call result | [pass/facts/dyn_dispatch_selector_payload_bound_through_call_result_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_call_result_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_call_result_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_call_result_rejected/main.omg) |
 | match join | [pass/facts/dyn_dispatch_selector_payload_bound_through_match_join_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_match_join_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_match_join_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_match_join_rejected/main.omg) |
 | const name | [pass/facts/dyn_dispatch_selector_payload_bound_through_const_name_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_const_name_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_const_name_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_const_name_rejected/main.omg) |
-| another state | [pass/facts/dyn_dispatch_selector_payload_bound_through_other_state_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_other_state_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_other_state_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_other_state_rejected/main.omg) |
+| a nested machine | [pass/facts/dyn_dispatch_selector_payload_bound_through_other_state_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_other_state_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_other_state_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_other_state_rejected/main.omg) |
 | another machine | [pass/facts/dyn_dispatch_selector_payload_bound_through_other_machine_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_other_machine_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_other_machine_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_other_machine_rejected/main.omg) |
 | another target body | [pass/facts/dyn_dispatch_selector_payload_bound_through_target_body_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_target_body_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_target_body_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_target_body_rejected/main.omg) |
 
@@ -93,7 +93,7 @@ macOS arm64. Command per place: `omega run --both <place>/main.omg`.
 | call result | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64` `` |
 | match join | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64` `` |
 | const name | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64` `` |
-| another state | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `evaluate` local `diff` may overflow `u64` `` |
+| a nested machine | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `evaluate` local `diff` may overflow `u64` `` |
 | another machine | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `forward` state `entry` terminal expression may overflow `u64` `` |
 | another target body | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64` `` |
 
@@ -112,7 +112,7 @@ The fact is pinned in both corpus goldens on main.
   (`python3 tools/corpus_gate.py --filter <the 18 fixture paths> --record`,
   `OMEGA_CORPUS_JOBS=2`, one host-wide record slot). The reject diagnostics name
   the refusing machine and state: six places report ``exact arithmetic in machine
-  `main` state `entry` local `diff` may overflow `u64` ``; another state reports
+  `main` state `entry` local `diff` may overflow `u64` ``; a nested machine reports
   ``machine `main` state `evaluate` ``; another machine reports ``machine
   `forward` state `entry` terminal expression ``; and another target body reports
   ``machine `compute_target` state `entry` terminal expression `` once for each
@@ -132,7 +132,7 @@ Both oracles were shown to discriminate on that revision, so the pinned rows
 are evidence rather than a description of the environment.
 
 - **Native oracle.** Mutating the `local` positive program's own outcome
-  (`state done() {}` to `state done() { crash Trap; }`, which still checks) made
+  (`machine done() {}` to `machine done() { crash Trap; }`, which still checks) made
   the built artifact trap: the gate reported
   `expected native 0, observed built {'exit': 'signal', 'signal': '5'}`,
   1 unmet oracle, 1 structural move, exit 3, while the other eight places still

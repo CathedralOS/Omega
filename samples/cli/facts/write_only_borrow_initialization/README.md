@@ -17,7 +17,7 @@ The original `main.omg` remains the starting witness. The nine places are:
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | The initialized slot value is returned from a call before exact subtraction. |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | The initialized slot value is unified across both match arms before exact subtraction. |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | The subtrahend is governed by a named constant before exact subtraction. |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | The initialized slot value is passed as a successor state parameter before exact subtraction. |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | The initialized slot value is passed as a successor machine parameter before exact subtraction. |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | The initialized slot value is forwarded through another machine before exact subtraction. |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Target-scoped machine bodies execute on each hosted target. |
 
@@ -43,7 +43,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The authored exit 0 is not vacuously assumed:
-- In root `main.omg` and child places, `probe()` returns the diff from `current - 100u64`. `main` checks `transition diff == 0 { true -> done() _ -> bad() }` where `state bad() { crash Trap; }`. Any mismatch traps with `native signal 5` and interpreter crash `Trap` (`rc=255`), agreeing across both engines.
+- In root `main.omg` and child places, `probe()` returns the diff from `current - 100u64`. `main` checks `transition diff == 0 { true -> done() _ -> bad() }` where `machine bad() { crash Trap; }`. Any mismatch traps with `native signal 5` and interpreter crash `Trap` (`rc=255`), agreeing across both engines.
 - In each `invalid/` twin, `SlotDomain` is widened to `v >= 99u64 && v <= 100u64` and `initialize_slot` stores `99u64` instead of `100u64`. Proof checking detects that `current - 100u64` can underflow `u64` and strictly rejects at compile time with `exact arithmetic in machine ... may overflow `u64`` (`exact subtraction underflow`), preventing execution entirely.
 
 Check all nine invalid twins with:

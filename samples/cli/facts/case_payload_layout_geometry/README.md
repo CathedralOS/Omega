@@ -18,7 +18,7 @@ accompanied by `<place>/invalid/` reject twins:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | case payload size and alignment returned across machine call boundaries |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | case payload size and alignment preserved across match join convergence |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | case payload size and alignment evaluated in named compile-time constants |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | case payload size and alignment forwarded as arguments across state transition |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | case payload size and alignment forwarded as arguments across state transition |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | case payload layout geometry computed in and delegated through an intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | case payload layout geometry computed across target-scoped machine bodies |
 
@@ -102,7 +102,7 @@ Full 8-layer specification and lowering evidence:
   - `call_result`: helper machines `get_size()` and `get_align()` return layout query results across call boundaries.
   - `match_join`: layout query results converge through match arms into a unified value.
   - `const_name`: layout query results are bound to named constants `PACKET_SIZE` and `PACKET_ALIGN`.
-  - `other_state`: layout query results are passed across transition edges into successor state parameters.
+  - `other_state`: layout query results are passed across transition edges into successor machine parameters.
   - `other_machine`: layout query computation is delegated through intermediate machine `runner()`.
   - `target_body`: layout query computation is executed across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in replacing the payload variant `Payload(value: u64)` with payloadless `Other`, changing the layout geometry (`size == 4u64`, `align == 4u64`) so that `size - (align * 2u64)` results in negative bounds `[-4, -4]` and fails compile-time check.

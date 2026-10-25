@@ -223,12 +223,11 @@ fn build_state_mutation_summaries(
         let complete = direct_complete
             && state_has_concrete_body_signature(program, state)
             && call_frames.is_some_and(|resolver| {
-                validation::find_state(program, state.symbol)
-                    .is_some_and(|(machine, _)| {
-                        resolver
-                            .inferred_state_write_frame(machine, state)
-                            .is_complete()
-                    })
+                validation::find_state(program, state.symbol).is_some_and(|(machine, _)| {
+                    resolver
+                        .inferred_state_write_frame(machine, state)
+                        .is_complete()
+                })
             });
         states.push(StateMutationSummary {
             state_symbol: state.symbol,

@@ -2,7 +2,7 @@
 
 One authored wildcard structural return carries payload <= 7 into exact subtraction 7 - payload, evaluating its selected call once.
 
-The nine places carry the same returned Packet through a local, field, parameter, call result, match join, const-named bound, another state, another machine and target body. First and Second both select the same authored wildcard; Stop must not evaluate that arm. A caller-owned counter must be exactly 2 after the three invocations. Each reject twin changes only the retained case payload bound from 7 to 8, making the unchanged subtraction unprovable.
+The nine places carry the same returned Packet through a local, field, parameter, call result, match join, const-named bound, a nested machine, another machine and target body. First and Second both select the same authored wildcard; Stop must not evaluate that arm. A caller-owned counter must be exactly 2 after the three invocations. Each reject twin changes only the retained case payload bound from 7 to 8, making the unchanged subtraction unprovable.
 
 Before repair, the minimal three-case wildcard structural return refuses Terminal production with DuplicateContentPartitionProducerCoordinate; two explicit returning arms compile. Stage04 planned a fresh result for each wildcard-covered variant. The source-arm plan must be retained once, without merging independently authored calls.
 

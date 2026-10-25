@@ -18,7 +18,7 @@ accompanied by `<place>/invalid/` reject twins:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | wrapping multiplication result returned across machine call boundary |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | wrapping multiplication result converged across match join arms |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | wrapping inputs provided by named compile-time constants |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | wrapping multiplication result forwarded across state machine transition |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | wrapping multiplication result forwarded across state machine transition |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | wrapping multiplication result forwarded through intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | wrapping multiplication result verified across target-scoped machine bodies |
 
@@ -47,7 +47,7 @@ its own place in `expected.txt`:
 | call result | `cannot prove ensures contract for exit from produce_prod` |
 | match join | `cannot prove requires contract for call verify_prod` |
 | const name | `cannot prove requires contract for call verify_prod` |
-| another state | `cannot prove requires contract for call verify_prod` |
+| a nested machine | `cannot prove requires contract for call verify_prod` |
 | another machine | `cannot prove requires contract for call runner` |
 | another target body | `cannot prove requires contract for call exercise` |
 
@@ -67,7 +67,7 @@ Full 8-layer specification and lowering evidence:
   - `call_result`: helper machine `produce_prod()` computes wrapping multiplication and returns the result across call boundary with ensures contract.
   - `match_join`: wrapping multiplication result converges through match arms into a unified value.
   - `const_name`: inputs `LHS` and `RHS` are declared as compile-time named constants `const LHS: u8 in Wrapping = 12; const RHS: u8 in Wrapping = 8;`.
-  - `other_state`: wrapping multiplication result is passed across a transition edge into successor state `step(forwarded: u8)`.
+  - `other_state`: wrapping multiplication result is passed across a transition edge into successor machine `step(forwarded: u8)`.
   - `other_machine`: wrapping multiplication result is forwarded through intermediate machine `runner()`.
   - `target_body`: wrapping multiplication result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in widening inputs to `lhs = 16, rhs = 10` (where `prod` reaches `160u8 > 150u8`), proving that downstream contract verification `requires prod >= 40 && prod <= 150` strictly fails closed when the post-wrapping product exceeds 150.

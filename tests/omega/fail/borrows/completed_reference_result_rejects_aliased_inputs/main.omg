@@ -1,0 +1,16 @@
+// The nested invocation must still validate its own input pair.
+machine select<'storage>(first: &'storage mut u64, second: &'storage mut u64) -> &'storage mut u64 { first }
+machine change(value: &mut u64) -> u64 { value = 47; 0 }
+machine consume(selected: &mut u64, token: u64) { selected = 29; }
+machine main() crashes Trap {
+    let mut first: u64 = 17;
+    let mut second: u64 = 43;
+    let mut third: u64 = 3;
+    consume(select(&mut first, &mut first), change(&mut third));
+    transition first == 29 && second == 43 && third == 47 {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

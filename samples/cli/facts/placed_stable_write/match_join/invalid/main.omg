@@ -24,19 +24,26 @@ machine StablePlacement::plan(schema: Schema) -> PlacementPlan {
     }
 }
 
-machine update(value: &mut Value, choose: bool) {
+machine update(value: &mut Value, other: &mut Placed<StablePlacement, Value>, choose: bool) {
     let view: &mut Placed<StablePlacement, Value> = match choose {
         true -> Placed::view_mut<StablePlacement, Value>(value),
         false -> Placed::view_mut<StablePlacement, Value>(value),
     };
+    write_pair(view, other);
+}
+
+machine write_pair(view: &mut Placed<StablePlacement, Value>, other: &mut Placed<StablePlacement, Value>) {
+    let observed: u64 = placed_read(&other.number);
     placed_write(&mut view.number, 29u64);
 }
 
 machine main() crashes Trap {
     let mut value: Value = Value { number: 17 };
-    update(&mut value, true);
-    update(&mut value, false);
-    transition value.number == 29 {
+    let mut companion: Value = Value { number: 43 };
+    let companion_view: &mut Placed<StablePlacement, Value> = Placed::view_mut<StablePlacement, Value>(&mut companion);
+    update(&mut value, companion_view, true);
+    update(&mut value, companion_view, false);
+    transition value.number == 29 && companion.number == 43 {
         true -> done()
         _ -> wrong()
     }

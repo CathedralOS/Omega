@@ -10,14 +10,7 @@ use facts::{Place, PlaceSegment};
 use language_semantics::PermissionEventSource;
 use symbols::SymbolHandle;
 
-#[derive(Clone, Default)]
-pub struct ContextualCleanupStateIndex {
-    by_state: symbols::SymbolKeyMap<
-        (SymbolHandle, SymbolHandle),
-        Vec<Handle<ContextualCleanupDisposition>>,
-    >,
-    selected: Vec<Handle<ContextualCleanupDisposition>>,
-}
+use crate::checked_trees::keyed_rows::KeyedRows;
 
 /// Why this exact region lies outside the selected cleanup complement.
 /// Unestablished is positive receiving evidence, never an inactive tag or an
@@ -61,28 +54,34 @@ pub struct ContextualCleanupFacts {
     /// storage survives refreshing the selected death occurrences.
     pub entry_requirements: ContextualCleanupEntryRequirements,
     /// `(machine, state)` and selected-disposition lookup owned by this ledger.
-    pub state_index: OwnedIndex<ContextualCleanupStateIndex, (u64, u64)>,
+    /// The grouping carries the `dispositions` arena's exact revision and the
+    /// roster carries the `selected_dispositions` arena's, so each rebuilds on
+    /// the movement that can actually change its answer.
+    pub state_index: KeyedRows<(SymbolHandle, SymbolHandle), ContextualCleanupDisposition>,
+    selected_roster: OwnedIndex<Vec<Handle<ContextualCleanupDisposition>>>,
 }
 
 impl ContextualCleanupFacts {
-    fn with_state_index<R>(&self, run: impl FnOnce(&ContextualCleanupStateIndex) -> R) -> R {
-        let revision = (
-            self.dispositions.revision(),
+    /// Run `read` against the disposition rows recorded for `(machine, state)`,
+    /// in arena order: every row, including duplicates of one coordinate.
+    fn with_state_dispositions<Result>(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        read: impl FnOnce(&[Handle<ContextualCleanupDisposition>]) -> Result,
+    ) -> Result {
+        self.state_index.with_rows(
+            &self.dispositions,
+            |disposition| (disposition.machine, disposition.state),
+            &(machine, state),
+            read,
+        )
+    }
+
+    pub fn is_selected_disposition(&self, handle: Handle<ContextualCleanupDisposition>) -> bool {
+        self.selected_roster.with(
             self.selected_dispositions.revision(),
-        );
-        self.state_index.with(
-            revision,
             || {
-                let mut by_state = symbols::SymbolKeyMap::<
-                    (SymbolHandle, SymbolHandle),
-                    Vec<Handle<ContextualCleanupDisposition>>,
-                >::default();
-                for (handle, disposition) in self.dispositions.iter() {
-                    by_state
-                        .entry((disposition.machine, disposition.state))
-                        .or_default()
-                        .push(handle);
-                }
                 // Selection names exact occurrences, including their generations.
                 // Active row count is neither a slot bound nor a handle identity.
                 let mut selected: Vec<_> = self
@@ -92,21 +91,17 @@ impl ContextualCleanupFacts {
                     .collect();
                 selected.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
                 selected.dedup();
-                ContextualCleanupStateIndex { by_state, selected }
+                selected
             },
-            run,
+            |selected| {
+                selected
+                    .binary_search_by_key(
+                        &(handle.arena_index(), handle.generation()),
+                        |candidate| (candidate.arena_index(), candidate.generation()),
+                    )
+                    .is_ok()
+            },
         )
-    }
-
-    pub fn is_selected_disposition(&self, handle: Handle<ContextualCleanupDisposition>) -> bool {
-        self.with_state_index(|index| {
-            index
-                .selected
-                .binary_search_by_key(&(handle.arena_index(), handle.generation()), |candidate| {
-                    (candidate.arena_index(), candidate.generation())
-                })
-                .is_ok()
-        })
     }
 
     pub fn for_each_state_disposition(
@@ -115,11 +110,9 @@ impl ContextualCleanupFacts {
         state: SymbolHandle,
         mut visit: impl FnMut(Handle<ContextualCleanupDisposition>, &ContextualCleanupDisposition),
     ) {
-        self.with_state_index(|index| {
-            if let Some(handles) = index.by_state.get(&(machine, state)) {
-                for &handle in handles {
-                    visit(handle, self.dispositions.get(handle));
-                }
+        self.with_state_dispositions(machine, state, |rows| {
+            for &handle in rows {
+                visit(handle, self.dispositions.get(handle));
             }
         });
     }
@@ -133,15 +126,9 @@ impl ContextualCleanupFacts {
             &ContextualCleanupDisposition,
         ) -> bool,
     ) -> bool {
-        self.with_state_index(|index| {
-            index
-                .by_state
-                .get(&(machine, state))
-                .is_some_and(|handles| {
-                    handles
-                        .iter()
-                        .any(|&handle| predicate(handle, self.dispositions.get(handle)))
-                })
+        self.with_state_dispositions(machine, state, |rows| {
+            rows.iter()
+                .any(|&handle| predicate(handle, self.dispositions.get(handle)))
         })
     }
 
@@ -150,13 +137,11 @@ impl ContextualCleanupFacts {
         machine: SymbolHandle,
         state: SymbolHandle,
     ) -> Vec<Handle<ContextualCleanupDisposition>> {
-        self.with_state_index(|index| {
-            index
-                .by_state
-                .get(&(machine, state))
-                .cloned()
-                .unwrap_or_default()
-        })
+        self.with_state_dispositions(
+            machine,
+            state,
+            <[Handle<ContextualCleanupDisposition>]>::to_vec,
+        )
     }
 }
 
@@ -317,7 +302,7 @@ impl ContextualCleanupEntryRequirement {
 
 #[cfg(test)]
 mod index_tests {
-    use super::{ContextualCleanupDisposition, ContextualCleanupFacts};
+    use super::{ContextualCleanupDisposition, ContextualCleanupFacts, SymbolHandle};
 
     #[test]
     fn selected_membership_preserves_full_handles_and_sparse_rosters() {
@@ -342,5 +327,18 @@ mod index_tests {
         assert!(!facts.is_selected_disposition(replacement));
         facts.selected_dispositions.insert(replacement);
         assert!(facts.is_selected_disposition(replacement));
+        // The `(machine, state)` roster follows the row's recorded identity
+        // across mutation, and the two groupings answer independently.
+        let machine = SymbolHandle::from_parts(4, 1);
+        let state = SymbolHandle::from_parts(5, 1);
+        let moved = SymbolHandle::from_parts(6, 1);
+        assert!(facts.state_disposition_handles(machine, state).is_empty());
+        facts.dispositions.get_mut(last).machine = machine;
+        facts.dispositions.get_mut(last).state = state;
+        assert_eq!(facts.state_disposition_handles(machine, state), [last]);
+        assert!(facts.any_state_disposition(machine, state, |_, _| true));
+        facts.dispositions.get_mut(last).state = moved;
+        assert!(facts.state_disposition_handles(machine, state).is_empty());
+        assert_eq!(facts.state_disposition_handles(machine, moved), [last]);
     }
 }

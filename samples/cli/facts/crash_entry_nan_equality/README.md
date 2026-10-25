@@ -34,7 +34,7 @@ of `1.0`, `1065353216`.
 | Call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) |
 | Match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) |
 | Const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) |
-| Other state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) |
+| Nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) |
 | Other machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) |
 | Target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) |
 
@@ -73,7 +73,7 @@ local with `1.0`, which makes `value == value` true, so the route stays uncovere
   equality. Each carrier transports that one record to the guard — the local
   copy (`local`), the `Packet.value` read (`field`), the entry parameter itself
   (`parameter`), the `identity` return (`call_result`), two agreeing match arms
-  (`match_join`), the const's bits (`const_name`), the successor state's
+  (`match_join`), the const's bits (`const_name`), the successor machine's
   parameter (`other_state`), `forward`'s parameter (`other_machine`) and the
   four target-qualified `forward` bodies (`target_body`). No storage holding
   that record is written between entry and guard.

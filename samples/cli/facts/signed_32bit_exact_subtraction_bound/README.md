@@ -15,7 +15,7 @@ Every place performs the same operation: define bounded signed 32-bit inputs `lh
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the difference result is returned from a callee invocation |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the difference result so the joined binding preserves the bounds |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant rhs is subtracted from the bounded lhs |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the difference result to a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the difference result to a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the difference result through an intermediate machine call |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 32-bit signed exact subtraction and verifies the bounds |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating `lhs - rhs` with inputs `100i32` and `30i32` establishes difference `70i32` within static interval `40i32..100i32`. Passing `diff` to `verify_diff(diff)` satisfies its contract `diff >= 40 && diff <= 100`. `verify_diff` evaluates exact subtractions `head = 100 - 70 == 30i32` and `tail = 70 - 40 == 30i32`, sums them to `60i32`, and returns `sum - 60 == 0i32`. In `main`, `transition res == 0` transitions to `state done() {}`, terminating with native exit 0. If subtraction or contract satisfaction returns an unexpected value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
+- In every positive place, evaluating `lhs - rhs` with inputs `100i32` and `30i32` establishes difference `70i32` within static interval `40i32..100i32`. Passing `diff` to `verify_diff(diff)` satisfies its contract `diff >= 40 && diff <= 100`. `verify_diff` evaluates exact subtractions `head = 100 - 70 == 30i32` and `tail = 70 - 40 == 30i32`, sums them to `60i32`, and returns `sum - 60 == 0i32`. In `main`, `transition res == 0` transitions to `machine done() {}`, terminating with native exit 0. If subtraction or contract satisfaction returns an unexpected value, execution branches to `machine bad() { crash Trap; }`, causing exit 255.
 - Each invalid twin widens the `lhs` bound (e.g. `lhs <= 125i32` or `const RHS: i32 = 15;`), so `lhs - rhs` reaches `105i32 > 100i32`. Calling `verify_diff(diff)` fails closed at compile time with `cannot prove requires contract for call verify_diff`. None reaches native execution.
 
 Check all nine invalid twins with:

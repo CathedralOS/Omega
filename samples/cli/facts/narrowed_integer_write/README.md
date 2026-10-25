@@ -26,7 +26,7 @@ in an unrelated generic library declaration.
 | [call result](call_result/main.omg) | Completed identity result [invalid](call_result/invalid/main.omg) |
 | [match join](match_join/main.omg) | Both normal-return arms, including an inline result [invalid](match_join/invalid/main.omg) |
 | [const name](const_name/main.omg) | Named static value [invalid](const_name/invalid/main.omg) |
-| [other state](other_state/main.omg) | Named state arrival [invalid](other_state/invalid/main.omg) |
+| [other state](other_state/main.omg) | Nested machine arrival [invalid](other_state/invalid/main.omg) |
 | [other machine](other_machine/main.omg) | Generic forwarding with a separate type binder [invalid](other_machine/invalid/main.omg) |
 | [target body](target_body/main.omg) | Checked body for each hosted target [invalid](target_body/invalid/main.omg) |
 
@@ -45,6 +45,15 @@ The [non-host-body control](controls/nonhost_body/invalid/main.omg) writes 200
 only in the Linux x86-64 member while the other three members forward 70.
 Psi must reject it even when macOS ARM64 is the realization target. The portable
 interface's empty body cannot stand in for its members' performed writes.
+
+The [direct-assignment control](controls/direct_assignment/main.omg) writes the
+same 70 through a nested encoded view, then passes the retained leaf alongside
+separate ordinary storage. A missing exact scalar coordinate must not discard
+all descriptor bindings when the completed target still has a conservative
+physical backing enclosure. Scalar-content invalidation remains independent;
+that enclosure does not establish a value or equality. Its [reject twin](controls/direct_assignment/invalid/main.omg)
+changes only 70 to 200 and must reject the signed eight-bit fit obligation.
+Matching `layouts/direct_encoded_assignment_*` fixtures pin both outcomes.
 
 ## Requirements and evidence
 
@@ -75,3 +84,11 @@ All eleven invalid controls reject, including the non-host-body control.
 Raw commands, producer hashes, intermediate refusals and focused corpus results
 are retained with this lane's qualification evidence. Other-host execution and
 the parent task's remaining cyclic, opaque and dependent composition stay open.
+
+The assignment-invalidation repair, measured on macOS ARM64 from base
+`c097382c8c4` plus the recorded patch, runs this direct-assignment control and
+the original `runtime_recursive_encoded_reference_exit` fixture with both
+engines exiting 0. The existing nine-place narrowed-write and placed-view rows
+also retain native/Terminal agreement. Frozen-selector, descriptor replacement,
+and out-of-range write controls still reject. This closes the demonstrated
+assignment regression, not the parent task's remaining result-composition work.

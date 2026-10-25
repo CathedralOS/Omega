@@ -291,8 +291,8 @@ fn completed_case_subject(
         return Err("formed_descriptor_not_before_observation");
     }
     let borrow_state = borrow
-        .with_state_index(|index| {
-            let [handle] = index.bucket(machine.symbol, state.symbol) else {
+        .with_state_borrows(machine.symbol, state.symbol, |rows| {
+            let [handle] = rows else {
                 return None;
             };
             Some(*handle)

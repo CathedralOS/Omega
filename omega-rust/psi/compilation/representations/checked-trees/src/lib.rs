@@ -47,7 +47,7 @@ pub use checked_trees::{
     AcceptanceSummary, AcceptanceVerdict, AcceptanceView, BlockingFacts, BorrowAccessKind,
     BorrowArgumentAccessFact, BorrowCallFact, BorrowCallReferenceSlotEffect, BorrowFacts,
     BorrowLoanFact, BorrowLoanLineage, BorrowLoanOwnerSegment, BorrowRetainedOperand,
-    BorrowReturnedLoanFact, BorrowRootKind, BorrowStateIndex, BorrowWritableRootFact,
+    BorrowReturnedLoanFact, BorrowRootKind, BorrowWritableRootFact,
     BoundaryQualificationAuthorization, CallAcceptance, CallContractSignature,
     CallServiceReachRows, CapturedPlace, CapturedPlaceCompatibility, CapturedPlaceContainment,
     CarryFacts, CheckFacts, CheckedAffineConstructionElementPlan, CheckedArithmeticPolicyAdapter,
@@ -234,9 +234,9 @@ pub use checked_trees::{
     canonical_suspension_crossing_id, checked_structural_type_by_identity,
     contract_declarations_commitment, contract_identity, contract_plan_by_machine, data,
     declared_termination_commitment, domain, expression, facts, finite_family, flow, identity,
-    is_borrowed_view, is_bounded_nominal_cleanup_record, is_partial_affine_field_type, machine,
-    name, operators, proof, proof_only, proposition, ranking, service_parameter, signature, state,
-    statement, trait_definition, types, values, wire,
+    is_borrowed_view, is_bounded_nominal_cleanup_record, is_partial_affine_field_type, keyed_rows,
+    machine, name, operators, proof, proof_only, proposition, ranking, service_parameter,
+    signature, state, statement, trait_definition, types, values, wire,
 };
 pub use checked_trees::{
     CheckedAcceptedTemplateClassification, CheckedAcceptedTemplateIdentities,

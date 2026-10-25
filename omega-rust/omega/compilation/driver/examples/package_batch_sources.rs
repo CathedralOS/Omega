@@ -35,8 +35,8 @@ fn main() {
     let mut requests = Vec::new();
     for (prepared, target) in [
         (&first, "windows_x86_64"),
-        (&first, "linux_x86_64"),
         (&second, "linux_x86_64"),
+        (&first, "linux_x86_64"),
     ] {
         let mut request = CheckedCompileRequest::new(&prepared.root_path, Some(target));
         request.package_inputs = prepared.package_inputs.clone();
@@ -58,6 +58,16 @@ fn main() {
             terminal_permissions: None,
         });
     }
+    // Interleave a refused plan and a different source between equal-source
+    // consumers. Grouped source completion must restore request order.
+    requests.insert(
+        1,
+        PackageCompilationRequest {
+            occurrences: Vec::new(),
+            product: CompilationProduct::Check,
+            terminal_permissions: None,
+        },
+    );
     let builds = counters::build_execution_count();
     let checks = counters::settled_check_totals().0;
     let sources = counters::product_source_completion_count();
@@ -67,7 +77,20 @@ fn main() {
         builds - whole_builds,
         checks - whole_checks
     );
-    let outputs = CompilationSession::default().compile_packages(requests);
+    let mut outputs = CompilationSession::default().compile_packages(requests);
+    assert_eq!(outputs.len(), 4, "every request keeps its outcome");
+    let rejected = match outputs.remove(1) {
+        Err(error) => error,
+        Ok(_) => panic!("a package with no root must reject"),
+    };
+    assert_eq!(rejected.occurrence, 0);
+    let diagnostics = rejected.failure.into_diagnostics();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message == "package compilation has no Product root"),
+        "{diagnostics:?}"
+    );
     let reports: Vec<_> = outputs
         .into_iter()
         .map(|result| {
@@ -129,11 +152,11 @@ fn main() {
         })
         .collect();
     assert!(
-        std::ptr::eq(artifacts[0], artifacts[1]),
+        std::ptr::eq(artifacts[0], artifacts[2]),
         "equal source consumers share Terminal storage"
     );
     assert!(
-        !std::ptr::eq(artifacts[0], artifacts[2]),
+        !std::ptr::eq(artifacts[0], artifacts[1]),
         "different source continuations remain distinct"
     );
 }

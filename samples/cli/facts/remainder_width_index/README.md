@@ -19,7 +19,7 @@ performs that selection; only the transport of the width relation changes.
 | call result | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) | a call whose `ensures` equates its result with the length through the result carrier |
 | match join | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) | both arms denote the same length, and both arms run |
 | const name | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) | a named width equal to the length |
-| another state | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | a successor state receives the width relation |
+| a nested machine | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | a successor machine receives the width relation |
 | another machine | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) | a forwarding machine supplies the width |
 | another target body | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) | each of four target bodies obtains the width from the declared measurement |
 

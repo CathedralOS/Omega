@@ -27,12 +27,14 @@ impl Execution<'_, '_, '_> {
         let lifetime = self.retention_from_referents(backing.referents);
         let roots = self.context.control.operand_retentions.get(lifetime).roots;
         let stored_value = self.context.control.operands.insert(*backing);
+        let enclosing_storage = self.view_enclosure(backing.retention);
         self.context
             .control
             .operand_retentions
             .insert(FlowOperandRetention {
                 roots,
                 stored_value,
+                enclosing_storage,
                 ..Default::default()
             })
     }
@@ -509,11 +511,16 @@ impl Execution<'_, '_, '_> {
             )
         {
             // The parent supplies storage roots, never the contents of the
-            // selected slot. A completed product still owns its construction
-            // and selection graph even when its
-            // own lifetime-leaf roster is empty; lending must retain that value
-            // independently before the consumer's capture becomes a view.
-            return self.append_retention(&roots);
+            // selected slot. Only an observation can use this reference-free
+            // shortcut; completed products retain their full value graph below.
+            let lifetime = self.append_retention(&roots);
+            let enclosing_storage = self.view_enclosure(storage_retention);
+            self.context
+                .control
+                .operand_retentions
+                .get_mut(lifetime)
+                .enclosing_storage = enclosing_storage;
+            return lifetime;
         }
         let value_retention = value_retention.or_else(|| {
             (!self.is_view_type(capture.type_reference))

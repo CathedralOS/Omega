@@ -23,8 +23,8 @@ and does not change this rule.
 Named decision: `no-data-code-attachment`, ratified 2026-10-22. A data declaration
 is not a machine owner or namespace. Declaring a machine under a data carrier,
 such as `machine Counter::increment`, is retired even with an explicit parameter.
-Machine qualification identifies an ordinary module, trait requirement, or named
-implementation; it never binds code to a data type. Package visibility and exact
+Machine qualification identifies an ordinary module, trait requirement, named
+implementation or lexically visible nested declaration; it never binds code to a data type. Package visibility and exact
 declaration identity remain independent of the types of explicit arguments.
 
 ```omega
@@ -50,10 +50,10 @@ a satisfier declares no parameter its requirement lacks. A boundary provider is
 therefore its satisfier machines, with no provider value or private state;
 state that outlives a call is a value the service returns and the caller passes
 back.
-Named states likewise receive explicit arguments on every incoming transition.
+Nested machines likewise receive explicit arguments on every invocation.
 
 Invocation scratch belongs in ordinary local bindings or local data instances.
-Pass values needed by another state as state arguments; retain data in a record
+Pass values needed by another machine as arguments; retain data in a record
 only when that record actually owns the required state or resource lifetime.
 This introduces no machine-scoped temporary storage, implicit capture, or new
 local lifetime rule. Implementations must support the ordinary local-storage and
@@ -200,15 +200,67 @@ failure, cancellation, or required temporal behavior. Direct-call audit markers
 follow [operational ceilings](effects.md#call-site-acknowledgements) without
 changing machine identity or invocation mode.
 
-## States and identity
+## Nested machines and identity
 
-A state is an internal node. A jump to it stays within the current machine and
-creates neither a new machine identity nor a call frame. A transition dispatch
-may instead select a terminal machine call: an ordinary invocation followed by
-enclosing-machine completion, not an internal jump or task start.
-[State contracts](state_contracts.md#terminal-calls-in-transition-arms) govern this
-distinction, arrivals and facts; [termination](termination.md) governs ranked
-versus productive cycles.
+Named machines may nest to arbitrary depth. There is one machine declaration
+kind: the source `state` declaration is retired, not an alias or a second kind
+of machine. Nesting restricts name visibility; it does not allocate data,
+capture runtime bindings, retain an enclosing activation, or impose a stack
+layout. Every nested declaration has its own signature, contract and identity.
+
+A body consists of its executable portion followed by zero or more nested
+machine declarations. The executable portion may finish with a transition,
+result, or permitted Unit completion. A transition is not mandatory merely
+because declarations follow. Once declarations begin, executable statements
+cannot resume. This layout rule applies recursively. Nested declarations are
+visible throughout their enclosing machine body, including before their textual
+declaration, and within its nested declaration scopes. Duplicate declarations
+follow ordinary name/overload rules; nesting is not a new overload mechanism.
+
+Name resolution uses lexical scope. A helper is unavailable outside the machine
+whose scope declares it; qualification cannot bypass this restriction. A sibling
+can name another visible sibling, but cannot reach into that sibling's private
+descendants. An ancestor's visible declaration may be called recursively; this
+invokes its entry, not a saved activation or a private point inside its body.
+Nested declarations are not separately package-exportable; package export of an
+enclosing machine does not export its helpers.
+
+Runtime parameters and locals of enclosing invocations are **not captured**.
+Pass them explicitly, including references, capabilities and lifetime-bearing
+values. Enclosing generic/static declaration bindings remain lexical context;
+resolution and specialization retain their exact identities without creating an
+implicit runtime environment. Nested contracts can use that static context and
+their own parameters, not another invocation's local values or live facts.
+
+An ordinary call resumes its continuation on normal return. A machine call in a
+terminal `transition` arm forwards its normal result as the current invocation's
+result, with no continuation in that invocation. A nested machine's return is
+local to that invocation: it does not return from arbitrary lexical ancestors.
+Both forms use the same contract, exact call acknowledgements and explicit
+arguments. The distinction is call position, never nesting depth.
+[Invocation contracts](state_contracts.md#terminal-calls-in-transition-arms)
+owns argument, result, cleanup and fact obligations.
+
+Resolution checks visibility and elaborates declaration context before erasing
+lexical nesting into flat machine identities and explicit calls/transfers.
+Source ancestry remains available for identity, diagnostics and debug mapping,
+not as an executable parent stack. Downstream representations may have ordinary
+basic blocks and jumps; these are not a revived source `state` construct.
+
+A machine invocation does not prescribe a physical call frame. Inlining,
+tail transfer, frame reuse and fusion must preserve observable contracts, loans,
+cleanup and composed storage bounds. Runtime recursive cycles retain the
+constant-stack requirement in [termination](termination.md#calls-and-productive-loops).
+Replacing old state loops with frame-growing recursion is not an acceptable
+intermediate behavior or an optimization left for later.
+
+This is the ratified end state. Compiler/source migration is tracked by
+`NESTED-MACHINE-UNIFICATION` in [the execution board](../../../TASKS.md).
+Implementation may stage depth support and migrations, but cannot retain a
+permanent state-only calling, contract, ownership or lowering path. Existing
+source examples using `state` are migration debt, not an alternative language.
+
+## Published identity
 
 The normalized semantic contract is independent of syntax and lowering.
 Published identity includes the substitutable contract, supply, and observable

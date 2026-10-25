@@ -4,7 +4,6 @@ mod commitments;
 mod compilation;
 mod custody;
 mod error;
-pub(crate) use error::render_diagnostics;
 mod review_cache;
 mod review_set;
 mod semantic_bindings;

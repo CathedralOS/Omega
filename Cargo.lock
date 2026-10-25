@@ -76,6 +76,7 @@ name = "advection-terminal-validation"
 version = "0.1.0"
 dependencies = [
  "compiler",
+ "omega-build",
  "package-manager",
  "target",
  "terminal-interpreter",
@@ -692,6 +693,7 @@ version = "0.1.0"
 dependencies = [
  "compilation-products",
  "compiler",
+ "omega-build",
  "package-manager",
  "sha2",
  "target",
@@ -825,6 +827,7 @@ version = "0.1.0"
 dependencies = [
  "compiler",
  "effects",
+ "omega-build",
  "package-manager",
  "target",
  "terminal-interpreter",
@@ -1322,6 +1325,7 @@ dependencies = [
  "package-manager",
  "platform-custody",
  "target",
+ "terminal-codec",
 ]
 
 [[package]]
@@ -1860,6 +1864,7 @@ name = "sci04-terminal-validation"
 version = "0.1.0"
 dependencies = [
  "compiler",
+ "omega-build",
  "package-manager",
  "serde_json",
  "target",

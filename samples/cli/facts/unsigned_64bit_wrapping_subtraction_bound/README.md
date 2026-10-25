@@ -15,7 +15,7 @@ Every place performs the same operation: given bounded unsigned 64-bit inputs `l
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the wrapping difference is returned from a callee invocation (`sub_wrapping`) |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the wrapping difference so the joined binding preserves the bounds |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants `LHS` (`100u64`) and `RHS` (`30u64`) supply operands for wrapping subtraction |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the wrapping difference to successor state `step` |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the wrapping difference to successor machine `step` |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the wrapping difference through an intermediate machine call (`forward`) |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 64-bit unsigned wrapping subtraction and verifies the bounds |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating `(lhs as u64 in Wrapping) - (rhs as u64 in Wrapping)` with concrete inputs `100u64` and `30u64` establishes difference `70u64` within static interval `40u64..100u64`, discharging exact subtractions `100u64 - diff` (`30u64`) and `diff - 40u64` (`30u64`) and returning `0i32`. In `main`, `transition probe() == 0` transitions to `state done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition probe() == 0` to `transition probe() == 1`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- In every positive place, evaluating `(lhs as u64 in Wrapping) - (rhs as u64 in Wrapping)` with concrete inputs `100u64` and `30u64` establishes difference `70u64` within static interval `40u64..100u64`, discharging exact subtractions `100u64 - diff` (`30u64`) and `diff - 40u64` (`30u64`) and returning `0i32`. In `main`, `transition probe() == 0` transitions to `machine done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition probe() == 0` to `transition probe() == 1`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 - Each invalid twin widens the upper bound to allow `diff = 101u64` (`lhs <= 121u64`, `diff <= 101u64`, or `LHS = 121u64`, `RHS = 20u64`), causing the consuming exact subtraction `100u64 - diff` to fail closed at compile time under the **Arithmetic safety** obligation class with `may overflow \`u64\``. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -62,7 +62,7 @@ omega --check samples/cli/facts/unsigned_64bit_wrapping_subtraction_bound/<place
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Arithmetic safety | `may overflow \`u64\`` |
 

@@ -28,8 +28,9 @@ pub(super) fn collect(
     output: &mut Vec<ResourceDraft>,
     parents: &mut Arena<Handle<BorrowLoanFact>>,
 ) -> bool {
-    let Some((_, borrow_state)) =
-        crate::flow::borrow_state_fact(&facts.borrow, state.machine_symbol, state.state_symbol)
+    let Some((_, borrow_state)) = facts
+        .borrow
+        .first_state_borrow(state.machine_symbol, state.state_symbol)
     else {
         return false;
     };

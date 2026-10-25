@@ -21,7 +21,7 @@ the authored result; they do not establish the fact used to accept the call.
 | Call result | [call_result](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
 | Match join | [match_join](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
 | Const name | [const_name](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| Another state | [other_state](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
+| A nested machine | [other_state](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
 | Another machine | [other_machine](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
 | Another target body | [target_body](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 

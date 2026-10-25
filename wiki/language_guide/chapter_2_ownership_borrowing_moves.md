@@ -191,8 +191,8 @@ The [loan specification](../spec/terminal-psi/loans.md) gives their full rules.
 
 ## Transitions And Ownership
 
-A transition arm targeting a local state transfers within the same machine.
-The target's bindings are explicit:
+A transition arm invokes its target machine and forwards its result. Nested
+targets obey the same argument and ownership rules:
 
 ```omega
 machine forward(value: Inventory) -> Inventory {
@@ -200,19 +200,18 @@ machine forward(value: Inventory) -> Inventory {
         _ -> done(move value)
     }
 
-    state done(value: Inventory) {
+    machine done(value: Inventory) -> Inventory {
         value
     }
 }
 ```
 
-Copy values may copy into state arguments; owned values move. A reference may
+Copy values may copy into arguments; owned values move. A reference may
 cross only while its storage outlives the target path. Locals not transferred
 need eligible cleanup or another authorized disposition; an outstanding linear
-claim cannot disappear on the edge. See [state arrivals](../spec/language/state_contracts.md#bindings-and-arrivals).
+claim cannot disappear on the edge. See [machine arrivals](../spec/language/state_contracts.md#bindings-and-arrivals).
 
-An arm targeting a machine instead makes an ordinary final call and forwards
-its result. Loans remain live through that call, including any suspension;
+Loans remain live through the final call, including any suspension;
 final position does not authorize early cleanup or release of borrowed backing.
 
 ## Borrow Facts
