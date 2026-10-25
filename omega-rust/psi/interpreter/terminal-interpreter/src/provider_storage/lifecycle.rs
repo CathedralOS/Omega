@@ -243,7 +243,7 @@ impl TerminalExecution<'_> {
         );
         self.local_structural_identities
             .commit_cursor(identity_cursor);
-        self.structural_values.insert(result.place, value);
+        self.structural_values.insert(result.place, value)?;
         Ok(())
     }
 
@@ -449,7 +449,7 @@ impl TerminalExecution<'_> {
         storage.publish(self)?;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
-        self.structural_values.insert(result.place, value);
+        self.structural_values.insert(result.place, value)?;
         Ok(())
     }
 }

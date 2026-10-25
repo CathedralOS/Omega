@@ -686,7 +686,7 @@ impl TerminalExecution<'_> {
                 placed: Some(captured),
             },
         );
-        self.structural_values.insert(result.place, carrier);
+        self.structural_values.insert(result.place, carrier)?;
         self.live_affine_frontier.insert(StructuralAffineDiscard {
             place: result.place,
             path: Vec::new(),
@@ -818,6 +818,7 @@ impl TerminalExecution<'_> {
         crate::custody::bind_structural_arguments(
             &declaration.structural_parameters,
             std::slice::from_ref(&presentation),
+            self.account.as_ref(),
         )?;
         crate::custody::validate_boundary_requirements(declaration, |index| {
             (index == 0).then_some(&presentation)

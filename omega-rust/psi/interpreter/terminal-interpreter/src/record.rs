@@ -16,6 +16,7 @@
 //! every affine obligation and linear claim; outgoing backing remains separate.
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
+use crate::runtime_rows::RuntimeRows;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::StructuralRuntimePlace;
 use crate::values::StructuralScalarRuntimeField;
@@ -162,7 +163,7 @@ impl TerminalExecution<'_> {
         self.commit_constructor_operands(frontier, &consumed, claims)?;
         self.structural_scalar_fields.extend(staged);
         storage.publish(self)?;
-        self.structural_values.insert(result.place, value);
+        self.structural_values.insert(result.place, value)?;
         Ok(())
     }
     /// Give each independent owned copy its own storage identity. Composite
@@ -176,7 +177,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn stage_owned_value_arguments(
         &self,
         parameters: &[StructuralParameterDeclaration],
-        values: &mut BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
+        values: &mut RuntimeRows<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
         cursor: &mut Option<u64>,
     ) -> Result<ConstructorStorage, TerminalInterpretError> {
         let mut payload = ConstructorStorage::default();

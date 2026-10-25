@@ -14,6 +14,7 @@ use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::SuspendedCall;
 use crate::execution::SuspendedCallResult;
 use crate::execution::TerminalExecution;
+use crate::runtime_rows::RuntimeRows;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{MachineId, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -54,7 +55,7 @@ fn is_direct_borrowed_rebinding(
 pub(super) fn transferred_call_sources(
     arguments: &[StructuralArgument],
     parameters: &[StructuralParameterDeclaration],
-    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
 ) -> Result<Vec<PlaceId>, TerminalInterpretError> {
     let sources = arguments
         .iter()
@@ -79,7 +80,7 @@ pub(super) fn transferred_call_sources(
 fn retire_transferred_call_sources(
     arguments: &[StructuralArgument],
     parameters: &[StructuralParameterDeclaration],
-    values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
+    values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
 ) -> Result<(), TerminalInterpretError> {
     for place in transferred_call_sources(arguments, parameters, values)? {
         values.remove(&place);
@@ -280,7 +281,7 @@ impl TerminalExecution<'_> {
         claim_transfers: &[ClaimTransfer],
         mut result: SuspendedCallResult,
     ) -> Result<(), TerminalInterpretError> {
-        let values = bind_arguments(&callee.parameters, scalar_arguments)?;
+        let values = bind_arguments(&callee.parameters, scalar_arguments, self.account.as_ref())?;
         prepared_arguments
             .validate_carrier_partition(&callee.structural_parameters)
             .map_err(|error| error.in_argument_preparation("join callee carrier partition"))?;
@@ -376,7 +377,7 @@ impl TerminalExecution<'_> {
             completions
         };
         self.live_claims = remaining_claims;
-        let mut caller_structural_values = std::mem::take(&mut self.structural_values);
+        let mut caller_structural_values = self.structural_values.take();
         retire_transferred_call_sources(
             structural_arguments,
             &callee.structural_parameters,
@@ -385,7 +386,7 @@ impl TerminalExecution<'_> {
         self.call_stack.push(SuspendedCall {
             placed_view_occurrences: std::mem::take(&mut self.placed_view_occurrences),
             loan_completions,
-            values: std::mem::take(&mut self.values),
+            values: self.values.take(),
             structural_values: caller_structural_values,
             aggregate_argument_backings: std::mem::take(&mut self.aggregate_argument_backings),
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),

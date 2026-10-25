@@ -21,6 +21,7 @@
 //! the separate upstream authority that produced the bytes.
 
 use crate::errors::{TerminalArtifactInterpretError, TerminalInterpretError};
+use evaluation_accounting::EvaluationInvocationAccount;
 mod declarations;
 pub(crate) use declarations::ProgramDeclarations;
 
@@ -695,7 +696,7 @@ pub struct TerminalInstantiation<'input> {
     pub scalar_arguments: &'input [TerminalScalarValue],
     pub structural_inputs: TerminalStructuralInputs<'input>,
     pub installation: Option<&'input crate::effects::TerminalRuntimeSupplies>,
-    pub account: Option<&'input evaluation_accounting::EvaluationInvocationAccount>,
+    pub account: Option<&'input EvaluationInvocationAccount>,
 }
 
 /// Execution ownership comes from the authenticated callable, not from an

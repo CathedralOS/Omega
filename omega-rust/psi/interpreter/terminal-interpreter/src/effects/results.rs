@@ -226,7 +226,7 @@ impl TerminalExecution<'_> {
             ) if declaration.value_type() == *expected
                 && value.scalar_type() == expected.scalar_type =>
             {
-                self.values.insert(declaration.id, value);
+                self.values.insert(declaration.id, value)?;
             }
             (
                 OperationResult::Structural(declaration),
@@ -268,7 +268,7 @@ impl TerminalExecution<'_> {
                     crate::values::StructuralRuntimePlace::from(&value),
                     crate::structural_storage::HostStructuralPayload::Opaque(value.opaque_identity),
                 );
-                self.structural_values.insert(declaration.place, value);
+                self.structural_values.insert(declaration.place, value)?;
                 if declaration.multiplicity == StructuralMultiplicity::Affine {
                     self.live_affine_frontier.insert(StructuralAffineDiscard {
                         place: declaration.place,

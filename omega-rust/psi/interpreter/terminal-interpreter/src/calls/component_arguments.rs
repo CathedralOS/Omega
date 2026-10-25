@@ -50,6 +50,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             &prepared.values,
             &self.program.structural_types(),
             &self.structural_cases,
+            self.account.as_ref(),
         )?;
         crate::custody::validate_boundary_requirements(receiver, |index| {
             prepared.values.get(index)

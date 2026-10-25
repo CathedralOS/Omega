@@ -7,6 +7,7 @@ use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::custody::resolve_single_structural_argument;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
+use crate::runtime_rows::RuntimeRows;
 use crate::values::StructuralRuntimePlace;
 use crate::values::TerminalStructuralValue;
 use semantic_vocabulary::ScalarType;
@@ -217,7 +218,7 @@ impl TerminalExecution<'_> {
         &self,
         place: semantic_vocabulary::PlaceId,
         identity_cursor: &mut Option<u64>,
-        local_array_roots: &mut BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
+        local_array_roots: &mut RuntimeRows<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
     ) -> Result<(TerminalStructuralValue, ArrayStorageHome), TerminalInterpretError> {
         let root = if let Some(array) = self.scalar_array_values.get(&place) {
             if self.structural_values.contains_key(&place) {
@@ -225,10 +226,10 @@ impl TerminalExecution<'_> {
             }
             // Repeated projections in one argument list share their root
             // identity, so ordinary alias checks still see the same backing.
-            let root = match local_array_roots.entry(place) {
-                std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
-                std::collections::btree_map::Entry::Vacant(entry) => {
-                    entry.insert(TerminalStructuralValue {
+            let root = match local_array_roots.get(&place) {
+                Some(root) => root.clone(),
+                None => {
+                    let root = TerminalStructuralValue {
                         opaque_identity: self
                             .local_structural_identities
                             .allocate_staged(identity_cursor)?,
@@ -236,11 +237,13 @@ impl TerminalExecution<'_> {
                         qualifications: array.qualifications.clone(),
                         projected_qualifications: Vec::new(),
                         path: Vec::new(),
-                    })
+                    };
+                    local_array_roots.insert(place, root.clone())?;
+                    root
                 }
             };
             (
-                root.clone(),
+                root,
                 ArrayStorageHome::Frame {
                     depth: self.call_stack.len(),
                     place,
@@ -405,8 +408,11 @@ impl TerminalExecution<'_> {
                 ByteSequenceBinding::Immutable(ByteSequenceView::new(bytes)),
             ));
         }
-        let (root, home) =
-            self.array_storage_root_staged(source.place, identity_cursor, &mut BTreeMap::new())?;
+        let (root, home) = self.array_storage_root_staged(
+            source.place,
+            identity_cursor,
+            &mut RuntimeRows::new(self.account.as_ref()),
+        )?;
         let array_type = array_path_type(
             &self.program.structural_types(),
             root.structural_type,
@@ -415,7 +421,7 @@ impl TerminalExecution<'_> {
         .ok_or_else(malformed)?;
         let length = byte_array_length(&self.program.structural_types(), array_type)
             .ok_or_else(malformed)?;
-        let values = BTreeMap::from([(source.place, root)]);
+        let values = RuntimeRows::from_rows(self.account.as_ref(), [(source.place, root)])?;
         let mut referent =
             resolve_single_structural_argument(&self.program.structural_types(), &values, &source)?;
         let array = ArrayStorage {
@@ -446,7 +452,7 @@ impl TerminalExecution<'_> {
         parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
         identity_cursor: &mut Option<u64>,
-        local_array_roots: &mut BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
+        local_array_roots: &mut RuntimeRows<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
     ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
     {
         if !matches!(
@@ -719,7 +725,8 @@ impl TerminalExecution<'_> {
         };
         let local_values;
         let values = if matches!(home, ArrayStorageHome::Frame { .. }) {
-            local_values = BTreeMap::from([(argument.place, root.clone())]);
+            local_values =
+                RuntimeRows::from_rows(self.account.as_ref(), [(argument.place, root.clone())])?;
             &local_values
         } else {
             &self.structural_values

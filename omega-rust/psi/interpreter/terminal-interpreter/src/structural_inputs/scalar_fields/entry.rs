@@ -1,6 +1,7 @@
 //! Validate every bounded entry field before establishing invocation custody.
 
 use crate::errors::malformed;
+use crate::runtime_rows::RuntimeRows;
 use crate::structural_inputs::scalar_fields::{
     PlaceId, StructuralScalarRuntimeField, StructuralTypeDeclaration, StructuralTypeId,
     TerminalInterpretError, TerminalMachine, TerminalScalarValue, TerminalStructuralValue,
@@ -14,7 +15,7 @@ use terminal_psi::{StructuralFieldType, StructuralTypeShape};
 pub(crate) fn validate(
     machine: &TerminalMachine,
     types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    roots: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    roots: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     values: &BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
     zero_initialized_arguments: &[u32],
 ) -> Result<(), TerminalInterpretError> {

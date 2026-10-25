@@ -21,6 +21,8 @@
 //! custody, and before destinations are installed. Otherwise a captured call
 //! result appears to leak its claim, or retirement removes a fresh binding.
 
+use crate::runtime_rows::RuntimeRows;
+use evaluation_accounting::EvaluationInvocationAccount;
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{
@@ -41,10 +43,9 @@ use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{LiveClaim, TerminalExecution};
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 
-#[derive(Default)]
 pub(crate) struct BlockBindings {
-    scalars: BTreeMap<ValueId, TerminalScalarValue>,
-    structural: BTreeMap<PlaceId, TerminalStructuralValue>,
+    scalars: RuntimeRows<ValueId, TerminalScalarValue>,
+    structural: RuntimeRows<PlaceId, TerminalStructuralValue>,
     aggregate_backings: BTreeMap<PlaceId, crate::reference::AggregateBacking>,
     byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
     primitive_loans: BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
@@ -59,12 +60,34 @@ pub(crate) struct BlockBindings {
     identity_cursor: Option<u64>,
 }
 
-impl BlockBindings {
-    pub(crate) fn from_scalars(scalars: Vec<(ValueId, TerminalScalarValue)>) -> Self {
+impl Default for BlockBindings {
+    fn default() -> Self {
         Self {
-            scalars: scalars.into_iter().collect(),
-            ..Self::default()
+            scalars: RuntimeRows::new(None),
+            structural: RuntimeRows::new(None),
+            aggregate_backings: BTreeMap::new(),
+            byte_sequences: BTreeMap::new(),
+            primitive_loans: BTreeMap::new(),
+            element_views: BTreeMap::new(),
+            owned_sources: BTreeSet::new(),
+            claims: BTreeMap::new(),
+            projected_sources: BTreeSet::new(),
+            affine_destinations: BTreeSet::new(),
+            aggregate_payload: Default::default(),
+            identity_cursor: None,
         }
+    }
+}
+
+impl BlockBindings {
+    pub(crate) fn from_scalars(
+        scalars: Vec<(ValueId, TerminalScalarValue)>,
+        account: Option<&EvaluationInvocationAccount>,
+    ) -> Result<Self, TerminalInterpretError> {
+        Ok(Self {
+            scalars: RuntimeRows::from_rows(account, scalars)?,
+            ..Self::default()
+        })
     }
 
     /// All operands have been captured, including descriptors whose source
@@ -80,7 +103,7 @@ impl BlockBindings {
     }
 
     pub(crate) fn commit(
-        self,
+        mut self,
         execution: &mut TerminalExecution,
         target: BlockId,
     ) -> Result<(), TerminalInterpretError> {
@@ -109,8 +132,8 @@ impl BlockBindings {
             execution.primitive_loan_values.remove(destination);
         }
         execution.live_claims.extend(self.claims);
-        execution.values.extend(self.scalars);
-        execution.structural_values.extend(self.structural);
+        execution.values.append(&mut self.scalars)?;
+        execution.structural_values.append(&mut self.structural)?;
         execution
             .aggregate_argument_backings
             .extend(self.aggregate_backings);
@@ -149,7 +172,7 @@ impl BlockBindings {
             }
         }
         let mut discarded = BTreeSet::new();
-        let mut values = execution.structural_values.clone();
+        let mut values = execution.structural_values.try_clone()?;
         let mut frontier = execution.live_affine_frontier.clone();
         let mut claims = execution.live_claims.clone();
         for argument in structural_arguments.iter().filter(|argument| {
@@ -295,7 +318,7 @@ impl TerminalExecution<'_> {
             .block(&target)
             .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
         let scalar_arguments = self.scalar_values_at(arguments)?;
-        let scalars = bind_arguments(&block.parameters, &scalar_arguments)?;
+        let scalars = bind_arguments(&block.parameters, &scalar_arguments, self.account.as_ref())?;
         if block.structural_parameters.len() != structural_arguments.len() {
             return Err(TerminalInterpretError::StructuralArgumentCount {
                 expected: block.structural_parameters.len(),
@@ -313,7 +336,7 @@ impl TerminalExecution<'_> {
         let mut primitive_loans = BTreeMap::new();
         let mut array_loans = BTreeMap::new();
         let mut byte_loans = BTreeMap::new();
-        let mut local_array_roots = BTreeMap::new();
+        let mut local_array_roots = RuntimeRows::new(self.account.as_ref());
         let mut identity_cursor = self.local_structural_identities.cursor();
         let mut owned_sources = BTreeSet::new();
         let mut claims = BTreeMap::new();
@@ -769,6 +792,7 @@ impl TerminalExecution<'_> {
             &source_parameters,
             &self.program.structural_types(),
             &self.structural_cases,
+            self.account.as_ref(),
         )
         .map_err(|error| error.in_argument_preparation("bind captured state arrivals"))?;
         let mut bound_claims = BTreeMap::new();
@@ -886,6 +910,7 @@ impl TerminalExecution<'_> {
                 std::slice::from_ref(&captured),
                 &self.program.structural_types(),
                 &self.structural_cases,
+                self.account.as_ref(),
             )?;
             let captured = admitted
                 .get(&parameter.place)
@@ -898,7 +923,7 @@ impl TerminalExecution<'_> {
                 &crate::values::StructuralRuntimePlace::from(&captured),
                 false,
             )?;
-            if structural.insert(parameter.place, captured).is_some() {
+            if structural.insert(parameter.place, captured)?.is_some() {
                 return Err(malformed());
             }
         }

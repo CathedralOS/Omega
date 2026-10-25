@@ -1657,7 +1657,7 @@ impl TerminalExecution<'_> {
             projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
-        self.structural_values.insert(result.place, view.clone());
+        self.structural_values.insert(result.place, view.clone())?;
         self.structural_primitive_storage
             .insert(StructuralRuntimePlace::from(&view), scalar);
         Ok(())
@@ -1810,7 +1810,7 @@ impl TerminalExecution<'_> {
     ) -> Result<(), TerminalInterpretError> {
         let result = operation.result.scalar().ok_or(malformed())?;
         let scalar = self.read_primitive_place(source, path, result.scalar_type)?;
-        self.values.insert(result.id, scalar);
+        self.values.insert(result.id, scalar)?;
         Ok(())
     }
 
