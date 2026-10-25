@@ -7,7 +7,7 @@ use compiler::{CheckedCompileRequest, CompilationSession, PackageReviewFailure};
 use package_evidence::PackageReviewProjectionError;
 
 #[test]
-fn dependency_review_retains_constant_values_without_admitting_new_callers() {
+fn dependency_frontends_retain_constant_values_without_admitting_new_callers() {
     let target = "linux_x86_64";
     let fixture = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/build/reviewed_dependency_constants/main.omg");
@@ -15,67 +15,112 @@ fn dependency_review_retains_constant_values_without_admitting_new_callers() {
         fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
             .expect("constant dependency fixture has admitted package inputs");
     let inputs = prepared.package_inputs.clone().expect("root custody");
-    let request = CheckedCompileRequest {
-        package_inputs: Some(inputs.clone()),
-        ..CheckedCompileRequest::new(&prepared.root_path, Some(target))
+    let retained_source_count = || {
+        phase_profile::snapshot()
+            .iter()
+            .find(|row| row.name == "source_activation.retained_sources")
+            .map_or(0, |row| row.count)
     };
-    let occurrences = fixture_package_inputs::fixture_occurrences(&prepared, request)
-        .expect("dependency-first fixture occurrences");
-    assert_eq!(occurrences.len(), 2, "one dependency and its consumer");
+    for complete_dependency_review in [false, true] {
+        let request = CheckedCompileRequest {
+            package_inputs: Some(inputs.clone()),
+            ..CheckedCompileRequest::new(&prepared.root_path, Some(target))
+        };
+        let occurrences = fixture_package_inputs::fixture_occurrences(&prepared, request)
+            .expect("dependency-first fixture occurrences");
+        assert_eq!(occurrences.len(), 2, "one dependency and its consumer");
 
-    // Ordinary fixture compilation prepares dependency Builds but checks only
-    // the consumer Product. Review must check each dependency first, in this
-    // same session, so the consumer extends its resolved/typed source cohort.
-    let mut session = CompilationSession::default();
-    let root_package = inputs.root();
-    let mut dependency_bundles = Vec::new();
-    for mut occurrence in occurrences {
-        occurrence.package_inputs = Some(
-            occurrence
+        // Exercise both source owners: an ordinary Build leaves Product work
+        // pending, while review completes it before the consumer is prepared.
+        let mut session = CompilationSession::default();
+        let root_package = inputs.root();
+        let mut dependency_bundles = Vec::new();
+        for mut occurrence in occurrences {
+            let is_dependency = occurrence
                 .package_inputs
-                .take()
+                .as_ref()
                 .expect("occurrence custody")
-                .with_complete_dependency_generated_sources(dependency_bundles.clone())
-                .expect("complete dependency Build outputs, including empty bundles"),
-        );
-        let build = session
-            .prepare_package_build(occurrence)
-            .expect("prepare dependency or consumer Build");
-        if build.package_inputs().root() != root_package {
-            dependency_bundles.push(build.generated_source_bundle().clone());
+                .root()
+                != root_package;
+            if is_dependency && !complete_dependency_review {
+                // This source owns an invalid Product body outside the consumer's
+                // selected imports. A dependency Build must leave it pending; the
+                // consumer must complete math's bodies, not this excluded body.
+                occurrence.root_path = occurrence.root_path.with_file_name("invalid_product.omg");
+            }
+            occurrence.package_inputs = Some(
+                occurrence
+                    .package_inputs
+                    .take()
+                    .expect("occurrence custody")
+                    .with_complete_dependency_generated_sources(dependency_bundles.clone())
+                    .expect("complete dependency Build outputs, including empty bundles"),
+            );
+            let retained_before = retained_source_count();
+            let build = session
+                .prepare_package_build(occurrence)
+                .expect("prepare dependency or consumer Build");
+            // A profiled, single-test replay pins that the semantic witnesses
+            // exercised reuse, rather than succeeding through fresh checking.
+            // Counters are process-global; ordinary unprofiled runs still pin
+            // acceptance and refusal without making a performance assertion.
+            if phase_profile::enabled() && !is_dependency {
+                assert!(
+                    retained_source_count() > retained_before,
+                    "consumer did not activate dependency source:\n{}",
+                    phase_profile::render(),
+                );
+            }
+            if build.package_inputs().root() != root_package {
+                dependency_bundles.push(build.generated_source_bundle().clone());
+                if !complete_dependency_review {
+                    continue;
+                }
+            }
+            session
+                .review_package_build(build, usize::MAX)
+                .expect("review retained constant dependency and consumer");
         }
-        session
-            .review_package_build(build, usize::MAX)
-            .expect("review retained constant dependency and consumer");
-    }
 
-    // This entry lives in the same sealed source inventory. Only the lower
-    // bound changes: a retained dependency value is not proof of a new call's
-    // precondition, even after the valid consumer has also been reviewed.
-    let invalid = prepared.root_path.with_file_name("invalid_bounds.omg");
-    let refused = session
-        .prepare_package_build(CheckedCompileRequest {
-            package_inputs: Some(
-                inputs
-                    .with_complete_dependency_generated_sources(dependency_bundles)
-                    .expect("invalid caller uses the same dependency Build outputs"),
+        // Retained values cannot discharge a new caller's false precondition,
+        // and selecting an old excluded module must check its pending bodies.
+        for (entry, fragments) in [
+            ("invalid_bounds.omg", &["lower <= upper", "4 <= 3"][..]),
+            (
+                "invalid_membership.omg",
+                &["terminal expression expects `u64`, got `bool`"][..],
             ),
-            ..CheckedCompileRequest::new(&invalid, Some(target))
-        })
-        .map_err(PackageReviewFailure::Compilation)
-        .and_then(|build| session.review_package_build(build, usize::MAX));
-    let diagnostics = match refused {
-        Err(PackageReviewFailure::Compilation(failure)) => failure.into_diagnostics(),
-        Err(failure) => panic!("bounds control reached an unrelated review failure: {failure:?}"),
-        Ok(_) => panic!("a dependency judgment admitted inverted bounds in a new caller"),
-    };
-    let rendered = diagnostics
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(rendered.contains("lower <= upper"), "{rendered}");
-    assert!(rendered.contains("4 <= 3"), "{rendered}");
+        ] {
+            let invalid = prepared.root_path.with_file_name(entry);
+            let refused = session
+                .prepare_package_build(CheckedCompileRequest {
+                    package_inputs: Some(
+                        inputs
+                            .clone()
+                            .with_complete_dependency_generated_sources(dependency_bundles.clone())
+                            .expect("invalid caller uses the same dependency Build outputs"),
+                    ),
+                    ..CheckedCompileRequest::new(&invalid, Some(target))
+                })
+                .map_err(PackageReviewFailure::Compilation)
+                .and_then(|build| session.review_package_build(build, usize::MAX));
+            let diagnostics = match refused {
+                Err(PackageReviewFailure::Compilation(failure)) => failure.into_diagnostics(),
+                Err(failure) => {
+                    panic!("{entry} reached an unrelated review failure: {failure:?}")
+                }
+                Ok(_) => panic!("retained dependency source admitted {entry}"),
+            };
+            let rendered = diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n");
+            for fragment in fragments {
+                assert!(rendered.contains(fragment), "{entry}: {rendered}");
+            }
+        }
+    }
 }
 
 #[test]

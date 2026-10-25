@@ -1,0 +1,9 @@
+use math;
+
+// Selected only as a dependency Build root by the frontend-reuse regression.
+// The consumer imports math, not this invalid Product body.
+boundary trait HiddenReach {}
+machine excluded() -> u64 reaches HiddenReach { true }
+
+domain u64::HiddenIssued(value) requires value >= 0 established by issue;
+machine issue() -> u64 in HiddenIssued { 3u64 }

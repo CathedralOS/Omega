@@ -1,0 +1,3 @@
+// Selecting the previously excluded module must check its invalid body.
+use reviewed_constant_kit::invalid_product;
+machine main() {}

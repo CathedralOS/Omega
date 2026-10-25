@@ -100,7 +100,7 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     .map_err(|diagnostic| vec![diagnostic])?;
     evidence_forwardings::bind_evidence_forwarding_owners(&mut lowerer.symbol_resolved_trees);
     let (pending_machine_service_reaches, pending_signature_service_reaches) =
-        lowerer.pending_service_reaches();
+        lowerer.pending_service_reaches()?;
     let machine_ordinals =
         conformance_blocks::normalize_closed_conformance_blocks(&mut lowerer.symbol_resolved_trees)
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -121,9 +121,13 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
         &mut lowerer.symbol_resolved_trees,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
-    domain_establishment::normalize_domain_establishment_routes(&mut lowerer.symbol_resolved_trees)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    match lowerer.seed.take() {
+    let seed = lowerer.seed.take();
+    domain_establishment::normalize_domain_establishment_routes(
+        &mut lowerer.symbol_resolved_trees,
+        seed.as_ref().map(|seed| seed.source.as_ref()),
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    match seed {
         None => service_reaches::normalize_service_reaches(
             &mut lowerer.symbol_resolved_trees,
             &pending_machine_service_reaches,

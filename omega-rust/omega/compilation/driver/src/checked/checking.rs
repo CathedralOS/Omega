@@ -80,7 +80,7 @@ fn prepare_typed_frontier(
         syntax,
         child.build_execution_profile,
         child.package_inputs,
-        &child.settled_check_reuse.prior,
+        &child.settled_check_reuse,
         &mut timings,
     )
     .map_err(|mut diagnostics| {

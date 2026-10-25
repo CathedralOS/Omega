@@ -55,7 +55,7 @@ optimization-core = { path = "../../foundation/optimization-core" }
 [dev-dependencies]
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 bounded-process = { path = "../../foundation/bounded-process" }
-
+phase-profile = { path = "../../../psi/foundation/phase-profile" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 omega-build = { path = "../../application/build" }
 terminal-runtime = { path = "../../application/terminal-runtime" }

@@ -18,16 +18,73 @@ use symbol_resolved_trees::name::DiagnosticName;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 #[derive(Debug, Clone)]
-pub(crate) struct PendingAuthoredServiceReach {
-    pub(crate) keyword_source_spans: Vec<source::SourceSpan>,
-    pub(crate) authored: Vec<DiagnosticName>,
+pub(crate) enum PendingAuthoredServiceReach {
+    Authored {
+        keyword_source_spans: Vec<source::SourceSpan>,
+        authored: Vec<DiagnosticName>,
+    },
+    /// Exact output from this seeded resolver's predecessor. A positional
+    /// service row and its authored ceiling travel together; no name lookup
+    /// reconstructs their meaning under a later consumer's source selection.
+    Resolved {
+        row: ServiceReachRowId,
+        authored: Option<symbol_resolved_trees::signature::AuthoredServiceReachRow>,
+    },
+}
+
+impl PendingAuthoredServiceReach {
+    fn resolve(
+        &self,
+        symbols: &SymbolTable,
+        services: &ServiceReachTable,
+        rows: &mut ServiceReachRowTable,
+        owner: SymbolHandle,
+        installation_bound: bool,
+    ) -> Result<
+        (
+            ServiceReachRowId,
+            Option<symbol_resolved_trees::signature::AuthoredServiceReachRow>,
+        ),
+        Diagnostic,
+    > {
+        match self {
+            Self::Resolved { row, authored } => {
+                if authored.as_ref().is_some_and(|authored| {
+                    authored.owner != owner || authored.installation_bound != installation_bound
+                }) {
+                    return Err(Diagnostic::error(
+                        "retained service reach changed its exact owner or installation mode",
+                    ));
+                }
+                Ok((*row, authored.clone()))
+            }
+            Self::Authored {
+                keyword_source_spans,
+                authored,
+            } => {
+                let authored = resolve_authored_service_reach(
+                    symbols,
+                    services,
+                    owner,
+                    keyword_source_spans,
+                    authored,
+                    installation_bound,
+                )?;
+                let direct = authored
+                    .as_ref()
+                    .into_iter()
+                    .flat_map(|row| &row.targets)
+                    .filter_map(|target| services.id_for_symbol(target.service));
+                Ok((row_for_service_ids(services, rows, direct), authored))
+            }
+        }
+    }
 }
 
 pub(crate) struct PendingSignatureServiceReach {
     pub(crate) symbol: SymbolHandle,
     pub(crate) owner: crate::resolution::lowerer::PendingSignatureOwner,
-    pub(crate) keyword_source_spans: Vec<source::SourceSpan>,
-    pub(crate) authored: Vec<DiagnosticName>,
+    pub(crate) reaches: PendingAuthoredServiceReach,
 }
 
 /// Normalize service reach only after every declaration and trait-parent edge
@@ -99,32 +156,27 @@ pub(crate) fn normalize_service_reaches_with_retained_tables(
                 .find(|(symbol, _)| *symbol == machine.symbol)
                 .map(|(_, reaches)| reaches)
                 .expect("surviving resolved machine retains its pending authored service row");
-            validate_machine_service_reaches(
-                program,
-                &services,
-                machine,
-                &pending.authored,
-                !pending.keyword_source_spans.is_empty(),
-            )?;
-            let authored = resolve_authored_service_reach(
+            if let PendingAuthoredServiceReach::Authored {
+                keyword_source_spans,
+                authored,
+            } = pending
+            {
+                validate_machine_service_reaches(
+                    program,
+                    &services,
+                    machine,
+                    authored,
+                    !keyword_source_spans.is_empty(),
+                )?;
+            }
+            let (row, authored) = pending.resolve(
                 &program.symbols,
                 &services,
+                &mut rows,
                 machine.symbol,
-                &pending.keyword_source_spans,
-                &pending.authored,
                 machine.service_reach_is_installation_bound,
             )?;
-            let direct = authored
-                .as_ref()
-                .into_iter()
-                .flat_map(|row| &row.targets)
-                .filter_map(|target| services.id_for_symbol(target.service))
-                .collect::<Vec<_>>();
-            Ok((
-                machine.symbol,
-                row_for_service_ids(&services, &mut rows, direct),
-                authored,
-            ))
+            Ok((machine.symbol, row, authored))
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
 
@@ -136,25 +188,14 @@ pub(crate) fn normalize_service_reaches_with_retained_tables(
             let pending =
                 pending_signature_service_reach(signature_service_reaches, signature.symbol);
             validate_signature_service_reaches(program, &services, signature, pending)?;
-            let authored = resolve_authored_service_reach(
+            let (row, authored) = pending.reaches.resolve(
                 &program.symbols,
                 &services,
+                &mut rows,
                 signature.symbol,
-                &pending.keyword_source_spans,
-                &pending.authored,
                 signature.service_reach_is_installation_bound,
             )?;
-            let direct = authored
-                .as_ref()
-                .into_iter()
-                .flat_map(|row| &row.targets)
-                .filter_map(|target| services.id_for_symbol(target.service))
-                .collect::<Vec<_>>();
-            Ok((
-                signature.symbol,
-                row_for_service_ids(&services, &mut rows, direct),
-                authored,
-            ))
+            Ok((signature.symbol, row, authored))
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
 
@@ -212,7 +253,10 @@ fn validate_signature_service_reaches(
     signature: &symbol_resolved_trees::signature::StateSignature,
     pending: &PendingSignatureServiceReach,
 ) -> Result<(), Diagnostic> {
-    for service in &pending.authored {
+    let PendingAuthoredServiceReach::Authored { authored, .. } = &pending.reaches else {
+        return Ok(());
+    };
+    for service in authored {
         if service_for_name(&program.symbols, services, service).is_none() {
             return Err(Diagnostic::error(format!(
                 "{} state `{}` declares unknown boundary service `{service}`",
@@ -368,25 +412,14 @@ fn normalize_machine_parameter_rows(
         };
         let pending = pending_signature_service_reach(signature_service_reaches, contract.symbol);
         validate_signature_service_reaches(program, services, contract, pending)?;
-        let authored = resolve_authored_service_reach(
+        let (row, authored) = pending.reaches.resolve(
             &program.symbols,
             services,
+            rows,
             contract.symbol,
-            &pending.keyword_source_spans,
-            &pending.authored,
             contract.service_reach_is_installation_bound,
         )?;
-        let direct = authored
-            .as_ref()
-            .into_iter()
-            .flat_map(|row| &row.targets)
-            .filter_map(|target| services.id_for_symbol(target.service))
-            .collect::<Vec<_>>();
-        resolved_rows.push((
-            parameter.symbol,
-            row_for_service_ids(services, rows, direct),
-            authored,
-        ));
+        resolved_rows.push((parameter.symbol, row, authored));
     }
 
     let type_parameters = &mut program.tables.declarations.data_type_parameters;

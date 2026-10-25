@@ -346,7 +346,9 @@ impl Lowerer {
         self.pending_machine_service_reaches = base
             .machines
             .iter()
-            .map(|machine| pending_service_reach_for(&base, machine.symbol))
+            .map(|machine| {
+                retained_service_reach_for(&base, machine.symbol, machine.service_reach_row)
+            })
             .collect();
         for definition in &base.traits {
             for offset in 0..definition.machines.len() {
@@ -356,13 +358,16 @@ impl Lowerer {
                     .declarations
                     .trait_machine_signatures
                     .get(handle);
-                let pending = pending_service_reach_for(&base, signature.symbol);
+                let reaches = retained_service_reach_for(
+                    &base,
+                    signature.symbol,
+                    signature.service_reach_row,
+                );
                 self.pending_signature_service_reaches
                     .push(PendingSignatureServiceReach {
                         location: PendingSignatureLocation::Trait(handle),
                         owner: PendingSignatureOwner::Trait(definition.name.clone()),
-                        keyword_source_spans: pending.keyword_source_spans,
-                        authored: pending.authored,
+                        reaches,
                     });
             }
         }
@@ -375,13 +380,13 @@ impl Lowerer {
             let Some(signature) = contract.structural() else {
                 continue;
             };
-            let pending = pending_service_reach_for(&base, signature.symbol);
+            let reaches =
+                retained_service_reach_for(&base, signature.symbol, signature.service_reach_row);
             self.pending_signature_service_reaches
                 .push(PendingSignatureServiceReach {
                     location: PendingSignatureLocation::MachineParameter(handle),
                     owner: PendingSignatureOwner::Requirement(parameter.name.clone()),
-                    keyword_source_spans: pending.keyword_source_spans,
-                    authored: pending.authored,
+                    reaches,
                 });
         }
         self.bound_generic_application_origins =
@@ -491,13 +496,16 @@ impl Lowerer {
     /// service-reach names once their symbols exist.
     pub(crate) fn pending_service_reaches(
         &self,
-    ) -> (
-        Vec<(
-            symbols::SymbolHandle,
-            crate::selection::service_reaches::PendingAuthoredServiceReach,
-        )>,
-        Vec<crate::selection::service_reaches::PendingSignatureServiceReach>,
-    ) {
+    ) -> Result<
+        (
+            Vec<(
+                symbols::SymbolHandle,
+                crate::selection::service_reaches::PendingAuthoredServiceReach,
+            )>,
+            Vec<crate::selection::service_reaches::PendingSignatureServiceReach>,
+        ),
+        Vec<Diagnostic>,
+    > {
         assert_eq!(
             self.symbol_resolved_trees.machines.len(),
             self.pending_machine_service_reaches.len(),
@@ -524,55 +532,43 @@ impl Lowerer {
                             .symbol
                     }
                     PendingSignatureLocation::MachineParameter(handle) => {
-                        self.symbol_resolved_trees
+                        let parameter = self.symbol_resolved_trees
                             .tables
                             .declarations
                             .data_type_parameters
-                            .get(handle)
-                            .symbol
+                            .get(handle);
+                        let symbol_resolved_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
+                            return Err(vec![Diagnostic::error("pending service reach no longer names a machine parameter")]);
+                        };
+                        contract.structural().ok_or_else(|| vec![Diagnostic::error("pending service reach lost its structural machine-parameter signature")])?.symbol
                     }
                 };
-                crate::selection::service_reaches::PendingSignatureServiceReach {
+                Ok(crate::selection::service_reaches::PendingSignatureServiceReach {
                     symbol,
                     owner: pending.owner.clone(),
-                    keyword_source_spans: pending.keyword_source_spans.clone(),
-                    authored: pending.authored.clone(),
-                }
+                    reaches: pending.reaches.clone(),
+                })
             })
-            .collect::<Vec<_>>();
-        (
+            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+        Ok((
             pending_machine_service_reaches,
             pending_signature_service_reaches,
-        )
+        ))
     }
 }
 
-fn pending_service_reach_for(
+fn retained_service_reach_for(
     program: &SymbolResolvedTrees,
     owner: symbols::SymbolHandle,
+    row: language_semantics::ServiceReachRowId,
 ) -> crate::selection::service_reaches::PendingAuthoredServiceReach {
-    let Some(row) = program
-        .authored_service_reach_rows
-        .iter()
-        .find(|row| row.owner == owner)
-    else {
-        return crate::selection::service_reaches::PendingAuthoredServiceReach {
-            keyword_source_spans: Vec::new(),
-            authored: Vec::new(),
-        };
-    };
-    crate::selection::service_reaches::PendingAuthoredServiceReach {
-        keyword_source_spans: row.keyword_source_spans.clone(),
-        authored: row
-            .targets
+    crate::selection::service_reaches::PendingAuthoredServiceReach::Resolved {
+        row,
+        authored: program
+            .authored_service_reach_rows
             .iter()
-            .map(|target| {
-                symbol_resolved_trees::name::DiagnosticName::from_str(
-                    program.symbols.name(target.service),
-                    target.source_span,
-                )
-            })
-            .collect(),
+            .find(|row| row.owner == owner)
+            .cloned(),
     }
 }
 
@@ -602,6 +598,5 @@ pub(crate) enum PendingSignatureOwner {
 pub(crate) struct PendingSignatureServiceReach {
     pub(crate) location: PendingSignatureLocation,
     pub(crate) owner: PendingSignatureOwner,
-    pub(crate) keyword_source_spans: Vec<source::SourceSpan>,
-    pub(crate) authored: Vec<symbol_resolved_trees::name::DiagnosticName>,
+    pub(crate) reaches: crate::selection::service_reaches::PendingAuthoredServiceReach,
 }

@@ -394,9 +394,33 @@ fn record_text(
 /// still name the checkout — a sibling the harness read directly, an
 /// authored dependency location — keep the repository prefix.
 fn sanitize(diagnostic: &str) -> String {
+    let mut diagnostic = diagnostic.to_owned();
+    for (snapshot, relative) in sealed_fixture_staging::dependency_snapshots() {
+        let snapshot = snapshot.to_string_lossy();
+        let relative = relative.to_string_lossy();
+        let mut rendered = String::with_capacity(diagnostic.len());
+        let mut cursor = 0;
+        for (position, _) in diagnostic.match_indices(snapshot.as_ref()) {
+            let end = position + snapshot.len();
+            let boundary = diagnostic[end..].chars().next().is_none_or(|next| {
+                next.is_whitespace()
+                    || matches!(
+                        next,
+                        '/' | '\\' | '"' | '\'' | ';' | ':' | ')' | ']' | '}' | ',' | '`'
+                    )
+            });
+            if boundary {
+                rendered.push_str(&diagnostic[cursor..position]);
+                rendered.push_str(&relative);
+                cursor = end;
+            }
+        }
+        rendered.push_str(&diagnostic[cursor..]);
+        diagnostic = rendered;
+    }
     // Strip before escaping: a Windows backslash otherwise becomes two
     // characters and no longer matches the actual checkout path.
-    let diagnostic = strip_root_prefix(diagnostic, sealed_fixture_staging::staging_session_root());
+    let diagnostic = strip_root_prefix(&diagnostic, sealed_fixture_staging::staging_session_root());
     let diagnostic = strip_root_prefix(
         &diagnostic,
         sealed_fixture_staging::dependency_staging_session_root(),

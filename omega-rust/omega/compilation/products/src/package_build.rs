@@ -123,6 +123,12 @@ impl PreparedPackageBuild {
         self.prepared.built.retained_build_check.as_ref()
     }
 
+    /// Retain source work independently of this occurrence's Build result,
+    /// admission and output custody. Product checking has not occurred yet.
+    pub fn source_continuation(&self) -> &psi_compiler::SourceContinuation {
+        &self.prepared.built.source
+    }
+
     /// Answer actual independent product selections after their Build has run.
     /// Only component descriptions may join: source, purpose, bindings, generated
     /// bytes and execution inputs remain those the admitted activation consumed.

@@ -41,6 +41,28 @@ impl SeededTypingBase {
         Arc::clone(&self.resolved)
     }
 
+    /// Admit current lookup on both halves before resuming original pending
+    /// bodies. Do not project roots yet: their syntax owns positional links.
+    pub fn activate_body_completion(
+        mut self,
+        frontier: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+        sources: Arc<source::SourceMap>,
+        bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    ) -> Result<
+        (
+            Self,
+            syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+        ),
+        Vec<Diagnostic>,
+    > {
+        let frontier = self
+            .join_prepared_allocations(frontier)?
+            .activate_sources(sources, bindings)?;
+        self.resolved = frontier.shared_trees();
+        Arc::make_mut(&mut self.typed).symbols = self.resolved.symbols.clone();
+        Ok((self, frontier))
+    }
+
     /// Type a newly indexed authored cohort without completing its bodies or
     /// retyping retained declarations. Body completion resumes the returned
     /// frontier on the same rebased resolved allocation.

@@ -172,6 +172,30 @@ impl DeferredResolvedFrontier {
         Arc::clone(&self.trees)
     }
 
+    /// Replace lookup membership without filtering declaration vectors: pending
+    /// syntax still names their original ordinals. The paired typing owner
+    /// admits the exact predecessor before invoking this operation.
+    pub fn activate_sources(
+        mut self,
+        sources: Arc<source::SourceMap>,
+        bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let trees = Arc::make_mut(&mut self.trees);
+        trees.symbols = trees
+            .symbols
+            .clone()
+            .begin_source_activation(Arc::clone(&sources), bindings.clone())
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+            .finish();
+        trees.resolution_indexes = Default::default();
+        self.selection = self
+            .selection
+            .activate_sources(Arc::clone(&sources), bindings.clone())?;
+        self.sources = Some(sources);
+        self.bindings = bindings;
+        Ok(self)
+    }
+
     /// Reserve the paired typing owner's allocation suffix before resolution
     /// allocates more symbols, domain identities or service rows. This adds no
     /// declarations or evidence; existing references retain their exact IDs.

@@ -21,6 +21,8 @@ pub struct SourceCompilationRequest {
     pub top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     pub selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     pub previous: Vec<crate::RetainedCheck>,
+    /// Frontend work retained after dependency Build, before Product judgment.
+    pub pending_sources: Vec<SourceContinuation>,
     pub root_package: Option<semantic_vocabulary::PackageKeyIdentity>,
     /// Opaque identity of the already selected Build-helper context. Psi does
     /// not interpret targets; it must not mix differently selected predecessors.
@@ -35,6 +37,20 @@ pub struct SourceContinuation {
     pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
     pending_pre_checks: Vec<PreCheckEvaluation>,
     context: SourceContext,
+}
+
+impl std::fmt::Debug for SourceContinuation {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("SourceContinuation")
+            .field("machine_count", &self.typing.typed().machines().len())
+            .field(
+                "pending_body_count",
+                &self.pending_bodies.pending_machines().count(),
+            )
+            .field("pre_check_count", &self.pending_pre_checks.len())
+            .finish()
+    }
 }
 
 /// The mutable inputs an independently admitted Build evaluator consumes.
@@ -109,7 +125,7 @@ impl SourceCompilationRequest {
             authority: self.selection_authority.clone(),
             build_helper_identity: self.build_helper_identity,
         };
-        let activation = activation::select_retained_source(&self, &context)?;
+        let activation = activation::select_retained_source(&self, &context, observer)?;
         if let Some(activation) = &activation {
             activation.remove_retained_syntax(&mut self.syntax, &self.source_items);
         }
@@ -216,6 +232,54 @@ impl SourceCompilationRequest {
 }
 
 impl SourceContinuation {
+    /// Complete only the old bodies this consumer actually selected, retaining
+    /// their original syntax/ordinals until completion. Lookup changes first:
+    /// checking references afterward cannot repair a stale ambiguity diagnostic.
+    fn complete_selected(
+        self,
+        sources: Arc<source::SourceMap>,
+        bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+        observer: &mut impl PsiCompilationObserver,
+    ) -> Result<
+        (
+            symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+            Vec<PreCheckEvaluation>,
+        ),
+        Vec<Diagnostic>,
+    > {
+        let (mut typing, mut pending_bodies) = self.typing.activate_body_completion(
+            self.pending_bodies,
+            Arc::clone(&sources),
+            bindings,
+        )?;
+        loop {
+            pending_bodies = typing.join_prepared_allocations(pending_bodies)?;
+            let selected = pending_bodies
+                .pending_machines()
+                .filter(|symbol| {
+                    pending_bodies
+                        .trees()
+                        .symbols
+                        .symbol_provenance_source_span(*symbol)
+                        .is_some_and(|span| sources.source_is_selected(span.source_id))
+                })
+                .collect::<Vec<_>>();
+            if selected.is_empty() {
+                break;
+            }
+            let resolved = observer.record_result(PsiCompilationStage::Resolution, || {
+                pending_bodies.complete_machine_bodies(&selected)
+            })?;
+            (typing, pending_bodies) = observer
+                .record_result(PsiCompilationStage::Typing, || {
+                    typing.complete_bodies(resolved)
+                })?;
+        }
+        // Pre-checks may depend on the receiving Build's representation choices.
+        // Keep their exact work; projection and ordinary evaluation follow later.
+        Ok((typing, self.pending_pre_checks))
+    }
+
     /// Whether two admitted Build continuations have exactly the same remaining
     /// source work. A common pre-Build origin alone is insufficient: Build may
     /// have elaborated declarations or consumed different evaluation obligations.

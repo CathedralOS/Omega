@@ -362,54 +362,6 @@ fn dependency_free_package_inputs_bound_to(
     ))
 }
 
-/// `location` itself when it is disjoint from every bound root, or a staged
-/// copy of it when it nests. Acquisition gives each package its own directory
-/// in the real build; a fixture compiled in place has no such step, and a
-/// member authored inside its requester would otherwise present two source
-/// roots where one contains the other.
-///
-/// The copy is keyed by the member's canonical path and this process, so
-/// concurrent corpus workers never share one staging directory, and it is
-/// refreshed on every call rather than reused across runs.
-fn staged_member_root(location: &Path, bound: &HashMap<PathBuf, PackageKeyIdentity>) -> PathBuf {
-    let nests = bound
-        .keys()
-        .any(|root| location.starts_with(root) && location != root || root.starts_with(location));
-    if !nests {
-        return location.to_path_buf();
-    }
-    let mut key = std::collections::hash_map::DefaultHasher::new();
-    std::hash::Hash::hash(&location, &mut key);
-    let staged = std::env::temp_dir().join(format!(
-        "omega-fixture-member-{}-{:016x}",
-        std::process::id(),
-        std::hash::Hasher::finish(&key),
-    ));
-    let _ = fs::remove_dir_all(&staged);
-    copy_member_tree(location, &staged).unwrap_or_else(|error| {
-        panic!(
-            "fixture member {} could not be staged at {}: {error}",
-            location.display(),
-            staged.display()
-        )
-    });
-    staged
-}
-
-fn copy_member_tree(from: &Path, to: &Path) -> std::io::Result<()> {
-    fs::create_dir_all(to)?;
-    for entry in fs::read_dir(from)? {
-        let entry = entry?;
-        let target = to.join(entry.file_name());
-        if entry.file_type()?.is_dir() {
-            copy_member_tree(&entry.path(), &target)?;
-        } else {
-            fs::copy(entry.path(), target)?;
-        }
-    }
-    Ok(())
-}
-
 /// One package a fixture's dependency rows reach.
 struct FixtureGraphPackage {
     identity: PackageKeyIdentity,
@@ -582,15 +534,15 @@ impl FixturePackageGraph {
             return;
         }
         let graph_package = self.package(package);
-        let snapshot = sealed_fixture_staging::stage_sealed_dependency_snapshot(
-            &repo_root(),
-            &graph_package.authored_root,
-        );
-        let name = package_name_of(&graph_package.authored_root);
+        let snapshot = graph_package.bound_root.clone();
         let inputs = self
             .inputs_rooted_at(
                 package,
-                sealed_root_source_binding(package, name, &snapshot),
+                sealed_root_source_binding(
+                    package,
+                    graph_package.binding.canonical_name().to_owned(),
+                    &snapshot,
+                ),
             )
             .with_compilation_purpose(purpose)
             .unwrap_or_else(|errors| panic!("fixture dependency occurrence: {errors:#?}"));
@@ -613,17 +565,6 @@ struct DependencyOccurrence {
     purpose: DependencyPurpose,
     snapshot: PathBuf,
     inputs: PackageCompilationInputs,
-}
-
-/// The package name a dependency directory's own `build.omg` declares.
-fn package_name_of(authored_root: &Path) -> String {
-    match extract_build_declaration(authored_root) {
-        Ok(BuildDeclaration::Package(package)) => package.name.into_string(),
-        _ => panic!(
-            "fixture dependency {} declares no package",
-            authored_root.display()
-        ),
-    }
 }
 
 /// Construction state for [`FixturePackageGraph::new`].
@@ -650,16 +591,13 @@ impl FixtureGraphWalk {
                         .expect("fixture package markers stay distinct");
                     fixture_package_identity(marker)
                 };
-                // Source roots must be disjoint. A fixture may author its
-                // member inside its own directory (`depend_as("leaf",
-                // Source::Path { location: "leaf" })`), which the real
-                // build accepts because acquisition snapshots every
-                // package into its own cache directory before compiling.
-                // Binding the authored nesting directly instead would
-                // report overlapping roots, so stage the member the same
-                // way. The walk continues from the AUTHORED location, so
-                // the member's own relative rows still resolve.
-                let bound_location = staged_member_root(&dependency.location, &self.bound);
+                // Acquisition binds one sealed, disjoint source home. The
+                // package's own Build and its consumers must use those same
+                // coordinates; only their purpose and authority differ.
+                let bound_location = sealed_fixture_staging::stage_sealed_dependency_snapshot(
+                    &repo_root(),
+                    &dependency.location,
+                );
                 self.packages.push(FixtureGraphPackage {
                     identity,
                     binding: PackageSourceBinding::new(

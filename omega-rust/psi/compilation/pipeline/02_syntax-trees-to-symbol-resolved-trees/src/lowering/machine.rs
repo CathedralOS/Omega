@@ -279,7 +279,7 @@ fn lower_lexical_machine_into(
         }
     };
     lowerer.pending_machine_service_reaches.push(
-        crate::selection::service_reaches::PendingAuthoredServiceReach {
+        crate::selection::service_reaches::PendingAuthoredServiceReach::Authored {
             keyword_source_spans: machine.service_reach_keyword_source_spans.clone(),
             authored: service_reaches,
         },

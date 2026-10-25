@@ -108,6 +108,11 @@ pub(super) struct ActivatedSource {
     sources: Arc<SourceMap>,
 }
 
+enum SourceCandidate<'source> {
+    Completed(&'source super::PreparedSource),
+    Pending(&'source super::SourceContinuation),
+}
+
 impl ActivatedSource {
     pub fn remove_retained_syntax(
         &self,
@@ -146,6 +151,7 @@ impl ActivatedSource {
 pub(super) fn select_retained_source(
     request: &SourceCompilationRequest,
     context: &SourceContext,
+    observer: &mut impl crate::PsiCompilationObserver,
 ) -> Result<Option<ActivatedSource>, Vec<Diagnostic>> {
     // An anonymous request has no explicit consumer identity to separate from
     // its dependencies here. Its existing exact-frontier path remains valid.
@@ -154,15 +160,21 @@ pub(super) fn select_retained_source(
     }
     phase_profile::count(
         "source_activation.candidates",
-        request.previous.len() as u64,
+        (request.previous.len() + request.pending_sources.len()) as u64,
     );
     let mut candidates = Vec::new();
     for source in request
         .previous
         .iter()
         .filter_map(|check| check.source.as_ref())
+        .map(|source| SourceCandidate::Completed(source.as_ref()))
+        .chain(request.pending_sources.iter().map(SourceCandidate::Pending))
     {
-        let Some(previous) = source.typed().symbols.source_map() else {
+        let (typing, source_context) = match &source {
+            SourceCandidate::Completed(source) => (&source.typing, &source.context),
+            SourceCandidate::Pending(source) => (&source.typing, &source.context),
+        };
+        let Some(previous) = typing.typed().symbols.source_map() else {
             continue;
         };
         if !request.sources.retains_source_storage(&previous) {
@@ -179,9 +191,7 @@ pub(super) fn select_retained_source(
             continue;
         }
         if let Err(reason) =
-            source
-                .context
-                .compatibility(context, &previous, &request.sources, &activation)
+            source_context.compatibility(context, &previous, &request.sources, &activation)
         {
             phase_profile::count(
                 match reason {
@@ -199,13 +209,36 @@ pub(super) fn select_retained_source(
         }
         candidates.push((count, source, Arc::new(activation)));
     }
-    candidates.sort_unstable_by_key(|(count, _, _)| std::cmp::Reverse(*count));
+    candidates.sort_unstable_by_key(|(count, source, _)| {
+        std::cmp::Reverse((*count, matches!(source, SourceCandidate::Completed(_))))
+    });
     for (count, source, sources) in candidates {
-        let typing = source.typing.clone().activate_sources(
+        let (typing, pending_pre_checks) = match source {
+            SourceCandidate::Completed(source) => {
+                (source.typing.clone(), source.pending_pre_checks.clone())
+            }
+            SourceCandidate::Pending(source) => source.clone().complete_selected(
+                Arc::clone(&sources),
+                context.bindings.clone(),
+                observer,
+            )?,
+        };
+        let original = typing.clone();
+        let typing = typing.activate_sources(
             Arc::clone(&sources),
             Arc::clone(&request.sources),
             context.bindings.clone(),
         )?;
+        if typing
+            .typed()
+            .machines()
+            .iter()
+            .any(|machine| machine.body_status == typed_trees::machine::MachineBodyStatus::Deferred)
+        {
+            return Err(vec![Diagnostic::error(
+                "selected retained source still has a deferred authored body",
+            )]);
+        }
         // Removal cannot leave a retained resolved use naming an absent source.
         // A changed closure takes ordinary resolution, never a source rejection.
         let references = typed_trees::references::collect_program_references(typing.typed());
@@ -238,10 +271,9 @@ pub(super) fn select_retained_source(
             phase_profile::count("source_activation.miss.reference_closure", 1);
             continue;
         }
-        let pre_checks = source
-            .pending_pre_checks
+        let pre_checks = pending_pre_checks
             .iter()
-            .map(|pending| pending.activate_sources(source.typed(), typing.typed()))
+            .map(|pending| pending.activate_sources(original.typed(), typing.typed()))
             .collect::<Result<_, _>>()?;
         phase_profile::count("source_activation.retained_sources", count as u64);
         return Ok(Some(ActivatedSource {

@@ -46,6 +46,31 @@ impl std::ops::Deref for SelectionBase<'_> {
 }
 
 impl<'base> ConstantSelection<'base> {
+    /// Preserve header identities while replacing lookup membership. Pending
+    /// bodies must not resolve against a declaration excluded by this consumer.
+    pub(crate) fn activate_sources(
+        mut self,
+        sources: Arc<SourceMap>,
+        bindings: Vec<SourceScopedTopLevelBinding>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        self.symbols = self
+            .symbols
+            .begin_source_activation(Arc::clone(&sources), bindings.clone())
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+            .finish();
+        if let Some(base) = self.retained.take() {
+            let mut base = (*base).clone();
+            base.symbols = base
+                .symbols
+                .begin_source_activation(sources, bindings)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?
+                .finish();
+            base.resolution_indexes = Default::default();
+            self.retained = Some(SelectionBase::Shared(Arc::new(base)));
+        }
+        Ok(self)
+    }
+
     pub(crate) fn retained_base(&self) -> Option<&symbol_resolved_trees::SymbolResolvedTrees> {
         self.retained.as_deref()
     }

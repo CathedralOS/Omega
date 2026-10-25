@@ -31,6 +31,7 @@ pub struct CompilationSession {
     sources: Vec<PreparedSource>,
     pure_builds: build_evaluation::PureBuildCompilation,
     checks: RetainedCompilationChecks,
+    pending_sources: Vec<psi_compiler::SourceContinuation>,
     component_products: Vec<Arc<compilation_products::IndependentComponentProduct>>,
     pub(crate) selections: psi_compiler::ProductSelections,
 }
@@ -154,6 +155,14 @@ impl CompilationSession {
         if let Some(check) = prepared.retained_build_check() {
             retain_judgment(&mut self.checks.sibling_build_checks, check);
         }
+        let source = prepared.source_continuation();
+        if !self
+            .pending_sources
+            .iter()
+            .any(|retained| retained.same_completion_input(source))
+        {
+            self.pending_sources.push(source.clone());
+        }
         Ok(prepared)
     }
 
@@ -240,6 +249,7 @@ impl CompilationSession {
     pub(crate) fn reuse(&self) -> SettledCheckReuse {
         SettledCheckReuse {
             prior: self.checks.clone(),
+            pending_sources: self.pending_sources.clone(),
             retain: true,
         }
     }

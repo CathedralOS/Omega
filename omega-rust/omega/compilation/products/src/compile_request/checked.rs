@@ -42,6 +42,9 @@ pub struct CheckedCompileRequest {
 #[derive(Debug, Clone, Default)]
 pub struct SettledCheckReuse {
     pub prior: RetainedCompilationChecks,
+    /// Paired frontend work is reusable before any Product judgment exists.
+    /// It carries pending obligations, never a checked result or Build grants.
+    pub pending_sources: Vec<psi_compiler::SourceContinuation>,
     pub retain: bool,
 }
 

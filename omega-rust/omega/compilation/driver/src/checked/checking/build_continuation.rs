@@ -110,7 +110,7 @@ pub(super) fn lower_typed_frontier(
     mut syntax: package_compilation::source_assembly::AssembledSyntax,
     execution_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
-    previous: &compilation_products::RetainedCompilationChecks,
+    previous: &compilation_products::SettledCheckReuse,
     timings: &mut CompileTimings,
 ) -> Result<TypedCompilationFrontier, Vec<Diagnostic>> {
     let generated_source_custody = std::mem::take(&mut syntax.generated_source_custody);
@@ -147,11 +147,13 @@ pub(super) fn lower_typed_frontier(
             Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
         }),
         previous: previous
+            .prior
             .product
             .iter()
-            .chain(&previous.sibling_product_checks)
+            .chain(&previous.prior.sibling_product_checks)
             .cloned()
             .collect(),
+        pending_sources: previous.pending_sources.clone(),
         root_package: package_inputs.map(PackageCompilationInputs::root),
         build_helper_identity: execution.identity().as_str(),
     }

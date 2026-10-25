@@ -173,29 +173,53 @@ pub fn dependency_staging_session_root() -> &'static Path {
     .as_path()
 }
 
-/// Stage a dependency the way acquisition seals it into its cache lane, at
-/// its repository-relative path under [`dependency_staging_session_root`],
-/// and answer the snapshot's root directory.
-///
-/// A dependency Build occurrence is a package-aware build activation rooted
-/// at that dependency, so it needs the same canonical Source metadata a
-/// fixture root does. Unlike a fixture root, one dependency (the bundled
-/// standard library above all) serves many fixtures at once, so it is staged
-/// once per process and then only read: restaging it per fixture would
-/// discard a snapshot a concurrent worker is compiling.
+struct DependencySnapshot {
+    authored_root: PathBuf,
+    source_root: PathBuf,
+    repository_relative: PathBuf,
+}
+
+static STAGED_DEPENDENCIES: std::sync::Mutex<Vec<DependencySnapshot>> =
+    std::sync::Mutex::new(Vec::new());
+
+/// Exact snapshot-to-repository-relative paths for diagnostic rendering.
+/// Relative spelling is captured beside custody, not recovered from lexical
+/// checkout prefixes that can differ under symlinks or Windows verbatim paths.
+pub fn dependency_snapshots() -> Vec<(PathBuf, PathBuf)> {
+    STAGED_DEPENDENCIES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .iter()
+        .map(|snapshot| {
+            (
+                snapshot.source_root.clone(),
+                snapshot.repository_relative.clone(),
+            )
+        })
+        .collect()
+}
+
+/// Acquire one sealed, disjoint home for a dependency. Every consumer and
+/// Build occurrence borrows the same source coordinates. Restaging while
+/// another worker reads would invalidate custody, so acquisition is once per
+/// authored package per process, separate from writable Build directories.
 pub fn stage_sealed_dependency_snapshot(repository_root: &Path, authored_root: &Path) -> PathBuf {
-    static STAGED: std::sync::Mutex<Vec<(PathBuf, PathBuf)>> = std::sync::Mutex::new(Vec::new());
-    let mut staged = STAGED
+    let mut staged = STAGED_DEPENDENCIES
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if let Some((_, snapshot)) = staged
+    if let Some(snapshot) = staged
         .iter()
-        .find(|(authored, _)| authored == authored_root)
+        .find(|snapshot| snapshot.authored_root == authored_root)
     {
-        return snapshot.clone();
+        return snapshot.source_root.clone();
     }
+    // Each package gets a distinct home, even when its authored directory
+    // nests inside another package. Allocation is under this cache's lock;
+    // neither source spelling nor a potentially colliding path hash is identity.
+    let repository_relative = relative_fixture_path(repository_root, authored_root);
     let snapshot = dependency_staging_session_root()
-        .join(relative_fixture_path(repository_root, authored_root));
+        .join(staged.len().to_string())
+        .join(&repository_relative);
     discard_snapshot(&snapshot);
     if let Some(parent) = snapshot.parent() {
         fs::create_dir_all(parent).unwrap_or_else(|error| {
@@ -218,7 +242,11 @@ pub fn stage_sealed_dependency_snapshot(repository_root: &Path, authored_root: &
             snapshot.display()
         )
     });
-    staged.push((authored_root.to_path_buf(), snapshot.clone()));
+    staged.push(DependencySnapshot {
+        authored_root: authored_root.to_path_buf(),
+        source_root: snapshot.clone(),
+        repository_relative,
+    });
     snapshot
 }
 
