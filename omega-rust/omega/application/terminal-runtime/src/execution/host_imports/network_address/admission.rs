@@ -5,7 +5,7 @@
 use calling_conventions::{
     BoundaryCallingApplication, BoundaryValueClass, BoundaryValueGraph, CallSignature, ValueShape,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, StructuralTypeId};
+use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use target::TargetProfile;
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::TerminalImportSignature;
@@ -14,7 +14,7 @@ use terminal_psi::{
     StructuralMultiplicity,
 };
 
-use super::{AddressOperation, TerminalRuntimeError};
+use super::{AddressContract, AddressOperation, TerminalRuntimeError};
 
 /// Physical Inert placement is independent of guest multiplicity. The
 /// interpreter transfers linear claims; this adapter never creates receipts.
@@ -90,7 +90,7 @@ pub(super) fn validate(
     application: Option<&BoundaryCallingApplication>,
     signature: &TerminalImportSignature,
     operation: AddressOperation,
-) -> Result<(StructuralTypeId, [u8; 32]), TerminalRuntimeError> {
+) -> Result<AddressContract, TerminalRuntimeError> {
     let invalid = TerminalRuntimeError::InvalidProvision;
     let application = application.ok_or(TerminalRuntimeError::InvalidProvision(
         "inet adapter requires the complete admitted opaque calling application",
@@ -98,7 +98,7 @@ pub(super) fn validate(
     let word = IntegerType::new(IntegerSign::Unsigned, 32)
         .map_err(|_| invalid("inet native u32 type is not admitted"))?;
     let scalar = ScalarType::Integer(word);
-    let (structural_type, root) = match operation {
+    let (structural_type, root, multiplicity) = match operation {
         AddressOperation::Make => {
             let BoundaryMachineResult::Structural(result) = &signature.result else {
                 return Err(invalid("inet_makeaddr requires one structural result"));
@@ -136,6 +136,7 @@ pub(super) fn validate(
                     .signature
                     .result
                     .ok_or_else(|| invalid("inet_makeaddr native result shape is absent"))?,
+                result.multiplicity,
             )
         }
         AddressOperation::Host => {
@@ -174,7 +175,7 @@ pub(super) fn validate(
                     "inet_lnaof native result must be an aligned four-byte integer",
                 ));
             }
-            (parameter.structural_type, *root)
+            (parameter.structural_type, *root, parameter.multiplicity)
         }
     };
     let envelope = super::super::native_word::native_word_envelope(&application.signature, root)
@@ -218,8 +219,9 @@ pub(super) fn validate(
             })?,
     };
     super::super::admit_exact_foreign_call(signature, declaration, binding, &native_signature)?;
-    Ok((
+    Ok(AddressContract {
         structural_type,
-        application.opaque_applications[0].selected_application_commitment,
-    ))
+        application: application.opaque_applications[0].selected_application_commitment,
+        multiplicity,
+    })
 }

@@ -16,7 +16,10 @@ pub(super) fn observe_portable(
     words: &[&str],
 ) -> Result<(), String> {
     match words {
-        ["storage-cells", cells, value] => storage_budget::observe(artifact, cells, value),
+        ["storage-cells", cells, value] => storage_budget::observe(artifact, cells, value, None),
+        ["storage-cells", cells, value, "primitive", initial] => {
+            storage_budget::observe(artifact, cells, value, Some(initial))
+        }
         ["cleanup-resume"] => cleanup_resume::observe(artifact),
         ["mutable-boundary"] => mutable_boundary::observe(artifact),
         ["build-bindings", slots, entry, identifier] => {

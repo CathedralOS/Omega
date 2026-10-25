@@ -142,7 +142,7 @@ pub(super) fn stage(
                 TerminalStorageContents::Case(actual),
             ) if actual == *case => {
                 if changed_case {
-                    staged.stage_case(destination.clone(), *structural_type, *case);
+                    staged.stage_case(destination.clone(), *structural_type, *case)?;
                 }
             }
             _ => return Err(malformed()),
@@ -226,7 +226,7 @@ pub(super) fn stage(
                         values,
                         execution.account.as_ref(),
                     )?;
-                    staged.stage_byte_array(destination.clone(), bytes);
+                    staged.stage_byte_array(destination.clone(), bytes)?;
                 }
                 _ => {}
             }

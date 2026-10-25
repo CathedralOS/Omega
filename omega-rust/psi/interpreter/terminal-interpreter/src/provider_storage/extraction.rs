@@ -245,7 +245,7 @@ impl TerminalExecution<'_> {
             StructuralRuntimePlace::from(&value),
             result.structural_type,
             moved.id,
-        );
+        )?;
         storage.stage(self, source, &child, &extent_home, true)?;
         storage.take_provider_descriptor(&extent_home, binding)?;
         storage.stage_resident_image(self, custody, &value_home, decoded)?;

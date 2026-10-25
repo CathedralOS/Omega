@@ -127,7 +127,7 @@ impl TerminalExecution<'_> {
                                 field: binding.field,
                             },
                             bytes,
-                        );
+                        )?;
                         continue;
                     }
                     if argument.access != StructuralAccess::Owned

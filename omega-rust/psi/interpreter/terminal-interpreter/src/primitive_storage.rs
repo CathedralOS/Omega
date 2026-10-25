@@ -1659,7 +1659,7 @@ impl TerminalExecution<'_> {
         };
         self.structural_values.insert(result.place, view.clone())?;
         self.structural_primitive_storage
-            .insert(StructuralRuntimePlace::from(&view), scalar);
+            .insert(StructuralRuntimePlace::from(&view), scalar)?;
         Ok(())
     }
 
@@ -2152,8 +2152,9 @@ impl TerminalExecution<'_> {
                 // operation must not require the previous scalar to exist.
                 // Reads still require an initialized cell; this creates no
                 // owner, loan, predicate membership, or implicit zero value.
+                self.structural_primitive_storage
+                    .insert(storage.clone(), scalar)?;
                 self.invalidate_stored_provenance(&storage);
-                self.structural_primitive_storage.insert(storage, scalar);
             }
             PrimitiveStorageEndpoint::ScalarField(field) => {
                 self.invalidate_stored_provenance(&field.parent);

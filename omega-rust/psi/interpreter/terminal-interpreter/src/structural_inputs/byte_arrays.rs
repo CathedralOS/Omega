@@ -12,7 +12,6 @@ use crate::values::StructuralRuntimePlace;
 use crate::values::TerminalStructuralValue;
 use semantic_vocabulary::ScalarType;
 use semantic_vocabulary::StructuralTypeId;
-use std::collections::BTreeMap;
 use storage::{ArrayStorage, ArrayStorageHome};
 use terminal_psi::StructuralAccess;
 use terminal_psi::StructuralArgument;
@@ -106,7 +105,7 @@ impl TerminalExecution<'_> {
             .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
-        let mut storage = BTreeMap::new();
+        let mut storage = RuntimeRows::new(self.account.as_ref());
         let mut descriptors = RuntimeRows::new(self.account.as_ref());
         for argument in arguments {
             // External byte arrays name physical initialized cells. Unlike
@@ -201,12 +200,14 @@ impl TerminalExecution<'_> {
                 }
             }
             if self.structural_byte_storage.contains_key(&array)
-                || storage.insert(array, bytes).is_some()
+                || storage.insert(array, bytes)?.is_some()
             {
                 return Err(malformed());
             }
         }
-        self.structural_byte_storage.extend(storage);
+        self.structural_byte_storage.validate_append(&storage)?;
+        self.byte_sequence_values.validate_append(&descriptors)?;
+        self.structural_byte_storage.append(&mut storage)?;
         self.byte_sequence_values.append(&mut descriptors)?;
         Ok(())
     }

@@ -1014,8 +1014,16 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     Shared scalar record-field rows now retain reservations through constructor,
     case and subtree staging, owned call copies, entry binding and retirement;
     exact/short-budget source controls preserve independent copied contents and
-    sticky refusal. Other global descriptor/primitive/placed/case rows and
-    cumulative result custody remain.
+    sticky refusal. Shared primitive backing and entry lookup rows now retain
+    reservations through construction, mutation, subtree staging and retirement;
+    exact/short-budget controls preserve original borrowed entry writeback.
+    Shared reference, byte-field, byte/view descriptor, backing, case and host-atom
+    rows now use the same owner through execution and constructor/transplant
+    staging. Publication funds and validates receiving rows before retiring
+    sources, including activation split/merge result cases. Exact/short-budget
+    source controls exercise cases, byte fields and claim division through fuel
+    pauses, sticky refusal and teardown. Provider/activation ledgers and
+    descriptors, and cumulative result custody remain.
     Connect those admitted operations, remaining live-storage and result accounting, remaining
     host operations, and `suspend Build::await_provider<R>(builder, alias)`
     park/resume to the production Build scheduler, replacing checked-tree Build
@@ -1528,12 +1536,15 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     `providers/foreign_{owned_record,record_result,multiregister_result,indirect_record_*}_exit`
     and `host/runtime_descriptor_*_exit` passing.
   - Connect `omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs::opaque_representation_movement`
-    to provider call-frame transport and backend emission across all nine places
-    of `samples/cli/facts/opaque_closed_carrier_exchange` on Linux ARM64
-    (Linux x86-64, macOS ARM64, and Windows x86-64 now pass across all nine
-    places), and extend independent component exchange to copy, linear,
-    qualified, and view-backed opaque inputs with exact composition-edge drift
-    rejection.
+    to provider call-frame transport and backend emission for the remaining
+    linear, qualified, and view-backed opaque inputs with exact composition-edge
+    drift rejection. The direct and independent closed Affine rows in
+    `samples/cli/facts/opaque_closed_carrier_exchange` now pass all nine places
+    on all four hosted targets, including Linux ARM64. The
+    [checked Copy continuation](samples/cli/facts/opaque_closed_carrier_exchange/independent_copy/README.md)
+    also has nine-place native/Terminal agreement and copy-only rejects on all
+    four targets. Its README retains the original Windows timeout and the
+    independently reviewed finite diagnostic; that original run remains red.
   - Connect stage 05 `retention/retained_borrow_custody.rs` and native
     marshaling to installed-provider custody and default Terminal adapters for
     moved, lifetime-borrowed, and permitted-snapshot boundaries so all nine

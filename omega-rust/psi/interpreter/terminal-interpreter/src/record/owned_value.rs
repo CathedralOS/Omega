@@ -51,7 +51,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         if let ConstructorValue::Placed(value) = &child
-            && crate::custody::has_live_loan(&self.reference_referents, value)
+            && crate::custody::has_live_loan(self.reference_referents.as_map(), value)
         {
             return Err(TerminalInterpretError::ContentTransformationMismatch(
                 "owned value cannot transfer while its storage is borrowed",

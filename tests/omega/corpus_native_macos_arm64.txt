@@ -131,6 +131,15 @@ pass/facts/non_owning_reference_erasure_through_other_machine_exit built 1405ms 
 pass/facts/non_owning_reference_erasure_through_other_state_exit built 1609ms exit:0 @17f53e6295d2
 pass/facts/non_owning_reference_erasure_through_parameter_exit built 1397ms exit:0 @17f53e6295d2
 pass/facts/non_owning_reference_erasure_through_target_body_exit built 1610ms exit:0 @17f53e6295d2
+pass/facts/opaque_independent_copy_through_call_result_exit built 2099ms exit:0 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_const_name_exit built 2186ms exit:0 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_field_exit built 2091ms exit:0 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_local_exit built 1911ms exit:0 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_match_join_exit built 2031ms exit:0 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_other_machine_exit built 1864ms exit:0 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_other_state_exit built 1949ms exit:0 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_parameter_exit built 1957ms exit:0 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_target_body_exit built 1655ms exit:0 @4d987059e887+wt
 pass/facts/post_write_indexed_byte_view_argument_snapshot_through_call_result_exit built 2417ms exit:0 @68bdb64789cb
 pass/facts/post_write_indexed_byte_view_argument_snapshot_through_const_name_exit built 2164ms exit:0 @68bdb64789cb
 pass/facts/post_write_indexed_byte_view_argument_snapshot_through_field_exit built 1913ms exit:0 @68bdb64789cb

@@ -115,8 +115,8 @@ pub(crate) struct ReferenceByteRegion {
 /// Ownership transfers deliberately keep using ordinary map removal instead.
 pub(crate) fn discard_structural_value(
     values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
-    referents: &mut BTreeMap<StructuralRuntimePlace, ReferenceReferent>,
-    element_views: &mut BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
+    referents: &mut RuntimeRows<StructuralRuntimePlace, ReferenceReferent>,
+    element_views: &mut RuntimeRows<StructuralRuntimePlace, crate::element_views::ElementView>,
     place: PlaceId,
 ) -> Option<TerminalStructuralValue> {
     let value = values.remove(&place)?;
@@ -750,7 +750,7 @@ impl TerminalExecution<'_> {
             crate::structural_inputs::case_membership::active_projected_qualifications(
                 &self.program.structural_types(),
                 &referent,
-                &self.structural_cases,
+                self.structural_cases.as_map(),
                 &required_paths,
             )?;
         let mut required_projected = Vec::new();
@@ -764,7 +764,7 @@ impl TerminalExecution<'_> {
             crate::structural_inputs::case_membership::active_projected_qualifications(
                 &self.program.structural_types(),
                 &referent,
-                &self.structural_cases,
+                self.structural_cases.as_map(),
                 &referent.projected_qualifications,
             )?;
         let mut projected = Vec::new();
@@ -817,7 +817,7 @@ impl TerminalExecution<'_> {
                 byte_region,
                 aggregate_view,
             },
-        );
+        )?;
         self.structural_values.insert(result.place, carrier)?;
         self.live_affine_frontier.insert(StructuralAffineDiscard {
             place: result.place,
@@ -1360,7 +1360,7 @@ impl TerminalExecution<'_> {
             if !crate::structural_inputs::case_membership::case_projection_in_value_is_active(
                 &types,
                 &value,
-                &self.structural_cases,
+                self.structural_cases.as_map(),
                 prefix,
             )? {
                 return Ok(None);
@@ -1930,7 +1930,7 @@ impl TerminalExecution<'_> {
             if !crate::structural_inputs::case_membership::case_projection_in_value_is_active(
                 &self.program.structural_types(),
                 carrier,
-                &self.structural_cases,
+                self.structural_cases.as_map(),
                 &origin.path,
             )? {
                 continue;
