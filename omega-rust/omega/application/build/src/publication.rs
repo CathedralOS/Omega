@@ -5,14 +5,14 @@
 
 use crate::{BuildError, BuildOutcome, NativeDestination, ProjectProduct, TargetBuildOutcome};
 use artifacts::compile_timings::{CompileTimings, StageMeta};
-use compiler::CompileReport;
+use compiler::CompilationOutput;
 use std::path::{Path, PathBuf};
 
-/// Preserve every target's outcome. Checks and retained native requests publish
+/// Preserve every target's outcome. Checks, inspections and retained requests publish
 /// no bytes; published products use their own admitted canonical directory.
 pub(crate) fn publish_products(
     work: Vec<crate::build_directory::TargetWork>,
-    mut reports: Vec<(target::TargetProfile, Result<CompileReport, BuildError>)>,
+    mut reports: Vec<(target::TargetProfile, Result<CompilationOutput, BuildError>)>,
     product: &ProjectProduct,
     timings: &mut CompileTimings,
 ) -> Vec<TargetBuildOutcome> {
@@ -48,29 +48,36 @@ pub(crate) fn publish_products(
 }
 
 fn publish_product(
-    report: CompileReport,
+    output: CompilationOutput,
     product: &ProjectProduct,
     directory: &Path,
     timings: &mut CompileTimings,
 ) -> Result<BuildOutcome, BuildError> {
-    let (report, executable_path) = match product {
+    let (output, executable_path) = match product {
         ProjectProduct::Check
+        | ProjectProduct::Inspection { .. }
         | ProjectProduct::Native {
             destination: NativeDestination::Retained,
             ..
-        } => (report, None),
+        } => (output, None),
         ProjectProduct::Native {
             destination: NativeDestination::Published,
             ..
-        } => timings
-            .record_result(
-                StageMeta::new("publish", "retained product", "published product"),
-                || publish_compilation(report, directory),
-            )
-            .map_err(BuildError::Publication)?,
+        } => {
+            let report = output
+                .into_report()
+                .map_err(|error| BuildError::Diagnostics(error.into_diagnostics()))?;
+            let (report, path) = timings
+                .record_result(
+                    StageMeta::new("publish", "retained product", "published product"),
+                    || publish_compilation(report, directory),
+                )
+                .map_err(BuildError::Publication)?;
+            (CompilationOutput::Report(report), path)
+        }
     };
     Ok(BuildOutcome {
-        report,
+        output,
         timings: timings.clone(),
         executable_path,
     })

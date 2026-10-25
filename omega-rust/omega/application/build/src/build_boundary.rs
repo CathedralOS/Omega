@@ -24,6 +24,10 @@ fn application_depends_on_facades_not_language_stages() {
     assert!(execution.contains("omega_build::build("));
     assert!(!execution.contains("prepare_local_project("));
     assert!(!execution.contains("compiler::compile("));
+    let inspection = include_str!("../../cli/src/inspection/mod.rs");
+    assert!(inspection.contains("omega_build::build("));
+    assert!(!inspection.contains("prepare_local_project("));
+    assert!(!inspection.contains("CompilationSession::default()"));
 }
 
 #[test]

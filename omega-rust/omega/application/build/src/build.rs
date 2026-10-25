@@ -13,13 +13,18 @@ use target::TargetProfile;
 /// continue. A check uses a private workspace and publishes no product files.
 pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildError> {
     let profiles = target_profiles(&request.targets)?;
+    if matches!(request.product, ProjectProduct::Inspection { .. }) && profiles.len() != 1 {
+        return Err(BuildError::Diagnostics(vec![Diagnostic::error(
+            "Terminal inspection requires one exact target context",
+        )]));
+    }
     let mut timings = if request.timings {
         CompileTimings::enabled()
     } else {
         CompileTimings::default()
     };
     let check_workspace = match &request.product {
-        ProjectProduct::Check => {
+        ProjectProduct::Check | ProjectProduct::Inspection { .. } => {
             Some(TemporaryDirectory::create("check", false).map_err(BuildError::CheckWorkspace)?)
         }
         ProjectProduct::Native { .. } => None,

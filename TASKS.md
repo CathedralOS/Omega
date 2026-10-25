@@ -2827,7 +2827,8 @@ crash and native exit behavior.
   construction and evidence joins remain cohesive backend operations. Product
   orchestration retains identities with ordered work. The application Build
   entrance owns project preparation, directory admission and product publication
-  for both compilation and `run`; retained execution products use the same route.
+  for compilation, `run` and source inspection; retained execution products and
+  named Terminal inspections use the same project lifecycle.
   Hosted Terminal execution is an application consumer, no longer a compiler
   export; it consumes source-free retained provisions from their native owner.
   Package dependency/Build activation scheduling still needs migration. Psi

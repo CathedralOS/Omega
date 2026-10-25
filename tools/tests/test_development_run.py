@@ -99,6 +99,58 @@ class DevelopmentRun(unittest.TestCase):
         self.assertIn("private entry RAM initializer answers no declared entry position", result.stderr)
         self.assertNotIn("native exit", result.stderr)
 
+    def inspect_source(self, output):
+        return self.invoke("inspect-terminal", "--machine", "Main::main",
+                           "--output", output, "main.omg")
+
+    def test_inspection_artifact_does_not_need_its_source(self):
+        artifact = self.project / "inspection.oterm"
+        result = self.inspect_source(artifact)
+        self.assert_exit(result, 0)
+        identity = [line for line in result.stdout.splitlines()
+                    if line.startswith("terminal program_fingerprint=")]
+        self.assertEqual(len(identity), 1, result.stdout)
+        self.assertTrue(artifact.is_file())
+        self.assertFalse((self.project / "build").exists())
+        self.assertFalse((self.project / "omega.lock").exists())
+        (self.project / "main.omg").unlink()
+        (self.project / "build.omg").unlink()
+        loaded = self.invoke("inspect-terminal", "--artifact", artifact)
+        self.assert_exit(loaded, 0)
+        self.assertIn(identity[0], loaded.stdout)
+        artifact.write_bytes(artifact.read_bytes() + b"\x00")
+        corrupt = self.invoke("inspect-terminal", "--artifact", artifact)
+        self.assert_exit(corrupt, 1)
+        self.assertIn("cannot inspect Terminal artifact", corrupt.stderr)
+
+    def test_standalone_inspection_keeps_targetless_source(self):
+        (self.project / "build.omg").unlink()
+        result = self.inspect_source(self.project / "standalone.oterm")
+        self.assert_exit(result, 0)
+        self.assertIn("terminal program_fingerprint=", result.stdout)
+        self.assertFalse((self.project / "omega.lock").exists())
+
+    def test_missing_inspection_machine_does_not_publish(self):
+        artifact = self.project / "absent.oterm"
+        result = self.invoke("inspect-terminal", "--machine", "Main::absent",
+                             "--output", artifact, "main.omg")
+        self.assert_exit(result, 1)
+        self.assertIn("Main::absent", result.stderr)
+        self.assertFalse(artifact.exists())
+
+    def test_inspection_preserves_accepted_source_identity(self):
+        self.accept_project()
+        lock = (self.project / "omega.lock").read_bytes()
+        artifact = self.project / "accepted.oterm"
+        self.assert_exit(self.inspect_source(artifact), 0)
+        with (self.project / "main.omg").open("a", encoding="utf-8") as source:
+            source.write("\n// Requires new source acceptance.\n")
+        rejected = self.inspect_source(self.project / "stale.oterm")
+        self.assert_exit(rejected, 1)
+        self.assertIn("omega update", rejected.stderr)
+        self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
+        self.assertFalse((self.project / "stale.oterm").exists())
+
     def test_check_does_not_claim_or_publish_the_output_directory(self):
         output = self.project / "check-output"
         result = self.invoke("--check", "--build-dir", output, "--target", self.target, "main.omg")

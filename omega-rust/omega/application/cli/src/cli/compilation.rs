@@ -53,7 +53,9 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
     }
     let report_target_name = target_names.first();
     let result = build(request).and_then(|outcomes| match outcomes.into_iter().next() {
-        Some(outcome) => outcome.result,
+        Some(outcome) => outcome
+            .result
+            .and_then(omega_build::BuildOutcome::into_report),
         None => Err(BuildError::Diagnostics(vec![
             diagnostics::Diagnostic::error("build lost the requested target outcome"),
         ])),
@@ -97,16 +99,17 @@ fn compile_several_targets(
     let mut report_contents = String::new();
     let mut failed = Vec::new();
     let mut refusals = Vec::new();
-    for TargetBuildOutcome { target, result } in &outcomes {
+    let target_count = outcomes.len();
+    for TargetBuildOutcome { target, result } in outcomes {
         let name = target.target_name();
         println!("target {name}:");
-        match result {
+        match result.and_then(omega_build::BuildOutcome::into_report) {
             Ok(outcome) => {
                 if started.is_some() {
-                    print_timings(outcome);
+                    print_timings(&outcome);
                 }
-                print_outcome(outcome);
-                report_contents.push_str(&report_text(Some(name), outcome));
+                print_outcome(&outcome);
+                report_contents.push_str(&report_text(Some(name), &outcome));
             }
             Err(error) => {
                 eprintln!("{error}");
@@ -127,10 +130,10 @@ fn compile_several_targets(
         eprintln!(
             "{} of {} targets failed: {}",
             failed.len(),
-            outcomes.len(),
+            target_count,
             failed.join(", ")
         );
-        std::process::exit(refusal_exit_status(refusals));
+        std::process::exit(refusal_exit_status(refusals.iter()));
     }
 }
 
@@ -151,7 +154,7 @@ fn refusal_exit_status<'a>(refusals: impl IntoIterator<Item = &'a BuildError>) -
     }
 }
 
-fn print_timings(outcome: &omega_build::BuildOutcome) {
+fn print_timings(outcome: &omega_build::BuildReport) {
     for timing in outcome.timings.phases() {
         eprintln!(
             "{:>10.3} ms  {}",
@@ -178,7 +181,7 @@ fn print_elapsed(started: std::time::Instant) {
     }
 }
 
-fn print_outcome(outcome: &omega_build::BuildOutcome) {
+fn print_outcome(outcome: &omega_build::BuildReport) {
     if let Some(path) = &outcome.executable_path {
         if let Some(receipt) = outcome.report.optimization_rollback_receipt() {
             println!("optimizer rollback: {receipt}");
@@ -208,7 +211,7 @@ fn print_outcome(outcome: &omega_build::BuildOutcome) {
 /// Render the produced outcome as the plain-text observation `--report-file`
 /// requests: the requested product, the named target, the report summary,
 /// and every publication line the console reports.
-fn report_text(target_name: Option<&str>, outcome: &omega_build::BuildOutcome) -> String {
+fn report_text(target_name: Option<&str>, outcome: &omega_build::BuildReport) -> String {
     let mut contents = String::new();
     contents.push_str(match outcome.executable_path.is_some() {
         true => "product: native artifact\n",
