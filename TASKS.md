@@ -1145,10 +1145,11 @@ defines the complete product bar.
     and `fail/drops/owned_replacement_{old_hook_prerequisite,transferred_source_read}`
     as value-home, occurrence and invalid-custody controls.
   - Complete scalar materialization of moved linear places and claim-bearing
-    call results on **STATE-LOCAL-VALUE-FRONTIER**'s computed-call path. Preserve the
-    exact completion-time cleanup facts for copied descriptor leaves, and end
-    borrowed carriers' loans before disposing their supplier storage; anonymous
-    descriptor-source completion remains unfinished.
+    call results on **STATE-LOCAL-VALUE-FRONTIER**'s computed-call path.
+    Anonymous scalar projections from linear-aggregate suppliers
+    still reach Terminal `AffineFrontierMismatch`. Keep
+    `samples/cli/facts/borrowed_projection_cleanup/` as the captured-context
+    and detached-carrier control while completing those residual claims.
     Preserve the checked ordered temporary action roster and its scalar-call continuation in
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/calls.rs`
     with exact live-claim dispositions; claim-free discard/hook actions do not
