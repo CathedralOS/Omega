@@ -129,3 +129,37 @@ value.
 **Fixture oracle enforcement.** Corrupting one recorded expectation to `7`
 makes the gate refuse with `expected native 7, observed built {'exit': '0'}`,
 so the pinned rows are enforced rather than inert.
+
+
+## Ordinary storage establishment (EXPLICIT-ENTRY-STORAGE)
+
+A dynamic selector is a value only after construction from an exact named
+implementation, including when ordinary local storage carries it into a call.
+This discharges the owning task's invalid-initialization obligation under
+[entry roots](../../../../wiki/spec/build/entry_roots.md),
+[storage](../../../../wiki/spec/resources/storage.md), and
+[dynamic dispatch](../../../../wiki/spec/language/conformances.md).
+Zero bits supply neither a named implementation nor its checked dispatch table.
+
+Each of the nine places retains its original positive and bound-operand reject
+twin. Its additional `controls/uninitialized_selector/main.omg` removes only
+the selector's establishing construction (the field place reserves its record
+without the constructor). These controls are pinned as
+`tests/omega/fail/facts/uninitialized_dyn_selection_through_<place>`.
+The frozen 2214d8 producer accepted all nine controls; a direct uninitialized
+record projection also produced native signal 11 and Terminal
+`VerifiedOperationMalformed`. The repaired checker refuses at the ordinary
+default-domain invariant window before an unestablished selector is consumed.
+
+Establishment comes from exact construction or accepted stores, with parameter,
+call-result, match, constant, state, machine and target transport retaining that
+value identity. Projecting an initialized element does not consume unfinished
+siblings. Named record composition remains the existing child-store judgment;
+an authored qualification still fences address traversal. The nine unchanged
+positives execute with native exit 0 and Terminal exit 0 on macOS ARM64; all nine
+original operand twins and nine uninitialized-selector controls reject. Ordinary
+field stores, fixed-array literals, and exact indexed stores retain native and
+Terminal agreement in the companion `runtime_dyn_*_establishment_exit` fixtures.
+The source check is target-neutral; native execution on the other three hosts
+has not been measured here. This row does not alone close the parent task's
+installed-backing, partition, cleanup or other hosted-entry obligations.

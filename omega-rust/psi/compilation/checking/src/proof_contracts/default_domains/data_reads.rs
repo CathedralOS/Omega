@@ -176,6 +176,7 @@ fn scan_expression_use(
         entry_established,
         call_established,
         inherited_windows,
+        consumes_value,
         diagnostics,
     );
     if consumes_value && let Some(spelling) = write_place_spelling(program, expression) {
@@ -623,6 +624,7 @@ fn validate_qualified_place_read(
     entry_established: &[String],
     call_established: &[String],
     inherited_windows: &[InvariantWindow],
+    consumes_value: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !matches!(
@@ -642,10 +644,29 @@ fn validate_qualified_place_read(
     ) else {
         return;
     };
-    if !matches!(
+    if !crate::value_custody::data::type_requires_establishment(program, reference) {
+        return;
+    }
+    // Traversing an array or reference to address one child does not consume
+    // its other children. An authored qualification still fences projection
+    // through that carrier, independently of whole-value validity.
+    if !consumes_value
+        && !matches!(
+            program.type_reference_table.type_reference(reference),
+            typed_trees::types::TypeReferenceNode::Constrained { .. }
+        )
+    {
+        return;
+    }
+    // Record consumption is checked by the composition walk, which can prove
+    // a completed value from accepted stores to all of its children. Other
+    // carriers have their own validity obligations even without an authored
+    // refinement: zero does not construct a loan or a dynamic selector.
+    if matches!(
         program.type_reference_table.type_reference(reference),
-        typed_trees::types::TypeReferenceNode::Constrained { .. }
-    ) || !crate::value_custody::data::type_requires_establishment(program, reference)
+        typed_trees::types::TypeReferenceNode::Named { .. }
+            | typed_trees::types::TypeReferenceNode::Generic { .. }
+    ) && super::place_queries::data_definition_for_type(program, reference).is_some()
     {
         return;
     }
