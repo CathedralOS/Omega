@@ -270,8 +270,11 @@ The applicable requirement categories above extend through the component edge:
 Raw observations remain in the existing swarm qualification record, bound to
 actual producer revisions and accepted project locks. Full provider/carrier/
 target/lifecycle/multiplicity/historical-selection mismatch controls,
-qualified or linear component inputs, and materialized/view-backed inputs remain
-separate acceptance. The [checked Copy continuation](independent_copy/README.md)
+qualified component inputs, nested or routed claim carriers, and
+materialized/view-backed inputs remain separate acceptance. The
+[Linear continuation](independent_linear/README.md) establishes whole-claim
+input/result transport on all four hosted targets. The
+[checked Copy continuation](independent_copy/README.md)
 establishes exact Copy input/result transport across independent components on
 all four hosted targets, retaining the original Windows timeout and its finite
 diagnostic observations. These rows and the focused fuel witness do not close
