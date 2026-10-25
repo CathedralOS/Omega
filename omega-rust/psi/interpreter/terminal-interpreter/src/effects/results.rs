@@ -211,6 +211,77 @@ pub(crate) fn requires_materialized_host_custody(
 }
 
 impl TerminalExecution<'_> {
+    /// A checked independent completion is evidence, unlike an adapter's
+    /// structural response. Preserve its actual memberships after the exact
+    /// installation and full presentation have authenticated them.
+    pub(crate) fn commit_component_result(
+        &mut self,
+        operation: &terminal_psi::Operation,
+        expected: &BoundaryMachineResult,
+        returned: TerminalEffectResult,
+        selected: &terminal_installation::AdmittedComponentProvider,
+        completed: &crate::instance::ComponentOwnedReturn<'_, '_>,
+    ) -> Result<(), TerminalInterpretError> {
+        let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &operation.kind else {
+            return Err(malformed());
+        };
+        if selected.receiver() != self.program.identity
+            || selected.receiving_boundary() != *boundary
+            || &self.program.verified_boundary_machine(boundary)?.result != expected
+            || !completed.matches_presented_result(selected, &returned)
+        {
+            return Err(malformed());
+        }
+        let TerminalEffectResult::Structural(value) = returned else {
+            return self.commit_boundary_result(&operation.result, expected, returned);
+        };
+        let (OperationResult::Structural(declaration), BoundaryMachineResult::Structural(expected)) =
+            (&operation.result, expected)
+        else {
+            return Err(malformed());
+        };
+        if declaration.structural_type != expected.structural_type
+            || declaration.multiplicity != expected.multiplicity
+            || declaration.qualifications != expected.qualifications
+            || !declaration.projected_qualifications.is_empty()
+            || !expected.projected_qualifications.is_empty()
+            || value.structural_type != expected.structural_type
+            || !expected
+                .qualifications
+                .iter()
+                .all(|domain| value.qualifications.contains(domain))
+            || !value.projected_qualifications.is_empty()
+            || !value.path.is_empty()
+            || requires_materialized_host_custody(
+                &self.program.structural_types(),
+                declaration.structural_type,
+            )
+        {
+            return Err(malformed());
+        }
+        self.publish_opaque_boundary_result(declaration, value)
+    }
+
+    fn publish_opaque_boundary_result(
+        &mut self,
+        declaration: &terminal_psi::StructuralOperationResult,
+        value: TerminalStructuralValue,
+    ) -> Result<(), TerminalInterpretError> {
+        self.structural_host_atoms.insert(
+            crate::values::StructuralRuntimePlace::from(&value),
+            crate::structural_storage::HostStructuralPayload::Opaque(value.opaque_identity),
+        )?;
+        self.structural_values.insert(declaration.place, value)?;
+        if declaration.multiplicity == StructuralMultiplicity::Affine {
+            self.live_affine_frontier.insert(StructuralAffineDiscard {
+                place: declaration.place,
+                path: Vec::new(),
+                structural_type: declaration.structural_type,
+            });
+        }
+        Ok(())
+    }
+
     pub(crate) fn commit_boundary_result(
         &mut self,
         result: &OperationResult,
@@ -264,18 +335,7 @@ impl TerminalExecution<'_> {
                 // The validated response is an actual opaque payload, not
                 // absent scalar cells. Store it only after the complete result
                 // guard and the caller's freshness reservation have succeeded.
-                self.structural_host_atoms.insert(
-                    crate::values::StructuralRuntimePlace::from(&value),
-                    crate::structural_storage::HostStructuralPayload::Opaque(value.opaque_identity),
-                )?;
-                self.structural_values.insert(declaration.place, value)?;
-                if declaration.multiplicity == StructuralMultiplicity::Affine {
-                    self.live_affine_frontier.insert(StructuralAffineDiscard {
-                        place: declaration.place,
-                        path: Vec::new(),
-                        structural_type: declaration.structural_type,
-                    });
-                }
+                self.publish_opaque_boundary_result(declaration, value)?;
             }
             _ => return Err(malformed()),
         }

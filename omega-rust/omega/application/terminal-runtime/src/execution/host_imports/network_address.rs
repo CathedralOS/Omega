@@ -215,7 +215,6 @@ impl TerminalEffectHandler for NetworkAddressImport {
                     || result != &self.signature.result
                     || address.structural_type != self.contract.structural_type
                     || !address.path.is_empty()
-                    || !address.qualifications.is_empty()
                     || !address.projected_qualifications.is_empty()
                 {
                     return Err(invalid());
@@ -227,6 +226,10 @@ impl TerminalEffectHandler for NetworkAddressImport {
                     self.contract.application,
                     self.contract.multiplicity,
                 )?;
+                // The bare formal requires no membership premise. Stronger
+                // actual whole memberships stay attached until this owned
+                // occurrence is consumed; observing its C payload does not
+                // create an unqualified guest value or establish evidence.
                 // The exact owned value was produced by inet_makeaddr
                 // under this same selected opaque application. The C call takes
                 // the four-byte struct by value and retains no guest reference.

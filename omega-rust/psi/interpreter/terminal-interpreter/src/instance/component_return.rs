@@ -35,6 +35,42 @@ impl<'host, 'artifact> ComponentOwnedReturn<'host, 'artifact> {
         &self.value
     }
 
+    /// Authenticate the exact presented observation without giving an adapter
+    /// a constructor for checked result evidence. The owned completion retains
+    /// the original value and instance custody until publication acknowledges it.
+    pub(crate) fn matches_presented_result(
+        &self,
+        selected: &terminal_installation::AdmittedComponentProvider,
+        value: &crate::effects::results::TerminalEffectResult,
+    ) -> bool {
+        use crate::effects::results::TerminalEffectResult;
+        if self.provider != selected.provider() || self.candidate != selected.candidate() {
+            return false;
+        }
+        match (&self.value, value) {
+            (TerminalExecutionResult::Unit, TerminalEffectResult::Unit) => true,
+            (TerminalExecutionResult::Scalar(source), TerminalEffectResult::Scalar(value)) => {
+                source == value
+            }
+            (
+                TerminalExecutionResult::Structural(source),
+                TerminalEffectResult::Structural(value),
+            ) => {
+                let mut presented = source.value.clone();
+                presented.structural_type = value.structural_type;
+                if selected
+                    .present_result_memberships(&mut presented.qualifications)
+                    .is_err()
+                {
+                    return false;
+                }
+                presented.qualifications.sort();
+                presented == *value
+            }
+            _ => false,
+        }
+    }
+
     /// The caller authenticates the receiving slot and its result declaration
     /// before this consuming acknowledgement. The old instance can never run
     /// again, and there is no second result retained in it.

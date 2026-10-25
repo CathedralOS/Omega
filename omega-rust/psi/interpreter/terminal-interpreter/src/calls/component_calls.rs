@@ -231,7 +231,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         let provider = completed.provider();
         let candidate = completed.candidate();
         let instance_namespace = completed.instance_namespace();
-        self.commit_boundary_result(&operation.result, &receiver, returned)?;
+        self.commit_component_result(operation, &receiver, returned, selected, completed)?;
         self.live_claims = result_claims;
         self.effects
             .push(crate::effects::TerminalEffect::ComponentCall {

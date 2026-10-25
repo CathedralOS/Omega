@@ -73,6 +73,25 @@ to establish another issuer's provenance. Its [twin](parameter_pair/invalid/main
 uses the same missing qualified-output contract. Both are pinned beside the
 nine-place fixtures; neither closes the row.
 
+The [stronger-result control](stronger_result/main.omg) keeps the same issued
+addresses and consuming operation. Its checked provider returns the actual value
+with an additional predicate-only `Observed` membership while the public result
+requires only `Issued`. The receiver retains both domain declarations. Existing
+evidence must survive this public-contract weakening; raw host assertions do
+not receive the checked completion's authority. Its
+[twin](stronger_result/invalid/main.omg) removes the bridge's promised `Issued`
+result and rejects the same consumer obligation.
+
+The fresh merged `f4171b4cbdac` baseline reproduces the nine source refusals.
+Candidate `de39d6c98df7` makes all nine positives check and execute natively at
+0; Terminal reaches the raw host input's rejection of stronger actual metadata.
+All nine twins retain their intended refusal. The stronger-result control checks
+on the earlier compiler and on `de39`; the latter executes native 0 then reports
+`VerifiedOperationMalformed` at checked-result publication. These are retained
+frontiers, not completed runtime acceptance. Raw records live in the owning
+claim's `qualified-de39d6c98df7-20261025T195850Z` and
+`stronger-result-probe-v1` captures.
+
 All authored positives and producer entries bind the four hosted targets and
 declare exit 0. Completion still needs all nine native/Terminal agreements,
 the pinned fixtures and exact independent review, general nested-machine
