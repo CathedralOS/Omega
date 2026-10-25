@@ -253,44 +253,16 @@ pub(super) fn additive_addends(
 }
 
 pub(super) fn term_uses_application(term: &StructuralTerm, op: &SymbolHandle) -> bool {
-    match term.semantic_value() {
-        StructuralTerm::CollectionMeasure {
-            collection: subject,
-            ..
-        }
-        | StructuralTerm::Projection { subject, .. }
-        | StructuralTerm::IntegerEmbedding { value: subject, .. } => {
-            term_uses_application(subject, op)
-        }
-        StructuralTerm::IndexedValue {
-            collection, index, ..
-        } => term_uses_application(collection, op) || term_uses_application(index, op),
-        StructuralTerm::ScalarBinary { left, right, .. }
-        | StructuralTerm::MathematicalBinary { left, right, .. } => {
-            term_uses_application(left, op) || term_uses_application(right, op)
-        }
-        StructuralTerm::Application {
-            result_type: _,
-            target,
-            selections,
-            machine: _,
-            arguments,
-        } => {
-            (target == op && selections.is_empty())
-                || arguments
-                    .iter()
-                    .any(|argument| term_uses_application(argument, op))
-        }
-        StructuralTerm::Constructor { fields, .. } => fields
-            .iter()
-            .any(|(_, value)| term_uses_application(value, op)),
-        _ => false,
-    }
+    let term = term.semantic_value();
+    matches!(term, StructuralTerm::Application { target, selections, .. }
+        if *target == *op && selections.is_empty())
+        || term.any_child(|child| term_uses_application(child, op))
 }
 
 /// The (trait symbol, bound requirement name) -> conforming (carrier, entry
-/// symbol) index: conformances are fixed for the build, so per-law slot
-/// membership reads this instead of re-scanning every machine per candidate.
+/// symbol) index: conformances are fixed for the build, so both the per-law
+/// slot membership test and each candidate scan read this instead of
+/// re-walking every machine and conformance per license.
 fn conformance_slot_carriers_uncached(
     program: &dyn crate::CheckingInput,
 ) -> std::collections::HashMap<(SymbolHandle, String), Vec<(TypeReferenceHandle, SymbolHandle)>> {
@@ -300,14 +272,9 @@ fn conformance_slot_carriers_uncached(
             let Some(requirement_name) = bound_requirement_name(conformance, candidate) else {
                 continue;
             };
-            let Some(candidate_entry) = program.machine_states(candidate).first() else {
+            let Some((candidate_entry, carrier)) = entry_carrier(program, candidate) else {
                 continue;
             };
-            let carrier = program
-                .state_parameters(candidate_entry)
-                .first()
-                .map(|parameter| parameter.type_reference)
-                .unwrap_or(candidate_entry.return_type);
             slot_carriers
                 .entry((conformance.symbol, requirement_name))
                 .or_insert_with(Vec::new)
@@ -449,19 +416,31 @@ fn judged_bound_laws<'program>(
         .filter_map(|conformance| bound_requirement_name(conformance, judged_machine))
 }
 
-/// The carrier a judged machine's laws speak about: its first entry
-/// parameter's type, else its result type.
-fn judged_carrier(
-    program: &dyn crate::CheckingInput,
-    judged_machine: &Machine,
-) -> Option<TypeReferenceHandle> {
-    program.machine_states(judged_machine).first().map(|entry| {
+/// The entry state a machine's laws quantify over, with the carrier those
+/// laws speak about: its first entry parameter's type, else its result type.
+/// The conformance index, both candidate scans and the judged-machine
+/// circularity break each reconstructed this row; it is derived here once.
+fn entry_carrier<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &'program Machine,
+) -> Option<(&'program typed_trees::state::State, TypeReferenceHandle)> {
+    let entry = program.machine_states(machine).first()?;
+    Some((
+        entry,
         program
             .state_parameters(entry)
             .first()
             .map(|parameter| parameter.type_reference)
-            .unwrap_or(entry.return_type)
-    })
+            .unwrap_or(entry.return_type),
+    ))
+}
+
+/// The carrier alone, for a judged machine whose entry state is not needed.
+fn judged_carrier(
+    program: &dyn crate::CheckingInput,
+    judged_machine: &Machine,
+) -> Option<TypeReferenceHandle> {
+    entry_carrier(program, judged_machine).map(|(_, carrier)| carrier)
 }
 
 /// The algebraic law inventory of every trait: (op, law-requirement) pairs
@@ -525,49 +504,37 @@ fn ring_license_candidates(
             let Some((_, assoc_law)) = assoc_laws.iter().find(|(op, _)| op == op_slot) else {
                 continue;
             };
-            // Every machine conforming the op slot is a candidate license --
-            // provided its carrier also conformed BOTH law slots.
-            for candidate in program.machines() {
-                for conformance in program.machine_trait_conformances(candidate) {
-                    if conformance.symbol != trait_definition.symbol {
-                        continue;
-                    }
-                    let Some(bound_requirement) = bound_requirement_name(conformance, candidate)
-                    else {
-                        continue;
-                    };
-                    if bound_requirement != *op_slot {
-                        continue;
-                    }
-                    let Some(candidate_entry) = program.machine_states(candidate).first() else {
-                        continue;
-                    };
-                    let carrier = program
-                        .state_parameters(candidate_entry)
-                        .first()
-                        .map(|parameter| parameter.type_reference)
-                        .unwrap_or(candidate_entry.return_type);
-                    if slot_satisfier_exists(
-                        slot_carriers,
-                        program,
-                        trait_definition.symbol,
-                        comm_law,
-                        carrier,
-                    ) && slot_satisfier_exists(
+            // Every machine the slot index lists under the op slot is a
+            // candidate license -- the index already resolved each machine's
+            // carrier and entry state, which this scan used to rebuild.
+            let Some(rows) = slot_carriers.get(&(trait_definition.symbol, op_slot.clone())) else {
+                continue;
+            };
+            for (carrier, add_machine) in rows {
+                if slot_satisfier(
+                    slot_carriers,
+                    program,
+                    trait_definition.symbol,
+                    comm_law,
+                    *carrier,
+                )
+                .is_some()
+                    && slot_satisfier(
                         slot_carriers,
                         program,
                         trait_definition.symbol,
                         assoc_law,
-                        carrier,
-                    ) {
-                        candidates.push(RingCandidate {
-                            trait_symbol: trait_definition.symbol,
-                            comm_law: comm_law.clone(),
-                            assoc_law: assoc_law.clone(),
-                            add_machine: candidate_entry.symbol,
-                            carrier,
-                        });
-                    }
+                        *carrier,
+                    )
+                    .is_some()
+                {
+                    candidates.push(RingCandidate {
+                        trait_symbol: trait_definition.symbol,
+                        comm_law: comm_law.clone(),
+                        assoc_law: assoc_law.clone(),
+                        add_machine: *add_machine,
+                        carrier: *carrier,
+                    });
                 }
             }
         }
@@ -595,8 +562,11 @@ fn bound_requirement_name(
         })
 }
 
-/// Whether SOME machine conforms `(trait, requirement)` for this carrier.
-fn slot_satisfier_exists(
+/// The first machine the slot index lists under `(trait, requirement_name)`
+/// whose carrier matches; a caller that only needs membership reads
+/// `.is_some()`. Law-slot membership and op-slot lookups share this one
+/// traversal.
+fn slot_satisfier(
     slot_carriers: &std::collections::HashMap<
         (SymbolHandle, String),
         Vec<(TypeReferenceHandle, SymbolHandle)>,
@@ -605,16 +575,17 @@ fn slot_satisfier_exists(
     trait_symbol: SymbolHandle,
     requirement_name: &str,
     carrier: TypeReferenceHandle,
-) -> bool {
+) -> Option<SymbolHandle> {
     slot_carriers
         .get(&(trait_symbol, requirement_name.to_owned()))
-        .is_some_and(|rows| {
-            rows.iter().any(|(candidate_carrier, _)| {
+        .and_then(|rows| {
+            rows.iter().find_map(|(candidate_carrier, entry_symbol)| {
                 crate::value_custody::type_references::type_references_match(
                     program,
                     *candidate_carrier,
                     carrier,
                 )
+                .then_some(*entry_symbol)
             })
         })
 }
@@ -730,85 +701,48 @@ fn semiring_license_candidates(
                 continue;
             };
             let law_slots = [add_comm, add_assoc, mul_comm, mul_assoc, dist_law];
-            // Each carrier conforming BOTH op slots with all five law slots
-            // satisfied earns the paired license.
-            for add_candidate in program.machines() {
-                for conformance in program.machine_trait_conformances(add_candidate) {
-                    if conformance.symbol != trait_definition.symbol {
-                        continue;
-                    }
-                    let Some(bound) = bound_requirement_name(conformance, add_candidate) else {
-                        continue;
-                    };
-                    if bound != *add_op {
-                        continue;
-                    }
-                    let Some(entry) = program.machine_states(add_candidate).first() else {
-                        continue;
-                    };
-                    let carrier = program
-                        .state_parameters(entry)
-                        .first()
-                        .map(|parameter| parameter.type_reference)
-                        .unwrap_or(entry.return_type);
-                    if !law_slots.iter().all(|law| {
-                        slot_satisfier_exists(
-                            slot_carriers,
-                            program,
-                            trait_definition.symbol,
-                            law,
-                            carrier,
-                        )
-                    }) {
-                        continue;
-                    }
-                    if let Some(mul_machine) = op_slot_satisfier(
+            // Each carrier the slot index lists under the add op earns the
+            // paired license once all five law slots are satisfied and a
+            // paired mul satisfier exists. The index already resolved each
+            // machine's carrier and entry state, which this scan used to
+            // rebuild.
+            let Some(rows) = slot_carriers.get(&(trait_definition.symbol, add_op.clone())) else {
+                continue;
+            };
+            for (carrier, add_machine) in rows {
+                if !law_slots.iter().all(|law| {
+                    slot_satisfier(
                         slot_carriers,
                         program,
                         trait_definition.symbol,
-                        mul_op,
-                        carrier,
-                    ) {
-                        candidates.push(SemiringCandidate {
-                            trait_symbol: trait_definition.symbol,
-                            law_slots: law_slots.map(|law| law.clone()),
-                            license: SemiringLicense {
-                                add_machine: entry.symbol,
-                                mul_machine,
-                            },
-                            carrier,
-                        });
-                    }
+                        law,
+                        *carrier,
+                    )
+                    .is_some()
+                }) {
+                    continue;
+                }
+                if let Some(mul_machine) = slot_satisfier(
+                    slot_carriers,
+                    program,
+                    trait_definition.symbol,
+                    mul_op,
+                    *carrier,
+                ) {
+                    candidates.push(SemiringCandidate {
+                        trait_symbol: trait_definition.symbol,
+                        law_slots: law_slots.map(|law| law.clone()),
+                        license: SemiringLicense {
+                            add_machine: *add_machine,
+                            mul_machine,
+                        },
+                        carrier: *carrier,
+                    });
                 }
             }
         }
     }
     candidates
-}
-
-/// The NAME of the machine conforming `op_slot` for the given carrier.
-fn op_slot_satisfier(
-    slot_carriers: &std::collections::HashMap<
-        (SymbolHandle, String),
-        Vec<(TypeReferenceHandle, SymbolHandle)>,
-    >,
-    program: &dyn crate::CheckingInput,
-    trait_symbol: SymbolHandle,
-    op_slot: &str,
-    carrier: TypeReferenceHandle,
-) -> Option<SymbolHandle> {
-    slot_carriers
-        .get(&(trait_symbol, op_slot.to_owned()))
-        .and_then(|rows| {
-            rows.iter().find_map(|(candidate_carrier, entry_symbol)| {
-                crate::value_custody::type_references::type_references_match(
-                    program,
-                    *candidate_carrier,
-                    carrier,
-                )
-                .then_some(*entry_symbol)
-            })
-        })
 }
 
 fn commutativity_shape(
@@ -946,46 +880,25 @@ fn consistent_operation_selections(left: &StructuralTerm, right: &StructuralTerm
             &'term [typed_trees::expression::StaticMachineArgument],
         )>,
     ) -> bool {
-        match term.semantic_value() {
-            StructuralTerm::Application {
-                result_type: _,
-                target,
-                selections,
-                machine,
-                arguments,
-            } => {
-                if let Some((_, previous, previous_selections)) =
-                    seen.iter().find(|(name, _, _)| *name == machine)
-                {
-                    if previous != target || *previous_selections != selections.as_slice() {
-                        return false;
-                    }
-                } else {
-                    seen.push((machine, *target, selections));
+        let term = term.semantic_value();
+        if let StructuralTerm::Application {
+            target,
+            selections,
+            machine,
+            ..
+        } = term
+        {
+            if let Some((_, previous, previous_selections)) =
+                seen.iter().find(|(name, _, _)| *name == machine)
+            {
+                if previous != target || *previous_selections != selections.as_slice() {
+                    return false;
                 }
-                arguments.iter().all(|argument| visit(argument, seen))
+            } else {
+                seen.push((machine, *target, selections));
             }
-            StructuralTerm::Constructor { fields, .. } => {
-                fields.iter().all(|(_, value)| visit(value, seen))
-            }
-            StructuralTerm::CallProjection { arguments, .. } => {
-                arguments.iter().all(|argument| visit(argument, seen))
-            }
-            StructuralTerm::ScalarBinary { left, right, .. }
-            | StructuralTerm::MathematicalBinary { left, right, .. } => {
-                visit(left, seen) && visit(right, seen)
-            }
-            StructuralTerm::CollectionMeasure {
-                collection: subject,
-                ..
-            }
-            | StructuralTerm::Projection { subject, .. }
-            | StructuralTerm::IntegerEmbedding { value: subject, .. } => visit(subject, seen),
-            StructuralTerm::IndexedValue {
-                collection, index, ..
-            } => visit(collection, seen) && visit(index, seen),
-            _ => true,
         }
+        !term.any_child(|child| !visit(child, seen))
     }
     let mut seen = Vec::new();
     visit(left, &mut seen) && visit(right, &mut seen)

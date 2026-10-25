@@ -2,10 +2,9 @@
 //!
 //! Direct-home and selected-lowering routes join here. The durable record,
 //! canonical identity, persistence, and human rendering live in
-//! `register_homes::post_allocation_manifest`; projection, reconstruction, and
-//! validation stay transform-local.
+//! `register_homes::post_allocation_manifest`; reconstruction and validation
+//! stay transform-local.
 
-mod projection;
 mod reconstruction;
 
 use optimization_core::{
@@ -25,68 +24,14 @@ pub use register_homes::post_allocation_manifest::{
     PostAllocationUnavailableData,
 };
 
+/// The one projection every route publishes through: it binds whichever
+/// executed rewrite suites the source prefix ran under. Those suites are the
+/// prefix's own fact, so the caller names them — a direct or fixed-view-copy
+/// prefix ran none, a completed selected-lowering or pre-allocation run names
+/// its own completion identity, and runtime-spill recovery over such a run
+/// records that suite's completion beside the prefix ledger, so composed
+/// custody does not downgrade the manifest to an unrun-suite shape.
 pub(crate) fn project_post_allocation_optimization_manifest(
-    pre_physical: PrePhysicalOptimizationManifestIdentity,
-    selected_transformations: &[PostAllocationSelectedTransformation],
-    ranges: &ValidatedLiveRanges,
-    legality: &ValidatedAllocationLegality,
-    homes: &ValidatedRegisterHomes,
-) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError> {
-    projection::project(
-        pre_physical,
-        None,
-        None,
-        selected_transformations,
-        ranges,
-        legality,
-        homes,
-    )
-}
-
-pub(crate) fn project_post_allocation_optimization_manifest_after_selected_lowering(
-    pre_physical: PrePhysicalOptimizationManifestIdentity,
-    completion: SelectedLoweringOptimizationCompletionIdentity,
-    selected_transformations: &[PostAllocationSelectedTransformation],
-    ranges: &ValidatedLiveRanges,
-    legality: &ValidatedAllocationLegality,
-    homes: &ValidatedRegisterHomes,
-) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError> {
-    projection::project(
-        pre_physical,
-        Some(completion),
-        None,
-        selected_transformations,
-        ranges,
-        legality,
-        homes,
-    )
-}
-
-pub(crate) fn project_post_allocation_optimization_manifest_after_pre_allocation(
-    pre_physical: PrePhysicalOptimizationManifestIdentity,
-    completion: PreAllocationOptimizationCompletionIdentity,
-    selected_transformations: &[PostAllocationSelectedTransformation],
-    ranges: &ValidatedLiveRanges,
-    legality: &ValidatedAllocationLegality,
-    homes: &ValidatedRegisterHomes,
-) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError> {
-    projection::project(
-        pre_physical,
-        None,
-        Some(completion),
-        selected_transformations,
-        ranges,
-        legality,
-        homes,
-    )
-}
-
-/// The general projection: binds whichever executed rewrite suites the
-/// source prefix ran under. Runtime-spill recovery over a completed
-/// selected-lowering or pre-allocation run records that suite's completion
-/// identity beside the prefix ledger, so composed custody does not
-/// downgrade the manifest to an unrun-suite shape.
-pub(crate) fn project_post_allocation_optimization_manifest_with_suite_completions(
     pre_physical: PrePhysicalOptimizationManifestIdentity,
     selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
     pre_allocation_completion: Option<PreAllocationOptimizationCompletionIdentity>,
@@ -95,7 +40,7 @@ pub(crate) fn project_post_allocation_optimization_manifest_with_suite_completio
     legality: &ValidatedAllocationLegality,
     homes: &ValidatedRegisterHomes,
 ) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError> {
-    projection::project(
+    let record = reconstruction::expected_record(
         pre_physical,
         selected_lowering_completion,
         pre_allocation_completion,
@@ -103,7 +48,8 @@ pub(crate) fn project_post_allocation_optimization_manifest_with_suite_completio
         ranges,
         legality,
         homes,
-    )
+    )?;
+    Ok(ValidatedPostAllocationOptimizationManifest { record })
 }
 
 /// Validated authority receipt for the durable manifest record. The transform

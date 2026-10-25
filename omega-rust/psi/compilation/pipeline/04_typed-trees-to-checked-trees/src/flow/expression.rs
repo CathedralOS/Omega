@@ -2273,7 +2273,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     ) {
         let mut memberships = self.live_memberships(skipped);
         let incoming = self.live_memberships(*evaluated);
-        memberships.retain(|membership| incoming.contains(membership));
+        live_memberships::retain_common(&mut memberships, &incoming);
         let retained: Vec<_> = self
             .context
             .contexts

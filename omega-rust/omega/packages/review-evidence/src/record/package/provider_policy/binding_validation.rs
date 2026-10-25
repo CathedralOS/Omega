@@ -63,7 +63,7 @@ impl PackagePolicyProviderBinding {
                 field,
                 table_declaration,
             } => {
-                super::validation::nominal(table_declaration)?;
+                table_declaration.validate_resolved()?;
                 if table.is_empty() || field.is_empty() {
                     return Err("provider table binding has an empty field coordinate");
                 }
@@ -127,7 +127,7 @@ fn validate_locator(
 }
 
 fn validate_producer(producer: &PackagePolicyEvaluatedBindingProducer) -> Result<(), &'static str> {
-    super::validation::nominal(&producer.declaration)?;
+    producer.declaration.validate_resolved()?;
     if producer.callable_identity.is_empty()
         || !matches_owner(producer.declaration.owner, producer.package)
     {

@@ -1325,11 +1325,7 @@ pub(crate) fn type_roots(
             }
         }
     }
-    for (_, root) in plans
-        .roots
-        .iter()
-        .filter(|(_, root)| root.machine == machine)
-    {
+    for root in plans.machine_roots(&[machine]) {
         for handle in super::reachable_nodes(checked, &[root.root])? {
             let CheckedScalarComputationKind::StructuralField {
                 source_type,

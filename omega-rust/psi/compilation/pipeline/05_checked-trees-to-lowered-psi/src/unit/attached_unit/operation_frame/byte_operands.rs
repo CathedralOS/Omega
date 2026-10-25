@@ -122,7 +122,7 @@ impl OperationFrame<'_, '_> {
                     ViewRangeSite {
                         state: environment.state,
                         statement: statement_index,
-                        range,
+                        range: range.endpoints(),
                     },
                     range_source,
                     result_type,

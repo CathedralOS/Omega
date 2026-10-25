@@ -102,9 +102,14 @@ fn nonzero_branch_has_exact_instruction_relative_imm19_and_effects() {
     let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
     let alternative = alternative(MachineAlternativeFamily::ConditionalBranchNonZero);
     for displacement in [-1_048_576, -4, 0, 4, 1_048_572] {
-        let encoded =
-            encode_aarch64_selected_nonzero_branch_form(&physical, alternative, displacement)
-                .unwrap();
+        let encoded = encode_aarch64_selected_conditional_branch_form(
+            &physical,
+            alternative,
+            MachineAlternativeFamily::ConditionalBranchNonZero,
+            Aarch64ConditionalBranchForm::CanonicalWordV1,
+            displacement,
+        )
+        .unwrap();
         assert_eq!(encoded.bytes().len(), 4);
         assert_eq!(encoded.bytes()[0] & 0x1f, 1);
         assert!(encoded.footprint().register_reads.is_empty());
@@ -116,22 +121,37 @@ fn nonzero_branch_has_exact_instruction_relative_imm19_and_effects() {
     }
     for displacement in [-1_048_580, 1_048_576, 2] {
         assert!(
-            encode_aarch64_selected_nonzero_branch_form(&physical, alternative, displacement)
-                .is_err()
+            encode_aarch64_selected_conditional_branch_form(
+                &physical,
+                alternative,
+                MachineAlternativeFamily::ConditionalBranchNonZero,
+                Aarch64ConditionalBranchForm::CanonicalWordV1,
+                displacement
+            )
+            .is_err()
         );
     }
     assert!(
-        validate_aarch64_selected_nonzero_branch_form(
+        validate_aarch64_selected_conditional_branch_form(
             &physical,
             alternative,
+            MachineAlternativeFamily::ConditionalBranchNonZero,
+            Aarch64ConditionalBranchForm::CanonicalWordV1,
             0,
             &0x5400_0000_u32.to_le_bytes()
         )
         .is_err()
     );
     assert!(
-        validate_aarch64_selected_nonzero_branch_form(&physical, alternative, 0, &[1, 0, 0, 0, 0])
-            .is_err()
+        validate_aarch64_selected_conditional_branch_form(
+            &physical,
+            alternative,
+            MachineAlternativeFamily::ConditionalBranchNonZero,
+            Aarch64ConditionalBranchForm::CanonicalWordV1,
+            0,
+            &[1, 0, 0, 0, 0]
+        )
+        .is_err()
     );
 }
 
@@ -146,9 +166,14 @@ fn u64_less_than_branch_is_exact_b_lo_imm19_with_flag_control_effects() {
         (0, [0x03, 0x00, 0x00, 0x54]),
         (4, [0x23, 0x00, 0x00, 0x54]),
     ] {
-        let encoded =
-            encode_aarch64_selected_u64_less_than_branch_form(&physical, alternative, displacement)
-                .unwrap();
+        let encoded = encode_aarch64_selected_conditional_branch_form(
+            &physical,
+            alternative,
+            MachineAlternativeFamily::ConditionalBranchU64LessThan,
+            Aarch64ConditionalBranchForm::CanonicalWordV1,
+            displacement,
+        )
+        .unwrap();
         assert_eq!(encoded.bytes(), expected);
         assert!(encoded.footprint().register_reads.is_empty());
         assert!(encoded.footprint().register_writes.is_empty());
@@ -174,9 +199,11 @@ fn u64_less_than_branch_is_exact_b_lo_imm19_with_flag_control_effects() {
     }
     for displacement in [-1_048_576, 1_048_572] {
         assert!(
-            encode_aarch64_selected_u64_less_than_branch_form(
+            encode_aarch64_selected_conditional_branch_form(
                 &physical,
                 alternative,
+                MachineAlternativeFamily::ConditionalBranchU64LessThan,
+                Aarch64ConditionalBranchForm::CanonicalWordV1,
                 displacement,
             )
             .is_ok()
@@ -184,9 +211,11 @@ fn u64_less_than_branch_is_exact_b_lo_imm19_with_flag_control_effects() {
     }
     for displacement in [-1_048_580, 1_048_576, 2] {
         assert!(
-            encode_aarch64_selected_u64_less_than_branch_form(
+            encode_aarch64_selected_conditional_branch_form(
                 &physical,
                 alternative,
+                MachineAlternativeFamily::ConditionalBranchU64LessThan,
+                Aarch64ConditionalBranchForm::CanonicalWordV1,
                 displacement,
             )
             .is_err()
@@ -198,14 +227,23 @@ fn u64_less_than_branch_is_exact_b_lo_imm19_with_flag_control_effects() {
         0x1400_0003_u32.to_le_bytes(),
     ] {
         assert_eq!(
-            validate_aarch64_selected_u64_less_than_branch_form(&physical, alternative, 0, &bytes,),
+            validate_aarch64_selected_conditional_branch_form(
+                &physical,
+                alternative,
+                MachineAlternativeFamily::ConditionalBranchU64LessThan,
+                Aarch64ConditionalBranchForm::CanonicalWordV1,
+                0,
+                &bytes,
+            ),
             Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
         );
     }
     assert_eq!(
-        validate_aarch64_selected_u64_less_than_branch_form(
+        validate_aarch64_selected_conditional_branch_form(
             &physical,
             alternative,
+            MachineAlternativeFamily::ConditionalBranchU64LessThan,
+            Aarch64ConditionalBranchForm::CanonicalWordV1,
             0,
             &0x5400_0023_u32.to_le_bytes(),
         ),
@@ -222,9 +260,14 @@ fn i64_less_than_branch_is_exact_b_lt_imm19() {
         (0, [0x0b, 0x00, 0x00, 0x54]),
         (4, [0x2b, 0x00, 0x00, 0x54]),
     ] {
-        let encoded =
-            encode_aarch64_selected_i64_less_than_branch_form(&physical, alternative, displacement)
-                .unwrap();
+        let encoded = encode_aarch64_selected_conditional_branch_form(
+            &physical,
+            alternative,
+            MachineAlternativeFamily::ConditionalBranchI64LessThan,
+            Aarch64ConditionalBranchForm::CanonicalWordV1,
+            displacement,
+        )
+        .unwrap();
         assert_eq!(encoded.bytes(), expected);
         assert_eq!(
             encoded.footprint().encoded.control,
@@ -232,9 +275,11 @@ fn i64_less_than_branch_is_exact_b_lt_imm19() {
         );
     }
     assert_eq!(
-        validate_aarch64_selected_i64_less_than_branch_form(
+        validate_aarch64_selected_conditional_branch_form(
             &physical,
             alternative,
+            MachineAlternativeFamily::ConditionalBranchI64LessThan,
+            Aarch64ConditionalBranchForm::CanonicalWordV1,
             0,
             &0x5400_0003_u32.to_le_bytes(),
         ),
@@ -322,37 +367,25 @@ fn fused_cbnz_is_exact_rejects_nearby_opcodes_and_does_not_read_nzcv() {
 #[test]
 fn widened_branch_forms_encode_inverted_skip_plus_unconditional_imm26() {
     let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-    type Encode = fn(
-        &register_model::ValidatedPhysicalRegisterModel,
-        MachineAlternativeKey,
-        i64,
-    ) -> Result<
-        super::super::ValidatedAarch64SelectedFormEncoding,
-        Aarch64SelectedFormEncodingError,
-    >;
-    let cases: [(MachineAlternativeKey, Encode, u32); 3] = [
-        (
-            alternative(MachineAlternativeFamily::ConditionalBranchNonZero),
-            encode_aarch64_selected_nonzero_widened_branch_form,
-            0x0,
-        ),
-        (
-            alternative(MachineAlternativeFamily::ConditionalBranchU64LessThan),
-            encode_aarch64_selected_u64_less_than_widened_branch_form,
-            0x2,
-        ),
-        (
-            alternative(MachineAlternativeFamily::ConditionalBranchI64LessThan),
-            encode_aarch64_selected_i64_less_than_widened_branch_form,
-            0xa,
-        ),
+    let cases: [(MachineAlternativeFamily, u32); 3] = [
+        (MachineAlternativeFamily::ConditionalBranchNonZero, 0x0),
+        (MachineAlternativeFamily::ConditionalBranchU64LessThan, 0x2),
+        (MachineAlternativeFamily::ConditionalBranchI64LessThan, 0xa),
     ];
     // Displacements beyond `B.cond` imm19 (±1 MiB) but inside `B` imm26
     // (±128 MiB) encode; the unconditional word's own displacement is the
     // row displacement minus one word.
-    for (alternative, encode, inverted_condition) in cases {
+    for (family, inverted_condition) in cases {
+        let alternative = alternative(family);
         for row_displacement in [-1_048_580, -4, 4, 1_048_576, 134_217_724, 134_217_728] {
-            let encoded = encode(&physical, alternative, row_displacement).unwrap();
+            let encoded = encode_aarch64_selected_conditional_branch_form(
+                &physical,
+                alternative,
+                family,
+                Aarch64ConditionalBranchForm::WidenedPairV1,
+                row_displacement,
+            )
+            .unwrap();
             assert_eq!(encoded.bytes().len(), 8);
             let skip = u32::from_le_bytes(encoded.bytes()[0..4].try_into().unwrap());
             assert_eq!(skip, 0x5400_0000 | (2 << 5) | inverted_condition);
@@ -366,7 +399,16 @@ fn widened_branch_forms_encode_inverted_skip_plus_unconditional_imm26() {
             );
         }
         for displacement in [-134_217_732, 134_217_732, 2] {
-            assert!(encode(&physical, alternative, displacement).is_err());
+            assert!(
+                encode_aarch64_selected_conditional_branch_form(
+                    &physical,
+                    alternative,
+                    family,
+                    Aarch64ConditionalBranchForm::WidenedPairV1,
+                    displacement,
+                )
+                .is_err()
+            );
         }
     }
 }
@@ -374,52 +416,42 @@ fn widened_branch_forms_encode_inverted_skip_plus_unconditional_imm26() {
 #[test]
 fn widened_branch_forms_decode_and_reject_corruption() {
     let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-    type Encode = fn(
-        &register_model::ValidatedPhysicalRegisterModel,
-        MachineAlternativeKey,
-        i64,
-    ) -> Result<
-        super::super::ValidatedAarch64SelectedFormEncoding,
-        Aarch64SelectedFormEncodingError,
-    >;
-    type Validate = fn(
-        &register_model::ValidatedPhysicalRegisterModel,
-        MachineAlternativeKey,
-        i64,
-        &[u8],
-    ) -> Result<
-        super::super::ValidatedAarch64SelectedFormEncoding,
-        Aarch64SelectedFormEncodingError,
-    >;
-    let cases: [(MachineAlternativeKey, Encode, Validate, u32); 3] = [
-        (
-            alternative(MachineAlternativeFamily::ConditionalBranchNonZero),
-            encode_aarch64_selected_nonzero_widened_branch_form,
-            validate_aarch64_selected_nonzero_widened_branch_form,
-            0x0,
-        ),
-        (
-            alternative(MachineAlternativeFamily::ConditionalBranchU64LessThan),
-            encode_aarch64_selected_u64_less_than_widened_branch_form,
-            validate_aarch64_selected_u64_less_than_widened_branch_form,
-            0x2,
-        ),
-        (
-            alternative(MachineAlternativeFamily::ConditionalBranchI64LessThan),
-            encode_aarch64_selected_i64_less_than_widened_branch_form,
-            validate_aarch64_selected_i64_less_than_widened_branch_form,
-            0xa,
-        ),
+    let cases: [(MachineAlternativeFamily, u32); 3] = [
+        (MachineAlternativeFamily::ConditionalBranchNonZero, 0x0),
+        (MachineAlternativeFamily::ConditionalBranchU64LessThan, 0x2),
+        (MachineAlternativeFamily::ConditionalBranchI64LessThan, 0xa),
     ];
-    for (alternative, encode, validate, inverted_condition) in cases {
+    for (family, inverted_condition) in cases {
+        let alternative = alternative(family);
         let row_displacement = 2_000_000;
-        let encoded = encode(&physical, alternative, row_displacement).unwrap();
-        let round_trip =
-            validate(&physical, alternative, row_displacement, encoded.bytes()).unwrap();
+        let encoded = encode_aarch64_selected_conditional_branch_form(
+            &physical,
+            alternative,
+            family,
+            Aarch64ConditionalBranchForm::WidenedPairV1,
+            row_displacement,
+        )
+        .unwrap();
+        let round_trip = validate_aarch64_selected_conditional_branch_form(
+            &physical,
+            alternative,
+            family,
+            Aarch64ConditionalBranchForm::WidenedPairV1,
+            row_displacement,
+            encoded.bytes(),
+        )
+        .unwrap();
         assert_eq!(round_trip.bytes(), encoded.bytes());
         // The canonical four-byte form is not a widened row.
         assert_eq!(
-            validate(&physical, alternative, 0, &encoded.bytes()[0..4]),
+            validate_aarch64_selected_conditional_branch_form(
+                &physical,
+                alternative,
+                family,
+                Aarch64ConditionalBranchForm::WidenedPairV1,
+                0,
+                &encoded.bytes()[0..4],
+            ),
             Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
         );
         // A skip word carrying the non-inverted condition is not this form.
@@ -427,26 +459,61 @@ fn widened_branch_forms_decode_and_reject_corruption() {
         let mut corrupt = encoded.bytes().to_vec();
         crate::codec_bytes::patch_encoded(&mut corrupt, 0, wrong_skip.to_le_bytes());
         assert_eq!(
-            validate(&physical, alternative, row_displacement, &corrupt),
+            validate_aarch64_selected_conditional_branch_form(
+                &physical,
+                alternative,
+                family,
+                Aarch64ConditionalBranchForm::WidenedPairV1,
+                row_displacement,
+                &corrupt,
+            ),
             Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
         );
         // A second word that is not an unconditional `B` rejects.
         let mut corrupt = encoded.bytes().to_vec();
         crate::codec_bytes::patch_encoded(&mut corrupt, 4, 0x5400_000b_u32.to_le_bytes());
         assert_eq!(
-            validate(&physical, alternative, row_displacement, &corrupt),
+            validate_aarch64_selected_conditional_branch_form(
+                &physical,
+                alternative,
+                family,
+                Aarch64ConditionalBranchForm::WidenedPairV1,
+                row_displacement,
+                &corrupt,
+            ),
             Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
         );
         // Valid words encoding a different displacement reject.
-        let other = encode(&physical, alternative, row_displacement - 8).unwrap();
+        let other = encode_aarch64_selected_conditional_branch_form(
+            &physical,
+            alternative,
+            family,
+            Aarch64ConditionalBranchForm::WidenedPairV1,
+            row_displacement - 8,
+        )
+        .unwrap();
         assert_eq!(
-            validate(&physical, alternative, row_displacement, other.bytes()),
+            validate_aarch64_selected_conditional_branch_form(
+                &physical,
+                alternative,
+                family,
+                Aarch64ConditionalBranchForm::WidenedPairV1,
+                row_displacement,
+                other.bytes(),
+            ),
             Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch)
         );
         // A foreign alternative key rejects.
         let foreign = self::alternative(MachineAlternativeFamily::Jump);
         assert_eq!(
-            encode(&physical, foreign, row_displacement).map(|encoding| encoding.bytes().len()),
+            encode_aarch64_selected_conditional_branch_form(
+                &physical,
+                foreign,
+                family,
+                Aarch64ConditionalBranchForm::WidenedPairV1,
+                row_displacement,
+            )
+            .map(|encoding| encoding.bytes().len()),
             Err(Aarch64SelectedFormEncodingError::AlternativeMismatch)
         );
     }

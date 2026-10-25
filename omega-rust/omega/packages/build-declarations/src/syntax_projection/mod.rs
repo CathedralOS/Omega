@@ -7,6 +7,7 @@ use crate::build_declaration::{
     BUILDER_PARAMETER_NAME, MEMBER_MACHINE_NAME, PACKAGE_MACHINE_NAME,
 };
 use crate::dependencies::is_dependency_call_name;
+use crate::direct_build_call::{DirectBuildCallError, direct_build_call_operands};
 use crate::{
     ApplicationDeclaration, BUILD_FILE_NAME, BuildDeclaration, BuildDeclarationError,
     BuildDeclarationKind, PackageDeclaration, ProjectName, WorkspaceDeclaration,
@@ -17,7 +18,7 @@ use std::path::{Path, PathBuf};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::item::{Item, StateHandle, StateParameterHandle};
-use syntax_trees::statement::{StatementHandle, StatementNode};
+use syntax_trees::statement::StatementNode;
 use syntax_trees::types::TypeReferenceNode;
 
 /// A validated role plus the exact syntax entry that established it.
@@ -220,7 +221,7 @@ pub(crate) fn project_build_declaration_syntax(
     let build = match project_build_entry_syntax(syntax_trees) {
         Ok(build) => build,
         Err(BuildDeclarationError::MissingBuildDeclaration) => {
-            reject_unprojected_build_declaration_syntax(syntax_trees, &[], &[], 0)?;
+            reject_unprojected_build_declaration_syntax(syntax_trees, &[])?;
             return Err(BuildDeclarationError::MissingBuildDeclaration);
         }
         Err(error) => return Err(error),
@@ -237,80 +238,53 @@ pub fn project_build_declaration_in_entry(
     build: BuildEntrySyntaxProjection,
 ) -> Result<BuildDeclarationSyntaxProjection, BuildDeclarationError> {
     let entry = syntax_trees.items.state(build.build_entry());
-    let builder = syntax_trees
-        .items
-        .state_parameter(build.builder_parameter());
 
-    let builder_name = builder.name.as_str(syntax_trees);
     let mut packages = Vec::new();
     let mut applications = Vec::new();
     let mut members = Vec::new();
     let mut artifact_only = 0usize;
-    let mut accepted_statements = Vec::new();
-    let mut accepted_literals = Vec::new();
+    let mut accepted: Vec<&[ExpressionHandle]> = Vec::new();
     for statement_handle in syntax_trees.items.statements(entry.statements) {
         let StatementNode::Call(call) = syntax_trees.statements.statement(*statement_handle) else {
             continue;
         };
-        let operation = call.target.as_str(syntax_trees);
-        if !matches!(
-            operation,
-            PACKAGE_MACHINE_NAME
-                | APPLICATION_MACHINE_NAME
-                | MEMBER_MACHINE_NAME
-                | ARTIFACT_ONLY_MACHINE_NAME
-        ) {
+        let Some(operation) = DeclarationOperation::classify(call.target.as_str(syntax_trees))
+        else {
             continue;
-        }
-        if !call.target_is_static
-            || !matches!(syntax_trees.statements.identifier_path_members(call.receiver), [owner] if owner.as_str(syntax_trees) == BUILD_TYPE_NAME)
-        {
-            return Err(wrong_receiver_error(operation));
-        }
-        if !call.machine_arguments.is_empty()
-            || !call.evidence_arguments.is_empty()
-            || call.operational_acknowledgement != Default::default()
-            || call.discards_result
-        {
-            return Err(wrong_arguments_error(operation));
-        }
-        let arguments = syntax_trees.statements.expression_handles(call.arguments);
-        let Some((builder, arguments)) = arguments.split_first() else {
-            return Err(wrong_arguments_error(operation));
         };
-        if !matches!(syntax_trees.expressions.expression(*builder), ExpressionNode::Name(path)
-            if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if name.as_str(syntax_trees) == builder_name))
-        {
-            return Err(wrong_receiver_error(operation));
-        }
+        let operands =
+            direct_build_call_operands(syntax_trees, call).map_err(|failure| match failure {
+                DirectBuildCallError::WrongReceiver => operation.wrong_receiver(),
+                DirectBuildCallError::WrongArguments => operation.wrong_arguments(),
+            })?;
         // The artifact-only application modifier is unconditional: it takes no
-        // name or evidence operand, so there is no literal to retain.
-        if operation == ARTIFACT_ONLY_MACHINE_NAME {
-            if !arguments.is_empty() {
-                return Err(BuildDeclarationError::WrongArtifactOnlyArguments);
+        // name or evidence operand, so there is no literal to project.
+        if operation == DeclarationOperation::ArtifactOnly {
+            if !operands.is_empty() {
+                return Err(operation.wrong_arguments());
             }
             artifact_only += 1;
-            accepted_statements.push(*statement_handle);
-            continue;
-        }
-        let [literal_handle] = arguments else {
-            return Err(wrong_arguments_error(operation));
-        };
-        match operation {
-            PACKAGE_MACHINE_NAME => packages.push(PackageDeclaration {
-                name: project_name_literal(syntax_trees, *literal_handle)?,
-            }),
-            APPLICATION_MACHINE_NAME => applications.push(ApplicationDeclaration {
-                name: project_name_literal(syntax_trees, *literal_handle)?,
-                artifact_only: false,
-            }),
-            MEMBER_MACHINE_NAME => {
-                members.push(project_member_path_literal(syntax_trees, *literal_handle)?)
+        } else {
+            let [literal] = operands else {
+                return Err(operation.wrong_arguments());
+            };
+            match operation {
+                DeclarationOperation::Package => packages.push(PackageDeclaration {
+                    name: project_name_literal(syntax_trees, *literal)?,
+                }),
+                DeclarationOperation::Application => applications.push(ApplicationDeclaration {
+                    name: project_name_literal(syntax_trees, *literal)?,
+                    artifact_only: false,
+                }),
+                DeclarationOperation::Member => {
+                    members.push(project_member_path_literal(syntax_trees, *literal)?)
+                }
+                DeclarationOperation::ArtifactOnly => {
+                    unreachable!("artifact-only carries no literal")
+                }
             }
-            _ => unreachable!("declaration operation was filtered above"),
         }
-        accepted_statements.push(*statement_handle);
-        accepted_literals.push(*literal_handle);
+        accepted.push(syntax_trees.statements.expression_handles(call.arguments));
     }
 
     if packages.len() > 1 {
@@ -328,12 +302,7 @@ pub fn project_build_declaration_in_entry(
             count: artifact_only,
         });
     }
-    reject_unprojected_build_declaration_syntax(
-        syntax_trees,
-        &accepted_statements,
-        &accepted_literals,
-        artifact_only,
-    )?;
+    reject_unprojected_build_declaration_syntax(syntax_trees, &accepted)?;
     let declared_kinds = usize::from(!packages.is_empty())
         + usize::from(!applications.is_empty())
         + usize::from(!members.is_empty());
@@ -374,23 +343,53 @@ pub fn project_build_declaration_in_entry(
     Ok(BuildDeclarationSyntaxProjection { declaration, build })
 }
 
-fn wrong_receiver_error(operation: &str) -> BuildDeclarationError {
-    match operation {
-        PACKAGE_MACHINE_NAME => BuildDeclarationError::WrongPackageReceiver,
-        APPLICATION_MACHINE_NAME => BuildDeclarationError::WrongApplicationReceiver,
-        MEMBER_MACHINE_NAME => BuildDeclarationError::WrongMemberReceiver,
-        ARTIFACT_ONLY_MACHINE_NAME => BuildDeclarationError::WrongArtifactOnlyReceiver,
-        _ => unreachable!("only declaration operations request receiver errors"),
-    }
+/// One direct `Build` statement operation that a role statement projects,
+/// with its three-way rejection vocabulary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DeclarationOperation {
+    Package,
+    Application,
+    Member,
+    ArtifactOnly,
 }
 
-fn wrong_arguments_error(operation: &str) -> BuildDeclarationError {
-    match operation {
-        PACKAGE_MACHINE_NAME => BuildDeclarationError::WrongPackageArguments,
-        APPLICATION_MACHINE_NAME => BuildDeclarationError::WrongApplicationArguments,
-        MEMBER_MACHINE_NAME => BuildDeclarationError::WrongMemberArguments,
-        ARTIFACT_ONLY_MACHINE_NAME => BuildDeclarationError::WrongArtifactOnlyArguments,
-        _ => unreachable!("only declaration operations request argument errors"),
+impl DeclarationOperation {
+    /// Classify a `build.omg` call target as a role-projecting operation.
+    fn classify(target: &str) -> Option<Self> {
+        Some(match target {
+            PACKAGE_MACHINE_NAME => Self::Package,
+            APPLICATION_MACHINE_NAME => Self::Application,
+            MEMBER_MACHINE_NAME => Self::Member,
+            ARTIFACT_ONLY_MACHINE_NAME => Self::ArtifactOnly,
+            _ => return None,
+        })
+    }
+
+    fn wrong_receiver(self) -> BuildDeclarationError {
+        match self {
+            Self::Package => BuildDeclarationError::WrongPackageReceiver,
+            Self::Application => BuildDeclarationError::WrongApplicationReceiver,
+            Self::Member => BuildDeclarationError::WrongMemberReceiver,
+            Self::ArtifactOnly => BuildDeclarationError::WrongArtifactOnlyReceiver,
+        }
+    }
+
+    fn wrong_arguments(self) -> BuildDeclarationError {
+        match self {
+            Self::Package => BuildDeclarationError::WrongPackageArguments,
+            Self::Application => BuildDeclarationError::WrongApplicationArguments,
+            Self::Member => BuildDeclarationError::WrongMemberArguments,
+            Self::ArtifactOnly => BuildDeclarationError::WrongArtifactOnlyArguments,
+        }
+    }
+
+    fn unsupported_shape(self) -> BuildDeclarationError {
+        match self {
+            Self::Package => BuildDeclarationError::UnsupportedPackageShape,
+            Self::Application => BuildDeclarationError::UnsupportedApplicationShape,
+            Self::Member => BuildDeclarationError::UnsupportedMemberShape,
+            Self::ArtifactOnly => BuildDeclarationError::UnsupportedArtifactOnlyShape,
+        }
     }
 }
 
@@ -398,35 +397,27 @@ fn reject_authored_toolchain_vocabulary(
     syntax_trees: &SyntaxTrees,
 ) -> Result<(), BuildDeclarationError> {
     for item in syntax_trees.root_items() {
-        match package_authored_type_name(syntax_trees, item) {
-            Some(name) if machine_leaf_name(name) == BUILD_TYPE_NAME => {
-                return Err(BuildDeclarationError::AuthoredToolchainVocabulary {
-                    name: BUILD_TYPE_NAME.to_owned(),
-                });
-            }
-            _ => {}
+        if let Some(name) = package_authored_type_name(syntax_trees, item)
+            && machine_leaf_name(name) == BUILD_TYPE_NAME
+        {
+            return Err(BuildDeclarationError::AuthoredToolchainVocabulary {
+                name: BUILD_TYPE_NAME.to_owned(),
+            });
         }
-        match item {
-            Item::Machine(machine)
-                if machine
-                    .attached_data
-                    .as_ref()
-                    .is_some_and(|owner| owner.as_str(syntax_trees) == BUILD_TYPE_NAME)
-                    && (matches!(
-                        machine_leaf_name(machine.name.as_str(syntax_trees)),
-                        PACKAGE_MACHINE_NAME
-                            | APPLICATION_MACHINE_NAME
-                            | MEMBER_MACHINE_NAME
-                            | ARTIFACT_ONLY_MACHINE_NAME
-                    ) || is_dependency_call_name(machine_leaf_name(
-                        machine.name.as_str(syntax_trees),
-                    ))) =>
-            {
-                return Err(BuildDeclarationError::AuthoredToolchainVocabulary {
-                    name: machine.name.as_str(syntax_trees).to_owned(),
-                });
-            }
-            _ => {}
+        let Item::Machine(machine) = item else {
+            continue;
+        };
+        let Some(owner) = machine.attached_data.as_ref() else {
+            continue;
+        };
+        if owner.as_str(syntax_trees) != BUILD_TYPE_NAME {
+            continue;
+        }
+        let leaf = machine_leaf_name(machine.name.as_str(syntax_trees));
+        if DeclarationOperation::classify(leaf).is_some() || is_dependency_call_name(leaf) {
+            return Err(BuildDeclarationError::AuthoredToolchainVocabulary {
+                name: machine.name.as_str(syntax_trees).to_owned(),
+            });
         }
     }
     Ok(())
@@ -474,87 +465,35 @@ fn project_member_path_literal(
     WorkspaceMemberPath::parse(path).map_err(|_| BuildDeclarationError::InvalidWorkspaceMemberPath)
 }
 
+/// Reject every expression occurrence of the declaration vocabulary that is
+/// not the source expression of an accepted direct statement of the root
+/// build entry.
+///
+/// Statement calls are parsed as expressions first and then converted, so the
+/// expression table carries one call for every statement call anywhere in the
+/// file, and an accepted statement's source expression is the one occurrence
+/// whose argument handles match it. A call in another state or machine, and a
+/// compact-expression occurrence such as `consume(Build::package(...))`, match
+/// no accepted statement and are rejected with the operation's unsupported
+/// shape.
 fn reject_unprojected_build_declaration_syntax(
     syntax_trees: &SyntaxTrees,
-    accepted_statements: &[StatementHandle],
-    accepted_literals: &[ExpressionHandle],
-    accepted_artifact_only: usize,
+    accepted: &[&[ExpressionHandle]],
 ) -> Result<(), BuildDeclarationError> {
-    for item in syntax_trees.root_items() {
-        let Some(machine) = item.as_machine() else {
+    for (_, expression) in syntax_trees.expressions.iter_expressions() {
+        let ExpressionNode::Call(call) = expression else {
             continue;
         };
-        for state_handle in syntax_trees.items.state_handles(machine.states) {
-            let state = syntax_trees.items.state(*state_handle);
-            for statement_handle in syntax_trees.items.statements(state.statements) {
-                let StatementNode::Call(call) =
-                    syntax_trees.statements.statement(*statement_handle)
-                else {
-                    continue;
-                };
-                if matches!(
-                    machine_leaf_name(call.target.as_str(syntax_trees)),
-                    PACKAGE_MACHINE_NAME
-                        | APPLICATION_MACHINE_NAME
-                        | MEMBER_MACHINE_NAME
-                        | ARTIFACT_ONLY_MACHINE_NAME
-                ) && !accepted_statements.contains(statement_handle)
-                {
-                    return Err(unsupported_shape_error(machine_leaf_name(
-                        call.target.as_str(syntax_trees),
-                    )));
-                }
-            }
+        let Some(operation) = DeclarationOperation::classify(call.target.as_str(syntax_trees))
+        else {
+            continue;
+        };
+        let arguments = syntax_trees.expressions.expression_handles(call.arguments);
+        if !accepted.contains(&arguments) {
+            return Err(operation.unsupported_shape());
         }
-    }
-
-    // Statement calls are parsed as expressions first and then converted, so
-    // every accepted declaration statement leaves one matching
-    // `ExpressionNode::Call` behind in the expression table. Named
-    // declarations are correlated through their single literal argument.
-    // `Build::artifact_only(builder)` carries no literal, so its builder-only
-    // leftovers are counted instead: an expression-position occurrence (for
-    // example nested under `consume(...)`) has no accepted statement and tips
-    // the count past the accepted total.
-    let mut artifact_only_leftovers = 0usize;
-    for (_, expression) in syntax_trees.expressions.iter_expressions() {
-        if let ExpressionNode::Call(call) = expression
-            && matches!(
-                machine_leaf_name(call.target.as_str(syntax_trees)),
-                PACKAGE_MACHINE_NAME
-                    | APPLICATION_MACHINE_NAME
-                    | MEMBER_MACHINE_NAME
-                    | ARTIFACT_ONLY_MACHINE_NAME
-            )
-        {
-            let arguments = syntax_trees.expressions.expression_handles(call.arguments);
-            let operation = machine_leaf_name(call.target.as_str(syntax_trees));
-            if operation == ARTIFACT_ONLY_MACHINE_NAME {
-                if matches!(arguments, [_builder]) {
-                    artifact_only_leftovers += 1;
-                    continue;
-                }
-                return Err(unsupported_shape_error(operation));
-            }
-            if !matches!(arguments, [_builder, literal] if accepted_literals.contains(literal)) {
-                return Err(unsupported_shape_error(operation));
-            }
-        }
-    }
-    if artifact_only_leftovers != accepted_artifact_only {
-        return Err(BuildDeclarationError::UnsupportedArtifactOnlyShape);
     }
     Ok(())
-}
-
-fn unsupported_shape_error(operation: &str) -> BuildDeclarationError {
-    match operation {
-        PACKAGE_MACHINE_NAME => BuildDeclarationError::UnsupportedPackageShape,
-        APPLICATION_MACHINE_NAME => BuildDeclarationError::UnsupportedApplicationShape,
-        MEMBER_MACHINE_NAME => BuildDeclarationError::UnsupportedMemberShape,
-        ARTIFACT_ONLY_MACHINE_NAME => BuildDeclarationError::UnsupportedArtifactOnlyShape,
-        _ => unreachable!("only declaration operations request shape errors"),
-    }
 }
 
 pub(crate) fn is_snake_case(value: &str) -> bool {

@@ -6,7 +6,7 @@ mod dependencies;
 mod invalidation;
 
 pub(crate) use dependencies::build_domain_facts;
-pub(in crate::flow) use dependencies::qualification_is_identity_only;
+pub(in crate::flow) use dependencies::qualification_is_content_independent;
 pub(crate) use dependencies::relative_place_segments_from_expression;
 pub(crate) use invalidation::context_survives_place_mutations;
 pub(in crate::flow) use invalidation::filter_contexts_after_mutations;

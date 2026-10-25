@@ -864,13 +864,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         blocks.iter().flat_map(|block| &block.operations),
         &mut structural_places,
     )?;
-    // The computation scan also encounters subslices whose ordinary call
-    // or edge already owns a declaration. Reuse only that exact declaration;
-    // a reused identity with different provenance remains an error.
-    crate::scalar_lowering::computations::subslices::merge_declarations(
-        blocks.iter(),
-        &mut structural_places,
-    )?;
     crate::emission::operation_emission::place_declarations::retain_block_parameters(
         blocks.iter(),
         &mut structural_places,

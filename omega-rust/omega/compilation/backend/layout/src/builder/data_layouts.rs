@@ -7,6 +7,7 @@ use crate::builder::semantic_ranges::canonical_plan_laid_data_identity;
 use crate::packing::{
     PlannedField, align_to, pack_fields, pack_fields_at, place_fields_by_plan, placement_overflow,
 };
+use crate::sizing::pointer_layout;
 use crate::{
     BitFieldFragment, BitFieldLayout, DataLayout, DataShape, RepeatedFieldLayout,
     StoredIntegerLayout, TargetClosedDataLayoutIdentity, TypeLayout, VariantLayout,
@@ -39,10 +40,7 @@ impl<'program> LayoutBuilder<'program> {
                 shape: DataShape::Record {
                     fields: arena::HandleSpan::empty(),
                 },
-                layout: TypeLayout {
-                    size: self.target.pointer_size,
-                    alignment: self.target.pointer_alignment,
-                },
+                layout: pointer_layout(self.target),
             });
         }
 

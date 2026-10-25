@@ -1,6 +1,6 @@
 use crate::record::package::callable_policy::validation::signature::Scope;
 use crate::record::package::callable_policy::validation::signature::{
-    BinderKind, Result, depth, lifetimes, nominal, operator, owned_pair, text, value_type,
+    BinderKind, Result, depth, lifetimes, operator, owned_pair, text, value_type,
 };
 use crate::record::{
     PackageReviewContractCallTarget, PackageReviewContractExpression,
@@ -40,10 +40,10 @@ pub(in crate::record) fn expression(
                 return Err("contract generic binder escapes its static telescope");
             }
         }
-        Expression::Nominal(value) => nominal(value)?,
+        Expression::Nominal(value) => value.validate_resolved()?,
         Expression::CaseMembership { subject, case } => {
             expression(subject, scope, nesting + 1)?;
-            nominal(case)?;
+            case.validate_resolved()?;
         }
         Expression::ZeroValue(value) => value_type(value)?,
         Expression::Array(elements) => {
@@ -52,7 +52,7 @@ pub(in crate::record) fn expression(
             }
         }
         Expression::Constructor { data, case, fields } => {
-            nominal(data)?;
+            data.validate_resolved()?;
             if let Some(case) = case {
                 owned_pair(data, case)?;
             }
@@ -93,7 +93,7 @@ pub(in crate::record) fn expression(
             case_variant,
         } => {
             expression(receiver, scope, nesting + 1)?;
-            nominal(member)?;
+            member.validate_resolved()?;
             if let Some(case) = case_variant {
                 owned_pair(case, member)?;
             }
@@ -108,7 +108,7 @@ pub(in crate::record) fn expression(
             expression(value, scope, nesting + 1)?;
             value_type(target)?;
             if let Some(domain) = semantic_domain {
-                nominal(domain)?;
+                domain.validate_resolved()?;
             }
             for argument in semantic_domain_arguments {
                 value_type(argument)?;
@@ -125,7 +125,7 @@ pub(in crate::record) fn expression(
                 expression(receiver, scope, nesting + 1)?;
             }
             if let PackageReviewContractCallTarget::Nominal(target) = target {
-                nominal(target)?;
+                target.validate_resolved()?;
             }
             for argument in static_arguments {
                 static_argument(argument, scope, nesting + 1)?;
@@ -134,8 +134,8 @@ pub(in crate::record) fn expression(
                 expression(argument, scope, nesting + 1)?;
             }
             for evidence in evidence_arguments {
-                nominal(&evidence.source.owner)?;
-                nominal(&evidence.parameter.owner)?;
+                evidence.source.owner.validate_resolved()?;
+                evidence.parameter.owner.validate_resolved()?;
             }
         }
         Expression::Binary {
@@ -213,15 +213,15 @@ pub(in crate::record) fn static_argument(
             value_type(declared_type)?;
             text(canonical_value_encoding)?;
         }
-        Argument::ConcreteMachine(value) => nominal(value)?,
+        Argument::ConcreteMachine(value) => value.validate_resolved()?,
         Argument::ConformanceApplication {
             declaration,
             arguments,
             trait_identity,
             trait_arguments,
         } => {
-            nominal(declaration)?;
-            nominal(trait_identity)?;
+            declaration.validate_resolved()?;
+            trait_identity.validate_resolved()?;
             for argument in arguments {
                 static_argument(argument, scope, nesting + 1)?;
             }

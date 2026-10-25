@@ -1,14 +1,16 @@
 use super::PrivateCallbackLayout;
 use crate::TargetClosedDataLayoutIdentity;
+use crate::sizing::pointer_layout;
 use target::NativeTarget;
 
 pub(super) fn validate(entry: &PrivateCallbackLayout, target: NativeTarget) -> Result<(), String> {
     let root = &entry.root_layout;
     let terminal = &entry.terminal_slot;
+    let slot = pointer_layout(target);
     if !valid_layout(root)
         || terminal.byte_size == 0
-        || terminal.byte_size != target.pointer_size
-        || terminal.alignment != target.pointer_alignment
+        || terminal.byte_size != slot.size
+        || terminal.alignment != slot.alignment
     {
         return Err(
             "callback layout catalog changed its root or target pointer geometry".to_owned(),

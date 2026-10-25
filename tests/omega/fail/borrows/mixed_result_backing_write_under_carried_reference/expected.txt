@@ -1,0 +1,1 @@
+mutates `cell.value` while local borrow `payload` is still active

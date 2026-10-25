@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+"""Build one candidate and require real compiler smoke outcomes for the queue pilot.
+
+This deliberately small gate proves CI plumbing, not release qualification.
+The corpus owns source checking, native/Terminal execution and diagnostic oracles;
+this caller additionally refuses missing rows and success without execution.
+"""
+
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import time
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "tools"))
+import corpus_gate
+
+POSITIVES = (
+    "pass/control_flow/borrowed_state_argument",
+    "pass/control_flow/runtime_owned_state_parallel_swap_exit",
+    "pass/write_only/state_forwarded_scalar_store_exit",
+)
+NEGATIVES = (
+    "fail/domains/carried_nested_payload_qualification",
+    "fail/domains/carried_nested_payload_qualification_missing_arrival",
+    "fail/domains/carried_indexed_payload_qualification",
+    "fail/domains/carried_runtime_index_payload_qualification",
+)
+
+
+def validate_report(report, expected, *, both, revision, target):
+    if (report.get("schema") != "omega-corpus-verdict-v1"
+            or report.get("revision") != revision or report.get("dirty") is not False
+            or report.get("exit_code") not in (0, 1)
+            or report.get("oracle_failures") or report.get("infrastructure_error")):
+        raise ValueError("corpus refused, failed an oracle, or measured another source")
+    rows = report.get("observations", [])
+    if len(rows) != len(expected) or {row["fixture"] for row in rows} != set(expected):
+        raise ValueError("corpus observation roster differs from the required fixtures")
+    if both and (report.get("leg") != "both" or report.get("target") != target):
+        raise ValueError("runtime evidence must use both engines on this host")
+    for row in rows:
+        if row["fixture"].startswith("fail/"):
+            if row["status"] != "rejected" or row.get("expected_satisfied") is not True:
+                raise ValueError(f"{row['fixture']}: missing intended rejection")
+        elif both:
+            facts = row.get("facts", {})
+            if (row["status"] != "built" or facts.get("interpreter") != "agrees"
+                    or "exit" not in facts or facts["exit"] != facts.get("interpreter-exit")):
+                raise ValueError(f"{row['fixture']}: missing native/Terminal agreement")
+        elif row["status"] not in ("checked", "built"):
+            raise ValueError(f"{row['fixture']}: positive source did not check")
+
+
+def command(arguments):
+    return subprocess.check_output(arguments, cwd=ROOT, text=True).strip()
+
+
+def execute(output, summary):
+    revision = command(["git", "rev-parse", "HEAD"])
+    if command(["git", "status", "--porcelain"]):
+        raise ValueError("pilot requires a clean candidate")
+    if os.environ.get("GITHUB_SHA", revision) != revision:
+        raise ValueError("checkout is not the GitHub candidate being checked")
+    summary.update(candidate=revision, target=corpus_gate.host_target(),
+                   toolchain=command(["rustc", "-Vv"]), stages=[])
+
+    def stage(name, operation):
+        started = time.monotonic()
+        result = dict(name=name, passed=False)
+        summary["stages"].append(result)
+        print(f"compiler-pilot: {name}", flush=True)
+        try:
+            value = operation()
+            result["passed"] = True
+            return value
+        finally:
+            result["seconds"] = round(time.monotonic() - started, 3)
+
+    tool = "mbx" if shutil.which("mbx") else "cargo"
+    stage("build CLI", lambda: subprocess.run(
+        [tool, "build", "--locked", "-p", "omega"], cwd=ROOT,
+        stdin=subprocess.DEVNULL, check=True))
+    runner = stage("build corpus runner", corpus_gate.build_runner)
+    # Keep the exact producer with the reports; later jobs need not rebuild it.
+    retained = output / "corpus_runner"
+    shutil.copy2(runner, retained)
+    with retained.open("rb") as stream:
+        digest = hashlib.sha256()
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    summary["runner_sha256"] = digest.hexdigest()
+
+    def corpus(name, fixtures, both=False):
+        report_path = output / f"{name}.json"
+        arguments = [sys.executable, "tools/corpus_gate.py", "--runner", str(retained),
+                     "--filter", ",".join(fixtures), "--json", str(report_path)]
+        if both:
+            arguments.append("--both")
+        result = subprocess.run(arguments, cwd=ROOT, stdin=subprocess.DEVNULL)
+        if result.returncode not in (0, 1):
+            raise ValueError(f"{name}: corpus gate exited {result.returncode}")
+        validate_report(json.loads(report_path.read_text(encoding="utf-8")), fixtures,
+                        both=both, revision=revision, target=summary["target"])
+
+    stage("checking and rejection controls", lambda: corpus("checking", POSITIVES + NEGATIVES))
+    stage("native and Terminal execution", lambda: corpus("both", POSITIVES, both=True))
+    if command(["git", "rev-parse", "HEAD"]) != revision or command(["git", "status", "--porcelain"]):
+        raise ValueError("candidate changed during validation")
+
+
+def main():
+    output = ROOT / "build" / "compiler-pilot"
+    output.mkdir(parents=True, exist_ok=True)
+    summary = dict(schema="omega-compiler-pilot-v1", passed=False)
+    try:
+        execute(output, summary)
+        summary["passed"] = True
+        return 0
+    except (OSError, ValueError, subprocess.CalledProcessError,
+            corpus_gate.InfrastructureFailure) as error:
+        summary["error"] = str(error)
+        print(f"compiler-pilot: {error}", file=sys.stderr)
+        return 1
+    finally:
+        (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -428,7 +428,7 @@ impl Evaluation {
                         self.proof_formal_forwarding(),
                     )
                 } else {
-                    crate::scalar_lowering::branch_states::guards::lower(
+                    crate::scalar_lowering::branch_states::guards::evaluate(
                         identities,
                         checked,
                         state,

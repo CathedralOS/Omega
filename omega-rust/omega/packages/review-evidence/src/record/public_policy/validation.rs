@@ -82,16 +82,19 @@ fn roots<T>(
 }
 
 fn root(identity: &PackageReviewNominalIdentity, package: PackageKeyIdentity) -> Result {
-    nominal(identity)?;
+    identity.validate_resolved()?;
     if identity.owner != PackageReviewNominalOwner::Package(package) {
         return Err("public declaration is not owned by its baseline package");
     }
     Ok(())
 }
 
-fn ordered<T: Ord>(values: &[T]) -> Result {
+/// The shared strict canonical-order predicate: every policy family that
+/// keeps a sorted set consumes this one statement of the rule instead of
+/// restating it, and the recovery readers agree with the policy writer on it.
+pub(in crate::record) fn ordered<T: Ord>(values: &[T]) -> Result {
     if values.windows(2).any(|pair| pair[0] >= pair[1]) {
-        Err("public policy set repeats or changes canonical order")
+        Err("policy set repeats or changes canonical order")
     } else {
         Ok(())
     }

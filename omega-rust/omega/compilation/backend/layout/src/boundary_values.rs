@@ -10,6 +10,8 @@ pub use opaque_representations::BoundaryOpaqueRepresentationUse;
 #[cfg(test)]
 mod tests;
 
+use crate::TypeLayout;
+use crate::sizing::{fat_descriptor_layout, pointer_layout};
 use calling_conventions::{
     BoundaryValueClass, BoundaryValueField, BoundaryValueGraph, BoundaryValueShape, ValueClass,
     ValueShape,
@@ -103,7 +105,6 @@ impl<'input> BoundaryValueLayout<'input> {
         mut type_reference: TypeReferenceHandle,
     ) -> Result<(ValueShape, u16), String> {
         let typed = self.typed;
-        let native_target = self.target;
         let bindings = self.bindings;
         type_reference = substitute_boundary_type_reference(typed, type_reference, bindings);
         if let Some(primitive) = typed.primitive_type_reference(type_reference) {
@@ -128,45 +129,19 @@ impl<'input> BoundaryValueLayout<'input> {
                 // An unsized referee needs a two-word descriptor: `{ptr, len}` for
                 // slices and `string`, `{instance, table}` for `dyn Trait` — the
                 // same pair ordinary dynamic-descriptor arguments expand to.
-                let is_fat = match typed.type_reference_table.type_reference(referee) {
+                let descriptor = match typed.type_reference_table.type_reference(referee) {
                     TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. } => {
-                        true
+                        fat_descriptor_layout(self.target)
                     }
-                    TypeReferenceNode::Named { name, .. } => name.as_str() == "string",
-                    _ => false,
+                    TypeReferenceNode::Named { name, .. } if name.as_str() == "string" => {
+                        fat_descriptor_layout(self.target)
+                    }
+                    _ => pointer_layout(self.target),
                 };
-                let pointer_size = u16::try_from(native_target.pointer_size)
-                    .map_err(|_| "target pointer size exceeds boundary shape range".to_owned())?;
-                let pointer_alignment =
-                    u16::try_from(native_target.pointer_alignment).map_err(|_| {
-                        "target pointer alignment exceeds boundary shape range".to_owned()
-                    })?;
-                let byte_size = if is_fat {
-                    pointer_size
-                        .checked_mul(2)
-                        .ok_or_else(|| "fat reference boundary shape overflows".to_owned())?
-                } else {
-                    pointer_size
-                };
-                let abi = ValueShape::integer(u32::from(byte_size), pointer_alignment);
-                let root =
-                    abi_boundary_shape(&mut self.shapes, BoundaryValueClass::Reference, &abi)?;
-                Ok((abi, root))
+                self.pointer_boundary_shape(descriptor)
             }
             TypeReferenceNode::Slice { .. } => {
-                let byte_size = u16::try_from(native_target.pointer_size)
-                    .ok()
-                    .and_then(|size| size.checked_mul(2))
-                    .ok_or_else(|| {
-                        "target slice-reference size exceeds boundary shape range".to_owned()
-                    })?;
-                let alignment = u16::try_from(native_target.pointer_alignment).map_err(|_| {
-                    "target pointer alignment exceeds boundary shape range".to_owned()
-                })?;
-                let abi = ValueShape::integer(u32::from(byte_size), alignment);
-                let root =
-                    abi_boundary_shape(&mut self.shapes, BoundaryValueClass::Reference, &abi)?;
-                Ok((abi, root))
+                self.pointer_boundary_shape(fat_descriptor_layout(self.target))
             }
             TypeReferenceNode::FixedArray {
                 element_type,
@@ -195,20 +170,7 @@ impl<'input> BoundaryValueLayout<'input> {
             }
             TypeReferenceNode::Named { symbol, name } => self.data(*symbol, name.as_str()),
             TypeReferenceNode::DynamicTrait { .. } => {
-                let byte_size = u16::try_from(native_target.pointer_size)
-                    .ok()
-                    .and_then(|size| size.checked_mul(2))
-                    .ok_or_else(|| {
-                        "target dynamic-trait reference size exceeds boundary shape range"
-                            .to_owned()
-                    })?;
-                let alignment = u16::try_from(native_target.pointer_alignment).map_err(|_| {
-                    "target pointer alignment exceeds boundary shape range".to_owned()
-                })?;
-                let abi = ValueShape::integer(u32::from(byte_size), alignment);
-                let root =
-                    abi_boundary_shape(&mut self.shapes, BoundaryValueClass::Reference, &abi)?;
-                Ok((abi, root))
+                self.pointer_boundary_shape(fat_descriptor_layout(self.target))
             }
             TypeReferenceNode::Generic { .. } => {
                 let definition = typed.closed_data_definition(type_reference).ok_or_else(|| format!(
@@ -229,6 +191,19 @@ impl<'input> BoundaryValueLayout<'input> {
             }
             TypeReferenceNode::Unit => Err("unit is not a boundary value shape".to_owned()),
         }
+    }
+
+    /// Append the ABI shape of one pointer-shaped boundary occurrence from the
+    /// extent `sizing` publishes. The word count is never re-derived here; this
+    /// owns only the u16 graph coordinates of that extent.
+    fn pointer_boundary_shape(&mut self, layout: TypeLayout) -> Result<(ValueShape, u16), String> {
+        let byte_size = u16::try_from(layout.size)
+            .map_err(|_| "target pointer-shaped extent exceeds boundary shape range".to_owned())?;
+        let alignment = u16::try_from(layout.alignment)
+            .map_err(|_| "target pointer-shaped extent exceeds boundary shape range".to_owned())?;
+        let abi = ValueShape::integer(u32::from(byte_size), alignment);
+        let root = abi_boundary_shape(&mut self.shapes, BoundaryValueClass::Reference, &abi)?;
+        Ok((abi, root))
     }
 
     /// Append the semantic carrier of an attached requirement's explicit self.

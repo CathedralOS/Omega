@@ -25,7 +25,10 @@ use crate::execution::terminal_unit::calls::{
     entry_claims, free_structural_scalar_signature_traced, structural_scalar_signature_traced,
 };
 use crate::execution::terminal_unit::providers::checked_composed_provider_attachment_requirements;
-use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders, state_flow};
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, machine_binders,
+    retain_parameter_arrival_domains, state_flow,
+};
 use crate::execution::terminal_unit::{composed_control, control};
 
 mod closed_sum;
@@ -388,7 +391,7 @@ pub(super) fn build_traced(
         );
         state_requires.push(requires);
         trace.phase("state graph: state signature: parameter signature");
-        let (structural, scalar) = if owner.attached_data.is_some() {
+        let (mut structural, scalar) = if owner.attached_data.is_some() {
             let (identity, structural, scalar) =
                 structural_scalar_signature_traced(program, shapes, state, &[], trace)?;
             // One graph can publish only one attachment identity. Static
@@ -402,6 +405,13 @@ pub(super) fn build_traced(
         } else {
             free_structural_scalar_signature_traced(program, shapes, state, &[], trace)?
         };
+        trace.phase("state graph: state signature: entry domains");
+        if let Err(reason) =
+            retain_parameter_arrival_domains(program, facts, shapes, owner, state, &mut structural)
+        {
+            trace.phase(reason);
+            return None;
+        }
         trace.phase("state graph: state signature: entry claims");
         let claims = entry_claims(
             program,

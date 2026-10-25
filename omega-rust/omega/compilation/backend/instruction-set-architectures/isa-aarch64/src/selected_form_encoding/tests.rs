@@ -1,21 +1,11 @@
 //! Tests for aarch64 selected form encoding.
 
 use super::{
-    Aarch64SelectedFormEncodingError,
+    Aarch64ConditionalBranchForm, Aarch64SelectedFormEncodingError,
     encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
-    encode_aarch64_selected_form, encode_aarch64_selected_i64_less_than_branch_form,
-    encode_aarch64_selected_i64_less_than_widened_branch_form,
-    encode_aarch64_selected_nonzero_branch_form,
-    encode_aarch64_selected_nonzero_widened_branch_form,
-    encode_aarch64_selected_u64_less_than_branch_form,
-    encode_aarch64_selected_u64_less_than_widened_branch_form,
+    encode_aarch64_selected_conditional_branch_form, encode_aarch64_selected_form,
     validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
-    validate_aarch64_selected_form_encoding, validate_aarch64_selected_i64_less_than_branch_form,
-    validate_aarch64_selected_i64_less_than_widened_branch_form,
-    validate_aarch64_selected_nonzero_branch_form,
-    validate_aarch64_selected_nonzero_widened_branch_form,
-    validate_aarch64_selected_u64_less_than_branch_form,
-    validate_aarch64_selected_u64_less_than_widened_branch_form,
+    validate_aarch64_selected_conditional_branch_form, validate_aarch64_selected_form_encoding,
 };
 use crate::aarch64_physical_register_model;
 use crate::saturating_forms::SaturatingRealization;

@@ -11,7 +11,7 @@ impl PackagePolicyRepresentation {
             return Err("representation declarations are unordered or repeated");
         }
         for declaration in &self.declarations {
-            nominal(declaration)?;
+            declaration.validate_resolved()?;
             if declaration.owner != PackageReviewNominalOwner::Package(self.package) {
                 return Err("representation declaration has another package owner");
             }
@@ -25,7 +25,7 @@ impl PackagePolicyRepresentation {
         &self,
         opaque: &PackageReviewNominalIdentity,
     ) -> Result<(), &'static str> {
-        nominal(opaque)?;
+        opaque.validate_resolved()?;
         if opaque.owner == PackageReviewNominalOwner::Package(self.package)
             && self.declarations.binary_search(opaque).is_err()
         {
@@ -44,11 +44,11 @@ impl PackagePolicyRepresentation {
         }
         for candidate in &self.producer_availability {
             self.validate_owned_opaque(&candidate.opaque)?;
-            nominal(&candidate.carrier)?;
+            candidate.carrier.validate_resolved()?;
             let conformance = &candidate.conformance;
             crate::record::public_policy::validation::validate_conformance_shape(conformance)?;
-            nominal(&conformance.identity)?;
-            nominal(&conformance.interface.trait_identity)?;
+            conformance.identity.validate_resolved()?;
+            conformance.interface.trait_identity.validate_resolved()?;
             // `OpaqueRepresentation<Opaque, Representation>` names both data
             // types as ordinary arguments; the implementation has no subject.
             if conformance.identity.owner != PackageReviewNominalOwner::Package(self.package)
@@ -74,10 +74,10 @@ impl PackagePolicyRepresentation {
         }
         for selection in &self.selected_availability {
             self.validate_owned_opaque(&selection.opaque)?;
-            nominal(&selection.carrier)?;
+            selection.carrier.validate_resolved()?;
             let application = &selection.application;
-            nominal(&application.declaration)?;
-            nominal(&application.trait_identity)?;
+            application.declaration.validate_resolved()?;
+            application.trait_identity.validate_resolved()?;
             if selection.selection_owner != PackageReviewNominalOwner::Package(self.package)
                 || !application.lifetime_arguments.is_empty()
                 || !application.trait_lifetime_arguments.is_empty()
@@ -153,11 +153,4 @@ impl PackagePolicyRepresentation {
         }
         Ok(())
     }
-}
-
-fn nominal(identity: &PackageReviewNominalIdentity) -> Result<(), &'static str> {
-    if identity.path.is_empty() || identity.owner == PackageReviewNominalOwner::Unresolved {
-        return Err("representation nominal identity is empty or unresolved");
-    }
-    Ok(())
 }

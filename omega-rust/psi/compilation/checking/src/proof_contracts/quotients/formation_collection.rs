@@ -123,11 +123,9 @@ pub(crate) fn reject_quotient_operation_requests(
     {
         return;
     }
-    // Reuse the shared whole-call-graph inference. Quotient requests still
-    // reject before checked lowering, so this is the one authoritative effect
-    // computation on that path rather than a local expression walk.
-    let operational = crate::infer_operational_may(program);
-    let service_reaches = crate::infer_service_reaches(program, &operational);
+    // Quotient requests still reject before checked lowering; the plan owns
+    // the one authoritative effect computation on that path and retains the
+    // representative's purity fence for this diagnostic pass to read.
     let mut planned_requests = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -155,12 +153,7 @@ pub(crate) fn reject_quotient_operation_requests(
             ) {
                 Ok(plan) => {
                     let congruence = &plan.theorem_evidence[0];
-                    let representative_purity = relation_plan::pure_representative_effect(
-                        program,
-                        &plan.representative,
-                        &operational,
-                        &service_reaches,
-                    );
+                    let representative_purity = plan.representative_purity;
                     let complete_result_flow =
                         relation_plan::complete_result_flow(program, machine, state, result_root);
                     // Compose the exact canonical Terminal row this plan's own

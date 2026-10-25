@@ -56,6 +56,21 @@ pub struct LoweredContentIdentityReshuffles {
     pub source_claims: Vec<(PermissionClaimIdentity, ClaimId)>,
 }
 
+/// One terminal algebra for one checked algebra identity: the identity names
+/// the algebra kind and its coordinate space, never a second representation.
+fn content_algebra(identity: &CheckedContentAlgebraIdentity) -> ContentAlgebra {
+    match identity {
+        CheckedContentAlgebraIdentity::IntervalSet { coordinate_space } => ContentAlgebra {
+            kind: ContentAlgebraKind::IntervalSet,
+            parameter: coordinate_space.clone(),
+        },
+        CheckedContentAlgebraIdentity::CountedQuantity { unit } => ContentAlgebra {
+            kind: ContentAlgebraKind::CountedQuantity,
+            parameter: unit.clone(),
+        },
+    }
+}
+
 fn content_field_identity(checked: &CheckedTrees, symbol: symbols::SymbolHandle) -> Option<String> {
     checked.data_definitions().iter().find_map(|definition| {
         checked.data_members(definition).iter().find_map(|member| {
@@ -170,16 +185,7 @@ pub(crate) fn lower_structural_content_projection(
             "structural domain content projection disagrees with its carrier or identity",
         );
     }
-    let algebra = match &projection.algebra {
-        CheckedContentAlgebraIdentity::IntervalSet { coordinate_space } => ContentAlgebra {
-            kind: ContentAlgebraKind::IntervalSet,
-            parameter: coordinate_space.clone(),
-        },
-        CheckedContentAlgebraIdentity::CountedQuantity { unit } => ContentAlgebra {
-            kind: ContentAlgebraKind::CountedQuantity,
-            parameter: unit.clone(),
-        },
-    };
+    let algebra = content_algebra(&projection.algebra);
     let expression = lower_content_projection_expression(checked, &projection.expression)?;
     let identity = ContentProjectionIdentity {
         domain: ContentDomainId::new(u64::from(domain.0))
@@ -332,18 +338,7 @@ pub(crate) fn lower_whole_content_entry_claims(
                 }
                 let domain = ContentDomainId::new(u64::from(projection.semantic_domain.0))
                     .ok_or(LoweringError::InvalidContentDomainIdentity)?;
-                let algebra = match &projection.algebra {
-                    CheckedContentAlgebraIdentity::IntervalSet { coordinate_space } => {
-                        ContentAlgebra {
-                            kind: ContentAlgebraKind::IntervalSet,
-                            parameter: coordinate_space.clone(),
-                        }
-                    }
-                    CheckedContentAlgebraIdentity::CountedQuantity { unit } => ContentAlgebra {
-                        kind: ContentAlgebraKind::CountedQuantity,
-                        parameter: unit.clone(),
-                    },
-                };
+                let algebra = content_algebra(&projection.algebra);
                 Ok(ClaimContentProjection {
                     projection: ContentProjectionIdentity {
                         domain,
@@ -404,16 +399,7 @@ pub fn lower_content_conservation_plan(
         });
     }
 
-    let algebra = match &plan.algebra {
-        CheckedContentAlgebraIdentity::IntervalSet { coordinate_space } => ContentAlgebra {
-            kind: ContentAlgebraKind::IntervalSet,
-            parameter: coordinate_space.clone(),
-        },
-        CheckedContentAlgebraIdentity::CountedQuantity { unit } => ContentAlgebra {
-            kind: ContentAlgebraKind::CountedQuantity,
-            parameter: unit.clone(),
-        },
-    };
+    let algebra = content_algebra(&plan.algebra);
     let mut structural_places = BTreeMap::new();
     let left = lower_content_term(plan.equation.left(), &mut structural_places, 0)?;
     let right = lower_content_term(plan.equation.right(), &mut structural_places, 0)?;

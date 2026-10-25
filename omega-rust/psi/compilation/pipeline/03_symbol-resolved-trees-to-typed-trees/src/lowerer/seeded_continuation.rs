@@ -1,11 +1,10 @@
 //! Transactional append-only typing and exact retained-base admission.
 
 use super::{
-    Lowerer, exact_field_symbol, exact_top_level_data_symbol, lower_authored_service_reach_row,
-    lower_symbol_resolved_trees,
+    Lowerer, TypingCohort, append_authored_service_reach_rows, close_typed_cohort,
+    exact_field_symbol, exact_top_level_data_symbol, lower_evidence_forwarding,
+    lower_symbol_resolved_trees, type_resolved_cohort,
 };
-use crate::expressions::qualification_casts::normalize_qualification_casts_from;
-use crate::type_reference::domain_constraints::normalize_domain_constraints_from;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
@@ -185,12 +184,8 @@ pub fn lower_seeded_extension(
     // requiring equality with resolution revalidates the stage's own output
     // and incorrectly forbids those ordinary elaborations.
     let data_frontier = resolved_base.data_definitions.len();
-    let const_frontier = resolved_base.const_declarations.len();
     let machine_frontier = resolved_base.machines.len();
     let trait_frontier = resolved_base.traits.len();
-    let typed_machine_frontier = retained.typed.machines().len();
-    let type_reference_frontier = retained.typed.type_reference_table.type_reference_count();
-    let expression_frontier = retained.typed.expression_table.expression_count();
     if !resolved_root_shape_is_supported(&source, &resolved_base)
         || !seeded_extension_shape_is_supported(
             &source,
@@ -240,17 +235,10 @@ pub fn lower_seeded_extension(
     // Resolution may append combinations of retained services, but both base
     // tables must keep their exact row IDs and meanings.
     candidate.service_reach_rows = source.service_reach_rows.clone();
-    candidate.authored_service_reach_rows.extend(
-        source
-            .authored_service_reach_rows
-            .iter()
-            .filter(|row| {
-                !resolved_base
-                    .authored_service_reach_rows
-                    .iter()
-                    .any(|base_row| base_row.owner == row.owner)
-            })
-            .map(lower_authored_service_reach_row),
+    append_authored_service_reach_rows(
+        &mut candidate,
+        &source,
+        &resolved_base.authored_service_reach_rows,
     );
     let mut lowerer = Lowerer {
         typed_trees: candidate,
@@ -259,93 +247,11 @@ pub fn lower_seeded_extension(
         type_reference_exposure:
             Some(language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
     };
-    for declaration in source.const_declarations.iter().skip(const_frontier) {
-        if let Err(error) = lowerer.lower_const_declaration(declaration) {
-            return Err((retained, SeededContinuationError::Lowering(error)));
-        }
-    }
-    for data_definition in source.data_definitions.iter().skip(data_frontier) {
-        if let Err(error) = lowerer.lower_data_declaration(data_definition) {
-            return Err((retained, SeededContinuationError::Lowering(error)));
-        }
-    }
-    for machine in source.machines.iter().skip(machine_frontier) {
-        if let Err(error) = lowerer.lower_machine_declaration(machine) {
-            return Err((retained, SeededContinuationError::Lowering(error)));
-        }
-    }
-    for trait_definition in source.traits.iter().skip(trait_frontier) {
-        if let Err(error) = lowerer.lower_trait_declaration(trait_definition) {
-            return Err((retained, SeededContinuationError::Lowering(error)));
-        }
-    }
-    if let Err(error) = crate::declarations::machine::settle_satisfied_declarations_from(
-        &mut lowerer.typed_trees,
-        typed_machine_frontier,
-    ) {
+    let cohort = TypingCohort::continuing(&resolved_base, &retained.typed);
+    if let Err(error) = type_resolved_cohort(&mut lowerer, &cohort) {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
-    if let Err(error) = lowerer.lower_const_initializer_evidence(const_frontier) {
-        return Err((retained, SeededContinuationError::Lowering(error)));
-    }
-    if let Err(error) = crate::lowerer::progress::normalize_progress_premises_from(
-        &mut lowerer.typed_trees,
-        typed_machine_frontier,
-    ) {
-        return Err((retained, SeededContinuationError::Lowering(error)));
-    }
-    if let Err(message) = lowerer
-        .typed_trees
-        .instantiate_nominal_machine_parameter_contracts()
-        .and_then(|_| lowerer.typed_trees.prepare_applied_callable_signatures())
-    {
-        return Err((
-            retained,
-            SeededContinuationError::Lowering(Diagnostic::error(message.to_owned())),
-        ));
-    }
-    if let Err(error) = normalize_domain_constraints_from(
-        &source,
-        &mut lowerer.typed_trees,
-        type_reference_frontier,
-    ) {
-        return Err((retained, SeededContinuationError::Lowering(error)));
-    }
-    if let Err(error) = crate::contracts::proof_facts::normalize_membership_selections(
-        &source,
-        &mut lowerer.typed_trees,
-    ) {
-        return Err((retained, SeededContinuationError::Lowering(error)));
-    }
-    // Idempotent over retained facts: an already-interned instance re-derives
-    // the same name, so only facts appended past the checkpoint change.
-    if let Err(error) =
-        crate::contracts::proof_facts::intern_proof_membership_instances(&mut lowerer.typed_trees)
-    {
-        return Err((retained, SeededContinuationError::Lowering(error)));
-    }
-    if let Err(error) =
-        normalize_qualification_casts_from(&source, &mut lowerer.typed_trees, expression_frontier)
-    {
-        return Err((retained, SeededContinuationError::Lowering(error)));
-    }
-    if let Err(error) =
-        crate::expressions::fixed_byte_array_literals::land_exact_fixed_byte_array_literals_from(
-            &mut lowerer.typed_trees,
-            expression_frontier,
-            typed_machine_frontier,
-        )
-    {
-        return Err((retained, SeededContinuationError::Lowering(error)));
-    }
-    if let Err(error) =
-        crate::type_reference::validate_range_arguments(&source, &lowerer.typed_trees)
-    {
-        return Err((retained, SeededContinuationError::Lowering(error)));
-    }
-    if let Err(error) =
-        super::target_machine_families::append(&source, &mut lowerer.typed_trees, machine_frontier)
-    {
+    if let Err(error) = close_typed_cohort(&mut lowerer, &cohort) {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
     if !lowerer
@@ -358,9 +264,6 @@ pub fn lower_seeded_extension(
             retained,
             SeededContinuationError::AuthoredSelectionPrefixChangedDuringLowering,
         ));
-    }
-    if let Err(error) = super::bind_dynamic_call_targets(&mut lowerer.typed_trees) {
-        return Err((retained, SeededContinuationError::Lowering(error)));
     }
     // The ordinary typing operations own this continuation's mutations.
     // Replaying a whole-tree storage comparison here is not a trust boundary:
@@ -471,23 +374,13 @@ fn lower_body_completion(
             return Err(violation());
         }
     }
-    candidate.authored_service_reach_rows.extend(
-        source
-            .authored_service_reach_rows
-            .iter()
-            .filter(|row| {
-                !predecessor
-                    .authored_service_reach_rows
-                    .iter()
-                    .any(|old| old.owner == row.owner)
-            })
-            .map(lower_authored_service_reach_row),
-    );
     candidate
         .retain_authored_declaration_selections(source.authored_declaration_selections().clone());
-    let type_frontier = candidate.type_reference_table.type_reference_count();
-    let expression_frontier = candidate.expression_table.expression_count();
-    let machine_frontier = candidate.machines().len();
+    append_authored_service_reach_rows(
+        &mut candidate,
+        &source,
+        &predecessor.authored_service_reach_rows,
+    );
     let mut lowerer = Lowerer {
         typed_trees: candidate,
         source_trees: &source,
@@ -496,110 +389,22 @@ fn lower_body_completion(
             language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
         ),
     };
-    for declaration in source
-        .const_declarations
-        .iter()
-        .skip(predecessor.const_declarations.len())
-    {
-        lowerer.lower_const_declaration(declaration)?;
-    }
-    for declaration in source
-        .data_definitions
-        .iter()
-        .skip(predecessor.data_definitions.len())
-    {
-        lowerer.lower_data_declaration(declaration)?;
-    }
-    for &symbol in &selected {
-        let ordinal = lowerer
-            .typed_trees
-            .machine_position_by_symbol(symbol)
-            .ok_or_else(violation)?;
-        let mut declaration = lowerer.typed_trees.machines()[ordinal].clone();
-        let implementation = source.machine(symbol).ok_or_else(violation)?;
-        crate::declarations::machine::complete_machine_body(
-            &mut lowerer,
-            implementation,
-            &mut declaration,
-        )?;
-        lowerer.typed_trees.machines_mut()[ordinal] = declaration;
-    }
-    for declaration in source.machines.iter().skip(predecessor.machines.len()) {
-        lowerer.lower_machine_declaration(declaration)?;
-    }
-    for declaration in source.traits.iter().skip(predecessor.traits.len()) {
-        lowerer.lower_trait_declaration(declaration)?;
-    }
-    crate::declarations::machine::settle_satisfied_declarations_from(
-        &mut lowerer.typed_trees,
-        machine_frontier,
-    )?;
-    lowerer.lower_const_initializer_evidence(predecessor.const_declarations.len())?;
-    crate::lowerer::progress::normalize_progress_premises_from(
-        &mut lowerer.typed_trees,
-        machine_frontier,
-    )?;
-    lowerer
-        .typed_trees
-        .instantiate_nominal_machine_parameter_contracts()
-        .and_then(|_| lowerer.typed_trees.prepare_applied_callable_signatures())
-        .map_err(|message| Diagnostic::error(message.to_owned()))?;
+    let cohort = TypingCohort::continuing(&predecessor, &retained.typed).completing(&selected);
+    type_resolved_cohort(&mut lowerer, &cohort)?;
     for forwarding in source
         .evidence_forwardings
         .iter()
         .skip(predecessor.evidence_forwardings.len())
     {
-        let erased_before = lowerer
-            .typed_trees
-            .proof_output_calls
-            .iter()
-            .filter(|call| {
-                call.machine_symbol == forwarding.machine_symbol
-                    && call.state_symbol == forwarding.state_symbol
-                    && call.source_statement_index < forwarding.statement_index
-            })
-            .count();
-        lowerer.typed_trees.evidence_forwardings.push(
-            typed_trees::typed_trees::EvidenceForwarding {
-                machine_symbol: forwarding.machine_symbol,
-                state_symbol: forwarding.state_symbol,
-                statement_index: forwarding.statement_index.saturating_sub(erased_before),
-                source_statement_index: forwarding.statement_index,
-                target: super::name::lower_name(&forwarding.target),
-                source: super::name::lower_name(&forwarding.source),
-                source_conformance: forwarding.source_conformance,
-            },
-        );
-    }
-    normalize_domain_constraints_from(&source, &mut lowerer.typed_trees, type_frontier)?;
-    crate::contracts::proof_facts::normalize_membership_selections(
-        &source,
-        &mut lowerer.typed_trees,
-    )?;
-    crate::contracts::proof_facts::intern_proof_membership_instances(&mut lowerer.typed_trees)?;
-    normalize_qualification_casts_from(&source, &mut lowerer.typed_trees, expression_frontier)?;
-    let mut completed = selected.clone();
-    completed.extend(
         lowerer
             .typed_trees
-            .machines()
-            .iter()
-            .skip(machine_frontier)
-            .map(|machine| machine.symbol),
-    );
-    crate::expressions::fixed_byte_array_literals::land_exact_fixed_byte_array_literals_for_machines(
-        &mut lowerer.typed_trees, expression_frontier, &completed,
-    )?;
-    crate::type_reference::validate_range_arguments(&source, &lowerer.typed_trees)?;
-    crate::declarations::provider_defaults::finalize_provider_default_calls(
-        &mut lowerer.typed_trees,
-    )?;
-    super::target_machine_families::append(
-        &source,
-        &mut lowerer.typed_trees,
-        predecessor.machines.len(),
-    )?;
-    super::bind_dynamic_call_targets(&mut lowerer.typed_trees)?;
+            .evidence_forwardings
+            .push(lower_evidence_forwarding(
+                forwarding,
+                &lowerer.typed_trees.proof_output_calls,
+            ));
+    }
+    close_typed_cohort(&mut lowerer, &cohort)?;
     if !completed_typed_base_is_retained(&retained.typed, &lowerer.typed_trees, &selected) {
         return Err(Diagnostic::error(
             "authored-body completion changed retained typed declaration or implementation storage",
@@ -881,13 +686,7 @@ fn resolved_completion_retains_declarations(
             .iter()
             .take(base.traits.len())
             .eq(base.traits.iter())
-        && candidate.domain_definitions == base.domain_definitions
-        && candidate.measures == base.measures
-        && candidate.operators == base.operators
-        && candidate.propositions == base.propositions
-        && candidate.mathematical_definitions == base.mathematical_definitions
-        && candidate.conformances == base.conformances
-        && candidate.wire_schemas == base.wire_schemas
+        && retained_declaration_families_are_exact(base, candidate)
 }
 
 /// Verify the semantic and custody-bearing base prefix after every extension
@@ -1033,28 +832,37 @@ pub(super) fn resolved_root_shape_is_supported(
             .take(base.data_definitions.len())
             .eq(base.data_definitions.iter())
         && source.data_definitions.len() >= base.data_definitions.len()
-        && source.domain_definitions == base.domain_definitions
         && source
             .machines
             .iter()
             .take(base.machines.len())
             .eq(base.machines.iter())
         && source.machines.len() >= base.machines.len()
-        && source.measures == base.measures
-        && source.operators == base.operators
-        && source.propositions == base.propositions
-        // Mathematical declarations are retained roots, never extension
-        // roots: an extension can never add one, so the whole arena must
-        // match the base exactly.
-        && source.mathematical_definitions == base.mathematical_definitions
+        && retained_declaration_families_are_exact(base, source)
         && source
             .traits
             .iter()
             .take(base.traits.len())
             .eq(base.traits.iter())
         && source.traits.len() >= base.traits.len()
-        && source.conformances == base.conformances
-        && source.wire_schemas == base.wire_schemas
+}
+
+/// Declaration families resolution may never append to: an extension and a
+/// completion both retain them exactly, so none of them is a frontier and the
+/// whole arena must match the base. Mathematical declarations are the clearest
+/// case — a suffix that reaches one reaches a second frontend, which
+/// continuation forbids.
+fn retained_declaration_families_are_exact(
+    base: &SymbolResolvedTrees,
+    candidate: &SymbolResolvedTrees,
+) -> bool {
+    candidate.domain_definitions == base.domain_definitions
+        && candidate.measures == base.measures
+        && candidate.operators == base.operators
+        && candidate.propositions == base.propositions
+        && candidate.mathematical_definitions == base.mathematical_definitions
+        && candidate.conformances == base.conformances
+        && candidate.wire_schemas == base.wire_schemas
 }
 
 pub(super) fn seeded_extension_shape_is_supported(

@@ -1337,6 +1337,7 @@ impl<'program> ShapeCollector<'program> {
                 )
             })
         {
+            self.add_type(field_type_reference, binders, substitutions)?;
             let declared = typed_trees::byte_predicates::type_reference_domain_predicates(
                 self.program,
                 field_type_reference,

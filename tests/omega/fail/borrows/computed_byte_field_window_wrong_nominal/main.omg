@@ -1,0 +1,20 @@
+// Identical fields do not make Other the View nominal expected by shared.
+data View<'storage> { bytes: &'storage mut [u8]; }
+data Other<'storage> { bytes: &'storage mut [u8]; }
+machine shared<'holder, 'storage>(view: &'holder View<'storage>) -> &'holder View<'storage>
+{ view }
+machine observe(view: &Other) -> u64 {
+    let selected: &[u8] = &shared(view).bytes[..];
+    transition selected.len == 2 {
+        true -> ((selected[0] as u64) * 256 + (selected[1] as u64))
+        false -> 0
+    }
+}
+machine main() crashes Trap {
+    let mut items: [u8; 2] = [7u8, 9u8];
+    let view: Other = Other { bytes: &mut items[..] };
+    let count: u64 = observe(&view);
+    transition count == 1801 && items[0] == 7 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

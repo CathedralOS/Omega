@@ -37,7 +37,7 @@ pub(in crate::record) fn fact(
             expression(value, scope, nesting)?
         }
         PackageReviewContractFact::Membership { value, domain } => {
-            nominal(domain)?;
+            domain.validate_resolved()?;
             expression(value, scope, nesting)?;
         }
         PackageReviewContractFact::PropositionParameter(application) => {
@@ -65,7 +65,7 @@ fn proposition(
     scope: &Scope<'_>,
     nesting: usize,
 ) -> Result {
-    nominal(&value.declaration)?;
+    value.declaration.validate_resolved()?;
     if value.binders.len() != value.binder_arguments.len()
         || value.parameter_types.len() != value.arguments.len()
     {
@@ -93,7 +93,7 @@ fn proposition(
         use crate::record::PackageReviewPropositionBinderValue as Value;
         match &argument.value {
             Value::Type(value) if expected == Kind::Type => value_type(value)?,
-            Value::Machine(value) if expected == Kind::Machine => nominal(value)?,
+            Value::Machine(value) if expected == Kind::Machine => value.validate_resolved()?,
             Value::Integer(value) if expected == Kind::Const => text(value)?,
             Value::GenericBinder(ordinal) => {
                 let valid = matches!(
@@ -130,7 +130,7 @@ pub(in crate::record) fn evidence(
     value: &PackageReviewEvidenceInterface,
     scope: &Scope<'_>,
 ) -> Result {
-    nominal(&value.trait_identity)?;
+    value.trait_identity.validate_resolved()?;
     lifetimes(&value.lifetime_arguments, scope)?;
     for argument in &value.arguments {
         value_type(argument)?;

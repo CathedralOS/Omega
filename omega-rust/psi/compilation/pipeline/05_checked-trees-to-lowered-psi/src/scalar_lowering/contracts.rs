@@ -140,21 +140,8 @@ pub(crate) fn projected_guarantees(
 /// before it), so ordering the values directly still emits a roster the codec
 /// rejects.
 pub(crate) fn canonicalize_requires(requires: &mut Vec<Proposition>) -> Result<(), LoweringError> {
-    let mut keyed = requires
-        .drain(..)
-        .map(|proposition| {
-            terminal_codec::canonical_proposition_order_key(&proposition)
-                .map(|key| (key, proposition))
-                .map_err(|_| {
-                    LoweringError::Unsupported(
-                        "published requires proposition is not canonically encodable",
-                    )
-                })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    keyed.sort_by(|left, right| left.0.cmp(&right.0));
-    keyed.dedup_by(|left, right| left.0 == right.0);
-    requires.extend(keyed.into_iter().map(|(_, proposition)| proposition));
+    *requires =
+        crate::proofs::contract_predicates::canonical_propositions(std::mem::take(requires))?;
     Ok(())
 }
 

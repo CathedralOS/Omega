@@ -1,11 +1,7 @@
 use isa_aarch64::{
+    Aarch64ConditionalBranchForm,
     validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
-    validate_aarch64_selected_i64_less_than_branch_form,
-    validate_aarch64_selected_i64_less_than_widened_branch_form,
-    validate_aarch64_selected_nonzero_branch_form,
-    validate_aarch64_selected_nonzero_widened_branch_form,
-    validate_aarch64_selected_u64_less_than_branch_form,
-    validate_aarch64_selected_u64_less_than_widened_branch_form,
+    validate_aarch64_selected_conditional_branch_form,
 };
 use isa_x86_64::{
     validate_x86_64_selected_i64_less_than_branch_form,
@@ -22,7 +18,7 @@ use selected_instructions::SelectedBlockId;
 use target::Architecture;
 
 use super::FrameApplicationError;
-use super::branch_reach::holds_long_form;
+use super::branch_reach::{conditional_branch_family, holds_long_form};
 
 pub(super) fn validate(
     source: &FunctionFragmentInstructionSpan,
@@ -172,48 +168,52 @@ fn decode(
         }};
     }
     let long = holds_long_form(architecture, branch, row.bytes.len());
-    let decoded = match (architecture, predicate) {
-        (Architecture::X86_64, FunctionFragmentConditionalBranchPredicate::NonZeroV1) => {
-            let decoded = if long {
-                validate_x86_64_selected_nonzero_branch_form(
-                    physical,
-                    row.alternative,
-                    branch.byte_displacement,
-                    &row.bytes,
-                )
-            } else {
-                validate_x86_64_selected_short_nonzero_branch_form(
-                    physical,
-                    row.alternative,
-                    branch.byte_displacement,
-                    &row.bytes,
-                )
+    let decoded = match architecture {
+        // The reserved row width is the x86 reach: a two-byte row holds
+        // `Jcc rel8`, a six-byte row `Jcc rel32`. The row's alternative must
+        // record the same reach or the target decoder refuses it.
+        Architecture::X86_64 => {
+            let decoded = match predicate {
+                FunctionFragmentConditionalBranchPredicate::NonZeroV1 => {
+                    if long {
+                        validate_x86_64_selected_nonzero_branch_form(
+                            physical,
+                            row.alternative,
+                            branch.byte_displacement,
+                            &row.bytes,
+                        )
+                    } else {
+                        validate_x86_64_selected_short_nonzero_branch_form(
+                            physical,
+                            row.alternative,
+                            branch.byte_displacement,
+                            &row.bytes,
+                        )
+                    }
+                }
+                FunctionFragmentConditionalBranchPredicate::U64LessThanV1 => {
+                    validate_x86_64_selected_u64_less_than_branch_form(
+                        physical,
+                        row.alternative,
+                        branch.byte_displacement,
+                        &row.bytes,
+                    )
+                }
+                FunctionFragmentConditionalBranchPredicate::I64LessThanV1 => {
+                    validate_x86_64_selected_i64_less_than_branch_form(
+                        physical,
+                        row.alternative,
+                        branch.byte_displacement,
+                        &row.bytes,
+                    )
+                }
             }
             .map_err(|error| FrameApplicationError::X86_64Branch(instruction, error))?;
             footprint!(decoded)
         }
-        (Architecture::X86_64, FunctionFragmentConditionalBranchPredicate::U64LessThanV1) => {
-            let decoded = validate_x86_64_selected_u64_less_than_branch_form(
-                physical,
-                row.alternative,
-                branch.byte_displacement,
-                &row.bytes,
-            )
-            .map_err(|error| FrameApplicationError::X86_64Branch(instruction, error))?;
-            footprint!(decoded)
-        }
-        (Architecture::X86_64, FunctionFragmentConditionalBranchPredicate::I64LessThanV1) => {
-            let decoded = validate_x86_64_selected_i64_less_than_branch_form(
-                physical,
-                row.alternative,
-                branch.byte_displacement,
-                &row.bytes,
-            )
-            .map_err(|error| FrameApplicationError::X86_64Branch(instruction, error))?;
-            footprint!(decoded)
-        }
-        (Architecture::Aarch64, FunctionFragmentConditionalBranchPredicate::NonZeroV1)
-            if branch.decoded_register_reads.len() == 1 =>
+        Architecture::Aarch64
+            if predicate == FunctionFragmentConditionalBranchPredicate::NonZeroV1
+                && branch.decoded_register_reads.len() == 1 =>
         {
             let decoded = validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
                 physical,
@@ -224,60 +224,20 @@ fn decode(
             .map_err(|error| FrameApplicationError::Aarch64Branch(instruction, error))?;
             footprint!(decoded)
         }
-        (Architecture::Aarch64, FunctionFragmentConditionalBranchPredicate::NonZeroV1) => {
-            let decoded = if long {
-                validate_aarch64_selected_nonzero_widened_branch_form(
-                    physical,
-                    row.alternative,
-                    branch.byte_displacement,
-                    &row.bytes,
-                )
+        Architecture::Aarch64 => {
+            let form = if long {
+                Aarch64ConditionalBranchForm::WidenedPairV1
             } else {
-                validate_aarch64_selected_nonzero_branch_form(
-                    physical,
-                    row.alternative,
-                    branch.byte_displacement,
-                    &row.bytes,
-                )
-            }
-            .map_err(|error| FrameApplicationError::Aarch64Branch(instruction, error))?;
-            footprint!(decoded)
-        }
-        (Architecture::Aarch64, FunctionFragmentConditionalBranchPredicate::U64LessThanV1) => {
-            let decoded = if long {
-                validate_aarch64_selected_u64_less_than_widened_branch_form(
-                    physical,
-                    row.alternative,
-                    branch.byte_displacement,
-                    &row.bytes,
-                )
-            } else {
-                validate_aarch64_selected_u64_less_than_branch_form(
-                    physical,
-                    row.alternative,
-                    branch.byte_displacement,
-                    &row.bytes,
-                )
-            }
-            .map_err(|error| FrameApplicationError::Aarch64Branch(instruction, error))?;
-            footprint!(decoded)
-        }
-        (Architecture::Aarch64, FunctionFragmentConditionalBranchPredicate::I64LessThanV1) => {
-            let decoded = if long {
-                validate_aarch64_selected_i64_less_than_widened_branch_form(
-                    physical,
-                    row.alternative,
-                    branch.byte_displacement,
-                    &row.bytes,
-                )
-            } else {
-                validate_aarch64_selected_i64_less_than_branch_form(
-                    physical,
-                    row.alternative,
-                    branch.byte_displacement,
-                    &row.bytes,
-                )
-            }
+                Aarch64ConditionalBranchForm::CanonicalWordV1
+            };
+            let decoded = validate_aarch64_selected_conditional_branch_form(
+                physical,
+                row.alternative,
+                conditional_branch_family(predicate),
+                form,
+                branch.byte_displacement,
+                &row.bytes,
+            )
             .map_err(|error| FrameApplicationError::Aarch64Branch(instruction, error))?;
             footprint!(decoded)
         }

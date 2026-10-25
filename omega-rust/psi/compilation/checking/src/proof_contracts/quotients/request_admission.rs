@@ -19,18 +19,10 @@ pub(super) fn extract(
         return Ok(Vec::new());
     }
 
-    let operational = crate::infer_operational_may(program);
-    let service_reaches = crate::infer_service_reaches(program, &operational);
     let mut rows = Vec::with_capacity(requests.len());
     let mut errors = Vec::new();
     for request_expression in requests {
-        match extract_one(
-            program,
-            termination,
-            request_expression,
-            &operational,
-            &service_reaches,
-        ) {
+        match extract_one(program, termination, request_expression) {
             Ok(row) => rows.push(row),
             Err(error) => errors.push(error),
         }
@@ -72,8 +64,6 @@ fn extract_one(
     program: &dyn crate::CheckingInput,
     termination: &dyn super::CheckedTerminationOracle,
     request_expression: ExpressionHandle,
-    operational: &flow_effects::OperationalPlan,
-    service_reaches: &flow_effects::ServiceReachInferencePlan,
 ) -> Result<super::ValidatedQuotientOperation, String> {
     let owners = program
         .machines()
@@ -110,13 +100,9 @@ fn extract_one(
         request,
     )
     .map_err(|error| format!("direct faithful plan is unresolved: {error}"))?;
-    let representative_purity = super::relation_plan::pure_representative_effect(
-        program,
-        &plan.representative,
-        operational,
-        service_reaches,
-    )
-    .ok_or_else(|| "representative closure is not exactly pure".to_owned())?;
+    let representative_purity = plan
+        .representative_purity
+        .ok_or_else(|| "representative closure is not exactly pure".to_owned())?;
     let result_flow = super::relation_plan::complete_result_flow(program, machine, state, *root)
         .ok_or_else(|| {
             "result flow is not complete direct single-state or state-forwarded flow".to_owned()

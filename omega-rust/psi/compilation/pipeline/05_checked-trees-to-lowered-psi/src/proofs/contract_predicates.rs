@@ -318,6 +318,56 @@ pub(crate) fn canonical_equality(
     })
 }
 
+/// Canonical order for one proposition roster. The codec accepts a connective
+/// only when its members strictly increase in `canonical_proposition_order_key`
+/// order, and Rust's derived `Ord` on `Proposition` is not that order, so every
+/// producer of a roster sorts by the key and drops duplicate members here.
+pub(crate) fn canonical_propositions(
+    propositions: impl IntoIterator<Item = Proposition>,
+) -> Result<Vec<Proposition>, LoweringError> {
+    let mut keyed = propositions
+        .into_iter()
+        .map(|proposition| {
+            terminal_codec::canonical_proposition_order_key(&proposition)
+                .map(|key| (key, proposition))
+                .map_err(LoweringError::DebugSemanticCodec)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    keyed.sort_by(|left, right| left.0.cmp(&right.0));
+    keyed.dedup_by(|left, right| left.0 == right.0);
+    Ok(keyed
+        .into_iter()
+        .map(|(_, proposition)| proposition)
+        .collect())
+}
+
+/// One connective over already-lowered parts: the codec rejects a
+/// same-kind nested member, so nesting is flattened; the survivors take
+/// canonical order; and a single survivor is returned bare so one proposition
+/// has one encoding.
+pub(crate) fn canonical_connectives(
+    parts: impl IntoIterator<Item = Proposition>,
+    conjunction: bool,
+) -> Result<Proposition, LoweringError> {
+    let mut flattened = Vec::new();
+    for proposition in parts {
+        match proposition {
+            Proposition::Conjunction(nested) if conjunction => flattened.extend(nested),
+            Proposition::Disjunction(nested) if !conjunction => flattened.extend(nested),
+            proposition => flattened.push(proposition),
+        }
+    }
+    let mut parts = canonical_propositions(flattened)?;
+    if parts.len() == 1 {
+        return Ok(parts.pop().expect("one distinct predicate"));
+    }
+    Ok(if conjunction {
+        Proposition::Conjunction(parts)
+    } else {
+        Proposition::Disjunction(parts)
+    })
+}
+
 pub(crate) fn connective(
     left: Proposition,
     right: Proposition,
@@ -331,33 +381,5 @@ pub(crate) fn connective(
         }
         _ => {}
     }
-    let mut parts = Vec::new();
-    for proposition in [left, right] {
-        match proposition {
-            Proposition::Conjunction(nested) if conjunction => parts.extend(nested),
-            Proposition::Disjunction(nested) if !conjunction => parts.extend(nested),
-            proposition => parts.push(proposition),
-        }
-    }
-    let mut keyed = parts
-        .into_iter()
-        .map(|proposition| {
-            terminal_codec::canonical_proposition_order_key(&proposition)
-                .map(|key| (key, proposition))
-                .map_err(LoweringError::DebugSemanticCodec)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    keyed.sort_by(|left, right| left.0.cmp(&right.0));
-    keyed.dedup_by(|left, right| left.0 == right.0);
-    let mut parts = keyed
-        .into_iter()
-        .map(|(_, proposition)| proposition)
-        .collect::<Vec<_>>();
-    if parts.len() == 1 {
-        Ok(parts.pop().expect("one distinct predicate"))
-    } else if conjunction {
-        Ok(Proposition::Conjunction(parts))
-    } else {
-        Ok(Proposition::Disjunction(parts))
-    }
+    canonical_connectives([left, right], conjunction)
 }

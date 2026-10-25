@@ -1,0 +1,58 @@
+name: Compiler queue pilot
+
+on:
+  pull_request:
+    branches: [integration-pilot]
+  merge_group:
+    branches: [integration-pilot]
+    types: [checks_requested]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new PR revision supersedes its old check; never cancel a merge-group check
+# merely because another PR entered the queue.
+concurrency:
+  group: compiler-pilot-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  compiler-pilot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
+      CARGO_BUILD_FINGERPRINT: content
+      OMEGA_CORPUS_JOBS: '2'
+      RUST_MIN_STACK: '67108864'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: compiler-pilot-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
+          restore-keys: |
+            compiler-pilot-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+      - name: Test the gate's refusal paths
+        run: python tools/tests/test_compiler_pilot.py -v
+      - name: Build and execute the exact candidate
+        run: python tools/ci/compiler_pilot.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: compiler-pilot-${{ github.sha }}-${{ github.run_attempt }}
+          path: build/compiler-pilot/
+          if-no-files-found: warn
+          compression-level: 0
+          retention-days: 7

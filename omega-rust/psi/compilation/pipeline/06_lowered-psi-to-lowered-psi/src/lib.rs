@@ -13,10 +13,10 @@
 //! one. The empty selection is not a no-op — it validates both sides of the
 //! identity transformation.
 //!
-//! The pass modules below are in the canonical order of
-//! `PRETERMINAL_PSI_PASS_CATALOG`, which is the order the entrance's dispatch
-//! states them in and the order a selection executes them in. Each folder owns
-//! one selectable optimization and nothing else:
+//! The five implemented passes below execute in the canonical order a
+//! selection records them in, which is the order the entrance's dispatch
+//! states them in. Each folder owns one selectable optimization and nothing
+//! else:
 //!
 //! 1. `control_flow_cleanup`
 //! 2. `sparse_conditional_constant_propagation`
@@ -24,10 +24,12 @@
 //! 4. `global_value_numbering`
 //! 5. `dead_scalar_elimination`
 //!
-//! The catalog's remaining two members, `StateSpecialization` and
-//! `RepresentationSpecialization`, have no folder here: they rewrite the
-//! abstract-operations unit produced only after this stage, so they execute
-//! post-Terminal and are filtered out of this stage's execution record.
+//! Four vocabulary members have no folder here: `ProofCheckElision`,
+//! `StateSpecialization`, `RepresentationSpecialization` and
+//! `LoopInvariantScalarMotion` rewrite the abstract-operations unit produced
+//! only after this stage and execute in the post-Terminal stage. The
+//! entrance's exhaustive dispatch still names each of them, and a selection
+//! containing one executes no rule here.
 //!
 //! Beneath the passes, `retained_identities` records the proof and ranking
 //! identities a rewrite must preserve — `copy_propagation`,
@@ -41,7 +43,8 @@
 // The entrance.
 mod psi_optimization;
 
-// The selectable passes, in canonical catalog order.
+// The five implemented passes; the numbered list above is their canonical
+// execution order.
 mod control_flow_cleanup;
 mod copy_propagation;
 mod dead_scalar_elimination;

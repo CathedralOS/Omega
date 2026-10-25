@@ -563,6 +563,19 @@ pub(crate) fn structural_dependencies(
             Value::Scalar { value: element } | Value::ZeroedScalarArray { element, .. } => {
                 scalars.push(*element)
             }
+            Value::ViewSubslice { start, end, .. } => {
+                scalars.extend(
+                    start
+                        .iter()
+                        .chain(end.iter())
+                        .filter_map(|value| match value {
+                            checked_trees::CheckedCallScalarArgument::Computation(root) => {
+                                Some(*root)
+                            }
+                            checked_trees::CheckedCallScalarArgument::Pure(_) => None,
+                        }),
+                );
+            }
             Value::BorrowedSliceView { source, region, .. }
             | Value::MutableSliceView { source, region, .. } => {
                 extend_range(checked, source, &mut scalars);

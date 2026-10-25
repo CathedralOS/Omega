@@ -514,6 +514,129 @@ pub(in crate::execution::terminal_unit) fn fold_parameter_entry_domains(
     Some(())
 }
 
+/// Internal state signatures retain the qualifications proved on every arrival,
+/// including facts not spelled in a parameter's nominal type. Copies and later
+/// projections consume this same contract. Never strengthen an invocation entry
+/// from the particular callers encountered while compiling its body.
+pub(in crate::execution::terminal_unit) fn retain_parameter_arrival_domains(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural_parameters: &mut [CheckedUnitStructuralParameterPlan],
+) -> Result<(), &'static str> {
+    if structural_parameters.is_empty()
+        || program
+            .machine_states(machine)
+            .first()
+            .is_some_and(|entry| entry.symbol == state.symbol)
+    {
+        return Ok(());
+    }
+    let flow = state_flow(facts, machine.symbol, state.symbol)
+        .ok_or("state graph: arrival domains: missing checked flow")?;
+    let parameters = program.state_parameters(state);
+    let declared_qualifications = parameters
+        .iter()
+        .map(|parameter| {
+            validation::field_domains::declared_type_domain_rows(program, parameter.type_reference)
+        })
+        .collect::<Vec<_>>();
+    for context in facts
+        .flow
+        .contexts
+        .semantic_context_refs
+        .span_or_empty(flow.entry_semantic_contexts)
+    {
+        for fact in facts
+            .semantic
+            .context_view(facts.semantic.contexts.get(context.context))
+            .facts()
+        {
+            if fact.origin != facts::FactOrigin::StatementTransfer {
+                continue;
+            }
+            let Some((_, _, domain_symbol, domain)) = fact.payload.domain_membership() else {
+                continue;
+            };
+            let place = fact.place.as_place().and_then(|place| {
+                crate::flow::canonical_place_from_semantic_place(
+                    program,
+                    &facts.semantic,
+                    facts.semantic.places.get(place),
+                )
+            });
+            let Some(place) = place else {
+                continue;
+            };
+            let Some(position) = parameters
+                .iter()
+                .position(|parameter| place.root == facts::PlaceRoot::Symbol(parameter.symbol))
+            else {
+                continue;
+            };
+            // The signature collector already publishes declaration obligations.
+            // Their flow roster also contains derived all-element rollups, which
+            // are logical contracts, not executable byte-range projections.
+            // Retain only additional arrival facts here. An all-element
+            // declaration also covers a runtime-indexed element; exact case,
+            // field and selected domain identities still distinguish the fact.
+            if declared_qualifications[position].iter().any(|declared| {
+                declared.describes_projection(&place.segments, |expression| {
+                    expression.is_valid()
+                        && !matches!(
+                            program.expression_table.expression(expression),
+                            typed_trees::expression::ExpressionNode::Range(_)
+                        )
+                }) && declared.domain_symbol == domain_symbol
+                    && declared.semantic_domain == domain
+            }) {
+                continue;
+            }
+            let Some(parameter) = structural_parameters
+                .iter_mut()
+                .find(|parameter| parameter.position as usize == position)
+            else {
+                continue;
+            };
+            let (carrier, path) = crate::execution::terminal_unit::calls::projected_argument_path(
+                program,
+                state.symbol,
+                0,
+                &place,
+                None,
+                None,
+            )
+            .ok_or("state graph: arrival domains: unsupported exact subject path")?;
+            // Scalar qualifications have their own checked computation channel.
+            if program.primitive_type_reference(carrier).is_some() {
+                continue;
+            }
+            if path.is_empty() && parameter.qualifications.contains(&domain)
+                || parameter
+                    .projected_qualifications
+                    .iter()
+                    .any(|row| row.path == path && row.domain == domain)
+            {
+                continue;
+            }
+            shapes
+                .add_selected_domain(domain, domain_symbol, carrier, &[], false)
+                .ok_or("state graph: arrival domains: selected theory has no carrier plan")?;
+            if path.is_empty() {
+                parameter.qualifications.push(domain);
+                parameter.qualifications.sort_by_key(|domain| domain.0);
+            } else {
+                parameter
+                    .projected_qualifications
+                    .push(CheckedStructuralPathQualification { path, domain });
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Body commitments whose theory belongs to structural carriers. Classify
 /// normalized domain instances by their carrier, not by their predicates or
 /// the arrangement of an authored cast. Scalar computations retain scalar

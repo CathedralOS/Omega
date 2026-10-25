@@ -14,7 +14,27 @@ use std::ops::Range;
 use machine_code::{
     FunctionFragmentConditionalBranchEvidence, FunctionFragmentConditionalBranchPredicate,
 };
+use selected_instructions::MachineAlternativeFamily;
 use target::Architecture;
+
+/// The machine alternative family one conditional-branch predicate names: the
+/// family the target encoders and decoders are asked for and assert against
+/// the recorded alternative.
+pub(super) const fn conditional_branch_family(
+    predicate: FunctionFragmentConditionalBranchPredicate,
+) -> MachineAlternativeFamily {
+    match predicate {
+        FunctionFragmentConditionalBranchPredicate::NonZeroV1 => {
+            MachineAlternativeFamily::ConditionalBranchNonZero
+        }
+        FunctionFragmentConditionalBranchPredicate::U64LessThanV1 => {
+            MachineAlternativeFamily::ConditionalBranchU64LessThan
+        }
+        FunctionFragmentConditionalBranchPredicate::I64LessThanV1 => {
+            MachineAlternativeFamily::ConditionalBranchI64LessThan
+        }
+    }
+}
 
 /// Bytes a widening adds to its row.
 pub(super) const WIDENING_GROWTH: u64 = 4;

@@ -96,6 +96,43 @@ fn select(
                 }
             }
         }
+        CheckedStructuralValueKind::ViewSubslice { source, .. } => {
+            if !selection.is_empty() {
+                return None;
+            }
+            // The narrowed view is a new formation. Its image scope follows
+            // authenticated child provenance; every other alternative depends
+            // on the exact completed supplier while the new reborrow lives.
+            let mut suppliers = Vec::new();
+            select(program, facts, *source, &[], active, &mut suppliers)?;
+            let mut borrows_supplier = false;
+            for supplier in suppliers {
+                if matches!(supplier, StoredCarrierSource::Image { .. }) {
+                    output.push(StoredCarrierSource::Image { value });
+                } else {
+                    borrows_supplier = true;
+                }
+            }
+            if borrows_supplier {
+                let child = values.nodes.get(*source);
+                let access =
+                    crate::slice_view_shell(program, values.nodes.get(value).type_reference, &[])?
+                        .access;
+                output.push(StoredCarrierSource::Borrow {
+                    value,
+                    source: CheckedUnitStructuralArgumentPlan {
+                        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression: child.expression },
+                        path: Vec::new(),
+                        type_identity: crate::stored_structural_type_identity(program, child.type_reference, &[], &[]),
+                        access: match access {
+                            language_core::ReferenceAccess::Shared => checked_trees::CheckedStructuralAccess::SharedBorrow,
+                            language_core::ReferenceAccess::Mutable => checked_trees::CheckedStructuralAccess::MutableBorrow,
+                            _ => return None,
+                        },
+                    },
+                });
+            }
+        }
         CheckedStructuralValueKind::BorrowedSliceView { source, .. }
         | CheckedStructuralValueKind::MutableSliceView { source, .. } => {
             if !selection.is_empty() {

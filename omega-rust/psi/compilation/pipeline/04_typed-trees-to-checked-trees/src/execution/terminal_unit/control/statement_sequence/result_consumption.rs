@@ -3,13 +3,22 @@
 //! sources place the operation their operand evaluates into.
 //! Producers and prior retirement receipts share the retained value-call
 //! inventory: nesting cannot hide a completed release or authorize a second one.
+//! One structural value's operand custody is one sequence: retain its call
+//! plans, settle the sources those calls evaluate under the statement's
+//! owned-selection policy, and adopt the anonymous producers they consume.
 
-use super::super::super::CheckedUnitStructuralArgumentSourcePlan;
+use super::super::super::{
+    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEntryClaimPlan,
+    CheckedUnitStructuralArgumentSourcePlan,
+};
 use super::super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralResultBindingPlan, Multiplicity, PermissionEventSource, StatementNode,
-    SymbolHandle,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, Multiplicity,
+    PermissionEventSource, StatementNode, SymbolHandle,
 };
+use crate::execution::terminal_unit::ScalarCalleeClosure;
+use crate::execution::terminal_unit::control::LocalConstructionTrace;
+use crate::execution::terminal_unit::types::ShapeCollector;
 use checked_trees::CheckedUnitStructuralReturnPlan;
 
 /// The latest release boundary any loan in the group reaches: a descriptor
@@ -1657,6 +1666,66 @@ pub(in crate::execution::terminal_unit) fn consume_result(
     Some(())
 }
 
+/// Sequence one structural value's operand custody into the operation stream:
+/// retain the value's call plans, settle the sources those calls evaluate
+/// under the statement's owned-selection policy, and adopt the exact anonymous
+/// producers into the receiving results. Returns the plans the value's
+/// establishment consumes.
+///
+/// A selected continuation owns both the chosen result and the conditional
+/// complement until the actual death edge, so a value rooted in an owned
+/// selection retains its sources instead of consuming them unconditionally.
+/// That policy belongs to this sequence, not to each producer site.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::execution::terminal_unit) fn prepare_value_operands(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    scalar_callees: ScalarCalleeClosure,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
+    entry_claims: &[CheckedUnitEntryClaimPlan],
+    statement_ordinal: u32,
+    results: &mut Vec<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)>,
+    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+    structural_count: &mut usize,
+    root: checked_trees::CheckedStructuralValueHandle,
+    trace: &LocalConstructionTrace,
+    windows: &mut super::super::super::borrowed_windows::OpenWindows,
+) -> Option<Vec<checked_trees::CheckedStructuralValueCall>> {
+    let calls = super::super::structural_operands::value_calls(
+        program,
+        facts,
+        scalar_callees,
+        shapes,
+        machine,
+        state,
+        structural_parameters,
+        trivial_affine_locals,
+        entry_claims,
+        results,
+        operations,
+        structural_count,
+        root,
+        trace,
+        windows,
+    )?;
+    if facts
+        .flow
+        .ownership
+        .owned_selection_at(state.symbol, statement_ordinal)
+        .is_some()
+    {
+        retain_selected_sources(program, facts, state, statement_ordinal, operations)?;
+    } else {
+        consume_value_places(facts, root, results, operations)?;
+    }
+    consume_value_call_sources(facts, results, operations, &calls)?;
+    Some(calls)
+}
+
 pub(in crate::execution::terminal_unit) fn consume_value_places(
     facts: &CheckFacts,
     root: checked_trees::CheckedStructuralValueHandle,
@@ -1729,6 +1798,9 @@ pub(in crate::execution::terminal_unit) fn consume_value_places(
                     *source,
                     projected || !path.is_empty() || *copies_selected_value,
                 ));
+            }
+            checked_trees::CheckedStructuralValueKind::ViewSubslice { source, .. } => {
+                pending.push((*source, true));
             }
             checked_trees::CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
                 pending.push((*source, projected));

@@ -435,6 +435,15 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                 // that scope restores the enclosing bindings. Callable
                 // discovery follows both roots, independently of this schedule.
             }
+            checked_trees::CheckedStructuralValueKind::ViewSubslice { source, .. } => {
+                let child = plans.nodes.get(*source);
+                shapes.add_stored_type(
+                    child.type_reference,
+                    &machine_binders(program, machine),
+                    &[],
+                )?;
+                pending.push(*source);
+            }
             checked_trees::CheckedStructuralValueKind::Projection { source, .. }
             | checked_trees::CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
                 pending.push(*source);
@@ -831,7 +840,7 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
                 // structural value; establish it as a state-local operand
                 // before the consuming call, mirroring the local-binding
                 // lane without a source local.
-                let calls = value_calls(
+                let calls = super::statement_sequence::prepare_value_operands(
                     program,
                     facts,
                     scalar_callees,
@@ -841,24 +850,13 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
                     structural_parameters,
                     trivial_affine_locals,
                     entry_claims,
+                    statement_index,
                     structural_results,
-                    &*operations,
-                    &mut *structural_count,
+                    operations,
+                    structural_count,
                     root.root,
                     trace,
                     windows,
-                )?;
-                super::statement_sequence::consume_value_places(
-                    facts,
-                    root.root,
-                    structural_results,
-                    &mut *operations,
-                )?;
-                super::statement_sequence::consume_value_call_sources(
-                    facts,
-                    structural_results,
-                    &mut *operations,
-                    &calls,
                 )?;
                 let multiplicity = validation::reference_result_custody::result_multiplicity(
                     program,

@@ -108,32 +108,10 @@ pub(super) fn builtin_anonymous_comparison_term(
 /// would loop; the resolution cap would still bound it, but skipping keeps
 /// resolution productive).
 pub(super) fn term_contains(haystack: &StructuralTerm, needle: &StructuralTerm) -> bool {
-    if haystack == needle {
-        return true;
-    }
-    match haystack.semantic_value() {
-        StructuralTerm::CollectionMeasure {
-            collection: subject,
-            ..
-        }
-        | StructuralTerm::Projection { subject, .. }
-        | StructuralTerm::IntegerEmbedding { value: subject, .. } => term_contains(subject, needle),
-        StructuralTerm::IndexedValue {
-            collection, index, ..
-        } => term_contains(collection, needle) || term_contains(index, needle),
-        StructuralTerm::ScalarBinary { left, right, .. }
-        | StructuralTerm::MathematicalBinary { left, right, .. } => {
-            term_contains(left, needle) || term_contains(right, needle)
-        }
-        StructuralTerm::Constructor { fields, .. } => {
-            fields.iter().any(|(_, value)| term_contains(value, needle))
-        }
-        StructuralTerm::Application { arguments, .. }
-        | StructuralTerm::CallProjection { arguments, .. } => arguments
-            .iter()
-            .any(|argument| term_contains(argument, needle)),
-        _ => false,
-    }
+    haystack == needle
+        || haystack
+            .semantic_value()
+            .any_child(|child| term_contains(child, needle))
 }
 
 /// Normalize eligible selected applications to complete closed values through

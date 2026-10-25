@@ -21,9 +21,8 @@ use selected_instructions_to_selected_instructions::{
     LivenessError, RuntimeRematerializationError, RuntimeSpillError, RuntimeSplitError,
     SelectedProgramRef, StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
     StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
-    ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedFixedOccurrences,
-    ValidatedLiveRanges, ValidatedLiveness, ValidatedRuntimeRematerialization,
-    ValidatedRuntimeSpill, ValidatedRuntimeSplit,
+    ValidatedAllocationLegality, ValidatedFixedOccurrences, ValidatedLiveRanges, ValidatedLiveness,
+    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill, ValidatedRuntimeSplit,
 };
 
 /// A completed recovery: its source custody, the final step and the final
@@ -64,28 +63,9 @@ impl RuntimeSpillAllocation {
 /// the same way: a selected-lowering or pre-allocation run whose final facts
 /// still report pressure keeps its committed ledger and suite completion
 /// identity as the recorded prefix.
-macro_rules! spill_source_accessors {
-    ($( $name:ident : $accessor:ident -> $ret:ty ; )+) => {
-        $(
-            /// Facts forwarded through each source variant to the same
-            /// accessor on the underlying stage.
-            pub(crate) fn $name(&self) -> $ret {
-                match self {
-                    Self::Legality(source) => source.$accessor(),
-                    Self::DeclinedFixedView { legality, .. } => legality.$accessor(),
-                    Self::FixedViewCopies(reanalysis) => reanalysis.$accessor(),
-                    Self::ActiveResidentRematerialization(pressure) => pressure.$accessor(),
-                    Self::SelectedLowering(run) => match run.steps().last() {
-                        Some(step) => step.$accessor(),
-                        None => run.source_legality_stage().$accessor(),
-                    },
-                    Self::PreAllocation(run) => run.$accessor(),
-                }
-            }
-        )+
-    };
-}
-
+///
+/// Every variant is one answer to the same question — which custody arrived —
+/// and [`RuntimeSpillSource::resolve`] is the one place that reads it.
 #[derive(Debug)]
 pub(crate) enum RuntimeSpillSource {
     Legality(StagedOptimizedAllocationLegality),
@@ -110,13 +90,23 @@ pub(crate) struct RuntimeSpillManifestBase {
     pub(crate) prefix: Vec<PostAllocationSelectedTransformation>,
 }
 
-impl RuntimeSpillSource {
-    spill_source_accessors! {
-        liveness : liveness -> &ValidatedLiveness;
-        ranges : ranges -> &ValidatedLiveRanges;
-        legality : legality -> &ValidatedAllocationLegality;
-    }
+/// The prefix's current facts, resolved once from the staged custody recovery
+/// was handed: the shared legality stage every source reaches, the program and
+/// the validated analyses the first step reuses, and the manifest prefix the
+/// produced manifest records ahead of every spill step. One resolution per
+/// recovery, so no consumer re-derives which source variant arrived.
+pub(crate) struct ResolvedSpillSource<'source> {
+    pub(crate) legality_stage: &'source StagedOptimizedAllocationLegality,
+    /// The program the first recovery step consumes.
+    pub(crate) base: SelectedProgramRef<'source>,
+    /// The validated liveness, ranges, and legality over `base`.
+    pub(crate) liveness: &'source ValidatedLiveness,
+    pub(crate) ranges: &'source ValidatedLiveRanges,
+    pub(crate) legality: &'source ValidatedAllocationLegality,
+    pub(crate) manifest: RuntimeSpillManifestBase,
+}
 
+impl RuntimeSpillSource {
     /// Every arm shares one underlying legality stage: the fixed-view entries
     /// reach it through the copy transformation's source custody or carry it
     /// directly when the sequence was declined before committing, the
@@ -170,26 +160,6 @@ impl RuntimeSpillSource {
             .optimized_target_owner()
     }
 
-    pub(crate) fn allocator_availability(&self) -> &ValidatedAllocatorAvailability {
-        self.legality_stage().allocator_availability()
-    }
-
-    /// The fixed-view policy this recovery's recorded prefix ran under. The
-    /// post-copy arm reads it from the reanalysis custody; the declined arm
-    /// carries the policy whose probe declined.
-    /// `None` on the direct legality, active-resident, and completed-suite
-    /// paths.
-    pub(crate) fn fixed_view_copy_policy(&self) -> Option<FixedViewCopyPolicy> {
-        match self {
-            Self::Legality(_)
-            | Self::ActiveResidentRematerialization(_)
-            | Self::SelectedLowering(_)
-            | Self::PreAllocation(_) => None,
-            Self::DeclinedFixedView { policy, .. } => Some(*policy),
-            Self::FixedViewCopies(reanalysis) => Some(reanalysis.custody().source().policy()),
-        }
-    }
-
     /// The declared allocation-recovery selection this recovery's recorded
     /// prefix ran under: a shared-entry prefix binds the shared-entry
     /// selection and an active-resident sweep binds the rematerialization
@@ -200,110 +170,151 @@ impl RuntimeSpillSource {
             Self::ActiveResidentRematerialization(_) => {
                 Some(optimization_core::Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1)
             }
-            _ => match self.fixed_view_copy_policy() {
-                Some(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1) => {
-                    Some(optimization_core::Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1)
-                }
-                _ => None,
-            },
-        }
-    }
-
-    /// The program the first recovery step consumes: the selected program on
-    /// the direct and pre-copy declined paths, the fixed-view
-    /// transformation's copy output, the active-resident
-    /// rematerialization's transformed program, or the completed run's
-    /// current program — its last committed step's output, or the unchanged
-    /// admitted program when the terminal pass already proved the fixed
-    /// point.
-    pub(crate) fn base(&self) -> SelectedProgramRef<'_> {
-        match self {
-            Self::Legality(source) => SelectedProgramRef::new(source.selected()),
-            Self::DeclinedFixedView { legality, .. } => {
-                SelectedProgramRef::new(legality.selected())
-            }
+            Self::DeclinedFixedView { policy, .. } => declared_shared_entry_selection(*policy),
             Self::FixedViewCopies(reanalysis) => {
-                SelectedProgramRef::new(reanalysis.transformation_stage().copies())
+                declared_shared_entry_selection(reanalysis.custody().source().policy())
             }
-            Self::ActiveResidentRematerialization(pressure) => {
-                SelectedProgramRef::new(pressure.rematerialization())
-            }
-            Self::SelectedLowering(run) => match run.steps().last() {
-                Some(step) => SelectedProgramRef::new(step.fold()),
-                None => SelectedProgramRef::new(run.source_legality_stage().selected()),
-            },
-            Self::PreAllocation(run) => run.current(),
+            Self::Legality(_) | Self::SelectedLowering(_) | Self::PreAllocation(_) => None,
         }
     }
 
-    /// Project the declared prefix from the source's custody: completed suites
-    /// contribute their receipts' ledgers and completion identities, and a
-    /// declined probe its recorded policy.
-    fn declared_manifest(&self) -> RuntimeSpillManifestBase {
+    /// Resolve the prefix's facts once, in one pass over the source family:
+    /// the underlying legality stage, the program the first recovery step
+    /// consumes with its validated analyses, and the declared manifest base.
+    /// The direct and pre-copy declined paths carry the admitted legality
+    /// itself; a post-copy reanalysis carries the copy transformation's
+    /// source custody and its own reanalyzed facts; the active-resident
+    /// prefix carries the sweep's rebuilt program and facts; a completed
+    /// suite carries its last committed step's program and facts, or the
+    /// unchanged admitted program when the terminal pass already proved the
+    /// fixed point.
+    pub(crate) fn resolve(&self) -> ResolvedSpillSource<'_> {
         match self {
-            Self::Legality(source)
-            | Self::DeclinedFixedView {
-                legality: source, ..
-            } => RuntimeSpillManifestBase {
-                pre_physical: source.custody().manifest(),
-                selected_lowering_completion: None,
-                pre_allocation_completion: None,
-                prefix: Vec::new(),
-            },
+            Self::Legality(legality) | Self::DeclinedFixedView { legality, .. } => {
+                ResolvedSpillSource {
+                    legality_stage: legality,
+                    base: SelectedProgramRef::new(legality.selected()),
+                    liveness: legality.liveness(),
+                    ranges: legality.ranges(),
+                    legality: legality.legality(),
+                    manifest: RuntimeSpillManifestBase {
+                        pre_physical: legality.custody().manifest(),
+                        selected_lowering_completion: None,
+                        pre_allocation_completion: None,
+                        prefix: Vec::new(),
+                    },
+                }
+            }
             Self::FixedViewCopies(reanalysis) => {
                 let upstream = reanalysis.custody();
-                RuntimeSpillManifestBase {
-                    pre_physical: upstream.source().manifest(),
-                    selected_lowering_completion: None,
-                    pre_allocation_completion: None,
-                    prefix: vec![PostAllocationSelectedTransformation::FixedViewCopy(
-                        upstream.source().transformation(),
-                    )],
+                ResolvedSpillSource {
+                    legality_stage: reanalysis.transformation_stage().source_legality_stage(),
+                    base: SelectedProgramRef::new(reanalysis.transformation_stage().copies()),
+                    liveness: reanalysis.liveness(),
+                    ranges: reanalysis.ranges(),
+                    legality: reanalysis.legality(),
+                    manifest: RuntimeSpillManifestBase {
+                        pre_physical: upstream.source().manifest(),
+                        selected_lowering_completion: None,
+                        pre_allocation_completion: None,
+                        prefix: vec![PostAllocationSelectedTransformation::FixedViewCopy(
+                            upstream.source().transformation(),
+                        )],
+                    },
                 }
             }
             Self::ActiveResidentRematerialization(pressure) => {
                 let upstream = pressure.custody();
-                RuntimeSpillManifestBase {
-                    pre_physical: upstream.source().manifest(),
-                    selected_lowering_completion: None,
-                    pre_allocation_completion: None,
-                    prefix: vec![
-                        PostAllocationSelectedTransformation::PressureRematerialization(
-                            upstream.rematerialization(),
-                        ),
-                    ],
+                ResolvedSpillSource {
+                    legality_stage: pressure.source(),
+                    base: SelectedProgramRef::new(pressure.rematerialization()),
+                    liveness: pressure.liveness(),
+                    ranges: pressure.ranges(),
+                    legality: pressure.legality(),
+                    manifest: RuntimeSpillManifestBase {
+                        pre_physical: upstream.source().manifest(),
+                        selected_lowering_completion: None,
+                        pre_allocation_completion: None,
+                        prefix: vec![
+                            PostAllocationSelectedTransformation::PressureRematerialization(
+                                upstream.rematerialization(),
+                            ),
+                        ],
+                    },
                 }
             }
             Self::SelectedLowering(run) => {
                 let upstream = run.custody();
-                RuntimeSpillManifestBase {
-                    pre_physical: upstream.source().manifest(),
-                    selected_lowering_completion: Some(upstream.identity()),
-                    pre_allocation_completion: None,
-                    prefix: upstream
-                        .iterations()
-                        .iter()
-                        .map(|iteration| {
-                            PostAllocationSelectedTransformation::LiteralFold(iteration.fold())
-                        })
-                        .collect(),
+                let (base, liveness, ranges, legality) = match run.steps().last() {
+                    Some(step) => (
+                        SelectedProgramRef::new(step.fold()),
+                        step.liveness(),
+                        step.ranges(),
+                        step.legality(),
+                    ),
+                    None => {
+                        let source = run.source_legality_stage();
+                        (
+                            SelectedProgramRef::new(source.selected()),
+                            source.liveness(),
+                            source.ranges(),
+                            source.legality(),
+                        )
+                    }
+                };
+                ResolvedSpillSource {
+                    legality_stage: run.source_legality_stage(),
+                    base,
+                    liveness,
+                    ranges,
+                    legality,
+                    manifest: RuntimeSpillManifestBase {
+                        pre_physical: upstream.source().manifest(),
+                        selected_lowering_completion: Some(upstream.identity()),
+                        pre_allocation_completion: None,
+                        prefix: upstream
+                            .iterations()
+                            .iter()
+                            .map(|iteration| {
+                                PostAllocationSelectedTransformation::LiteralFold(iteration.fold())
+                            })
+                            .collect(),
+                    },
                 }
             }
             Self::PreAllocation(run) => {
                 let upstream = run.custody();
-                RuntimeSpillManifestBase {
-                    pre_physical: upstream.source().manifest(),
-                    selected_lowering_completion: None,
-                    pre_allocation_completion: Some(upstream.identity()),
-                    prefix: upstream
-                        .iterations()
-                        .iter()
-                        .map(|iteration| iteration.transformation().into())
-                        .collect(),
+                ResolvedSpillSource {
+                    legality_stage: run.source_legality_stage(),
+                    base: run.current(),
+                    liveness: run.liveness(),
+                    ranges: run.ranges(),
+                    legality: run.legality(),
+                    manifest: RuntimeSpillManifestBase {
+                        pre_physical: upstream.source().manifest(),
+                        selected_lowering_completion: None,
+                        pre_allocation_completion: Some(upstream.identity()),
+                        prefix: upstream
+                            .iterations()
+                            .iter()
+                            .map(|iteration| iteration.transformation().into())
+                            .collect(),
+                    },
                 }
             }
         }
     }
+}
+
+/// The declared shared-entry selection a copy policy binds; the leaf-local,
+/// immediate-site, and shared-source-exit policies are default-path recovery
+/// and bind none.
+fn declared_shared_entry_selection(
+    policy: FixedViewCopyPolicy,
+) -> Option<optimization_core::Optimization> {
+    (policy == FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1).then_some(
+        optimization_core::Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+    )
 }
 
 #[derive(Debug)]

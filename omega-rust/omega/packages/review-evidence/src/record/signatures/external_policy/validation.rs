@@ -1,5 +1,5 @@
 use crate::record::package::callable_policy::validation::signature::{
-    Result, nominal, operator, owned_pair, text, value_type,
+    Result, operator, owned_pair, text, value_type,
 };
 use crate::record::public_policy::validation::{
     scope,
@@ -14,7 +14,7 @@ use crate::record::{
 impl PackagePolicyExternalExecutableSupply {
     pub(crate) fn validate_canonical_structure(&self) -> Result {
         self.target_context.validate_canonical_structure()?;
-        nominal(&self.callable)?;
+        self.callable.validate_resolved()?;
         signature(&self.signature)?;
         match &self.requirement {
             PackagePolicyExternalRequirement::Trait(value) => {
@@ -56,7 +56,7 @@ impl PackagePolicyExternalExecutableSupply {
                 signature: value,
                 ..
             } => {
-                nominal(identity)?;
+                identity.validate_resolved()?;
                 signature(value)?;
             }
         }
@@ -66,7 +66,7 @@ impl PackagePolicyExternalExecutableSupply {
         if let PackagePolicyExternalBinding::NormalizedImport { producer, .. }
         | PackagePolicyExternalBinding::NormalizedSyscall { producer, .. } = &self.binding
         {
-            nominal(producer.declaration())?;
+            producer.declaration().validate_resolved()?;
             text(producer.callable_identity())?;
             if let Some(package) = producer.package()
                 && producer.declaration().owner() != PackageReviewNominalOwner::Package(package)

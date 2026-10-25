@@ -13,6 +13,7 @@ use checked_trees::name::Identifier;
 use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
 };
+use std::hash::{Hash, Hasher};
 use symbols::SymbolHandle;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -109,6 +110,13 @@ impl CarriedPredicate {
 }
 
 impl QualifiedInput {
+    fn place_fingerprint(&self) -> u64 {
+        let mut fingerprint = std::hash::DefaultHasher::new();
+        self.subject.hash(&mut fingerprint);
+        self.segments.hash(&mut fingerprint);
+        fingerprint.finish()
+    }
+
     fn same_subject(&self, other: &Self) -> bool {
         self.subject == other.subject
             && self.segments == other.segments
@@ -120,6 +128,41 @@ impl QualifiedInput {
             && self.predicate.implies(other.predicate)
             && other.predicate.implies(self.predicate)
     }
+}
+
+/// Scratch positions group a batch by its exact storage subject without
+/// reordering published evidence. Fingerprints only narrow comparisons: the
+/// ordinary subject/evidence checks still decide every match, including collisions.
+fn subject_positions(inputs: &[QualifiedInput]) -> Vec<(u64, usize)> {
+    let mut positions: Vec<_> = inputs
+        .iter()
+        .enumerate()
+        .map(|(position, input)| (input.place_fingerprint(), position))
+        .collect();
+    positions.sort_unstable();
+    positions
+}
+
+fn matching_positions(positions: &[(u64, usize)], fingerprint: u64) -> &[(u64, usize)] {
+    let start = positions.partition_point(|(candidate, _)| *candidate < fingerprint);
+    let end = positions.partition_point(|(candidate, _)| *candidate <= fingerprint);
+    &positions[start..end]
+}
+
+fn deduplicate(inputs: &mut Vec<QualifiedInput>) {
+    let positions = subject_positions(inputs);
+    let retained: Vec<_> = inputs
+        .iter()
+        .enumerate()
+        .map(|(position, input)| {
+            !matching_positions(&positions, input.place_fingerprint())
+                .iter()
+                .take_while(|(_, previous)| *previous < position)
+                .any(|(_, previous)| inputs[*previous].same_claim(input))
+        })
+        .collect();
+    let mut retained = retained.into_iter();
+    inputs.retain(|_| retained.next().unwrap_or(false));
 }
 
 pub(in crate::flow) struct CapturedQualification {
@@ -140,9 +183,14 @@ impl CapturedQualification {
 pub(super) fn meet(previous: &mut Vec<QualifiedInput>, incoming: &[QualifiedInput]) -> bool {
     let before = previous.len();
     let mut changed = false;
+    let positions = subject_positions(incoming);
     previous.retain_mut(|claim| {
         let mut common: Option<CarriedPredicate> = None;
-        for next in incoming.iter().filter(|next| claim.same_subject(next)) {
+        for next in matching_positions(&positions, claim.place_fingerprint())
+            .iter()
+            .map(|(_, position)| &incoming[*position])
+            .filter(|next| claim.same_subject(next))
+        {
             let Some(candidate) = claim.predicate.common_consequence(next.predicate) else {
                 continue;
             };
@@ -180,7 +228,7 @@ pub(super) fn height(
     })
 }
 
-/// A field chain may pass through owned records, but never another reference.
+/// A projection may pass through owned aggregates, but never another reference.
 /// The final qualified value must itself be isolated from referenced storage.
 fn owned_projection(
     program: &dyn ::validation::CheckingInput,
@@ -194,50 +242,21 @@ fn owned_projection(
     reference = program
         .type_reference_table
         .dereferenced_type_reference(reference);
-    for segment in segments {
-        let facts::PlaceSegment::Field { symbol } = segment else {
+    let root_type = reference;
+    for length in 0..segments.len() {
+        let Some(projected) = validation::project_type_reference_from_segments(
+            program,
+            root_type,
+            &segments[..length],
+        ) else {
             return false;
         };
-        let TypeReferenceNode::Named { symbol: owner, .. } =
-            program.type_reference_table.type_reference(
-                program
-                    .type_reference_table
-                    .unconstrained_type_reference(reference),
-            )
-        else {
-            return false;
-        };
-        // An implicit receiver's referee names its machine, whereas ordinary
-        // record arguments name the data declaration. Resolve that semantic
-        // attachment before checking the field's owner; spelling is irrelevant.
-        let owner = program
-            .machine(*owner)
-            .map_or(*owner, |machine| machine.attached_data_symbol);
-        let Some(data) = program
-            .data_definitions()
-            .iter()
-            .find(|data| owner.is_valid() && data.symbol == owner)
-        else {
-            return false;
-        };
-        if !symbol.is_valid() || program.symbols.get(*symbol).parent != owner {
+        if validation::reference_shell(program, projected).is_some() {
             return false;
         }
-        let Some(field) = program
-            .data_members(data)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == *symbol => {
-                    Some(field)
-                }
-                _ => None,
-            })
-        else {
-            return false;
-        };
-        reference = field.type_reference;
     }
-    frames.proof_value_is_caller_isolated(reference)
+    validation::project_type_reference_from_segments(program, root_type, segments)
+        .is_some_and(|projected| frames.proof_value_is_caller_isolated(projected))
 }
 
 /// Capture live predicates whose place is the argument's own denoted
@@ -386,16 +405,16 @@ pub(in crate::flow) fn finish(
         .span_or_empty(contexts);
     let mut inputs: Vec<QualifiedInput> = Vec::new();
     for captured in captured {
-        if (captured.isolated
+        if captured.isolated
             || (bindings_stable
                 && live
                     .iter()
-                    .any(|context| context.context == captured.context)))
-            && !inputs.iter().any(|input| input.same_claim(&captured.input))
+                    .any(|context| context.context == captured.context))
         {
             inputs.push(captured.input);
         }
     }
+    deduplicate(&mut inputs);
     inputs
 }
 
@@ -504,14 +523,10 @@ pub(super) fn capture_invocation_referents(
                 predicate,
                 evidence: fact.evidence,
             };
-            if !inputs
-                .iter()
-                .any(|previous: &QualifiedInput| previous.same_claim(&input))
-            {
-                inputs.push(input);
-            }
+            inputs.push(input);
         }
     }
+    deduplicate(&mut inputs);
     inputs
 }
 
@@ -534,5 +549,46 @@ pub(super) fn append(semantic: &mut FactPlan, inputs: &[QualifiedInput], point: 
         let mut references = HandleSpan::empty();
         semantic.append_ref(&mut references, fact);
         semantic.append_context(point, references);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn claim(element: usize) -> QualifiedInput {
+        QualifiedInput {
+            subject: facts::PlaceRoot::Symbol(SymbolHandle::invalid()),
+            segments: vec![facts::PlaceSegment::FixedIndex { index: element }],
+            predicate: CarriedPredicate::Domain {
+                domain: HandleSpan::empty(),
+                domain_symbol: SymbolHandle::invalid(),
+                semantic_domain: language_semantics::SemanticDomainId::NULL,
+            },
+            evidence: QualificationEvidence::default(),
+        }
+    }
+
+    #[test]
+    fn subject_batches_preserve_order_and_evidence() {
+        let originals: Vec<_> = (0..128).rev().map(claim).collect();
+        let mut inputs = originals.clone();
+        inputs.extend(originals.iter().rev().cloned());
+        let mut distinct_evidence = claim(64);
+        distinct_evidence.evidence.origin =
+            language_semantics::QualificationEvidenceOrigin::Propagated;
+        inputs.push(distinct_evidence.clone());
+        deduplicate(&mut inputs);
+        let mut expected = originals.clone();
+        expected.push(distinct_evidence);
+        assert_eq!(inputs, expected);
+        assert!(meet(&mut inputs, &originals));
+        assert_eq!(inputs, originals);
+        assert!(!meet(&mut inputs, &originals));
+        let incoming: Vec<_> = originals.iter().step_by(2).cloned().collect();
+        assert!(meet(&mut inputs, &incoming));
+        assert_eq!(inputs, incoming);
+        assert!(meet(&mut inputs, &[]));
+        assert!(inputs.is_empty());
     }
 }

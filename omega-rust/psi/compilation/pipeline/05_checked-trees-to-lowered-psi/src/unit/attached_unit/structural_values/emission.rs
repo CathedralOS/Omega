@@ -36,6 +36,7 @@ mod parameters;
 mod quotient_calls;
 mod reference;
 mod residual_complement;
+mod subslices;
 
 /// Checked value production is independent of a source local's publication.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1852,6 +1853,21 @@ impl Emission<'_, '_, '_> {
             // argument resolves against the current locals and signature
             // parameters exactly as a `&T` leaf does, and the fresh view result
             // joins the selection's block parameter under the view's loan.
+            CheckedStructuralValueKind::ViewSubslice {
+                source,
+                start,
+                end,
+                end_inclusive,
+                site,
+            } => self.subslice_value(
+                identities,
+                source,
+                &start,
+                &end,
+                end_inclusive,
+                site,
+                continuation,
+            ),
             CheckedStructuralValueKind::BorrowedSliceView { source, region } => self
                 .joined_element_view(
                     identities,

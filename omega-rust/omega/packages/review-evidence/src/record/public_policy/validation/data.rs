@@ -3,7 +3,6 @@ use crate::record::PackagePolicyDataShape;
 use crate::record::PackageReviewDataField;
 use crate::record::PackageReviewDataKind;
 use crate::record::PackageReviewDataMember;
-use crate::record::package::callable_policy::validation::signature::nominal;
 use crate::record::package::callable_policy::validation::signature::text;
 use crate::record::package::callable_policy::validation::signature::value_type;
 use crate::record::validation::contracts;
@@ -18,7 +17,7 @@ pub(super) fn validate(value: &PackagePolicyDataShape) -> Result {
     signatures::parameters(&scope, 0)?;
     if let PackageReviewDataKind::Quotient { carrier, relation } = &value.kind {
         value_type(carrier)?;
-        nominal(relation)?;
+        relation.validate_resolved()?;
     }
     ordered(&value.invariants)?;
     for fact in &value.invariants {

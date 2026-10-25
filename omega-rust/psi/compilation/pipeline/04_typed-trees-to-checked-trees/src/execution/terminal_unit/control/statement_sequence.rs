@@ -55,8 +55,8 @@ mod statement_call;
 mod storage_initializer;
 pub(in crate::execution::terminal_unit) use result_consumption::{
     append_exit_reference_releases, append_reference_releases, captured_reference_result,
-    consume_result, consume_results, consume_retained_results, consume_value_call_sources,
-    consume_value_places, release_matches, retain_selected_sources,
+    consume_result, consume_results, consume_retained_results, prepare_value_operands,
+    release_matches,
 };
 
 pub(in crate::execution::terminal_unit) struct StatementSequence {

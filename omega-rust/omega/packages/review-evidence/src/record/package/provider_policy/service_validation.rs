@@ -1,9 +1,6 @@
 //! Shared complete service-schema validation for inert policy components.
 
-use super::{
-    PackagePolicyServiceMethod,
-    validation::{nominal, same_target},
-};
+use super::PackagePolicyServiceMethod;
 use crate::record::PackageReviewNominalIdentity;
 use target::TargetProfile;
 
@@ -15,8 +12,8 @@ impl PackagePolicyServiceMethod {
     ) -> Result<(), &'static str> {
         self.validate_signature()?;
         self.validate_authority()?;
-        nominal(&self.requirement_owner)?;
-        nominal(&self.requirement)?;
+        self.requirement_owner.validate_resolved()?;
+        self.requirement.validate_resolved()?;
         if self.requirement.owner != self.requirement_owner.owner
             || self.name.is_empty()
             || self.parameter_count != self.parameter_type_identities.len()
@@ -37,7 +34,7 @@ impl PackagePolicyServiceMethod {
         }
         if let Some(calling) = &self.calling {
             calling.validate_canonical_structure()?;
-            if !same_target(calling.target.profile, target)
+            if calling.target.profile.backend_profile() != target
                 || calling.boundary_trait != *schema
                 || calling.requirement != self.requirement
                 || calling.requirement_trait != self.requirement_owner
@@ -69,7 +66,7 @@ pub(crate) fn validate_service_methods(
     schema: &PackageReviewNominalIdentity,
     target: TargetProfile,
 ) -> Result<(), &'static str> {
-    nominal(schema)?;
+    schema.validate_resolved()?;
     if methods.is_empty() {
         return Err("service schema has no declared methods");
     }

@@ -387,21 +387,16 @@ pub(in crate::legalization) fn call_descriptor_origins(
     ) {
         return Ok(Vec::new());
     }
-    let inventory = terminal_semantics::descriptor_results::descriptor_slot_inventory(
-        &unit.structural_types,
-        result.place,
-        result.structural_type,
-    )
-    .ok_or(LegalizationError::custody())?;
-    // Stored references have their own target-producer origin rows. No known
-    // byte/element descriptors means there is nothing to add to that roster;
-    // it does not assert that opaque referents are view-free. When descriptors
-    // are present, their complete result summary must remain available.
-    if inventory.slots.is_empty() {
+    let slots = terminal_semantics::descriptor_results::DescriptorSlotKind::Views
+        .owned_slots(&unit.structural_types, result.place, result.structural_type)
+        .ok_or_else(LegalizationError::custody)?;
+    // Only descriptors owned by this returned value belong to its view result
+    // summary. Reference carriers have separately validated target origin rows;
+    // their pointees are observed through those references, never returned as
+    // additional owned descriptor fields. This makes no view-free claim about
+    // opaque referents and preserves every actual owned view in mixed records.
+    if slots.is_empty() {
         return Ok(Vec::new());
-    }
-    if !inventory.opaque_referents.is_empty() {
-        return Err(LegalizationError::custody());
     }
     // Source and installed calls share one origin replay over current bodies.
     // Authenticate selection with the existing call-origin join before exposing

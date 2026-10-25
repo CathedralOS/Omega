@@ -186,6 +186,10 @@ fn collect_domains(
                         .map(|element_value| (*element_value, element)),
                 );
             }
+            CheckedStructuralValueKind::ViewSubslice { source, .. } => {
+                let child = plans.nodes.get(*source);
+                pending.push((*source, child.type_reference));
+            }
             CheckedStructuralValueKind::Projection { source, .. } => {
                 if !plans.nodes.is_valid(*source) {
                     return unsupported("structural domain catalog has stale projection source");

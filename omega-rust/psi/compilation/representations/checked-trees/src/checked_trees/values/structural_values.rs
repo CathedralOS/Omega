@@ -163,6 +163,16 @@ pub enum CheckedStructuralValueKind {
     ByteLiteralView {
         bytes: Vec<u8>,
     },
+    /// Narrow the descriptor produced by an evaluated collection value. The
+    /// child and then the authored endpoints execute once, in that order;
+    /// backing storage remains borrowed rather than lending descriptor storage.
+    ViewSubslice {
+        source: CheckedStructuralValueHandle,
+        start: Option<crate::CheckedCallScalarArgument>,
+        end: Option<crate::CheckedCallScalarArgument>,
+        end_inclusive: bool,
+        site: crate::CheckedSubsliceSite,
+    },
     /// A borrowed `&[T]` view of the contiguous elements an owned collection
     /// place holds. `source` is that lent place under its shared loan, taken
     /// from checked borrow admission rather than from the authored view
@@ -328,6 +338,7 @@ impl CheckedStructuralValuePlans {
                     pending.extend(self.dispatch_arms.span(*arms)?.iter().map(|arm| arm.value));
                 }
                 CheckedStructuralValueKind::Projection { source, .. }
+                | CheckedStructuralValueKind::ViewSubslice { source, .. }
                 | CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
                     pending.push(*source)
                 }

@@ -1062,43 +1062,9 @@ fn collect_applications<'term>(
     applications: &mut Vec<&'term StructuralTerm>,
 ) {
     let term = term.semantic_value();
-    match term {
-        StructuralTerm::Application { arguments, .. } => {
-            for argument in arguments {
-                collect_applications(argument, applications);
-            }
-            applications.push(term);
-        }
-        StructuralTerm::CollectionMeasure {
-            collection: subject,
-            ..
-        }
-        | StructuralTerm::Projection { subject, .. }
-        | StructuralTerm::IntegerEmbedding { value: subject, .. } => {
-            collect_applications(subject, applications)
-        }
-        StructuralTerm::IndexedValue {
-            collection, index, ..
-        } => {
-            collect_applications(collection, applications);
-            collect_applications(index, applications);
-        }
-        StructuralTerm::ScalarBinary { left, right, .. }
-        | StructuralTerm::MathematicalBinary { left, right, .. } => {
-            collect_applications(left, applications);
-            collect_applications(right, applications);
-        }
-        StructuralTerm::Constructor { fields, .. } => {
-            for (_, field) in fields {
-                collect_applications(field, applications);
-            }
-        }
-        StructuralTerm::CallProjection { arguments, .. } => {
-            for argument in arguments {
-                collect_applications(argument, applications);
-            }
-        }
-        _ => {}
+    term.for_each_child(|child| collect_applications(child, applications));
+    if matches!(term, StructuralTerm::Application { .. }) {
+        applications.push(term);
     }
 }
 

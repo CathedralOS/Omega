@@ -68,10 +68,29 @@ pub(crate) fn collect_value_roots(
                 collect_value_roots(checked, *source_value, roots)?;
             }
         }
+        checked_trees::CheckedStructuralValueKind::ByteLiteralView { .. } => {
+            roots.push(validation::structural_type_identity(
+                &checked.typed,
+                node.type_reference,
+                &[],
+                &[],
+            ));
+        }
+        checked_trees::CheckedStructuralValueKind::ViewSubslice { source, .. } => {
+            let child = checked.facts.values.structural_values.nodes.get(*source);
+            roots.push(validation::stored_structural_type_identity(
+                &checked.typed,
+                child.type_reference,
+                &[],
+                &[],
+            ));
+            collect_value_roots(checked, *source, roots)?;
+        }
         checked_trees::CheckedStructuralValueKind::Place(source)
         | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source, .. }
         | checked_trees::CheckedStructuralValueKind::MutableSliceView { source, .. } => {
             roots.push(source.type_identity);
+            roots.extend(source.subslice_root_type_identity());
         }
         checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
             // The producer retains the qualified leaf separately and publishes

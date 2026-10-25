@@ -1,0 +1,12 @@
+// Expected exit: 0
+data View<'storage> [copy] { bytes: &'storage [u8]; }
+data Envelope<'storage> [copy] { case Held(view: View<'storage>); case Empty; }
+machine receive(envelope: Envelope) -> u64 {
+    transition envelope { Envelope::Held { view } -> (view.bytes.len) Envelope::Empty -> 0 }
+}
+machine main() crashes Trap {
+    let result: u64 = receive(Envelope::Held { view: View { bytes: "abcdefg" } });
+    transition result == 7 {true -> done() false -> bad()}
+    state done() {}
+    state bad() { crash Trap; }
+}

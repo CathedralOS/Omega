@@ -9,7 +9,7 @@
 //! This does not strengthen the public result declaration or expose private
 //! implementation qualifications. Receiving declarations supply no new rows. Independent Terminal validation
 //! replays each copy and every edge/store after this producer elaboration.
-//! Late additions to an ordinary move come from its exact current selected
+//! Late additions to an ordinary move or copy come from its exact current selected
 //! source occurrence, not its initial declaration. This does not repair stale
 //! rows already seeded by earlier emission. Ordinary reference formation also
 //! follows the actual completed backing at its operation cut: an exclusive loan
@@ -91,20 +91,32 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                     ) {
                         copies.push((machine_index, block_index, ordinal, contract));
                     }
-                    if let OperationKind::MoveStructuralValue { source } = &operation.kind
+                    // Every value transfer observes its source at this operation,
+                    // including copies emitted directly by control-flow edges.
+                    // Declaration-time metadata alone can miss preceding stores.
+                    let selected_source = match &operation.kind {
+                        OperationKind::MoveStructuralValue { source } => {
+                            Some((source.place, source.path.as_slice()))
+                        }
+                        OperationKind::StructuralLeafCopy { source, path } => {
+                            Some((*source, path.as_slice()))
+                        }
+                        _ => None,
+                    };
+                    if let Some((source, path)) = selected_source
                         && let Some(result) = operation.result.structural()
-                        && let Ok(root) = history.current_payload_contract(position, source.place)
+                        && let Ok(root) = history.current_payload_contract(position, source)
                         && terminal_semantics::qualification_path_carrier(
                             types.iter(),
                             root.carrier,
-                            &source.path,
+                            path,
                         ) == Some(result.structural_type)
                     {
                         let (qualifications, projected_qualifications) =
                             terminal_psi::StructuralPathQualification::select(
                                 &root.qualifications,
                                 &root.projected_qualifications,
-                                &source.path,
+                                path,
                             );
                         copies.push((
                             machine_index,

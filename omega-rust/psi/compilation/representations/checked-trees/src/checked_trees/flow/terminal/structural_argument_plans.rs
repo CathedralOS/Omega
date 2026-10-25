@@ -157,6 +157,8 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     /// operands, evaluated once in start/end order before narrowing the view.
     ByteSequenceSubslice {
         root: CheckedStorageRoot,
+        /// Logical source declaration before its selected collection path.
+        root_type_identity: TypeIdentityId,
         expression: typed_trees::expression::ExpressionHandle,
         start: Option<CheckedCallScalarArgument>,
         end: Option<CheckedCallScalarArgument>,
@@ -184,6 +186,8 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     /// the array, which lowering views whole before narrowing it.
     ElementViewSubslice {
         root: CheckedStorageRoot,
+        /// Logical source declaration before its selected collection path.
+        root_type_identity: TypeIdentityId,
         expression: typed_trees::expression::ExpressionHandle,
         start: Option<CheckedCallScalarArgument>,
         end: Option<CheckedCallScalarArgument>,
@@ -517,6 +521,24 @@ impl CheckedUnitStructuralArgumentPlan {
                 ..
             } => *root_reference_hops,
             _ => 0,
+        }
+    }
+
+    /// A range's source root belongs to collection evaluation. Its completed
+    /// call argument is the derived descriptor, in a different namespace.
+    /// projected_borrowed_path omits inherited root reference crossings, so
+    /// these paths spell zero root hops while retaining every nested crossing.
+    pub fn subslice_root_type_identity(&self) -> Option<TypeIdentityId> {
+        match &self.source {
+            CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+                root_type_identity,
+                ..
+            }
+            | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+                root_type_identity,
+                ..
+            } => Some(*root_type_identity),
+            _ => None,
         }
     }
 

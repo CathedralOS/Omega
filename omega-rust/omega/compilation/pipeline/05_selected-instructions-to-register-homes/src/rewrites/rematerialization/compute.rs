@@ -144,6 +144,8 @@ pub(super) fn complete_active_resident_rematerialization(
     } = pressure;
     let manifest = project_post_allocation_optimization_manifest(
         prefix_custody.source().manifest(),
+        None,
+        None,
         &[
             PostAllocationSelectedTransformation::PressureRematerialization(
                 rematerialization.receipt().identity(),

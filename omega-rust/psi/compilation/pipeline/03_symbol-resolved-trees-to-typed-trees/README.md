@@ -25,9 +25,10 @@ limits, not a different generated-source language.
 - [seeded resolution](../02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs)
   appends the later stratum and rebases only extension-owned selections.
 - [typed continuation](src/lowerer/seeded_continuation.rs)
-  validates append cohorts and preserves the base. The
-  [continuation tests](src/lowerer/tests.rs)
-  include extension-owned nominal static-machine binders.
+  validates append cohorts and preserves the base. Extension-owned nominal
+  static-machine binders are pinned by the corpus fixtures under
+  `tests/omega/pass/build` and `tests/omega/fail/build`, which bind a program
+  entry and run the continuation end to end.
 
 ## Bounded append support
 
@@ -49,8 +50,11 @@ default bodies, declaration-identity binders, plural/nested static-machine
 binders, generated-machine `satisfies`, broader generic/conformance bounds,
 supply forms, and root/data shapes outside the admitted cohorts reject.
 
-Suffix finalization handles satisfied declarations, progress premises, domain
-constraints, semantic qualification casts, and fixed-byte literal landing.
+Both this continuation and the fresh product route close their run through the
+same `close_typed_cohort`: satisfied declarations, progress premises, domain
+constraints, semantic qualification casts, fixed-byte literal landing, range
+argument validation, provider default finalization, target-machine families
+and dynamic call target binding, each over the rows the run produced.
 The matching post-typing evaluator consumes the completed candidate; wire-plan
 publication starts at the extension wire-schema frontier. The structural prefix
 gate returns the owned base unchanged on failure, and orchestration rejects.

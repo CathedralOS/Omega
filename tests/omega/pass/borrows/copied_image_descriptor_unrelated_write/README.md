@@ -1,3 +1,3 @@
-This fixture pins source admission of copied descriptor staging. The unchanged
-baseline accepts its source; native lowering has a separate pre-existing gap.
-It contributes no native execution evidence to the copied-argument fact row.
+This fixture pins a copied record containing an image-backed shared byte view.
+A later argument mutates unrelated scalar storage; the captured view still has
+length 2. Native and Terminal execution must both exit 0.

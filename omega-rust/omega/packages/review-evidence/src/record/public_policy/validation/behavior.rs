@@ -5,7 +5,6 @@ use crate::record::PackagePolicyTermination;
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewProgressSubject;
 use crate::record::PackageReviewSynchronousInvocation;
-use crate::record::package::callable_policy::validation::signature::nominal;
 use crate::record::package::callable_policy::validation::signature::owned_pair;
 use crate::record::validation::expressions;
 use crate::record::validation::ordered;
@@ -21,12 +20,12 @@ pub(super) fn validate(
     crash(crashes, scope, nesting)?;
     ordered(reaches)?;
     for reach in reaches {
-        nominal(reach)?;
+        reach.validate_resolved()?;
     }
     ordered(invocations)?;
     for invocation in invocations {
         match invocation {
-            PackageReviewSynchronousInvocation::Service(service) => nominal(service)?,
+            PackageReviewSynchronousInvocation::Service(service) => service.validate_resolved()?,
             PackageReviewSynchronousInvocation::Parameter(ordinal)
                 if (*ordinal as usize) < scope.parameters => {}
             _ => return Err("public invocation escapes its explicit value telescope"),
@@ -35,12 +34,12 @@ pub(super) fn validate(
     if let PackagePolicyTermination::Terminates { premises } = termination {
         ordered(premises)?;
         for premise in premises {
-            nominal(&premise.profile)?;
+            premise.profile.validate_resolved()?;
             for projection in &premise.projections {
-                nominal(projection)?;
+                projection.validate_resolved()?;
             }
             match &premise.subject {
-                PackageReviewProgressSubject::Declaration(value) => nominal(value)?,
+                PackageReviewProgressSubject::Declaration(value) => value.validate_resolved()?,
                 PackageReviewProgressSubject::Parameter(ordinal)
                     if (*ordinal as usize) < scope.parameters => {}
                 _ => return Err("public progress subject escapes its declaration scope"),

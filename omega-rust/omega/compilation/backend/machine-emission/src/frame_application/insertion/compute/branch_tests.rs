@@ -1,9 +1,6 @@
 use super::tests::{physical, protocol, source_plan};
 use crate::frame_protocol::{FrameProtocolByteSpan, TargetFrameProtocolEncodingPlan};
-use isa_aarch64::{
-    AARCH64_CONDITIONAL_BRANCH_BYTE_REACH, Aarch64SelectedFormEncodingError,
-    ValidatedAarch64SelectedFormEncoding,
-};
+use isa_aarch64::AARCH64_CONDITIONAL_BRANCH_BYTE_REACH;
 use machine_code::{
     FunctionFragmentBlockSpan, FunctionFragmentBranchEvidence,
     FunctionFragmentConditionalBranchEvidence, FunctionFragmentConditionalBranchPredicate,
@@ -168,23 +165,14 @@ fn frame_epilogue_growth_widens_out_of_range_rel8_and_preserves_in_range_rel8() 
     }
 }
 
-type Aarch64BranchEncoder =
-    fn(
-        &ValidatedPhysicalRegisterModel,
-        MachineAlternativeKey,
-        i64,
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError>;
-
 /// One AArch64 conditional branch family: the condition its one-word
-/// `B.cond` tests, the inverse its widened pair's skip word tests, and both
-/// encoders.
+/// `B.cond` tests, the inverse its widened pair's skip word tests, and the
+/// family its encoder requests assert.
 struct Aarch64Conditional {
     predicate: FunctionFragmentConditionalBranchPredicate,
     family: MachineAlternativeFamily,
     condition: u32,
     inverse: u32,
-    one_word: Aarch64BranchEncoder,
-    widened: Aarch64BranchEncoder,
 }
 
 const AARCH64_CONDITIONALS: [Aarch64Conditional; 3] = [
@@ -193,24 +181,18 @@ const AARCH64_CONDITIONALS: [Aarch64Conditional; 3] = [
         family: MachineAlternativeFamily::ConditionalBranchNonZero,
         condition: 0x1,
         inverse: 0x0,
-        one_word: isa_aarch64::encode_aarch64_selected_nonzero_branch_form,
-        widened: isa_aarch64::encode_aarch64_selected_nonzero_widened_branch_form,
     },
     Aarch64Conditional {
         predicate: FunctionFragmentConditionalBranchPredicate::U64LessThanV1,
         family: MachineAlternativeFamily::ConditionalBranchU64LessThan,
         condition: 0x3,
         inverse: 0x2,
-        one_word: isa_aarch64::encode_aarch64_selected_u64_less_than_branch_form,
-        widened: isa_aarch64::encode_aarch64_selected_u64_less_than_widened_branch_form,
     },
     Aarch64Conditional {
         predicate: FunctionFragmentConditionalBranchPredicate::I64LessThanV1,
         family: MachineAlternativeFamily::ConditionalBranchI64LessThan,
         condition: 0xb,
         inverse: 0xa,
-        one_word: isa_aarch64::encode_aarch64_selected_i64_less_than_branch_form,
-        widened: isa_aarch64::encode_aarch64_selected_i64_less_than_widened_branch_form,
     },
 ];
 
@@ -358,18 +340,20 @@ fn aarch64_source(
     let fallthrough_offset = block_offset(&function.blocks, fallthrough);
     let row = &mut function.blocks[branch_block as usize - 1].instructions[0];
     let displacement = taken_offset as i64 - row.offset as i64;
-    let encoder = if branch_width == 4 {
-        conditional.one_word
+    let form = if branch_width == 4 {
+        isa_aarch64::Aarch64ConditionalBranchForm::CanonicalWordV1
     } else {
-        conditional.widened
+        isa_aarch64::Aarch64ConditionalBranchForm::WidenedPairV1
     };
     let alternative = MachineAlternativeKey {
         family: conditional.family,
         variant: 0,
     };
-    let encoded = encoder(
+    let encoded = isa_aarch64::encode_aarch64_selected_conditional_branch_form(
         isa_aarch64::validated_aarch64_physical_register_model(),
         alternative,
+        conditional.family,
+        form,
         displacement,
     )
     .unwrap();

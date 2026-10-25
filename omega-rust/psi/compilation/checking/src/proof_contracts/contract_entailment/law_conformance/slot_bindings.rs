@@ -292,40 +292,9 @@ pub(crate) fn rewrite_slot_applications(
 }
 
 pub(crate) fn term_mentions_variable(term: &StructuralTerm, variable: &String) -> bool {
-    match term.semantic_value() {
-        StructuralTerm::ObservedValue { .. } => unreachable!("semantic_value strips observations"),
-        StructuralTerm::ScalarBinary { left, right, .. }
-        | StructuralTerm::MathematicalBinary { left, right, .. } => {
-            term_mentions_variable(left, variable) || term_mentions_variable(right, variable)
-        }
-        StructuralTerm::CollectionMeasure {
-            collection: subject,
-            ..
-        }
-        | StructuralTerm::Projection { subject, .. }
-        | StructuralTerm::IntegerEmbedding { value: subject, .. } => {
-            term_mentions_variable(subject, variable)
-        }
-        StructuralTerm::IndexedValue {
-            collection, index, ..
-        } => {
-            term_mentions_variable(collection, variable) || term_mentions_variable(index, variable)
-        }
-        StructuralTerm::Variable(name) => name == variable,
-        StructuralTerm::Constructor { fields, .. } => fields
-            .iter()
-            .any(|(_, value)| term_mentions_variable(value, variable)),
-        StructuralTerm::Application { arguments, .. }
-        | StructuralTerm::CallProjection { arguments, .. } => arguments
-            .iter()
-            .any(|argument| term_mentions_variable(argument, variable)),
-        StructuralTerm::Opaque(_)
-        | StructuralTerm::Integer(_)
-        | StructuralTerm::Float(_)
-        | StructuralTerm::BoundValue(_)
-        | StructuralTerm::CapturedValue { .. }
-        | StructuralTerm::BoundProjection { .. } => false,
-    }
+    let term = term.semantic_value();
+    matches!(term, StructuralTerm::Variable(name) if name == variable)
+        || term.any_child(|child| term_mentions_variable(child, variable))
 }
 
 /// First-order matching for the SUGGESTION diagnostic only (the proving

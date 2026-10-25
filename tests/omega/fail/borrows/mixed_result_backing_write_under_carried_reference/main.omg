@@ -1,0 +1,28 @@
+// The helper result keeps its selected shared backing borrowed.
+data Cell { value: u64; }
+data Payload<'storage> [copy] { bytes: &'storage [u8]; cell: &'storage Cell; }
+machine make<'storage>(bytes: &'storage [u8], cell: &'storage Cell) -> Payload<'storage> {
+    Payload { bytes: bytes, cell: cell }
+}
+machine main() crashes Trap {
+    let mut cell: Cell = Cell { value: 41 };
+    let payload: Payload = make("AZ", &cell);
+    cell.value = 99;
+    transition payload.bytes.len == 2 {
+        true -> inspect(payload)
+        false -> bad()
+    }
+    state inspect(payload: Payload) {
+        transition payload.bytes.len == 2 && payload.cell.value == 41 {
+            true -> read(payload)
+            false -> bad()
+        }
+    }
+    state read(payload: Payload) requires payload.bytes.len == 2 {
+        transition payload.bytes[0] == 65 && payload.bytes[1] == 90 && payload.cell.value == 41 {
+            true -> done() false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

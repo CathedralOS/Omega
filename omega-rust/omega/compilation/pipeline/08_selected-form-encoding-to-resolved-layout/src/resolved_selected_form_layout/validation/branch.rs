@@ -1,26 +1,13 @@
-use super::super::ordinary::branch_size;
 use std::collections::BTreeMap;
 
-use isa_aarch64::{
-    validate_aarch64_selected_i64_less_than_branch_form,
-    validate_aarch64_selected_i64_less_than_widened_branch_form,
-    validate_aarch64_selected_nonzero_branch_form,
-    validate_aarch64_selected_nonzero_widened_branch_form,
-    validate_aarch64_selected_u64_less_than_branch_form,
-    validate_aarch64_selected_u64_less_than_widened_branch_form,
-};
-use isa_x86_64::{
-    validate_x86_64_selected_i64_less_than_branch_form,
-    validate_x86_64_selected_nonzero_branch_form,
-    validate_x86_64_selected_u64_less_than_branch_form,
-};
 use physical_instructions::PostAllocationMachineInstruction;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
-    MachineEncodedEffects, SelectedBlock, SelectedBlockId, SelectedInstruction, SelectedTerminator,
+    SelectedBlock, SelectedBlockId, SelectedInstruction, SelectedTerminator,
 };
 use target::Architecture;
 
+use super::super::ordinary::{branch_size, conditional_branch_family};
 use super::super::{
     OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence,
     ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedSelectedFormRow,
@@ -139,6 +126,9 @@ pub(super) fn validate(
     if terminator.id != instruction.id {
         return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
     }
+    if machine.alternative.key.family != conditional_branch_family(predicate) {
+        return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+    }
     let taken_offset = *block_offsets
         .get(&when_taken.block)
         .ok_or(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?;
@@ -162,15 +152,61 @@ pub(super) fn validate(
         Architecture::X86_64 => checked_delta(taken_offset, branch_end)?,
         Architecture::Aarch64 => checked_delta(taken_offset, instruction_offset)?,
     };
-    let (register_reads, effects) = decode(
-        architecture,
-        physical,
-        machine,
-        predicate,
-        displacement,
-        &candidate.bytes,
-        widened,
-    )?;
+    let (register_reads, effects) = match architecture {
+        Architecture::X86_64 => {
+            let decoded = match predicate {
+                ResolvedConditionalBranchPredicate::NonZeroV1 => {
+                    isa_x86_64::validate_x86_64_selected_nonzero_branch_form(
+                        physical,
+                        machine.alternative.key,
+                        displacement,
+                        &candidate.bytes,
+                    )
+                }
+                ResolvedConditionalBranchPredicate::U64LessThanV1 => {
+                    isa_x86_64::validate_x86_64_selected_u64_less_than_branch_form(
+                        physical,
+                        machine.alternative.key,
+                        displacement,
+                        &candidate.bytes,
+                    )
+                }
+                ResolvedConditionalBranchPredicate::I64LessThanV1 => {
+                    isa_x86_64::validate_x86_64_selected_i64_less_than_branch_form(
+                        physical,
+                        machine.alternative.key,
+                        displacement,
+                        &candidate.bytes,
+                    )
+                }
+            }
+            .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?;
+            (
+                decoded.footprint().register_reads.clone(),
+                decoded.footprint().encoded.clone(),
+            )
+        }
+        Architecture::Aarch64 => {
+            let form = if widened {
+                isa_aarch64::Aarch64ConditionalBranchForm::WidenedPairV1
+            } else {
+                isa_aarch64::Aarch64ConditionalBranchForm::CanonicalWordV1
+            };
+            let decoded = isa_aarch64::validate_aarch64_selected_conditional_branch_form(
+                physical,
+                machine.alternative.key,
+                conditional_branch_family(predicate),
+                form,
+                displacement,
+                &candidate.bytes,
+            )
+            .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?;
+            (
+                decoded.footprint().register_reads.clone(),
+                decoded.footprint().encoded.clone(),
+            )
+        }
+    };
     if effects != machine.alternative.encoded {
         return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
     }
@@ -198,118 +234,6 @@ pub(super) fn validate(
     Ok(())
 }
 
-fn decode(
-    architecture: Architecture,
-    physical: &ValidatedPhysicalRegisterModel,
-    machine: &PostAllocationMachineInstruction,
-    predicate: ResolvedConditionalBranchPredicate,
-    displacement: i64,
-    bytes: &[u8],
-    widened: bool,
-) -> Result<
-    (Vec<register_model::RegisterViewId>, MachineEncodedEffects),
-    OptimizedResolvedSelectedFormLayoutError,
-> {
-    let footprint = match (architecture, predicate) {
-        (Architecture::X86_64, ResolvedConditionalBranchPredicate::NonZeroV1) => {
-            let decoded = validate_x86_64_selected_nonzero_branch_form(
-                physical,
-                machine.alternative.key,
-                displacement,
-                bytes,
-            )
-            .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?;
-            return Ok((
-                decoded.footprint().register_reads.clone(),
-                decoded.footprint().encoded.clone(),
-            ));
-        }
-        (Architecture::Aarch64, ResolvedConditionalBranchPredicate::NonZeroV1) => {
-            let decoded = if widened {
-                validate_aarch64_selected_nonzero_widened_branch_form(
-                    physical,
-                    machine.alternative.key,
-                    displacement,
-                    bytes,
-                )
-            } else {
-                validate_aarch64_selected_nonzero_branch_form(
-                    physical,
-                    machine.alternative.key,
-                    displacement,
-                    bytes,
-                )
-            }
-            .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?;
-            decoded.footprint().clone()
-        }
-        (Architecture::X86_64, ResolvedConditionalBranchPredicate::U64LessThanV1) => {
-            let decoded = validate_x86_64_selected_u64_less_than_branch_form(
-                physical,
-                machine.alternative.key,
-                displacement,
-                bytes,
-            )
-            .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?;
-            return Ok((
-                decoded.footprint().register_reads.clone(),
-                decoded.footprint().encoded.clone(),
-            ));
-        }
-        (Architecture::Aarch64, ResolvedConditionalBranchPredicate::U64LessThanV1) => {
-            let decoded = if widened {
-                validate_aarch64_selected_u64_less_than_widened_branch_form(
-                    physical,
-                    machine.alternative.key,
-                    displacement,
-                    bytes,
-                )
-            } else {
-                validate_aarch64_selected_u64_less_than_branch_form(
-                    physical,
-                    machine.alternative.key,
-                    displacement,
-                    bytes,
-                )
-            }
-            .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?;
-            decoded.footprint().clone()
-        }
-        (Architecture::X86_64, ResolvedConditionalBranchPredicate::I64LessThanV1) => {
-            let decoded = validate_x86_64_selected_i64_less_than_branch_form(
-                physical,
-                machine.alternative.key,
-                displacement,
-                bytes,
-            )
-            .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?;
-            return Ok((
-                decoded.footprint().register_reads.clone(),
-                decoded.footprint().encoded.clone(),
-            ));
-        }
-        (Architecture::Aarch64, ResolvedConditionalBranchPredicate::I64LessThanV1) => {
-            let decoded = if widened {
-                validate_aarch64_selected_i64_less_than_widened_branch_form(
-                    physical,
-                    machine.alternative.key,
-                    displacement,
-                    bytes,
-                )
-            } else {
-                validate_aarch64_selected_i64_less_than_branch_form(
-                    physical,
-                    machine.alternative.key,
-                    displacement,
-                    bytes,
-                )
-            }
-            .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?;
-            decoded.footprint().clone()
-        }
-    };
-    Ok((footprint.register_reads, footprint.encoded))
-}
 fn checked_delta(target: u64, base: u64) -> Result<i64, OptimizedResolvedSelectedFormLayoutError> {
     i64::try_from(i128::from(target) - i128::from(base))
         .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)

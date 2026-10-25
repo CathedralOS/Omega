@@ -444,7 +444,11 @@ fail/borrows/completed_selector_boolean_result_wrong_value rejected 2556ms expec
 fail/borrows/completed_selector_join_out_of_range_destination rejected 530ms expected @89bb9e0009e9
 fail/borrows/completed_selector_join_requires_all_arms rejected 1669ms expected @89bb9e0009e9
 fail/borrows/completed_selector_join_unknown_arm rejected 1980ms expected @89bb9e0009e9
+fail/borrows/computed_byte_field_window_wrong_nominal rejected 275ms expected @77f91fb3da34
+	argument `view` for state `entry` expects `&View<>`, got `named value`
 fail/borrows/computed_case_copy_requires_live_bounds rejected 428ms expected @6043bf4a18bd+wt
+fail/borrows/computed_shared_byte_field_window_requires_mutable rejected 275ms expected @77f91fb3da34
+	machine `observe` state `entry` local `selected` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/conditional_copied_slot_retains_parent_loan rejected 637ms expected @3ea0aec65b44+wt
 fail/borrows/conditional_overlapping_field_loans rejected 4727ms expected @16ed47526a08
 fail/borrows/conditional_reference_replacement_false_first_stale_index rejected 621ms expected @3ea0aec65b44+wt
@@ -581,6 +585,9 @@ fail/borrows/materialized_linear_owner_reference_live_write rejected 3584ms expe
 fail/borrows/materialized_reference_does_not_discharge_linear_owner rejected 3371ms expected @a9ae30e1c334+wt
 fail/borrows/mixed_record_shared_view_mutable_local_empty_range rejected 1048ms expected @a9ae30e1c334+wt
 fail/borrows/mixed_record_shared_view_mutable_local_nonempty_range rejected 902ms expected @a9ae30e1c334+wt
+fail/borrows/mixed_result_backing_write_under_carried_reference rejected 757ms expected @77f91fb3da34
+	statement 2 mutates `cell.value` while local borrow `payload` is still active (borrowed at statement 1; its last use is at statement 4)
+	statement 2 mutates `cell.value` while local borrow `payload` is still active (borrowed at statement 1; its last use is at statement 4)
 fail/borrows/multi_origin_returned_reference_live_source_write rejected 2460ms expected @a9ae30e1c334+wt
 fail/borrows/mutable_primitive_reference_live_owner_read rejected 1653ms expected @a9ae30e1c334+wt
 fail/borrows/mutable_record_state_alias rejected 1613ms expected @a9ae30e1c334+wt
@@ -3393,6 +3400,27 @@ fail/facts/content_reunion_through_target_body_rejected rejected 3507ms expected
 	cannot prove ensures contract for exit from rejoin at statement 10: Owned.content(old(&whole)) == Owned.content(&result)
 	cannot prove default-domain field requirement for return from rejoin, state entry, at statement 10: Region requires Region::Owned
 	construction value is not proven in domain `Region::Owned` in rejoin state `entry` at statement 10; a construction value must establish the domain's predicates and any required provenance
+fail/facts/copied_byte_view_argument_snapshot_through_call_result_rejected rejected 758ms expected @77f91fb3da34
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_byte_view_argument_snapshot_through_const_name_rejected rejected 759ms expected @77f91fb3da34
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_byte_view_argument_snapshot_through_field_rejected rejected 759ms expected @77f91fb3da34
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_byte_view_argument_snapshot_through_local_rejected rejected 765ms expected @77f91fb3da34
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_byte_view_argument_snapshot_through_match_join_rejected rejected 765ms expected @77f91fb3da34
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_byte_view_argument_snapshot_through_other_machine_rejected rejected 773ms expected @77f91fb3da34
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_byte_view_argument_snapshot_through_other_state_rejected rejected 773ms expected @77f91fb3da34
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_byte_view_argument_snapshot_through_parameter_rejected rejected 764ms expected @77f91fb3da34
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_byte_view_argument_snapshot_through_target_body_rejected rejected 788ms expected @77f91fb3da34
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/copied_call_argument_snapshot_descriptor_through_call_result_rejected rejected 1746ms expected @bee167b35fd4
 	cannot prove requires contract for call receive from main: original.target.value == 7 (needs fact `selected.target.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/copied_call_argument_snapshot_descriptor_through_const_name_rejected rejected 1154ms expected @bee167b35fd4
@@ -15485,8 +15513,7 @@ pass/borrows/constructor_reference_access checked 1653ms @a9ae30e1c334+wt
 pass/borrows/copied_borrowed_slot_restores_parent_exit checked 3682ms check-target:macos_arm64 @3ea0aec65b44+wt
 pass/borrows/copied_empty_case_before_active_replacement_exit checked 1564ms check-target:macos_arm64 @bee167b35fd4
 pass/borrows/copied_empty_case_does_not_retain_inactive_backing_exit checked 1567ms check-target:macos_arm64 @bee167b35fd4
-pass/borrows/copied_image_descriptor_unrelated_write incomplete 1846ms check-target:macos_arm64 @bee167b35fd4
-	`receive` has no executable body: this compiler does not lower a state of it yet (sequence cleanup actions); in state `receive::entry`
+pass/borrows/copied_image_descriptor_unrelated_write checked 912ms check-target:macos_arm64 @77f91fb3da34
 pass/borrows/copied_input_descriptor_independent_mutation_exit checked 1568ms check-target:macos_arm64 @bee167b35fd4
 pass/borrows/copied_input_descriptor_local_copy_exit checked 1883ms check-target:macos_arm64 @bee167b35fd4
 pass/borrows/copied_input_descriptor_return_copy_exit checked 1587ms check-target:macos_arm64 @bee167b35fd4
@@ -15576,6 +15603,7 @@ pass/borrows/routed_field_boundary_handback_exit checked 1117ms check-target:mac
 pass/borrows/routed_membership_reference_contract checked 1008ms @068118abfe8d
 pass/borrows/runtime_affine_local_case_return_exit checked 11337ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_affine_local_scalar_exit checked 11079ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_aliased_record_byte_field_window_exit checked 912ms check-target:macos_arm64 @77f91fb3da34
 pass/borrows/runtime_anonymous_operand_backing_cleanup_exit checked 8392ms check-target:macos_arm64 @cc6649bfa8e5
 pass/borrows/runtime_array_primitive_reference_capture_exit checked 10285ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_assignment_rhs_carrier_replacement_exit checked 4460ms check-target:macos_arm64 @1d894d08858b+wt
@@ -15588,6 +15616,7 @@ pass/borrows/runtime_captured_primitive_reference_exit checked 11029ms check-tar
 pass/borrows/runtime_captured_record_nested_field_snapshot_exit checked 11089ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_carrier_reference_reselection_exit checked 11173ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_carrier_reference_store_exit checked 11057ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_case_byte_field_length_cleanup_exit checked 882ms check-target:macos_arm64 @77f91fb3da34
 pass/borrows/runtime_case_descriptor_retirement_exit checked 3590ms check-target:macos_arm64 @4f0f34f3cbb6+wt
 pass/borrows/runtime_case_payload_partial_transfer_exit checked 10506ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_case_reference_mixed_state_returns_exit checked 1049ms check-target:macos_arm64 @66bc5becc69e
@@ -15596,8 +15625,10 @@ pass/borrows/runtime_case_return_parameter_order_exit checked 10245ms check-targ
 pass/borrows/runtime_case_selected_slice_reference_exit checked 5383ms check-target:macos_arm64 @cc35a4f0d368+wt
 pass/borrows/runtime_computed_backing_reference_copy_exit checked 10544ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_computed_case_copy_order_exit checked 4847ms check-target:macos_arm64 @6043bf4a18bd+wt
+pass/borrows/runtime_computed_shared_byte_field_window_exit checked 885ms check-target:macos_arm64 @77f91fb3da34
 pass/borrows/runtime_computed_shared_view_reborrow_exit checked 3460ms check-target:macos_arm64 @54d47902d575+wt
 pass/borrows/runtime_computed_view_observation_composition_exit checked 3631ms check-target:macos_arm64 @54d47902d575+wt
+pass/borrows/runtime_computed_window_operand_order_exit checked 900ms check-target:macos_arm64 @77f91fb3da34
 pass/borrows/runtime_conditional_returned_descriptor_exit checked 1787ms check-target:macos_arm64 @b35a8336954a+wt
 pass/borrows/runtime_constructed_reference_array_restoration_exit checked 11074ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_copied_byte_distinct_epochs_exit checked 10345ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -15610,6 +15641,7 @@ pass/borrows/runtime_direct_immutable_scalar_loan_exit checked 10347ms check-tar
 pass/borrows/runtime_discarded_reference_release_exit checked 11161ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_disjoint_child_loans_restore_parent_exit checked 10390ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_dropped_reference_qualification_exit checked 976ms check-target:macos_arm64 @147c3a05de1b
+pass/borrows/runtime_exclusive_byte_field_cleanup_exit checked 892ms check-target:macos_arm64 @77f91fb3da34
 pass/borrows/runtime_expired_call_carrier_selection_exit checked 2356ms check-target:macos_arm64 @b35a8336954a+wt
 pass/borrows/runtime_fixed_array_reference_slot_replacement_exit checked 27142ms check-target:macos_arm64 @5d70318dade2
 pass/borrows/runtime_fixed_byte_view_forwarding_exit checked 10292ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -15635,15 +15667,18 @@ pass/borrows/runtime_indexed_scalar_descriptor_call checked 10433ms check-target
 pass/borrows/runtime_indexed_shared_primitive_loan_call_exit checked 20445ms check-target:macos_arm64 @1b12798e27f4
 pass/borrows/runtime_indexed_stored_reference_call checked 10457ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_initialized_computed_case_copy_order_exit checked 3754ms check-target:macos_arm64 @7f27983f22b3+wt
+pass/borrows/runtime_literal_view_inclusive_range_exit checked 886ms check-target:macos_arm64 @77f91fb3da34
 pass/borrows/runtime_local_reference_backing_state_exit checked 6198ms check-target:macos_arm64 @f6dc6c67924e+wt
 pass/borrows/runtime_match_payload_parent_disjoint_exit checked 1682ms check-target:macos_arm64 @2824a5bc57a8
 pass/borrows/runtime_measured_range_record_domains_exit checked 10402ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_mixed_byte_view_reference_result_exit checked 884ms check-target:macos_arm64 @77f91fb3da34
 pass/borrows/runtime_mixed_static_dynamic_loan_header_exit checked 5848ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/borrows/runtime_multidimensional_reference_result_exit checked 26529ms check-target:macos_arm64 @5d70318dade2
 pass/borrows/runtime_mutable_byte_loan_read_exit checked 11104ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_mutable_primitive_reference_exit checked 10182ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_mutable_reference_array_bounded_read_exit checked 11308ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_mutable_reference_captures_selector_exit checked 10316ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_mutable_window_parent_restoration_exit checked 890ms check-target:macos_arm64 @77f91fb3da34
 pass/borrows/runtime_nested_array_range_record_domains_exit checked 10497ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_nested_carrier_bounded_reference_read_exit checked 11146ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_nested_carrier_reference_read_exit checked 11084ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -15699,7 +15734,9 @@ pass/borrows/runtime_released_loan_with_forwarded_view_exit checked 10914ms chec
 pass/borrows/runtime_replaced_reference_record_return_exit checked 10284ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_result_element_call_selector_capture_exit checked 7412ms check-target:macos_arm64 @dee77250b5b9
 pass/borrows/runtime_retained_operand_descriptor_cleanup_exit checked 8383ms check-target:macos_arm64 @cc6649bfa8e5
+pass/borrows/runtime_returned_literal_window_exit checked 885ms check-target:macos_arm64 @77f91fb3da34
 pass/borrows/runtime_returned_mutable_reference_array_bounded_read_exit checked 11194ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_returned_mutable_window_restoration_exit checked 888ms check-target:macos_arm64 @77f91fb3da34
 pass/borrows/runtime_returned_nested_reference_array_bounded_read_exit checked 11205ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_returned_nonzero_nested_window_exit checked 1660ms check-target:macos_arm64 @b35a8336954a+wt
 pass/borrows/runtime_returned_owned_sibling_descriptor_exit checked 2195ms check-target:macos_arm64 @b35a8336954a+wt
@@ -15754,6 +15791,7 @@ pass/borrows/runtime_tail_expression_views_exit checked 11242ms check-target:mac
 pass/borrows/runtime_tail_recursive_disjoint_field_fact_exit checked 27956ms check-target:macos_arm64 @0a951af3f8e9+wt
 pass/borrows/runtime_tail_recursive_nested_field_frame_exit checked 32157ms check-target:macos_arm64 @0a951af3f8e9+wt
 pass/borrows/runtime_tail_recursive_numeric_disjoint_field_fact_exit checked 21655ms check-target:macos_arm64 @0a951af3f8e9+wt
+pass/borrows/runtime_transitive_mixed_result_backing_exit checked 888ms check-target:macos_arm64 @77f91fb3da34
 pass/borrows/runtime_unit_call_mutable_view_local_exit checked 10996ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_unrelated_empty_carrier_before_owned_join_exit checked 1736ms check-target:macos_arm64 @b35a8336954a+wt
 pass/borrows/runtime_whole_referent_case_store_exit checked 11135ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -17614,6 +17652,15 @@ pass/facts/content_reunion_through_other_machine_exit checked 5753ms check-targe
 pass/facts/content_reunion_through_other_state_exit checked 5735ms check-target:macos_arm64 @6cd22386cbb5
 pass/facts/content_reunion_through_parameter_exit checked 5736ms check-target:macos_arm64 @6cd22386cbb5
 pass/facts/content_reunion_through_target_body_exit checked 6081ms check-target:macos_arm64 @6cd22386cbb5
+pass/facts/copied_byte_view_argument_snapshot_through_call_result_exit checked 912ms check-target:macos_arm64 @77f91fb3da34
+pass/facts/copied_byte_view_argument_snapshot_through_const_name_exit checked 911ms check-target:macos_arm64 @77f91fb3da34
+pass/facts/copied_byte_view_argument_snapshot_through_field_exit checked 896ms check-target:macos_arm64 @77f91fb3da34
+pass/facts/copied_byte_view_argument_snapshot_through_local_exit checked 896ms check-target:macos_arm64 @77f91fb3da34
+pass/facts/copied_byte_view_argument_snapshot_through_match_join_exit checked 897ms check-target:macos_arm64 @77f91fb3da34
+pass/facts/copied_byte_view_argument_snapshot_through_other_machine_exit checked 896ms check-target:macos_arm64 @77f91fb3da34
+pass/facts/copied_byte_view_argument_snapshot_through_other_state_exit checked 903ms check-target:macos_arm64 @77f91fb3da34
+pass/facts/copied_byte_view_argument_snapshot_through_parameter_exit checked 903ms check-target:macos_arm64 @77f91fb3da34
+pass/facts/copied_byte_view_argument_snapshot_through_target_body_exit checked 920ms check-target:macos_arm64 @77f91fb3da34
 pass/facts/copied_call_argument_snapshot_descriptor_through_call_result_exit checked 1851ms check-target:macos_arm64 @bee167b35fd4
 pass/facts/copied_call_argument_snapshot_descriptor_through_const_name_exit checked 1881ms check-target:macos_arm64 @bee167b35fd4
 pass/facts/copied_call_argument_snapshot_descriptor_through_field_exit checked 1931ms check-target:macos_arm64 @bee167b35fd4
@@ -23364,10 +23411,13 @@ pass/text/runtime_later_arm_guard_reads_exit checked 12030ms check-target:macos_
 pass/text/runtime_mixed_byte_field_equality_exit checked 11442ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_mutable_string_parameter_concat_write_line checked 5844ms check-target:macos_arm64 @46b51224f047+wt
 pass/text/runtime_number_to_decimal_exit checked 11709ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/text/runtime_owned_byte_field_length_cleanup_exit checked 912ms check-target:macos_arm64 @77f91fb3da34
 pass/text/runtime_owned_string_byte_view_exit checked 11252ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_param_domain_forward_exit checked 11252ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_param_domain_literal_read_exit checked 12013ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_qualified_byte_array_storage_exit checked 4037ms check-target:macos_arm64 @c0d817d0e753+wt
+pass/text/runtime_qualified_byte_field_cleanup_exit checked 894ms check-target:macos_arm64 @77f91fb3da34
+pass/text/runtime_qualified_byte_field_replacement_cleanup_exit checked 887ms check-target:macos_arm64 @77f91fb3da34
 pass/text/runtime_qualified_owner_view_open_exit checked 7577ms check-target:macos_arm64 @e02ff5008d25+wt
 pass/text/runtime_slice_indexed_string_guard_exit checked 11632ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_stdin_command_branch_exit checked 4559ms check-target:macos_arm64 @9dd545defbc0

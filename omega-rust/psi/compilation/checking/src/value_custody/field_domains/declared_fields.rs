@@ -147,6 +147,31 @@ pub struct FieldDomainRow {
     pub transfer: bool,
 }
 
+impl FieldDomainRow {
+    /// Whether this declaration already names a selected subject's obligation.
+    /// An all-element row applies to any element selection, but every field,
+    /// case, and remaining segment must still match. This query neither proves
+    /// index bounds nor observes a case tag; those remain access obligations.
+    pub fn describes_projection(
+        &self,
+        path: &[PlaceSegment],
+        is_point_index: impl Fn(typed_trees::expression::ExpressionHandle) -> bool,
+    ) -> bool {
+        self.path.len() == path.len()
+            && self.path.iter().zip(path).all(|(declared, selected)| {
+                declared == selected
+                    || *declared == WHOLE_ELEMENT_EXTENT
+                        && match selected {
+                            PlaceSegment::FixedIndex { .. } => true,
+                            // Canonical Index can retain an unresolved range;
+                            // only a classified point selects one element.
+                            PlaceSegment::Index { expression } => is_point_index(*expression),
+                            _ => false,
+                        }
+            })
+    }
+}
+
 /// The `FixedRange` spelling of "every element of this collection": the
 /// half-open extent `0..usize::MAX` covers any element index a place can
 /// select -- a literal `x[i]` because `i < usize::MAX` always, and a runtime
@@ -192,5 +217,54 @@ pub fn readable_slice_element(
     {
         typed_trees::types::TypeReferenceNode::Slice { element_type } => Some(*element_type),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn declared_element_projection_preserves_complete_path() {
+        let field = PlaceSegment::Field {
+            symbol: SymbolHandle::invalid(),
+        };
+        let case = PlaceSegment::Case {
+            variant: SymbolHandle::invalid(),
+        };
+        let row = FieldDomainRow {
+            path: vec![field, WHOLE_ELEMENT_EXTENT, case, field],
+            domain_symbol: SymbolHandle::invalid(),
+            semantic_domain: language_semantics::SemanticDomainId::NULL,
+            transfer: true,
+        };
+        let runtime_index = PlaceSegment::Index {
+            expression: typed_trees::expression::ExpressionHandle::invalid(),
+        };
+        let describes = |path: &[PlaceSegment]| row.describes_projection(path, |_| true);
+        assert!(describes(&row.path));
+        assert!(describes(&[field, runtime_index, case, field]));
+        assert!(!row.describes_projection(&[field, runtime_index, case, field], |_| false));
+        assert!(describes(&[
+            field,
+            PlaceSegment::FixedIndex { index: 1 },
+            case,
+            field
+        ]));
+        assert!(!describes(&[field, runtime_index, field, field]));
+        assert!(!describes(&[field, runtime_index, case]));
+        assert!(!describes(&[field, PlaceSegment::OpaqueRange, case, field]));
+        assert!(!describes(&[
+            field,
+            PlaceSegment::FixedRange { start: 0, end: 2 },
+            case,
+            field
+        ]));
+        let exact = FieldDomainRow {
+            path: vec![PlaceSegment::FixedIndex { index: 0 }],
+            ..row
+        };
+        assert!(!exact.describes_projection(&[runtime_index], |_| true));
+        assert!(!exact.describes_projection(&[PlaceSegment::FixedIndex { index: 1 }], |_| true));
     }
 }

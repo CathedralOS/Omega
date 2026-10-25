@@ -21,9 +21,9 @@ impl PackagePolicyCallingPlan {
             lifetime_count as usize,
         );
         crate::record::public_policy::validation::signatures::parameters(&scope, 0)?;
-        validate_nominal(&self.boundary_trait)?;
-        validate_nominal(&self.requirement)?;
-        validate_nominal(&self.requirement_trait)?;
+        self.boundary_trait.validate_resolved()?;
+        self.requirement.validate_resolved()?;
+        self.requirement_trait.validate_resolved()?;
         if self.native_parameters.len() > 256 || self.semantic_parameters.len() > 256 {
             return Err("calling parameter catalog exceeds normalized capacity");
         }
@@ -139,17 +139,6 @@ fn validate_application_lifetimes(
         .any(|ordinal| *ordinal >= count)
     {
         return Err("calling conformance lifetime is outside its containing telescope");
-    }
-    Ok(())
-}
-
-fn validate_nominal(
-    identity: &crate::record::PackageReviewNominalIdentity,
-) -> Result<(), &'static str> {
-    if identity.path.is_empty()
-        || identity.owner == crate::record::PackageReviewNominalOwner::Unresolved
-    {
-        return Err("calling policy nominal identity is empty or unresolved");
     }
     Ok(())
 }

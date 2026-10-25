@@ -19,7 +19,7 @@ use crate::builder::generic_bindings::GenericLayoutBinding;
 use crate::builder::generic_bindings::binding_for_type;
 use crate::builder::generic_bindings::fixed_array_length;
 use crate::builder::private_callback_closure::close_private_callback_layouts;
-use crate::sizing::fat_descriptor_layout;
+use crate::sizing::pointer_layout;
 use crate::{
     BitFieldLayout, DataLayout, FieldLayout, LayoutPlan, RepeatedFieldLayout, StoredIntegerLayout,
     TargetClosedDataLayoutIdentity, TargetClosedPrivateCallbackDemand, TypeLayout,
@@ -344,10 +344,6 @@ impl<'program> LayoutBuilder<'program> {
         Ok(layout)
     }
 
-    fn slice_layout(&self) -> TypeLayout {
-        fat_descriptor_layout(self.target)
-    }
-
     fn is_compiler_placed_accessor_definition(&self, definition: &DataDefinition) -> bool {
         self.program
             .placed_view_plans
@@ -379,18 +375,10 @@ impl<'program> LayoutBuilder<'program> {
     }
 
     fn builtin_type_layout(&self, symbol: SymbolHandle) -> Option<TypeLayout> {
-        if Some(symbol) == self.program.symbols.builtin_type_symbol(BuiltinType::UInt) {
-            return Some(TypeLayout {
-                size: self.target.pointer_size,
-                alignment: self.target.pointer_alignment,
-            });
-        }
-
-        if Some(symbol) == self.program.symbols.builtin_type_symbol(BuiltinType::Int) {
-            return Some(TypeLayout {
-                size: self.target.pointer_size,
-                alignment: self.target.pointer_alignment,
-            });
+        if Some(symbol) == self.program.symbols.builtin_type_symbol(BuiltinType::UInt)
+            || Some(symbol) == self.program.symbols.builtin_type_symbol(BuiltinType::Int)
+        {
+            return Some(pointer_layout(self.target));
         }
 
         None

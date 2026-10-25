@@ -106,9 +106,9 @@ fn pre_allocation_route_composes_residual_pressure_into_runtime_spill() {
 fn completed_run_recovery_records_the_run_custody_as_its_prefix() {
     let source = include_str!("../assignment/runtime_spill/mod.rs");
     let projection = source
-        .split("fn declared_manifest")
+        .split("fn resolve")
         .nth(1)
-        .expect("the declared prefix projection");
+        .expect("the resolved source family");
     let lowering_completion = projection
         .find("selected_lowering_completion: Some(upstream.identity())")
         .expect("the bound suite completion");

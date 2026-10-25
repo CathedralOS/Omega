@@ -1,7 +1,6 @@
 //! Structural associations for inert provider policy, never compiler replay.
 use crate::record::PackagePolicyProviderPlan;
 use crate::record::PackagePolicySelectedProviders;
-use crate::record::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
 use std::cmp::Ordering;
 
 impl PackagePolicyProviderPlan {
@@ -28,7 +27,7 @@ impl PackagePolicySelectedProviders {
             return Err("provider plans repeat or reorder their canonical coordinates");
         }
         for plan in &self.plans {
-            nominal(&plan.schema_declaration)?;
+            plan.schema_declaration.validate_resolved()?;
             // A toolchain-owned plan (realizing package `None`, no provider
             // declaration) may still carry its readable toolchain provider
             // label; an authored plan's non-empty provider type always needs
@@ -44,7 +43,7 @@ impl PackagePolicySelectedProviders {
                 return Err("provider plan has an invalid name, target, or method coverage");
             }
             if let Some(provider) = &plan.provider_type_declaration {
-                nominal(provider)?;
+                provider.validate_resolved()?;
             }
             if plan.grants.windows(2).any(|pair| pair[0] >= pair[1]) {
                 return Err("provider grants repeat or reorder selector kinds");
@@ -70,10 +69,10 @@ impl PackagePolicySelectedProviders {
                 return Err("provider rows repeat or reorder exact requirement identities");
             }
             for row in &plan.rows {
-                nominal(&row.requirement)?;
+                row.requirement.validate_resolved()?;
                 match &row.realization {
                     Some(realization) => {
-                        nominal(realization)?;
+                        realization.validate_resolved()?;
                         if !super::binding_validation::matches_owner(
                             realization.owner,
                             plan.realizing_package,
@@ -104,7 +103,7 @@ impl PackagePolicySelectedProviders {
                             return Err("provider installation reach is unordered or repeated");
                         }
                         for declaration in declarations {
-                            nominal(declaration)?;
+                            declaration.validate_resolved()?;
                         }
                     }
                     if reach
@@ -140,8 +139,8 @@ impl PackagePolicySelectedProviders {
             return Err("provider families repeat or reorder canonical coordinates");
         }
         for family in &self.families {
-            nominal(&family.family_identity)?;
-            nominal(&family.provider_type_declaration)?;
+            family.family_identity.validate_resolved()?;
+            family.provider_type_declaration.validate_resolved()?;
             if family.target != self.target
                 || family.coordinates.is_empty()
                 || family.coordinates.windows(2).any(|pair| {
@@ -152,7 +151,7 @@ impl PackagePolicySelectedProviders {
                 return Err("provider family has an invalid target or coordinate order");
             }
             for coordinate in &family.coordinates {
-                nominal(&coordinate.operator_declaration)?;
+                coordinate.operator_declaration.validate_resolved()?;
                 let Some(plan) = self.plans.get(coordinate.plan_index as usize) else {
                     return Err("provider family references a missing canonical plan");
                 };
@@ -184,33 +183,6 @@ impl PackagePolicySelectedProviders {
                 }
             }
         }
-        Ok(())
-    }
-}
-
-pub(super) fn same_target(
-    profile: crate::record::PackageReviewRepresentationTargetProfile,
-    target: target::TargetProfile,
-) -> bool {
-    use crate::record::PackageReviewRepresentationTargetProfile as Profile;
-    use target::TargetProfile as Target;
-    matches!(
-        (profile, target),
-        (Profile::LinuxArm64, Target::LinuxArm64)
-            | (Profile::LinuxX64, Target::LinuxX64)
-            | (Profile::MacosArm64, Target::MacosArm64)
-            | (Profile::MacosX64, Target::MacosX64)
-            | (Profile::WindowsX64, Target::WindowsX64)
-            | (Profile::UefiX64, Target::UefiX64)
-            | (Profile::CrossPlatformCli, Target::CrossPlatformCli)
-            | (Profile::LocalUnchecked, Target::LocalUnchecked)
-    )
-}
-
-pub(super) fn nominal(identity: &PackageReviewNominalIdentity) -> Result<(), &'static str> {
-    if identity.path.is_empty() || identity.owner == PackageReviewNominalOwner::Unresolved {
-        Err("provider policy contains an unresolved nominal identity")
-    } else {
         Ok(())
     }
 }

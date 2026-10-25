@@ -1,21 +1,10 @@
 use std::collections::BTreeMap;
 
-use isa_aarch64::{
-    encode_aarch64_selected_i64_less_than_branch_form,
-    encode_aarch64_selected_i64_less_than_widened_branch_form,
-    encode_aarch64_selected_nonzero_branch_form,
-    encode_aarch64_selected_nonzero_widened_branch_form,
-    encode_aarch64_selected_u64_less_than_branch_form,
-    encode_aarch64_selected_u64_less_than_widened_branch_form,
-};
-use isa_x86_64::{
-    encode_x86_64_selected_i64_less_than_branch_form, encode_x86_64_selected_nonzero_branch_form,
-    encode_x86_64_selected_u64_less_than_branch_form,
-};
 use physical_instructions::PostAllocationMachineInstruction;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
-    MachineEncodedEffects, SelectedBlock, SelectedBlockId, SelectedInstruction, SelectedTerminator,
+    MachineAlternativeFamily, SelectedBlock, SelectedBlockId, SelectedInstruction,
+    SelectedTerminator,
 };
 use target::Architecture;
 
@@ -25,6 +14,25 @@ use super::super::{
     declared_size_matches,
 };
 use super::plan::{branch_size, unexpected};
+
+/// The machine alternative family one resolved conditional-branch predicate
+/// names: the stage's own guard on the recorded alternative, and the family
+/// the AArch64 encoder and decoder requests assert.
+pub(crate) const fn conditional_branch_family(
+    predicate: ResolvedConditionalBranchPredicate,
+) -> MachineAlternativeFamily {
+    match predicate {
+        ResolvedConditionalBranchPredicate::NonZeroV1 => {
+            MachineAlternativeFamily::ConditionalBranchNonZero
+        }
+        ResolvedConditionalBranchPredicate::U64LessThanV1 => {
+            MachineAlternativeFamily::ConditionalBranchU64LessThan
+        }
+        ResolvedConditionalBranchPredicate::I64LessThanV1 => {
+            MachineAlternativeFamily::ConditionalBranchI64LessThan
+        }
+    }
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn resolve(
@@ -139,6 +147,9 @@ pub(super) fn resolve(
     if terminator.id != instruction.id {
         return unexpected(instruction.id);
     }
+    if machine.alternative.key.family != conditional_branch_family(predicate) {
+        return Err(OptimizedResolvedSelectedFormLayoutError::AlternativeMismatch(instruction.id));
+    }
     let taken_offset = *block_offsets.get(&when_taken.block).ok_or(
         OptimizedResolvedSelectedFormLayoutError::BranchFallthroughMismatch(instruction.id),
     )?;
@@ -164,14 +175,59 @@ pub(super) fn resolve(
         Architecture::X86_64 => super::plan::byte_displacement(taken_offset, branch_end)?,
         Architecture::Aarch64 => super::plan::byte_displacement(taken_offset, instruction_offset)?,
     };
-    let (bytes, register_reads, effects) = encode(
-        architecture,
-        physical,
-        machine,
-        predicate,
-        displacement,
-        widened,
-    )?;
+    let (bytes, register_reads, effects) = match architecture {
+        Architecture::X86_64 => {
+            let realized = match predicate {
+                ResolvedConditionalBranchPredicate::NonZeroV1 => {
+                    isa_x86_64::encode_x86_64_selected_nonzero_branch_form(
+                        physical,
+                        machine.alternative.key,
+                        displacement,
+                    )
+                }
+                ResolvedConditionalBranchPredicate::U64LessThanV1 => {
+                    isa_x86_64::encode_x86_64_selected_u64_less_than_branch_form(
+                        physical,
+                        machine.alternative.key,
+                        displacement,
+                    )
+                }
+                ResolvedConditionalBranchPredicate::I64LessThanV1 => {
+                    isa_x86_64::encode_x86_64_selected_i64_less_than_branch_form(
+                        physical,
+                        machine.alternative.key,
+                        displacement,
+                    )
+                }
+            }
+            .map_err(OptimizedResolvedSelectedFormLayoutError::X86_64)?;
+            (
+                realized.bytes().to_vec(),
+                realized.footprint().register_reads.clone(),
+                realized.footprint().encoded.clone(),
+            )
+        }
+        Architecture::Aarch64 => {
+            let form = if widened {
+                isa_aarch64::Aarch64ConditionalBranchForm::WidenedPairV1
+            } else {
+                isa_aarch64::Aarch64ConditionalBranchForm::CanonicalWordV1
+            };
+            let realized = isa_aarch64::encode_aarch64_selected_conditional_branch_form(
+                physical,
+                machine.alternative.key,
+                conditional_branch_family(predicate),
+                form,
+                displacement,
+            )
+            .map_err(OptimizedResolvedSelectedFormLayoutError::Aarch64)?;
+            (
+                realized.bytes().to_vec(),
+                realized.footprint().register_reads.clone(),
+                realized.footprint().encoded.clone(),
+            )
+        }
+    };
     if effects != machine.alternative.encoded {
         return Err(
             OptimizedResolvedSelectedFormLayoutError::BranchEffectsMismatch(instruction.id),
@@ -200,125 +256,4 @@ pub(super) fn resolve(
             },
         ))),
     ))
-}
-
-fn encode(
-    architecture: Architecture,
-    physical: &ValidatedPhysicalRegisterModel,
-    machine: &PostAllocationMachineInstruction,
-    predicate: ResolvedConditionalBranchPredicate,
-    displacement: i64,
-    widened: bool,
-) -> Result<
-    (
-        Vec<u8>,
-        Vec<register_model::RegisterViewId>,
-        MachineEncodedEffects,
-    ),
-    OptimizedResolvedSelectedFormLayoutError,
-> {
-    match (architecture, predicate) {
-        (Architecture::X86_64, ResolvedConditionalBranchPredicate::NonZeroV1) => {
-            let encoded = encode_x86_64_selected_nonzero_branch_form(
-                physical,
-                machine.alternative.key,
-                displacement,
-            )
-            .map_err(OptimizedResolvedSelectedFormLayoutError::X86_64)?;
-            Ok((
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().encoded.clone(),
-            ))
-        }
-        (Architecture::Aarch64, ResolvedConditionalBranchPredicate::NonZeroV1) => {
-            let encoded = if widened {
-                encode_aarch64_selected_nonzero_widened_branch_form(
-                    physical,
-                    machine.alternative.key,
-                    displacement,
-                )
-            } else {
-                encode_aarch64_selected_nonzero_branch_form(
-                    physical,
-                    machine.alternative.key,
-                    displacement,
-                )
-            }
-            .map_err(OptimizedResolvedSelectedFormLayoutError::Aarch64)?;
-            Ok((
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().encoded.clone(),
-            ))
-        }
-        (Architecture::X86_64, ResolvedConditionalBranchPredicate::U64LessThanV1) => {
-            let encoded = encode_x86_64_selected_u64_less_than_branch_form(
-                physical,
-                machine.alternative.key,
-                displacement,
-            )
-            .map_err(OptimizedResolvedSelectedFormLayoutError::X86_64)?;
-            Ok((
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().encoded.clone(),
-            ))
-        }
-        (Architecture::Aarch64, ResolvedConditionalBranchPredicate::U64LessThanV1) => {
-            let encoded = if widened {
-                encode_aarch64_selected_u64_less_than_widened_branch_form(
-                    physical,
-                    machine.alternative.key,
-                    displacement,
-                )
-            } else {
-                encode_aarch64_selected_u64_less_than_branch_form(
-                    physical,
-                    machine.alternative.key,
-                    displacement,
-                )
-            }
-            .map_err(OptimizedResolvedSelectedFormLayoutError::Aarch64)?;
-            Ok((
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().encoded.clone(),
-            ))
-        }
-        (Architecture::X86_64, ResolvedConditionalBranchPredicate::I64LessThanV1) => {
-            let encoded = encode_x86_64_selected_i64_less_than_branch_form(
-                physical,
-                machine.alternative.key,
-                displacement,
-            )
-            .map_err(OptimizedResolvedSelectedFormLayoutError::X86_64)?;
-            Ok((
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().encoded.clone(),
-            ))
-        }
-        (Architecture::Aarch64, ResolvedConditionalBranchPredicate::I64LessThanV1) => {
-            let encoded = if widened {
-                encode_aarch64_selected_i64_less_than_widened_branch_form(
-                    physical,
-                    machine.alternative.key,
-                    displacement,
-                )
-            } else {
-                encode_aarch64_selected_i64_less_than_branch_form(
-                    physical,
-                    machine.alternative.key,
-                    displacement,
-                )
-            }
-            .map_err(OptimizedResolvedSelectedFormLayoutError::Aarch64)?;
-            Ok((
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().encoded.clone(),
-            ))
-        }
-    }
 }

@@ -1017,6 +1017,26 @@ impl Query<'_> {
             } => {
                 output.append(self.argument_computations(argument)?);
             }
+            CheckedStructuralValueKind::ViewSubslice {
+                source, start, end, ..
+            } => {
+                // Narrowing observes the completed descriptor; it does not
+                // relocate that home into the new view. Its source and bounds
+                // still execute their actual calls in authored order.
+                output.append(self.value(
+                    *source,
+                    &[],
+                    false,
+                    ValueReceiver::Unbound,
+                    &[],
+                    active,
+                )?);
+                for endpoint in start.iter().chain(end.iter()) {
+                    if let checked_trees::CheckedCallScalarArgument::Computation(root) = endpoint {
+                        output.append(self.computation(*root)?);
+                    }
+                }
+            }
             CheckedStructuralValueKind::BorrowedSliceView { source, region }
             | CheckedStructuralValueKind::MutableSliceView { source, region } => {
                 output.append(self.argument_computations(source)?);

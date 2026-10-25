@@ -55,7 +55,7 @@ fn locate<'a>(
     let site = ViewRangeSite {
         state,
         statement: call.coordinate.statement_index,
-        range,
+        range: range.endpoints(),
     };
     Ok((argument, site))
 }

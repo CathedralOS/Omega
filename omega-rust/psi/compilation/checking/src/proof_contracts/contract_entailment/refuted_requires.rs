@@ -563,56 +563,11 @@ mod equality_predicate_tests {
 /// (`f(…).field`) and through the substituted argument terms, so the walk is
 /// over the whole instantiated predicate.
 fn uncertified_call_projection(program: &dyn crate::CheckingInput, term: &StructuralTerm) -> bool {
-    match term {
-        StructuralTerm::CallProjection {
-            target, arguments, ..
-        } => {
-            crate::machine_calls::denotational_calls::abstract_value_call_signature(
-                program, *target,
-            )
-            .is_none()
-                || arguments
-                    .iter()
-                    .any(|argument| uncertified_call_projection(program, argument))
-        }
-        StructuralTerm::ObservedValue {
-            value, descriptor, ..
-        } => {
-            uncertified_call_projection(program, value)
-                || descriptor
-                    .as_ref()
-                    .is_some_and(|descriptor| uncertified_call_projection(program, descriptor))
-        }
-        StructuralTerm::IntegerEmbedding { value, .. }
-        | StructuralTerm::Projection { subject: value, .. }
-        | StructuralTerm::CollectionMeasure {
-            collection: value, ..
-        } => uncertified_call_projection(program, value),
-        StructuralTerm::MathematicalBinary { left, right, .. }
-        | StructuralTerm::ScalarBinary { left, right, .. } => {
-            uncertified_call_projection(program, left)
-                || uncertified_call_projection(program, right)
-        }
-        StructuralTerm::Constructor { fields, .. } => fields
-            .iter()
-            .any(|(_, field)| uncertified_call_projection(program, field)),
-        StructuralTerm::Application { arguments, .. } => arguments
-            .iter()
-            .any(|argument| uncertified_call_projection(program, argument)),
-        StructuralTerm::IndexedValue {
-            collection, index, ..
-        } => {
-            uncertified_call_projection(program, collection)
-                || uncertified_call_projection(program, index)
-        }
-        StructuralTerm::Variable(_)
-        | StructuralTerm::BoundValue(_)
-        | StructuralTerm::CapturedValue { .. }
-        | StructuralTerm::BoundProjection { .. }
-        | StructuralTerm::Integer(_)
-        | StructuralTerm::Float(_)
-        | StructuralTerm::Opaque(_) => false,
-    }
+    matches!(
+        term,
+        StructuralTerm::CallProjection { target, .. }
+            if crate::machine_calls::denotational_calls::abstract_value_call_signature(program, *target).is_none()
+    ) || term.any_child(|child| uncertified_call_projection(program, child))
 }
 
 /// Both sides of a binary fact, substituted with the call's argument terms and

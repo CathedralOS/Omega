@@ -843,7 +843,7 @@ impl Builder<'_, '_> {
             // Failure to prepare a copy cannot turn it into an owned move.
             self.copied_place(expression, expected)?
         } else if let Some(view) = self
-            .subslice_view_place(expression, expected)
+            .subslice_view(expression, expected)
             .or_else(|| self.slice_view_place(expression, expected))
         {
             // A view's authored producer is spelled as a call but establishes

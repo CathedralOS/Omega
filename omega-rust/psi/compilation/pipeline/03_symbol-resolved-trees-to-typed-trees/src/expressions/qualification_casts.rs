@@ -12,16 +12,10 @@ use typed_trees::types::{
 
 /// Bind semantic `as ... in Domain` sites to declaration identity. Validation
 /// owns the diagnostic policy; this pass only publishes deterministic
-/// identities so no checked consumer re-resolves a user spelling.
+/// identities so no checked consumer re-resolves a user spelling. Only casts
+/// appended after a retained checkpoint are bound; a whole program passes
+/// zero.
 pub(crate) fn normalize_qualification_casts(
-    source: &symbol_resolved_trees::SymbolResolvedTrees,
-    program: &mut TypedTrees,
-) -> Result<(), Diagnostic> {
-    normalize_qualification_casts_from(source, program, 0)
-}
-
-/// Bind only semantic casts appended after a retained checkpoint.
-pub(crate) fn normalize_qualification_casts_from(
     source: &symbol_resolved_trees::SymbolResolvedTrees,
     program: &mut TypedTrees,
     expression_frontier: usize,

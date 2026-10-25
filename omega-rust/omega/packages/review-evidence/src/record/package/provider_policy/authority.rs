@@ -56,7 +56,6 @@ impl PackagePolicyServiceProgressRoute {}
 
 impl super::PackagePolicyServiceMethod {
     pub(super) fn validate_authority(&self) -> Result<(), &'static str> {
-        use super::validation::nominal;
         let authority = &self.authority;
         if authority
             .service_reach
@@ -76,7 +75,7 @@ impl super::PackagePolicyServiceMethod {
             return Err("provider authority repeats, reorders, or detaches its progress premises");
         }
         for service in &authority.service_reach {
-            nominal(service)?;
+            service.validate_resolved()?;
         }
         for invocation in &authority.synchronous_invocations {
             match invocation {
@@ -85,11 +84,13 @@ impl super::PackagePolicyServiceMethod {
                         return Err("provider invocation parameter is outside its telescope");
                     }
                 }
-                PackageReviewSynchronousInvocation::Service(service) => nominal(service)?,
+                PackageReviewSynchronousInvocation::Service(service) => {
+                    service.validate_resolved()?
+                }
             }
         }
         for premise in &authority.progress_premises {
-            nominal(&premise.profile)?;
+            premise.profile.validate_resolved()?;
             if matches!(premise.subject, ServiceProgressSubject::Parameter(ordinal) if ordinal >= self.parameter_count)
                 || premise
                     .establishment_routes
@@ -99,11 +100,11 @@ impl super::PackagePolicyServiceMethod {
                 return Err("provider progress premise has invalid subject or route ordering");
             }
             for projection in &premise.subject_projections {
-                nominal(projection)?;
+                projection.validate_resolved()?;
             }
             for route in &premise.establishment_routes {
-                nominal(&route.requirement_owner)?;
-                nominal(&route.requirement)?;
+                route.requirement_owner.validate_resolved()?;
+                route.requirement.validate_resolved()?;
                 if route.requirement_owner.owner != route.requirement.owner {
                     return Err("provider progress route changes its declaring owner");
                 }

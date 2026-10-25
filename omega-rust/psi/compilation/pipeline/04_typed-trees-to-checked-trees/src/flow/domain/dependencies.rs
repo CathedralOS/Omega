@@ -18,11 +18,12 @@ pub(crate) struct DomainDependencyCacheEntry {
     pub(crate) dependencies: Vec<Vec<facts::PlaceSegment>>,
 }
 
-/// Content and descriptor coordinates are distinct. Only a complete nominal
-/// theory with no predicate/role contribution can be known independent of a
-/// content write without inspecting that content. The ordinary dependency
-/// roster's empty set is deliberately not this proof: it can mean unknown.
-pub(in crate::flow) fn qualification_is_identity_only(
+/// Content and descriptor coordinates are distinct. A complete nominal theory
+/// can depend on the descriptor's inline values without depending on the
+/// separately backed content. Checked mathematical applications retain their
+/// complete source captures; unknown observations remain conservative. An empty
+/// ordinary dependency roster is not this proof: it can mean unknown.
+pub(in crate::flow) fn qualification_is_content_independent(
     program: &dyn validation::CheckingInput,
     domain: SymbolHandle,
 ) -> bool {
@@ -41,10 +42,10 @@ pub(in crate::flow) fn qualification_is_identity_only(
         let Some(domain) = program.domain_definition(symbol) else {
             return false;
         };
-        if domain.predicate_body.is_present()
-            || domain.classification.is_some()
+        if domain.classification.is_some()
             || !domain.semantic_roles.is_empty()
             || !domain.operators.is_empty()
+            || (domain.predicate_body.is_present() && program.proof_facts(domain).is_empty())
         {
             return false;
         }
@@ -55,12 +56,15 @@ pub(in crate::flow) fn qualification_is_identity_only(
                     visit(program, constituent.domain_symbol, visiting, completed)
                 })
         });
-        let facts = program.proof_facts(domain).iter().all(|fact| {
-            let typed_trees::domain::ProofFact::Membership(membership) = fact else {
-                return false;
-            };
-            typed_trees::domain::domain_subject_reference(program, domain, membership.value)
-                && visit(program, membership.domain_symbol, visiting, completed)
+        let facts = program.proof_facts(domain).iter().all(|fact| match fact {
+            typed_trees::domain::ProofFact::Membership(membership) => {
+                typed_trees::domain::domain_subject_reference(program, domain, membership.value)
+                    && visit(program, membership.domain_symbol, visiting, completed)
+            }
+            typed_trees::domain::ProofFact::Expression(expression) => {
+                mathematical_captures_are_inline(program, domain, *expression)
+            }
+            typed_trees::domain::ProofFact::Proposition(_) => false,
         });
         visiting.pop();
         if aliases && facts {
@@ -71,6 +75,55 @@ pub(in crate::flow) fn qualification_is_identity_only(
         }
     }
     visit(program, domain, &mut Vec::new(), &mut Vec::new())
+}
+
+fn mathematical_captures_are_inline(
+    program: &dyn validation::CheckingInput,
+    domain: &typed_trees::domain::DomainDefinition,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let Some(mathematics) = program.prepared_mathematics() else {
+        return false;
+    };
+    let Some(application) = mathematics.application(expression) else {
+        return false;
+    };
+    mathematics
+        .applications
+        .captures
+        .span_or_empty(application.captures)
+        .iter()
+        .all(|capture| {
+            // A scalar loaded through a reference is still a content observation.
+            // Require every prefix to be inline, not merely a scalar leaf type.
+            let Some(segments) =
+                relative_place_segments_from_expression(program, capture.expression, domain)
+            else {
+                return false;
+            };
+            // A dynamic selector can itself observe referenced storage even
+            // when the selected element is inline. The projected type alone
+            // proves nothing about that observation; retain invalidation when
+            // selector dependencies have not been established.
+            if segments.iter().any(|segment| {
+                matches!(
+                    segment,
+                    facts::PlaceSegment::Index { .. } | facts::PlaceSegment::OpaqueRange
+                )
+            }) {
+                return false;
+            }
+            (0..=segments.len()).all(|length| {
+                validation::project_type_reference_from_segments(
+                    program,
+                    domain.target_type,
+                    &segments[..length],
+                )
+                .is_some_and(|reference| validation::reference_shell(program, reference).is_none())
+            }) && program
+                .primitive_type_reference(capture.source_type)
+                .is_some()
+        })
 }
 
 pub(crate) fn build_domain_facts(

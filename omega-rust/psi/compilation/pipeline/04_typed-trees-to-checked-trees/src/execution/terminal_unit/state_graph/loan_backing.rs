@@ -287,8 +287,9 @@ fn retained_parents(
         })
         .map(|(_, resource)| resource)
         .collect::<Vec<_>>();
-    if !paths.iter().all(|path| {
-        roots.iter().any(|resource| {
+    let mut shared_backings = Vec::new();
+    for path in &paths {
+        if roots.iter().any(|resource| {
             facts
                 .borrow
                 .owner_segments
@@ -300,11 +301,18 @@ fn retained_parents(
             capture,
             &crate::borrow::owner_place_segments(path),
             &ingress,
-        ) || ambient_shared_leaf(program, capture, path)
-    }) {
-        return Err("state loan parents: captured reference leaves have no resources");
+        ) {
+            continue;
+        }
+        let retained = shared_leaf_lifetime_roots(program, facts, capture, path)
+            .ok_or("state loan parents: captured reference leaves have no resources")?;
+        for root in retained {
+            if !shared_backings.contains(&root) {
+                shared_backings.push(root);
+            }
+        }
     }
-    if roots.is_empty() {
+    if roots.is_empty() && shared_backings.is_empty() {
         return Ok((Vec::new(), Vec::new()));
     }
     let borrow_state = facts
@@ -371,6 +379,31 @@ fn retained_parents(
             }
         }
     }
+    // Shared returned descriptors may outlive the temporary access that formed
+    // them. Their completed lifetime profiles still retain exact local homes;
+    // absence of a current invocation access never makes that backing ambient.
+    // This relation keeps storage alive and grants no access or relocation.
+    let dependencies = Dependencies {
+        program,
+        facts,
+        state,
+        statement: capture.statement_index,
+        borrow_state,
+        forbidden: &[],
+        ingress: &ingress,
+        ingress_storage: &ingress_storage,
+    };
+    for root in shared_backings {
+        if let Some(parent) =
+            owned_parent_binding(program, facts, state, statement, operations, root)?
+            && !operand_parents.contains(&parent)
+        {
+            operand_parents.push(parent);
+        }
+        if !dependencies.contents(root, capture.constraints, &mut Vec::new(), &mut captured) {
+            return Err("state loan parents: incomplete shared storage dependencies");
+        }
+    }
     let mut parents = Vec::new();
     for (dependent, parent) in captured {
         let Some(parent) =
@@ -391,25 +424,42 @@ fn retained_parents(
     Ok((parents, operand_parents))
 }
 
-/// A shared leaf that no stored loan or ingress row supplies is ambient: its
-/// referent lives outside this activation's owned storage — intrinsic results
-/// and runtime-materialized views reach the capture only as descriptors, so
-/// the destination needs no parent. Exclusive leaves still demand coverage;
-/// custody cannot move without a named referent.
-fn ambient_shared_leaf(
+/// A complete shared-leaf lifetime profile can retain storage after its forming
+/// access ends. Read every exact completed profile; neither shared type spelling
+/// nor a missing resource establishes external or image backing. Exclusive
+/// leaves still require their captured permission resource or ingress relation.
+fn shared_leaf_lifetime_roots(
     program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
     capture: &checked_trees::FlowOperandFact,
     path: &[checked_trees::BorrowLoanOwnerSegment],
-) -> bool {
-    let Some(leaf_type) = validation::project_type_reference_from_segments(
+) -> Option<Vec<PlaceRoot>> {
+    let path = crate::borrow::owner_place_segments(path);
+    let reference =
+        validation::project_type_reference_from_segments(program, capture.type_reference, &path)?;
+    if validation::reference_shell(program, reference)?.access
+        != language_semantics::ReferenceAccess::Shared
+    {
+        return None;
+    }
+    let profiles = validation::completed_storage::captured_retention_profiles_at_path(
         program,
-        capture.type_reference,
-        &crate::borrow::owner_place_segments(path),
-    ) else {
-        return false;
-    };
-    validation::reference_shell(program, leaf_type)
-        .is_some_and(|shell| shell.access == language_semantics::ReferenceAccess::Shared)
+        &facts.flow.control,
+        capture,
+        &path,
+    )?;
+    if profiles.is_empty() {
+        return None;
+    }
+    let mut roots = Vec::new();
+    for profile in profiles {
+        for root in facts.flow.control.retained_roots(profile)? {
+            if !roots.contains(root) {
+                roots.push(*root);
+            }
+        }
+    }
+    Some(roots)
 }
 
 /// Reuse the completed assembly's child projection. An opaque child keeps its

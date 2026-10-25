@@ -828,6 +828,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         for argument in operation.structural_operands() {
             retained_type_identities.insert(argument.type_identity);
             retained_type_identities.extend(argument.borrowed_root_type_identity());
+            retained_type_identities.extend(argument.subslice_root_type_identity());
             if let Some(storage_type_identity) = argument.subslice_storage_type_identity() {
                 retained_type_identities.insert(storage_type_identity);
             }
@@ -876,6 +877,7 @@ pub(crate) fn build_checked_unit_effect_plans(
             }
             CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source } => {
                 retained_type_identities.insert(result.type_identity);
+                retained_type_identities.extend(source.subslice_root_type_identity());
                 // The subslice's borrowed storage carries its own identity
                 // beside the bound view's — a constrained field carrier
                 // enrolls it under the peeled spelling no record field
@@ -1396,6 +1398,7 @@ fn retain_value_types(
                 }
             }
             checked_trees::CheckedStructuralValueKind::Projection { source, .. }
+            | checked_trees::CheckedStructuralValueKind::ViewSubslice { source, .. }
             | checked_trees::CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
                 pending.push(*source);
             }

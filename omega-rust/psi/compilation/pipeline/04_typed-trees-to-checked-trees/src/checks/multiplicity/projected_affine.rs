@@ -150,10 +150,23 @@ pub(super) fn append_transfer(
     Ok(())
 }
 
-/// A move candidate detaches owned storage only when its canonical endpoint
-/// resolves to a non-copy value. Reference carriers transfer their permission,
-/// while unresolved derived observations retain their existing owning checks.
-/// Loan exclusion and borrowed-window opening must use the same judgment.
+/// Copying an unrestricted value observes its source without detaching storage.
+/// Affine reference carriers still transfer their descriptor custody, separately
+/// from whether their referent is owned by this place.
+pub(super) fn transfers_value_custody(
+    program: &dyn ::validation::CheckingInput,
+    state: SymbolHandle,
+    statement_index: usize,
+    event: &crate::flow::DiscoveredMoveEvent,
+    path: &[facts::PlaceSegment],
+) -> bool {
+    selected_value_type(program, state, statement_index, event, path).is_some_and(|reference| {
+        type_multiplicity(program, reference) != Multiplicity::Unrestricted
+    })
+}
+
+/// Loan exclusion and borrowed-window opening distinguish an owned value from
+/// a reference descriptor. Moving the descriptor does not detach its referent.
 pub(in crate::checks) fn transfers_owned_storage(
     program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
@@ -161,26 +174,34 @@ pub(in crate::checks) fn transfers_owned_storage(
     event: &crate::flow::DiscoveredMoveEvent,
     path: &[facts::PlaceSegment],
 ) -> bool {
-    let place = validation::CanonicalPlace {
-        root: event.root,
-        segments: path.to_vec(),
-    };
-    let Some(projected_type) = event
+    selected_value_type(program, state, statement_index, event, path).is_some_and(|reference| {
+        type_multiplicity(program, reference) != Multiplicity::Unrestricted
+            && !type_reference_is_reference(program, reference)
+    })
+}
+
+fn selected_value_type(
+    program: &dyn ::validation::CheckingInput,
+    state: SymbolHandle,
+    statement_index: usize,
+    event: &crate::flow::DiscoveredMoveEvent,
+    path: &[facts::PlaceSegment],
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    event
         .value_type
         .is_valid()
         .then_some(event.value_type)
         .or_else(|| {
-            validation::canonical_place_type_reference(program, state, statement_index, &place)
+            validation::canonical_place_type_reference(
+                program,
+                state,
+                statement_index,
+                &validation::CanonicalPlace {
+                    root: event.root,
+                    segments: path.to_vec(),
+                },
+            )
         })
-    else {
-        return false;
-    };
-    if type_multiplicity(program, projected_type) == Multiplicity::Unrestricted
-        || type_reference_is_reference(program, projected_type)
-    {
-        return false;
-    }
-    true
 }
 
 /// Projection identifies a subtree, but grants no ownership of a borrowed

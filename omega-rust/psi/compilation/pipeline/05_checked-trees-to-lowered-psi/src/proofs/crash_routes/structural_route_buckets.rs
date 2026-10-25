@@ -12,8 +12,7 @@ use crate::proofs::crash_routes::structural_members::{
 use crate::proofs::{
     CanonicalStructuralPathSegment, CheckedBooleanExpression, CheckedScalarExpression,
     IeeeFloatFormat, LoweringError, PlaceId, PrimitiveType, Proposition, ScalarTerm, ScalarType,
-    StructuralParameterDeclaration, StructuralTypeDeclaration, TerminalCrashCause,
-    ValueDeclaration, unsupported,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, ValueDeclaration, unsupported,
 };
 
 pub(crate) fn lower_structural_crash_route_buckets(
@@ -30,67 +29,34 @@ pub(crate) fn lower_structural_crash_route_buckets(
         structural_types,
         runtime_requirements,
     };
-    buckets
-        .iter()
-        .map(|bucket| {
-            let mut alternatives = bucket
-                .alternative_guards()
-                .iter()
-                .map(|guard| match guard {
-                    checked_trees::CrashRouteGuard::Truth => {
-                        Ok(terminal_psi::CrashRouteGuard::Truth)
-                    }
-                    checked_trees::CrashRouteGuard::Predicate(predicate) => {
-                        let proposition = if let Some(expression) = predicate.scalar_expression() {
-                            let mut remaining = boolean_input_budget(expression)?;
-                            terms.lower_proposition(
-                                identities,
-                                expression,
-                                &mut remaining,
-                                0,
-                            )?
-                        } else {
-                            let mut path = Vec::new();
-                            let parameter_position = predicate
-                                .expression()
-                                .and_then(|expression| checked_member_path(expression, &mut path))
-                                .ok_or(LoweringError::Unsupported(
-                                    "structural crash route is outside checked Boolean member lowering",
-                                ))?;
-                            Proposition::Equal(
-                                ScalarTerm::boolean(true),
-                                lower_structural_member_term(
-                                    identities,
-                                    parameter_position,
-                                    &path
-                                        .into_iter()
-                                        .map(
-                                            checked_trees::CheckedStructuralPredicatePathSegment::Field,
-                                        )
-                                        .collect::<Vec<_>>(),
-                                    ScalarType::Boolean,
-                                    parameters,
-                                    structural_types,
-                                )?,
-                            )
-                        };
-                        Ok(terminal_psi::CrashRouteGuard::Predicate(
-                            terminal_psi::CrashPredicateTerm::new(proposition),
-                        ))
-                    }
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            alternatives.sort();
-            alternatives.dedup();
-            Ok(terminal_psi::CrashRouteBucket {
-                cause: match bucket.cause() {
-                    checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
-                    checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
-                },
-                alternatives,
-            })
-        })
-        .collect()
+    super::lower_crash_route_buckets(buckets, |predicate| {
+        if let Some(expression) = predicate.scalar_expression() {
+            let mut remaining = boolean_input_budget(expression)?;
+            terms.lower_proposition(identities, expression, &mut remaining, 0)
+        } else {
+            let mut path = Vec::new();
+            let parameter_position = predicate
+                .expression()
+                .and_then(|expression| checked_member_path(expression, &mut path))
+                .ok_or(LoweringError::Unsupported(
+                    "structural crash route is outside checked Boolean member lowering",
+                ))?;
+            Ok(Proposition::Equal(
+                ScalarTerm::boolean(true),
+                lower_structural_member_term(
+                    identities,
+                    parameter_position,
+                    &path
+                        .into_iter()
+                        .map(checked_trees::CheckedStructuralPredicatePathSegment::Field)
+                        .collect::<Vec<_>>(),
+                    ScalarType::Boolean,
+                    parameters,
+                    structural_types,
+                )?,
+            ))
+        }
+    })
 }
 
 /// Site guards and published routes observe the same invocation namespace.
@@ -539,40 +505,10 @@ impl RouteTerms<'_> {
                 .into_iter()
                 .map(|leaf| self.lower_proposition(identities, leaf, remaining, depth + 1))
                 .collect::<Result<Vec<_>, _>>()?;
-            let mut flattened = Vec::new();
-            for proposition in propositions {
-                match proposition {
-                    Proposition::Conjunction(nested) if conjunction => flattened.extend(nested),
-                    Proposition::Disjunction(nested) if !conjunction => flattened.extend(nested),
-                    proposition => flattened.push(proposition),
-                }
-            }
-            let mut keyed = flattened
-                .into_iter()
-                .map(|proposition| {
-                    terminal_codec::canonical_proposition_order_key(&proposition)
-                        .map(|key| (key, proposition))
-                        .map_err(|_| {
-                            LoweringError::Unsupported(
-                                "structural crash connective is not canonically encodable",
-                            )
-                        })
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            keyed.sort_by(|left, right| left.0.cmp(&right.0));
-            keyed.dedup_by(|left, right| left.0 == right.0);
-            if keyed.len() == 1 {
-                return Ok(keyed.pop().expect("one distinct crash predicate").1);
-            }
-            let propositions = keyed
-                .into_iter()
-                .map(|(_, proposition)| proposition)
-                .collect();
-            return Ok(if conjunction {
-                Proposition::Conjunction(propositions)
-            } else {
-                Proposition::Disjunction(propositions)
-            });
+            return crate::proofs::contract_predicates::canonical_connectives(
+                propositions,
+                conjunction,
+            );
         }
         let mut left = ScalarTerm::boolean(true);
         let mut right = self.lower_term(identities, expression)?;

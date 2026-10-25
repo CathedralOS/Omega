@@ -667,6 +667,65 @@ fn visit_lifetime_bindings_in_scope(
     let Some((actual, actual_scope)) = actual_scope.resolve(program, actual) else {
         return;
     };
+    // A bare nominal supplies the same application with anonymous regions.
+    // An omitted Generic region lane is equally anonymous. Report absence as
+    // an operand so result application can retain its validated supplier scope;
+    // never invent a caller lifetime or infer missing Type/Const arguments.
+    let actual_nominal = match program.type_reference_table.type_reference(actual) {
+        TypeReferenceNode::Generic {
+            base_symbol,
+            lifetime_arguments,
+            arguments,
+            ..
+        } => Some((
+            *base_symbol,
+            lifetime_arguments.as_slice(),
+            program
+                .type_reference_table
+                .type_reference_handles(*arguments),
+        )),
+        TypeReferenceNode::Named { symbol, .. } => Some((*symbol, &[][..], &[][..])),
+        _ => None,
+    };
+    if let TypeReferenceNode::Generic {
+        base_symbol: required_base,
+        lifetime_arguments: required_lifetimes,
+        arguments: required_arguments,
+        ..
+    } = program.type_reference_table.type_reference(required)
+        && let Some((actual_base, actual_lifetimes, actual_arguments)) = actual_nominal
+        && required_base.is_valid()
+        && *required_base == actual_base
+    {
+        for (position, required) in required_lifetimes.iter().enumerate() {
+            if parameters
+                .iter()
+                .any(|parameter| parameter.as_str() == required.as_str())
+            {
+                let actual = actual_lifetimes
+                    .get(position)
+                    .and_then(|actual| actual_scope.argument(program, caller, actual));
+                visit(required, actual.as_ref());
+            }
+        }
+        for (required, actual) in program
+            .type_reference_table
+            .type_reference_handles(*required_arguments)
+            .iter()
+            .zip(actual_arguments)
+        {
+            visit_lifetime_bindings_in_scope(
+                program,
+                *required,
+                *actual,
+                parameters,
+                actual_scope,
+                caller,
+                visit,
+            );
+        }
+        return;
+    }
     match (
         program.type_reference_table.type_reference(required),
         program.type_reference_table.type_reference(actual),
@@ -723,50 +782,6 @@ fn visit_lifetime_bindings_in_scope(
             caller,
             visit,
         ),
-        (
-            TypeReferenceNode::Generic {
-                base_symbol: required_base,
-                lifetime_arguments: required_lifetimes,
-                arguments: required_arguments,
-                ..
-            },
-            TypeReferenceNode::Generic {
-                base_symbol: actual_base,
-                lifetime_arguments: actual_lifetimes,
-                arguments: actual_arguments,
-                ..
-            },
-        ) if required_base.is_valid() && required_base == actual_base => {
-            for (required, actual) in required_lifetimes.iter().zip(actual_lifetimes) {
-                if parameters
-                    .iter()
-                    .any(|parameter| parameter.as_str() == required.as_str())
-                {
-                    let actual = actual_scope.argument(program, caller, actual);
-                    visit(required, actual.as_ref());
-                }
-            }
-            for (required, actual) in program
-                .type_reference_table
-                .type_reference_handles(*required_arguments)
-                .iter()
-                .zip(
-                    program
-                        .type_reference_table
-                        .type_reference_handles(*actual_arguments),
-                )
-            {
-                visit_lifetime_bindings_in_scope(
-                    program,
-                    *required,
-                    *actual,
-                    parameters,
-                    actual_scope,
-                    caller,
-                    visit,
-                );
-            }
-        }
         (
             TypeReferenceNode::Slice {
                 element_type: required,

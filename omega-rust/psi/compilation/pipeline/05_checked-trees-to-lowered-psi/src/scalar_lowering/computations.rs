@@ -363,12 +363,7 @@ impl<'a> Expansion<'a> {
             .facts
             .values
             .scalar_computations
-            .roots
-            .iter()
-            .map(|(_, root)| root)
-            .filter(|root| {
-                root.state == state && root.statement_ordinal == statement && root.role == role
-            });
+            .roots_for_statement_role(state, statement, role);
         let root = roots.next().ok_or(LoweringError::Unsupported(
             "scalar retained value has no checked computation root",
         ))?;

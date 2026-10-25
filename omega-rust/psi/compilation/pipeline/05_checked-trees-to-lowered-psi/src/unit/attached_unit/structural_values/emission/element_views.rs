@@ -151,7 +151,7 @@ impl Emission<'_, '_, '_> {
                 view_ranges::ViewRangeSite {
                     state: self.state,
                     statement: self.statement,
-                    range,
+                    range: range.endpoints(),
                 },
                 bound,
                 self.structural_type,

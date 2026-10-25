@@ -1,13 +1,9 @@
 use std::collections::BTreeMap;
 
 use isa_aarch64::{
+    Aarch64ConditionalBranchForm,
     encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
-    encode_aarch64_selected_i64_less_than_branch_form,
-    encode_aarch64_selected_i64_less_than_widened_branch_form,
-    encode_aarch64_selected_nonzero_branch_form,
-    encode_aarch64_selected_nonzero_widened_branch_form,
-    encode_aarch64_selected_u64_less_than_branch_form,
-    encode_aarch64_selected_u64_less_than_widened_branch_form,
+    encode_aarch64_selected_conditional_branch_form,
 };
 use isa_x86_64::{
     encode_x86_64_selected_i64_less_than_branch_form, encode_x86_64_selected_nonzero_branch_form,
@@ -23,7 +19,7 @@ use selected_instructions::SelectedBlockId;
 use target::Architecture;
 
 use super::FrameApplicationError;
-use super::branch_reach::holds_long_form;
+use super::branch_reach::{conditional_branch_family, holds_long_form};
 
 mod widening;
 
@@ -179,20 +175,41 @@ fn encode_branch(
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<Vec<u8>, FrameApplicationError> {
     let long = holds_long_form(architecture, branch, row_byte_count);
-    let (bytes, register_reads, effects) = match (architecture, branch.predicate) {
-        (Architecture::X86_64, FunctionFragmentConditionalBranchPredicate::NonZeroV1) => {
-            let encoded = if long {
-                encode_x86_64_selected_nonzero_branch_form(
-                    physical,
-                    alternative,
-                    branch.byte_displacement,
-                )
-            } else {
-                encode_x86_64_selected_short_nonzero_branch_form(
-                    physical,
-                    alternative,
-                    branch.byte_displacement,
-                )
+    let (bytes, register_reads, effects) = match architecture {
+        // The reserved row width is the x86 reach: a two-byte row holds
+        // `Jcc rel8`, a six-byte row `Jcc rel32`. The row's alternative must
+        // record the same reach or the target encoder refuses it.
+        Architecture::X86_64 => {
+            let encoded = match branch.predicate {
+                FunctionFragmentConditionalBranchPredicate::NonZeroV1 => {
+                    if long {
+                        encode_x86_64_selected_nonzero_branch_form(
+                            physical,
+                            alternative,
+                            branch.byte_displacement,
+                        )
+                    } else {
+                        encode_x86_64_selected_short_nonzero_branch_form(
+                            physical,
+                            alternative,
+                            branch.byte_displacement,
+                        )
+                    }
+                }
+                FunctionFragmentConditionalBranchPredicate::U64LessThanV1 => {
+                    encode_x86_64_selected_u64_less_than_branch_form(
+                        physical,
+                        alternative,
+                        branch.byte_displacement,
+                    )
+                }
+                FunctionFragmentConditionalBranchPredicate::I64LessThanV1 => {
+                    encode_x86_64_selected_i64_less_than_branch_form(
+                        physical,
+                        alternative,
+                        branch.byte_displacement,
+                    )
+                }
             }
             .map_err(|error| FrameApplicationError::X86_64Branch(instruction, error))?;
             (
@@ -201,34 +218,9 @@ fn encode_branch(
                 encoded.footprint().encoded.clone(),
             )
         }
-        (Architecture::X86_64, FunctionFragmentConditionalBranchPredicate::U64LessThanV1) => {
-            let encoded = encode_x86_64_selected_u64_less_than_branch_form(
-                physical,
-                alternative,
-                branch.byte_displacement,
-            )
-            .map_err(|error| FrameApplicationError::X86_64Branch(instruction, error))?;
-            (
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().encoded.clone(),
-            )
-        }
-        (Architecture::X86_64, FunctionFragmentConditionalBranchPredicate::I64LessThanV1) => {
-            let encoded = encode_x86_64_selected_i64_less_than_branch_form(
-                physical,
-                alternative,
-                branch.byte_displacement,
-            )
-            .map_err(|error| FrameApplicationError::X86_64Branch(instruction, error))?;
-            (
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().encoded.clone(),
-            )
-        }
-        (Architecture::Aarch64, FunctionFragmentConditionalBranchPredicate::NonZeroV1)
-            if branch.decoded_register_reads.len() == 1 =>
+        Architecture::Aarch64
+            if branch.predicate == FunctionFragmentConditionalBranchPredicate::NonZeroV1
+                && branch.decoded_register_reads.len() == 1 =>
         {
             let encoded = encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
                 physical,
@@ -242,62 +234,19 @@ fn encode_branch(
                 encoded.footprint().encoded.clone(),
             )
         }
-        (Architecture::Aarch64, FunctionFragmentConditionalBranchPredicate::NonZeroV1) => {
-            let encoded = if long {
-                encode_aarch64_selected_nonzero_widened_branch_form(
-                    physical,
-                    alternative,
-                    branch.byte_displacement,
-                )
+        Architecture::Aarch64 => {
+            let form = if long {
+                Aarch64ConditionalBranchForm::WidenedPairV1
             } else {
-                encode_aarch64_selected_nonzero_branch_form(
-                    physical,
-                    alternative,
-                    branch.byte_displacement,
-                )
-            }
-            .map_err(|error| FrameApplicationError::Aarch64Branch(instruction, error))?;
-            (
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().encoded.clone(),
+                Aarch64ConditionalBranchForm::CanonicalWordV1
+            };
+            let encoded = encode_aarch64_selected_conditional_branch_form(
+                physical,
+                alternative,
+                conditional_branch_family(branch.predicate),
+                form,
+                branch.byte_displacement,
             )
-        }
-        (Architecture::Aarch64, FunctionFragmentConditionalBranchPredicate::U64LessThanV1) => {
-            let encoded = if long {
-                encode_aarch64_selected_u64_less_than_widened_branch_form(
-                    physical,
-                    alternative,
-                    branch.byte_displacement,
-                )
-            } else {
-                encode_aarch64_selected_u64_less_than_branch_form(
-                    physical,
-                    alternative,
-                    branch.byte_displacement,
-                )
-            }
-            .map_err(|error| FrameApplicationError::Aarch64Branch(instruction, error))?;
-            (
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().encoded.clone(),
-            )
-        }
-        (Architecture::Aarch64, FunctionFragmentConditionalBranchPredicate::I64LessThanV1) => {
-            let encoded = if long {
-                encode_aarch64_selected_i64_less_than_widened_branch_form(
-                    physical,
-                    alternative,
-                    branch.byte_displacement,
-                )
-            } else {
-                encode_aarch64_selected_i64_less_than_branch_form(
-                    physical,
-                    alternative,
-                    branch.byte_displacement,
-                )
-            }
             .map_err(|error| FrameApplicationError::Aarch64Branch(instruction, error))?;
             (
                 encoded.bytes().to_vec(),

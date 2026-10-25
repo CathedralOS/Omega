@@ -580,7 +580,7 @@ fn project_recovery_manifest(
     legality: &ValidatedAllocationLegality,
     homes: &crate::ValidatedRegisterHomes,
 ) -> Result<crate::ValidatedPostAllocationOptimizationManifest, RuntimeSpillAllocationError> {
-    crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest_with_suite_completions(
+    crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest(
         base.pre_physical,
         base.selected_lowering_completion,
         base.pre_allocation_completion,
@@ -595,23 +595,25 @@ fn project_recovery_manifest(
 fn recover_over(
     source: RuntimeSpillSource,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
-    let base = source.declared_manifest();
-    let environment = source.register_environment();
+    let resolved = source.resolve();
+    let base = &resolved.manifest;
+    let environment = resolved.legality_stage.register_environment();
+    let availability = resolved.legality_stage.allocator_availability();
     // One reuse set spans every step: each step rewrites one function, so the
     // others keep the homes their unchanged rows already received.
     let mut home_reuse = FunctionHomeReuse::default();
-    let budget = source.budget_per_pass();
+    let budget = resolved.legality_stage.budget_per_pass();
     let rewrite = RuntimeSpillStepRewrite::FixedOccurrences(
-        materialize_selected_fixed_occurrences(&source.base(), environment, budget)
+        materialize_selected_fixed_occurrences(&resolved.base, environment, budget)
             .map_err(RuntimeSpillAllocationError::FixedOccurrences)?,
     );
     let facts = analyze(
         environment,
-        source.allocator_availability(),
-        &source.base(),
-        source.liveness(),
-        source.ranges(),
-        source.legality(),
+        availability,
+        &resolved.base,
+        resolved.liveness,
+        resolved.ranges,
+        resolved.legality,
         &rewrite.selected(),
     )?;
     let mut recorded = vec![rewrite.transformation()];
@@ -637,11 +639,7 @@ fn recover_over(
                 manifest,
             });
         }
-        Err(
-            error @ (crate::RegisterHomeError::NoCompatibleHome { .. }
-            | crate::RegisterHomeError::NoCommonCandidate { .. }
-            | crate::RegisterHomeError::UnresolvedEntryTransitions { .. }),
-        ) => error,
+        Err(error) if error.admits_runtime_recovery() => error,
         Err(error) => return Err(RuntimeSpillAllocationError::Homes(error)),
     };
     let mut current = rewrite;
@@ -754,7 +752,7 @@ fn recover_over(
                 if selected.selected_identity() != analysis_source.selected().selected_identity() {
                     let facts = analyze(
                         environment,
-                        source.allocator_availability(),
+                        availability,
                         &analysis_source.selected(),
                         &current_liveness,
                         &current_ranges,
@@ -783,13 +781,7 @@ fn recover_over(
                                 manifest,
                             });
                         }
-                        Err(
-                            error @ (crate::RegisterHomeError::NoCompatibleHome { .. }
-                            | crate::RegisterHomeError::NoCommonCandidate { .. }
-                            | crate::RegisterHomeError::UnresolvedEntryTransitions {
-                                ..
-                            }),
-                        ) => {
+                        Err(error) if error.admits_runtime_recovery() => {
                             failure = error;
                             current_ranges = facts.ranges;
                             current_liveness = facts.liveness;
@@ -844,7 +836,7 @@ fn recover_over(
                     {
                         let probe = analyze(
                             environment,
-                            source.allocator_availability(),
+                            availability,
                             &analysis_source.selected(),
                             &current_liveness,
                             &current_ranges,
@@ -876,13 +868,7 @@ fn recover_over(
                                 };
                                 return Ok(result);
                             }
-                            Err(
-                                error @ (crate::RegisterHomeError::NoCompatibleHome { .. }
-                                | crate::RegisterHomeError::NoCommonCandidate { .. }
-                                | crate::RegisterHomeError::UnresolvedEntryTransitions {
-                                    ..
-                                }),
-                            ) => {
+                            Err(error) if error.admits_runtime_recovery() => {
                                 failed_crossing = Some(SpillPressureProbe {
                                     rewrite: crossing,
                                     facts: probe,
@@ -943,7 +929,7 @@ fn recover_over(
         } else {
             let facts = analyze(
                 environment,
-                source.allocator_availability(),
+                availability,
                 &analysis_source.selected(),
                 &current_liveness,
                 &current_ranges,
@@ -985,11 +971,7 @@ fn recover_over(
                 };
                 return Ok(result);
             }
-            Err(
-                error @ (crate::RegisterHomeError::NoCompatibleHome { .. }
-                | crate::RegisterHomeError::NoCommonCandidate { .. }
-                | crate::RegisterHomeError::UnresolvedEntryTransitions { .. }),
-            ) => {
+            Err(error) if error.admits_runtime_recovery() => {
                 failure = error;
                 current_ranges = facts.ranges;
                 current_legality = facts.legality;
