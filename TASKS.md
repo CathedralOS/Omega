@@ -133,25 +133,6 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
-- **EXPLICIT-ENTRY-STORAGE.** Retire automatic provisioned ZII entry contexts
-  under [entry roots](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge).
-  Entry selection names an ordinary static machine, never an allocated context.
-  State uses ordinary stack locals with checked WCSU or ordinary static data
-  with its existing ownership/access rules; an explicitly installed entry
-  contract may supply values or borrows with actual runtime backing, as in UEFI
-  handoff. Remove `NoneOrProvisionedZii`, signature-scanned mutable-context
-  discovery and implicit receiver/context construction in hosted startup,
-  interpreters, test roots, entry plans and native admission. Preserve explicit
-  platform bridges, root lineage, storage partitioning, qualification
-  establishment and cleanup; Build selection supplies no runtime authority.
-  Migrate existing entry-context samples and fixtures rather than retaining an
-  alias or compatibility mode. Acceptance: static-backed state retains
-  exclusive access without ambient globals, and an installed handoff receives
-  exactly its declared arguments on matching targets. Invented backing,
-  invalid initialization and overlapping root claims still reject. Programs
-  need neither a reserved `main` name nor a data-qualified machine, and actual
-  matching-host native/Terminal execution establishes the migrated behavior.
-
 - **CHECKED-PACKAGE-REUSE.** (new-scope) A dependent's check re-judges its
   dependencies' bodies: on Windows (opt-level 1, `90dcfa2bcbe`) a 10-line std
   program checks in 15.6 s, std's package step 5.8 s plus 7.1 s of Stage 05
@@ -604,8 +585,6 @@ helper that passes does not close an item.
     hooks that can fail, block, suspend, crash or exit. Zero custom hooks must
     not discharge a still-owed linear claim. This is implementation work, not
     an owner-decision dependency.
-    **EXPLICIT-ENTRY-STORAGE** owns retiring the separate automatic entry-context
-    allocation path; preserve actual platform handoff and storage authority.
   - `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs
     on both Linux targets, preserving Windows x86-64 and macOS ARM64 behavior.
   Acceptance: static customers execute with their authored exit/output; the
@@ -5259,7 +5238,7 @@ parallel compiler.
 - **BUILD-TEST-AUTHORITY.** (split-of:BUILD-TEST-GROUPS) Add group-scoped
   providers, ordinary fixture storage and fresh mock state. Supply root arguments
   only through explicit installed test-call contracts, never automatic mutable
-  context provisioning; coordinate that removal with **EXPLICIT-ENTRY-STORAGE**.
+  context provisioning. Preserve actual backing and explicit storage authority.
   Extend the restricted
   requests in `omega-rust/omega/compilation/build-evaluation/src/admitted_build_program.rs`
   and `omega-rust/omega/packages/package-manager/src/review/restricted_build_grants.rs`

@@ -50,6 +50,7 @@ ownership checks already rejected the call-result, match-join and state-transfer
 retained controls are not claimed as newly repaired behavior. The state-transfer
 probe's initial syntax was corrected before its baseline and candidate replay.
 
-This row establishes the invalid-initialization obligation; it does not close
-the parent's static-backed exclusive state and explicitly installed handoff
-acceptance. Those remain with this implementation owner.
+This row establishes ordinary initialization validity. The companion
+[installed-entry storage row](../installed_entry_storage/README.md) establishes
+static-backed exclusive state and exact installed handoff with actual original
+backing observations; those obligations are not inferred from this row.
