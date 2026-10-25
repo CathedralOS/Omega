@@ -148,7 +148,7 @@ pub(super) fn prepare<'a>(
                 // authored access event, never an implicit payload snapshot.
                 if matches!(
                     field.field_type,
-                    terminal_psi::StructuralFieldType::Atomic(_)
+                    terminal_psi::StructuralFieldType::Atomic(_) | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
                 ) {
                     continue;
                 }

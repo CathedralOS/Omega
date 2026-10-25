@@ -689,7 +689,7 @@ pub(in crate::legalization) fn read(
         terminal_semantics::observed_field_declaration(types.iter(), structural_type, path, field)?;
     if matches!(
         declaration.field_type,
-        terminal_psi::StructuralFieldType::Atomic(_)
+        terminal_psi::StructuralFieldType::Atomic(_) | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
     ) && !matches!(
         access,
         terminal_psi::StructuralAccess::Owned | terminal_psi::StructuralAccess::MutableBorrow

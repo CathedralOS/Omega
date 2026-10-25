@@ -689,6 +689,6 @@ fn scalar_observation_authorized(
         return false;
     };
     access != terminal_psi::StructuralAccess::WriteOnlyBorrow
-        && (!matches!(field, StructuralFieldType::Atomic(_))
+        && (!matches!(field, (StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)))
             || matches!(access, terminal_psi::mutating_access_pair_pattern!()))
 }

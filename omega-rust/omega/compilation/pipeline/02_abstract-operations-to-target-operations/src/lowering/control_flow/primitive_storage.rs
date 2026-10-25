@@ -416,7 +416,7 @@ pub(super) fn lower(
                 field,
             )
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            if matches!(declaration.field_type, StructuralFieldType::Atomic(_))
+            if matches!(declaration.field_type, (StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)))
                 && !matches!(access, terminal_psi::mutating_access_pair_pattern!())
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));

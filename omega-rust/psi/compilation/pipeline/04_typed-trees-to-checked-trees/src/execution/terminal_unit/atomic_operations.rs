@@ -185,6 +185,7 @@ pub(super) fn writing_event(
     };
     Some(CheckedAtomicAccessPlan {
         statement_index,
+        resident_range_decision: facts.proof.integer_assignment_at(machine.symbol, state.symbol, statement_index as usize, assignment.target, assignment.value),
         receiver: place.receiver,
         receiver_root_type_identity: place.receiver_root_type_identity,
         field_case: place.field_case,
@@ -252,6 +253,7 @@ pub(super) fn once_event(
     )?;
     Some(CheckedAtomicAccessPlan {
         statement_index,
+        resident_range_decision: arena::Handle::invalid(),
         receiver: place.receiver,
         receiver_root_type_identity: place.receiver_root_type_identity,
         field_case: place.field_case,

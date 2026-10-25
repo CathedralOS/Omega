@@ -1371,7 +1371,7 @@ impl TerminalExecution<'_> {
                     if position + 1 == path.len()
                         && (!matches!(
                             field.field_type,
-                            terminal_psi::StructuralFieldType::Atomic(_)
+                            terminal_psi::StructuralFieldType::Atomic(_) | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
                         ) || matches!(observation, ScalarStorageObservation::ExclusiveSnapshot))
                         && field.field_type.scalar_type() == Some(scalar_type)
                     {
@@ -1387,7 +1387,7 @@ impl TerminalExecution<'_> {
                             if logical_scalar != scalar_type
                                 || matches!(
                                     field.field_type,
-                                    terminal_psi::StructuralFieldType::Atomic(_)
+                                    terminal_psi::StructuralFieldType::Atomic(_) | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
                                 )
                             {
                                 return Err(malformed());
@@ -1720,7 +1720,7 @@ impl TerminalExecution<'_> {
         // cannot gain an ordinary scalar observation through this resolver.
         if matches!(
             field.field_type,
-            terminal_psi::StructuralFieldType::Atomic(_)
+            terminal_psi::StructuralFieldType::Atomic(_) | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
         ) {
             return Err(malformed());
         }

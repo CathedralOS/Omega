@@ -429,7 +429,7 @@ impl TerminalExecution<'_> {
         };
         if field.relevance.is_erased()
             || field.field_type.scalar_type().is_none()
-            || (matches!(field.field_type, StructuralFieldType::Atomic(_))
+            || (matches!(field.field_type, (StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)))
                 && access != StructuralAccess::MutableBorrow)
         {
             return Err(malformed());

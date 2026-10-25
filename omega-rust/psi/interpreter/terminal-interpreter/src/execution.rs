@@ -1009,6 +1009,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                                         ref path,
                                         field,
                                         event,
+                                        ..
                                     } => {
                                         self.execute_atomic_access(operation, place, path, field, event)?;
                                         OperationFlow::Advance

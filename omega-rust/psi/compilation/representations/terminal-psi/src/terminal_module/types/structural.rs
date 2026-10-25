@@ -319,6 +319,9 @@ pub enum StructuralFieldType {
     /// Dedicated atomic storage. Its scalar representation does not authorize
     /// ordinary shared mutation or a plain scalar reference to the cell.
     Atomic(ScalarType),
+    /// Dedicated atomic storage with an independently enforced resident interval.
+    /// The restriction is validity evidence, never ordinary store/borrow authority.
+    AtomicBoundedInteger(semantic_vocabulary::BoundedIntegerType),
     /// A scalar field whose declaration retains an inclusive integer restriction.
     BoundedInteger(semantic_vocabulary::BoundedIntegerType),
     /// A scalar carrier with a closed declaration predicate. Construction and
@@ -364,6 +367,11 @@ impl StructuralFieldType {
     /// the same representation. Address and floating carriers are not cells.
     pub fn atomic_scalar_type(&self) -> Option<ScalarType> {
         match self {
+            Self::AtomicBoundedInteger(bounds) => {
+                let integer = bounds.integer_type();
+                (!integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64))
+                    .then_some(ScalarType::Integer(integer))
+            }
             Self::Atomic(ScalarType::Boolean) => Some(ScalarType::Boolean),
             Self::Atomic(ScalarType::Integer(integer))
                 if !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
@@ -395,7 +403,7 @@ impl StructuralFieldType {
     pub fn scalar_type(&self) -> Option<ScalarType> {
         match self {
             Self::Scalar(scalar_type) | Self::Atomic(scalar_type) => Some(*scalar_type),
-            Self::BoundedInteger(integer) => Some(ScalarType::Integer(integer.integer_type())),
+            Self::BoundedInteger(integer) | Self::AtomicBoundedInteger(integer) => Some(ScalarType::Integer(integer.integer_type())),
             Self::RefinedScalar(refinement) => Some(refinement.carrier()),
             Self::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
             Self::ByteSequence(_)
@@ -429,6 +437,7 @@ impl StructuralFieldType {
             | Self::BoundedInteger(_)
             | Self::RefinedScalar(_)
             | Self::Atomic(_)
+            | Self::AtomicBoundedInteger(_)
             | Self::Structural(_)
             | Self::Erased { .. } => None,
         }

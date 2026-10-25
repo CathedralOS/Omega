@@ -508,7 +508,7 @@ fn captured_place_subject(
                 // field identity so the ordinary read retains its restrictions.
                 // Atomic cells are a distinct access family, never plain loans.
                 if let Some(scalar_type) = selected.field_type.scalar_type()
-                    && !matches!(selected.field_type, StructuralFieldType::Atomic(_))
+                    && !matches!(selected.field_type, (StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)))
                 {
                     if checked.primitive_type_reference(referee).is_none() {
                         return unsupported(
@@ -1648,7 +1648,7 @@ fn atomic_observation(
     .ok_or(LoweringError::Unsupported(
         "atomic load field declaration is absent",
     ))?;
-    if declaration.field_type != StructuralFieldType::Atomic(binding.scalar_type) {
+    if declaration.field_type.atomic_scalar_type() != Some(binding.scalar_type) {
         return unsupported("atomic load cannot observe an ordinary scalar field");
     }
     Ok(LoweredDirectExpression::AtomicLoad {

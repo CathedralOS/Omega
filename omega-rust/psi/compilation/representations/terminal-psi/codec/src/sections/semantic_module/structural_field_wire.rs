@@ -236,6 +236,12 @@ pub(crate) fn encode_structural_field_type(
     field_type: &StructuralFieldType,
 ) -> Result<(), CodecError> {
     match field_type {
+        StructuralFieldType::AtomicBoundedInteger(bounded) => {
+            writer.u8(10);
+            encode_integer_type(writer, bounded.integer_type());
+            encode_integer_value(writer, bounded.minimum());
+            encode_integer_value(writer, bounded.maximum());
+        }
         StructuralFieldType::Atomic(scalar_type) => {
             writer.u8(8);
             encode_scalar_type(writer, *scalar_type);
@@ -309,6 +315,13 @@ pub(crate) fn decode_structural_field_type(
     Ok(match reader.u8()? {
         1 => StructuralFieldType::Scalar(decode_scalar_type(reader)?),
         8 => StructuralFieldType::Atomic(decode_scalar_type(reader)?),
+        10 => StructuralFieldType::AtomicBoundedInteger(
+            BoundedIntegerType::new(
+                decode_integer_type(reader)?,
+                decode_integer_value(reader)?,
+                decode_integer_value(reader)?,
+            ).map_err(CodecError::MalformedProposition)?,
+        ),
         9 => StructuralFieldType::RefinedScalar(
             semantic_vocabulary::ScalarRefinement::new(
                 decode_scalar_type(reader)?,

@@ -79,6 +79,10 @@ impl OperationFrame<'_, '_> {
                 self.structural_types.declarations(),
             )?;
         path.extend(suffix);
+        let resident_bounds = match field.field_type {
+            terminal_psi::StructuralFieldType::AtomicBoundedInteger(bounds) => Some(bounds),
+            _ => None,
+        };
         let field = field.id;
         let mut operands = Vec::new();
         for (ordinal, operand) in access.event.operands().into_iter().enumerate() {
@@ -164,6 +168,15 @@ impl OperationFrame<'_, '_> {
         if !event.ordering_is_legal() {
             return unsupported("atomic event orderings are not source-legal");
         }
+        let resident_obligation = if event.modifies_resident() && resident_bounds.is_some() {
+            if event.replacement().is_none() { return unsupported("bounded fetch requires universal atomic resident preservation"); }
+            if !crate::emission::structural_scalar_store::atomic_source_range_decided(self.checked, access.primitive_type, access.resident_range_decision, resident_bounds)? {
+                return unsupported("atomic resident establishment lost its exact checked range decision");
+            }
+            let obligation = crate::unit::obligation_id(allocate_dense(&mut self.calls.next_obligation_identity)?);
+            self.operations.source_checked_obligations.push(obligation);
+            Some(obligation)
+        } else { None };
         if matches!(event, AtomicAccessEvent::CompareExchangeOnce { .. }) {
             let result = access
                 .structural_result
@@ -189,6 +202,7 @@ impl OperationFrame<'_, '_> {
                     path,
                     field,
                     event,
+                    resident_obligation,
                 },
             )?;
             let produced = self
@@ -236,6 +250,7 @@ impl OperationFrame<'_, '_> {
                 path,
                 field,
                 event,
+                resident_obligation,
             },
         });
         Ok(())

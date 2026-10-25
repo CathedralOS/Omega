@@ -321,7 +321,7 @@ fn collect_fields(
         {
             continue;
         }
-        if matches!(field.field_type, StructuralFieldType::Atomic(_))
+        if matches!(field.field_type, (StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)))
             && access != StructuralAccess::MutableBorrow
         {
             continue;

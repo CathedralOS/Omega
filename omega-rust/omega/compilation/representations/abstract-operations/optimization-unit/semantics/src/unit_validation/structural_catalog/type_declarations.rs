@@ -36,7 +36,7 @@ pub(crate) fn validate_structural_fields(
             field: field.id,
         };
         match (&field.field_type, field.relevance) {
-            (terminal_psi::StructuralFieldType::Atomic(_), _)
+            ((terminal_psi::StructuralFieldType::Atomic(_) | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)), _)
                 if field.field_type.atomic_scalar_type().is_none() =>
             {
                 return Err(
@@ -75,7 +75,7 @@ pub(crate) fn validate_structural_fields(
             ) => return Err(invalid_erased()),
             (
                 terminal_psi::StructuralFieldType::Scalar(_)
-                | terminal_psi::StructuralFieldType::Atomic(_)
+                | terminal_psi::StructuralFieldType::Atomic(_) | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
                 | terminal_psi::StructuralFieldType::RefinedScalar(_)
                 | terminal_psi::StructuralFieldType::BoundedInteger(_)
                 | terminal_psi::StructuralFieldType::IeeeFloat(_)
@@ -84,7 +84,7 @@ pub(crate) fn validate_structural_fields(
             ) => return Err(invalid_erased()),
             (
                 terminal_psi::StructuralFieldType::Scalar(_)
-                | terminal_psi::StructuralFieldType::Atomic(_)
+                | terminal_psi::StructuralFieldType::Atomic(_) | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
                 | terminal_psi::StructuralFieldType::RefinedScalar(_)
                 | terminal_psi::StructuralFieldType::BoundedInteger(_)
                 | terminal_psi::StructuralFieldType::IeeeFloat(_)

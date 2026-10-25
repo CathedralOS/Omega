@@ -250,10 +250,10 @@ pub(in crate::execution::terminal_unit) fn retain_scalar_field(
         TypeReferenceNode::Named { symbol, .. }
             if program.symbols.builtin_type_atom(*symbol).is_some_and(|atom| atom.is_atomic()));
     if atomic {
-        // Atomic events have no restricted-resident establishment proof. Do
-        // not silently erase a declared interval while retaining the cell.
-        return (declared_bounds.is_none() && predicate.is_none())
-            .then_some(CheckedUnitStructuralFieldType::Atomic(primitive));
+        if predicate.is_some() || has_non_exact_domain { return None; }
+        if declared_bounds.is_none() {
+            return Some(CheckedUnitStructuralFieldType::Atomic(primitive));
+        }
     }
     if has_non_exact_domain && (declared_bounds.is_some() || predicate.is_some()) {
         return None;
@@ -269,6 +269,7 @@ pub(in crate::execution::terminal_unit) fn retain_scalar_field(
     let minimum = minimum.max(carrier_integer(integer_type.minimum_value()));
     let maximum = maximum.min(carrier_integer(integer_type.maximum_value()));
     if minimum > maximum {
+        if atomic { return None; }
         // An empty predicate makes construction impossible, not storage
         // undefined. Inactive cases still need their ordinary carrier shape;
         // retain false through the general predicate representation rather
@@ -298,11 +299,11 @@ pub(in crate::execution::terminal_unit) fn retain_scalar_field(
         ),
         _ => return None,
     };
-    validation::scalar_field_restriction(
-        primitive,
-        Some(BoundedIntegerType::new(integer_type, minimum, maximum).ok()?),
-        predicate,
-    )
+    let bounds = BoundedIntegerType::new(integer_type, minimum, maximum).ok()?;
+    if atomic {
+        return Some(CheckedUnitStructuralFieldType::AtomicBoundedInteger(bounds));
+    }
+    validation::scalar_field_restriction(primitive, Some(bounds), predicate)
 }
 
 /// `minimum <= value` and `value <= maximum` (`<` when exclusive) over the

@@ -237,7 +237,7 @@ pub(crate) fn backing_scalar_path(
         let field = crate::custody::inline_structural_field(types, backing, path)?;
         if matches!(
             field.field_type,
-            terminal_psi::StructuralFieldType::Atomic(_)
+            terminal_psi::StructuralFieldType::Atomic(_) | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
         ) {
             return None;
         }

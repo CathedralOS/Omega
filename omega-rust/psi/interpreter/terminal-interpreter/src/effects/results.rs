@@ -199,7 +199,7 @@ pub(crate) fn requires_materialized_host_custody(
                 | terminal_psi::StructuralFieldType::RefinedScalar(_) => return true,
                 terminal_psi::StructuralFieldType::Structural(child) => pending.push(child),
                 terminal_psi::StructuralFieldType::Scalar(_)
-                | terminal_psi::StructuralFieldType::Atomic(_)
+                | terminal_psi::StructuralFieldType::Atomic(_) | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
                 | terminal_psi::StructuralFieldType::IeeeFloat(_)
                 | terminal_psi::StructuralFieldType::ByteSequence(_)
                 | terminal_psi::StructuralFieldType::PredicateByteSequence { .. }

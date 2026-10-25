@@ -337,7 +337,7 @@ fn lower_scalar_read(
         field,
     )
     .ok_or_else(invalid)?;
-    if matches!(declaration.field_type, StructuralFieldType::Atomic(_))
+    if matches!(declaration.field_type, (StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)))
         && !matches!(access, terminal_psi::mutating_access_pair_pattern!())
     {
         return Err(invalid());
@@ -521,6 +521,7 @@ fn unique_relevant_scalar_field(
         StructuralFieldType::Scalar(scalar_type) | StructuralFieldType::Atomic(scalar_type) => {
             Some(*scalar_type)
         }
+        StructuralFieldType::AtomicBoundedInteger(bounds) => Some(ScalarType::Integer(bounds.integer_type())),
         StructuralFieldType::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
         StructuralFieldType::BoundedInteger(bounds) if allow_refined_scalar => {
             Some(ScalarType::Integer(bounds.integer_type()))
