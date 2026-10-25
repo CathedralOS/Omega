@@ -389,6 +389,29 @@ class DevelopmentRun(unittest.TestCase):
         for target in ("linux_x86_64", "macos_arm64"):
             self.assertIn(f"{target}: checked 1 source packages", result.stdout)
 
+    def test_package_audit_uses_review_execution_without_publishing(self):
+        self.accept_project()
+        lock = (self.project / "omega.lock").read_bytes()
+        self.environment["OMEGA_REVIEW_TIMINGS"] = "1"
+        result = self.invoke("audit", "packages", "--project", self.project,
+                             "--target", self.target, "--offline")
+        self.assert_exit(result, 0)
+        self.assertIn("fresh-analysis complete", result.stdout)
+        self.assertIn("note=review_pass discovery", result.stderr)
+        self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
+        self.assertFalse((self.project / "build/package-manager/proposal").exists())
+
+    def test_package_audit_reports_failed_review_without_changing_lock(self):
+        self.accept_project()
+        lock = (self.project / "omega.lock").read_bytes()
+        (self.project / "main.omg").write_text("this is deliberately not Omega")
+        result = self.invoke("audit", "packages", "--project", self.project,
+                             "--target", self.target, "--offline")
+        self.assert_exit(result, 1)
+        self.assertIn("fresh-analysis unavailable", result.stdout)
+        self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
+        self.assertFalse((self.project / "build/package-manager/proposal").exists())
+
     def test_failed_review_target_cannot_publish_successful_sibling(self):
         self.accept_project()
         lock = (self.project / "omega.lock").read_bytes()

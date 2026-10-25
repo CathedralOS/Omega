@@ -2925,8 +2925,12 @@ crash and native exit behavior.
   checked-state custody, nomination and demand-driven component publication stay
   behind the compiler facade. Application Build runs install/update target reviews
   from package-admitted requests; package management retains transaction custody,
-  decisions and publication. The inner review dependency loop, audit scheduling
-  and Terminal Build/helper activation scheduling still need migration. Psi
+  decisions and publication. Application Build also executes the admitted review
+  dependency passes for commands and audit, retaining suspended Builds through
+  cache-miss recovery. Package policy selects discovery/bound passes and owns
+  occurrence reuse, evidence joins and optional cache writes. The audit's outer
+  target/session lifecycle and Terminal Build/helper activation scheduling still
+  need migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
   Psi 00-07 and Build execute

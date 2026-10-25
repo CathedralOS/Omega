@@ -18,6 +18,7 @@ mod check_project;
 mod native_project;
 mod package_commands;
 mod package_compilation;
+mod package_review;
 mod products;
 mod project_compilation;
 pub mod publication;
@@ -38,6 +39,7 @@ pub use native_project::{
 };
 pub use package_commands::execute_package_command;
 pub use package_compilation::{compile_packages, join_dependency_builds, prepare_package};
+pub use package_review::inspect_packages;
 
 use artifacts::compile_timings::CompileTimings;
 use compiler::{CompileReport, OptimizationRollback};

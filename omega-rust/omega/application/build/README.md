@@ -6,8 +6,12 @@ target review, then return the complete roster for decisions and publication.
 An error leaves accepted files unchanged and releases the transaction on return.
 One caller-owned sponsored session spans all targets and automatic resume rounds;
 discard stays a package-file operation and does not compile source. Package
-management still owns the review policy passes and their inner dependency loop;
-moving that compiler scheduling remains part of the ownership migration.
+management selects discovery/bound policy passes and admits exact reuse.
+[package_review.rs](src/package_review.rs) executes each admitted pass dependency-first:
+prepare Build, satisfy component demands, complete review, then return evidence
+to package policy. It retains suspended consumer Builds through cache-miss
+recovery. Install/update and read-only audit share this executor; optional cache
+publication occurs only after policy admits the completed review and cache write.
 
 Start at [build.rs](src/build.rs). One typed `BuildRequest` selects a host,
 single explicit target or batch, and a check, native or named Terminal inspection
@@ -61,8 +65,8 @@ does not acquire sources or execute code.
 
 This is the project application owner, not another compiler pipeline. It depends
 on facades and product contracts, not intermediate source representations or
-stage crates. Candidate review still invokes checking in package management;
-ordinary dependency scheduling is now here. Moving review scheduling, completing
-Psi's facade, and replacing the checked-tree Build evaluator with Terminal
+stage crates. Ordinary and review dependency scheduling are now here.
+Moving the audit's outer target/session lifecycle, completing Psi's facade,
+and replacing the checked-tree Build evaluator with Terminal
 continuations remain explicit obligations of the
 [ownership migration](../../../pipeline.md#build-and-compiler-ownership-migration).

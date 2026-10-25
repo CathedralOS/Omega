@@ -5,11 +5,9 @@
 fn package_review_retains_products_not_checked_compiler_state() {
     for source in [
         include_str!(
-            "../../../packages/package-manager/src/review/candidate/compilation/package_pass.rs"
+            "../../../packages/package-manager/src/review/candidate/passes/occurrences.rs"
         ),
-        include_str!(
-            "../../../packages/package-manager/src/review/candidate/compilation/policy.rs"
-        ),
+        include_str!("../../../packages/package-manager/src/review/candidate/passes/policy.rs"),
         include_str!("../../../packages/package-manager/src/review/candidate/review_cache.rs"),
     ] {
         for forbidden in [
@@ -310,7 +308,7 @@ fn packages_do_not_manage_frontend_or_judgment_reuse() {
     for source in [
         include_str!("../../../packages/package-manager/src/operations/accepted_compilation.rs"),
         include_str!(
-            "../../../packages/package-manager/src/review/candidate/compilation/package_pass.rs"
+            "../../../packages/package-manager/src/review/candidate/passes/occurrences.rs"
         ),
         include_str!("../../../packages/package-manager/src/build_session.rs"),
         include_str!("../../../packages/package-manager/src/build_session/bindings.rs"),

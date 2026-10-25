@@ -1,7 +1,6 @@
 //! Candidate checking, project review, and a proposed source lock section.
 
 use crate::build_session::PackageBuildSession;
-use crate::review::SemanticBindingReview;
 
 mod error;
 pub(crate) use error::PackageChangeError;
@@ -14,10 +13,10 @@ use crate::resolution::graph::{
     ResolvedPackageSourceClosure,
 };
 use crate::review::{
-    CandidateCompilation, CompilerIssuedPackageReviewSet, PackagePolicyChangeLimits,
+    CandidateReview, CompilerIssuedPackageReviewSet, PackagePolicyChangeLimits,
     PackagePolicyChangeSet, PackagePolicyResolution, PackageSourceBindings,
-    PackageSourceVerificationPhase, compare_package_policy_changes,
-    compile_resolved_package_reviews_reusing, verify_transitive_source_custody,
+    PackageSourceVerificationPhase, compare_package_policy_changes, review_resolved_packages,
+    verify_transitive_source_custody,
 };
 use target::TargetProfile;
 
@@ -128,6 +127,7 @@ pub fn review_package_change_reusing(
     session: &mut PackageBuildSession,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     source_bindings: &mut PackageSourceBindings,
+    execute: crate::review::PackageReviewExecutor,
 ) -> Result<PackageChangeReview, PackageChangeError> {
     if accepted.is_some_and(|accepted| accepted.target() != target) {
         return Err(PackageChangeError::Comparison(
@@ -137,15 +137,14 @@ pub fn review_package_change_reusing(
     let compiler_identity = super::accepted_compilation::compiler_input_identity()
         .map_err(PackageChangeError::CompilerIdentity)?;
     let target_closure = source_closure.for_exact_target(target);
-    let reviews = compile_resolved_package_reviews_reusing(
-        CandidateCompilation {
+    let reviews = review_resolved_packages(
+        CandidateReview {
             target_closure: &target_closure,
             root_build_snapshot,
-            restricted_build_checkpoint: None,
         },
-        SemanticBindingReview::Discover,
         session,
         source_bindings,
+        execute,
     )
     .map_err(PackageChangeError::Compilation)?;
     verify_compiler_identity(compiler_identity)?;

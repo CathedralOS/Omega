@@ -1,10 +1,10 @@
-//! Candidate review workflow: select bindings, then compile.
+//! Select discovery/bound policy passes and ask application Build to execute them.
 //!
 //! All products share discovery and final checking. The top-level invocation
 //! owns the sponsored session borrowed by every target, candidate and review pass;
-//! package_pass owns dependency-order compilation and projection.
+//! `occurrences` admits dependency work and joins compiler evidence to policy.
 
-mod package_pass;
+mod occurrences;
 mod policy;
 
 use super::semantic_bindings::{candidate_semantic_binding_inputs, semantic_bindings_by_consumer};
@@ -14,101 +14,58 @@ use super::{
 };
 use crate::build_session::PackageBuildSession;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
-use crate::review::restricted_build_grants::RestrictedBuildCheckpoint;
 use crate::review::timings;
 use artifacts::compile_timings::counters;
-use package_pass::{CompiledPackageReviews, TargetEntryDiscovery};
+use occurrences::TargetEntryDiscovery;
+pub use occurrences::{
+    PackageReviewCompletion, PackageReviewComponent, PackageReviewExecutor,
+    PackageReviewOccurrence, PackageReviewPass, PackageReviewRound, PackageReviewWork,
+    RetainedPackageReviews,
+};
 
 pub(crate) use crate::build_session::PackageSourceBindings;
 
-/// How this invocation obtains consumer-scoped semantic bindings.
-/// Explicit input is checked as supplied; it does not trigger discovery or admission.
+/// Observational review of an exact target closure and root Build inventory.
+/// It projects restricted requests for decisions but never exercises grants.
+/// Accepted production builds admit those grants through accepted_compilation.
 #[derive(Clone, Copy)]
-pub(crate) enum SemanticBindingReview<'a> {
-    /// Discover package-owned surfaces, then recheck with the proposed bindings.
-    Discover,
-    /// Compile once with exactly these bindings, including an explicitly empty set.
-    Explicit(&'a [ConsumerScopedSemanticBindingReviewInput]),
-}
-
-/// One candidate compilation of an exact target closure: the root activation's
-/// build snapshot and the restricted-request consent the
-/// invoking operation holds. Observational review carries no checkpoint:
-/// inspection never issues grants, so projected requests survive to the
-/// decision document. A consuming operation (`check_project`,
-/// `check_locked_sources`, `compile_project`) supplies its accepted target's
-/// checkpoint, so each occurrence's projected request joins its granted
-/// meaning inside the pass, before that request's own build effect executes.
-/// A supplied snapshot selects only the root activation's inputs and required
-/// outputs in every review pass; dependencies keep their own inventories.
-#[derive(Clone, Copy)]
-pub(crate) struct CandidateCompilation<'request, 'closure> {
+pub(crate) struct CandidateReview<'request, 'closure> {
     pub target_closure: &'request ExactTargetPackageSourceClosure<'closure>,
     pub root_build_snapshot: Option<&'request build_evaluation::BuildSnapshotRequest>,
-    pub restricted_build_checkpoint: Option<&'request RestrictedBuildCheckpoint>,
 }
 
-impl<'request, 'closure> CandidateCompilation<'request, 'closure> {}
-
-/// Review an explicit [`CandidateCompilation`] with resolved source bindings.
+/// Review an explicit [`CandidateReview`] with resolved source bindings.
 /// The compiler session owns source preparation and exact language judgments;
 /// changed sources and selections still reject through the ordinary custody
 /// and checkpoint checks. Inspection must not derive policy
 /// from a broader input view than the invocation it is reviewing.
 /// The invocation's owner lends the same session to every target and round;
 /// this operation neither reserves a new sponsor nor disposes that owner.
-pub(crate) fn compile_resolved_package_reviews_reusing(
-    candidate: CandidateCompilation<'_, '_>,
-    bindings: SemanticBindingReview<'_>,
+pub(crate) fn review_resolved_packages(
+    candidate: CandidateReview<'_, '_>,
     session: &mut PackageBuildSession,
     source_bindings: &mut PackageSourceBindings,
+    execute: PackageReviewExecutor,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
     session.require_open()?;
-    compile_candidate(candidate, bindings, session, source_bindings)
-        .map(|compiled| compiled.reviews)
+    review_candidate(candidate, session, source_bindings, execute).map(|compiled| compiled.reviews)
 }
 
-/// The one candidate route every review and check entry runs;
-/// see [`CandidateCompilation`] for what the request carries.
-fn compile_candidate(
-    candidate: CandidateCompilation<'_, '_>,
-    bindings: SemanticBindingReview<'_>,
+/// The candidate route shared by package commands and read-only audit;
+/// see [`CandidateReview`] for what the request carries.
+fn review_candidate(
+    candidate: CandidateReview<'_, '_>,
     session: &mut PackageBuildSession,
     source_bindings: &mut PackageSourceBindings,
-) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
-    let CandidateCompilation {
+    execute: PackageReviewExecutor,
+) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
+    let CandidateReview {
         target_closure,
         root_build_snapshot,
-        restricted_build_checkpoint,
     } = candidate;
     let _requested = timings::requested(source_bindings.collect_timings);
     let _stage = timings::stage("candidate_compilation");
     source_bindings.size_for(target_closure.source_closure());
-    if let SemanticBindingReview::Explicit(inputs) = bindings {
-        let _pass = timings::subject_stage(|| {
-            format!(
-                "review_pass explicit root={}",
-                target_closure
-                    .source_closure()
-                    .graph()
-                    .root()
-                    .name()
-                    .as_str()
-            )
-        });
-        return note_pass_accounting("explicit", || {
-            compile_pass(
-                target_closure,
-                session,
-                inputs,
-                root_build_snapshot,
-                restricted_build_checkpoint,
-                TargetEntryDiscovery::Disabled,
-                None,
-                source_bindings,
-            )
-        });
-    }
     let preliminary = {
         let _pass = timings::subject_stage(|| {
             format!(
@@ -122,15 +79,15 @@ fn compile_candidate(
             )
         });
         note_pass_accounting("discovery", || {
-            compile_pass(
+            review_pass(
                 target_closure,
                 session,
                 &[],
                 root_build_snapshot,
-                restricted_build_checkpoint,
                 TargetEntryDiscovery::Dependencies,
                 None,
                 source_bindings,
+                execute,
             )
         })?
     };
@@ -145,7 +102,7 @@ fn compile_candidate(
     // but an occurrence whose inputs the discovered bindings leave untouched
     // is the same checked product under the same inputs: this pass carries
     // those compiles forward and only compiles what the bindings changed.
-    // Custody verification and grant-consistency checks still run per pass.
+    // Custody verification and consumer-scoped binding checks still run per pass.
     let _pass = timings::subject_stage(|| {
         format!(
             "review_pass bound root={} discovered_bindings={}",
@@ -159,15 +116,15 @@ fn compile_candidate(
         )
     });
     note_pass_accounting("bound", || {
-        compile_pass(
+        review_pass(
             target_closure,
             session,
             &discovered,
             root_build_snapshot,
-            restricted_build_checkpoint,
             TargetEntryDiscovery::Disabled,
             Some(&preliminary),
             source_bindings,
+            execute,
         )
     })
 }
@@ -182,8 +139,8 @@ fn compile_candidate(
 /// `*_checks` request to `lower_typed_trees` runs a check.
 fn note_pass_accounting(
     pass: &'static str,
-    run: impl FnOnce() -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError>,
-) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
+    run: impl FnOnce() -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError>,
+) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
     let compilations_before = counters::checked_compilation_call_count();
     let frontiers_before = counters::typed_frontier_reuse_count();
     let preliminary_before = counters::preliminary_check_totals();
@@ -207,16 +164,16 @@ fn note_pass_accounting(
     Ok(result)
 }
 
-fn compile_pass(
+fn review_pass(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     session: &mut PackageBuildSession,
     bindings: &[ConsumerScopedSemanticBindingReviewInput],
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
-    restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
     discovery: TargetEntryDiscovery,
-    prior: Option<&CompiledPackageReviews>,
+    prior: Option<&RetainedPackageReviews>,
     source_bindings: &mut PackageSourceBindings,
-) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
+    execute: PackageReviewExecutor,
+) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     let execution_profile = target::TargetProfile::host_if_supported();
     let source = crate::resolution::graph::CanonicalSourceClosureSubject::from_resolved(
@@ -235,16 +192,14 @@ fn compile_pass(
     })?;
     let bindings =
         semantic_bindings_by_consumer(target_closure, execution_profile, &roster, bindings)?;
-    package_pass::compile_dependency_closure(
+    let plan = PackageReviewPass::admit(
         target_closure,
         execution_profile,
         &roster,
-        session,
         &bindings,
         root_build_snapshot,
-        restricted_build_checkpoint,
         discovery,
         prior,
-        source_bindings,
-    )
+    )?;
+    execute(plan, session, source_bindings)
 }

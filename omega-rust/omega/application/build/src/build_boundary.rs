@@ -1,13 +1,58 @@
 //! Source guards for the application/compiler ownership boundary.
 
 #[test]
+fn review_policy_admits_work_and_application_executes_it() {
+    let policy = include_str!(
+        "../../../packages/package-manager/src/review/candidate/passes/occurrences.rs"
+    );
+    for forbidden in [
+        ".prepare_package_build(",
+        ".review_package_build(",
+        ".publish_component(",
+        "PendingReviewBuild",
+        "run_closure_pass(",
+    ] {
+        assert!(
+            !policy.contains(forbidden),
+            "package policy executes {forbidden}"
+        );
+    }
+    let execution = include_str!("package_review.rs");
+    for operation in [
+        "plan.begin_round(",
+        "plan.occurrences()",
+        "round.admit_occurrence(",
+        ".prepare_package_build(",
+        ".review_package_build(",
+        ".publish_component(",
+        "round.retain(",
+    ] {
+        assert!(
+            execution.contains(operation),
+            "application is missing {operation}"
+        );
+    }
+    assert!(execution.contains("pending_builds.push(PendingReviewBuild"));
+    assert!(execution.contains("recovered.push(round.into_retained())"));
+    assert!(execution.contains("completion.reserve_build_directory(session)"));
+    let retention = execution.find("round.retain(").unwrap();
+    let cache_publication = execution.find("cache_write.component_source()").unwrap();
+    assert!(
+        retention < cache_publication,
+        "policy admits optional cache work first"
+    );
+    let audit = include_str!("../../cli/src/cli/packages/audit.rs");
+    assert!(audit.contains("use omega_build::inspect_packages;"));
+}
+
+#[test]
 fn package_commands_schedule_work_outside_package_policy() {
     let mut execution = include_str!("package_commands.rs");
     for operation in [
         "PackageCommandTransaction::open(options)",
         "transaction.prepare(command, None)",
         "for request in prepared.review_requests()",
-        "request.review(session, &mut source_bindings)",
+        "request.review(",
         "prepared.complete(reviews, session)",
     ] {
         let position = execution

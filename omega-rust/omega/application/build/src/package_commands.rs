@@ -22,7 +22,11 @@ pub fn execute_package_command(
     let mut source_bindings = prepared.source_bindings();
     let mut reviews = Vec::new();
     for request in prepared.review_requests() {
-        let review = request.review(session, &mut source_bindings)?;
+        let review = request.review(
+            session,
+            &mut source_bindings,
+            crate::package_review::execute_pass,
+        )?;
         reviews.push(review);
     }
     prepared.complete(reviews, session)
@@ -112,7 +116,11 @@ mod tests {
             .review_requests()
             .map(|request| {
                 request
-                    .review(&mut session, &mut bindings)
+                    .review(
+                        &mut session,
+                        &mut bindings,
+                        crate::package_review::execute_pass,
+                    )
                     .expect("review target")
             })
             .collect::<Vec<_>>();
@@ -140,7 +148,11 @@ mod tests {
                 .review_requests()
                 .map(|request| {
                     request
-                        .review(&mut session, &mut bindings)
+                        .review(
+                            &mut session,
+                            &mut bindings,
+                            crate::package_review::execute_pass,
+                        )
                         .expect("review target")
                 })
                 .collect::<Vec<_>>()
