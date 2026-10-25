@@ -6,7 +6,7 @@ use package_compilation::{
 use package_evidence::record::{PackagePolicyBaseline, PackagePolicyRow};
 use package_source::ImmutableSourceResolution;
 
-use super::semantic_bindings::SemanticBindingReviewCandidate;
+use package_evidence::record::SemanticBindingReviewCandidate;
 
 /// Compiler-issued review material for one exact package source selection.
 ///

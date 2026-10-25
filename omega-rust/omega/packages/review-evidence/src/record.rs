@@ -20,8 +20,10 @@ mod contracts;
 mod data;
 mod domains;
 mod identity;
+mod semantic_bindings;
 mod semantic_policy;
 pub(crate) use identity::write_framed_identity;
+pub use semantic_bindings::SemanticBindingReviewCandidate;
 pub(crate) use semantic_policy::{
     PackagePolicySemanticDependency, PackagePolicySemanticDependencyConsumer,
 };

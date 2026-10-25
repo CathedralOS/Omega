@@ -2909,8 +2909,11 @@ crash and native exit behavior.
   Build continuations prevent the application from extracting source IR; source
   checking and component/product publication remain behind the compiler facade.
   Candidate review also completes opaque Build continuations without replaying
-  compilation to answer component demands; its package-owned orchestration and
-  Terminal Build/helper activation scheduling still need migration. Psi
+  compilation to answer component demands. Compiler evidence owns semantic-binding
+  nomination; package review consumes proposals and scopes consumer permissions,
+  rather than interpreting checked machines, traits, reaches or provider plans.
+  Checked-state retention, package-owned review orchestration and Terminal
+  Build/helper activation scheduling still need migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
   Psi 00-07 and Build execute

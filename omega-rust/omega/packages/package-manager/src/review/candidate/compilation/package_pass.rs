@@ -18,10 +18,7 @@ use crate::build_session::{
 };
 use compilation_products::{CheckedCompileRequest, CompileFailure};
 
-use super::super::semantic_bindings::{
-    SemanticBindingReviewCandidate, candidate_hosted_exit_bindings, candidate_service_bindings,
-    candidate_target_entry_binding,
-};
+use super::super::semantic_bindings::projection_error;
 use super::super::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
 };
@@ -36,6 +33,10 @@ use diagnostics::Diagnostic;
 use package_compilation::build_execution::RestrictedBuildGrants;
 use package_compilation::{
     AcceptedSemanticBinding, PackageCompilationInputError, PackageCompilationInputs,
+};
+use package_evidence::record::SemanticBindingReviewCandidate;
+use package_evidence::{
+    candidate_hosted_exit_bindings, candidate_service_bindings, candidate_target_entry_binding,
 };
 use std::collections::BTreeMap;
 
@@ -106,7 +107,10 @@ impl OccurrenceCompile {
         target: target::TargetProfile,
     ) -> Result<Option<SemanticBindingReviewCandidate>, CompileResolvedPackageReviewsError> {
         match self {
-            Self::Checked(checked) => candidate_target_entry_binding(checked, owner, target),
+            Self::Checked(checked) => {
+                candidate_target_entry_binding(checked, owner.identity(), target)
+                    .map_err(|error| projection_error(owner, error))
+            }
             Self::Cached(facts) => Ok(facts.target_entry_candidate.clone()),
         }
     }
@@ -1023,7 +1027,8 @@ impl ClosurePass<'_> {
         // dependency's historical review selection cannot constrain it.
         let policy_canonical_bytes = policy_total - self.retained_policy_canonical_total;
         self.retained_policy_canonical_total = policy_total;
-        let mut semantic_binding_candidates = candidate_service_bindings(&checked, key)?;
+        let mut semantic_binding_candidates = candidate_service_bindings(&checked, key.identity())
+            .map_err(|error| projection_error(key, error))?;
         semantic_binding_candidates.extend(proposed_entry);
         if self.discovery == TargetEntryDiscovery::Dependencies {
             for (candidate_purpose, candidate) in &self.target_entry_candidates {
@@ -1040,10 +1045,14 @@ impl ClosurePass<'_> {
                 }
             }
         }
-        semantic_binding_candidates.extend(candidate_hosted_exit_bindings(&checked, key)?);
+        semantic_binding_candidates.extend(
+            candidate_hosted_exit_bindings(&checked)
+                .map_err(|error| projection_error(key, error))?,
+        );
         if self.discovery == TargetEntryDiscovery::Dependencies {
             self.target_entry_candidates.extend(
-                candidate_target_entry_binding(&checked, key, checked_target)?
+                candidate_target_entry_binding(&checked, key.identity(), checked_target)
+                    .map_err(|error| projection_error(key, error))?
                     .map(|candidate| (purpose, candidate)),
             );
         }

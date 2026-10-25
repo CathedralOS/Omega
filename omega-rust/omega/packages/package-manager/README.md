@@ -262,8 +262,13 @@ target. The closure retains at most 64 MiB in aggregate canonical policy
 encoding size; this is not an exact heap-size limit. Legacy comparison rows,
 commitments, and obligation checks remain separate and unchanged. This retained
 finding is not accepted-lock storage or an additional authorization stage.
-Binding nomination reads the checked callable reach/invocation facts, entry
-requirements and selected provider plans directly. The review exposes the
+Binding nomination belongs to compiler-owned
+[`package-evidence::capture`](../review-evidence/src/capture/semantic_bindings.rs),
+which reads checked callable reach/invocation facts, entry requirements and
+selected provider plans. Package review consumes its inert candidates, attaches
+consumer context to projection errors, and scopes permission proposals; it no
+longer walks checked machines, symbols, traits or provider plans, and has no
+provider-planning, flow-effects or symbols dependency. The review exposes the
 exact checked `ServiceSchema` beside each proposed binding. This is
 non-authoritative review material: a consumer may use complete requirement
 identities from that schema to author terminal-permission rows. Requirement-only
