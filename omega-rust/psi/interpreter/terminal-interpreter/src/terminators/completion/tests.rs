@@ -67,6 +67,7 @@ fn check_refused_return(retain_header: bool) {
                 result: result.clone(),
                 claim_origin: ResultClaimOrigin::CalleeReturn,
                 expected_reference_backings: Vec::new(),
+                preserved_projected_qualifications: Vec::new(),
                 profile_completion: None,
             },
             Vec::new(),
