@@ -3,7 +3,7 @@
 //! closed one keeps the checked rule-instance route, and every premise,
 //! orientation and minuend is load-bearing.
 
-use super::super::test_utilities::elaborate_checked;
+use super::super::test_utilities::{assert_refused, elaborate_checked};
 use std::collections::BTreeSet;
 
 use semantic_vocabulary::{
@@ -125,31 +125,23 @@ fn checked(integer: IntegerType, assumptions: &[Proposition], proof: &ProofNode)
         &mut Budget::default(),
     )
     .unwrap();
-    assert!(
-        verify_bounded_certificate(
-            &context,
-            &proof.conclusion,
-            &assumptions[..assumptions.len() - 1],
-            &[],
-            proof,
-            &mut Budget::default()
-        )
-        .is_err()
+    assert_refused(
+        &context,
+        &proof.conclusion,
+        &assumptions[..assumptions.len() - 1],
+        &[],
+        proof,
     );
     rule_instance
 }
 
 fn rejects(integer: IntegerType, assumptions: &[Proposition], proof: &ProofNode) {
-    assert!(
-        verify_bounded_certificate(
-            &context(integer),
-            &proof.conclusion,
-            assumptions,
-            &[],
-            proof,
-            &mut Budget::default()
-        )
-        .is_err()
+    assert_refused(
+        &context(integer),
+        &proof.conclusion,
+        assumptions,
+        &[],
+        proof,
     );
 }
 
