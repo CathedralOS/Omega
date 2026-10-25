@@ -75,7 +75,10 @@ impl<'artifact> TerminalExecution<'artifact> {
                 || required.access != StructuralAccess::Owned
                 || supplied.access != StructuralAccess::Owned
                 || required.multiplicity != supplied.multiplicity
-                || required.multiplicity != StructuralMultiplicity::Affine
+                || !matches!(
+                    required.multiplicity,
+                    StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+                )
                 || !required.qualifications.is_empty()
                 || !supplied.qualifications.is_empty()
                 || !required.projected_qualifications.is_empty()
@@ -146,7 +149,9 @@ impl<'artifact> TerminalExecution<'artifact> {
                 ));
             }
             value.structural_type = supplied.structural_type;
-            self.consume_affine_call_argument(&mut remaining_affine, argument)?;
+            if required.multiplicity == StructuralMultiplicity::Affine {
+                self.consume_affine_call_argument(&mut remaining_affine, argument)?;
+            }
         }
         let retired_sources = super::frames::transferred_call_sources(
             arguments,

@@ -10368,6 +10368,24 @@ fail/facts/opaque_independent_closed_carrier_through_parameter_cleanup rejected 
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
 fail/facts/opaque_independent_closed_carrier_through_target_body_cleanup rejected 313ms expected @a92f16431042
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
+fail/facts/opaque_independent_copy_through_call_result_rejected rejected 1068ms expected @4d987059e887+wt
+	cannot use `first` in machine `observe` state `entry` (statement 3) after `first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
+fail/facts/opaque_independent_copy_through_const_name_rejected rejected 1049ms expected @4d987059e887+wt
+	cannot use `first` in machine `observe` state `entry` (statement 3) after `first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
+fail/facts/opaque_independent_copy_through_field_rejected rejected 1047ms expected @4d987059e887+wt
+	cannot use `stored.value` in machine `observe` state `entry` (statement 3) after `stored.value` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `stored.value` first
+fail/facts/opaque_independent_copy_through_local_rejected rejected 1046ms expected @4d987059e887+wt
+	cannot use `first` in machine `observe` state `entry` (statement 3) after `first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
+fail/facts/opaque_independent_copy_through_match_join_rejected rejected 1065ms expected @4d987059e887+wt
+	cannot use `first` in machine `receive` state `entry` (statement 2) after `first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
+fail/facts/opaque_independent_copy_through_other_machine_rejected rejected 1066ms expected @4d987059e887+wt
+	cannot use `first` in machine `observe` state `entry` (statement 3) after `first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
+fail/facts/opaque_independent_copy_through_other_state_rejected rejected 1039ms expected @4d987059e887+wt
+	cannot use `first` in machine `receive` state `entry` (statement 2) after `first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
+fail/facts/opaque_independent_copy_through_parameter_rejected rejected 1101ms expected @4d987059e887+wt
+	cannot use `first` in machine `receive` state `entry` (statement 2) after `first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
+fail/facts/opaque_independent_copy_through_target_body_rejected rejected 1083ms expected @4d987059e887+wt
+	cannot use `first` in machine `observe` state `entry` (statement 3) after `first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
 fail/facts/opaque_nested_carrier_cleanup rejected 4009ms expected @a92f16431042
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
 fail/facts/opaque_wrapped_carrier_cleanup rejected 3954ms expected @a92f16431042
@@ -24549,6 +24567,15 @@ pass/facts/opaque_independent_closed_carrier_through_other_machine_exit checked 
 pass/facts/opaque_independent_closed_carrier_through_other_state_exit checked 13078ms check-target:macos_arm64 @a92f16431042
 pass/facts/opaque_independent_closed_carrier_through_parameter_exit checked 11115ms check-target:macos_arm64 @a92f16431042
 pass/facts/opaque_independent_closed_carrier_through_target_body_exit checked 10767ms check-target:macos_arm64 @a92f16431042
+pass/facts/opaque_independent_copy_through_call_result_exit checked 1432ms check-target:macos_arm64 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_const_name_exit checked 1432ms check-target:macos_arm64 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_field_exit checked 1387ms check-target:macos_arm64 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_local_exit checked 1387ms check-target:macos_arm64 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_match_join_exit checked 1406ms check-target:macos_arm64 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_other_machine_exit checked 1404ms check-target:macos_arm64 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_other_state_exit checked 1399ms check-target:macos_arm64 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_parameter_exit checked 1397ms check-target:macos_arm64 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_target_body_exit checked 1409ms check-target:macos_arm64 @4d987059e887+wt
 pass/facts/opaque_nested_carrier_exchange_exit checked 44185ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-runtime.observe_replacement:unrequested terminal-runtime.relay:unrequested terminal-inspections:match @a92f16431042
 pass/facts/opaque_wrapped_carrier_exchange_exit checked 24068ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-inspections:match @a92f16431042
 pass/facts/open_const_implementation_through_call_result_exit checked 7292ms check-target:macos_arm64 @a92f16431042

@@ -5,8 +5,10 @@ Requirement: preserve the exact selected closed Inert carrier and one owned
 occurrence through by-value foreign results, transport and consuming arguments,
 including replacement of one field without disturbing its sibling. This is
 host-boundary evidence and initial independent closed Affine input/result
-exchange. Copy, qualified or claim-bearing component inputs, remaining mismatch
-admission and replacement lifecycle acceptance remain open.
+exchange. The [checked Copy continuation](independent_copy/README.md) also
+preserves the caller's original across an independently consuming call.
+Qualified or claim-bearing component inputs, remaining mismatch admission and
+replacement lifecycle acceptance remain open.
 
 **Closed nested Inert carrier transport preserves libc host numbers 66051 and
 513 and replacement 1027 while retaining the disjoint sibling.**
@@ -109,10 +111,13 @@ row: all nine places run `omega run --both` with native exit 0 and Terminal
 agreement, and every cleanup twin rejects at checking. Windows has no
 `inet_makeaddr` or `inet_lnaof` export, so those requirements bind
 `omega_host.dll`, the classful definition of those C functions, and the loader
-finds that image beside the published executable. Linux ARM64 bindings are
-declared but have no matching-host runtime observation here. The nine
-independent places remain observed on Linux x86-64 and macOS ARM64. Full
-crosshost coverage of the independent exchange therefore remains open.
+finds that image beside the published executable. Linux ARM64 now also has matching-host native/Terminal agreement across all
+nine direct and all nine independent places, with their eighteen cleanup
+controls rejecting. The retained optimized producer `213f298c1854` executed
+these rows in [run 40220498665](https://github.com/CathedralOS/Omega/actions/runs/40220498665);
+its compiler input trees match `bca639682c50`. That run also reobserved both
+rows on Linux x86-64. The four-host execution gap for these closed Affine
+rows is discharged; other composition and custody acceptance remains open.
 
 ### Matching-host execution (macos_arm64)
 
@@ -188,8 +193,8 @@ contract or turning a description into execution authority.
 Each twin changes only the producing carrier's nominal cleanup obligation in
 [the invalid producing package](independent/producer_invalid/main.omg). Its
 consumer source is identical to the positive. The four hosted entries remain
-in every positive build. Execution observations for this exchange are Linux
-x86-64, macOS ARM64, and Windows x86-64. On windows_x86_64 the producer
+in every positive build. Execution observations for this exchange cover all four hosted targets,
+including Linux ARM64 in run `40220498665`. On windows_x86_64 the producer
 declares the same `omega_host.dll` binding, publication emits a PE shared
 component beside the executable, and all nine places exit 0 under
 `omega run --both`.
@@ -262,11 +267,13 @@ The applicable requirement categories above extend through the component edge:
 
 Raw observations remain in the existing swarm qualification record, bound to
 actual producer revisions and accepted project locks. Full provider/carrier/
-target/lifecycle/multiplicity/historical-selection mismatch controls, Copy,
-qualified or linear component inputs, materialized/view-backed inputs, and
-matching-host execution on Linux ARM64 remain separate acceptance
-until demonstrated. The fact row and focused fuel witness do not close those
-remaining parent requirements.
+target/lifecycle/multiplicity/historical-selection mismatch controls,
+qualified or linear component inputs, and materialized/view-backed inputs remain
+separate acceptance. The [checked Copy continuation](independent_copy/README.md)
+establishes exact Copy input/result transport across independent components on
+all four hosted targets, retaining the original Windows timeout and its finite
+diagnostic observations. These rows and the focused fuel witness do not close
+the remaining parent requirements.
 
 ## Native component description publication
 
