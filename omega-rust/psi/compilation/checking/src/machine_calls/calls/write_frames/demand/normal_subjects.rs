@@ -75,9 +75,12 @@ impl<'program> CallFrameResolver<'program> {
                 .all(|parameter| self.proof_value_is_caller_isolated(parameter.type_reference))
                 .then(Vec::new);
         }
-        if !self.expression_reference_bindings_are_stable(machine, expression) {
-            return None;
-        }
+        // The invocation origin capture authenticates each operand before the
+        // callee runs and retires sources changed by earlier operands. A
+        // whole-call binding-exposure veto would also discard the stable
+        // destination of a descriptor store, preventing its fresh post-state
+        // from consuming the callee's guarantees. Preservation after return is
+        // decided below from the actual write frame, independently per subject.
         let (state, _, index) =
             caller_statement_owner(program, machine, CallerWriteSite::Expression(expression))?;
         let writes = self.expression_may_write_paths(machine, expression)?;
