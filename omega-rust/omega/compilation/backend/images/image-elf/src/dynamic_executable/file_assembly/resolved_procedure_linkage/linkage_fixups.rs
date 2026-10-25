@@ -166,16 +166,7 @@ pub struct ElfProcedureLinkageApplicationError {
     pub(crate) diagnostic: Diagnostic,
 }
 
-impl ElfProcedureLinkageApplicationError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ValidatedElfDynamicFileEnvelope, Diagnostic) {
-        (self.envelope, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfProcedureLinkageApplicationError);
-
-impl std::error::Error for ElfProcedureLinkageApplicationError {}
+image::rejection_carrier!(
+    ElfProcedureLinkageApplicationError;
+    envelope: ValidatedElfDynamicFileEnvelope,
+);

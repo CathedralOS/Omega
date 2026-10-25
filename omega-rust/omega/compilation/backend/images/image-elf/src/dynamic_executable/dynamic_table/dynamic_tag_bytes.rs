@@ -75,19 +75,7 @@ pub struct ElfDynamicTableSerializationError {
     diagnostic: Diagnostic,
 }
 
-impl ElfDynamicTableSerializationError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ValidatedElfDynamicTagPlan, Diagnostic) {
-        (self.plan, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfDynamicTableSerializationError);
-
-impl std::error::Error for ElfDynamicTableSerializationError {}
+image::rejection_carrier!(ElfDynamicTableSerializationError; plan: ValidatedElfDynamicTagPlan);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ElfDynamicTablePayloadContents {

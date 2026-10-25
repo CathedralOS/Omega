@@ -77,19 +77,10 @@ pub struct ElfProcedureLinkageTemplatePlanningError {
     pub(crate) diagnostic: Diagnostic,
 }
 
-impl ElfProcedureLinkageTemplatePlanningError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ValidatedElfProcedureLinkageRelocationPlan, Diagnostic) {
-        (self.linkage, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfProcedureLinkageTemplatePlanningError);
-
-impl std::error::Error for ElfProcedureLinkageTemplatePlanningError {}
+image::rejection_carrier!(
+    ElfProcedureLinkageTemplatePlanningError;
+    linkage: ValidatedElfProcedureLinkageRelocationPlan,
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ElfProcedureLinkageTemplateContents {
