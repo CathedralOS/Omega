@@ -9,7 +9,11 @@ closed Inert representation. The caller consumes every created address through
 the actual C-backed independent provider. The invalid twin omits only the
 sibling consumption; it must reject the remaining linear obligation.
 
-Current work: reproduce this root on published main before repairing the
-unsupported runtime lane, then carry the same operation through all nine
-transport places and pin their positive and invalid controls. No completed
-linear row or other-host execution is claimed yet.
+Published main `3353916f9430` checked the frozen root and ran native exit 0,
+but Terminal rejected its linear constructor. Actual optimized producer
+`99513d52bde0` now runs that unchanged root at native 0 / Terminal 0. The
+unconsumed-sibling twin rejects at the same exact scope-exit diagnostic.
+
+Nine transport places and their self-contained corpus pins are now authored.
+Their execution and other-host qualification remain pending; this is not yet
+a closed linear row.
