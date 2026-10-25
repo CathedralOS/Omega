@@ -607,7 +607,7 @@ defines the complete product bar.
   the [evaluation schedule](wiki/spec/language/expressions.md#evaluation-schedule)
   and [argument/result custody](wiki/spec/terminal-psi/calls_and_outcomes.md#argument-and-result-ordering):
   exact producer, authored parameter position, result owner, loan activation
-  and once-only effects. **CML4** owns residual cleanup;
+  and once-only effects.
   **GENERAL-CYCLIC-EXECUTION** owns cyclic control. Owners:
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/`,
   its checked computation producers, stage 05 argument evaluation and
@@ -639,9 +639,13 @@ defines the complete product bar.
     replacement, including direct views and constructed children with local backing.
     Complete remaining cyclic, opaque/provider and dependent result composition
     through the same producer and custody relationships. Runtime-indexed returned
-    carriers still need field-valued index subjects in their result applications;
-    those subjects must retain their captured values across later slot writes,
-    without requiring a closed integer constant or erasing the dependency. Retain copied returns
+    carriers must also forward inferred machine Value binders without static
+    specialization or importing a callee-local recipe, and preserve post-write
+    descriptor observations when an earlier operand mutates a source before the
+    indexed producer runs. Retain the field-valued direct/public result row in
+    `copied_call_argument_snapshot/*/indexed_byte_view`: its type invariant carries
+    the captured length across a later slot write without erasing the index.
+    Retain copied returns
     through ranked identities and public local-dyn slots, including immutable
     local copies, contextual windows, disjoint writes, borrowed record fields,
     stored array elements and later replacement of former slots. Descriptor-leaf
@@ -689,8 +693,7 @@ defines the complete product bar.
     engines for recursive omitted common zeros, erased-member rosters, ordered
     constructor effects and indexed common reads; reject invalid zero domains
     and duplicate linear common/payload operands.
-    **CML4** owns remaining residual cleanup. Reference debt must
-    follow ordinary disposal, not a trivial affine discard.
+    Reference debt must follow ordinary disposal, not a trivial affine discard.
     Keep: `pass/expressions/runtime_temporary_record_field_call_exit` (a
     call-produced plain-owned record supports immediate field observation,
     its call effect performed once),
@@ -1032,147 +1035,6 @@ defines the complete product bar.
   `fail/ownership/borrowed_storage_boundary_call` and
   `fail/ownership/linear_temporary_scalar_observation`.
 
-- **CML4.** Complete edge-local residual cleanup under the
-  [ownership contract](wiki/spec/terminal-psi/ownership.md). Materialize
-  outgoing values before transfer/disposal; give every occurrence one
-  disposition. Clean dying roots in reverse declaration order and abandoned
-  construction prefixes in
-  [reverse establishment order](wiki/spec/language/ownership.md#construction-and-disposal-order).
-  Crash/abort/process exit has no cleanup successor. Remaining work:
-  - Child reconstruction below a conditionally transferred owner is not a
-    capability gap: the checker rejects every store below a transferred
-    region ("assign a whole value to `pair` to re-establish it"), as
-    ownership.md licenses no value with a hole, so the stage-04 refusal
-    behind it is unreachable. A zero-valid declared local is established
-    with its zero value and owes its hooks (`fail/drops/{empty_array_owner,
-    zero_case_container_keeps}_cleanup_prerequisite`); only a zero-gated
-    type defers establishment to its stores.
-    Preserve each occurrence's residual custody until its actual normal
-    death; neither a selection join nor a later reread of the condition
-    decides hook timing. Keep `pass/facts/nominal_loan_backing_cleanup_through_*_exit`
-    and their cleanup-prerequisite twins for original nominal backing through
-    successor loans; preserve `pass/drops/runtime_nominal_state_loan_cleanup_order_exit`
-    and `runtime_nominal_state_loan_crash_exit` for ordered normal death and
-    absent crash cleanup. Keep
-    `pass/drops/runtime_selected_transfer_fieldwise_construction_exit` as
-    the deferred-binding transfer control (a field consumed out of a
-    field-wise established local, hook order byte-exact) and
-    `pass/drops/runtime_selected_transfer_incomplete_construction_exit` as
-    the selected-transfer-during-construction control: a retained aggregate
-    that completes folds and dies in declared order, one that never
-    completes dies in reverse establishment order. Keep
-    `pass/drops/runtime_selected_partial_owner_cleanup_exit` for generic
-    record/fixed-array regions, interleaved residual hook order, field/whole
-    replacement, optional mixed payloads and exact old/new linear claims. Keep
-    `fail/drops/selected_partial_{cleanup_prerequisite,replacement_old_cleanup_prerequisite,requires_disposition}`,
-    `fail/drops/selected_replacement_old_cleanup_prerequisite` and
-    `fail/ownership/selected_partial_owner_reuse` for skipped and pre-store
-    obligations and unavailable regions. Keep
-    `pass/drops/runtime_selected_nominal_owner_cleanup_exit` for whole-owner
-    Boolean selection, nested/branch-only births, overwritten conditions and
-    once-only argument effects followed by linear construction/forwarding.
-    Keep `fail/drops/selected_nominal_owner_keeps_cleanup_prerequisite` and
-    `fail/ownership/selective_constructed_owner_reuse` for skipped-path hook
-    prerequisites and conservative source availability. Preserve
-    `pass/ownership/runtime_selective_constructed_owner_custody_exit` for
-    no-code custody, generic records and field/indexed replacement before
-    selected whole transfer.
-  - Qualify the ordered normal-edge cleanup plans in
-    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup/normal_edges.rs`
-    on Windows and Linux, including abandoned construction prefixes and
-    field replacement. Preserve establishment order in the ordinary action
-    stream; keep machine parameter custody distinct from edge cleanup. No
-    runtime liveness flags, untouched-array leaf expansion or deferral to final
-    return. Keep
-    `pass/drops/runtime_projected_nominal_cleanup_exit` (`XDCBEA`) and
-    `pass/drops/runtime_indexed_nominal_cleanup_exit` (`XGFDCBEA`) as
-    value-transfer and recursive cleanup-order controls.
-    Keep `pass/drops/runtime_cleanup_helper_normal_guarantee_exit` as the
-    pre-cleanup scalar-capture and surviving call-contract control when
-    extending these edges.
-    Keep `runtime_empty_array_owner_cleanup_exit` and
-    `runtime_nested_empty_array_owner_cleanup_exit` as zero-cardinality
-    initialization and containing-owner cleanup controls. Empty element storage
-    does not owe a value initialization or element cleanup prerequisite.
-    Keep `runtime_record_construction_cleanup_order_exit` as the
-    authored-output control and `runtime_replaced_record_custody_transfer_exit`
-    as the owned/borrowed replacement followed by whole-record transfer control.
-    Keep
-    `runtime_nested_cleanup_postcondition_exit` and
-    `runtime_generic_reserved_construction_exit` as parent-first guarantee and
-    construction controls. Keep `runtime_abandoned_record_construction_prefix_exit`
-    as the reserved-home versus established-value control; unwritten fields owe
-    no cleanup. Keep `runtime_borrowed_nominal_replacement_exit` with
-    `runtime_nominal_array_replacement_exit` for materialization before old
-    element hooks and stores, and
-    `fail/drops/borrowed_replacement_old_hook_prerequisite` as the old-value
-    prerequisite control. Preserve exact source-window call occurrences until
-    cleanup effects finish; an incomplete effect table cannot decide whether
-    a call may cross an open window. While one is open, preserve the exact
-    vacant-place repair authority from the ownership contract.
-    Keep `runtime_owned_replacement_reestablishment_exit` and
-    `runtime_owned_{record_replacement,nominal_replacement,replacement_composition}_exit`
-    and `fail/drops/owned_replacement_{old_hook_prerequisite,transferred_source_read}`
-    as value-home, occurrence and invalid-custody controls.
-  - Complete scalar materialization of moved linear places and claim-bearing
-    call results on **STATE-LOCAL-VALUE-FRONTIER**'s computed-call path.
-    Keep `samples/cli/facts/borrowed_projection_cleanup/` as the captured-context,
-    detached-carrier and reference-free projected-supplier read control while
-    completing those remaining moved-value and computed-call claims.
-    Preserve the checked ordered temporary action roster and its scalar-call continuation in
-    `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/calls.rs`
-    with exact live-claim dispositions; claim-free discard/hook actions do not
-    consume retained claims. Preserve the selected transfer and ordered
-    residual complement under the original owner, never a second whole
-    temporary for the selected field.
-    Keep `samples/cli/facts/returned_linear_residual/` and its pinned
-    pass/reject pairs for selected by-value linear-child consumption and
-    original-owner residual cleanup. Keep
-    `samples/cli/facts/returned_indexed_linear_residual/` and its pinned
-    pass/reject pairs for literal fixed-array selection under the returned
-    owner's exact element claims. Authored or lexical indexing cannot acquire
-    builtin result laws; inherited functional guarantees still owe ordinary
-    exit proof under the exact applied parameter mapping. Preserve the
-    owner-telescope review control `runtime_generic_cleanup_owner_telescope_exit`
-    alongside these rows.
-    Keep `pass/drops/runtime_claim_bearing_temporary_cleanup_exit` and
-    `pass/drops/runtime_nested_claim_bearing_temporary_cleanup_exit` as native
-    and Terminal controls for conditional establishment, descendant identity
-    transport, disjoint affine complements, exact linear hook disposition and
-    constructor snapshots across implicit borrowing.
-    Keep `runtime_parent_hook_preserves_linear_descendants_exit` as the intact
-    nominal receiver and retained child-claim control, with child cleanup
-    prerequisites established by the parent hook's conjunction. Keep
-    `fail/drops/parent_cleanup_{missing_child_guarantee,wrong_child_guarantee,cross_field_guarantee_retired,disjunction_not_conjunction,requires_before_guarantees}`
-    as missing/wrong facts, relation invalidation, disjunction and hook-entry
-    prerequisite controls.
-    An anonymous returned owner without a unique conserved claim map must
-    still reject rather than mint replacement identities.
-    Preserve existing identities through moved fields and exact call-result
-    maps; new per-field identities cannot replace forwarded claims. Keep
-    `pass/ownership/runtime_partial_linear_record_case_cleanup_exit` as the
-    selected residual and home-retirement control after linear field consumption.
-    Keep `fail/drops/{claim_bearing_temporary_requires_disposition,borrowed_temporary_projection_retains_owner_disposition,claim_bearing_temporary_hook_prerequisite}`
-    and `pass/drops/statically_skipped_claim_bearing_temporary` as whole-owner
-    disposition and evaluated-occurrence controls. Keep
-    `pass/drops/runtime_nested_nominal_producer_loans_exit` as the operand-loan
-    lifetime control: cleanup must not prolong a completed borrow-free
-    producer's input loans.
-  Acceptance: add corpus fixtures where native runs and the Terminal
-  interpreter preserve values and hook order across composed edges. Missing,
-  duplicate, reordered, overlapping, wrong-root and post-transfer cleanup,
-  and transfer after disposal, reject. Fuel exhaustion commits no disposal;
-  retry cannot repeat one. No affine occurrence outlives its required edge.
-  The output-bearing projected, indexed and composed controls run with exit 0
-  and authored hook-order stdout in both native and Terminal execution on
-  macOS ARM64. Keep `pass/drops/runtime_projected_nominal_core_exit` and
-  `pass/drops/runtime_composed_nominal_return_hook_exit` as
-  host-independent native/Terminal value-preservation controls; they do not
-  establish observable hook order.
-  Preserve those observable controls with `python tools/corpus_gate.py --both --filter
-  runtime_projected_nominal_cleanup_exit,runtime_indexed_nominal_cleanup_exit,runtime_composed_nominal_output_hook_exit`.
-  Tree comparison is being retired and does not establish Terminal acceptance.
-
 - **ATOMIC-MEMORY-MODEL.** Complete atomic/fence semantics and native execution
   under [concurrency](wiki/spec/language/concurrency.md) and the
   [atomic vocabulary](omega-rust/psi/foundation/language-core/atomic_operations.md).
@@ -1250,7 +1112,7 @@ defines the complete product bar.
     Non-tail self recursion is not a reproduced blocker.
   - Text/index/match programs: missing operations belong to
     **NOMINAL-FIELD-FLOW**, **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**,
-    **MATCH-SELECTIVE-LOWERING**, **CML4** and **OPERATOR-MACHINE-SUPPLY**. Keep
+    **MATCH-SELECTIVE-LOWERING** and **OPERATOR-MACHINE-SUPPLY**. Keep
     `Utf8` and ordinary domain evidence; recognized function names or weakened
     invariants cannot replace it.
 
@@ -2531,12 +2393,13 @@ then independent claimed restoration slices -> final closure.
   resolution/review, Psi requirement admission, and Terminal continuation plus
   provider-slot installation as their existing owners rather than another Build
   driver. The seed's
-  runtime work is its four authored `Build::bind` rows. On published
-  `0f544a8a211`, inspecting this Build through Terminal refuses `root binding`
-  at statement 2; prior unpublished RootBinding preparation is not a current
-  implementation or acceptance result. General binding operations must carry
-  exact declaration coordinates and authenticated original Build inputs through
-  the common core. Terminal instances now expose normal-return readback of
+  runtime work is its four authored `Build::bind` rows. Those bindings now lower
+  through ordinary boundary calls with source-issued designated operands bound
+  to the exact artifact and operation identities. Full source-produced Build
+  entries execute under the portable embedding provision, including conditional
+  selection and explicit reborrowing, with ordered exactly-once binding records
+  across fuel pauses. Foreign receivers, reused tickets and unissued operations
+  refuse. This is not yet the production Build scheduler. Terminal instances expose normal-return readback of
   original borrowed entry storage; source-produced Build identifier helpers run
   through retained/loaded Terminal artifacts and return their changed bytes.
   Full Build evaluation still uses the checked-tree engine. Connect settings
@@ -2547,7 +2410,9 @@ then independent claimed restoration slices -> final closure.
   `receiver_view_writeback_exit` has a portable corpus provision that loads the
   produced artifact, executes two mutable boundary calls exactly once across
   fuel pauses, rejects a foreign receiver and reads the final original storage.
-  This is prerequisite evidence, not execution of the full Build entry.
+  The same fixture separately executes its full Build entry and verifies all
+  four root bindings and the configured identifier. Production execution still
+  needs the explicit activation, host provisions and completed-result join.
   Connect those admitted operations to the production Build scheduler without
   inferring slot preservation from an observation-only adapter, a call name or
   source custody; a lifetime anchor is not backing identity. Local backing still
@@ -2914,9 +2779,15 @@ crash and native exit behavior.
   description payloads now belong to the source model, not its checked-tree
   executor. Executed root bindings carry their lexical selection directly;
   final admission no longer reopens an execution statement, and provider planning
-  no longer directly depends on the checked interpreter. These in-process records
-  do not yet supply serialized Terminal operation authority. Terminal Build/helper activation
-  scheduling still needs migration. Psi
+  no longer directly depends on the checked interpreter. Designated bindings now
+  lower to ordinary boundary calls, removing the typed `RootBinding` statement
+  and its special traversal paths. Source-issued companion context binds the
+  designated operands to an artifact fingerprint and exact operation/boundary
+  identities; external bytes alone grant no Build authority. Terminal embedding
+  tests execute direct, conditional and explicitly reborrowed bindings in both
+  borrowed and loaded artifacts, preserving receiver identity and exactly-once
+  effects across fuel pauses. Production description queries and Terminal
+  Build/helper activation scheduling still need migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
   Psi 00-07 and Build execute
@@ -4838,9 +4709,11 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   Foreign imports share one mechanism template per target ABI, derived from
   the evaluated plans.
   - Qualify remaining descriptor carriers and register/stack placement on each
-    matching host. Preserve `host/runtime_descriptor_direct_array_exit` and
-    `host/runtime_descriptor_output_streams_exit`: readonly byte views transport
-    their evaluated pointer/length on macOS ARM64, never the descriptor's address.
+    matching host. Restore original scalar-field backing through thin foreign
+    export: `host/runtime_descriptor_direct_array_exit` currently refuses with
+    `SourceCustodyMismatch` on macOS ARM64. Keep narrow/mixed backing export
+    refusals. Preserve `host/runtime_descriptor_output_streams_exit`: readonly
+    byte views transport their evaluated pointer/length, never the descriptor's address.
   - Qualify indirect (memory-returned) aggregate results on the remaining
     matching hosts. Linux x86-64 uses caller-owned result storage through
     foreign calls, ordinary helpers and owned state arrivals; retain

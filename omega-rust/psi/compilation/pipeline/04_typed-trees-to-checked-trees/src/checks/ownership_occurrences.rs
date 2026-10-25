@@ -208,10 +208,6 @@ pub(super) fn statement_steps_at_evaluation(
                 .invocation = Some(InvocationIdentity::Statement);
             order.hold_through_completion(0);
         }
-        StatementNode::RootBinding(binding) => {
-            order.expression(binding.receiver, false);
-            order.expression(binding.implementation_operand, false);
-        }
         StatementNode::AssemblyFact(fact) => {
             for expression in program.tables.proof_fact_expression_roots(fact.fact) {
                 order.expression(expression, false);

@@ -357,12 +357,43 @@ own call’s precondition), and
 does not restore facts about contents changed by the call). Qualification is
 native/Terminal agreement on macOS ARM64; other-host execution remains open.
 
-The next dependent-return gap is distinct: a runtime-indexed borrow-carrying
-result still cannot name a field-valued index subject such as
-`Counted<'storage, (source.bytes.len)>`. Its snapshot must remain the old value
-after a later descriptor overwrite; replacing that subject with a constant or
-dropping the index would change the requirement. This and general provider
-result composition remain part of the parent acceptance.
+### Runtime-indexed byte-view results
+
+The selected value of a copied first argument remains 7 when the second argument
+replaces its former descriptor home with a view of 9.
+
+Each of the nine places has an `indexed_byte_view/main.omg` witness and an
+`indexed_byte_view/invalid/main.omg` twin. Both direct and public `dyn` producers
+return `Counted<'storage, (source.bytes.len)>` from a local array-backed view.
+The receiver accepts `Counted<'storage, 7>` and consumes its own default-domain
+invariant through `seven`; it needs no redundant length precondition. The caller
+subtracts 7 and checks that the former home became 9 while its sibling stayed 4.
+Twins change only the initial array extent and contents to length 8. Pins are
+`tests/omega/{pass,fail}/facts/indexed_byte_view_argument_snapshot_through_*_exit`.
+
+Baseline `970629516baaa28053e7f4cdeb5eeebb0d6c3721` refuses the field-valued
+application during parsing. The repair retains the expression until binder-owned
+admission, uses the common arithmetic formation walk in its exact declaration
+scope, and joins source Value binders to their represented descriptor fields.
+Completed results retain index equations under their captured operands. Public
+slot preparation remaps that entire value telescope; storage identity remains
+separate from source index equality. The nine positives execute with native and
+Terminal exit 0 on macOS ARM64, and all nine twins reject index equality.
+Other-host execution remains unverified; Windows execution is owner-deferred.
+
+Formation controls reject unused overflowing recipes, wrong/refined carriers,
+a provider returning a different projection, forged descriptors and retagging an
+already admitted value. A bounded unused recipe remains valid. Those controls
+are under `tests/omega/{pass,fail}/generics/runtime_value_recipe_*`.
+
+The parent remains open. Inferred machine Value arguments still take a static
+specialization path and can import a callee-local recipe into the caller.
+An earlier mutable call also conservatively loses the post-state descriptor
+correspondence needed by a later indexed result: the normal observer declines
+both the valid post-write index and the stale one. That refusal is not evidence
+of correct support for the valid ordering. General provider and cyclic result
+composition remain required; this row establishes neither those paths nor the
+full RUNTIME-VALUE-GENERICS acceptance.
 
 ## Requirements and evidence
 

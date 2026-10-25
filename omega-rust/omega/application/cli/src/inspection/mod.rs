@@ -72,7 +72,9 @@ pub fn inspect_terminal(
         .output
         .into_inspection()
         .map_err(|error| InspectTerminalError::Diagnostics(error.into_diagnostics()))?;
-    Ok(TerminalInspection { artifact })
+    Ok(TerminalInspection {
+        artifact: artifact.into_artifact(),
+    })
 }
 
 /// Inspect external envelope bytes through canonical admission. This route does

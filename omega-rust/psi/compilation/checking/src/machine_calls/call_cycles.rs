@@ -315,13 +315,6 @@ fn collect_statement_dependency_symbols(
 ) {
     match statement {
         StatementNode::Assembly(_) => {}
-        StatementNode::RootBinding(binding) => {
-            for expression in [binding.receiver, binding.implementation_operand] {
-                if expression.is_valid() {
-                    collect_expression_dependency_symbols(program, expression, symbols);
-                }
-            }
-        }
         StatementNode::AssemblyFact(fact) => {
             for expression in program.tables.proof_fact_expression_roots(fact.fact) {
                 collect_expression_dependency_symbols(program, expression, symbols);
@@ -836,13 +829,6 @@ fn collect_exact_proof_statement_edges(
         };
     }
     match statement {
-        StatementNode::RootBinding(binding) => {
-            for expression in [binding.receiver, binding.implementation_operand] {
-                if expression.is_valid() {
-                    collect_expression!(expression);
-                }
-            }
-        }
         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Call(call) => {
             let receiver_members = program.statement_table.name_path_members(call.receiver);

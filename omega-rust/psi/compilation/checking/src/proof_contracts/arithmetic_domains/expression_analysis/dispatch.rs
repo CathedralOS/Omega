@@ -9,7 +9,6 @@ use super::{Analysis, ExpressionWalk, NEUTRAL};
 use crate::proof_contracts::arithmetic_domains::{
     ArithmeticDomain, Diagnostic, ExpressionHandle, Interval, dispatch_arm_environments,
 };
-use crate::value_custody::expression_types::expression_result_type_reference;
 use typed_trees::expression::{MatchPattern, TableMatchExpression};
 
 pub(super) fn analyze(
@@ -22,9 +21,7 @@ pub(super) fn analyze(
     let program = walk.program;
     let operand_walk = walk.with_destination(None, ArithmeticDomain::Exact);
     operand_walk.analyze(dispatch.subject, diagnostics, decisions);
-    let result_type = walk.state.and_then(|state| {
-        expression_result_type_reference(program, walk.machine, state, expression)
-    });
+    let result_type = walk.result_type(expression);
     let primitive = result_type.and_then(|reference| program.primitive_type_reference(reference));
     let domain =
         result_type.map(|reference| program.arithmetic_domain_for_type_reference(reference));
@@ -35,13 +32,18 @@ pub(super) fn analyze(
     let mut interval: Option<Interval> = None;
     let mut recipe: Option<checked_trees::IntegerRangeRecipe> = None;
 
-    let environments = dispatch_arm_environments(
-        program,
-        walk.machine,
-        walk.state,
-        expression,
-        dispatch,
-        walk.environment,
+    let environments = walk.machine.map_or_else(
+        || vec![walk.environment.clone(); program.expression_table.match_arms(dispatch.arms).len()],
+        |machine| {
+            dispatch_arm_environments(
+                program,
+                machine,
+                walk.state,
+                expression,
+                dispatch,
+                walk.environment,
+            )
+        },
     );
     for (arm, selected) in program
         .expression_table
@@ -57,7 +59,7 @@ pub(super) fn analyze(
             ..result_walk
         };
         let arm_value = arm_walk.analyze(arm.value, diagnostics, decisions);
-        let arm_recipe = arm_value.range_recipe(program, walk.machine.symbol, arm.value);
+        let arm_recipe = arm_value.range_recipe(program, walk.lexical_owner, arm.value);
         recipe = if interval.is_none() {
             arm_recipe
         } else {

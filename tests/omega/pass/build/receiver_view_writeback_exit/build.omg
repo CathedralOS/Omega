@@ -11,6 +11,11 @@ machine configure_build(builder: &mut Build) {
     replace_build_identifier(builder);
 }
 
+// An explicit reborrow keeps the original activation identity at the host.
+machine bind_reborrowed(builder: &mut Build) {
+    Build::bind(&mut builder, macos_arm64::ProgramEntry, main);
+}
+
 machine replace_build_identifier(builder: &mut Build) {
     builder.identifier = "com.example.omega";
 }

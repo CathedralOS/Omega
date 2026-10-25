@@ -52,6 +52,7 @@ impl<'program> Evaluator<'program> {
             build_log: Vec::new(),
             root_build: None,
             executed_root_bindings: Vec::new(),
+            pending_root_bindings: Vec::new(),
             executed_behavior_exclusions: Vec::new(),
             executed_build_selections: Vec::new(),
             executed_wire_demands: Vec::new(),
@@ -1047,9 +1048,6 @@ impl<'program> Evaluator<'program> {
                             frame.return_type,
                             &mut frame,
                         )?);
-                    }
-                    StatementNode::RootBinding(binding) => {
-                        self.execute_root_binding(binding, &mut frame)?;
                     }
                     StatementNode::Call(call) => {
                         self.eval_call_statement(statement_handle, call, &mut frame)?;

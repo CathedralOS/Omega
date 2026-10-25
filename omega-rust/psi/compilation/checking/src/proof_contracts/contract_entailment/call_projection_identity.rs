@@ -60,6 +60,69 @@ pub fn captured_call_subject_identity(
     expression: ExpressionHandle,
 ) -> Option<String> {
     let (position, path) = owned_contract_subject(program, parameters, expression)?;
+    match capture_projection(
+        program,
+        caller_state,
+        statement_index,
+        call,
+        parameters,
+        ProjectionRequest::Identity { position, path },
+    )? {
+        ProjectionValue::Identity(identity) => Some(identity),
+        _ => None,
+    }
+}
+
+/// Interpret an admitted result-index recipe under the call's completed
+/// operands, including earlier sibling writes. The normal-value owner supplies
+/// the evaluation cut; this adapter never replays a supplying expression.
+pub fn captured_call_index_value(
+    program: &dyn crate::CheckingInput,
+    caller_state: SymbolHandle,
+    statement_index: usize,
+    call: CallSite<'_>,
+    parameters: &[StateParameter],
+    owner: SymbolHandle,
+    argument: typed_trees::types::TypeReferenceHandle,
+) -> Option<super::ScopedArithmeticValue> {
+    match capture_projection(
+        program,
+        caller_state,
+        statement_index,
+        call,
+        parameters,
+        ProjectionRequest::Value { owner, argument },
+    )? {
+        ProjectionValue::Scalar(value) => Some(value),
+        _ => None,
+    }
+}
+
+enum ProjectionRequest {
+    Identity {
+        position: usize,
+        path: Vec<PlaceSegment>,
+    },
+    Value {
+        owner: SymbolHandle,
+        argument: typed_trees::types::TypeReferenceHandle,
+    },
+}
+
+#[derive(PartialEq)]
+enum ProjectionValue {
+    Identity(String),
+    Scalar(super::ScopedArithmeticValue),
+}
+
+fn capture_projection(
+    program: &dyn crate::CheckingInput,
+    caller_state: SymbolHandle,
+    statement_index: usize,
+    call: CallSite<'_>,
+    parameters: &[StateParameter],
+    request: ProjectionRequest,
+) -> Option<ProjectionValue> {
     let state = program.state_by_symbol(caller_state)?;
     let machine = program.machines().iter().find(|machine| {
         program
@@ -106,8 +169,7 @@ pub fn captured_call_subject_identity(
         in_transition_target,
         call,
         parameters,
-        position,
-        path,
+        request,
         seen: false,
         value: None,
         valid: true,
@@ -124,10 +186,9 @@ struct ProjectionIdentity<'a> {
     in_transition_target: bool,
     call: CallSite<'a>,
     parameters: &'a [StateParameter],
-    position: usize,
-    path: Vec<PlaceSegment>,
+    request: ProjectionRequest,
     seen: bool,
-    value: Option<String>,
+    value: Option<ProjectionValue>,
     valid: bool,
 }
 
@@ -197,32 +258,104 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
             self.valid = false;
         }
         for entry in entries {
-            let Some(value) = entry.arguments.get(leading + self.position) else {
+            let value = match &self.request {
+                ProjectionRequest::Identity { position, path } => entry
+                    .arguments
+                    .get(leading + position)
+                    .and_then(|value| {
+                        super::observed_projections::project_observed_value(
+                            program,
+                            self.parameters[*position].type_reference,
+                            entry.judge.completed_value_identity(value.clone()),
+                            path,
+                        )
+                    })
+                    .map(|value| entry.judge.completed_value_identity(value))
+                    .and_then(|value| value.observation_identity_key())
+                    .map(|key| {
+                        ProjectionValue::Identity(format!(
+                            "state:{:?}:completed-contract:{key}",
+                            self.state
+                        ))
+                    }),
+                ProjectionRequest::Value { owner, argument } => {
+                    if entry.arguments.len() != self.parameters.len() {
+                        self.valid = false;
+                        continue;
+                    }
+                    let bindings = self
+                        .parameters
+                        .iter()
+                        .zip(&entry.arguments)
+                        .map(|(parameter, value)| (parameter.symbol, value.clone()))
+                        .collect::<Vec<_>>();
+                    let (value, primitive) =
+                        match program.type_reference_table.type_reference(*argument) {
+                            typed_trees::types::TypeReferenceNode::ConstExpression(expression) => (
+                                super::structural_judgment::selected_contracts::bound_term(
+                                    program,
+                                    *expression,
+                                    *owner,
+                                    self.parameters,
+                                    *owner,
+                                    &bindings,
+                                    None,
+                                    0,
+                                ),
+                                crate::parameter_expression_result_type_reference(
+                                    program,
+                                    *owner,
+                                    self.parameters,
+                                    *expression,
+                                )
+                                .and_then(|reference| program.primitive_type_reference(reference)),
+                            ),
+                            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => (
+                                bindings
+                                    .iter()
+                                    .find(|(formal, _)| formal == symbol)
+                                    .map(|(_, value)| value.clone()),
+                                self.parameters
+                                    .iter()
+                                    .find(|parameter| parameter.symbol == *symbol)
+                                    .and_then(|parameter| {
+                                        program.primitive_type_reference(parameter.type_reference)
+                                    }),
+                            ),
+                            _ => (None, None),
+                        };
+                    value
+                        .map(|value| entry.judge.completed_value_identity(value))
+                        .and_then(|value| {
+                            let value = match value.semantic_value() {
+                                StructuralTerm::Integer(integer) => {
+                                    super::ScopedArithmeticValue::Integer(integer.clone())
+                                }
+                                _ => super::ScopedArithmeticValue::Atom {
+                                    identity: format!(
+                                        "state:{:?}:completed-index:{}",
+                                        self.state,
+                                        value.observation_identity_key()?
+                                    ),
+                                    unsigned: !primitive
+                                        .filter(|primitive| primitive.is_fixed_integer())?
+                                        .is_signed_integer(),
+                                },
+                            };
+                            Some(ProjectionValue::Scalar(value))
+                        })
+                }
+            };
+            let Some(value) = value else {
                 self.valid = false;
                 continue;
             };
-            let value = entry.judge.completed_value_identity(value.clone());
-            let Some(value) = super::observed_projections::project_observed_value(
-                program,
-                self.parameters[self.position].type_reference,
-                value,
-                &self.path,
-            ) else {
-                self.valid = false;
-                continue;
-            };
-            let value = entry.judge.completed_value_identity(value);
-            let Some(key) = value.observation_identity_key() else {
-                self.valid = false;
-                continue;
-            };
-            let key = format!("state:{:?}:completed-contract:{key}", self.state);
             if let Some(previous) = &self.value {
-                if previous != &key {
+                if previous != &value {
                     self.valid = false;
                 }
             } else {
-                self.value = Some(key);
+                self.value = Some(value);
             }
         }
     }

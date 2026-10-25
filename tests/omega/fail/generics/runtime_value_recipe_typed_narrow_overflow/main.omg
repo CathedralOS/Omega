@@ -1,0 +1,3 @@
+data Index<Count: u8> { value: u64; }
+trait Contract { machine unused() -> Index<(255u8 + 1u8)>; }
+machine main() {}

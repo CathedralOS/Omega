@@ -11,6 +11,9 @@
 //! The same transfer serves retained or discarded counts. Linux kernel errors
 //! are not libc errno: unknown descriptors and host replay failures reject,
 //! rather than manufacturing a raw kernel status or touching OS descriptors.
+//! Versioned Linux libc write uses the same private output and captured backing,
+//! with its own size_t/ssize_t ABI. Unsupported descriptors decline before output;
+//! this offer supplies neither libc read nor observable TLS errno state.
 
 use std::io::Read;
 use std::sync::{Arc, Mutex};
@@ -85,6 +88,21 @@ impl<'input> DescriptorIoImport<'input> {
         }))
     }
 }
+fn validate_transfer_count(
+    abi: DescriptorAbi,
+    count: usize,
+) -> Result<(), TerminalEffectRejection> {
+    // Linux VFS caps transfers at INT_MAX & PAGE_MASK, whether entered
+    // through libc or a raw syscall. Without a selected page-size model,
+    // stay below the common 4K/16K/64K limit before capture or output.
+    if matches!(abi, DescriptorAbi::LinuxKernel | DescriptorAbi::LinuxLibc) && count > 0x7fff0000 {
+        return Err(TerminalEffectRejection::new(
+            "transfer count requires the selected kernel page-size limit",
+        ));
+    }
+    Ok(())
+}
+
 fn invalid_operands() -> TerminalEffectRejection {
     TerminalEffectRejection::new("descriptor I/O operands differ from the installed contract")
 }
@@ -164,6 +182,7 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                     }
                     _ => return Err(invalid_operands()),
                 }
+                validate_transfer_count(self.contract.abi, bytes.len())?;
                 (bytes.as_slice(), bytes.len())
             }
             DescriptorBuffer::Scalar(_) | DescriptorBuffer::Aggregate(_) => {
@@ -202,16 +221,7 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                     _ => return Err(invalid_operands()),
                 };
                 let count = usize::try_from(*count).map_err(|_| invalid_operands())?;
-                // Linux VFS caps transfers at INT_MAX & PAGE_MASK. Without a
-                // selected kernel page-size model, stay below the common limit
-                // for supported 4K/16K/64K pages. Larger requests need that model;
-                // never silently report an impossible full-count write. This is
-                // interpreter availability, not a compiler count restriction.
-                if matches!(self.contract.abi, DescriptorAbi::LinuxKernel) && count > 0x7fff0000 {
-                    return Err(TerminalEffectRejection::new(
-                        "transfer count requires the selected kernel page-size limit",
-                    ));
-                }
+                validate_transfer_count(self.contract.abi, count)?;
                 captured = Some(CapturedStorage::capture(
                     storage_buffers,
                     formal.access,

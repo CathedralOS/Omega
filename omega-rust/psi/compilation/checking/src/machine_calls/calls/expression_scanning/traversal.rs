@@ -93,24 +93,6 @@ pub(crate) fn validate_value_position_calls(
 ) {
     let executes = true;
     match statement {
-        StatementNode::RootBinding(binding) => {
-            for expression in [binding.receiver, binding.implementation_operand] {
-                if expression.is_valid() {
-                    scan_expression_calls(
-                        program,
-                        machine,
-                        state,
-                        symbols,
-                        writable_roots,
-                        value_environment,
-                        expression,
-                        executes,
-                        boundary_operator_applications,
-                        diagnostics,
-                    );
-                }
-            }
-        }
         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             scan_expression_calls(

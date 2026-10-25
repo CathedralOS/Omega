@@ -54,6 +54,8 @@ optimization-core = { path = "../../foundation/optimization-core" }
 
 [dev-dependencies]
 bounded-process = { path = "../../foundation/bounded-process" }
+
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
 omega-build = { path = "../../application/build" }
 terminal-runtime = { path = "../../application/terminal-runtime" }
 terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }

@@ -13,25 +13,34 @@ use terminal_psi::CheckedProgramEntryTerminalReceipt;
 /// The retained native route rejoins the checked entry receipt after the
 /// checked frontend is gone, so the receipt leaves production beside the
 /// artifact instead of remaining a direct-route-only custody object.
+/// Designated Build operands likewise travel as source-issued companion context,
+/// bound to the artifact and exact emitted operations, never as debug payload.
 #[derive(Debug, PartialEq, Eq)]
 #[must_use = "Terminal production retains independent application judgments"]
 pub struct ProducedTerminalArtifact {
     pub(super) artifact: terminal_codec::CanonicalTerminalArtifact,
+    pub(super) build_bindings: crate::TerminalBuildBindings,
     pub(super) applications:
         Vec<Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>>,
 }
 
 impl ProducedTerminalArtifact {
+    pub const fn build_bindings(&self) -> &crate::TerminalBuildBindings {
+        &self.build_bindings
+    }
     pub const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
         &self.artifact
     }
 
     /// Keep only the canonical portable artifact. This discards application
-    /// judgments and confers no authority to execute or publish a native product.
+    /// judgments and Build binding context, and confers no authority to execute
+    /// or publish a native product.
     pub fn into_artifact(self) -> terminal_codec::CanonicalTerminalArtifact {
         self.artifact
     }
 
+    /// Extract the portable artifact and application judgments, discarding Build
+    /// binding context. Build consumers borrow that context before extraction.
     pub fn into_parts(
         self,
     ) -> (

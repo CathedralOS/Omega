@@ -191,6 +191,30 @@ pub(super) fn validate_operands(
     report_partial(binary.operator, domain, proven, owner, true, diagnostics)
 }
 
+/// Declaration operands share the policy's formation conditions without
+/// claiming executable-prefix relations or a caller frame.
+pub(super) fn validate_interval_operands(
+    operator: BinaryOperator,
+    domain: ArithmeticDomain,
+    primitive: PrimitiveType,
+    left: Interval,
+    right: Interval,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    if !matches!(operator, BinaryOperator::Divide | BinaryOperator::Modulo) {
+        return false;
+    }
+    report_partial(
+        operator,
+        domain,
+        ProvenDefinedness::from_intervals(primitive, Some(left), Some(right)),
+        owner,
+        false,
+        diagnostics,
+    )
+}
+
 pub(super) fn validate_abstract(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,

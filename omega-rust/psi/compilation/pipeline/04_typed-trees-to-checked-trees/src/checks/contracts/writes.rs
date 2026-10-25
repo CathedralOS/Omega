@@ -456,10 +456,6 @@ fn statement_root_expressions(
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
     match statement {
-        StatementNode::RootBinding(binding) => [binding.receiver, binding.implementation_operand]
-            .into_iter()
-            .filter(|expression| expression.is_valid())
-            .collect(),
         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => Vec::new(),
         StatementNode::Assignment(assignment) => vec![assignment.target, assignment.value],
         StatementNode::Call(call) => program

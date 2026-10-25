@@ -94,7 +94,6 @@ fn statement_phase(statement: &StatementNode) -> &'static str {
         StatementNode::LocalData(_) => "statement sequence: local data",
         StatementNode::Call(_) => "statement sequence: call",
         StatementNode::Expression(_) => "statement sequence: expression",
-        StatementNode::RootBinding(_) => "statement sequence: root binding",
         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {
             "statement sequence: assembly fact"
         }

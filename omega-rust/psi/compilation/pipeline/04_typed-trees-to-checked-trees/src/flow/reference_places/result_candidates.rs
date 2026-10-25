@@ -101,22 +101,8 @@ fn call_result_candidates(
     (!candidates.is_empty()).then_some(candidates)
 }
 
-/// Backing storage of a reference expression for effect/range invalidation.
-/// This is not loan authority: a borrow consumer must also establish the live
-/// source loan and parent relationship before granting exclusive access.
-pub(crate) fn reference_expression_storage_places(
-    program: &dyn ::validation::CheckingInput,
-    state: SymbolHandle,
-    statement_index: usize,
-    expression: ExpressionHandle,
-    frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Vec<CanonicalPlace>> {
-    storage_places(program, state, statement_index, expression, frames, false)
-}
-
-/// Same storage places as [`reference_expression_storage_places`], also
-/// accepting a shared reference return. Proof reads the referent; effect
-/// frames stay on the mutable-only query.
+/// Backing storage of mutable or shared reference expressions. Proof reads
+/// the referent; this mapping alone does not establish loan authority.
 pub(crate) fn reference_expression_storage_places_including_shared(
     program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,

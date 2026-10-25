@@ -6,8 +6,7 @@
 use super::{Analysis, ExpressionWalk, NEUTRAL};
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{is_atomic_type, primitive_range};
 use crate::proof_contracts::arithmetic_domains::{
-    ArithmeticDomain, ExpressionHandle, Interval, declared_place_type_raw, place_path,
-    range_constraint_interval,
+    ArithmeticDomain, ExpressionHandle, Interval, place_path, range_constraint_interval,
 };
 use crate::value_custody::places;
 
@@ -20,16 +19,16 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
     let program = walk.program;
     // A literal-index element read (`self.cells[3]`) can carry a flow fact of
     // its own, such as a cited helper theorem's element bound.
-    let element_path =
-        super::super::stable_element_place_path(program, walk.machine, walk.state, expression);
+    let element_path = walk.machine.and_then(|machine| {
+        super::super::stable_element_place_path(program, machine, walk.state, expression)
+    });
     let element_fact = element_path
         .as_deref()
         .and_then(|path| walk.environment.get(path));
     // The declared-place owner handles every index hop and preserves its
     // effective element type. A second indexed-only lookup would ask the same
     // projection again with different admission conditions.
-    let Some(handle) = declared_place_type_raw(program, walk.machine, walk.state, expression)
-    else {
+    let Some(handle) = walk.declared_type(expression) else {
         return NEUTRAL;
     };
     // A scalar-reference place reads its referent's value. Losing a tracked
@@ -60,38 +59,37 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
     // where facts refine the read -- sound because the write net is TOTAL and
     // gated reads are access-gated, so the facts hold at every legal
     // observation.
-    let interval = match crate::proof_contracts::default_domains::where_fact_interval(
-        program,
-        walk.machine,
-        walk.state,
-        expression,
-    ) {
-        Some(facts) => interval.intersect(facts),
-        None => interval,
-    };
+    let interval = walk
+        .machine
+        .and_then(|machine| {
+            crate::proof_contracts::default_domains::where_fact_interval(
+                program, machine, walk.state, expression,
+            )
+        })
+        .map_or(interval, |facts| interval.intersect(facts));
     // Calls may clear snapshot facts without changing an immutable parameter.
     // Its checked arrival requirements remain valid at every read; the shared
     // standing-bounds query excludes mutable parameter arrival facts and only
     // recovers store-enforced bounds for mutable places.
     let interval = walk
-        .state
-        .and_then(|state| {
+        .machine
+        .zip(walk.state)
+        .and_then(|(machine, state)| {
             crate::proof_contracts::arithmetic_domains::standing_integer_interval(
-                program,
-                walk.machine,
-                state,
-                expression,
+                program, machine, state, expression,
             )
         })
         .map_or(interval, |standing| interval.intersect(standing));
-    let interval = super::super::ordered_values::refine_place_interval(
-        program,
-        walk.machine,
-        walk.state,
-        walk.environment,
-        expression,
-        interval,
-    );
+    let interval = walk.machine.map_or(interval, |machine| {
+        super::super::ordered_values::refine_place_interval(
+            program,
+            machine,
+            walk.state,
+            walk.environment,
+            expression,
+            interval,
+        )
+    });
     // Atomic integer types (AtomicU32, ...) have hardware wrap-around semantics,
     // so their arithmetic is Wrapping, not Exact -- a `fetch_add` never raises
     // an overflow proof obligation.
@@ -121,7 +119,7 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
             }
             Some(checked_trees::IntegerRangeRecipe::observation(
                 expression,
-                walk.machine.symbol,
+                walk.lexical_owner,
             ))
         });
     Analysis {

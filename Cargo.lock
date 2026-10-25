@@ -197,6 +197,8 @@ dependencies = [
  "symbols",
  "syntax-trees",
  "target",
+ "terminal-codec",
+ "terminal-interpreter",
  "terminal-psi",
  "trust-model",
  "typed-trees",
@@ -458,6 +460,7 @@ dependencies = [
  "extents",
  "image-emission",
  "installation-evidence",
+ "language-semantics",
  "libc",
  "lowered-psi",
  "mimalloc",
@@ -1695,6 +1698,8 @@ dependencies = [
  "checked-trees",
  "checked-trees-to-lowered-psi",
  "diagnostics",
+ "language-semantics",
+ "lowered-psi",
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
  "optimization",
@@ -1703,6 +1708,7 @@ dependencies = [
  "symbols",
  "terminal-codec",
  "terminal-psi",
+ "typed-trees",
 ]
 
 [[package]]
