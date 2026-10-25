@@ -126,6 +126,11 @@ impl ClaimOutcomePreparation {
         {
             event.provenance = provenance;
             event.claim_identity = identity;
+            // Some authenticates an input correspondence even when assigning
+            // it is a no-op: a same-statement constructed input can already
+            // carry this exact pair. It remains that input, never a new local
+            // receiving occurrence to which a prior join hypothesis may apply.
+            return;
         }
         // Different returning sources can have a complete join without an
         // invariant outcome map. Missing either summary never means absence.

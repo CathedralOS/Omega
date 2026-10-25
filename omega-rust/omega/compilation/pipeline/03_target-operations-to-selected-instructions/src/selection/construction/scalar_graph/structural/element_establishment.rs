@@ -162,59 +162,83 @@ pub(super) fn establish(
     // An empty view has no dereferenceable payload. Keep its independently
     // checked backing identity, but do not require a slot for a zero-byte
     // array or invent dummy storage. Its descriptor is the empty (0, 0) view.
-    let base = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
+    // A completed view can retain its descriptor in SSA rather than in a
+    // stack slot. Read that exact captured window through the same owner as
+    // descriptor operands; ordinary storage still follows its address path.
+    let completed = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
         && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
     {
-        constant(builder, row, 0, 0)?
-    } else if parameter.is_some() || descriptor_root.is_some() {
-        // An empty path selects the collection carrier itself. Its geometry
-        // below resolves borrowed backing once; projection_base would already
-        // dereference a view and make that load interpret payload as a pointer.
-        // A child projection instead starts in the root's element storage.
-        if source.path.is_empty() {
-            builder
-                .transport
-                .pointers
-                .iter()
-                .find(|(place, _)| *place == source.place)
-                .map(|(_, pointer)| *pointer)
-                .ok_or_else(|| invalid())?
-        } else {
-            super::runtime_address::projection_base(
-                function,
-                builder,
-                row,
-                source.place,
-                field_offset,
-            )?
-            .ok_or_else(|| invalid())?
-        }
+        None
     } else {
-        let mut homes = builder.transport.local_slots.iter().filter(|slot| {
-            Some(slot.id)
-                == home
-                    .map(|(operation, _)| LocalStorageSlotId::Structural {
-                        operation,
-                        place: source.place,
-                    })
-                    .or_else(|| {
-                        block_home.map(|(block, _)| LocalStorageSlotId::StructuralBlockParameter {
-                            block,
+        super::descriptor_operands::completed_view_words(function, builder, row, source, indices)?
+    };
+    if completed.is_some()
+        && (geometry.storage != terminal_semantics::CollectionStorage::Borrowed
+            || field_offset != 0
+            || !indices.is_empty())
+    {
+        return Err(invalid());
+    }
+    let base = if completed.is_some() {
+        None
+    } else {
+        let base = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
+            && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
+        {
+            constant(builder, row, 0, 0)?
+        } else if parameter.is_some() || descriptor_root.is_some() {
+            // An empty path selects the collection carrier itself. Its geometry
+            // below resolves borrowed backing once; projection_base would already
+            // dereference a view and make that load interpret payload as a pointer.
+            // A child projection instead starts in the root's element storage.
+            if source.path.is_empty() {
+                builder
+                    .transport
+                    .pointers
+                    .iter()
+                    .find(|(place, _)| *place == source.place)
+                    .map(|(_, pointer)| *pointer)
+                    .ok_or_else(|| invalid())?
+            } else {
+                super::runtime_address::projection_base(
+                    function,
+                    builder,
+                    row,
+                    source.place,
+                    field_offset,
+                )?
+                .ok_or_else(|| invalid())?
+            }
+        } else {
+            let mut homes = builder.transport.local_slots.iter().filter(|slot| {
+                Some(slot.id)
+                    == home
+                        .map(|(operation, _)| LocalStorageSlotId::Structural {
+                            operation,
                             place: source.place,
                         })
-                    })
-        });
-        let (Some(home), None) = (homes.next().cloned(), homes.next()) else {
-            return Err(invalid());
+                        .or_else(|| {
+                            block_home.map(|(block, _)| {
+                                LocalStorageSlotId::StructuralBlockParameter {
+                                    block,
+                                    place: source.place,
+                                }
+                            })
+                        })
+            });
+            let (Some(home), None) = (homes.next().cloned(), homes.next()) else {
+                return Err(invalid());
+            };
+            address(builder, row, home.id, 0, home.byte_size, false)?
         };
-        address(builder, row, home.id, 0, home.byte_size, false)?
-    };
-    let base = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
-        && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
-    {
-        base
-    } else {
-        super::runtime_address::scale(builder, row, source.place, field_offset, base, indices)?
+        let base = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
+            && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
+        {
+            base
+        } else {
+            super::runtime_address::scale(builder, row, source.place, field_offset, base, indices)?
+        };
+        Some(base)
     };
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
@@ -228,30 +252,35 @@ pub(super) fn establish(
             byte_size: descriptor_size,
             alignment: 8,
         });
-    let backing = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
-        && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
-    {
-        base
-    } else if geometry.storage == terminal_semantics::CollectionStorage::Borrowed {
-        let pointer = transport_register(builder, *destination, 0)?;
-        super::runtime_address::footprint(
-            builder,
-            row,
-            source.place,
-            field_offset,
-            8,
-            indices,
-            super::runtime_address::Written::None,
-        )?;
-        builder.emit_load64(field_offset, base, pointer, provenance(row))?;
-        pointer
-    } else if field_offset == 0 {
-        base
-    } else {
-        let offset = constant(builder, row, 0, u64::from(field_offset))?;
-        let backing = transport_register(builder, *destination, 0)?;
-        builder.emit_byte_view_address(base, offset, backing, provenance(row))?;
+    let backing = if let Some([backing, _]) = completed {
         backing
+    } else {
+        let base = base.ok_or_else(invalid)?;
+        if element_count == terminal_semantics::CollectionExtent::Fixed(0)
+            && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
+        {
+            base
+        } else if geometry.storage == terminal_semantics::CollectionStorage::Borrowed {
+            let pointer = transport_register(builder, *destination, 0)?;
+            super::runtime_address::footprint(
+                builder,
+                row,
+                source.place,
+                field_offset,
+                8,
+                indices,
+                super::runtime_address::Written::None,
+            )?;
+            builder.emit_load64(field_offset, base, pointer, provenance(row))?;
+            pointer
+        } else if field_offset == 0 {
+            base
+        } else {
+            let offset = constant(builder, row, 0, u64::from(field_offset))?;
+            let backing = transport_register(builder, *destination, 0)?;
+            builder.emit_byte_view_address(base, offset, backing, provenance(row))?;
+            backing
+        }
     };
     let (backing, length) = match region {
         terminal_psi::ElementViewRegion::WholeCollection => {
@@ -266,6 +295,7 @@ pub(super) fn establish(
                 // viewed bytes at `field_offset`, so the descriptor extent
                 // is the load of the u64 header.
                 terminal_semantics::CollectionExtent::LiveLength { .. } => {
+                    let base = base.ok_or_else(invalid)?;
                     let header = field_offset.checked_sub(8).ok_or(invalid())?;
                     let pointer = transport_register(builder, *destination, 0)?;
                     super::runtime_address::footprint(
@@ -281,19 +311,24 @@ pub(super) fn establish(
                     pointer
                 }
                 terminal_semantics::CollectionExtent::StoredLength => {
-                    let count_offset = field_offset.checked_add(8).ok_or(invalid())?;
-                    let count = transport_register(builder, *destination, 8)?;
-                    super::runtime_address::footprint(
-                        builder,
-                        row,
-                        source.place,
-                        count_offset,
-                        8,
-                        indices,
-                        super::runtime_address::Written::None,
-                    )?;
-                    builder.emit_load64(count_offset, base, count, provenance(row))?;
-                    count
+                    if let Some([_, length]) = completed {
+                        length
+                    } else {
+                        let base = base.ok_or_else(invalid)?;
+                        let count_offset = field_offset.checked_add(8).ok_or(invalid())?;
+                        let count = transport_register(builder, *destination, 8)?;
+                        super::runtime_address::footprint(
+                            builder,
+                            row,
+                            source.place,
+                            count_offset,
+                            8,
+                            indices,
+                            super::runtime_address::Written::None,
+                        )?;
+                        builder.emit_load64(count_offset, base, count, provenance(row))?;
+                        count
+                    }
                 }
             };
             (backing, length)

@@ -1291,6 +1291,18 @@ fn derive_receipts(
         else {
             continue;
         };
+        // The invariant Input mapping and exact actual binding authenticate
+        // forwarding independently of the receiving identity's lexical source.
+        // A constructor created in this same statement can share its allocated
+        // pair with the result. Joining that forwarded pair would rewrite its
+        // earlier input definition into a receipt that cites itself.
+        if super::call_result_origin_rewrite(program, &ownership.segments, event, events, &maps)
+            .is_some_and(|(_, _, provenance, identity)| {
+                event.provenance == provenance && event.claim_identity == identity
+            })
+        {
+            continue;
+        }
         let Some(state) = program.state_by_symbol(event.state_symbol) else {
             continue;
         };
