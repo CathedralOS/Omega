@@ -5,7 +5,6 @@ mod calling_plans;
 mod model;
 mod physical_adapter;
 mod semantic_call;
-mod service_establishment;
 
 pub use physical_adapter::PhysicalProgramEntry;
 pub use semantic_call::SelectedProgramEntryCall;
@@ -86,13 +85,6 @@ pub fn validate_native_program_entry_settlement(
     {
         return Err(NativeProgramEntrySettlementError::SourceMachineSubstitution);
     }
-    validate_receiver_eligibility(module, checked_entry, program_entry)?;
-    service_establishment::validate_terminal_rows(
-        module,
-        entry,
-        program_entry,
-        checked_entry.receiver_eligibility(),
-    )?;
     Ok(ValidatedNativeProgramEntrySettlement {
         checked_entry: checked_entry.clone(),
         physical_adapter: program_entry.physical_adapter.cloned(),
@@ -107,19 +99,4 @@ pub fn validate_native_program_entry_settlement(
         placed_view_establishments: Vec::new(),
         private_entry_ram: Vec::new(),
     })
-}
-
-/// Rejoin source context eligibility to its exact retained Terminal place.
-/// Source positions are declaration ordinals, not dense structural ordinals.
-fn validate_receiver_eligibility(
-    module: &terminal_psi::TerminalModule,
-    checked_entry: &CheckedProgramEntryTerminalReceipt,
-    program_entry: NativeProgramEntrySettlement<'_>,
-) -> Result<(), NativeProgramEntrySettlementError> {
-    // A former implicit receiver receipt is not an installed argument source.
-    // Reject it rather than interpreting its shape as permission to allocate.
-    if checked_entry.receiver_eligibility().is_some() {
-        return Err(NativeProgramEntrySettlementError::ReceiverEligibilityDrift);
-    }
-    Ok(())
 }

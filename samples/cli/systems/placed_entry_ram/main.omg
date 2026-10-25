@@ -33,11 +33,12 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
         access: AccessPlan,
         entries: [FieldEntry; 64]
     ) -> PlacementPlan {
+        let status_key: u64 = schema.fields[0].key;
         transition { _ -> place_transmit(
             schema,
             AccessPlan::with(
                 access,
-                schema.fields[0].key,
+                status_key,
                 FieldAccess::External {
                     read: ExternalRead::Read,
                     write: false,

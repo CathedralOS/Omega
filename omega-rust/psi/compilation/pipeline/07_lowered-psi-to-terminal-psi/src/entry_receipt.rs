@@ -61,7 +61,6 @@ pub fn prepare_program_entry_receipt(
         declaration.machine.clone(),
         identity,
         entry.id,
-        None,
     ))
 }
 

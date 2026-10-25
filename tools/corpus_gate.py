@@ -355,6 +355,19 @@ def terminal_target_failures(records: list[dict], corpus: Path) -> list[dict]:
     return failures
 
 
+def entry_ram_failures(records: list[dict], corpus: Path, prefix: str) -> list[dict]:
+    """An installed input promises observation of the same original backing."""
+    failures = []
+    for record in records:
+        if not (corpus / record["fixture"] / "expected_entry_ram.txt").is_file():
+            continue
+        key = prefix + "entry-ram"
+        if record["status"] not in corpus_records.SUCCESS_STATUSES or record.get("facts", {}).get(key) != "match":
+            failures.append(oracle_failure(record,
+                f"{record['fixture']}: expected exact {prefix}original entry RAM, observed {record['status']} {record.get('facts', {})}"))
+    return failures
+
+
 def native_exit_failures(records: list[dict], corpus: Path, target: str) -> list[dict]:
     """Check authored runtime oracles before comparing or recording observations.
 
@@ -1675,9 +1688,11 @@ def main() -> int:
         native_leg=options.native))
     if options.native:
         failures.extend(native_exit_failures(records, ROOT / "tests" / "omega", target))
+        failures.extend(entry_ram_failures(records, ROOT / "tests" / "omega", ""))
         failures.extend(execution_output_failures(
             records, ROOT / "tests" / "omega", "native"))
     if options.interpret:
+        failures.extend(entry_ram_failures(records, ROOT / "tests" / "omega", "interpreter-"))
         failures.extend(interpreter_exit_failures(
             records, ROOT / "tests" / "omega", target or host_target() or "unknown"))
         failures.extend(execution_output_failures(

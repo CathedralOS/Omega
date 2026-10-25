@@ -16,14 +16,14 @@ pub(super) fn capture(
             .output()
             .map(|output| (output, Vec::new(), Vec::new()));
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
         return Err(io::Error::new(
             io::ErrorKind::Unsupported,
-            "private entry RAM execution requires the checked Linux runtime observation lane",
+            "private entry RAM execution requires the checked Unix runtime observation lane",
         ));
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
         let expected = recipes
             .iter()
@@ -35,33 +35,9 @@ pub(super) fn capture(
                 "private entry RAM observer requires normal entry return and complete runtime writes",
             ));
         }
-        let mut offset = 0usize;
-        let mut observations = Vec::new();
-        for recipe in recipes {
-            let header = recipe.observation_header();
-            let header_end = offset
-                .checked_add(header.len())
-                .ok_or_else(|| io::Error::other("private observation header overflows"))?;
-            if bytes.get(offset..header_end) != Some(header.as_slice()) {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "private observation lost its exact artifact, placement seal, position or extent",
-                ));
-            }
-            let end = header_end
-                .checked_add(recipe.contents().len())
-                .ok_or_else(|| io::Error::other("private observation extent overflows"))?;
-            let contents = bytes
-                .get(header_end..end)
-                .ok_or_else(|| io::Error::other("private observation backing is incomplete"))?;
-            observations.push((recipe.input().position, contents.to_vec()));
-            offset = end;
-        }
-        if offset != bytes.len() {
-            return Err(io::Error::other(
-                "private observation contains an extra row",
-            ));
-        }
+        let observations =
+            terminal_installation::decode_private_entry_observations(recipes, &bytes)
+                .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?;
         Ok((output, observations, bytes))
     }
 }

@@ -8,6 +8,9 @@
 //! The wrapper itself has zero private-stack occupancy; the callee's complete
 //! checked demand belongs to the separately validated stack partition.
 
+mod macos_arm64;
+pub(super) use macos_arm64::validate as validate_macos_arm64;
+
 use diagnostics::Diagnostic;
 
 use super::{HostedReceiverPartitions, invalid};
@@ -42,25 +45,8 @@ fn rip_relative(bytes: &[u8], address: u64, field: usize) -> Option<u64> {
         .checked_add_signed(i64::from(displacement))
 }
 
-/// Independent reader for the Linux x86-64 hosted receiver bridge.
-///
-/// The emitted text is exactly 37 bytes:
-///
-/// ```text
-/// 0:  48 89 25 <rel32>   mov [rip+disp], rsp     -> saved continuation slot
-/// 7:  48 8d 25 <rel32>   lea rsp, [rip+disp]     -> private stack top
-/// 14: 48 8d 3d <rel32>   lea rdi, [rip+disp]     -> receiver storage
-/// 21: e8 <rel32>         call semantic entry
-/// 26: 31 ff              xor edi, edi            -> Unit result -> status zero
-/// 28: b8 e7 00 00 00     mov eax, 231            -> exit_group
-/// 33: 0f 05              syscall
-/// 35: 0f 0b              ud2 if the nonreturning call ever returns
-/// ```
-///
-/// The reader resolves each RIP-relative displacement against the final image
-/// addresses of the exact bridge partitions and the semantic entry. The kernel
-/// arrival stack image in rsp is preserved in the saved-continuation residence
-/// before rsp switches, so no incoming-stack access is ever assumed.
+/// Replay the Linux System V installed argument bridge, including every exact
+/// original byte, declared argument pointer and normal-return observation.
 pub(super) fn validate_x86_64(
     bytes: &[u8],
     address: u64,

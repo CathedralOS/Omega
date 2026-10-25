@@ -318,7 +318,6 @@ fn validate_selected_program_entry_shape(
     let parameters = typed.state_parameters(entry);
     let visible = visible_entry_parameters(typed, parameters);
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
-    let receiver = program_entry_plan::ProgramEntryReceiverSignature::Free;
     let visible_parameters = visible
         .iter()
         .enumerate()
@@ -388,7 +387,6 @@ fn validate_selected_program_entry_shape(
                 .machine_callable_identity_text(machine)
                 .expect("selected entry has one checked executable state"),
         ),
-        receiver,
         visible_parameters,
         identities.build(),
     )
@@ -545,45 +543,12 @@ impl SelectedCompilerProgramEntry {
 
     pub fn bind_fused_service_establishments(
         &mut self,
-        mut establishments: Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
+        establishments: Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
     ) -> Result<(), &'static str> {
-        if establishments.is_empty() {
-            self.fused_service_establishments.clear();
-            return Ok(());
+        if !establishments.is_empty() {
+            return Err("ProgramEntry cannot synthesize application record service fields");
         }
-        let source_identity = self.source_signature().identity();
-        let target_slot = self.source_signature().target_slot();
-        let receiver_identity = self
-            .source_signature()
-            .receiver()
-            .normalized_type_identity()
-            .ok_or("a free ProgramEntry cannot establish receiver fields")?;
-        // Key on the field ROUTE, not the leaf name. A service carrier
-        // contributes one establishment at whatever depth the receiver's
-        // record-field tree places it, which is how the producer both orders
-        // and de-duplicates them, so two bindings that differ only in their
-        // owning record -- `Main::console` and `Main::banner::console` --
-        // share a leaf name and are not a repeat.
-        let identities = self.source_signature().identities();
-        establishments.sort_by_cached_key(|establishment| {
-            establishment
-                .field_path()
-                .iter()
-                .map(|segment| identities.text(*segment).unwrap_or_default().to_owned())
-                .collect::<Vec<_>>()
-        });
-        if establishments
-            .windows(2)
-            .any(|pair| pair[0].field_path() == pair[1].field_path())
-            || establishments.iter().any(|establishment| {
-                establishment.source_signature_identity() != source_identity
-                    || establishment.target_slot() != target_slot
-                    || establishment.receiver_type_identity() != receiver_identity
-            })
-        {
-            return Err("Fused root establishments drifted from their selected ProgramEntry");
-        }
-        self.fused_service_establishments = establishments;
+        self.fused_service_establishments.clear();
         Ok(())
     }
 }

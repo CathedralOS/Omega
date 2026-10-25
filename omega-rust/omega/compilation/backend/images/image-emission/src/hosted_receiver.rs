@@ -6,6 +6,7 @@
 //! is a separate disjoint partition whose demand comes from the whole callee.
 
 mod instructions;
+mod macos_arm64;
 
 use diagnostics::Diagnostic;
 use program_entry_plan::{ProgramEntryPhysicalContractPlan, SelectedProgramEntrySignature};
@@ -249,7 +250,11 @@ pub(crate) fn prepare(
     let binding = artifact.hosted_receiver_binding().ok_or_else(invalid)?;
     validate_binding(artifact, binding)?;
     let (object, _partitions, storage) = provision_receiver_storage(artifact, binding)?;
-    prepare_linux_x86_64(artifact, binding, object, storage)
+    if artifact.target == target::NativeTarget::macos_arm64() {
+        macos_arm64::prepare(artifact, binding, object, storage)
+    } else {
+        prepare_linux_x86_64(artifact, binding, object, storage)
+    }
 }
 
 /// Attach the prepared bytes and symbolic pointer/call relocations.
@@ -568,9 +573,12 @@ fn validate_entry_arguments(
 ) -> Result<(), Diagnostic> {
     use calling_conventions::CallingPolicy;
     let invalid = || invalid(artifact.target);
-    if artifact.target != target::NativeTarget::linux_x64()
+    if ![
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::macos_arm64(),
+    ]
+    .contains(&artifact.target)
         || private_entry_ram.is_empty()
-        || checked_entry.receiver_eligibility().is_some()
     {
         return Err(invalid());
     }
@@ -600,7 +608,12 @@ fn validate_entry_arguments(
         || !function.entry_claims.is_empty()
         || !source.visible_parameters().is_empty()
         || function.attachment.is_some()
-        || target.graph.call_plan.policy != CallingPolicy::SystemVAMD64
+        || target.graph.call_plan.policy
+            != if artifact.target == target::NativeTarget::macos_arm64() {
+                CallingPolicy::Aapcs64
+            } else {
+                CallingPolicy::SystemVAMD64
+            }
         || function.structural_parameters.len() != private_entry_ram.len()
         || target.graph.parameters.len() != private_entry_ram.len()
         || target.graph.call_plan.parameters.len() != private_entry_ram.len()
@@ -647,7 +660,14 @@ fn validate_entry_arguments(
             || !receiver_pointer_matches(
                 actual.shape,
                 &actual.placement,
-                linux_argument_register(ordinal).ok_or_else(invalid)?,
+                if artifact.target == target::NativeTarget::macos_arm64() {
+                    (ordinal < 8).then_some(calling_conventions::MachineRegister::Aarch64X(
+                        ordinal as u8,
+                    ))
+                } else {
+                    linux_argument_register(ordinal)
+                }
+                .ok_or_else(invalid)?,
             )
             || target.graph.call_plan.parameters.get(ordinal) != Some(&actual.placement)
         {
@@ -712,7 +732,12 @@ pub(crate) fn validate_image(
         .final_text_bytes
         .get(offset..end)
         .ok_or_else(invalid)?;
-    if !elf_entry_points_to(output, offset) {
+    let entry_selected = if artifact.target == target::NativeTarget::macos_arm64() {
+        crate::hosted_unit_entry::main_points_to(&output.bytes, offset, artifact.target)
+    } else {
+        elf_entry_points_to(output, offset)
+    };
+    if !entry_selected {
         return Err(invalid());
     }
     let mut original_bss = artifact
@@ -742,7 +767,12 @@ pub(crate) fn validate_image(
         .text_address
         .checked_add(offset as u64)
         .ok_or_else(invalid)?;
-    instructions::validate_x86_64(
+    let validate = if artifact.target == target::NativeTarget::macos_arm64() {
+        instructions::validate_macos_arm64
+    } else {
+        instructions::validate_x86_64
+    };
+    validate(
         shim_bytes,
         shim_address,
         selected_entry,

@@ -100,7 +100,11 @@ pub fn publish_fragment_object(
                         || !loan.referent.qualifications.is_empty()
                 })
             || !entry.private_entry_ram().is_empty()
-                && object.target() != target::NativeTarget::linux_x64()
+                && ![
+                    target::NativeTarget::linux_x64(),
+                    target::NativeTarget::macos_arm64(),
+                ]
+                .contains(&object.target())
         {
             return Err(crate::native_artifact_error(
                 "ProgramEntry placed-view custody",

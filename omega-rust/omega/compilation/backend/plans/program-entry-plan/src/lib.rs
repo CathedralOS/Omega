@@ -28,9 +28,7 @@ mod selected_entry;
 mod uefi;
 
 pub(crate) use entry_signature::{ProgramEntryExtentFieldRole, ProgramEntryResultSignature};
-pub use entry_signature::{
-    ProgramEntryExtentValueLayout, ProgramEntryReceiverSignature, SelectedProgramEntrySignature,
-};
+pub use entry_signature::{ProgramEntryExtentValueLayout, SelectedProgramEntrySignature};
 pub(crate) use entry_signature::{
     ProgramEntrySignatureIdentity, ProgramEntryVisibleParameterSignature,
 };

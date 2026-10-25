@@ -28,6 +28,21 @@ def record(fixture, status="checked", millis=1, expected=None, facts=None,
 
 
 
+class EntryRamOracleTests(unittest.TestCase):
+    def test_missing_or_differing_original_backing_cannot_record_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            corpus = Path(directory)
+            fixture = corpus / "pass" / "storage" / "installed_exit"
+            fixture.mkdir(parents=True)
+            (fixture / "expected_entry_ram.txt").write_text("0=2900000009000000\n")
+            for prefix in ["", "interpreter-"]:
+                row = record("pass/storage/installed_exit", "built", facts={prefix + "entry-ram": "match"})
+                self.assertEqual(corpus_gate.entry_ram_failures([row], corpus, prefix), [])
+                for observed in [None, "differs"]:
+                    row["facts"] = {} if observed is None else {prefix + "entry-ram": observed}
+                    self.assertTrue(corpus_gate.entry_ram_failures([row], corpus, prefix))
+
+
 def fake_runner(records: str, stdout: str = "", *, reported_root=None, report_root=True):
     """A Popen stand-in that writes `records` where the gate asks for them."""
     def popen(arguments, **options):

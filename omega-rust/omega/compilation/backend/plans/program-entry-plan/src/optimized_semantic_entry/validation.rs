@@ -8,9 +8,8 @@ use language_semantics::CarryPolicy;
 
 use crate::{
     OptimizedProgramStorageSemanticCallingApplication, ProgramEntryExtentFieldRole,
-    ProgramEntryPhysicalContractPlan, ProgramEntryReceiverSignature, ProgramEntryResultSignature,
-    ProgramStorageEntryDiagnostic, ProgramStorageEntryRootRole, SelectedProgramEntrySignature,
-    SelectedProgramStorageEntryPlan,
+    ProgramEntryPhysicalContractPlan, ProgramEntryResultSignature, ProgramStorageEntryDiagnostic,
+    ProgramStorageEntryRootRole, SelectedProgramEntrySignature, SelectedProgramStorageEntryPlan,
 };
 
 pub(super) const PROGRAM_STORAGE_ENTRY_OWNER: &str = "ProgramStorageEntry";

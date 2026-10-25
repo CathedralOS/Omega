@@ -26,22 +26,6 @@ impl ProgramEntrySignatureIdentity {
     }
 }
 
-/// ProgramEntry never allocates an implicit receiver. Installed schema
-/// arguments are represented individually in `visible_parameters`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ProgramEntryReceiverSignature {
-    Free,
-}
-
-impl ProgramEntryReceiverSignature {
-    pub const fn source_position(&self) -> Option<u32> {
-        None
-    }
-    pub const fn normalized_type_identity(&self) -> Option<terminal_psi::TerminalIdentityIndex> {
-        None
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProgramEntryResultSignature {
     Unit,
@@ -189,7 +173,6 @@ pub struct SelectedProgramEntrySignature {
     machine_name: String,
     state_name: String,
     normalized_callable_identity: terminal_psi::TerminalIdentityIndex,
-    receiver: ProgramEntryReceiverSignature,
     visible_parameters: Vec<ProgramEntryVisibleParameterSignature>,
     result: ProgramEntryResultSignature,
     /// Identity text every `TerminalIdentityIndex` on this signature and its
@@ -206,7 +189,6 @@ impl SelectedProgramEntrySignature {
         machine_name: String,
         state_name: String,
         normalized_callable_identity: terminal_psi::TerminalIdentityIndex,
-        receiver: ProgramEntryReceiverSignature,
         visible_parameters: Vec<ProgramEntryVisibleParameterSignature>,
         identities: terminal_psi::TerminalIdentityTable,
     ) -> Result<Self, String> {
@@ -216,7 +198,6 @@ impl SelectedProgramEntrySignature {
             machine_name,
             state_name,
             normalized_callable_identity,
-            receiver,
             visible_parameters,
             result: ProgramEntryResultSignature::Unit,
             identities,
@@ -257,10 +238,6 @@ impl SelectedProgramEntrySignature {
     /// share one ordering.
     pub fn set_identities(&mut self, identities: terminal_psi::TerminalIdentityTable) {
         self.identities = identities;
-    }
-
-    pub const fn receiver(&self) -> &ProgramEntryReceiverSignature {
-        &self.receiver
     }
 
     pub fn visible_parameters(&self) -> &[ProgramEntryVisibleParameterSignature] {
@@ -369,21 +346,16 @@ impl SelectedProgramEntrySignature {
         {
             return Err("selected source signature is not one exact typed Unit entry".into());
         }
-        if self
-            .receiver
-            .normalized_type_identity()
-            .is_some_and(terminal_psi::TerminalIdentityIndex::is_absent)
-            || self.visible_parameters.iter().any(|parameter| {
-                parameter.normalized_type_identity.is_absent()
-                    || parameter.value_shape.byte_size == 0
-                    || parameter.value_shape.alignment == 0
-                    || !parameter.value_shape.alignment.is_power_of_two()
-                    || parameter.is_const
-                    || parameter.is_mutable
-                    || parameter.extent_value_layout.validate_capture().is_err()
-                    || parameter.extent_value_layout.shape() != parameter.value_shape
-            })
-        {
+        if self.visible_parameters.iter().any(|parameter| {
+            parameter.normalized_type_identity.is_absent()
+                || parameter.value_shape.byte_size == 0
+                || parameter.value_shape.alignment == 0
+                || !parameter.value_shape.alignment.is_power_of_two()
+                || parameter.is_const
+                || parameter.is_mutable
+                || parameter.extent_value_layout.validate_capture().is_err()
+                || parameter.extent_value_layout.shape() != parameter.value_shape
+        }) {
             return Err(
                 "selected source signature contains an invalid parameter declaration".into(),
             );
