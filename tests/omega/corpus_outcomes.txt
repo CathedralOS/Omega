@@ -2690,7 +2690,7 @@ fail/contracts/scalar_copy_guard_after_source_write rejected 7040ms expected @5f
 	cannot prove requires contract for call bounded from Main::main: main.items[selector] <= 49 (needs fact `main.items[selector] <= 49` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `inspect`
 fail/contracts/scalar_copy_guard_shadowed_const rejected 1570ms expected @5f668826adf3
 	cannot prove requires contract for call bounded from probe: value >= 48 (needs fact `delivered >= 48` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/contracts/scalar_copy_guard_shadowed_const_expression rejected 1566ms expected @5f668826adf3
+fail/contracts/scalar_copy_guard_shadowed_const_expression rejected 408ms expected @0360a23ad5f5+wt
 	cannot prove requires contract for call bounded from probe: value + 1 >= 48 (needs fact `delivered + 1 >= 48` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/scalar_copy_guard_shadowed_const_selector rejected 2318ms expected @5f668826adf3
 	cannot prove requires contract for call bounded from probe: bytes.items[selector] >= 48 (needs fact `bytes.items[selected] >= 48` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -16097,17 +16097,17 @@ fail/generics/const_binder_used_as_field_type rejected 775ms expected @5f668826a
 	data `Invalid` field `value` uses value parameter `Count` as a type; const and runtime value parameters supply values, not types
 fail/generics/const_container_mismatched_witness rejected 433ms expected @5f668826adf3
 	argument `buffer` for state `capacity` expects `&FixedBuffer<Capacity>`, got `named value`
-fail/generics/const_data_argument_out_of_range rejected 519ms expected @5f668826adf3
-	const argument `300` for `TinyBuffer::N` does not fit `u8`
-fail/generics/const_data_argument_requires_value rejected 546ms expected @5f668826adf3
+fail/generics/const_data_argument_out_of_range rejected 24ms expected @0360a23ad5f5+wt
+	const argument expression: anonymous constant expression cannot land exactly at the selected integer carrier
+fail/generics/const_data_argument_requires_value rejected 167ms expected @0360a23ad5f5+wt
 	const parameter `N` of `FixedBuffer` requires an integer literal argument or an in-scope const parameter, got `u64`
-fail/generics/const_data_machine_call_requires_pure rejected 127ms expected @5f668826adf3
+fail/generics/const_data_machine_call_requires_pure rejected 34ms expected @0360a23ad5f5+wt
 	const-generic application evaluation failed: machine `loud_size` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
-fail/generics/const_data_machine_call_runtime_argument rejected 35ms expected @5f668826adf3
+fail/generics/const_data_machine_call_runtime_argument rejected 15ms expected @0360a23ad5f5+wt
 	machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
-fail/generics/const_data_where_fact_false rejected 592ms expected @5f668826adf3
+fail/generics/const_data_where_fact_false rejected 182ms expected @0360a23ad5f5+wt
 	data `FixedBuffer<0>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/generics/const_expression_cannot_supply_type_binder rejected 304ms expected @a8ec2fd3489a
+fail/generics/const_expression_cannot_supply_type_binder rejected 137ms expected @0360a23ad5f5+wt
 	machine `marker` static argument 1 requires its declared binder kind, not a const value
 	machine `marker` static argument 1 requires its declared binder kind, not a const value
 fail/generics/const_extent_guard_authored_comparison rejected 1969ms expected @5f668826adf3
@@ -16150,7 +16150,7 @@ fail/generics/const_extent_inclusive_bound rejected 1488ms expected @5f668826adf
 	cannot prove index `index` is within length 2 in read$specialized$f8459f0a1522a338$0::take
 fail/generics/const_extent_index_without_guard rejected 1447ms expected @5f668826adf3
 	cannot prove index `4` is within length 2
-fail/generics/const_generic_runtime_argument rejected 462ms unexpected @5f668826adf3
+fail/generics/const_generic_runtime_argument rejected 138ms expected @0360a23ad5f5+wt
 	const parameter `Count` of `prefix_count` requires a normalized closed value
 fail/generics/const_index_active_case_false rejected 32ms expected @5f668826adf3
 	constant `POINT` is invalid: data constant `Choice` violates its case predicate
@@ -16233,7 +16233,7 @@ fail/generics/dependent_const_array_named_carrier rejected 2891ms expected @5f66
 	const parameter `Selected` of `Pick` has an invalid named value: named constant `Pair` has type `[u16; 2]`, expected `[u8; 2]`
 fail/generics/dependent_const_carrier_range rejected 568ms expected @5f668826adf3
 	const argument `256` for `Parent::Count` does not fit `u8`
-fail/generics/dependent_const_data_named_carrier rejected 48ms expected @5f668826adf3
+fail/generics/dependent_const_data_named_carrier rejected 19ms expected @0360a23ad5f5+wt
 	const argument for `Token::Count` is invalid at this index site: const `Upper` declares type `u32`, but the parameter requires `u64`
 fail/generics/dependent_const_named_carrier rejected 434ms expected @5f668826adf3
 	const parameter `Count` of `Parent` has an invalid named value: named constant `Upper` has type `u32`, expected `u64`
@@ -16282,7 +16282,7 @@ fail/generics/extraction_wrong_application rejected 735ms expected @632377c34d0a
 	argument `result` for state `entry` expects `Extraction<Second>`, got `named value`
 fail/generics/field_store_generic_result_parameter_mismatch rejected 514ms expected @5f668826adf3
 	machine `store` state `entry` assignment expects `Output`, but the value is delivered as `Input`
-fail/generics/forwarded_const_argument_conflicts_with_explicit_selection rejected 1637ms expected @2e8db3108ed0
+fail/generics/forwarded_const_argument_conflicts_with_explicit_selection rejected 3789ms expected @0360a23ad5f5+wt
 	generic machine `FixedBuffer::select` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `FixedBuffer<2>::total` state `FixedBuffer<2>::total::total`
 fail/generics/forwarded_slice_argument_element_mismatch rejected 634ms expected @5f668826adf3
 	argument `items` for state `entry` expects `&[Element]`, got `named value`
@@ -16527,7 +16527,7 @@ fail/generics/returned_applied_field_does_not_widen_access rejected 646ms expect
 	mutable argument `returned` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/generics/returned_generic_result_parameter_mismatch rejected 564ms expected @5f668826adf3
 	machine `wrong` state `entry` local `__hoist_15` expects `Output`, but the value is delivered as `Input`
-fail/generics/runtime_difference_const_argument rejected 84ms expected @5f668826adf3
+fail/generics/runtime_difference_const_argument rejected 14ms expected @0360a23ad5f5+wt
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
 fail/generics/runtime_index_carrier_argument_effect rejected 323ms expected @5f668826adf3
 	cannot retain runtime index descriptor `Limit` from its application argument without an evaluated scalar subject
@@ -19654,7 +19654,7 @@ fail/traits/explicit_implementation_inherited_trait_arguments rejected 195ms exp
 fail/traits/explicit_implementation_invocation_region_mismatch rejected 576ms expected @5f668826adf3
 	Uses cannot bind implementation `Reader`: `SelectedReading<<structural type>>` must select a complete `Reading` implementation with the instantiated trait arguments
 	Uses cannot bind implementation `Reader`: `SelectedReading<<structural type>>` must select a complete `Reading` implementation with the instantiated trait arguments
-fail/traits/explicit_implementation_missing_const_argument rejected 430ms expected @5f668826adf3
+fail/traits/explicit_implementation_missing_const_argument rejected 115ms expected @0360a23ad5f5+wt
 	trait `Incomplete` parent `Consumer` cannot bind implementation `Reader`: generic conformance `SelectedReading` requires 2 explicit non-lifetime argument(s), got 1; expected subject and trait shape never fill its own telescope
 fail/traits/explicit_implementation_nested_type_identity rejected 486ms expected @5f668826adf3
 	trait `Invalid` parent `Consumer` cannot bind implementation `Reader`: `SelectedReading<<structural type>>` must select a complete `Reading` implementation with the instantiated trait arguments
@@ -19729,7 +19729,7 @@ fail/traits/member_omits_requirement_ensures rejected 1449ms expected @5f668826a
 	machine `Grow::shrink` realizes `Shrink::shrink` but does not guarantee its `ensures result <= value`; callers of the requirement assume it
 fail/traits/member_requires_beyond_requirement rejected 1164ms expected @5f668826adf3
 	machine `Strict::shrink` realizes `Shrink::shrink` but requires `value <= 50`, which the requirement does not imply; callers of the requirement prove only its own `requires`
-fail/traits/named_const_argument_carrier rejected 1133ms expected @5f668826adf3
+fail/traits/named_const_argument_carrier rejected 326ms expected @0360a23ad5f5+wt
 	const parameter `Limit` of `Threshold` has an invalid named value: named constant `Upper` has type `u64`, expected `u32`
 fail/traits/named_const_as_field_type rejected 430ms expected @5f668826adf3
 	data `Wrong` field `value` references unknown data type `Upper`
@@ -21093,7 +21093,7 @@ pass/constants/const_alias_identity rejected 1024ms regressed-from:checked @5f66
 	const parameter `N` of `Indexed` has an invalid canonical value: expected carrier `named(name(nominal\\(package-owner\\(32:0101010101010101010101010101010101010101010101010101010101010101\\)\\,path\\(foreign::Token\\)\\)))`, but the canonical atom names `Token`
 	const parameter `N` of `Indexed` has an invalid canonical value: expected carrier `named(name(nominal\\(package-owner\\(32:0101010101010101010101010101010101010101010101010101010101010101\\)\\,path\\(foreign::Token\\)\\)))`, but the canonical atom names `Token`
 	const parameter `N` of `Indexed` has an invalid canonical value: expected carrier `named(name(nominal\\(package-owner\\(32:0101010101010101010101010101010101010101010101010101010101010101\\)\\,path\\(foreign::Token\\)\\)))`, but the canonical atom names `Token`
-pass/constants/const_data_param checked 9178ms @5041ef1af684+wt
+pass/constants/const_data_param checked 669ms @0360a23ad5f5+wt
 pass/constants/constant_bound_distance checked 9301ms @5041ef1af684+wt
 pass/constants/lexical_const_shadow checked 9593ms @5041ef1af684+wt
 pass/constants/machine_const_indices rejected 104ms regressed-from:checked @5f668826adf3
@@ -26870,7 +26870,7 @@ pass/generics/closed_indexed_quantity rejected 6424ms check-target:macos_arm64 r
 	const parameter `To` of `retag_i64` has an invalid canonical value: expected carrier `named(name(nominal\\(package-owner\\(32:0101010101010101010101010101010101010101010101010101010101010101\\)\\,path\\(Unit\\)\\)))`, but the canonical atom names `Unit`
 pass/generics/closed_sum_case_membership checked 1660ms @a9ae30e1c334+wt
 pass/generics/const_binder_difference_argument_exit checked 6006ms check-target:macos_arm64 @73e11f08dcbb+wt
-pass/generics/const_data_param checked 1647ms @a9ae30e1c334+wt
+pass/generics/const_data_param checked 481ms @0360a23ad5f5+wt
 pass/generics/const_index_active_case_predicates_exit checked 13830ms check-target:linux_x86_64 @07f1c64be9c1
 pass/generics/const_index_boolean_predicate_composition_exit checked 10295ms check-target:linux_x86_64 @07f1c64be9c1
 pass/generics/const_index_gated_default_domain_exit checked 10239ms check-target:linux_x86_64 @07f1c64be9c1
@@ -26978,11 +26978,11 @@ pass/generics/runtime_case_qualified_reference_storage_exit incomplete 3182ms ch
 	`exercise_selections` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `exercise_selections::entry`, statement 8
 pass/generics/runtime_closed_case_array_payload_exit checked 14309ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_const_container_methods_exit checked 15682ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/generics/runtime_const_data_array_length_exit checked 8449ms check-target:macos_arm64 @77cde1c51efd+wt
-pass/generics/runtime_const_data_machine_call_exit checked 8535ms check-target:macos_arm64 @77cde1c51efd+wt
-pass/generics/runtime_const_data_multiple_instances_exit checked 13876ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/generics/runtime_const_data_symbolic_expression_exit checked 12716ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/generics/runtime_const_data_where_fact_exit checked 12969ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/runtime_const_data_array_length_exit checked 3257ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/generics/runtime_const_data_machine_call_exit checked 3287ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/generics/runtime_const_data_multiple_instances_exit checked 3238ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/generics/runtime_const_data_symbolic_expression_exit checked 3328ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/generics/runtime_const_data_where_fact_exit checked 3252ms check-target:macos_arm64 @0360a23ad5f5+wt
 pass/generics/runtime_const_extent_guard_floors_exit rejected 2394ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
 	cannot prove index `0` is within const extent `Count` of `moments` in negated::entry
 	cannot prove index `0` is within const extent `Count` of `moments` in polynomial::evaluate
@@ -27016,7 +27016,7 @@ pass/generics/runtime_generic_composite_field_arguments_exit checked 5702ms chec
 pass/generics/runtime_generic_multiple_specializations_exit checked 11798ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_generic_qualified_constructor_shadow_exit checked 5707ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/generics/runtime_generic_selected_extent_fields_exit checked 5782ms check-target:macos_arm64 @589aedee8ebc+wt
-pass/generics/runtime_grouped_decimal_const_argument_exit checked 11028ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/runtime_grouped_decimal_const_argument_exit checked 1829ms check-target:macos_arm64 @0360a23ad5f5+wt
 pass/generics/runtime_grouped_decimal_const_exact_arithmetic_exit checked 9250ms check-target:macos_arm64 @77cde1c51efd+wt
 pass/generics/runtime_index_carrier_array_valid checked 6482ms @afe3f46cebb2+wt
 pass/generics/runtime_index_carrier_call_result checked 5963ms @afe3f46cebb2+wt
@@ -27931,7 +27931,7 @@ pass/providers/checked_fixed_operator_physical_custody checked 11307ms check-tar
 pass/providers/closed_boundary_callback_contract checked 52483ms check-target:linux_x86_64 @c48489ea6ad6
 pass/providers/closed_callback_repeated_application checked 42689ms check-target:linux_x86_64 @c48489ea6ad6
 pass/providers/component_owner_provider_override_compile checked 11504ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/providers/const_generic_entry_record_field_exit checked 2988ms check-target:macos_arm64 @b016b7e0a226
+pass/providers/const_generic_entry_record_field_exit checked 3079ms check-target:macos_arm64 @0360a23ad5f5+wt
 pass/providers/consuming_trait_requirement_external_sink_exit checked 5872ms check-target:macos_arm64 @b8976916d516+wt
 pass/providers/cross_package_public_slot_exit checked 939ms check-target:macos_arm64 @fb4e3a381843
 pass/providers/direct_boundary_array_snapshot_exit checked 12346ms check-target:macos_arm64 @a9ae30e1c334+wt
