@@ -26,6 +26,7 @@ mod buffered_output;
 pub(super) mod clock;
 mod descriptor_io;
 mod descriptor_mode;
+mod integer_parsing;
 mod native_word;
 mod network_address;
 mod numeric;
@@ -82,8 +83,10 @@ pub(super) fn admit_exact_foreign_call(
     // boundary argument binder checks them before invoking any host effect;
     // admitting an adapter neither supplies nor re-establishes that evidence.
     // Keep unsupported proof/output residue on the refusal path below.
-    if !declaration.scalar_requires.is_empty()
-        || !declaration.scalar_ensures.is_empty()
+    // The shared interpreter boundary owner evaluates every scalar Requires
+    // against the captured invocation before calling any trusted host adapter.
+    // This adapter supplies no evidence and cannot bypass that gate.
+    if !declaration.scalar_ensures.is_empty()
         || !declaration.content_guarantees.is_empty()
         || !declaration.program_local_root_introductions.is_empty()
         || !declaration.crash_routes.is_empty()
@@ -301,6 +304,15 @@ pub(super) fn bind<'host>(
                     provisions.map_or(&[], TerminalRuntimeHostProvisions::borrowed_storage_layouts),
                     input.as_ref().cloned(),
                     output.clone(),
+                )? {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
+                if let Some(adapter) = integer_parsing::IntegerParsingImport::admit(
+                    program,
+                    declaration,
+                    binding,
+                    provisions.map_or(&[], TerminalRuntimeHostProvisions::borrowed_storage_layouts),
                 )? {
                     instance.bind_import(*slot, adapter)?;
                     continue;

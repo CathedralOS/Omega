@@ -608,6 +608,10 @@ impl<'artifact> TerminalExecution<'artifact> {
         validate_boundary_requirements(boundary_declaration, |index| {
             boundary_arguments.values.get(index)
         })?;
+        crate::effects::boundary_predicates::validate_input_requirements(
+            boundary_declaration,
+            &scalar_arguments,
+        )?;
         self.preflight_boundary_result(boundary_declaration, &operation.result)?;
         let remaining_claims = complete_claims(
             &self.live_claims,
@@ -615,6 +619,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             completion_receipts,
             &boundary_declaration.structural_parameters,
         )?;
+        boundary_arguments.capture_reference_inputs(boundary_declaration, structural_arguments)?;
         // Complete ordinary storage/custody checking above before presenting
         // exact admitted abstract payloads to the host. Borrowed arguments keep
         // their original storage/descriptor route; an atom grants no loan.
@@ -658,7 +663,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 crash,
             )));
         }
-        boundary_arguments.validate_writeback(self)?;
+        boundary_arguments.validate_writeback(self, boundary_declaration)?;
         if let TerminalEffectResult::Structural(value) = &returned {
             boundary_arguments.reserve_host_result(&mut self.local_structural_identities, value)?;
         }

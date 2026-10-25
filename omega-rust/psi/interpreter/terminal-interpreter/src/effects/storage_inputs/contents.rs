@@ -43,6 +43,24 @@ pub struct TerminalBoundaryStructuralBuffer {
     pub(super) access: StructuralAccess,
     pub(super) structural_type: StructuralTypeId,
     pub(super) values: Vec<TerminalBoundaryStorageValue>,
+    pub(super) references: Vec<BoundaryReferenceReplacement>,
+}
+
+/// An opaque request to select one endpoint in this invocation's immutable
+/// input snapshot. Only the interpreter can authenticate the identity and
+/// capture its reference; a host integer or native pointer cannot construct it.
+#[derive(Debug, Clone)]
+pub struct TerminalBoundaryReferenceSelection {
+    pub(super) identity: Arc<()>,
+    pub(super) argument_index: usize,
+    pub(super) path: Vec<Path>,
+    pub(super) access: StructuralAccess,
+}
+
+#[derive(Debug)]
+pub(super) struct BoundaryReferenceReplacement {
+    pub path: Vec<StructuralPathSegment>,
+    pub source: TerminalBoundaryReferenceSelection,
 }
 
 impl TerminalBoundaryStructuralBuffer {
@@ -57,6 +75,31 @@ impl TerminalBoundaryStructuralBuffer {
     }
     pub fn values(&self) -> &[TerminalBoundaryStorageValue] {
         &self.values
+    }
+
+    /// Stage an authenticated snapshot endpoint in an existing reference-output
+    /// slot. This changes only the request buffer; all inputs and all output
+    /// declarations are checked together before publishing any guest write.
+    pub fn replace_reference(
+        &mut self,
+        path: &[StructuralPathSegment],
+        source: TerminalBoundaryReferenceSelection,
+    ) -> Result<(), TerminalEffectRejection> {
+        if self.access != StructuralAccess::MutableBorrow
+            || self
+                .references
+                .iter()
+                .any(|replacement| replacement.path == path)
+        {
+            return Err(TerminalEffectRejection::new(
+                "reference output is not one unique mutable slot",
+            ));
+        }
+        self.references.push(BoundaryReferenceReplacement {
+            path: path.to_vec(),
+            source,
+        });
+        Ok(())
     }
 
     /// Stage complete active contents. Completion checks nominal membership,

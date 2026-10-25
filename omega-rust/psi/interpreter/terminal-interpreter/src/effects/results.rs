@@ -51,20 +51,7 @@ impl TerminalExecution<'_> {
         }
         // Use the already evaluated invocation snapshot, not caller value IDs
         // that happen to equal the declaration's positional scalar formal IDs.
-        let arguments = arguments
-            .iter()
-            .map(|argument| match *argument {
-                TerminalScalarValue::Boolean(value) => {
-                    semantic_vocabulary::ScalarTerm::Boolean(value)
-                }
-                TerminalScalarValue::Integer { scalar_type, value } => {
-                    semantic_vocabulary::ScalarTerm::Integer { scalar_type, value }
-                }
-                TerminalScalarValue::IeeeFloat(value) => {
-                    semantic_vocabulary::ScalarTerm::IeeeFloatLiteral(value)
-                }
-            })
-            .collect::<Vec<_>>();
+        let arguments = super::boundary_predicates::scalar_literals(arguments);
         super::crash_outcome::validate_boundary_crash_outcome(declaration, &arguments, cause)
             .map_err(|reason| TerminalInterpretError::BoundaryCrashNotPermitted {
                 operation: *operation,

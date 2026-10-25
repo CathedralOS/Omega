@@ -229,6 +229,7 @@ pub(super) fn stage(
         }
         binding.replacement = Some(staged);
     }
+    binding.completed_leaves = Some(leaves);
     Ok(())
 }
 
@@ -242,12 +243,15 @@ pub(super) fn commit(
     if let Some(replacement) = binding.replacement {
         execution.prune_subtree(&StructuralRuntimePlace::from(&binding.referent));
         replacement.publish(execution)?;
-        return Ok(());
+    } else {
+        // The case roster is unchanged. Preserve scalar-array homes and narrowed
+        // byte codecs by writing through the pre-call backing, not a rebuilt root.
+        for (storage, scalar, value) in binding.stores {
+            execution.store_primitive_storage(binding.source, storage, scalar, value)?;
+        }
     }
-    // The case roster is unchanged. Preserve scalar-array homes and narrowed
-    // byte codecs by writing through the pre-call backing, not a rebuilt root.
-    for (storage, scalar, value) in binding.stores {
-        execution.store_primitive_storage(binding.source, storage, scalar, value)?;
+    if let Some(references) = binding.reference_replacement {
+        references.publish(execution)?;
     }
     Ok(())
 }

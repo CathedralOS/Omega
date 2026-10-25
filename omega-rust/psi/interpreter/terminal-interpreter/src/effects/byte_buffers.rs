@@ -220,11 +220,21 @@ impl BoundaryArguments {
         })
     }
 
+    pub(crate) fn capture_reference_inputs(
+        &mut self,
+        declaration: &terminal_psi::BoundaryMachineDeclaration,
+        arguments: &[StructuralArgument],
+    ) -> Result<(), TerminalInterpretError> {
+        self.storage_inputs
+            .capture_reference_inputs(declaration, arguments, &self.values)
+    }
+
     /// A handler can reorder its slice, but cannot thereby retarget writeback.
     /// Check every binding before committing either fields or the result.
     pub(crate) fn validate_writeback(
         &mut self,
         execution: &TerminalExecution,
+        declaration: &terminal_psi::BoundaryMachineDeclaration,
     ) -> Result<(), TerminalInterpretError> {
         if self.buffers.len() != self.bindings.len() {
             return Err(malformed());
@@ -232,7 +242,11 @@ impl BoundaryArguments {
         for (buffer, binding) in self.buffers.iter().zip(&self.bindings) {
             binding.validate(execution, buffer)?;
         }
-        self.storage_inputs.validate_writeback(execution)
+        self.storage_inputs.validate_writeback(
+            execution,
+            declaration,
+            &mut self.local_identity_cursor,
+        )
     }
 
     pub(crate) fn commit(
