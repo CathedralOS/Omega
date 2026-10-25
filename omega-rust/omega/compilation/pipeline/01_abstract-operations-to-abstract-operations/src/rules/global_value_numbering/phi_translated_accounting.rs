@@ -88,13 +88,7 @@ pub(super) fn phi_translated_cse_accounting(
             ));
         }
     }
-    provenance.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    provenance.sort_by_key(ProvenanceRewrite::canonical_sort_key);
     Some((affected.into_iter().collect(), provenance))
 }
 

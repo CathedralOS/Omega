@@ -263,13 +263,7 @@ pub(crate) fn candidate_block(
 /// order is part of the candidate contract, so every family sorts through
 /// this one statement instead of re-spelling the key.
 pub(crate) fn canonicalize_provenance(rows: &mut [ProvenanceRewrite]) {
-    rows.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    rows.sort_by_key(ProvenanceRewrite::canonical_sort_key);
 }
 
 /// Accept one family's rewrite of `machine`'s region: clone the admitted
