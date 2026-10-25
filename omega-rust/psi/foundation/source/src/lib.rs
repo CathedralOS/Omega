@@ -31,7 +31,7 @@ mod source_snapshot;
 pub use source_bytes::SourceBytes;
 
 pub use captured_source_tree::{CapturedSourceNode, CapturedSourceTree};
-pub use loaded_sources::{LoadedSource, LoadedSources};
+pub use loaded_sources::{LoadedSource, LoadedSources, SourceContents};
 pub use source_file::{
     DependencyScope, SourceFile, SourceOrigin, SourcePosition, SourceResolutionStratum,
 };

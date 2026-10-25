@@ -29,7 +29,9 @@ pub use source_checking::{
     CheckRequest, CheckedSource, CheckedTreeProductSelection, ProductSelections, RetainedCheck,
     SelectedCheckedSource, SourceAdmission, SourceCheckInput,
 };
-pub use source_parsing::{ParsedText, SourceInput, SourceParseError, parse_text};
+pub use source_parsing::{
+    ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,
+};
 
 pub use source_compilation::{
     BuildSourceInput, CompletedSource, PreparedSource, SourceCompilationRequest,

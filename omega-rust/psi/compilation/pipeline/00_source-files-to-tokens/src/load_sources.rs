@@ -5,21 +5,20 @@
 //! straight to `lex_sources`.
 
 use diagnostics::Diagnostic;
-use source::{DependencyScope, LoadedSource, LoadedSources, SourceFileSystem, SourceId};
+use source::{DependencyScope, SourceContents, SourceFileSystem};
 use std::path::PathBuf;
 
-/// Read an ordered list of files, assigning consecutive source coordinates
-/// from `first_source_id`. Equal paths in different dependency scopes remain
-/// separate source instances. The supplied view owns backing selection;
+/// Read an ordered list of files without assigning source coordinates. Equal
+/// paths in different dependency scopes remain separate inputs. The supplied
+/// view owns backing selection;
 /// captured reads never reopen files. The first unreadable file stops loading.
 pub fn load_sources(
     files: Vec<(PathBuf, DependencyScope)>,
-    first_source_id: usize,
     view: &SourceFileSystem,
-) -> Result<LoadedSources, Vec<Diagnostic>> {
+) -> Result<Vec<SourceContents>, Vec<Diagnostic>> {
     let mut loaded = Vec::with_capacity(files.len());
 
-    for (source_index, (path, scope)) in files.into_iter().enumerate() {
+    for (path, scope) in files {
         let source = view.read_to_string(&path).map_err(|error| {
             vec![Diagnostic::error(format!(
                 "failed to read {}: {error}",
@@ -27,16 +26,14 @@ pub fn load_sources(
             ))]
         })?;
 
-        loaded.push(LoadedSource {
-            source_id: SourceId(first_source_id + source_index),
+        loaded.push(SourceContents {
             path,
             source,
-            origin: None,
             scope,
         });
     }
 
-    Ok(loaded.into_iter().collect())
+    Ok(loaded)
 }
 
 #[cfg(test)]

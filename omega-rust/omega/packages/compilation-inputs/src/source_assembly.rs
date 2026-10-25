@@ -17,7 +17,7 @@ use crate::source_imports::{
 use artifacts::compile_timings::{CompileTimings, StageMeta};
 use diagnostics::Diagnostic;
 use psi_compiler::{PsiCompilationObserver, PsiCompilationStage, SourceInput};
-use source::{LoadedSource, SourceId, SourceOrigin};
+use source::{SourceContents, SourceOrigin, SourceResolutionStratum};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -228,23 +228,27 @@ impl ImmutableSourceParseCheckpoint {
         if let Some(prelude) =
             crate::source_imports::prepare_build_prelude(&source_storage, self.build_source_id)
         {
-            let parsed = SourceInput::Retained(
-                [LoadedSource {
-                    source_id: SourceId(source_storage.next_source_id()),
+            let admitted = source_storage.admit_source(
+                SourceContents {
                     path: PathBuf::from("<build-prelude>"),
-                    source: Arc::from(prelude.source.as_str()),
-                    origin: Some(SourceOrigin::Toolchain),
+                    source: Arc::from(prelude.source),
                     scope: source::DependencyScope::Build,
-                }]
-                .into_iter()
-                .collect(),
-            )
-            .append(
+                },
+                Some(SourceOrigin::Toolchain),
+                SourceResolutionStratum::Base,
+            );
+            if let Some(build_source_id) = prelude.alias_for {
+                source_scoped_top_level_bindings.push(symbols::SourceScopedTopLevelBinding::new(
+                    build_source_id,
+                    admitted.source_id,
+                    "Build",
+                ));
+            }
+            let parsed = SourceInput([admitted].into_iter().collect()).append(
                 &mut source_storage.syntax_trees,
                 &mut ParsingTimings(timings),
             )?;
-            source_storage.extend(parsed)?;
-            source_scoped_top_level_bindings = prelude.bindings;
+            source_storage.attach_parsed(parsed);
         }
         // Wire codec machines are compiler-generated source, admitted by the
         // ordinary pipeline like the build prelude above them. They load as a
@@ -273,23 +277,21 @@ impl ImmutableSourceParseCheckpoint {
             // stays virtual, while the retained bytes answer the
             // consumption-commitment re-read instead of a physical file.
             let codec_path = codec_root.join(".omega/generated/wire-codec.omg");
-            let codec_source_id = source::SourceId(source_storage.next_source_id());
-            let parsed = SourceInput::Retained(
-                [LoadedSource {
-                    source_id: codec_source_id,
+            let admitted = source_storage.admit_source(
+                SourceContents {
                     path: codec_path,
                     source: Arc::from(codec_source.as_str()),
-                    origin: Some(SourceOrigin::User),
                     scope: source::DependencyScope::Product,
-                }]
-                .into_iter()
-                .collect(),
-            )
-            .append(
+                },
+                Some(SourceOrigin::User),
+                SourceResolutionStratum::Base,
+            );
+            let codec_source_id = admitted.source_id;
+            let parsed = SourceInput([admitted].into_iter().collect()).append(
                 &mut source_storage.syntax_trees,
                 &mut ParsingTimings(timings),
             )?;
-            source_storage.extend(parsed)?;
+            source_storage.attach_parsed(parsed);
             generated_source_custody.push((
                 codec_source_id,
                 build_output::PackageGeneratedSource::from_retained_parts(
@@ -375,7 +377,7 @@ impl GeneratedSourceExtension {
                 scope: source.dependency_scope,
             });
         }
-        let units = SourceInput::Retained(generated_sources.into_iter().collect())
+        let units = SourceInput(generated_sources.into_iter().collect())
             .into_units(&mut ParsingTimings(timings))?;
         Ok((sources, units))
     }
@@ -403,19 +405,17 @@ fn append_dependency_generated_sources_to_storage(
             package,
             scope,
         } = entry;
-        let source_id = source::SourceId(source_storage.next_source_id());
-        let parsed = SourceInput::Retained(
-            [LoadedSource {
-                source_id,
+        let admitted = source_storage.admit_source(
+            SourceContents {
                 path: logical_path,
                 source: Arc::from(text),
-                origin: Some(SourceOrigin::User),
                 scope,
-            }]
-            .into_iter()
-            .collect(),
-        )
-        .append(
+            },
+            Some(SourceOrigin::User),
+            SourceResolutionStratum::DependencyActivationExtension,
+        );
+        let source_id = admitted.source_id;
+        let parsed = SourceInput([admitted].into_iter().collect()).append(
             &mut source_storage.syntax_trees,
             &mut ParsingTimings(timings),
         )?;
@@ -429,7 +429,7 @@ fn append_dependency_generated_sources_to_storage(
         )?;
         imports.enqueue(discovered)?;
         imports.enqueue(entry_base)?;
-        source_storage.extend_dependency_generated(parsed)?;
+        source_storage.attach_parsed(parsed);
         retained.push((source_id, source.clone()));
     }
     Ok(retained)
@@ -452,12 +452,18 @@ fn load_imports(
             }
             None => frontier,
         };
-        let parsed = SourceInput::Files {
+        let loaded = psi_compiler::load_source_files(
             frontier,
-            first_source: source_storage.next_source_id(),
-            filesystem: &source_storage.filesystem,
-        }
-        .append(
+            &source_storage.filesystem,
+            &mut ParsingTimings(timings),
+        )?;
+        let admitted = loaded
+            .into_iter()
+            .map(|contents| {
+                source_storage.admit_source(contents, None, SourceResolutionStratum::Base)
+            })
+            .collect();
+        let parsed = SourceInput(admitted).append(
             &mut source_storage.syntax_trees,
             &mut ParsingTimings(timings),
         )?;
@@ -482,7 +488,7 @@ fn load_imports(
             )?,
         };
         imports.enqueue(discovered)?;
-        source_storage.extend(parsed)?;
+        source_storage.attach_parsed(parsed);
     }
     Ok(retained_requests)
 }
