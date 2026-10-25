@@ -267,7 +267,8 @@ Binding nomination belongs to compiler-owned
 which reads checked callable reach/invocation facts, entry requirements and
 selected provider plans. Package review consumes its inert candidates, attaches
 consumer context to projection errors, and scopes permission proposals; it no
-longer walks checked machines, symbols, traits or provider plans. The review exposes the
+longer walks checked machines, symbols, traits or provider plans, and has no
+provider-planning, flow-effects or symbols dependency. The review exposes the
 exact checked `ServiceSchema` beside each proposed binding. This is
 non-authoritative review material: a consumer may use complete requirement
 identities from that schema to author terminal-permission rows. Requirement-only

@@ -26,6 +26,13 @@ fn package_binding_policy_does_not_interpret_checked_source() {
     let evidence = include_str!("../../../packages/review-evidence/Cargo.toml");
     assert!(!evidence.contains("package-manager ="));
     assert!(!evidence.contains("compiler ="));
+    let packages = include_str!("../../../packages/package-manager/Cargo.toml");
+    for dependency in ["provider-planning =", "flow-effects =", "symbols ="] {
+        assert!(
+            !packages.contains(dependency),
+            "package review imports {dependency}"
+        );
+    }
 }
 
 #[test]

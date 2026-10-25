@@ -2907,8 +2907,8 @@ crash and native exit behavior.
   compilation to answer component demands. Compiler evidence owns semantic-binding
   nomination; package review consumes proposals and scopes consumer permissions,
   rather than interpreting checked machines, traits, reaches or provider plans.
-  Its remaining checked-state retention and package-owned orchestration and
-  Terminal Build/helper activation scheduling still need migration. Psi
+  Checked-state retention, package-owned review orchestration and Terminal
+  Build/helper activation scheduling still need migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
   Psi 00-07 and Build execute
