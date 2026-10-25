@@ -28,7 +28,8 @@ jobs:
       matrix:
         runner: ${{ fromJSON(inputs.cleanup && '["ubuntu-24.04", "windows-2025"]' || '["ubuntu-24.04"]') }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
+    # The measured cold Windows build takes nearly 30 minutes.
+    timeout-minutes: 45
     env:
       CARGO_BUILD_JOBS: '2'
       # Keep generated package outputs below Windows link.exe's path limit.
