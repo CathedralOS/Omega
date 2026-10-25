@@ -6,7 +6,7 @@ boundary trait Io { machine acquire(request: &mut Request) -> i32 reaches requir
 Actual satisfies Io { machine acquire(request: &mut Request) -> i32 requires request.internal == ZERO { request.internal = 9; 7 } }
 machine main() crashes Trap {
     let mut request: Request;
-    
+
     let status: i32 = Io::acquire(&mut request);
     transition status == 7 { true -> done() _ -> bad() }
     state done() {}

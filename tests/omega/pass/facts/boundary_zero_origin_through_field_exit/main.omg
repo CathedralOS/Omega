@@ -7,7 +7,7 @@ Actual satisfies Io { machine acquire(request: &mut Request) -> i32 requires req
 data Holder { request: Request; }
 machine main() crashes Trap {
     let mut holder: Holder;
-    
+
     let status: i32 = Io::acquire(&mut holder.request);
     transition status == 7 { true -> done() _ -> bad() }
     state done() {}

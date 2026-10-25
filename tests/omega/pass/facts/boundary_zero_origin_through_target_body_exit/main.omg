@@ -10,7 +10,7 @@ windows_x86_64 machine transport(request: &mut Request) -> i32 requires request.
 macos_arm64 machine transport(request: &mut Request) -> i32 requires request.internal == ZERO { Io::acquire(request) }
 machine main() crashes Trap {
     let mut request: Request;
-    
+
     let status: i32 = transport(&mut request);
     transition status == 7 { true -> done() _ -> bad() }
     state done() {}

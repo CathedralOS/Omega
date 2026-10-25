@@ -7,7 +7,7 @@ Actual satisfies Io { machine acquire(request: &mut Request) -> i32 requires req
 machine fresh() -> Request ensures result.internal == ZERO { let value: Request; value }
 machine main() crashes Trap {
     let mut request: Request = match true { true -> fresh() _ -> fresh() };
-    
+
     let status: i32 = Io::acquire(&mut request);
     transition status == 7 { true -> done() _ -> bad() }
     state done() {}
