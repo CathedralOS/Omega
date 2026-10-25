@@ -258,7 +258,13 @@ The compiler owns root permission comparison and completion; ordinary package
 operations do not return checked source or hand it back to finish production.
 Each returned package review also exposes borrowed access to its complete typed
 `PackagePolicyBaseline`, projected from that same final checked source and
-target. The closure retains at most 64 MiB in aggregate canonical policy
+target. The compiler's `review_package_build` returns that evidence together with
+an opaque `PackageReviewSource`; review cannot extract checked trees, Build
+configuration or execution plans from it. Its source-free facts support reuse
+and cache capture, and its component publication operation runs only on demand.
+The compiler checks each projection against the caller's remaining policy budget
+before nomination; the closure still owns aggregate accounting and decisions.
+The closure retains at most 64 MiB in aggregate canonical policy
 encoding size; this is not an exact heap-size limit. Legacy comparison rows,
 commitments, and obligation checks remain separate and unchanged. This retained
 finding is not accepted-lock storage or an additional authorization stage.

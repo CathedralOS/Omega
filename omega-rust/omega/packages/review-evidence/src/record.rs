@@ -28,7 +28,9 @@ pub(crate) use semantic_policy::{
     PackagePolicySemanticDependency, PackagePolicySemanticDependencyConsumer,
 };
 pub(crate) mod package;
+mod package_review;
 mod policy_rows;
+pub use package_review::{PackageReviewEvidence, PackageReviewSourceFacts};
 mod public_policy;
 mod representation;
 mod restricted_build;

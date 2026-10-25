@@ -12,6 +12,8 @@ mod calling;
 mod contracts;
 mod input;
 mod package_policy;
+mod package_review;
+pub use package_review::{PackageReviewProjectionError, project_package_review};
 mod providers;
 mod representation;
 mod semantic_bindings;

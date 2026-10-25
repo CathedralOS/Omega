@@ -85,9 +85,9 @@ impl CompilationSession {
         })
     }
 
-    /// Check a completed Build's source without a native product. Review and
-    /// diagnostic consumers use the checked custody; application Build submits
-    /// requested products through complete_package_products instead.
+    /// Check a completed Build's source for compiler/diagnostic consumers.
+    /// Package review requests review_package_build instead of checked custody;
+    /// application Build submits products through complete_package_products.
     pub fn check_package_build(
         &mut self,
         build: PackageBuild,
