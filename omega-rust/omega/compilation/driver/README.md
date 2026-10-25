@@ -89,6 +89,11 @@ a description. [Product batching](src/checked/product_batch.rs) partitions the
 admitted root and component continuations by complete source input and checks each partition
 once. Matching members borrow its checked program and sealed source custody;
 each retains its own Build receipts, charges, timings and target settlement.
+Request identity and product policy travel with each frontier and source
+continuation. Component destinations travel with their checked products. These
+batches restore authored ordering before returning, without parallel metadata
+arrays or indexed empty result slots. Component publication borrows ready work
+for shared Terminal production and retains refusals in the same ordered roster.
 This is work partitioning within the submitted batch, not a historical cache.
 Opaque pending evaluation authorities must be the same retained authority;
 matching paths or settings alone never establish interchangeable continuations.
@@ -117,7 +122,9 @@ expected Builds to the default equal-source fixture must fail its assertion.
 Counts are process-wide: run each measurement alone.
 
 `mbx run -p compiler --example package_batch_sources` submits three products
-from two real source roots to the compiler's public package facade. Equal
+from two real source roots to the compiler's public package facade, interleaved
+with a rejected empty package plan. The exact rejection stays at its submitted
+position without affecting the three products. Equal
 consumers share one checked/Terminal cohort; the different root retains another.
 The batch requires two Builds, four checks, two source completions and two
 Terminal productions, with shared storage only for the equal-source pair.

@@ -24,8 +24,9 @@ struct OccurrenceProduct {
     description: Option<IndependentComponentDescription>,
 }
 
-struct PackageFrontier {
+struct PackageFrontier<Owner> {
     position: usize,
+    owner: Owner,
     remaining: std::vec::IntoIter<CheckedCompileRequest>,
     products: Vec<OccurrenceProduct>,
     /// The Product root a joining frontier receives its dependencies'
@@ -48,32 +49,33 @@ pub(super) struct PackagePlan {
     pub join_root: bool,
 }
 
-struct PendingOccurrence {
-    frontier: PackageFrontier,
+struct PendingOccurrence<Owner> {
+    frontier: PackageFrontier<Owner>,
     build: PreparedPackageBuild,
     components: Vec<usize>,
     failure: Option<CompileFailure>,
 }
 
 impl CompilationSession {
-    pub(super) fn prepare_packages(
+    pub(super) fn prepare_packages<Owner>(
         &mut self,
-        plans: Vec<PackagePlan>,
-    ) -> Vec<Result<PreparedPackageRoot, PackageCompileFailure>> {
-        let mut outcomes: Vec<_> = (0..plans.len()).map(|_| None).collect();
+        plans: Vec<(Owner, PackagePlan)>,
+    ) -> Vec<(Owner, Result<PreparedPackageRoot, PackageCompileFailure>)> {
+        let mut outcomes = Vec::with_capacity(plans.len());
         let mut frontiers = Vec::new();
-        for (position, plan) in plans.into_iter().enumerate() {
+        for (position, (owner, plan)) in plans.into_iter().enumerate() {
             let PackagePlan {
                 mut occurrences,
                 join_root,
             } = plan;
             if let Err(error) = validate_order(&occurrences) {
-                outcomes[position] = Some(Err(error));
+                outcomes.push((position, owner, Err(error)));
                 continue;
             }
             let joined_root = if join_root { occurrences.pop() } else { None };
-            let frontier = PackageFrontier {
+            let mut frontier = PackageFrontier {
                 position,
+                owner,
                 products: Vec::with_capacity(occurrences.len()),
                 remaining: occurrences.into_iter(),
                 joined_root,
@@ -81,7 +83,8 @@ impl CompilationSession {
             if frontier.remaining.len() == 0 {
                 // A joining root with no dependency occurrence joins the
                 // empty roster; a preparing root always has its own.
-                outcomes[position] = Some(frontier.join_root());
+                let joined = frontier.join_root();
+                outcomes.push((position, frontier.owner, joined));
                 continue;
             }
             frontiers.push(frontier);
@@ -109,10 +112,14 @@ impl CompilationSession {
                         failure: None,
                     }),
                     Err(failure) => {
-                        outcomes[frontier.position] = Some(Err(PackageCompileFailure {
-                            occurrence: frontier.products.len(),
-                            failure,
-                        }))
+                        outcomes.push((
+                            frontier.position,
+                            frontier.owner,
+                            Err(PackageCompileFailure {
+                                occurrence: frontier.products.len(),
+                                failure,
+                            }),
+                        ));
                     }
                 }
             }
@@ -153,16 +160,23 @@ impl CompilationSession {
                 };
                 match completed {
                     Err(failure) => {
-                        outcomes[frontier.position] = Some(Err(PackageCompileFailure {
-                            occurrence: frontier.products.len(),
-                            failure,
-                        }))
+                        outcomes.push((
+                            frontier.position,
+                            frontier.owner,
+                            Err(PackageCompileFailure {
+                                occurrence: frontier.products.len(),
+                                failure,
+                            }),
+                        ));
                     }
                     Ok(build)
                         if frontier.remaining.len() == 0 && frontier.joined_root.is_none() =>
                     {
-                        outcomes[frontier.position] =
-                            Some(Ok(PreparedPackageRoot::Build(Box::new(build))));
+                        outcomes.push((
+                            frontier.position,
+                            frontier.owner,
+                            Ok(PreparedPackageRoot::Build(Box::new(build))),
+                        ));
                     }
                     Ok(build) => {
                         frontier.products.push(OccurrenceProduct {
@@ -173,8 +187,8 @@ impl CompilationSession {
                             description: None,
                         });
                         if frontier.remaining.len() == 0 {
-                            let position = frontier.position;
-                            outcomes[position] = Some(frontier.join_root());
+                            let joined = frontier.join_root();
+                            outcomes.push((frontier.position, frontier.owner, joined));
                         } else {
                             frontiers.push(frontier);
                         }
@@ -183,27 +197,17 @@ impl CompilationSession {
             }
         }
 
+        outcomes.sort_unstable_by_key(|(position, _, _)| *position);
         outcomes
             .into_iter()
-            .map(|outcome| {
-                outcome.unwrap_or_else(|| {
-                    Err(PackageCompileFailure {
-                        occurrence: 0,
-                        failure: vec![Diagnostic::error(
-                            "package preparation lost its requested root",
-                        )]
-                        .into(),
-                    })
-                })
-            })
+            .map(|(_, owner, outcome)| (owner, outcome))
             .collect()
     }
 
     /// Complete actual component demands as one source cohort batch, then retain
     /// each target's own installed description. Descriptions are not shared
     /// authority, even when their source arenas are common.
-    fn complete_components(&mut self, pending: &mut [PendingOccurrence]) {
-        let mut destinations = Vec::new();
+    fn complete_components<Owner>(&mut self, pending: &mut [PendingOccurrence<Owner>]) {
         let mut builds = Vec::new();
         for (request_position, occurrence) in pending.iter_mut().enumerate() {
             for &component_position in &occurrence.components {
@@ -220,24 +224,24 @@ impl CompilationSession {
                     );
                     break;
                 };
-                destinations.push((request_position, component_position));
-                builds.push(build);
+                builds.push(((request_position, component_position), build));
             }
         }
         let checked = self
             .select_build_batch(builds)
             .into_iter()
-            .map(|selected| {
-                selected
-                    .install()
-                    .result
-                    .map_err(CompileFailure::into_diagnostics)
+            .map(|(destination, selected)| {
+                (
+                    destination,
+                    selected
+                        .install()
+                        .result
+                        .map_err(CompileFailure::into_diagnostics),
+                )
             })
             .collect();
-        for (product, (request_position, component_position)) in
+        for ((request_position, component_position), product) in
             crate::compiler::package::publish_checked_component_products(checked)
-                .into_iter()
-                .zip(destinations)
         {
             let occurrence = &mut pending[request_position];
             match product {
@@ -256,10 +260,10 @@ impl CompilationSession {
     }
 }
 
-impl PackageFrontier {
+impl<Owner> PackageFrontier<Owner> {
     /// Finish a joining frontier: its root receives every dependency
     /// occurrence's generated source and is returned unprepared.
-    fn join_root(mut self) -> Result<PreparedPackageRoot, PackageCompileFailure> {
+    fn join_root(&mut self) -> Result<PreparedPackageRoot, PackageCompileFailure> {
         let occurrence = self.products.len();
         let refuse = |failure| PackageCompileFailure {
             occurrence,

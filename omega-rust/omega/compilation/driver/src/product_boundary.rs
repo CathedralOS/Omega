@@ -87,11 +87,25 @@ fn build_submits_admitted_package_batches_together() {
 fn package_frontiers_batch_components_without_nested_source_workers() {
     let preparation = include_str!("checked/package_preparation.rs");
     assert!(preparation.contains(".select_build_batch(builds)"));
-    assert!(preparation.contains("publish_checked_components(checked)"));
+    assert!(preparation.contains("publish_checked_component_products(checked)"));
     assert!(!preparation.contains("self.check_build("));
     assert!(!preparation.contains("run_on_compile_thread"));
     let batch = include_str!("checked/product_batch.rs");
     assert!(!batch.contains("run_on_compile_thread"));
+}
+
+#[test]
+fn package_batches_carry_owners_instead_of_parallel_result_tables() {
+    for source in [
+        include_str!("checked/package_compilation.rs"),
+        include_str!("checked/package_preparation.rs"),
+        include_str!("checked/product_batch.rs"),
+        include_str!("compiler/package.rs"),
+    ] {
+        assert!(!source.contains("map(|_| None)"));
+        assert!(!source.contains("outcomes["));
+        assert!(!source.contains(".zip("));
+    }
 }
 
 #[test]

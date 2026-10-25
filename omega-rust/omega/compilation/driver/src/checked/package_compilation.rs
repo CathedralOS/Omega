@@ -28,6 +28,16 @@ pub struct PackageCompileFailure {
     pub failure: CompileFailure,
 }
 
+/// Caller identity and product policy stay attached while package frontiers
+/// and source cohorts complete in a different order.
+struct PackageProductOwner {
+    position: usize,
+    root_occurrence: usize,
+    root_path: std::path::PathBuf,
+    product: crate::CompilationProduct,
+    permissions: Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+}
+
 impl CompilationSession {
     /// Check a dependency-ordered package activation without producing its root.
     /// Demanded independent dependencies still require their own verified products;
@@ -39,14 +49,17 @@ impl CompilationSession {
         let root = occurrences.len().saturating_sub(1);
         super::run_on_compile_thread(|| {
             let prepared = self
-                .prepare_packages(vec![PackagePlan {
-                    occurrences,
-                    join_root: false,
-                }])
+                .prepare_packages(vec![(
+                    (),
+                    PackagePlan {
+                        occurrences,
+                        join_root: false,
+                    },
+                )])
                 .pop();
             let build = match prepared {
-                Some(Ok(PreparedPackageRoot::Build(build))) => *build,
-                Some(Err(error)) => return Ok(Err(error)),
+                Some(((), Ok(PreparedPackageRoot::Build(build)))) => *build,
+                Some(((), Err(error))) => return Ok(Err(error)),
                 _ => {
                     return Ok(Err(PackageCompileFailure {
                         occurrence: root,
@@ -55,9 +68,12 @@ impl CompilationSession {
                     }));
                 }
             };
-            let selected = self.select_build_batch(vec![build]).pop().ok_or_else(|| {
-                vec![Diagnostic::error("package checking lost its selected root")]
-            })?;
+            let ((), selected) = self
+                .select_build_batch(vec![((), build)])
+                .pop()
+                .ok_or_else(|| {
+                    vec![Diagnostic::error("package checking lost its selected root")]
+                })?;
             Ok::<_, Vec<Diagnostic>>(selected.install().result.map_err(|failure| {
                 PackageCompileFailure {
                     occurrence: root,
@@ -82,9 +98,8 @@ impl CompilationSession {
     ) -> Vec<Result<crate::CompilationOutput, PackageCompileFailure>> {
         let count = requests.len();
         super::run_on_compile_thread(|| {
-            let mut outcomes: Vec<_> = (0..requests.len()).map(|_| None).collect();
-            let mut selections = Vec::new();
-            let mut plans = Vec::new();
+            let mut outcomes = Vec::with_capacity(requests.len());
+            let mut plans = Vec::with_capacity(requests.len());
             for (position, mut request) in requests.into_iter().enumerate() {
                 let root = request.occurrences.len().saturating_sub(1);
                 let path = request
@@ -95,37 +110,41 @@ impl CompilationSession {
                 for occurrence in &mut request.occurrences {
                     occurrence.optimization_rollback = request.product.optimization_rollback();
                 }
-                selections.push((
+                let owner = PackageProductOwner {
                     position,
-                    root,
-                    path,
-                    request.product,
-                    request.terminal_permissions,
+                    root_occurrence: root,
+                    root_path: path,
+                    product: request.product,
+                    permissions: request.terminal_permissions,
+                };
+                plans.push((
+                    owner,
+                    PackagePlan {
+                        occurrences: request.occurrences,
+                        join_root: false,
+                    },
                 ));
-                plans.push(PackagePlan {
-                    occurrences: request.occurrences,
-                    join_root: false,
-                });
             }
 
             let mut builds = Vec::new();
-            let mut admitted = Vec::new();
-            for (prepared, selection) in self.prepare_packages(plans).into_iter().zip(selections) {
+            for (owner, prepared) in self.prepare_packages(plans) {
                 match prepared {
                     Ok(PreparedPackageRoot::Build(build)) => {
-                        builds.push(*build);
-                        admitted.push(selection);
+                        builds.push((owner, *build));
                     }
                     Ok(PreparedPackageRoot::Joined(_)) => {
-                        outcomes[selection.0] = Some(Err(PackageCompileFailure {
-                            occurrence: selection.1,
-                            failure: vec![Diagnostic::error(
-                                "package compilation joined a root it was asked to prepare",
-                            )]
-                            .into(),
-                        }))
+                        outcomes.push((
+                            owner.position,
+                            Err(PackageCompileFailure {
+                                occurrence: owner.root_occurrence,
+                                failure: vec![Diagnostic::error(
+                                    "package compilation joined a root it was asked to prepare",
+                                )]
+                                .into(),
+                            }),
+                        ));
                     }
-                    Err(error) => outcomes[selection.0] = Some(Err(error)),
+                    Err(error) => outcomes.push((owner.position, Err(error))),
                 }
             }
 
@@ -133,51 +152,41 @@ impl CompilationSession {
             // the same Terminal-before-installation sequence as standalone builds.
             // Permission consent travels to that sequence's admission boundary.
             let mut products = Vec::new();
-            for (selected, (position, root, path, product, permissions)) in
-                self.select_build_batch(builds).into_iter().zip(admitted)
-            {
+            for (owner, selected) in self.select_build_batch(builds) {
                 match selected.result {
                     Ok(selected) => {
                         products.push((
-                            (position, root),
+                            (owner.position, owner.root_occurrence),
                             Ok(crate::product_execution::ProductRequest {
                                 realization: selected,
-                                root: path,
-                                product,
-                                permissions,
+                                root: owner.root_path,
+                                product: owner.product,
+                                permissions: owner.permissions,
                             }),
                         ));
                     }
                     Err(failure) => {
-                        outcomes[position] = Some(Err(PackageCompileFailure {
-                            occurrence: root,
-                            failure,
-                        }))
+                        outcomes.push((
+                            owner.position,
+                            Err(PackageCompileFailure {
+                                occurrence: owner.root_occurrence,
+                                failure,
+                            }),
+                        ));
                     }
                 }
             }
             for ((position, root), product) in crate::compiler::produce_products(products) {
-                outcomes[position] = Some(product.map_err(|error| PackageCompileFailure {
-                    occurrence: root,
-                    failure: error.into_diagnostics().into(),
-                }));
+                outcomes.push((
+                    position,
+                    product.map_err(|error| PackageCompileFailure {
+                        occurrence: root,
+                        failure: error.into_diagnostics().into(),
+                    }),
+                ));
             }
-            Ok::<_, Vec<Diagnostic>>(
-                outcomes
-                    .into_iter()
-                    .map(|outcome| {
-                        outcome.unwrap_or_else(|| {
-                            Err(PackageCompileFailure {
-                                occurrence: 0,
-                                failure: vec![Diagnostic::error(
-                                    "package compilation lost a requested product",
-                                )]
-                                .into(),
-                            })
-                        })
-                    })
-                    .collect(),
-            )
+            outcomes.sort_unstable_by_key(|(position, _)| *position);
+            Ok::<_, Vec<Diagnostic>>(outcomes.into_iter().map(|(_, outcome)| outcome).collect())
         })
         .unwrap_or_else(|diagnostics| {
             (0..count)
@@ -209,13 +218,16 @@ impl CompilationSession {
         let root = occurrences.len().saturating_sub(1);
         super::run_on_compile_thread(|| {
             let prepared = self
-                .prepare_packages(vec![PackagePlan {
-                    occurrences,
-                    join_root: true,
-                }])
+                .prepare_packages(vec![(
+                    (),
+                    PackagePlan {
+                        occurrences,
+                        join_root: true,
+                    },
+                )])
                 .pop();
             Ok::<_, Vec<Diagnostic>>(match prepared {
-                Some(Ok(PreparedPackageRoot::Joined(request))) => {
+                Some(((), Ok(PreparedPackageRoot::Joined(request)))) => {
                     request.package_inputs.ok_or_else(|| PackageCompileFailure {
                         occurrence: root,
                         failure: vec![Diagnostic::error(
@@ -224,14 +236,16 @@ impl CompilationSession {
                         .into(),
                     })
                 }
-                Some(Err(error)) => Err(error),
-                Some(Ok(PreparedPackageRoot::Build(_))) | None => Err(PackageCompileFailure {
-                    occurrence: root,
-                    failure: vec![Diagnostic::error(
-                        "package preparation lost its joined root",
-                    )]
-                    .into(),
-                }),
+                Some(((), Err(error))) => Err(error),
+                Some(((), Ok(PreparedPackageRoot::Build(_)))) | None => {
+                    Err(PackageCompileFailure {
+                        occurrence: root,
+                        failure: vec![Diagnostic::error(
+                            "package preparation lost its joined root",
+                        )]
+                        .into(),
+                    })
+                }
             })
         })
         .unwrap_or_else(|diagnostics| {
