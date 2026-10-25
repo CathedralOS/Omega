@@ -59,8 +59,11 @@ impl Execution<'_, '_, '_> {
                 candidates.push((Vec::new(), true, None));
                 continue;
             }
-            if source.source.collection_coarse
-                || !source.source.recasts.is_empty()
+            // An indexed descriptor home coarsens the may-write footprint,
+            // even after its loaded value resolves to an exact supplier. The
+            // structural source below owns descriptor identity; the footprint
+            // cannot veto it or stand in for its path/type/access checks.
+            if !source.source.recasts.is_empty()
                 || source.source.representation.is_some()
                 || !source
                     .source

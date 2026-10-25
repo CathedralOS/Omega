@@ -663,10 +663,10 @@ defines the complete product bar.
     replacement, including direct views and constructed children with local backing.
     Complete remaining cyclic, opaque and dependent result composition through
     the same producer and custody relationships: ranked structural returns still
-    lose descriptor-length equalities at recursive exits, and returned descriptors
-    projected through stored array elements lack completed backing at simultaneous
-    call admission. Preserve copied returns from mutated borrowed record fields
-    through the existing computed-descriptor fact row.
+    lose descriptor-length equalities at recursive exits. Preserve copied returns
+    from mutated borrowed record fields and stored array elements through the
+    existing computed-descriptor fact row, including saved descriptors returned
+    after their former slot changes again and untouched element/sibling storage.
     Selected payload returns use ordinary
     expression continuations with captured backing across conditional arms and
     cyclic argument permutations; element origins retain logical window indices.

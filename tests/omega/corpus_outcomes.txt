@@ -922,8 +922,8 @@ fail/borrows/computed_view_content_write_retires_old_scalar_fact rejected 1886ms
 	state `receive` receives reference `replacement(&mut counter)` without a completed descriptor backing for simultaneous access
 	state `overwrite` receives reference `replacement(&mut counter)` without a completed descriptor backing for simultaneous access
 	cannot prove requires contract for call false_counter from main: counter.called == false (needs fact `value == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/borrows/computed_view_store_retains_local_array_backing rejected 1318ms expected @4aade9a45483+wt
-	statement 5 mutates `storage[0]` while local borrow `original` is still active (borrowed at statement 4; its last use is at statement 10)
+fail/borrows/computed_view_store_retains_local_array_backing rejected 1035ms expected @3ddc7d1455f1+wt
+	statement 7 mutates `storage[0]` while local borrow `original` is still active (borrowed at statement 5; its last use is at statement 30)
 fail/borrows/conditional_copied_slot_retains_parent_loan rejected 1525ms expected @5f668826adf3
 	statement 9 mutates `parent` while local borrow `copied` is still active (borrowed at statement 7; its last use is at statement 10)
 fail/borrows/conditional_overlapping_field_loans rejected 6168ms expected @5f668826adf3
