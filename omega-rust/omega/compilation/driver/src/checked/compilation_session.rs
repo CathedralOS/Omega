@@ -88,14 +88,12 @@ impl CompilationSession {
             let selected = self.select(request).result.map_err(|failure| {
                 crate::CompilationProductError::Production(failure.into_diagnostics())
             })?;
-            crate::compiler::finish_compilations(vec![Ok(
-                crate::product_execution::ProductRequest {
-                    realization: selected,
-                    root,
-                    product,
-                    permissions: None,
-                },
-            )])
+            crate::compiler::produce_products(vec![Ok(crate::product_execution::ProductRequest {
+                realization: selected,
+                root,
+                product,
+                permissions: None,
+            })])
             .into_iter()
             .next()
             .ok_or_else(|| {

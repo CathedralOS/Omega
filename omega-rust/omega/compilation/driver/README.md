@@ -27,6 +27,12 @@ and Psi optimization share that production and artifact storage; target
 receipts and exclusion judgments stay separate. Native production receives the
 artifact explicitly and never calls Psi. Distinct roots and callbacks belong
 to the shared whole-program Terminal entry roster.
+The crate-internal `produce_products` operation starts from checked source and
+selected target inputs, producing Terminal when required and then the requested
+outputs. It is not a second public entrypoint for compiling an existing Terminal
+artifact. That source-free operation is
+[`native_production::compile`](../native-production/src/native_compilation.rs),
+which takes a retained Terminal artifact and explicit realization inputs.
 `cargo run -p compiler --example terminal_sharing` exercises two native targets
 through this route and checks actual production counts and shared backing
 storage. It does not execute a foreign-host image.
