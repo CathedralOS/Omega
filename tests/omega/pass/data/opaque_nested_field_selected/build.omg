@@ -10,8 +10,3 @@ machine build(builder: &mut Build) {
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
 }
-
-// An alternative activation, never a second selection in `build` above.
-machine select_wide(builder: &mut Build) {
-    Build::select_representation<Token, WideTokenRepresentation>(builder);
-}

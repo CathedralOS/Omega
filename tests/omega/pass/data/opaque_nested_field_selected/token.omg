@@ -5,9 +5,3 @@ public data TokenBytes [copy] {
     value: u64;
 }
 public TokenRepresentation satisfies OpaqueRepresentation<Token, TokenBytes> { }
-
-public data WideTokenBytes [copy] {
-    first: u64;
-    second: u64;
-}
-public WideTokenRepresentation satisfies OpaqueRepresentation<Token, WideTokenBytes> { }
