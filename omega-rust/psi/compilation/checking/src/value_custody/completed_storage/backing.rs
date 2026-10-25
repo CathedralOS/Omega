@@ -90,20 +90,23 @@ impl Resolver<'_, '_> {
                         &capture,
                         path,
                     )?;
-                    return (!profiles.is_empty()
-                        && profiles.iter().all(|profile| {
-                            self.control.operand_retentions.is_valid(*profile)
-                                && self
-                                    .control
-                                    .operand_retentions
-                                    .get(*profile)
-                                    .immutable_image
-                                && self
-                                    .control
-                                    .retained_roots(*profile)
-                                    .is_some_and(|roots| roots.is_empty())
-                        }))
-                    .then_some(Vec::new());
+                    if profiles.is_empty() {
+                        return None;
+                    }
+                    // A frozen leaf's declared lifetime profile can retain
+                    // debts beyond its actual pointer. Resolve its authenticated
+                    // descriptor/supplier graph just as other completed values
+                    // do; empty address inventory alone proves no image scope.
+                    let mut output = Vec::new();
+                    for profile in profiles {
+                        match self.profile_backing(profile)? {
+                            ProfileBacking::Known(places) => Self::append(&mut output, places),
+                            // No frozen address and no complete profile cannot
+                            // recover the current contents of its former slot.
+                            ProfileBacking::Unchanged => return None,
+                        }
+                    }
+                    return Some(output);
                 }
                 return self.referents_or_loan(operand, path, leaf.referents);
             }

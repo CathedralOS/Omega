@@ -1246,18 +1246,17 @@ impl<'program> StructuralJudge<'program> {
                 )?;
                 let receiver_changed =
                     scalar_storage_read && judge.storage_write_sequence != receiver_write_sequence;
-                let captured_field = if receiver_changed && scalar_field_read {
-                    let ExpressionNode::Member(member) = node else {
-                        return None;
-                    };
+                let completed_field = if let ExpressionNode::Member(member) = node {
                     let receiver_type = crate::expression_result_type_reference(
                         program,
                         scope.0,
                         scope.1,
                         member.receiver,
                     )?;
-                    // An actual owned operand can expose its completed field.
-                    // A reference descriptor cannot stand in for its referent.
+                    // An owned receiver has already completed at this operand.
+                    // Project that captured value without replaying its former
+                    // source home. Reference descriptors still cannot supply
+                    // observations of their referent's fields.
                     if crate::reference_shell(program, receiver_type).is_none() {
                         inputs
                             .iter()
@@ -1265,7 +1264,6 @@ impl<'program> StructuralJudge<'program> {
                             .and_then(|(_, value)| {
                                 judge.observed_field_term(value.clone(), member.member.as_str(), 0)
                             })
-                            .filter(|value| value.observation_identity_key().is_some())
                     } else {
                         None
                     }
@@ -1302,11 +1300,11 @@ impl<'program> StructuralJudge<'program> {
                     // The receiver selected its base before a later operand
                     // wrote storage. Reconstructing it from the live place now
                     // could silently select a replacement descriptor.
-                    match captured_field {
+                    match completed_field.filter(|value| value.observation_identity_key().is_some()) {
                         Some(value) => value,
                         None => judge.capture_unknown_value(expression, scope)?,
                     }
-                } else if let Some(value) = completed_measure {
+                } else if let Some(value) = completed_measure.or(completed_field) {
                     value
                 } else if matches!(node, ExpressionNode::Atomic(_)) {
                     // The atomic owner distinguishes an observed load from
