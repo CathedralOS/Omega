@@ -51,11 +51,14 @@ NEGATIVES = tuple("fail/drops/" + name for name in (
 def positives_for_target(target):
     # These existing descriptor controls bind the 64-bit C imports on macOS
     # and Linux. Windows cleanup uses its separate CRT declaration and ABI.
+    positives = POSITIVES
     if target in ("macos_arm64", "linux_x86_64"):
-        return POSITIVES + (
-            "pass/host/runtime_descriptor_output_streams_exit",
-        )
-    return POSITIVES
+        positives += ("pass/host/runtime_descriptor_output_streams_exit",)
+    if target == "linux_x86_64":
+        # The matching Linux route passes. Its distinct macOS scalar-field
+        # export refusal remains under NORMALIZED-ABI-LOWERING.
+        positives += ("pass/host/runtime_descriptor_direct_array_exit",)
+    return positives
 
 
 if __name__ == "__main__":
