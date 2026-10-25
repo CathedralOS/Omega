@@ -475,12 +475,7 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
                     alignment: 8,
                 }
             };
-            ValueLocation::Indirect {
-                pointer,
-                copy_stack_byte_offset: None,
-                byte_size: shape.byte_size,
-                alignment: shape.alignment,
-            }
+            ValueLocation::indirect(pointer, None, shape.byte_size, shape.alignment)
         } else if slot < 4 {
             let register = if matches!(shape.class, ValueClass::Float) {
                 MachineRegister::X86Xmm(slot as u8)
@@ -527,12 +522,12 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
             let shape = signature.result.expect("indirect result shape was present");
             Some(ValuePlacement {
                 shape,
-                locations: vec![ValueLocation::Indirect {
-                    pointer: IndirectPointerLocation::Register(MachineRegister::X86Rcx),
-                    copy_stack_byte_offset: None,
-                    byte_size: shape.byte_size,
-                    alignment: shape.alignment,
-                }],
+                locations: vec![ValueLocation::indirect(
+                    IndirectPointerLocation::Register(MachineRegister::X86Rcx),
+                    None,
+                    shape.byte_size,
+                    shape.alignment,
+                )],
             })
         } else {
             result_placement(signature.result, &[MachineRegister::X86Rax], |index| {
@@ -571,12 +566,12 @@ fn evaluate_system_v_amd64(signature: &CallSignature) -> Result<CallPlan, PlanDi
         && result.shape.byte_size > 8
     {
         result.locations = if result.shape.byte_size > 16 {
-            vec![ValueLocation::Indirect {
-                pointer: IndirectPointerLocation::Register(MachineRegister::X86Rdi),
-                copy_stack_byte_offset: None,
-                byte_size: result.shape.byte_size,
-                alignment: result.shape.alignment,
-            }]
+            vec![ValueLocation::indirect(
+                IndirectPointerLocation::Register(MachineRegister::X86Rdi),
+                None,
+                result.shape.byte_size,
+                result.shape.alignment,
+            )]
         } else {
             integer_register_fragment_locations(
                 result.shape,
@@ -612,12 +607,12 @@ fn evaluate_aapcs64(signature: &CallSignature) -> Result<CallPlan, PlanDiagnosti
         && matches!(result.shape.class, ValueClass::Integer)
     {
         if result.shape.byte_size > 16 {
-            result.locations = vec![ValueLocation::Indirect {
-                pointer: IndirectPointerLocation::Register(MachineRegister::Aarch64X(8)),
-                copy_stack_byte_offset: None,
-                byte_size: result.shape.byte_size,
-                alignment: result.shape.alignment,
-            }];
+            result.locations = vec![ValueLocation::indirect(
+                IndirectPointerLocation::Register(MachineRegister::Aarch64X(8)),
+                None,
+                result.shape.byte_size,
+                result.shape.alignment,
+            )];
         } else if result.shape.byte_size > 8 {
             result.locations = integer_register_fragment_locations(result.shape, &integer, 0);
         }
@@ -669,12 +664,12 @@ fn evaluate_split_bank_call(
                 stack_offset = stack_end(stack_offset, 8)?;
                 pointer
             };
-            locations.push(ValueLocation::Indirect {
+            locations.push(ValueLocation::indirect(
                 pointer,
-                copy_stack_byte_offset: None,
-                byte_size: shape.byte_size,
-                alignment: shape.alignment,
-            });
+                None,
+                shape.byte_size,
+                shape.alignment,
+            ));
             parameters.push(ValuePlacement { shape, locations });
             continue;
         }
@@ -708,11 +703,11 @@ fn evaluate_split_bank_call(
                         }
                     };
                     let value_byte_offset = fragment as u32 * 8;
-                    locations.push(ValueLocation::Register {
+                    locations.push(ValueLocation::register(
                         register,
                         value_byte_offset,
-                        byte_size: (shape.byte_size - value_byte_offset).min(8),
-                    });
+                        (shape.byte_size - value_byte_offset).min(8),
+                    ));
                 }
                 integer_index = aggregate_integer_index;
                 float_index = aggregate_float_index;
@@ -753,11 +748,11 @@ fn evaluate_split_bank_call(
                 let members = float_members.expect("float register count came from members");
                 let member_size = shape.byte_size / u32::from(members);
                 for member in 0..members {
-                    locations.push(ValueLocation::Register {
-                        register: float_register(float_index + member),
-                        value_byte_offset: u32::from(member) * member_size,
-                        byte_size: member_size,
-                    });
+                    locations.push(ValueLocation::register(
+                        float_register(float_index + member),
+                        u32::from(member) * member_size,
+                        member_size,
+                    ));
                 }
             }
             float_index += registers_needed;
@@ -776,12 +771,12 @@ fn evaluate_split_bank_call(
                     stack_offset = stack_end(stack_offset, 8)?;
                     pointer
                 };
-                locations.push(ValueLocation::Indirect {
+                locations.push(ValueLocation::indirect(
                     pointer,
-                    copy_stack_byte_offset: None,
-                    byte_size: shape.byte_size,
-                    alignment: shape.alignment,
-                });
+                    None,
+                    shape.byte_size,
+                    shape.alignment,
+                ));
             } else {
                 debug_assert_eq!(policy, CallingPolicy::SystemVAMD64);
                 stack_offset = align_up(stack_offset, u32::from(shape.alignment.clamp(8, 16)))?;
@@ -869,11 +864,11 @@ fn integer_register_fragment_locations(
     (0..(shape.byte_size.div_ceil(8) as usize))
         .map(|fragment| {
             let value_byte_offset = fragment * 8;
-            ValueLocation::Register {
-                register: registers[first_register + fragment],
-                value_byte_offset: value_byte_offset as u32,
-                byte_size: ((shape.byte_size as usize) - value_byte_offset).min(8) as u32,
-            }
+            ValueLocation::register(
+                registers[first_register + fragment],
+                value_byte_offset as u32,
+                ((shape.byte_size as usize) - value_byte_offset).min(8) as u32,
+            )
         })
         .collect()
 }
@@ -886,12 +881,12 @@ fn integer_stack_fragment_locations(
     Ok((0..(shape.byte_size.div_ceil(8) as usize))
         .map(|fragment| {
             let value_byte_offset = fragment * 8;
-            ValueLocation::Stack {
-                stack_byte_offset: first_stack_byte_offset + value_byte_offset as u32,
-                value_byte_offset: value_byte_offset as u32,
-                byte_size: ((shape.byte_size as usize) - value_byte_offset).min(8) as u32,
-                alignment: 8,
-            }
+            ValueLocation::stack(
+                first_stack_byte_offset + value_byte_offset as u32,
+                value_byte_offset as u32,
+                ((shape.byte_size as usize) - value_byte_offset).min(8) as u32,
+                8,
+            )
         })
         .collect())
 }
@@ -900,11 +895,11 @@ fn sysv_sse_fragment_locations(shape: ValueShape, first_register: u8) -> Vec<Val
     (0..shape.byte_size.div_ceil(8))
         .map(|fragment| {
             let value_byte_offset = fragment * 8;
-            ValueLocation::Register {
-                register: MachineRegister::X86Xmm(first_register + fragment as u8),
+            ValueLocation::register(
+                MachineRegister::X86Xmm(first_register + fragment as u8),
                 value_byte_offset,
-                byte_size: (shape.byte_size - value_byte_offset).min(8),
-            }
+                (shape.byte_size - value_byte_offset).min(8),
+            )
         })
         .collect()
 }
@@ -973,10 +968,12 @@ fn evaluate_syscall(
             .iter()
             .copied()
             .zip((0..shape.byte_size).step_by(8))
-            .map(|(register, value_byte_offset)| ValueLocation::Register {
-                register,
-                value_byte_offset,
-                byte_size: (shape.byte_size - value_byte_offset).min(8),
+            .map(|(register, value_byte_offset)| {
+                ValueLocation::register(
+                    register,
+                    value_byte_offset,
+                    (shape.byte_size - value_byte_offset).min(8),
+                )
             })
             .collect();
         parameters.push(ValuePlacement { shape, locations });
@@ -1036,10 +1033,12 @@ fn result_placement(
         ValueClass::HomogeneousFloatAggregate { members } => {
             let member_size = shape.byte_size / u32::from(members);
             (0..members)
-                .map(|member| ValueLocation::Register {
-                    register: float_register(member),
-                    value_byte_offset: u32::from(member) * member_size,
-                    byte_size: member_size,
+                .map(|member| {
+                    ValueLocation::register(
+                        float_register(member),
+                        u32::from(member) * member_size,
+                        member_size,
+                    )
                 })
                 .collect()
         }
@@ -1070,11 +1069,11 @@ fn result_placement(
                         }
                     };
                     let value_byte_offset = fragment as u32 * 8;
-                    Ok(ValueLocation::Register {
+                    Ok(ValueLocation::register(
                         register,
                         value_byte_offset,
-                        byte_size: (shape.byte_size - value_byte_offset).min(8),
-                    })
+                        (shape.byte_size - value_byte_offset).min(8),
+                    ))
                 })
                 .collect::<Result<Vec<_>, PlanDiagnostic>>()?
         }
@@ -1083,20 +1082,16 @@ fn result_placement(
 }
 
 fn register_location(register: MachineRegister, shape: ValueShape) -> ValueLocation {
-    ValueLocation::Register {
-        register,
-        value_byte_offset: 0,
-        byte_size: shape.byte_size,
-    }
+    ValueLocation::register(register, 0, shape.byte_size)
 }
 
 fn stack_location(stack_byte_offset: u32, shape: ValueShape) -> ValueLocation {
-    ValueLocation::Stack {
+    ValueLocation::stack(
         stack_byte_offset,
-        value_byte_offset: 0,
-        byte_size: shape.byte_size,
-        alignment: shape.alignment.min(16),
-    }
+        0,
+        shape.byte_size,
+        shape.alignment.min(16),
+    )
 }
 
 fn align_up(value: u32, alignment: u32) -> Result<u32, PlanDiagnostic> {
