@@ -259,7 +259,7 @@ pub(crate) struct ConstructorStorage {
     provider_descriptors:
         BTreeMap<StructuralRuntimePlace, crate::provider_storage::ProviderStorageBinding>,
     activation_descriptors:
-        BTreeMap<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
+        RuntimeRows<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
     host_atoms:
         RuntimeRows<StructuralRuntimePlace, crate::structural_storage::HostStructuralPayload>,
     scalars: RuntimeRows<StructuralScalarRuntimeField, TerminalScalarValue>,
@@ -303,7 +303,7 @@ impl ConstructorStorage {
         Self {
             completed_profiles: BTreeMap::new(),
             provider_descriptors: BTreeMap::new(),
-            activation_descriptors: BTreeMap::new(),
+            activation_descriptors: RuntimeRows::new(account),
             host_atoms: RuntimeRows::new(account),
             scalars: RuntimeRows::new(account),
             bytes: RuntimeRows::new(account),
@@ -366,7 +366,7 @@ impl ConstructorStorage {
             descriptor.opaque_identity = target.opaque_identity;
             descriptor.path = target.path.clone();
             self.activation_descriptors
-                .insert(target, binding.clone().with_descriptor_home(descriptor));
+                .insert(target, binding.clone().with_descriptor_home(descriptor))?;
         }
         for (home, profile) in &original.completed_profiles {
             self.completed_profiles
@@ -736,7 +736,7 @@ impl ConstructorStorage {
             self.activation_descriptors.insert(
                 destination.clone(),
                 binding.with_descriptor_home(descriptor),
-            );
+            )?;
             return Ok(());
         }
 
@@ -890,7 +890,7 @@ impl ConstructorStorage {
                 descriptor.opaque_identity = target.opaque_identity;
                 descriptor.path = target.path.clone();
                 self.activation_descriptors
-                    .insert(target, binding.clone().with_descriptor_home(descriptor));
+                    .insert(target, binding.clone().with_descriptor_home(descriptor))?;
             }
         }
         for (home, binding) in
@@ -1014,6 +1014,10 @@ impl ConstructorStorage {
         execution: &TerminalExecution<'_>,
     ) -> Result<(), TerminalInterpretError> {
         execution
+            .activation_storage
+            .claim_descriptors
+            .validate_append(&self.activation_descriptors)?;
+        execution
             .structural_scalar_fields
             .validate_append(&self.scalars)?;
         execution
@@ -1055,7 +1059,7 @@ impl ConstructorStorage {
         execution
             .activation_storage
             .claim_descriptors
-            .extend(self.activation_descriptors);
+            .append(&mut self.activation_descriptors)?;
         execution
             .provider_storage
             .descriptors

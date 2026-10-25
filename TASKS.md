@@ -1022,8 +1022,10 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     staging. Publication funds and validates receiving rows before retiring
     sources, including activation split/merge result cases. Exact/short-budget
     source controls exercise cases, byte fields and claim division through fuel
-    pauses, sticky refusal and teardown. Provider/activation ledgers and
-    descriptors, and cumulative result custody remain.
+    pauses, sticky refusal and teardown. Activation ledgers, live claims and
+    descriptor/owner rows now retain reservations through construction, transport,
+    division and retirement; division stages both outcomes before source custody
+    changes. Provider ledgers/descriptors and cumulative result custody remain.
     Connect those admitted operations, remaining live-storage and result accounting, remaining
     host operations, and `suspend Build::await_provider<R>(builder, alias)`
     park/resume to the production Build scheduler, replacing checked-tree Build
