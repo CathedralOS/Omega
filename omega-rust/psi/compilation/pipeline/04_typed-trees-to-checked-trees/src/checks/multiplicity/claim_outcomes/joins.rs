@@ -262,24 +262,6 @@ impl CallJoinPreparation {
                     .iter()
                     .find(|binding| binding.receiver == *receiver)
         });
-        // Temporary failure imaging: report changed retained data without
-        // re-running any semantic query or changing the preparation decision.
-        if changed && std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some() {
-            for receiver in &self.dependencies {
-                let before = self
-                    .bindings
-                    .iter()
-                    .find(|binding| binding.receiver == *receiver);
-                let after = bindings
-                    .iter()
-                    .find(|binding| binding.receiver == *receiver);
-                if before != after {
-                    eprintln!(
-                        "CLAIM_PREPARATION_JOIN receiver={receiver:?} before={before:?} after={after:?}"
-                    );
-                }
-            }
-        }
         self.bindings = bindings;
         changed
     }
@@ -1273,7 +1255,6 @@ fn derive_receipts(
     let ownership = &facts.flow.ownership;
     let maps = derive_checked_claim_outcome_maps(program, borrow, ownership, events)?;
     let mut receipts = Vec::new();
-    let trace_derivation = std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some();
     // This cache belongs to one immutable facts/events/maps revision, including
     // its exact completed operand handles. The private frontier projects one
     // received path, so a target alone cannot key it. Actual argument binding
@@ -1332,42 +1313,21 @@ fn derive_receipts(
         if !exact_call {
             continue;
         }
-        if trace_derivation {
-            eprintln!(
-                "CLAIM_JOIN_DERIVATION_INPUT event={event:?} expression={expression:?} received_path={received_path:?} call_ordinal={ordinal} target={:?}",
-                call.target_symbol
-            );
-        }
-        let failure = |reason, returns| {
-            let failure = CallClaimJoinFailure {
-                receiver: ReceivingClaim {
-                    machine: event.machine_symbol,
-                    state: event.state_symbol,
-                    source: event.source,
-                    expression,
-                    root: event.root,
-                    path: ownership.segments.span_or_empty(event.segments).to_vec(),
-                    identity: event.claim_identity,
-                },
-                statement: statement_index,
-                ordinal,
-                target: call.target_symbol,
-                reason,
-                returns,
-            };
-            if trace_derivation {
-                eprintln!(
-                    "CLAIM_JOIN_DERIVATION_FAILURE receiver={:?} target={:?} reason={}",
-                    failure.receiver, failure.target, failure.reason
-                );
-                for returned in &failure.returns {
-                    eprintln!(
-                        "CLAIM_JOIN_DERIVATION_RETURN exit={:?} reason={} source={:?}",
-                        returned.exit, returned.reason, returned.source
-                    );
-                }
-            }
-            failure
+        let failure = |reason, returns| CallClaimJoinFailure {
+            receiver: ReceivingClaim {
+                machine: event.machine_symbol,
+                state: event.state_symbol,
+                source: event.source,
+                expression,
+                root: event.root,
+                path: ownership.segments.span_or_empty(event.segments).to_vec(),
+                identity: event.claim_identity,
+            },
+            statement: statement_index,
+            ordinal,
+            target: call.target_symbol,
+            reason,
+            returns,
         };
         let frontier_index = match prepared_frontiers.iter().position(|prepared| {
             prepared.state == target.symbol && prepared.path.as_slice() == received_path
@@ -1470,12 +1430,6 @@ fn derive_receipts(
                     break;
                 }
             };
-            if trace_derivation {
-                eprintln!(
-                    "CLAIM_JOIN_DERIVATION_BOUND receiver_identity={:?} callee_source={:?} bound_sources={bound_sources:?}",
-                    event.claim_identity, entry.source
-                );
-            }
             for bound in bound_sources {
                 let mut captures = frontier.captures.clone();
                 captures.extend(bound.captures);
@@ -1490,12 +1444,6 @@ fn derive_receipts(
             }
         }
         if !complete || alternatives.is_empty() {
-            if trace_derivation {
-                eprintln!(
-                    "CLAIM_JOIN_DERIVATION_DROP gate=incomplete-alternatives identity={:?} complete={complete} alternatives={alternatives:?}",
-                    event.claim_identity
-                );
-            }
             continue;
         }
         // An available invariant whole-result map has already forwarded its
@@ -1513,31 +1461,13 @@ fn derive_receipts(
             ..
         } = event.claim_identity
         else {
-            if trace_derivation {
-                eprintln!(
-                    "CLAIM_JOIN_DERIVATION_DROP gate=nonlocal-identity identity={:?} provenance={:?}",
-                    event.claim_identity, event.provenance
-                );
-            }
             continue;
         };
         if machine_symbol != event.machine_symbol
             || state_symbol != state.symbol
             || source != event.source
         {
-            if trace_derivation {
-                eprintln!(
-                    "CLAIM_JOIN_DERIVATION_DROP gate=identity-owner identity={:?} event_machine={:?} event_state={:?} event_source={:?}",
-                    event.claim_identity, event.machine_symbol, event.state_symbol, event.source
-                );
-            }
             continue;
-        }
-        if trace_derivation {
-            eprintln!(
-                "CLAIM_JOIN_DERIVATION_RETAIN identity={:?} provenance={:?} alternatives={alternatives:?}",
-                event.claim_identity, event.provenance
-            );
         }
         receipts.push(Receipt {
             machine: event.machine_symbol,
@@ -1606,21 +1536,8 @@ pub(crate) fn publish_call_claim_joins(
         .collect::<Vec<_>>();
     // Earlier call joins can feed later calls, but no receipt cites itself.
     let mut converged = false;
-    let trace_derivation = std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some();
     for _ in 0..=events.len() {
-        // Failure collection is diagnostic payload only; the same derivation
-        // and original rewrite/convergence decisions remain authoritative.
-        let mut failures = Vec::new();
-        let receipts = derive_receipts(
-            program,
-            facts,
-            &events,
-            if trace_derivation {
-                Some(&mut failures)
-            } else {
-                None
-            },
-        )?;
+        let receipts = derive_receipts(program, facts, &events, None)?;
         let mut rewrites = Vec::new();
         for receipt in &receipts {
             let Some(provenance) = join_provenance(receipt) else {
@@ -1648,17 +1565,7 @@ pub(crate) fn publish_call_claim_joins(
     if !converged {
         return Err("call-result claim joins did not converge");
     }
-    let mut failures = Vec::new();
-    let receipts = derive_receipts(
-        program,
-        facts,
-        &events,
-        if trace_derivation {
-            Some(&mut failures)
-        } else {
-            None
-        },
-    )?;
+    let receipts = derive_receipts(program, facts, &events, None)?;
     let ownership = &mut facts.flow.ownership;
     ownership.permissions = Default::default();
     ownership.permissions.insert_many(events);

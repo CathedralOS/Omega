@@ -65,23 +65,6 @@ impl ClaimOutcomePreparation {
         });
         let joins_changed = self.joins.update(joins);
         let changed = maps_changed || joins_changed;
-        // Temporary observation of the existing preparation equations. This
-        // reads retained summaries only and does not participate in convergence.
-        if changed && std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some() {
-            eprintln!(
-                "CLAIM_PREPARATION_CHANGE revision={} maps={maps_changed} joins={joins_changed}",
-                self.revisions
-            );
-            for state in &self.dependencies {
-                let before = self.maps.iter().find(|map| map.state_symbol == *state);
-                let after = maps.iter().find(|map| map.state_symbol == *state);
-                if before != after {
-                    eprintln!(
-                        "CLAIM_PREPARATION_MAP state={state:?} before={before:?} after={after:?}"
-                    );
-                }
-            }
-        }
         if changed {
             self.revisions += 1;
             if self.revisions > self.revision_limit {
