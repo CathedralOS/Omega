@@ -404,6 +404,57 @@ fail/asm/backward_write_stale_ensures rejected 1449ms expected @a92f16431042
 	cannot prove asm `ensures` fact at block exit in Subject::change state `change` (statement 5): subject.ready
 fail/asm/borrow_read_after_backward_write rejected 1374ms expected @a92f16431042
 	statement 6 mutates `main.cell.value` while local borrow `borrowed` is still active (borrowed at statement 1; its last use is at statement 7)
+fail/asm/checked_asm_compare_arm_link_register_view rejected 10ms expected @e06334c63dc4+wt
+	tests/omega/fail/asm/checked_asm_compare_arm_link_register_view/main.omg:1:50: unsupported AArch64 scratch register view `w30`: register aliases require shared-bit state modeling
+fail/asm/checked_asm_compare_arm_unencodable_immediate rejected 4ms expected @e06334c63dc4+wt
+	tests/omega/fail/asm/checked_asm_compare_arm_unencodable_immediate/main.omg:1:48: cmp requires a modeled 32-bit register or a fitting unsigned 32-bit immediate source
+fail/asm/checked_asm_compare_arm_uninitialized_upper_register rejected 964ms expected @e06334c63dc4+wt
+	assembly label `asm#entry` reads uninitialized scratch register/flag value
+fail/asm/checked_asm_compare_exit_goal_overwritten rejected 3441ms expected @e06334c63dc4+wt
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 1): output == 37
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 1): output == 37
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 1): output == 37
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 1): output == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 2: output == 37
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 2: output == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 2: output == 37
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 2: output == 37
+fail/asm/checked_asm_compare_mixed_registers rejected 2ms expected @e06334c63dc4+wt
+	tests/omega/fail/asm/checked_asm_compare_mixed_registers/main.omg:8:9: assembly instruction and register operands require incompatible targets
+fail/asm/checked_asm_compare_one_block_false_exit_goal rejected 2576ms expected @e06334c63dc4+wt
+	cannot prove asm `ensures` fact at block exit in compare state `entry` (statement 9): output == 38
+	cannot prove asm `ensures` fact at block exit in compare state `entry` (statement 9): output == 38
+	cannot prove asm `ensures` fact at block exit in compare state `entry` (statement 9): output == 38
+	cannot prove asm `ensures` fact at block exit in compare state `entry` (statement 9): output == 38
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `asm#label#0#entry` (statement 4): output == 38
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `asm#label#0#entry` (statement 4): output == 38
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `asm#label#0#entry` (statement 4): output == 38
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `asm#label#0#entry` (statement 4): output == 38
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: output == 38 (needs fact `output == 38` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove ensures contract for exit from compare at statement 11: result == 37
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: output == 38 (needs fact `output == 38` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove ensures contract for exit from compare at statement 11: result == 37
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: output == 38 (needs fact `output == 38` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove ensures contract for exit from compare at statement 11: result == 37
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: output == 38 (needs fact `output == 38` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove ensures contract for exit from compare at statement 11: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 6: output == 38
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 6: output == 38
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 6: output == 38
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 6: output == 38
+fail/asm/checked_asm_compare_stale_intermediate_goal rejected 2320ms expected @e06334c63dc4+wt
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+fail/asm/checked_asm_compare_wrong_entry_edge rejected 2221ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call countdown$assembly$portable$4$entry from countdown: asm#scratch#4#zf$version$2 || asm#scratch#4#eax$version$1 == 0 (needs fact `asm#scratch#4#zf || asm#scratch#4#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/asm/checked_asm_compare_wrong_flag_snapshot rejected 1778ms expected @e06334c63dc4+wt
+	cannot prove asm `requires` fact at block entry in main state `entry` (statement 31): snapshot & 2261 == 148
+fail/asm/checked_asm_compare_wrong_target rejected 428ms expected @e06334c63dc4+wt
+	assembly catalog target requirement conflicts with the authored target body
+fail/asm/checked_asm_compare_x86_uninitialized_register rejected 515ms expected @e06334c63dc4+wt
+	assembly label `asm#entry` reads uninitialized scratch register/flag value
 fail/asm/cyclic_label rejected 326ms expected @a92f16431042
 	cyclic assembly label control in `Main::main` state `main` requires checked loop invariants; this control domain is not yet implemented
 fail/asm/duplicate_label rejected 15ms expected @a92f16431042
@@ -456,6 +507,8 @@ fail/asm/instruction_effect_wrong_port rejected 3020ms expected @a92f16431042
 	cannot prove asm `ensures` fact at block exit in observe state `entry` (statement 3): proposition:fact:port_written(33,byte)
 fail/asm/observation_does_not_establish_address_model rejected 894ms expected @a92f16431042
 	Exact integer cast in machine `convert` state `entry` from `addr` to `u64` is not provably representable; prove the embedded address fits the destination integer range at this occurrence; count and address widths are independent.
+fail/asm/ordinary_requires_only_call_still_checked rejected 3202ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call needs from main: 0 == 37 (needs fact `value == 37` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/asm/proposition_missing_premise rejected 1590ms expected @a92f16431042
 	cannot prove asm `requires` fact at block entry in observe state `entry` (statement 2): proposition:fact:ready(value)
 fail/asm/proposition_prior_write_invalidates_requires rejected 1554ms expected @a92f16431042
@@ -5117,6 +5170,51 @@ fail/facts/checked_asm_arm_load_through_parameter_rejected rejected 2ms expected
 	tests/omega/fail/facts/checked_asm_arm_load_through_parameter_rejected/main.omg:6:9: asm instruction `ldr` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
 fail/facts/checked_asm_arm_load_through_target_body_rejected rejected 2ms expected @a92f16431042
 	tests/omega/fail/facts/checked_asm_arm_load_through_target_body_rejected/main.omg:11:9: asm instruction `ldr` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
+fail/facts/checked_asm_compare_preserves_through_call_result_rejected rejected 2361ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_compare_preserves_through_const_name_rejected rejected 1964ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_compare_preserves_through_field_rejected rejected 2164ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_compare_preserves_through_local_rejected rejected 2728ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_compare_preserves_through_match_join_rejected rejected 2647ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_compare_preserves_through_other_machine_rejected rejected 3100ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_compare_preserves_through_other_state_rejected rejected 1982ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_compare_preserves_through_parameter_rejected rejected 2051ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_compare_preserves_through_target_body_rejected rejected 2163ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/checked_asm_countdown_through_call_result_rejected rejected 1597ms expected @a92f16431042
 	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 fail/facts/checked_asm_countdown_through_const_name_rejected rejected 3079ms expected @a92f16431042
@@ -20142,6 +20240,8 @@ pass/asm/atomic_release_disposition_reference_exit checked 2973ms check-target:l
 pass/asm/atomic_release_disposition_replaced_contents_exit checked 2963ms check-target:linux_x86_64 @a92f16431042
 pass/asm/atomic_release_disposition_returned_view_exit checked 3020ms check-target:linux_x86_64 @a92f16431042
 pass/asm/atomic_release_disposition_state_exit checked 2902ms check-target:linux_x86_64 @a92f16431042
+pass/asm/checked_asm_compare_flag_snapshot_exit checked 2749ms check-target:linux_x86_64 @e06334c63dc4+wt
+pass/asm/checked_asm_compare_one_block_exit checked 3915ms check-target:macos_arm64 @e06334c63dc4+wt
 pass/asm/checked_countdown_literal_exit checked 2852ms check-target:linux_x86_64 @a92f16431042
 pass/asm/checked_label_borrow_last_use_exit checked 3113ms check-target:macos_arm64 @a92f16431042
 pass/asm/checked_label_call_result_exit checked 2855ms check-target:macos_arm64 @a92f16431042
@@ -20149,6 +20249,7 @@ pass/asm/checked_label_edges_exit checked 2995ms check-target:macos_arm64 @a92f1
 pass/asm/checked_label_reverse_local_exit checked 2852ms check-target:macos_arm64 @a92f16431042
 pass/asm/checked_label_specialization_exit checked 2870ms check-target:macos_arm64 @a92f16431042
 pass/asm/checked_label_transition_exit checked 2900ms check-target:macos_arm64 @a92f16431042
+pass/asm/entry_zero_branch_conditional_exit checked 3977ms check-target:linux_x86_64 @e06334c63dc4+wt
 pass/asm/finite_prefix_preserves_model_exit checked 3232ms check-target:macos_arm64 @a92f16431042
 pass/asm/instruction_disposition_native checked 3819ms check-target:linux_x86_64 @a92f16431042
 pass/asm/observation_preserves_address_model checked 3186ms @a92f16431042
@@ -22468,6 +22569,15 @@ pass/facts/checked_asm_arm_load_through_other_machine_exit checked 2833ms check-
 pass/facts/checked_asm_arm_load_through_other_state_exit checked 2927ms check-target:macos_arm64 @a92f16431042
 pass/facts/checked_asm_arm_load_through_parameter_exit checked 2813ms check-target:macos_arm64 @a92f16431042
 pass/facts/checked_asm_arm_load_through_target_body_exit checked 2818ms check-target:macos_arm64 @a92f16431042
+pass/facts/checked_asm_compare_preserves_through_call_result_exit checked 3354ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/checked_asm_compare_preserves_through_const_name_exit checked 2801ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/checked_asm_compare_preserves_through_field_exit checked 3349ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/checked_asm_compare_preserves_through_local_exit checked 3124ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/checked_asm_compare_preserves_through_match_join_exit checked 3140ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/checked_asm_compare_preserves_through_other_machine_exit checked 3298ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/checked_asm_compare_preserves_through_other_state_exit checked 6687ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/checked_asm_compare_preserves_through_parameter_exit checked 5561ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/checked_asm_compare_preserves_through_target_body_exit checked 6041ms check-target:macos_arm64 @e06334c63dc4+wt
 pass/facts/checked_asm_countdown_through_call_result_exit checked 2817ms check-target:linux_x86_64 @a92f16431042
 pass/facts/checked_asm_countdown_through_const_name_exit checked 2782ms check-target:linux_x86_64 @a92f16431042
 pass/facts/checked_asm_countdown_through_field_exit checked 2857ms check-target:linux_x86_64 @a92f16431042
