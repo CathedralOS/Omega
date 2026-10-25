@@ -92,9 +92,9 @@ public data ProductEntryRef [copy] {
 // These are compiler host operations, not a user-selected service binding.
 // Their activation-local ticket is interpreted only at admitted call sites.
 public boundary trait BuildBindingOperations {
-    machine prepare(builder: &Build) -> u64;
-    machine bind(activation: u64);
-    machine bind_description(activation: u64, description: ProductEntryRef);
+    machine prepare(builder: &Build) -> u64 reaches;
+    machine bind(activation: u64) reaches;
+    machine bind_description(activation: u64, description: ProductEntryRef) reaches;
 }
 // A restricted, non-callable product-provider description (the
 // `ProductProviderRef` of wiki/spec/build/scoped_execution.md). Authored
