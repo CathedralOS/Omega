@@ -11,34 +11,23 @@ use crate::{
 use diagnostics::Diagnostic;
 use typed_trees::statement::StatementNode;
 
-pub(super) fn validate(
-    scope: &StatementScope<'_>,
-    outputs: &mut StatementOutputs<'_>,
-    statement: &StatementNode,
+/// Form the local's authored application before evaluating its initializer.
+/// Runtime index subjects capture this point; later initializer writes neither
+/// retag that application nor provide premises for its formation. Initializer
+/// values still use the ordinary may-write-invalidated environment below.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::program_validation) fn validate_type_reference(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state_name: &str,
+    local_data: &typed_trees::statement::TableLocalData,
+    symbols: &crate::TopLevelSymbols<'_>,
+    value_environment: &arithmetic_domains::ValueEnvironment,
+    diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(local_data) = statement.as_local_data() else {
-        unreachable!("dispatched local_data_statements")
-    };
-    // Pattern markers describe field coverage, not storage. Their subject is
-    // not assigned to the marker's Unit sentinel: doing so invents a whole-value
-    // move and rejects qualified subjects as implicit domain weakening. The
-    // destructure checker validates coverage; actual field bindings retain the
-    // Value role and all ordinary store, access, and qualification obligations.
     if local_data.role != language_core::LocalBindingRole::Value {
         return;
     }
-    let StatementScope {
-        program,
-        machine,
-        state_name,
-        current_state,
-        statement_index,
-        symbols,
-        ..
-    } = *scope;
-    let value_environment = &mut *outputs.value_environment;
-    let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
-    let diagnostics = &mut *outputs.diagnostics;
     let (type_parameters, lifetime_parameters) = program
         .machine_type_reference_scope(machine, |existing, parameter| {
             existing.symbol == parameter.symbol
@@ -62,6 +51,48 @@ pub(super) fn validate(
             lifetime_parameters: &lifetime_parameters,
         },
     );
+}
+
+pub(super) fn validate(
+    scope: &StatementScope<'_>,
+    outputs: &mut StatementOutputs<'_>,
+    statement: &StatementNode,
+) {
+    let Some(local_data) = statement.as_local_data() else {
+        unreachable!("dispatched local_data_statements")
+    };
+    // Pattern markers describe field coverage, not storage. Their subject is
+    // not assigned to the marker's Unit sentinel: doing so invents a whole-value
+    // move and rejects qualified subjects as implicit domain weakening. The
+    // destructure checker validates coverage; actual field bindings retain the
+    // Value role and all ordinary store, access, and qualification obligations.
+    if local_data.role != language_core::LocalBindingRole::Value {
+        return;
+    }
+    let StatementScope {
+        program,
+        machine,
+        state_name,
+        current_state,
+        statement_index,
+        ..
+    } = *scope;
+    let value_environment = &mut *outputs.value_environment;
+    let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
+    let diagnostics = &mut *outputs.diagnostics;
+    // Inferred results and operand captures belong to completed initializer
+    // operands, not to an authored receiving application at statement entry.
+    if local_data.type_is_inferred || local_data.is_operand_capture {
+        validate_type_reference(
+            program,
+            machine,
+            state_name,
+            local_data,
+            scope.symbols,
+            value_environment,
+            diagnostics,
+        );
+    }
     let local_target_primitive = program.primitive_type_reference(local_data.type_reference);
     // An array-literal initializer (`let a: [T; N] = [300, ..]`) is checked
     // element-wise against T.

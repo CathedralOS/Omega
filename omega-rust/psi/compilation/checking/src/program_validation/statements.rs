@@ -7,6 +7,7 @@ mod assignment_statements;
 mod call_statements;
 mod expression_statements;
 mod local_data_statements;
+pub(super) use local_data_statements::validate_type_reference as validate_local_type_reference;
 mod transition_statements;
 
 use crate::declarations::symbols::MachineSymbols;

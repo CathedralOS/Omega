@@ -100,9 +100,8 @@ pub(crate) fn validate_declaration_value_range(
         }
         crate::expression_traversal::children(program, node, |child| pending.push(child));
     }
-    // A local's type application uses its independently available flow facts.
-    // Initializer writes have already conservatively invalidated this context.
-    // Declaration-only applications retain the empty
+    // A local's type application captures its independently established facts
+    // before initializer evaluation. Declaration-only applications retain the empty
     // environment; the destination's own predicate never supplies evidence.
     let declaration_environment = ValueEnvironment::new();
     super::expression_analysis::analyze_declaration(
