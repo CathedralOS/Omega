@@ -93,6 +93,12 @@ class DevelopmentRun(unittest.TestCase):
             self.assertIn(f"case {name}: native exit 0; interp exit 0", result.stderr)
         self.assertFalse((self.project / "omega.lock").exists())
 
+    def test_run_preserves_private_entry_initialization_refusals(self):
+        result = self.invoke("run", "--both", "--entry-ram", "1=2900000003000000", "main.omg")
+        self.assert_exit(result, 200)
+        self.assertIn("private entry RAM initializer answers no declared entry position", result.stderr)
+        self.assertNotIn("native exit", result.stderr)
+
     def test_check_does_not_claim_or_publish_the_output_directory(self):
         output = self.project / "check-output"
         result = self.invoke("--check", "--build-dir", output, "--target", self.target, "main.omg")
