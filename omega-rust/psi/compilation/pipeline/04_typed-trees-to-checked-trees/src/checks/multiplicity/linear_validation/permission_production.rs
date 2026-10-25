@@ -194,6 +194,7 @@ pub(crate) fn evaluate_statement_permissions(
         machine_symbol,
         state_symbol,
         statement_index,
+        evaluation,
         occurrences,
         temporary_owners,
     );
@@ -1054,6 +1055,7 @@ struct SourceCompletion {
     expression: typed_trees::expression::ExpressionHandle,
     root: facts::PlaceRoot,
     type_reference: typed_trees::types::TypeReferenceHandle,
+    constraints: Option<arena::HandleSpan<checked_trees::FlowConstraintRef>>,
 }
 
 /// A copied leaf no longer uses its anonymous supplier's storage. End that
@@ -1067,6 +1069,7 @@ fn copy_source_completions(
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,
+    evaluation: checked_trees::FlowPermissionEvaluation,
     occurrences: &[crate::checks::ownership_occurrences::StatementOccurrence],
     temporary_owners: &[temporary_results::TemporaryOwner],
 ) -> Vec<SourceCompletion> {
@@ -1171,11 +1174,50 @@ fn copy_source_completions(
         {
             continue;
         }
+        // The schedule still owns hook-free deaths when no semantic context
+        // was published. Context-dependent cleanup must refuse that absence;
+        // a known empty exact context remains different from missing evidence.
+        let constraints = facts
+            .flow
+            .control
+            .state(machine, state)
+            .and_then(|flow_state| facts.flow.state_statement(flow_state, statement_index))
+            .and_then(|statement| {
+                let mut observations = facts
+                    .flow
+                    .control
+                    .value_observations
+                    .span_or_empty(statement.value_observations)
+                    .iter()
+                    .filter(|observation| {
+                        observation.expression == expression && observation.evaluation == evaluation
+                    });
+                let observation = observations.next()?;
+                if observations.next().is_some()
+                    || !facts.flow.control.operands.is_valid(observation.receiver)
+                    || !validation::canonical_place_from_expression_in_state(
+                        program,
+                        state,
+                        statement_index,
+                        facts
+                            .flow
+                            .control
+                            .operands
+                            .get(observation.receiver)
+                            .expression,
+                    )
+                    .is_some_and(|receiver| receiver.root == place.root)
+                {
+                    return None;
+                }
+                Some(observation.constraints)
+            });
         completions.push(SourceCompletion {
             occurrence: ordinal,
             expression,
             root: place.root,
             type_reference: reference,
+            constraints,
         });
     }
     completions

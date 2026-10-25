@@ -98,6 +98,7 @@ pub(in crate::checks::multiplicity) fn append_borrow(
                 source: owner.consumer,
                 exit: checked_trees::FlowClaimJoinExit::default(),
                 completion: owner.completion,
+                completion_constraints: owner.completion_constraints,
                 root,
                 disposed_type: owner.type_reference,
                 path: HandleSpan::empty(),

@@ -578,6 +578,7 @@ pub(super) fn prepare_storage_deaths(
                 source: PermissionEventSource::Statement { statement_index },
                 exit: checked_trees::FlowClaimJoinExit::default(),
                 completion: Default::default(),
+                completion_constraints: None,
                 root: place.root,
                 disposed_type,
                 path,
