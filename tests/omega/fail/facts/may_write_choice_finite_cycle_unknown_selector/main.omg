@@ -1,0 +1,34 @@
+// Choosing one of two mutable inputs and writing through that result preserves a disjoint index-bound fact on the other input.
+// Expected exit: 0
+// Place: local.
+
+machine choose<'storage>(chosen: &'storage mut u64, other: &'storage mut u64, pick_chosen: bool) -> &'storage mut u64 {
+    transition pick_chosen {
+        true -> rotate(chosen, other, true)
+        false -> rotate(other, chosen, true)
+    }
+    state rotate(first: &'storage mut u64, second: &'storage mut u64, again: bool) -> &'storage mut u64 {
+        transition again {
+            true -> rotate(second, first, false)
+            false -> second
+        }
+    }
+}
+
+machine overwrite(slot: &mut u64) -> u64 in Wrapping {
+    slot = 9;
+    (1 as u64 in Wrapping)
+}
+
+machine add(first: u64 in Wrapping, second: u64 in Wrapping) -> u64 in Wrapping {
+    first + second
+}
+
+machine consume(chosen: &mut u64, other: &mut u64, pick: bool)
+requires other < 4
+{
+    let items: [u8; 4] = [4, 7, 8, 9];
+    let marker: u64 in Wrapping = overwrite(choose(chosen, other, pick));
+    let observed: u8 = items[other];
+}
+machine main() {}
