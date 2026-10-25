@@ -7,9 +7,7 @@ use syntax_trees::expression::{BinaryOperator, TableBinaryExpression, TableCastE
 use syntax_trees::statement::TableLocalData;
 use syntax_trees::types::TypeReferenceNode;
 
-pub(super) use language_core::inline_assembly::{
-    ASM_SCRATCH_CLOBBERS as CLOBBERS, ASM_SCRATCH_NAMES as NAMES,
-};
+pub(super) use language_core::inline_assembly::ASM_SCRATCH_NAMES as NAMES;
 use language_core::inline_assembly::{ASM_SCRATCH_SLOT_COUNT, ASM_ZERO_FLAG_SLOT};
 
 pub(super) fn name(trees: &mut SyntaxTrees, value: &str) -> ExpressionHandle {

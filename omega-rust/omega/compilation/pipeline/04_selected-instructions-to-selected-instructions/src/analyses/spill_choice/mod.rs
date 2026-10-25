@@ -55,9 +55,6 @@ pub struct SpillChoiceValidationReceipt {
     pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
     pub(crate) policy: SpillChoicePolicy,
     pub(crate) usage: OptimizationWorkUsage,
-    pub(crate) function_count: usize,
-    pub(crate) choice_count: usize,
-    pub(crate) contender_count: usize,
 }
 
 impl SpillChoiceValidationReceipt {
@@ -81,15 +78,6 @@ impl SpillChoiceValidationReceipt {
     }
     pub const fn usage(self) -> OptimizationWorkUsage {
         self.usage
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn choice_count(self) -> usize {
-        self.choice_count
-    }
-    pub const fn contender_count(self) -> usize {
-        self.contender_count
     }
 }
 

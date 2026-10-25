@@ -366,6 +366,11 @@ pub fn atomic_resident_type_reference(
     cell: typed_trees::types::TypeReferenceHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let cell = program.type_reference_table.peeled_type_reference(cell);
+    if let Some((_, field)) = program.placed_view_field_plan_for_type_reference(cell)
+        && matches!(field.access, access_plans::FieldAccess::Atomic { .. })
+    {
+        return Some(field.value_type);
+    }
     let TypeReferenceNode::Named { symbol, .. } = program.type_reference_table.type_reference(cell)
     else {
         return None;

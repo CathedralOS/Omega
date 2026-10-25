@@ -10,7 +10,6 @@ use legalized_operations::{
 use selected_instructions::{
     MachineSemanticKind, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
 };
-use semantic_vocabulary::ScalarType;
 
 pub(super) fn emit(
     function: usize,
@@ -20,7 +19,6 @@ pub(super) fn emit(
 ) -> Result<bool, SelectedInstructionError> {
     let LegalizedScalarInstructionKind::AtomicAccess {
         location,
-        scalar_type,
         field_byte_offset,
         event,
         outcome,
@@ -29,7 +27,7 @@ pub(super) fn emit(
     else {
         return Ok(false);
     };
-    let (form, geometry) = crate::selection::atomic_access::form(source, row)
+    let (form, geometry, scalar_type) = crate::selection::atomic_access::form(source, row)
         .ok_or(SelectedInstructionError::custody())?;
     // The catalog admitting no constraint for an atomic form names the
     // target's implementation limit, not a producer or consumer defect.
@@ -38,7 +36,6 @@ pub(super) fn emit(
         .keys
         .for_semantic(MachineSemanticKind::AtomicAccess(form))
         .ok_or_else(|| SelectedInstructionError::unsupported_shape(function))?;
-    let scalar_type = ScalarType::Integer(*scalar_type);
     let base = super::structural::place_pointer(builder, row, location.place, 0)?;
     let (referent, _) = super::structural::runtime_address::cross_references(
         builder,

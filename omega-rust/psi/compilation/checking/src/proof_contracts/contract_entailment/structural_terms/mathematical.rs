@@ -90,6 +90,38 @@ fn read_term(
                 (PreparedConstantMeaning::Integer(value), []) => {
                     Some(StructuralTerm::Integer(value.clone()))
                 }
+                (PreparedConstantMeaning::FloatLiteral { format, bits }, []) => {
+                    let value = match format {
+                        numerics::literals::FloatFormat::F32 => {
+                            f64::from(f32::from_bits(*bits as u32))
+                        }
+                        numerics::literals::FloatFormat::F64 => f64::from_bits(*bits),
+                    };
+                    Some(StructuralTerm::Float(
+                        numerics::literals::FloatLiteral::from_f64(value),
+                    ))
+                }
+                (
+                    PreparedConstantMeaning::FloatRelation {
+                        operator,
+                        reference,
+                        ..
+                    },
+                    [left, right],
+                ) => {
+                    // The producer retained selected IEEE authority. Keep its
+                    // scalar lane distinct from mathematical integer order,
+                    // so negation never acquires integer complement laws.
+                    let primitive = program.primitive_type_reference(*reference)?;
+                    let domain = program.arithmetic_domain_for_type_reference(*reference);
+                    Some(StructuralTerm::ScalarBinary {
+                        references: [*reference; 2],
+                        operator: *operator,
+                        meaning: [(primitive, domain); 2],
+                        left: Box::new(read(*left)?),
+                        right: Box::new(read(*right)?),
+                    })
+                }
                 (PreparedConstantMeaning::AddressBound(symbol), [])
                     if program.symbols.builtin_type_member(*symbol)
                         == Some(symbols::BuiltinTypeMember::AddressBound) =>

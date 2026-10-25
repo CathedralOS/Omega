@@ -190,7 +190,10 @@ pub(super) fn synthesize_exact_records(
             let field_type = syntax
                 .tables
                 .type_references
-                .insert_named(Identifier::generated(accessor_name));
+                // The accessor reference must resolve in the same source-owned
+                // namespace as the declaration emitted above. A source-free
+                // reference loses that exact binding during symbol resolution.
+                .insert_named(generated_identifier(accessor_name, provenance));
             let field_type = projection_shape(syntax, field.type_reference, field_type);
             members.push(DataMember::Field(DataField {
                 identity: field.identity,

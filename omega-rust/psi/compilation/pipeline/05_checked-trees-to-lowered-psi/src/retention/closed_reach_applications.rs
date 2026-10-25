@@ -127,7 +127,7 @@ pub(crate) fn retain_closed_reach_applications(
                         machines.next().ok_or(LoweringError::Unsupported(
                             "closed reach telescope lost a selected machine contract",
                         ))?;
-                    let (selected_machine, selected_state) = checked
+                    let (selected_machine, _) = checked
                         .machines()
                         .iter()
                         .find_map(|machine| {
@@ -211,11 +211,6 @@ pub(crate) fn retain_closed_reach_applications(
                             ),
                         )),
                     };
-                    let overload = checked
-                        .machine_callable_identity_text(selected_machine)
-                        .ok_or(LoweringError::Unsupported(
-                            "closed reach selected machine has no normalized identity",
-                        ))?;
                     let upper_bound = retain_services(
                         identities,
                         checked,
@@ -233,12 +228,8 @@ pub(crate) fn retain_closed_reach_applications(
                     ClosedReachParameter::Machine(ClosedReachMachineBinding {
                         nominal_requirement,
                         upper_bound,
-                        selected_identity: identities.intern(&format!(
-                            "{}|{}|selected={}",
-                            declaration_identity(checked, selected_machine.symbol),
-                            overload,
-                            declaration_identity(checked, selected_state.symbol)
-                        )),
+                        selected_identity: identities
+                            .intern(&selected_static_machine_identity(checked, *selected)?),
                         selected_contract_commitment: *commitment,
                         selected_reach,
                         callee,
@@ -301,6 +292,15 @@ pub(crate) fn retain_closed_reach_applications(
                 let Some(operation) = occurrence.terminal_site.operation() else {
                     continue;
                 };
+                let emitted = module.machine(owner)
+                    .and_then(|machine| machine.operations().find(|emitted| emitted.id == operation))
+                    .ok_or(LoweringError::Unsupported("closed reach call lost its emitted operation"))?;
+                // Only direct substitution joins this relation. Opaque calls
+                // retain their independent boundary application custody; the
+                // owner dependency and telescope survive either realization.
+                if emitted.kind.direct_callee().is_none() {
+                    continue;
+                }
                 calls.push(ClosedReachCall {
                     operation,
                     binder: binder as u32,
@@ -462,29 +462,9 @@ fn closed_call_application(
                 let (selected, commitment) = machines.next().ok_or(LoweringError::Unsupported(
                     "schema call lost a machine argument",
                 ))?;
-                let owner = checked
-                    .machines()
-                    .iter()
-                    .find(|machine| {
-                        typed_trees::state::state_by_symbol(
-                            checked.machine_states(machine),
-                            *selected,
-                        )
-                        .is_some()
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "schema call argument lost its selected owner",
-                    ))?;
-                let overload = checked.machine_callable_identity_text(owner).ok_or(
-                    LoweringError::Unsupported("schema call argument has no normalized identity"),
-                )?;
                 ClosedReachArgument::Machine {
-                    identity: identities.intern(&format!(
-                        "{}|{}|selected={}",
-                        declaration_identity(checked, owner.symbol),
-                        overload,
-                        declaration_identity(checked, *selected)
-                    )),
+                    identity: identities
+                        .intern(&selected_static_machine_identity(checked, *selected)?),
                     contract_commitment: *commitment,
                 }
             }
@@ -504,6 +484,33 @@ fn closed_call_application(
         specialization_commitment: checked_identity.commitment.as_bytes(),
         arguments,
     }))
+}
+
+/// A static machine operand names its exact checked owner, overload and entry.
+/// Reach telescopes, nested schema tuples and conformance method tuples must
+/// retain the same identity. A callable-only evidence identity omits the
+/// selected entry and cannot join these independent invocation records.
+pub(crate) fn selected_static_machine_identity(
+    checked: &CheckedTrees,
+    selected: SymbolHandle,
+) -> Result<String, LoweringError> {
+    let owner = checked
+        .machine_holding_state(selected)
+        .ok_or(LoweringError::Unsupported(
+            "static machine argument lost its exact selected owner",
+        ))?;
+    let overload =
+        checked
+            .machine_callable_identity_text(owner)
+            .ok_or(LoweringError::Unsupported(
+                "static machine argument has no normalized callable identity",
+            ))?;
+    Ok(format!(
+        "{}|{}|selected={}",
+        declaration_identity(checked, owner.symbol),
+        overload,
+        declaration_identity(checked, selected),
+    ))
 }
 
 fn exact_machine(

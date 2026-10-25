@@ -4,7 +4,7 @@
 
 use super::{
     Diagnostic, ExpressionHandle, ExpressionNode, Machine, State, StateParameter, ValueEnvironment,
-    WritableRoots, argument_matches_carrier, declared_place_type, declared_reference_access,
+    WritableRoots, argument_matches_call_carrier, declared_place_type, declared_reference_access,
     validate_call_arguments,
 };
 
@@ -156,7 +156,7 @@ pub(super) fn validate_requirement_call_arguments(
                     requirement,
                 );
             }
-            argument_matches_carrier(program, machine.symbol, argument, required, &[])
+            argument_matches_call_carrier(program, machine.symbol, argument, required, &[])
         },
         diagnostics,
     );

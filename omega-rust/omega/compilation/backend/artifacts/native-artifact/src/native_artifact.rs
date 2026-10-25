@@ -45,37 +45,31 @@ use identity::{
 /// Complete source-independent Terminal-Psi native realization. Independent
 /// target images may retain the same immutable Terminal artifact without copying
 /// its semantic arenas or encoded sections.
+///
+/// The artifact owns its publication row ([`NativeArtifactParts`]) plus the two
+/// things that row deliberately does not carry: the derived evidence gap and
+/// the identity sealed over the exact row.
 #[derive(Debug)]
 #[must_use = "a native artifact owns the canonical semantic and target artifact join"]
 pub struct NativeArtifact {
-    target: target::NativeTarget,
-    psi_artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-    object: image_emission::ObjectArtifact,
-    image: image_emission::ExecutableImage,
-    selected_provider_closure_report_identity: u64,
-    selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
-    selected_provider_plans: Vec<NativeSelectedProviderPlan>,
-    provider_executions: Vec<NativeProviderExecution>,
-    terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
-    terminal_authority_permission_policy_identity:
-        Option<TerminalAuthorityPermissionPolicyIdentity>,
-    terminal_authority_closure_review: TerminalAuthorityClosureReviewReceipt,
-    boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
-    physical_evidence_scope: NativePhysicalEvidenceScope,
-    physical_evidence: Option<NativePhysicalEvidence>,
+    parts: NativeArtifactParts,
     /// The exact subject that stopped the scoped derivation when
-    /// `physical_evidence` is absent. Derived here, never retained as a
+    /// `parts.physical_evidence` is absent. Derived here, never retained as a
     /// caller claim: `NativeArtifactParts` deliberately has no slot for it.
     physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
     identity: NativeArtifactIdentity,
 }
 
+/// The one publication row both native products carry: the canonical Terminal
+/// artifact join, its image carrier, and the exact selected-provider and
+/// authority custody this compile realized it under. `Image` is the product's
+/// own format carrier, so no product restates the row.
 #[derive(Debug)]
-pub struct NativeArtifactParts {
+pub struct NativeArtifactParts<Image = image_emission::ExecutableImage> {
     pub target: target::NativeTarget,
     pub psi_artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     pub object: image_emission::ObjectArtifact,
-    pub image: image_emission::ExecutableImage,
+    pub image: Image,
     pub selected_provider_closure_report_identity: u64,
     pub selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
@@ -119,6 +113,47 @@ pub struct NativeArtifactEmissionParts<Image = image_emission::ExecutableImage> 
     pub physical_evidence_scope: NativePhysicalEvidenceScope,
 }
 
+impl<Image> NativeArtifactEmissionParts<Image> {
+    /// The publication row this compile just produced, with the physical
+    /// children its own image format derived over it. The caller keeps its
+    /// format's derivation (the digest source is the format difference); this
+    /// owner keeps the row and the gap translation.
+    fn into_parts(
+        self,
+        derivation: NativePhysicalEvidenceDerivation,
+    ) -> (
+        NativeArtifactParts<Image>,
+        Option<NativePhysicalEvidenceGap>,
+    ) {
+        let (physical_evidence, physical_evidence_gap) = match derivation {
+            NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
+            NativePhysicalEvidenceDerivation::Unavailable => (None, None),
+            NativePhysicalEvidenceDerivation::Blocked(gap) => (None, Some(gap)),
+        };
+        (
+            NativeArtifactParts {
+                target: self.target,
+                psi_artifact: self.psi_artifact,
+                object: self.object,
+                image: self.image,
+                selected_provider_closure_report_identity: self
+                    .selected_provider_closure_report_identity,
+                selected_provider_closure_digest: self.selected_provider_closure_digest,
+                selected_provider_plans: self.selected_provider_plans,
+                provider_executions: self.provider_executions,
+                terminal_authority_policy_identity: self.terminal_authority_policy_identity,
+                terminal_authority_permission_policy_identity: self
+                    .terminal_authority_permission_policy_identity,
+                terminal_authority_closure_review: self.terminal_authority_closure_review,
+                boundary_application_coverage: self.boundary_application_coverage,
+                physical_evidence_scope: self.physical_evidence_scope,
+                physical_evidence,
+            },
+            physical_evidence_gap,
+        )
+    }
+}
+
 impl NativeArtifact {
     /// Complete fresh native emission by deriving the identity optimization
     /// projection and every currently supported physical child. The artifact
@@ -127,7 +162,25 @@ impl NativeArtifact {
     /// [`Self::from_replayed_parts`] and [`Self::validate`] replay it for
     /// retained-artifact readers.
     pub fn from_emitted_parts(parts: NativeArtifactEmissionParts) -> Result<Self, &'static str> {
-        let (physical_evidence, physical_evidence_gap) = match derive_physical_evidence(
+        // Fragment calls already belong to the object and its emitted image.
+        // Check the independent projection instead of appending calls after
+        // image emission, which would omit their admitted stack demand.
+        // This live object/image join is independent of optional PCC evidence.
+        // Compare empty rosters too: an image cannot append an unowned call.
+        if parts.image.foreign_calls() != parts.object.foreign_calls() {
+            return Err("native artifact image differs from fragment foreign call custody");
+        }
+        let (parts, physical_evidence_gap) =
+            Self::derivation_of(&parts).map(|derivation| parts.into_parts(derivation))?;
+        Ok(Self::seal(parts, physical_evidence_gap))
+    }
+
+    /// The physical children of the completed direct image, over the exact
+    /// Terminal/object/image join this compile just produced.
+    fn derivation_of(
+        parts: &NativeArtifactEmissionParts,
+    ) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
+        derive_physical_evidence(
             &parts.physical_evidence_scope,
             &parts.psi_artifact,
             parts.target,
@@ -137,40 +190,7 @@ impl NativeArtifact {
             &parts.selected_provider_plans,
             &parts.provider_executions,
             parts.boundary_application_coverage.as_ref(),
-        )? {
-            NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
-            NativePhysicalEvidenceDerivation::Unavailable => (None, None),
-            NativePhysicalEvidenceDerivation::Blocked(gap) => (None, Some(gap)),
-        };
-        // Fragment calls already belong to the object and its emitted image.
-        // Check the independent projection instead of appending calls after
-        // image emission, which would omit their admitted stack demand.
-        // This live object/image join is independent of optional PCC evidence.
-        // Compare empty rosters too: an image cannot append an unowned call.
-        if parts.image.foreign_calls() != parts.object.foreign_calls() {
-            return Err("native artifact image differs from fragment foreign call custody");
-        }
-        Ok(Self::seal(
-            NativeArtifactParts {
-                target: parts.target,
-                psi_artifact: parts.psi_artifact,
-                object: parts.object,
-                image: parts.image,
-                selected_provider_closure_report_identity: parts
-                    .selected_provider_closure_report_identity,
-                selected_provider_closure_digest: parts.selected_provider_closure_digest,
-                selected_provider_plans: parts.selected_provider_plans,
-                provider_executions: parts.provider_executions,
-                terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
-                terminal_authority_permission_policy_identity: parts
-                    .terminal_authority_permission_policy_identity,
-                terminal_authority_closure_review: parts.terminal_authority_closure_review,
-                boundary_application_coverage: parts.boundary_application_coverage,
-                physical_evidence_scope: parts.physical_evidence_scope,
-                physical_evidence,
-            },
-            physical_evidence_gap,
-        ))
+        )
     }
 
     /// Replay every source-free identity and byte relation retained here.
@@ -205,22 +225,7 @@ impl NativeArtifact {
         physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
     ) -> Self {
         let mut artifact = Self {
-            target: parts.target,
-            psi_artifact: parts.psi_artifact,
-            object: parts.object,
-            image: parts.image,
-            selected_provider_closure_report_identity: parts
-                .selected_provider_closure_report_identity,
-            selected_provider_closure_digest: parts.selected_provider_closure_digest,
-            selected_provider_plans: parts.selected_provider_plans,
-            provider_executions: parts.provider_executions,
-            terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
-            terminal_authority_permission_policy_identity: parts
-                .terminal_authority_permission_policy_identity,
-            terminal_authority_closure_review: parts.terminal_authority_closure_review,
-            boundary_application_coverage: parts.boundary_application_coverage,
-            physical_evidence_scope: parts.physical_evidence_scope,
-            physical_evidence: parts.physical_evidence,
+            parts,
             physical_evidence_gap,
             identity: NativeArtifactIdentity([0; 32]),
         };
@@ -229,73 +234,85 @@ impl NativeArtifact {
     }
 
     pub fn validate(&self) -> Result<(), &'static str> {
-        let semantic = self.psi_artifact.manifest().semantic();
-        if self.object.psi() != semantic || self.image.psi() != semantic {
+        let semantic = self.parts.psi_artifact.manifest().semantic();
+        if self.parts.object.psi() != semantic || self.parts.image.psi() != semantic {
             return Err("native artifact semantic identity disagrees with its object or image");
         }
-        if self.object.target() != self.target || self.image.target() != self.target {
+        if self.parts.object.target() != self.parts.target
+            || self.parts.image.target() != self.parts.target
+        {
             return Err("native artifact target disagrees with its object or image");
         }
         if self
+            .parts
             .terminal_authority_closure_review
             .terminal_artifact_identity()
-            != *self.psi_artifact.manifest().identity().as_bytes()
-            || self.terminal_authority_closure_review.target() != self.target
+            != *self.parts.psi_artifact.manifest().identity().as_bytes()
+            || self.parts.terminal_authority_closure_review.target() != self.parts.target
             || self
+                .parts
                 .terminal_authority_closure_review
                 .selected_provider_closure()
                 .as_bytes()
-                != self.selected_provider_closure_digest.as_bytes()
-            || self.terminal_authority_closure_review.physical_policy()
-                != self.terminal_authority_policy_identity
-            || self.terminal_authority_closure_review.permission_policy()
-                != self.terminal_authority_permission_policy_identity
+                != self.parts.selected_provider_closure_digest.as_bytes()
+            || self
+                .parts
+                .terminal_authority_closure_review
+                .physical_policy()
+                != self.parts.terminal_authority_policy_identity
+            || self
+                .parts
+                .terminal_authority_closure_review
+                .permission_policy()
+                != self.parts.terminal_authority_permission_policy_identity
         {
             return Err(
                 "native artifact terminal-authority closure receipt drifted from its exact realization inputs",
             );
         }
-        image_emission::validate_direct_executable_image(&self.object, &self.image)
+        image_emission::validate_direct_executable_image(&self.parts.object, &self.parts.image)
             .map_err(|_| "native artifact image failed object-to-image replay")?;
-        let module = self.psi_artifact.semantic_module();
-        mixed_structural_scalar::validate(module, &self.object)?;
+        let module = self.parts.psi_artifact.semantic_module();
+        mixed_structural_scalar::validate(module, &self.parts.object)?;
         validate_boundary_application_coverage(
             module,
-            self.psi_artifact.manifest().semantic(),
-            self.boundary_application_coverage.as_ref(),
-            &self.physical_evidence_scope,
+            self.parts.psi_artifact.manifest().semantic(),
+            self.parts.boundary_application_coverage.as_ref(),
+            &self.parts.physical_evidence_scope,
         )?;
         validate_ieee_float_fma_occurrences(module)?;
-        self.object.validate_terminal_entry(&self.psi_artifact)?;
-        if self.selected_provider_closure_report_identity == 0 {
+        self.parts
+            .object
+            .validate_terminal_entry(&self.parts.psi_artifact)?;
+        if self.parts.selected_provider_closure_report_identity == 0 {
             return Err("native artifact selected provider closure has the reserved zero identity");
         }
 
         provider_execution::replay_provider_executions(
             module,
-            self.image.boundary_settlements(),
-            self.image.foreign_calls(),
-            &self.selected_provider_plans,
-            &self.provider_executions,
+            self.parts.image.boundary_settlements(),
+            self.parts.image.foreign_calls(),
+            &self.parts.selected_provider_plans,
+            &self.parts.provider_executions,
         )
         .map_err(provider_execution::ProviderExecutionReplayError::direct_message)?;
         let (expected_physical_evidence, expected_physical_evidence_gap) =
             match derive_physical_evidence(
-                &self.physical_evidence_scope,
-                &self.psi_artifact,
-                self.target,
-                &self.object,
-                self.image.output(),
-                *self.image.final_image_symbol_digest().as_bytes(),
-                &self.selected_provider_plans,
-                &self.provider_executions,
-                self.boundary_application_coverage.as_ref(),
+                &self.parts.physical_evidence_scope,
+                &self.parts.psi_artifact,
+                self.parts.target,
+                &self.parts.object,
+                self.parts.image.output(),
+                *self.parts.image.final_image_symbol_digest().as_bytes(),
+                &self.parts.selected_provider_plans,
+                &self.parts.provider_executions,
+                self.parts.boundary_application_coverage.as_ref(),
             )? {
                 NativePhysicalEvidenceDerivation::Unavailable => (None, None),
                 NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
                 NativePhysicalEvidenceDerivation::Blocked(gap) => (None, Some(gap)),
             };
-        if self.physical_evidence != expected_physical_evidence {
+        if self.parts.physical_evidence != expected_physical_evidence {
             return Err(
                 "native artifact physical children disagree with its validated identity projection",
             );
@@ -312,7 +329,7 @@ impl NativeArtifact {
     }
 
     fn recomputed_identity(&self) -> NativeArtifactIdentity {
-        let output = self.image.output();
+        let output = self.parts.image.output();
         let (
             compiler_text_validation_digest,
             compiler_function_validation,
@@ -320,12 +337,12 @@ impl NativeArtifact {
             compiler_entry_footprint_binding,
         ) = compiler_identity_evidence(output);
         derive_native_artifact_identity(NativeArtifactIdentityFields {
-            terminal_artifact_identity: *self.psi_artifact.manifest().identity().as_bytes(),
-            target: self.target,
-            object_text_bytes: self.object.text_bytes(),
+            terminal_artifact_identity: *self.parts.psi_artifact.manifest().identity().as_bytes(),
+            target: self.parts.target,
+            object_text_bytes: self.parts.object.text_bytes(),
             image_bytes: &output.bytes,
             final_text_bytes: &output.final_text_bytes,
-            image_subsystem: self.image.subsystem(),
+            image_subsystem: self.parts.image.subsystem(),
             output_file_name: &output.file_name,
             output_format: &output.format,
             output_counts: [
@@ -340,7 +357,7 @@ impl NativeArtifact {
             ],
             callback_placement_identity_report_fingerprint: output
                 .callback_placement_identity_report_fingerprint,
-            final_image_symbol_digest: *self.image.final_image_symbol_digest().as_bytes(),
+            final_image_symbol_digest: *self.parts.image.final_image_symbol_digest().as_bytes(),
             executable_region_inventory_digest: *output
                 .executable_regions
                 .inventory_digest
@@ -352,21 +369,29 @@ impl NativeArtifact {
             compiler_function_validation,
             compiler_entry_region_binding,
             compiler_entry_footprint_binding,
-            selected_provider_closure_digest: *self.selected_provider_closure_digest.as_bytes(),
-            foreign_call_custody_digest: foreign_call_custody_digest(self.image.foreign_calls()),
-            selected_provider_plans: &self.selected_provider_plans,
-            provider_executions: &self.provider_executions,
-            terminal_authority_policy_identity: self.terminal_authority_policy_identity,
+            selected_provider_closure_digest: *self
+                .parts
+                .selected_provider_closure_digest
+                .as_bytes(),
+            foreign_call_custody_digest: foreign_call_custody_digest(
+                self.parts.image.foreign_calls(),
+            ),
+            selected_provider_plans: &self.parts.selected_provider_plans,
+            provider_executions: &self.parts.provider_executions,
+            terminal_authority_policy_identity: self.parts.terminal_authority_policy_identity,
             terminal_authority_permission_policy_identity: self
+                .parts
                 .terminal_authority_permission_policy_identity,
             terminal_authority_closure_review_identity: self
+                .parts
                 .terminal_authority_closure_review
                 .identity(),
             boundary_application_coverage_identity: boundary_application_coverage_identity(
-                self.boundary_application_coverage.as_ref(),
+                self.parts.boundary_application_coverage.as_ref(),
             ),
-            physical_evidence_scope: &self.physical_evidence_scope,
+            physical_evidence_scope: &self.parts.physical_evidence_scope,
             physical_evidence_identity: self
+                .parts
                 .physical_evidence
                 .as_ref()
                 .map(|evidence| *evidence.identity()),
@@ -378,33 +403,33 @@ impl NativeArtifact {
     }
 
     pub const fn target(&self) -> target::NativeTarget {
-        self.target
+        self.parts.target
     }
 
     pub fn semantic_bytes(&self) -> &[u8] {
-        self.psi_artifact.semantic_bytes()
+        self.parts.psi_artifact.semantic_bytes()
     }
 
     pub fn psi_artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
-        &self.psi_artifact
+        &self.parts.psi_artifact
     }
 
     pub const fn object(&self) -> &image_emission::ObjectArtifact {
-        &self.object
+        &self.parts.object
     }
 
     pub const fn image(&self) -> &image_emission::ExecutableImage {
-        &self.image
+        &self.parts.image
     }
 
     /// Non-authoritative compatibility/report identity of the selected
     /// provider closure.
     pub const fn selected_provider_closure_report_identity(&self) -> u64 {
-        self.selected_provider_closure_report_identity
+        self.parts.selected_provider_closure_report_identity
     }
 
     pub const fn selected_provider_closure_digest(&self) -> NativeSelectedProviderClosureDigest {
-        self.selected_provider_closure_digest
+        self.parts.selected_provider_closure_digest
     }
 
     pub const fn identity(&self) -> NativeArtifactIdentity {
@@ -412,18 +437,18 @@ impl NativeArtifact {
     }
 
     pub fn selected_provider_plans(&self) -> &[NativeSelectedProviderPlan] {
-        &self.selected_provider_plans
+        &self.parts.selected_provider_plans
     }
 
     pub fn provider_executions(&self) -> &[NativeProviderExecution] {
-        &self.provider_executions
+        &self.parts.provider_executions
     }
 
     /// Exact receiving target-policy identity accepted while realizing this
     /// artifact. This records classification policy only; it is not service
     /// containment or provider-execution admission evidence.
     pub const fn terminal_authority_policy_identity(&self) -> TerminalAuthorityPolicyIdentity {
-        self.terminal_authority_policy_identity
+        self.parts.terminal_authority_policy_identity
     }
 
     /// The receiving permission-policy identity this artifact was realized
@@ -431,13 +456,13 @@ impl NativeArtifact {
     pub const fn terminal_authority_permission_policy_identity(
         &self,
     ) -> Option<TerminalAuthorityPermissionPolicyIdentity> {
-        self.terminal_authority_permission_policy_identity
+        self.parts.terminal_authority_permission_policy_identity
     }
 
     pub const fn terminal_authority_closure_review(
         &self,
     ) -> &TerminalAuthorityClosureReviewReceipt {
-        &self.terminal_authority_closure_review
+        &self.parts.terminal_authority_closure_review
     }
 
     /// Exact D29 demand and realization custody. `None` means this artifact
@@ -446,18 +471,18 @@ impl NativeArtifact {
     pub const fn boundary_application_coverage(
         &self,
     ) -> Option<&TerminalBoundaryApplicationCoverage> {
-        self.boundary_application_coverage.as_ref()
+        self.parts.boundary_application_coverage.as_ref()
     }
 
     pub fn physical_evidence_scope(&self) -> NativePhysicalEvidenceScope {
-        self.physical_evidence_scope.clone()
+        self.parts.physical_evidence_scope.clone()
     }
 
     /// Complete D32 evidence for the currently supported physical lane.
     /// `None` means the artifact contains a role this implementation does not
     /// yet cover; it grants no final-realization claim for that role.
     pub const fn physical_evidence(&self) -> Option<&NativePhysicalEvidence> {
-        self.physical_evidence.as_ref()
+        self.parts.physical_evidence.as_ref()
     }
 
     /// The exact subject that stopped this artifact's scoped D32 derivation
@@ -470,24 +495,7 @@ impl NativeArtifact {
     }
 
     pub fn into_parts(self) -> NativeArtifactParts {
-        NativeArtifactParts {
-            target: self.target,
-            psi_artifact: self.psi_artifact,
-            object: self.object,
-            image: self.image,
-            selected_provider_closure_report_identity: self
-                .selected_provider_closure_report_identity,
-            selected_provider_closure_digest: self.selected_provider_closure_digest,
-            selected_provider_plans: self.selected_provider_plans,
-            provider_executions: self.provider_executions,
-            terminal_authority_policy_identity: self.terminal_authority_policy_identity,
-            terminal_authority_permission_policy_identity: self
-                .terminal_authority_permission_policy_identity,
-            terminal_authority_closure_review: self.terminal_authority_closure_review,
-            boundary_application_coverage: self.boundary_application_coverage,
-            physical_evidence_scope: self.physical_evidence_scope,
-            physical_evidence: self.physical_evidence,
-        }
+        self.parts
     }
 }
 

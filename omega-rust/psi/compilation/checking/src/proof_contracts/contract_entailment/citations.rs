@@ -110,7 +110,16 @@ pub(super) fn can_establish_citation(
                 .proof_facts
                 .span_or_empty(contract.facts)
                 .iter()
-                .any(|fact| fact.as_expression().is_some())
+                .any(|fact| {
+                    fact.as_expression().is_some_and(|expression| {
+                        // Runtime citation intake transports case observations,
+                        // not scalar/reference postconditions. Those remain on
+                        // ordinary checked call flow; requiring structural site
+                        // discharge when nothing can be imported invents a gate.
+                        !runtime_invocation
+                            || super::call_requirements::contains_case_premise(program, *expression)
+                    })
+                })
     })
 }
 
@@ -248,6 +257,23 @@ pub(crate) fn collect_citation_equations(
         else {
             continue;
         };
+        // A completed operational call with no transported guarantee is not
+        // a theorem citation. Its entry obligations are checked by ordinary
+        // call flow after the executed prefix, including fresh local versions.
+        // Use the same eligibility gate as per-state runtime citations before
+        // attempting the narrower structural premise judgment here.
+        if !can_establish_citation(
+            program,
+            classification,
+            machine,
+            &target,
+            argument_handles.len(),
+            site_judge
+                .as_ref()
+                .is_some_and(StructuralJudge::has_runtime_body_values),
+        ) {
+            continue;
+        }
         let mut argument_terms: Vec<StructuralTerm> = Vec::with_capacity(argument_handles.len());
         let mut arguments_termify = true;
         for argument in &argument_handles {

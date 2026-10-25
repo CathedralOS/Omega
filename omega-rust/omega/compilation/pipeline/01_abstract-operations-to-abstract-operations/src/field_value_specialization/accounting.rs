@@ -103,12 +103,6 @@ pub(crate) fn plan_accounting(
             affected.insert(block.id);
         }
     }
-    provenance.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    provenance.sort_by_key(ProvenanceRewrite::canonical_sort_key);
     Some((affected.into_iter().collect(), provenance))
 }

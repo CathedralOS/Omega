@@ -53,6 +53,34 @@ pub fn independent_call_application(
     independent_declarations(program, caller, pending)
 }
 
+/// Every executable call form owns its dependency selection. Named terminal
+/// calls have no static operand telescope; their resolved declaration (including
+/// a bodyless binder's public contracts) still enters the same dependency walk.
+pub fn independent_call_site(
+    program: &dyn crate::CheckingInput,
+    caller: SymbolHandle,
+    callee: SymbolHandle,
+    site: &super::calls::CallSite<'_>,
+) -> bool {
+    match site {
+        super::calls::CallSite::Expression { expression, call } => independent_call_application(
+            program,
+            caller,
+            callee,
+            typed_trees::references::StaticArgumentCall::Expression(*expression, call),
+        ),
+        super::calls::CallSite::Statement(call) => independent_call_application(
+            program,
+            caller,
+            callee,
+            typed_trees::references::StaticArgumentCall::Statement(call),
+        ),
+        super::calls::CallSite::TransitionNamed { path, .. } => {
+            independent_declarations(program, caller, vec![path.symbol])
+        }
+    }
+}
+
 fn independent_declarations(
     program: &dyn crate::CheckingInput,
     caller: SymbolHandle,

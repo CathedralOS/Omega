@@ -54,6 +54,56 @@ pub(crate) fn call_selection_dependency_symbols<'call>(
     dependencies.symbols
 }
 
+/// Specialization erases executable static operands, not proof dependencies.
+/// The declaration receipt retains their complete typed binding application,
+/// including unused selections, nested applications and type-held machines.
+pub(crate) fn specialization_selection_dependency_symbols(
+    program: &dyn crate::CheckingInput,
+    target: SymbolHandle,
+) -> Option<Vec<SymbolHandle>> {
+    let mut dependencies = MachineSelectionDependencies {
+        program,
+        symbols: Vec::new(),
+        types: Vec::new(),
+    };
+    let owner = program.machine_by_symbol(target)?;
+    program.executable_application_template(owner.symbol).ok()?;
+    let mut applications = Vec::new();
+    if let Some(application) = program.machine_specialization(owner.symbol) {
+        applications.push(application.binding_application);
+    }
+    for (_, captured) in program
+        .captured_machine_applications
+        .iter()
+        .filter(|(_, captured)| captured.instance == owner.symbol)
+    {
+        applications.push(captured.binding_application);
+        applications.push(captured.supplying_application);
+        typed_trees::references::visit_closed_conformance(
+            program,
+            &mut dependencies,
+            &captured.conformance_application,
+        );
+    }
+    for application in applications {
+        if !application.is_valid() {
+            return None;
+        }
+        for argument in program
+            .expression_table
+            .static_machine_application_arguments(application)
+        {
+            typed_trees::references::visit_static_argument(program, &mut dependencies, argument);
+        }
+        typed_trees::references::visit_static_machine_bindings(
+            program,
+            &mut dependencies,
+            application,
+        );
+    }
+    Some(dependencies.symbols)
+}
+
 struct MachineSelectionDependencies<'program> {
     program: &'program dyn crate::CheckingInput,
     symbols: Vec<SymbolHandle>,

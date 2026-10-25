@@ -180,9 +180,22 @@ fn validate_expression(
             if matches!(atomic.ordering, AtomicOrderingPlan::Load(_)) {
                 if let Some(field) =
                     placed_atomic_field_for_place(program, machine, state, atomic.value)
-                    && !permissions(field).load
                 {
-                    report_unauthorized(field, "load", diagnostics);
+                    if !permissions(field).load {
+                        report_unauthorized(field, "load", diagnostics);
+                    }
+                } else if !crate::place_is_atomic_storage(
+                    program,
+                    machine,
+                    Some(state),
+                    atomic.value,
+                ) {
+                    // The normalized carrier is an operation request, not
+                    // permission to reinterpret ordinary scalar storage.
+                    diagnostics.push(Diagnostic::error(format!(
+                        "atomic load in machine `{}` state `{}` requires dedicated atomic storage or an admitted placed atomic accessor",
+                        machine.name, state.name,
+                    )));
                 }
                 validate_expression(program, machine, state, atomic.value, true, diagnostics);
             } else {

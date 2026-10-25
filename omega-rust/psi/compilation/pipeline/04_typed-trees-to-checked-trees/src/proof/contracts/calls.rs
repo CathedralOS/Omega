@@ -78,6 +78,15 @@ pub(crate) fn build_contract_call_facts(
                 .as_ref()
                 .and_then(validation::CallSite::static_requirement_dispatch)
                 .map(|dispatch| (dispatch.declaring_trait, dispatch.contract_symbol()))
+                .or_else(|| {
+                    // The binder owns the contract selection; its public
+                    // signature owns the formals and reserved result. Keep
+                    // this logical frame distinct from the executable target
+                    // coordinates above, including for named terminal calls.
+                    program
+                        .machine_parameter_signature(call.target_symbol)
+                        .map(|(_, signature)| (call.target_symbol, signature.symbol))
+                })
                 .unwrap_or(contract_owner);
             append_contract_call(
                 contract_facts,

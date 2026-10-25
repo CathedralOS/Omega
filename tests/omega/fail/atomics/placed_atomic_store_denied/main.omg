@@ -1,0 +1,24 @@
+use omega::language::core::layout;
+public data Word { value: u32; }
+public data WordPlacement {}
+machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    let services: [u64; 32];
+    PlacementPlan {
+        layout: Plan { entries: entries, entry_count: 1, size_fixed: 4, size_is_dynamic: false, align: 4 },
+        access: AccessPlan::with(AccessPlan::inaccessible(&schema), schema.fields[0].key,
+            FieldAccess::Atomic { operations: AtomicOperations {
+                load: true, store: false, fetch_add: false, fetch_sub: false,
+                fetch_xor: false, fetch_or: false, fetch_and: false, swap: false,
+                compare_exchange: false, compare_exchange_once: false,
+                try_exchange: false, try_exchange_once: false
+            }, exposure: Exposure::Exported }),
+        reach: BoundaryReach { services: services, service_count: 0 },
+    }
+}
+machine probe(view: &Placed<WordPlacement, Word>) -> u32 {
+    view.value.store(41, Publish);
+    let observed: u32 = view.value.load(Receive);
+    observed
+}

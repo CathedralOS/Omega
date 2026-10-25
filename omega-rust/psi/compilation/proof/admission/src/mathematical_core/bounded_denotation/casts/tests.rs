@@ -1,4 +1,4 @@
-use super::super::test_utilities::elaborate_checked;
+use super::super::test_utilities::{assert_refused, elaborate_checked};
 use crate::proof::assumption_proof;
 use crate::{
     Budget, IntegerCastChainWitness, PrimitiveJudgment, ProofNode, ProofRule,
@@ -277,29 +277,9 @@ fn live_cast_endpoint_preserves_strictness_and_derives_without_rule_axioms() {
             ] {
                 let mut tampered = proof.clone();
                 tampered.conclusion = changed.clone();
-                assert!(
-                    verify_bounded_certificate(
-                        &context,
-                        &changed,
-                        &assumptions,
-                        &axioms,
-                        &tampered,
-                        &mut Budget::default()
-                    )
-                    .is_err()
-                );
+                assert_refused(&context, &changed, &assumptions, &axioms, &tampered);
             }
-            assert!(
-                verify_bounded_certificate(
-                    &context,
-                    &goal,
-                    &assumptions,
-                    &[],
-                    &proof,
-                    &mut Budget::default()
-                )
-                .is_err()
-            );
+            assert_refused(&context, &goal, &assumptions, &[], &proof);
         }
     }
 }

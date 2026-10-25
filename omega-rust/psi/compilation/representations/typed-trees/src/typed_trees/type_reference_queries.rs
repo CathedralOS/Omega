@@ -278,8 +278,13 @@ impl TypedTrees {
                 .find(|field| {
                     // The field roster retains the whole projection shape;
                     // operation lookup accepts only its exact nominal leaf.
-                    self.type_reference_table.type_symbol(accessor_type)
-                        == field.accessor_data_symbol
+                    // This is a nominal accessor join. The carrier-oriented
+                    // type_symbol query deliberately erases primitive identities,
+                    // including the physical scalar of a placed atomic field.
+                    self.type_reference_table
+                        .type_reference(accessor_type)
+                        .as_named_symbol()
+                        == Some(field.accessor_data_symbol)
                         && (field.accessor_type == accessor_type
                             || field.scalar_projection_leaf(self).is_ok_and(|(_, leaf)| {
                                 self.normalized_type_identity(leaf)

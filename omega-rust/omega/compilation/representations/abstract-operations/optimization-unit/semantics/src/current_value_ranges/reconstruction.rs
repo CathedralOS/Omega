@@ -98,19 +98,18 @@ pub(super) fn reconstruct_value_range_fact(
             }
             let proposition = goal.kernel_proposition().ok()?;
             let canonical = terminal_codec::canonical_proposition_order_key(&proposition).ok()?;
-            let accepted_fact = unit
-                .accepted_obligation_facts
-                .iter()
+            let Some(accepted_fact) = unit
+                .accepted_obligation_fact(
+                    function.machine,
+                    optimization_unit::PsiProvenance::Operation(operation),
+                    Some(obligation),
+                )
                 .filter(|candidate| {
-                    candidate.identity == accepted
-                        && candidate.machine == function.machine
-                        && candidate.owner == optimization_unit::PsiProvenance::Operation(operation)
-                        && candidate.obligation == obligation
-                        && candidate.proposition == canonical
-                        && candidate.psi == unit.psi
-                        && candidate.has_canonical_identity()
+                    candidate.identity == accepted && candidate.proposition == canonical
                 })
-                .exactly_one()?;
+            else {
+                return None;
+            };
             let proof_question = unit
                 .proof_questions
                 .iter()
@@ -236,17 +235,12 @@ pub(crate) fn independently_reconstruct_value_range_fact_at(
                 continue;
             };
             let Some(accepted) = unit
-                .accepted_obligation_facts
-                .iter()
-                .filter(|candidate| {
-                    candidate.machine == machine
-                        && candidate.owner == optimization_unit::PsiProvenance::Operation(operation)
-                        && candidate.obligation == obligation
-                        && candidate.proposition == canonical
-                        && candidate.psi == unit.psi
-                        && candidate.has_canonical_identity()
-                })
-                .exactly_one()
+                .accepted_obligation_fact(
+                    machine,
+                    optimization_unit::PsiProvenance::Operation(operation),
+                    Some(obligation),
+                )
+                .filter(|candidate| candidate.proposition == canonical)
             else {
                 continue;
             };

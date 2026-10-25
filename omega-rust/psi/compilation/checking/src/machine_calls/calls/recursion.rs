@@ -16,12 +16,11 @@ pub use proof_machines::ValidatedSelfCallDescent;
 pub(crate) use proof_machines::proof_call_has_structural_descent;
 pub(crate) use proof_machines::validate_proof_machine_recursion;
 
-/// Runtime recursion must not leave a pending caller computation. Exact
-/// self calls in terminal expression/return positions normalize to state
-/// backedges during resolution, independently of a termination promise.
-/// Calls that remain embedded in arithmetic, guards or initializers are not
-/// tail. A remaining whole terminal call lacks the receiver or selection
-/// evidence required for that normalization and must not emit another frame.
+/// Runtime recursion must not leave a pending caller computation. A whole
+/// terminal call forwards completion; a call nested in its receiver, operands,
+/// guards or constructors does not. Position is independent of whether a
+/// generic application has normalized to a named state edge. The component's
+/// ranking and native realization separately establish a constant-stack route.
 pub(crate) fn validate_self_recursive_call_positions(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -47,20 +46,7 @@ pub(crate) fn validate_self_recursive_call_positions(
             reject_embedded_self_calls(program, machine, local_data.initial_value, diagnostics);
         }
         StatementNode::Expression(expression) => {
-            // Whole-call position alone does not prove a valid activation
-            // backedge: another receiver, unresolved overload or unsupported
-            // static/operational arguments can keep this as an ordinary call.
-            if let Some(call_display) = whole_expression_self_call(program, machine, *expression) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`{call_display}` in terminal position is TAIL self-recursion, but its \
-                     exact receiver or call selection did not normalize to a constant-stack \
-                     state backedge. Use a supported state transition while preserving \
-                     the receiver and argument bindings; a termination measure alone \
-                     does not establish that transfer.",
-                )));
-                return;
-            }
-            reject_embedded_self_calls(program, machine, *expression, diagnostics);
+            validate_terminal_value(program, machine, *expression, diagnostics);
         }
         StatementNode::Transition(transition) => {
             if let TransitionGuardNode::When(guard) = transition.guard {
@@ -76,7 +62,7 @@ pub(crate) fn validate_self_recursive_call_positions(
                         }
                     }
                     TransitionTargetNode::Value(expression) => {
-                        reject_embedded_self_calls(program, machine, *expression, diagnostics);
+                        validate_terminal_value(program, machine, *expression, diagnostics);
                     }
                     TransitionTargetNode::Terminal => {}
                 }
@@ -86,15 +72,22 @@ pub(crate) fn validate_self_recursive_call_positions(
     let _ = state;
 }
 
-/// The rendered call when `expression` IS a self-call to the machine's own
-/// entry (the terminal-position tail shape); None otherwise.
-fn whole_expression_self_call(
+/// The outer invocation completes the machine. Its own operands still finish
+/// first, so recursively calling this machine inside any operand remains non-tail.
+fn validate_terminal_value(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
-) -> Option<String> {
-    let call = program.expression_table.call_node(expression)?;
-    is_current_entry_call(program, machine, call).then(|| format!("{}(..)", machine.name.as_str()))
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let Some(call) = program.expression_table.call_node(expression) {
+        reject_embedded_self_calls(program, machine, call.receiver, diagnostics);
+        for argument in program.expression_table.expression_handles(call.arguments) {
+            reject_embedded_self_calls(program, machine, *argument, diagnostics);
+        }
+    } else {
+        reject_embedded_self_calls(program, machine, expression, diagnostics);
+    }
 }
 
 fn is_current_entry_call(

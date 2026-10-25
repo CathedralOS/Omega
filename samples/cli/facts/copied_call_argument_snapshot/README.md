@@ -490,3 +490,47 @@ Terminal execution observe the same result and counters, exercising checked
 lowering, provider settlement, layout and calling plans, register/frame realization
 and final image emission. These are macOS ARM64 observations. Windows execution
 is owner-deferred; Linux execution is unverified.
+
+## Ranked dependent descriptor returns
+
+The selected value of a copied first argument remains 7 when the second argument
+replaces its former descriptor home with a view of 9.
+
+`<place>/ranked_indexed_byte_view/main.omg` carries the existing `Counted` value
+through a measured recursive identity inside both the direct producer and the
+public `Counting` implementation. Its runtime `Count` stays attached to the
+completed value. The caller infers that index from the first completed operand,
+then replaces its former home; `seven` and exact subtraction consume the saved
+7 fact. The counter and untouched sibling checks retain the once-only operation
+and independent backing obligations. Each `invalid/main.omg` changes only the
+original extent to 8 and must reject `Count == 7`.
+
+`<place>/computed_ranked_indexed_byte_view/main.omg` is the same production
+with its recursive argument prepared by `previous(remaining)`, whose published
+contract establishes `result == value - 1`. On main `f9baa191b37`, all nine
+positives refused because ranking used the completing invocation's whole write
+frame. Preparation now checks the guard and every nested operand call, leaving
+callee execution after arrival. The resolved completion query retains generic
+application metadata, so templates and closed specializations share that boundary.
+The source and the extent-8 twins retain the same fact, bound and consuming
+subtraction; neither an inline-arithmetic rewrite nor an extra caller guard
+establishes it.
+
+This establishes the ranked dependent-result part of
+**STATE-LOCAL-VALUE-FRONTIER** across all nine places, with pins under
+`tests/omega/{pass,fail}/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_*`
+and `copied_computed_ranked_indexed_byte_view_argument_snapshot_through_*`.
+Generic call payloads remain intact through admission; resolved completing calls
+share state-equation and constant-stack successor planning with named arrivals.
+Result carriers apply the actual invocation telescope; result equations bind the
+public declaration or dynamic-slot telescope to captured operands. Neither a
+receiving annotation nor the helper's private body establishes the caller's fact.
+
+Both productions' nine positives run with native and Terminal exit 0 on macOS
+ARM64; their extent-8 twins reject the intended obligation. Focused
+`fail/termination/computed_rank_*` controls retain refusal of nondecrease, writes
+to the rank in guards or operands, and malformed static applications. The
+ordinary full write-frame query remains unchanged. The four hosted entries remain
+present. Linux and Windows execution are unverified here; Windows native
+validation remains owner-deferred. Opaque/provider-backed and remaining cyclic
+result compositions stay open on the parent task.
