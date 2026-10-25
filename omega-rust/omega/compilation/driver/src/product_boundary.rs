@@ -102,7 +102,7 @@ fn product_production_has_no_installed_checkpoint_mode() {
         include_str!("checked/compilation_session.rs"),
         include_str!("checked/package_compilation.rs"),
     ] {
-        assert!(source.contains("compiler::finish_compilations("));
+        assert!(source.contains("compiler::produce_products("));
     }
 }
 

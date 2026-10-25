@@ -157,7 +157,7 @@ impl CompilationSession {
             }
             for ((position, root), product) in positions
                 .into_iter()
-                .zip(crate::compiler::finish_compilations(products))
+                .zip(crate::compiler::produce_products(products))
             {
                 outcomes[position] = Some(product.map_err(|error| PackageCompileFailure {
                     occurrence: root,
