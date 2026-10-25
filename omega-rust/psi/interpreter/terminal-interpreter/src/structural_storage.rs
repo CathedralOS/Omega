@@ -8,6 +8,8 @@ use semantic_vocabulary::StructuralFieldId;
 use std::collections::BTreeMap;
 use std::ops::Bound::{Excluded, Included, Unbounded};
 
+mod original_allocation;
+
 pub(crate) trait StorageKey: Ord + Clone {
     fn identity_start(identity: u64) -> Self;
     fn parent(&self) -> &StructuralRuntimePlace;

@@ -23,7 +23,7 @@ pub(super) fn capture(plan: &AbstractOperationPlan) -> Vec<NativeBorrowedStorage
         .iter()
         .map(|row| (row.id, row))
         .collect();
-    let requested: BTreeSet<_> = plan
+    let mut requested: BTreeSet<_> = plan
         .boundary_machines
         .iter()
         .flat_map(|boundary| &boundary.structural_parameters)
@@ -35,6 +35,31 @@ pub(super) fn capture(plan: &AbstractOperationPlan) -> Vec<NativeBorrowedStorage
         })
         .map(|parameter| parameter.structural_type)
         .collect();
+    if !requested.is_empty() {
+        // A boundary may first borrow a nested field. Its formal supplies
+        // only that field's view, never the containing allocation's extent,
+        // alignment or field offsets. Retain layouts for the actual owned
+        // allocations in this produced program before lowering consumes them.
+        // Runtime custody still selects the original owner, and unsupported
+        // layouts remain absent rather than fabricating a smaller home.
+        for function in &plan.functions {
+            requested.extend(
+                function
+                    .structural_parameters
+                    .iter()
+                    .chain(function.block_structural_parameters())
+                    .filter(|parameter| parameter.access == terminal_psi::StructuralAccess::Owned)
+                    .map(|parameter| parameter.structural_type),
+            );
+            requested.extend(
+                function
+                    .operations
+                    .iter()
+                    .filter_map(|operation| operation.materialized_structural_result())
+                    .map(|(_, result)| result.structural_type),
+            );
+        }
+    }
     requested
         .into_iter()
         .filter_map(|root| capture_declared_type(root, &declarations))

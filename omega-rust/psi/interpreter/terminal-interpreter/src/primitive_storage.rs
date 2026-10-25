@@ -1793,7 +1793,8 @@ impl TerminalExecution<'_> {
         let mut value = self
             .structural_scalar_fields
             .get(&observed.cell)
-            .copied()
+            .map(crate::scalar_storage::ScalarCell::read)
+            .transpose()?
             .ok_or(TerminalInterpretError::StructuralScalarFieldMissing {
                 source,
                 field: observed.declaration.id,
@@ -1908,18 +1909,20 @@ impl TerminalExecution<'_> {
             PrimitiveStorageEndpoint::Scalar(storage) => self
                 .structural_primitive_storage
                 .get(&storage)
-                .copied()
+                .map(crate::scalar_storage::ScalarCell::read)
+                .transpose()?
                 .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
                     source,
                 )),
-            PrimitiveStorageEndpoint::ScalarField(field) => {
-                self.structural_scalar_fields.get(&field).copied().ok_or(
-                    TerminalInterpretError::StructuralScalarFieldMissing {
-                        source,
-                        field: field.field,
-                    },
-                )
-            }
+            PrimitiveStorageEndpoint::ScalarField(field) => self
+                .structural_scalar_fields
+                .get(&field)
+                .map(crate::scalar_storage::ScalarCell::read)
+                .transpose()?
+                .ok_or(TerminalInterpretError::StructuralScalarFieldMissing {
+                    source,
+                    field: field.field,
+                }),
             PrimitiveStorageEndpoint::ViewByte { bytes, index } => {
                 let Some(integer) = scalar_type.as_integer() else {
                     return Err(malformed());
@@ -2169,7 +2172,7 @@ impl TerminalExecution<'_> {
                         field: field.field,
                     },
                 )?;
-                *stored = scalar;
+                stored.write(scalar)?;
             }
             PrimitiveStorageEndpoint::ArrayElement { array, index } => {
                 let TerminalScalarValue::Integer {

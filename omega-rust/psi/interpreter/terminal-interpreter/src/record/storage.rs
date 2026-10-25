@@ -261,7 +261,7 @@ pub(crate) struct ConstructorStorage {
         RuntimeRows<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
     host_atoms:
         RuntimeRows<StructuralRuntimePlace, crate::structural_storage::HostStructuralPayload>,
-    scalars: RuntimeRows<StructuralScalarRuntimeField, TerminalScalarValue>,
+    scalars: crate::scalar_storage::ScalarStorageRows<StructuralScalarRuntimeField>,
     bytes: RuntimeRows<
         StructuralByteSequenceRuntimeField,
         crate::byte_sequences::binding::ByteSequenceBinding,
@@ -270,7 +270,7 @@ pub(crate) struct ConstructorStorage {
     byte_descriptors:
         RuntimeRows<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
     references: RuntimeRows<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
-    primitives: RuntimeRows<StructuralRuntimePlace, TerminalScalarValue>,
+    primitives: crate::scalar_storage::ScalarStorageRows<StructuralRuntimePlace>,
     byte_arrays: RuntimeRows<StructuralRuntimePlace, ByteSequenceView>,
     owner_writes: Vec<(
         crate::byte_sequences::binding::ByteOwnerHome,
@@ -354,12 +354,12 @@ impl ConstructorStorage {
             provider_descriptors: RuntimeRows::new(account),
             activation_descriptors: RuntimeRows::new(account),
             host_atoms: RuntimeRows::new(account),
-            scalars: RuntimeRows::new(account),
+            scalars: crate::scalar_storage::ScalarStorageRows::new(account),
             bytes: RuntimeRows::new(account),
             views: RuntimeRows::new(account),
             byte_descriptors: RuntimeRows::new(account),
             references: RuntimeRows::new(account),
-            primitives: RuntimeRows::new(account),
+            primitives: crate::scalar_storage::ScalarStorageRows::new(account),
             byte_arrays: RuntimeRows::new(account),
             owner_writes: Vec::new(),
             cases: RuntimeRows::new(account),
@@ -996,7 +996,10 @@ impl ConstructorStorage {
             crate::structural_storage::cells(&execution.structural_scalar_fields, source)
         {
             if let Some(parent) = relocate(&field.parent) {
-                self.scalars.insert(field.relocated(parent), *scalar)?;
+                self.scalars.insert_cell(
+                    field.relocated(parent),
+                    scalar.relocated(transfers_custody)?,
+                )?;
             }
         }
         for (field, bytes) in
@@ -1018,7 +1021,8 @@ impl ConstructorStorage {
             crate::structural_storage::cells(&execution.structural_primitive_storage, source)
         {
             if let Some(target) = relocate(home) {
-                self.primitives.insert(target, *value)?;
+                self.primitives
+                    .insert_cell(target, value.relocated(transfers_custody)?)?;
             }
         }
         for (home, bytes) in
