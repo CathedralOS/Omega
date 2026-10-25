@@ -171,33 +171,48 @@ fn function_value_types(function: &PsiOptimizationFunction) -> BTreeMap<ValueId,
 }
 
 /// One located same-block leader/redundant pair, resolved through the
-/// accounting the rule's own candidate constructor consumes.
-pub(super) struct SameBlockScalarCseMatch {
+/// accounting the rule's own candidate constructor consumes. `E` is the
+/// rule's per-candidate payload — unit for the obligation-free rule, the
+/// accepted obligation fact for the proof-certified and compatible-policy
+/// ones.
+pub(super) struct SameBlockScalarCseMatch<E> {
     pub affected_blocks: Vec<BlockId>,
     pub provenance: Vec<optimization_unit::ProvenanceRewrite>,
-    pub obligation_fact: Option<optimization_core::AcceptedObligationFactIdentity>,
+    pub extras: E,
     pub patch: optimization_unit::LocalScalarCommonSubexpressionRewrite,
 }
 
-/// The shared same-block scalar CSE proposal: per block the first
-/// eligible node per expression key becomes the leader, and each later
-/// live, provably-pure duplicate whose next node carries none of its
-/// provenance is the redundant the rule rewrites onto it. `context`
-/// builds the rule's per-function lookup (`function_value_types` for the
-/// obligation-free rule, unit for the proof-certified ones); `expression`
-/// is the rule's key extractor; `emit` is its candidate constructor.
-pub(super) fn propose_same_block_scalar_cse<K, C>(
+/// The shared same-block scalar CSE proposal: per block the first eligible
+/// node per expression key becomes the leader, and each later live,
+/// provably-pure duplicate whose next node carries none of its provenance is
+/// the redundant the rule rewrites onto it. `context` builds the rule's
+/// per-function lookup (`function_value_types` for the obligation-free rule,
+/// unit for the proof-certified ones); `leader` and `redundant` carry the
+/// rule's own key, eligibility and payload — the compatible-policy rule
+/// classifies its obligation-free leaders and its proof-bearing redundants
+/// separately; `emit` is its candidate constructor.
+pub(super) fn propose_same_block_scalar_cse<K, C, E>(
     unit: &PsiOptimizationUnit,
     analyses: crate::RuleAnalysisView<'_>,
-    needs_obligation: bool,
     context: impl Fn(&PsiOptimizationFunction) -> C,
-    expression: impl Fn(&C, &abstract_operations::AbstractOperation) -> Option<ScalarExpressionRow<K>>,
-    emit: impl Fn(SameBlockScalarCseMatch) -> Result<PsiRewriteCandidate, crate::RuleProposalError>,
+    leader: impl Fn(
+        &C,
+        &PsiOptimizationUnit,
+        &PsiOptimizationFunction,
+        &abstract_operations::AbstractOperation,
+    ) -> Option<ScalarExpressionRow<K>>,
+    redundant: impl Fn(
+        &C,
+        &PsiOptimizationUnit,
+        &PsiOptimizationFunction,
+        &abstract_operations::AbstractOperation,
+    ) -> Option<(ScalarExpressionRow<K>, E)>,
+    emit: impl Fn(SameBlockScalarCseMatch<E>) -> Result<PsiRewriteCandidate, crate::RuleProposalError>,
 ) -> Result<Vec<PsiRewriteCandidate>, crate::RuleProposalError>
 where
     K: Ord,
+    E: Copy,
 {
-    use crate::rules::accepted_obligations::accepted_obligation_fact;
     use crate::rules::node_elision::node_elision_accounting;
 
     let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
@@ -207,28 +222,33 @@ where
         for block in &function.blocks {
             let mut leaders = BTreeMap::new();
             for (index, node) in block.nodes.iter().enumerate() {
-                let Some((key, operation, result, scalar_type)) =
-                    expression(&context, &node.operation)
-                else {
+                let leader_row = leader(&context, unit, function, &node.operation);
+                let redundant_row = redundant(&context, unit, function, &node.operation);
+                if leader_row.is_none() && redundant_row.is_none() {
                     continue;
-                };
-                let obligation_fact = if needs_obligation {
-                    match accepted_obligation_fact(unit, function.machine, operation) {
-                        Ok(fact) => Some(fact),
-                        Err(_) => continue,
-                    }
-                } else {
-                    None
-                };
+                }
                 let node_index = u32::try_from(index).expect("optimization node index fits u32");
                 if !exact_pure_scalar_effect(unit, effects, function.machine, block.id, node_index)
                 {
                     continue;
                 }
+                let mut establishes_leader = false;
+                if let Some(row) = leader_row
+                    && !leaders.contains_key(&row.0)
+                {
+                    leaders.insert(row.0, (node_index, row.1, row.2, row.3));
+                    establishes_leader = true;
+                }
+                if establishes_leader {
+                    continue;
+                }
+                let Some((row, extras)) = redundant_row else {
+                    continue;
+                };
+                let (key, operation, result, scalar_type) = row;
                 let Some((leader, leader_operation, leader_result, leader_type)) =
                     leaders.get(&key).copied()
                 else {
-                    leaders.insert(key, (node_index, operation, result, scalar_type));
                     continue;
                 };
                 if leader_type != scalar_type
@@ -266,7 +286,7 @@ where
                 candidates.push(emit(SameBlockScalarCseMatch {
                     affected_blocks,
                     provenance,
-                    obligation_fact,
+                    extras,
                     patch: optimization_unit::LocalScalarCommonSubexpressionRewrite {
                         leader: leader_location,
                         redundant: redundant_location,
@@ -299,16 +319,24 @@ pub(super) struct DominatingScalarGvnMatch<E> {
 /// following node carries none of its provenance, pick the same-key
 /// expression in the shallowest dominating block whose replacement
 /// definition still dominates every use. `context` builds the rule's
-/// per-function lookup, `expression` its key+extras extractor, `emit`
-/// its candidate constructor.
+/// per-function lookup; `leader` and `redundant` carry the rule's own key,
+/// eligibility and payload — the compatible-policy rule classifies its
+/// obligation-free leaders and its proof-bearing redundants separately;
+/// `emit` its candidate constructor.
 pub(super) fn propose_dominating_scalar_gvn<K, C, E>(
     unit: &PsiOptimizationUnit,
     analyses: crate::RuleAnalysisView<'_>,
     context: impl Fn(&PsiOptimizationFunction) -> C,
-    expression: impl Fn(
+    leader: impl Fn(
         &C,
         &PsiOptimizationUnit,
-        MachineId,
+        &PsiOptimizationFunction,
+        &abstract_operations::AbstractOperation,
+    ) -> Option<ScalarExpressionRow<K>>,
+    redundant: impl Fn(
+        &C,
+        &PsiOptimizationUnit,
+        &PsiOptimizationFunction,
         &abstract_operations::AbstractOperation,
     ) -> Option<(ScalarExpressionRow<K>, E)>,
     emit: impl Fn(DominatingScalarGvnMatch<E>) -> Result<PsiRewriteCandidate, crate::RuleProposalError>,
@@ -334,31 +362,31 @@ where
             .map(|(_, rows)| rows.as_slice())
             .unwrap_or_default();
         let context = context(function);
+        let mut leaders = Vec::new();
         let mut expressions = Vec::new();
         for block in &function.blocks {
             for (index, node) in block.nodes.iter().enumerate() {
-                let node_index = u32::try_from(index).expect("optimization node index fits u32");
-                let Some(((key, operation, result, scalar_type), extras)) =
-                    expression(&context, unit, function.machine, &node.operation)
-                else {
+                let leader_row = leader(&context, unit, function, &node.operation);
+                let redundant_row = redundant(&context, unit, function, &node.operation);
+                if leader_row.is_none() && redundant_row.is_none() {
                     continue;
-                };
+                }
+                let node_index = u32::try_from(index).expect("optimization node index fits u32");
                 if !exact_pure_scalar_effect(unit, effects, function.machine, block.id, node_index)
                 {
                     continue;
                 }
-                expressions.push((
-                    key,
-                    optimization_unit::NodeLocation {
-                        machine: function.machine,
-                        block: block.id,
-                        node: node_index,
-                    },
-                    operation,
-                    result,
-                    scalar_type,
-                    extras,
-                ));
+                let location = optimization_unit::NodeLocation {
+                    machine: function.machine,
+                    block: block.id,
+                    node: node_index,
+                };
+                if let Some(row) = leader_row {
+                    leaders.push((row.0, location, row.1, row.2, row.3));
+                }
+                if let Some((row, extras)) = redundant_row {
+                    expressions.push((row.0, location, row.1, row.2, row.3, extras));
+                }
             }
         }
         for (key, redundant, redundant_operation, redundant_result, scalar_type, extras) in
@@ -386,9 +414,9 @@ where
             {
                 continue;
             }
-            let leader = expressions
+            let leader = leaders
                 .iter()
-                .filter(|(candidate_key, location, _, _, candidate_type, _)| {
+                .filter(|(candidate_key, location, _, _, candidate_type)| {
                     candidate_key == key
                         && *candidate_type == *scalar_type
                         && location.block != redundant.block
@@ -398,14 +426,14 @@ where
                             redundant.block,
                         )
                 })
-                .min_by_key(|(_, location, _, _, _, _)| {
+                .min_by_key(|(_, location, _, _, _)| {
                     let depth = machine_dominators
                         .iter()
                         .find(|(block, _)| *block == location.block)
                         .map_or(usize::MAX, |(_, rows)| rows.len());
                     (depth, *location)
                 });
-            let Some((_, leader, leader_operation, leader_result, _, _)) = leader else {
+            let Some((_, leader, leader_operation, leader_result, _)) = leader else {
                 continue;
             };
             let replacement_definition = optimization_unit::ValueDefinition {
