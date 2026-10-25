@@ -15,10 +15,7 @@ impl Execution<'_, '_, '_> {
         call: &BorrowCallFact,
         actuals: &[FlowOperandFact],
     ) -> Vec<(CanonicalPlace, Handle<FlowOperandFact>, Vec<PlaceSegment>)> {
-        let Some(state) = validation::call_target_state(self.program, call.target_symbol) else {
-            return Vec::new();
-        };
-        let Some(machine) = self.program.machine_holding_state(state.symbol) else {
+        let Some((machine, state, actuals)) = self.selected_store_target(call, actuals) else {
             return Vec::new();
         };
         let Some(effects) = self
@@ -155,7 +152,8 @@ impl Execution<'_, '_, '_> {
             // backing; their exact image address remains unknown here.
             let mut places = Vec::new();
             let mut profiles = Vec::new();
-            for (source, projection) in sources.iter().chain(&dependencies) {
+            let mut source_images = Vec::with_capacity(sources.len());
+            for (index, (source, projection)) in sources.iter().chain(&dependencies).enumerate() {
                 let profiles_at_path =
                     super::super::operand_values::captured_retention_profiles_at_path(
                         self.program,
@@ -167,13 +165,33 @@ impl Execution<'_, '_, '_> {
                     complete = false;
                     break;
                 };
+                if index < sources.len() {
+                    source_images.push(
+                        !selected.is_empty()
+                            && selected.iter().all(|profile| {
+                                self.context.control.operand_retentions.is_valid(*profile)
+                                    && self
+                                        .context
+                                        .control
+                                        .operand_retentions
+                                        .get(*profile)
+                                        .immutable_image
+                            }),
+                    );
+                }
                 profiles.extend(selected);
             }
             if !complete {
                 continue;
             }
             if !effect.has_static_values {
-                for (source, projection) in &sources {
+                for ((source, projection), image) in sources.iter().zip(&source_images) {
+                    // A retained literal image has no local referent address.
+                    // Its authenticated image profile survives an incoming
+                    // slot just as it survives an ordinary copied value.
+                    if *image {
+                        continue;
+                    }
                     let selected = self
                         .context
                         .control
@@ -213,6 +231,13 @@ impl Execution<'_, '_, '_> {
             if !complete {
                 continue;
             }
+            // A local alternative plus an image is not exactly the local
+            // referent set. Retain every supplier and lifetime dependency,
+            // while withholding joined descriptor geometry.
+            if source_images.iter().any(|image| *image) && source_images.iter().any(|image| !*image)
+            {
+                places.clear();
+            }
             let mut roots = Vec::new();
             for profile in profiles {
                 let Some(retained) = self.context.control.retained_roots(profile) else {
@@ -232,17 +257,16 @@ impl Execution<'_, '_, '_> {
             // pre-call pointee profile is not a post-call contents snapshot or
             // a new scalar equality supplied by a symbolic store summary.
             let retention = self.append_retention(&roots);
-            // The effect owner admits ImageStorage only from a literal. An
-            // existential image alternative or retained input debt cannot
-            // classify the whole descriptor as an empty image-backed loan.
+            // Image scope comes from the body literal or every actual
+            // selected input's own immutable-image receipt. Empty lifetime
+            // roots alone and opaque dependency debts establish no geometry.
             self.context
                 .control
                 .operand_retentions
                 .get_mut(retention)
-                .immutable_image = effect.has_static_values
-                && sources.is_empty()
-                && dependencies.is_empty()
-                && !effect.retains_incoming;
+                .immutable_image = dependencies.is_empty()
+                && ((effect.has_static_values && sources.is_empty() && !effect.retains_incoming)
+                    || (!source_images.is_empty() && source_images.iter().all(|image| *image)));
             // Retain the actual supplying evaluations independently of the
             // sanitized post-call address. Resource consumers must not recover
             // a permission from the destination slot's older loan generation.

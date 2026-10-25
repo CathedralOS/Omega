@@ -62,6 +62,7 @@ pub fn public_invocation(
     Some(DescriptorInvocation {
         operation,
         target: DescriptorInvocationTarget::Public {
+            effects_machine: None,
             extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
             results,
             invalidates_contents,
@@ -236,4 +237,27 @@ pub fn writable_descriptor_slots(
             })
             .collect(),
     )
+}
+
+/// Authenticate a nongeneric executable row of one exact selected table.
+/// Call shape and body admission remain independent obligations of each adapter.
+pub fn selected_stored_effects_row(
+    catalog: &terminal_psi::TerminalDynamicDispatchCatalog,
+    table: u32,
+    interface: u32,
+    slot: u32,
+) -> Option<semantic_vocabulary::MachineId> {
+    let selected = catalog.table(table)?;
+    let declaration = catalog.interface(interface)?;
+    let signature = declaration.slots.get(usize::try_from(slot).ok()?)?;
+    if selected.id != table
+        || selected.interface != interface
+        || declaration.id != interface
+        || signature.slot != slot
+        || !signature.family_tuple.is_empty()
+        || selected.rows.len() != declaration.slots.len()
+    {
+        return None;
+    }
+    catalog.row(table, slot)
 }

@@ -83,7 +83,14 @@ impl<'program> CallFrameResolver<'program> {
         // decided below from the actual write frame, independently per subject.
         let (state, _, index) =
             caller_statement_owner(program, machine, CallerWriteSite::Expression(expression))?;
-        let writes = self.expression_may_write_paths(machine, expression)?;
+        // This subject starts at invocation entry, after operands completed.
+        // Their earlier writes already belong to the proof observer's ordered
+        // storage timeline. Only this operation can invalidate entry-to-return
+        // preservation; the whole expression frame also includes those earlier
+        // writes and may lose an otherwise authenticated post-state subject.
+        let writes = self
+            .operation_write_frame(machine, expression)
+            .into_complete_paths()?;
         let origins = self.expression_call_write_origins(machine, expression)?;
         if origins.arguments.len() != arguments.len() {
             return None;

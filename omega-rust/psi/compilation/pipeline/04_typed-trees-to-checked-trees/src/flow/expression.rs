@@ -43,6 +43,7 @@ mod result_facts;
 mod returned_descriptors;
 mod returned_regions;
 mod stored_call_values;
+mod selected_call_stores;
 mod transitions;
 mod view_footprints;
 mod view_referents;

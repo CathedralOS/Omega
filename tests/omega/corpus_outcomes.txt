@@ -10546,6 +10546,74 @@ fail/facts/projection_call_premise_through_target_body_rejected rejected 2157ms 
 	cannot prove requires contract for call hold from observe: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from observe: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/provider_descriptor_poststate_through_call_result_rejected rejected 3263ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/provider_descriptor_poststate_through_const_name_rejected rejected 3001ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/provider_descriptor_poststate_through_field_rejected rejected 2900ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/provider_descriptor_poststate_through_local_rejected rejected 2629ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/provider_descriptor_poststate_through_match_join_rejected rejected 2681ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/provider_descriptor_poststate_through_other_machine_rejected rejected 2767ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/provider_descriptor_poststate_through_other_state_rejected rejected 2525ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/provider_descriptor_poststate_through_parameter_rejected rejected 3143ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/provider_descriptor_poststate_through_target_body_rejected rejected 3039ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/provider_extent_poststate_through_call_result_rejected rejected 2198ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/facts/provider_extent_poststate_through_const_name_rejected rejected 2275ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/facts/provider_extent_poststate_through_field_rejected rejected 2263ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/facts/provider_extent_poststate_through_local_rejected rejected 2229ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/facts/provider_extent_poststate_through_match_join_rejected rejected 2288ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/facts/provider_extent_poststate_through_other_machine_rejected rejected 1917ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/facts/provider_extent_poststate_through_other_state_rejected rejected 2137ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/facts/provider_extent_poststate_through_parameter_rejected rejected 2447ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/facts/provider_extent_poststate_through_target_body_rejected rejected 2422ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/facts/provider_field_poststate_through_call_result_rejected rejected 2511ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/provider_field_poststate_through_const_name_rejected rejected 2336ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/provider_field_poststate_through_field_rejected rejected 2207ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/provider_field_poststate_through_local_rejected rejected 2266ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/provider_field_poststate_through_match_join_rejected rejected 2282ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/provider_field_poststate_through_other_machine_rejected rejected 2272ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/provider_field_poststate_through_other_state_rejected rejected 2752ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/provider_field_poststate_through_parameter_rejected rejected 2210ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/provider_field_poststate_through_target_body_rejected rejected 2655ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/provider_poststate_proof_subjects_rejected rejected 1775ms expected @717593f593c6+wt
+	machine `Direct::keep` satisfies `Bounds::keep` but proves no ensures matching the declared law `second == ProofNat::Zero` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
+fail/facts/provider_poststate_readonly_subjects_rejected rejected 1918ms expected @717593f593c6+wt
+	machine `Direct::keep` satisfies `Readable::keep` but proves no ensures matching the declared law `second.len == 7` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
+fail/facts/provider_poststate_selector_different_join_rejected rejected 2996ms expected @717593f593c6+wt
+	a completed copied argument retains backing storage overlapping a staged exclusive loan
+fail/facts/provider_poststate_selector_unknown_parameter_rejected rejected 2131ms expected @717593f593c6+wt
+	a completed copied argument retains backing storage overlapping a staged exclusive loan
+fail/facts/provider_poststate_wrong_inputs_rejected rejected 2080ms expected @717593f593c6+wt
+	machine `Installer::install` satisfies `Installing::install` but proves no ensures matching the declared law `destination.bytes.len == first.bytes.len` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
+fail/facts/provider_poststate_wrong_projection_rejected rejected 2032ms expected @717593f593c6+wt
+	machine `Installer::install` satisfies `Installing::install` but proves no ensures matching the declared law `slot.bytes.len == replacement.len` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
+fail/facts/provider_poststate_wrong_subjects_rejected rejected 1663ms expected @717593f593c6+wt
+	machine `Installer::install` satisfies `Installing::install` but proves no ensures matching the declared law `destination.bytes.len == source.sibling.len` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
 fail/facts/qualified_field_capacity_through_call_result_rejected rejected 1220ms expected @a92f16431042
 	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/qualified_field_capacity_through_const_name_rejected rejected 751ms expected @a92f16431042
@@ -24618,6 +24686,38 @@ pass/facts/projection_call_premise_through_other_machine_exit checked 3167ms che
 pass/facts/projection_call_premise_through_other_state_exit checked 2415ms check-target:macos_arm64 @a92f16431042
 pass/facts/projection_call_premise_through_parameter_exit checked 2735ms check-target:macos_arm64 @a92f16431042
 pass/facts/projection_call_premise_through_target_body_exit checked 2807ms check-target:macos_arm64 @a92f16431042
+pass/facts/provider_descriptor_poststate_through_call_result_exit checked 3548ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_descriptor_poststate_through_const_name_exit checked 3410ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_descriptor_poststate_through_field_exit checked 3427ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_descriptor_poststate_through_local_exit checked 3397ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_descriptor_poststate_through_match_join_exit checked 3907ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_descriptor_poststate_through_other_machine_exit checked 3615ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_descriptor_poststate_through_other_state_exit checked 3693ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_descriptor_poststate_through_parameter_exit checked 3482ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_descriptor_poststate_through_target_body_exit checked 3648ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_extent_poststate_through_call_result_exit checked 3308ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_extent_poststate_through_const_name_exit checked 3309ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_extent_poststate_through_field_exit checked 3390ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_extent_poststate_through_local_exit checked 3295ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_extent_poststate_through_match_join_exit checked 2823ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_extent_poststate_through_other_machine_exit checked 2695ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_extent_poststate_through_other_state_exit checked 2693ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_extent_poststate_through_parameter_exit checked 2576ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_extent_poststate_through_target_body_exit checked 2887ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_field_poststate_through_call_result_exit checked 2488ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_field_poststate_through_const_name_exit checked 2765ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_field_poststate_through_field_exit checked 2627ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_field_poststate_through_local_exit checked 2492ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_field_poststate_through_match_join_exit checked 2858ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_field_poststate_through_other_machine_exit checked 2858ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_field_poststate_through_other_state_exit checked 2702ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_field_poststate_through_parameter_exit checked 2475ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_field_poststate_through_target_body_exit checked 2918ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_poststate_selector_changes_sibling_exit checked 4116ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_poststate_selector_copy_rebind_exit checked 4183ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_poststate_selector_later_rebind_exit checked 3533ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_poststate_selector_projection_exit checked 3035ms check-target:macos_arm64 @717593f593c6+wt
+pass/facts/provider_poststate_selector_same_join_exit checked 3983ms check-target:macos_arm64 @717593f593c6+wt
 pass/facts/qualified_borrowed_join_exit checked 2866ms check-target:macos_arm64 @a92f16431042
 pass/facts/qualified_field_capacity_through_call_result_exit checked 3383ms check-target:macos_arm64 @a92f16431042
 pass/facts/qualified_field_capacity_through_const_name_exit checked 3075ms check-target:macos_arm64 @a92f16431042

@@ -939,10 +939,11 @@ fn collect_type(
                 program, reference, definition, owner_path, visiting, output, template,
             )
         }
-        TypeReferenceNode::Unit => true,
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::DynamicTrait { .. } => false,
+        // A selector carries implementation identity, not a hidden data
+        // instance. Its complete reference frontier is empty; the call's
+        // explicit data operands retain their own lifetime obligations.
+        TypeReferenceNode::Unit | TypeReferenceNode::DynamicTrait { .. } => true,
+        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Slice { .. } => false,
     }
 }
 

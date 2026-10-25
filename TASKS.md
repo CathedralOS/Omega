@@ -446,9 +446,9 @@ defines the complete product bar.
     `samples/cli/facts/descriptor_replacement_order`, and
     `samples/cli/facts/stored_exclusive_byte_view` across all nine places, plus
     the `pass/ownership/linear_*` and `fail/ownership/linear_*` controls.
-  - **Saved observations, arithmetic, and patterns:** finish pinning the three
-    remaining float fixture pairs for `samples/cli/facts/exclusive_observation_exposure`
-    and complete remaining case/generic/reference composition, preserving
+  - **Saved observations, arithmetic, and patterns:** preserve the pinned float
+    fixture pairs for `samples/cli/facts/exclusive_observation_exposure` and
+    complete remaining case/generic/reference composition, preserving
     `samples/cli/facts/saved_observation_snapshot`,
     `samples/cli/facts/narrowed_integer_write`, and single-evaluation pattern
     destructuring (`pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit`,

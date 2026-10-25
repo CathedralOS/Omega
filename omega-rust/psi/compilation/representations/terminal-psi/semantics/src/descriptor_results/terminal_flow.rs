@@ -22,6 +22,7 @@ pub(super) fn adapt(
     machine: &TerminalMachine,
     slot_kind: DescriptorSlotKind,
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
+    selector_graph: Option<&[DescriptorMachine]>,
 ) -> Option<DescriptorMachine> {
     let scalar_expressions = super::payload_predicates::TerminalScalarExpressions::new(machine);
     let mut graph = DescriptorMachine {
@@ -185,6 +186,19 @@ pub(super) fn adapt(
                             semantic_vocabulary::ScalarTerm::value(result.id, result.scalar_type),
                         ));
                 }
+            }
+            if let OperationKind::PrimitiveScalarRead { source, path } = &operation.kind
+                && let Some(location) = location(*source, path, None)
+                && let Some(result) = operation.result.scalar_ref()
+            {
+                graph
+                    .scalar_payload_reads
+                    .entry(position)
+                    .or_default()
+                    .push((
+                        location,
+                        semantic_vocabulary::ScalarTerm::value(result.id, result.scalar_type),
+                    ));
             }
             let mut step = DescriptorFlowStep::default();
             operation.kind.clone().map_structural_uses(&mut |place| {
@@ -848,17 +862,26 @@ pub(super) fn adapt(
                     }
                 }
                 OperationKind::CallDynamic {
+                    selector,
                     interface,
                     slot,
                     structural_arguments,
                     ..
                 } => {
+                    let effects_machine = selected_effects_machine(
+                        module,
+                        machine,
+                        selector_graph,
+                        *selector,
+                        *interface,
+                        *slot,
+                    );
                     let slot = module
                         .dynamic_dispatch
                         .interface(*interface)?
                         .slots
                         .get(usize::try_from(*slot).ok()?)?;
-                    let call = public_invocation(
+                    let mut call = public_invocation(
                         operation.id,
                         &module.structural_types,
                         slot_kind,
@@ -867,16 +890,31 @@ pub(super) fn adapt(
                         result,
                         &graph.place_types,
                     )?;
-                    for actual in structural_arguments
-                        .iter()
-                        .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
+                    // Incomplete actual queries make replay skip invocation
+                    // transfer, so they must keep blanket public invalidation.
+                    let effects_machine = effects_machine
+                        .filter(|_| call.argument_contents.iter().all(Option::is_some));
+                    if let DescriptorInvocationTarget::Public {
+                        effects_machine: target,
+                        ..
+                    } = &mut call.target
                     {
-                        step.definitions.extend(writable_descriptor_slots(
-                            &module.structural_types,
-                            &graph.place_types,
-                            actual,
-                            slot_kind,
-                        )?);
+                        *target = effects_machine;
+                    }
+                    // A complete selected summary owns changed slots;
+                    // omitted incoming identities preserve untouched siblings.
+                    if effects_machine.is_none() {
+                        for actual in structural_arguments
+                            .iter()
+                            .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
+                        {
+                            step.definitions.extend(writable_descriptor_slots(
+                                &module.structural_types,
+                                &graph.place_types,
+                                actual,
+                                slot_kind,
+                            )?);
+                        }
                     }
                     if matches!(
                         call.target,
@@ -1377,4 +1415,174 @@ fn mark_opaque_call_occupancy(
         )?);
     }
     Some(())
+}
+
+fn selected_effects_machine(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    selector_graph: Option<&[DescriptorMachine]>,
+    selector: semantic_vocabulary::ValueId,
+    interface: u32,
+    slot: u32,
+) -> Option<semantic_vocabulary::MachineId> {
+    #[derive(Clone, PartialEq, Eq)]
+    struct SelectedTable(u32);
+    let table = crate::unchanged_scalar_identity(selector, |value| {
+        let mut definitions = machine.operations().filter(|operation| {
+            operation
+                .result
+                .scalar_ref()
+                .is_some_and(|result| result.id == value)
+        });
+        if let Some(operation) = definitions.next() {
+            if definitions.next().is_some() {
+                return None;
+            }
+            if let OperationKind::SelectImplementation { table } = operation.kind {
+                return Some(crate::UnchangedScalarOrigin::Known(SelectedTable(table)));
+            }
+            let sources = super::unchanged_stored_scalar_sources(
+                &module.structural_types,
+                selector_graph?,
+                machine.id,
+                value,
+                |(block, index)| {
+                    let Some(operation) = machine
+                        .blocks
+                        .iter()
+                        .find(|row| row.id == block)
+                        .and_then(|block| block.operations.get(index as usize))
+                    else {
+                        return Vec::new();
+                    };
+                    let Some(graph) = selector_graph
+                        .and_then(|graph| graph.iter().find(|row| row.id == machine.id))
+                    else {
+                        return Vec::new();
+                    };
+                    let mut writes = Vec::new();
+                    let mut write = |root, path: &[StructuralPathSegment], field, actual| {
+                        if let Some(location) = graph.place_types.get(&root).and_then(|ty| {
+                            descriptor_location(&module.structural_types, root, *ty, path, field)
+                        }) {
+                            writes.push((location, actual));
+                        }
+                    };
+                    match &operation.kind {
+                        OperationKind::EstablishPrimitiveLocal { value, .. } => {
+                            if let Some(result) = operation.result.structural() {
+                                write(result.place, &[], None, *value);
+                            }
+                        }
+                        OperationKind::WriteOnlyPrimitiveStore {
+                            destination,
+                            path,
+                            value,
+                            ..
+                        } => write(*destination, path, None, *value),
+                        OperationKind::StructuralScalarFieldStore {
+                            destination,
+                            path,
+                            field,
+                            value,
+                            ..
+                        } => write(*destination, path, Some(*field), *value),
+                        OperationKind::EstablishRecord { fields } => {
+                            if let Some(result) = operation.result.structural() {
+                                for field in fields {
+                                    if let terminal_psi::RecordFieldValue::Scalar {
+                                        value, ..
+                                    } = &field.value
+                                    {
+                                        write(result.place, &[], Some(field.field), *value);
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                    writes
+                },
+            )?;
+            return Some(crate::UnchangedScalarOrigin::Incoming(sources));
+        }
+        let mut owners = machine.blocks.iter().filter_map(|block| {
+            block
+                .parameters
+                .iter()
+                .position(|parameter| parameter.id == value)
+                .map(|ordinal| (block.id, ordinal))
+        });
+        let (owner, ordinal) = owners.next()?;
+        if owners.next().is_some() || owner == machine.entry {
+            return None;
+        }
+        let mut incoming = Vec::new();
+        for block in &machine.blocks {
+            match &block.terminator {
+                Terminator::Jump {
+                    target, arguments, ..
+                } if *target == owner => {
+                    incoming.push(*arguments.get(ordinal)?);
+                }
+                Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => {
+                    for edge in [when_true, when_false] {
+                        if edge.target == owner {
+                            incoming.push(*edge.arguments.get(ordinal)?);
+                        }
+                    }
+                }
+                Terminator::StructuralCase { cases, .. }
+                    if cases.iter().any(|edge| edge.target == owner) =>
+                {
+                    return None;
+                }
+                _ => {}
+            }
+        }
+        Some(crate::UnchangedScalarOrigin::Incoming(incoming))
+    })?
+    .0;
+    let target =
+        super::selected_stored_effects_row(&module.dynamic_dispatch, table, interface, slot)?;
+    let signature = module
+        .dynamic_dispatch
+        .interface(interface)?
+        .slots
+        .get(usize::try_from(slot).ok()?)?;
+    let mut bodies = module.machines.iter().filter(|body| body.id == target);
+    let body = bodies.next()?;
+    if bodies.next().is_some()
+        || matches!(
+            signature.result,
+            terminal_psi::BoundaryMachineResult::Structural(_)
+        )
+        || matches!(&signature.result, terminal_psi::BoundaryMachineResult::Scalar(result)
+            if result.qualifications != semantic_vocabulary::ScalarQualificationSetId::ZERO)
+        || !signature.result.matches_machine_result(&body.result)
+        || body.parameters.len() != signature.scalar_parameters.len()
+        || !body
+            .parameters
+            .iter()
+            .zip(&signature.scalar_parameters)
+            .all(|(actual, expected)| actual.scalar_type == *expected)
+        || body.structural_parameters.len() != signature.structural_parameters.len()
+        || !body
+            .structural_parameters
+            .iter()
+            .zip(&signature.structural_parameters)
+            .all(|(actual, expected)| {
+                actual.position == expected.position
+                    && actual.structural_type == expected.structural_type
+                    && actual.access == expected.access
+                    && actual.multiplicity == expected.multiplicity
+            })
+    {
+        return None;
+    }
+    Some(target)
 }

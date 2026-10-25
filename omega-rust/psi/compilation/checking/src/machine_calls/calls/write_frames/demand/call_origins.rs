@@ -207,7 +207,12 @@ impl<'program> CallFrameResolver<'program> {
                     receiver: Some(Vec::new()),
                     arguments: Vec::new(),
                 };
-                let callee_is_resolved = frames::machine_state_by_symbol(program, target).is_some();
+                // Dynamic calls retain a resolved public telescope with an
+                // explicit selector operand. Their trait qualification is a
+                // namespace, never an implicit receiver whose origins must be
+                // recovered from caller storage.
+                let callee_is_resolved = frames::machine_state_by_symbol(program, target).is_some()
+                    || program.dynamic_slot_by_symbol(target).is_some();
                 // A nested call can follow effects in an enclosing operand. The
                 // prefix owner has not captured those substatement updates.
                 // Reuse its expression inventory and frame query; do not

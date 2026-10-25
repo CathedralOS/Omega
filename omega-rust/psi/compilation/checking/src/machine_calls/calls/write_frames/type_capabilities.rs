@@ -39,8 +39,8 @@ pub(super) fn parameter_may_carry_write(
 }
 
 /// A caller-isolated storage shape with no opaque boundary data anywhere in
-/// its reachable structure. Isolation fails closed on references, dynamic
-/// traits, unbound generic parameters and recursive runtime shapes. Opaque
+/// its reachable structure. Code selectors carry no user storage. Isolation
+/// fails closed on references, unbound generic parameters and recursive runtime shapes. Opaque
 /// boundary data has no declared members to inspect, so the second walk
 /// excludes it rather than trusting an empty field roster. Slice carriers
 /// keep their conservative classification below.
@@ -85,11 +85,11 @@ fn type_reaches_opaque_data(
             element_type: base_type,
             ..
         } => type_reaches_opaque_data(program, *base_type, visiting, bindings),
-        TypeReferenceNode::Unit | TypeReferenceNode::ConstExpression(_) => false,
+        TypeReferenceNode::Unit
+        | TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. } => false,
         // Isolation has already rejected these shapes; treat them as opaque.
-        TypeReferenceNode::Reference { .. }
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::DynamicTrait { .. } => true,
+        TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => true,
         TypeReferenceNode::Named { symbol, name } => {
             // The unbounded integer atoms are values with no members to
             // reach, exactly like the primitive atoms above.
@@ -206,7 +206,9 @@ fn type_may_carry_write_walk(
         TypeReferenceNode::Constrained { base_type, .. } => {
             type_may_carry_write_walk(program, *base_type, bindings)
         }
-        TypeReferenceNode::Unit | TypeReferenceNode::ConstExpression(_) => false,
+        TypeReferenceNode::Unit
+        | TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. } => false,
         // A by-value record, sum or fixed array without references owns its
         // storage. It cannot add another possible caller referent when a
         // boundary returns a loan from its exclusive arguments. Apply this
@@ -218,9 +220,7 @@ fn type_may_carry_write_walk(
         | TypeReferenceNode::FixedArray { .. } => {
             !type_is_reference_free_value(program, handle, bindings)
         }
-        TypeReferenceNode::Reference { .. }
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::DynamicTrait { .. } => true,
+        TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => true,
     }
 }
 

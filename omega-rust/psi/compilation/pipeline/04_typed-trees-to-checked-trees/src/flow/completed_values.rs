@@ -61,10 +61,27 @@ pub(crate) fn predecessors_in_flow(
     projection: &[PlaceSegment],
     observation: super::stored_values::StoredObservation,
 ) -> Option<Vec<(Handle<FlowOperandFact>, Vec<PlaceSegment>)>> {
-    if !flow.control.operands.is_valid(value) {
+    predecessors_in_control(program, &flow.control, value, projection, observation, None)
+}
+
+/// The same predecessor law while a state's flow is still being built. Only
+/// its already published statement observations extend the immutable control
+/// pages; declarations and current source initializers are never predecessors.
+pub(crate) fn predecessors_in_control(
+    program: &dyn validation::CheckingInput,
+    control: &checked_trees::FlowControlFacts,
+    value: Handle<FlowOperandFact>,
+    projection: &[PlaceSegment],
+    observation: super::stored_values::StoredObservation,
+    active_statements: Option<(
+        symbols::SymbolHandle,
+        arena::HandleSpan<checked_trees::FlowStatementFact>,
+    )>,
+) -> Option<Vec<(Handle<FlowOperandFact>, Vec<PlaceSegment>)>> {
+    if !control.operands.is_valid(value) {
         return None;
     }
-    let capture = flow.control.operands.get(value);
+    let capture = control.operands.get(value);
     // A value source preserves inline bytes, including a pointer descriptor.
     // It cannot freeze contents behind that pointer at its earlier epoch.
     let crosses_reference = (0..=projection.len()).any(|length| {
@@ -81,8 +98,7 @@ pub(crate) fn predecessors_in_flow(
             super::stored_values::StoredObservation::Binding
         ) || !crosses_reference)
     {
-        return flow
-            .control
+        return control
             .operands
             .is_valid(capture.value_source)
             .then(|| vec![(capture.value_source, projection.to_vec())]);
@@ -99,7 +115,7 @@ pub(crate) fn predecessors_in_flow(
     if !projection.is_empty()
         && let Some((selected, _, consumed)) = super::operand_values::captured_operand_child_at_path(
             program,
-            &flow.control,
+            control,
             capture,
             capture.type_reference,
             projection,
@@ -109,15 +125,21 @@ pub(crate) fn predecessors_in_flow(
         return Some(vec![(selected, projection[consumed..].to_vec())]);
     }
     let state = program.state_by_symbol(capture.state_symbol)?;
-    let state_flow = flow
-        .control
-        .states
-        .iter()
-        .find_map(|(_, flow)| (flow.state_symbol == capture.state_symbol).then_some(flow))?;
+    let statements = active_statements
+        .filter(|(state, _)| *state == capture.state_symbol)
+        .map(|(_, statements)| statements)
+        .or_else(|| {
+            control.states.iter().find_map(|(_, state)| {
+                (state.state_symbol == capture.state_symbol).then_some(state.statements)
+            })
+        })?;
     if let Some(member) = program.expression_table.member_node(capture.expression) {
-        let statement = flow.state_statement(state_flow, capture.statement_index)?;
-        let mut observations = flow
-            .control
+        let statement = control
+            .statements
+            .span(statements)?
+            .iter()
+            .find(|statement| statement.statement_index == capture.statement_index)?;
+        let mut observations = control
             .value_observations
             .span_or_empty(statement.value_observations)
             .iter()
@@ -126,12 +148,10 @@ pub(crate) fn predecessors_in_flow(
                     && observation.constraints == capture.constraints
             });
         if let Some(observation) = observations.next() {
-            if observations.next().is_some()
-                || !flow.control.operands.is_valid(observation.receiver)
-            {
+            if observations.next().is_some() || !control.operands.is_valid(observation.receiver) {
                 return None;
             }
-            let receiver = flow.control.operands.get(observation.receiver);
+            let receiver = control.operands.get(observation.receiver);
             // A member of an owned completed value selects that receiver's
             // captured subtree, even when no source variable names it. A
             // reference instead observes live storage and must keep the
@@ -160,7 +180,7 @@ pub(crate) fn predecessors_in_flow(
     source.segments.extend_from_slice(projection);
     let captures = super::stored_values::at_snapshot(
         program,
-        &flow.control,
+        control,
         capture.storage_snapshot,
         &source,
         observation,

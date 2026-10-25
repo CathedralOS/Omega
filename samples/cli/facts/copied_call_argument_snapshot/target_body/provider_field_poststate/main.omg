@@ -1,0 +1,44 @@
+// A copied first argument equal to 7 stays 7 when the second argument overwrites its former home with 9.
+// Place: target_body.
+// Expected exit: 0
+public data Scalar { value: u64; }
+data Counter { value: bool; }
+data Counted<Count: u64> [copy] where value == Count { value: u64; }
+public trait Installing {
+    machine install(slot: &mut Scalar, replacement: u64) -> u64 ensures slot.value == replacement;
+}
+Installer satisfies Installing {
+    machine install(destination: &mut Scalar, incoming: u64) -> u64
+    ensures destination.value == incoming
+    { destination.value = incoming; 0 }
+}
+machine snapshot(source: u64, counter: &mut Counter) -> Counted<(source)>
+{ counter.value = !counter.value; Counted { value: source } }
+machine overwrite(slot: &mut u64) -> u64 ensures slot == 9 { slot = 9; 0 }
+machine seven(value: u64) -> u64 requires value == 7 ensures result == 7 { value }
+windows_x86_64 machine receive(selected: Counted<7>, ignored: u64) -> u64
+ensures result == 7
+{ let saved: Counted<7> = selected; seven(saved.value) }
+
+linux_x86_64 machine receive(selected: Counted<7>, ignored: u64) -> u64
+ensures result == 7
+{ let saved: Counted<7> = selected; seven(saved.value) }
+
+macos_arm64 machine receive(selected: Counted<7>, ignored: u64) -> u64
+ensures result == 7
+{ let saved: Counted<7> = selected; seven(saved.value) }
+
+linux_arm64 machine receive(selected: Counted<7>, ignored: u64) -> u64
+ensures result == 7
+{ let saved: Counted<7> = selected; seven(saved.value) }
+machine receive_ordered(earlier: u64, selected: Counted<7>, ignored: u64) -> u64
+ensures result == 7
+{ receive(selected, ignored) }
+machine main() crashes Trap {
+    let mut source: Scalar = Scalar { value: 1 };
+    let mut counter: Counter = Counter { value: false };
+    let observed: u64 = receive_ordered(Installing::install(Installer as dyn Installing, &mut source, 7), snapshot(source.value, &mut counter), overwrite(&mut source.value));
+    let difference: u64 = observed - 7;
+    transition counter.value && difference == 0 && source.value == 9 { true -> done() false -> wrong() }
+    state done() {} state wrong() { crash Trap; }
+}

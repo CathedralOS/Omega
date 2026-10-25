@@ -76,7 +76,14 @@ pub(super) fn receiver_frame_origins(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<(Vec<String>, Vec<FramePlaceOrigin>, Option<String>, bool)> {
-    let receiver = program.expression_table.call_node(expression)?.receiver;
+    let call = program.expression_table.call_node(expression)?;
+    let receiver = call.receiver;
+    // A dynamic slot's receiver spelling selects its declared namespace.
+    // The separately evaluated selector and data arguments own every value
+    // operand; no caller-storage base belongs to the qualification.
+    if program.dynamic_slot_by_symbol(call.target_symbol).is_some() {
+        return Some((Vec::new(), Vec::new(), None, true));
+    }
     if !receiver.is_valid() {
         return Some((Vec::new(), Vec::new(), None, false));
     }

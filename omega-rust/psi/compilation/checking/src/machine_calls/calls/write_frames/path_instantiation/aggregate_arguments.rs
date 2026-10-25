@@ -437,7 +437,10 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
             _ if program.primitive_type_reference(reference).is_some()
                 || matches!(
                     program.type_reference_table.type_reference(reference),
-                    TypeReferenceNode::Unit
+                    // A dynamic value carries code selection, never user
+                    // storage. Its ordinary data arguments retain independent
+                    // write-frontier obligations.
+                    TypeReferenceNode::Unit | TypeReferenceNode::DynamicTrait { .. }
                 ) =>
             {
                 if !suffix.is_empty() {

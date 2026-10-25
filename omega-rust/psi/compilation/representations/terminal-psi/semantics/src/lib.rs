@@ -272,3 +272,6 @@ pub use primitive_store_memberships::{
     primitive_store_byte_predicates, primitive_store_restriction,
     primitive_store_restriction_with_predicates,
 };
+
+mod unchanged_scalar;
+pub use unchanged_scalar::{UnchangedScalarOrigin, unchanged_scalar_identity};

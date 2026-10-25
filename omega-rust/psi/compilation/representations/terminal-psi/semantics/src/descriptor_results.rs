@@ -42,7 +42,7 @@ pub use payload_history::{
 pub use payload_predicates::{PayloadScalarObservation, scalar_payload_expression};
 pub use payload_versions::{
     ProducedPayloadVersion, require_unchanged_observed_storage, require_unchanged_produced_payload,
-    unchanged_payload_producer,
+    unchanged_payload_producer, unchanged_stored_scalar_sources,
 };
 pub use scalar_contracts::{case_payload_scalar_types, instantiate_payload_scalar_guarantees};
 mod owned_shape;
@@ -50,6 +50,7 @@ mod replay;
 pub use compatibility::{DescriptorCompatibilityFailure, DescriptorCompatibilityRequirement};
 pub use owned_shape::{owned_shared_byte_descriptor_shape, plain_owned_shape};
 mod invocation;
+pub use invocation::selected_stored_effects_row;
 mod provider_invocation;
 pub use provider_invocation::{provider_invocation, provider_outputs_cover_writable_slots};
 mod terminal_flow;
@@ -532,6 +533,9 @@ pub enum DescriptorInvocationTarget {
         invalidates_contents: bool,
     },
     Public {
+        /// Exact current code selection may supply stored-slot effects only.
+        /// The result regions and scalar contract remain requirement-owned.
+        effects_machine: Option<MachineId>,
         extent: semantic_vocabulary::ReferenceOriginExtent,
         results: Vec<DescriptorResultSlot>,
         invalidates_contents: bool,
@@ -539,6 +543,14 @@ pub enum DescriptorInvocationTarget {
 }
 
 impl DescriptorInvocation {
+    pub fn stored_effects_callee(&self) -> Option<MachineId> {
+        match self.target {
+            DescriptorInvocationTarget::Public {
+                effects_machine, ..
+            } => effects_machine,
+            _ => self.callee(),
+        }
+    }
     pub fn callee(&self) -> Option<MachineId> {
         match self.target {
             DescriptorInvocationTarget::Machine(machine) => Some(machine),
@@ -697,43 +709,38 @@ pub fn aggregate_descriptor_slots(
 }
 
 pub fn terminal_graph(module: &TerminalModule) -> Vec<DescriptorMachine> {
-    module
-        .machines
-        .iter()
-        .filter_map(|machine| terminal_flow::adapt(module, machine, DescriptorSlotKind::Views, &[]))
-        .collect()
+    terminal_graph_for(module, DescriptorSlotKind::Views, &[]).unwrap_or_default()
 }
 
 /// Current Terminal reference-slot graph; pair with `with_reference_slots`.
 pub fn terminal_reference_graph(module: &TerminalModule) -> Vec<DescriptorMachine> {
-    module
-        .machines
-        .iter()
-        .filter_map(|machine| {
-            terminal_flow::adapt(module, machine, DescriptorSlotKind::References, &[])
-        })
-        .collect()
+    terminal_graph_for(module, DescriptorSlotKind::References, &[]).unwrap_or_default()
 }
 
-/// Placed-loan provenance uses the same exact descriptor transport graph,
-/// retaining formation tokens separately from ordinary backing addresses.
-/// Selected checked callees are supplied by the execution owner, never inferred
-/// from a family spelling or from whichever member happens to have a body.
+/// Retain placed formation tokens with their current operation graph.
 pub fn terminal_placed_origin_graph(
     module: &TerminalModule,
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
 ) -> Option<Vec<DescriptorMachine>> {
+    terminal_graph_for(module, DescriptorSlotKind::PlacedOrigins, selected_calls)
+}
+
+fn terminal_graph_for(
+    module: &TerminalModule,
+    kind: DescriptorSlotKind,
+    selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
+) -> Option<Vec<DescriptorMachine>> {
+    // The first graph conservatively withholds stored-selector identities. Its
+    // version cuts authenticate actual stores before resource hints are added.
+    let initial = module
+        .machines
+        .iter()
+        .map(|machine| terminal_flow::adapt(module, machine, kind, selected_calls, None))
+        .collect::<Option<Vec<_>>>()?;
     module
         .machines
         .iter()
-        .map(|machine| {
-            terminal_flow::adapt(
-                module,
-                machine,
-                DescriptorSlotKind::PlacedOrigins,
-                selected_calls,
-            )
-        })
+        .map(|machine| terminal_flow::adapt(module, machine, kind, selected_calls, Some(&initial)))
         .collect()
 }
 

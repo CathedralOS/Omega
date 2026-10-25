@@ -943,44 +943,14 @@ pub fn scalar_constant_value(
     semantic_vocabulary::ScalarType,
     semantic_vocabulary::IntegerValue,
 )> {
-    fn resolve(
-        value: semantic_vocabulary::ValueId,
-        origin: &mut impl FnMut(semantic_vocabulary::ValueId) -> Option<ScalarConstantOrigin>,
-        active: &mut Vec<semantic_vocabulary::ValueId>,
-        completed: &mut Vec<(
-            semantic_vocabulary::ValueId,
-            Option<(
-                semantic_vocabulary::ScalarType,
-                semantic_vocabulary::IntegerValue,
-            )>,
-        )>,
-    ) -> Option<(
-        semantic_vocabulary::ScalarType,
-        semantic_vocabulary::IntegerValue,
-    )> {
-        if let Some((_, result)) = completed.iter().find(|(known, _)| *known == value) {
-            return *result;
-        }
-        if active.contains(&value) {
-            return None;
-        }
-        active.push(value);
-        let result = (|| match origin(value)? {
-            ScalarConstantOrigin::Literal(ty, value) => Some((ty, value)),
-            ScalarConstantOrigin::Incoming(values) => {
-                let mut values = values.into_iter();
-                let first = resolve(values.next()?, origin, active, completed)?;
-                for value in values {
-                    if resolve(value, origin, active, completed)? != first {
-                        return None;
-                    }
-                }
-                Some(first)
+    crate::unchanged_scalar_identity(value, |value| {
+        Some(match origin(value)? {
+            ScalarConstantOrigin::Literal(ty, value) => {
+                crate::UnchangedScalarOrigin::Known((ty, value))
             }
-        })();
-        active.pop();
-        completed.push((value, result));
-        result
-    }
-    resolve(value, &mut origin, &mut Vec::new(), &mut Vec::new())
+            ScalarConstantOrigin::Incoming(values) => {
+                crate::UnchangedScalarOrigin::Incoming(values)
+            }
+        })
+    })
 }

@@ -822,20 +822,27 @@ pub(super) fn known_requirement_call_written_paths_for_parts(
     inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
     // A selector call targets its instantiated slot: the requirement with its
-    // trait arguments substituted and the selector as operand 0. That roster
-    // is the complete write contract of every implementation it can reach.
+    // trait arguments substituted and the selector as operand 0. Dispatch
+    // consumes the selector; only the ordinary data telescope can lend user
+    // storage to any implementation it reaches.
     if let Some((_, target_symbol)) = call_site_symbols(program, site)
         && let Some(slot) = program.dynamic_slot_by_symbol(target_symbol)
     {
-        return signature_parameters_written_paths(
+        let leading = slot.parameters.len() - slot.data_parameters().len();
+        let data_arguments = arguments.get(leading..)?;
+        if arguments.len() != slot.parameters.len() {
+            return None;
+        }
+        let outcome = signature_parameters_written_paths(
             program,
             current_machine,
             machine_symbols,
             symbols,
-            &slot.parameters,
-            arguments,
+            slot.data_parameters(),
+            data_arguments,
             inference,
         );
+        return outcome;
     }
     let signature =
         requirement_signature_for_site(program, current_machine, receiver, target, site)?;

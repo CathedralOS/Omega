@@ -470,9 +470,10 @@ fn type_is_caller_isolated_local_inner(
             bindings.truncate(mark);
             isolated
         }
+        // Code selection carries no data referent into the callee.
+        TypeReferenceNode::DynamicTrait { .. } => true,
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Unit => false,
     }
 }
