@@ -126,7 +126,10 @@ impl StateGraphEmission<'_, '_> {
                     return unsupported("state loan parent is not a complete owned home");
                 }
                 let relation = (dependent.place, parent.place);
-                if !self.retained_loan_parents.contains(&relation) {
+                // Exact physical aliases already share one storage lifetime.
+                // This graph orders distinct homes; it does not identify their
+                // logical loan epochs or relax the checked source dependencies.
+                if relation.0 != relation.1 && !self.retained_loan_parents.contains(&relation) {
                     self.retained_loan_parents.push(relation);
                 }
             }
@@ -698,7 +701,9 @@ impl StateGraphEmission<'_, '_> {
                             "state operand parent lost its target carrier",
                         ))?;
                     let relation = (dependent, parent.place);
-                    if !self.retained_loan_parents.contains(&relation) {
+                    // A receiving header can reuse its source's owned home.
+                    // Retaining that same home introduces no further ordering.
+                    if relation.0 != relation.1 && !self.retained_loan_parents.contains(&relation) {
                         self.retained_loan_parents.push(relation);
                     }
                 }
