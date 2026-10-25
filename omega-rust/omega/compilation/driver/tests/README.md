@@ -301,14 +301,18 @@ Run with `OMEGA_CORPUS_HOST_PROVISIONS=1` and filter
 `pass/layouts/extent_view_external_content`; without opt-in it records
 `unrequested`. Cathedral's QEMU boot supplies the separate native observation.
 
-`runtime portable resident-storage <peak>` executes the authored
-`resident_whole_extraction::attempt` through initialization, helper transport,
+`runtime portable resident-storage <cell-peak> <payload-peak> <u64-words...>`
+executes the authored whole/aggregate resident `attempt` through initialization, helper transport,
 extraction and original-buffer handback. Borrowed and loaded artifacts run with
-the declared cell ceiling, one cell less, and actual write-only supply despite
-the source provider's read/write description. Fuel pauses do not repeat effects;
+the exact ceilings, one cell less, one payload byte less, one payload byte total,
+and actual write-only supply despite the source provider's read/write description.
+A competing root reservation after the complete initialization image retires
+independently forces decoder refusal. Fuel pauses do not repeat effects;
 budget/authority refusal retains custody until teardown. Success preserves the
 unused tail, checks the extracted value in source and refuses repeated handback.
-Use the same opt-in and filter `pass/layouts/resident_whole_extraction`.
+Use the same opt-in and filters `pass/layouts/resident_whole_extraction` and
+`pass/layouts/resident_aggregate_extraction`. The payload oracle names owned
+placement-image bytes, not codec metadata, host-owned backing capacity or RSS.
 
 `runtime portable mutable-boundary` supplies an observation-only host adapter
 to `build/receiver_view_writeback_exit`'s source-produced Build helper. It loads

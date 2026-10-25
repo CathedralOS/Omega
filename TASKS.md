@@ -1029,7 +1029,11 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     completion before byte writes or source retirement. Source-produced resident
     initialization/extraction preserves original backing through borrowed/loaded
     execution, exact/short budgets, fuel pauses and handback. Compiler-owned
-    placement-image scratch payloads and cumulative result custody remain.
+    placement-image payloads now reserve before allocation through encoding,
+    nested/array staging and decoding; caller-owned codec scratch removes the
+    hidden duplicate image. Exact/short payload controls separately refuse
+    initialization and extraction without publishing custody. Cumulative result
+    custody remains.
     Connect those admitted operations, remaining live-storage and result accounting, remaining
     host operations, and `suspend Build::await_provider<R>(builder, alias)`
     park/resume to the production Build scheduler, replacing checked-tree Build

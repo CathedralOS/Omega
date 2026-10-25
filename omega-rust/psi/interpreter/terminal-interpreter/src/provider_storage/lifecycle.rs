@@ -222,7 +222,7 @@ impl TerminalExecution<'_> {
             .insert_vacant(destination, prepared.binding)?;
         let start = usize::try_from(prepared.binding.offset).map_err(|_| malformed())?;
         let end = start
-            .checked_add(prepared.image.len())
+            .checked_add(prepared.image.bytes().len())
             .ok_or_else(malformed)?;
         let ProviderStorageSlot::Live { allocation, .. } = self
             .provider_storage
@@ -236,7 +236,7 @@ impl TerminalExecution<'_> {
         // All refusing work is over. No user code runs in this commit and none
         // of its operations can fail after the first write. Write only the image
         // footprint: the exact original window and unused tail remain owned.
-        bytes.copy_from_slice(&prepared.image);
+        bytes.copy_from_slice(prepared.image.bytes());
         let resident = self
             .provider_storage
             .residents

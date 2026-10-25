@@ -23,7 +23,7 @@ use terminal_interpreter::{
 };
 use terminal_psi::StructuralTypeShape;
 
-pub(super) fn allocation(provenance: u64) -> Extent {
+pub(super) fn allocation(provenance: u64, length: u64) -> Extent {
     ExtentRootGrant::from_admitted_provider(
         ExtentProviderIssuance::from_normalized_identities([
             1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
@@ -37,7 +37,7 @@ pub(super) fn allocation(provenance: u64) -> Extent {
         ExtentProvenanceId::from_normalized_identity(provenance).unwrap(),
         MappingEraId::from_normalized_identity(25).unwrap(),
     )
-    .mint(4096, 16)
+    .mint(4096, length)
     .unwrap()
 }
 
@@ -135,7 +135,7 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact, writes: bool) 
         )
         .unwrap();
         let account = sponsor.begin_invocation(measurement, 1_000_000).unwrap();
-        let allocation = allocation(24);
+        let allocation = allocation(24, 16);
         let profile = ResourceProfileGrant::from_admitted_provider(
             ResourceProfileReceiptId::from_normalized_identity(31).unwrap(),
             &allocation,
@@ -213,7 +213,7 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact, writes: bool) 
             // Identical geometry and profile contents cannot authorize another
             // issuance. Only the SDK input's provenance changes in this control.
             let (supplied_allocation, matching_allocation) = if crosswire {
-                (self::allocation(124), Some(allocation))
+                (self::allocation(124, 16), Some(allocation))
             } else {
                 (allocation, None)
             };

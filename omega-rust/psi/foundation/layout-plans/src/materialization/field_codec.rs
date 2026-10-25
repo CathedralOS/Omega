@@ -53,6 +53,27 @@ pub fn decode_aggregate_field(
     byte_order: ByteOrder,
     source: &[u8],
 ) -> Result<Vec<u8>, MaterializationDiagnostic> {
+    let width = usize::try_from(field.byte_size)
+        .map_err(|_| MaterializationDiagnostic("field extent exceeds host coordinates".into()))?;
+    let mut decoded = Vec::new();
+    decoded
+        .try_reserve_exact(width)
+        .map_err(|_| MaterializationDiagnostic("field exceeds available storage".into()))?;
+    decoded.resize(width, 0);
+    decode_aggregate_field_into(layout, field, byte_order, source, &mut decoded)?;
+    Ok(decoded)
+}
+
+/// Decode into a caller-owned field payload of exactly the declared extent.
+/// No byte payload is allocated inside this operation. Destination contents
+/// are unspecified on refusal; the caller keeps them private until success.
+pub fn decode_aggregate_field_into(
+    layout: &LayoutPlanReport,
+    field: &AggregateFieldSchema,
+    byte_order: ByteOrder,
+    source: &[u8],
+    destination: &mut [u8],
+) -> Result<(), MaterializationDiagnostic> {
     let failure = |reason: &str| {
         MaterializationDiagnostic(format!(
             "aggregate field `{}` cannot decode: {reason}",
@@ -74,6 +95,11 @@ pub fn decode_aggregate_field(
     }
     let width = usize::try_from(field.byte_size)
         .map_err(|_| failure("field extent exceeds host coordinates"))?;
+    if destination.len() != width {
+        return Err(failure(
+            "destination differs from the complete field extent",
+        ));
+    }
     if entries
         .iter()
         .any(|entry| !matches!(entry.placement, LayoutPlacementReport::At { .. }))
@@ -136,10 +162,15 @@ pub fn decode_aggregate_field(
         let [value] = decoded.as_slice() else {
             return Err(failure("scalar decoder lost its field"));
         };
-        return Ok(match byte_order {
-            ByteOrder::LittleEndian => value.value.to_le_bytes()[..width].to_vec(),
-            ByteOrder::BigEndian => value.value.to_be_bytes()[8 - width..].to_vec(),
-        });
+        match byte_order {
+            ByteOrder::LittleEndian => {
+                destination.copy_from_slice(&value.value.to_le_bytes()[..width])
+            }
+            ByteOrder::BigEndian => {
+                destination.copy_from_slice(&value.value.to_be_bytes()[8 - width..])
+            }
+        }
+        return Ok(());
     }
     let mut offsets = entries
         .iter()
@@ -185,11 +216,7 @@ pub fn decode_aggregate_field(
     if chunk_size.checked_mul(offsets.len()) != Some(width) {
         return Err(failure("placements do not cover the complete field"));
     }
-    let mut decoded = Vec::new();
-    decoded
-        .try_reserve_exact(width)
-        .map_err(|_| failure("field exceeds available storage"))?;
-    for offset in offsets {
+    for (ordinal, offset) in offsets.into_iter().enumerate() {
         let start =
             usize::try_from(offset).map_err(|_| failure("offset exceeds host coordinates"))?;
         let end = start
@@ -198,9 +225,18 @@ pub fn decode_aggregate_field(
         let bytes = source
             .get(start..end)
             .ok_or_else(|| failure("field exceeds the retained layout extent"))?;
-        decoded.extend_from_slice(bytes);
+        let receiving_start = ordinal
+            .checked_mul(chunk_size)
+            .ok_or_else(|| failure("receiving range overflows"))?;
+        let receiving_end = receiving_start
+            .checked_add(chunk_size)
+            .ok_or_else(|| failure("receiving range overflows"))?;
+        destination
+            .get_mut(receiving_start..receiving_end)
+            .ok_or_else(|| failure("receiving range exceeds complete field"))?
+            .copy_from_slice(bytes);
     }
-    Ok(decoded)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -208,7 +244,7 @@ mod tests {
     use super::*;
     use crate::{
         AggregateFieldValue, IntegerInterpretation, LayoutFieldEntryReport,
-        materialize_aggregate_layout_into,
+        materialize_aggregate_layout_into, stage_aggregate_layout,
     };
 
     fn entry(field: &str, placement: LayoutPlacementReport) -> LayoutFieldEntryReport {
@@ -341,10 +377,28 @@ mod tests {
             let mut image = vec![0xa5; 16];
             materialize_aggregate_layout_into(&layout, &schemas, &values, order, &mut image)
                 .unwrap();
+            let borrowed = values
+                .iter()
+                .map(|value| {
+                    AggregateFieldValue::from_storage(&value.field, value.bytes.as_slice()).unwrap()
+                })
+                .collect::<Vec<_>>();
+            let mut scratch = [0xa5; 16];
+            stage_aggregate_layout(&layout, &schemas, &borrowed, order, &mut scratch).unwrap();
+            assert_eq!(scratch.as_slice(), image);
             for (schema, original) in schemas.iter().zip(&values) {
                 assert_eq!(
                     decode_aggregate_field(&layout, schema, order, &image).unwrap(),
                     original.bytes
+                );
+                let mut receiving = vec![0xa5; schema.byte_size as usize];
+                decode_aggregate_field_into(&layout, schema, order, &image, &mut receiving)
+                    .unwrap();
+                assert_eq!(receiving, original.bytes);
+                receiving.push(0);
+                assert!(
+                    decode_aggregate_field_into(&layout, schema, order, &image, &mut receiving)
+                        .is_err()
                 );
             }
             assert_eq!(&image[12..], &[0xa5; 4]);
@@ -379,6 +433,16 @@ mod tests {
         )
         .unwrap();
         assert_eq!(image, [1, 2, 0, 0, 3, 4, 0, 0, 5, 6]);
+        let mut receiving = [0; 6];
+        decode_aggregate_field_into(
+            &layout,
+            &schema,
+            ByteOrder::LittleEndian,
+            &image,
+            &mut receiving,
+        )
+        .unwrap();
+        assert_eq!(receiving.as_slice(), original.bytes);
         assert_eq!(
             decode_aggregate_field(&layout, &schema, ByteOrder::LittleEndian, &image).unwrap(),
             original.bytes
