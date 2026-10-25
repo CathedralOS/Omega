@@ -33,12 +33,13 @@ pub(super) fn observe(
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let loaded = TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap();
         for program in [TerminalProgram::borrow(artifact.view()), loaded] {
-            for (ceiling, supply) in [
-                (peak, StableCapability::ReadWrite),
-                (peak - 1, StableCapability::ReadWrite),
-                (peak, StableCapability::Write),
+            for (ceiling, payload_ceiling, supply) in [
+                (peak, 100_000, StableCapability::ReadWrite),
+                (peak - 1, 100_000, StableCapability::ReadWrite),
+                (peak, 100_000, StableCapability::Write),
+                (peak, 1, StableCapability::ReadWrite),
             ] {
-                exercise(artifact, &program, peak, ceiling, supply);
+                exercise(artifact, &program, peak, ceiling, payload_ceiling, supply);
             }
         }
     }))
@@ -60,6 +61,7 @@ fn exercise(
     program: &TerminalProgram<'_>,
     peak: u64,
     ceiling: u64,
+    payload_ceiling: u64,
     supply: StableCapability,
 ) {
     let module = program.module();
@@ -150,7 +152,7 @@ fn exercise(
         storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
     };
     let sponsor = BuildEvaluationSponsor::new_with_measurement(
-        BuildEvaluationSponsorLimits::new(1_000_000, 8, 2, 2, ceiling, 100_000, 1000, 1000)
+        BuildEvaluationSponsorLimits::new(1_000_000, 8, 2, 2, ceiling, payload_ceiling, 1000, 1000)
             .unwrap(),
         measurement,
     )
@@ -211,10 +213,10 @@ fn exercise(
             result => break result,
         }
     };
-    if ceiling < peak || supply == StableCapability::Write {
+    if ceiling < peak || payload_ceiling == 1 || supply == StableCapability::Write {
         let refusal = result.expect_err("insufficient budget or read authority must refuse");
         let diagnostic = format!("{refusal:?}");
-        let expected = if ceiling < peak {
+        let expected = if ceiling < peak || payload_ceiling == 1 {
             "AllowanceExhausted(LiveStorage)"
         } else {
             "extraction profile differs from the original admitted allocation supply"
