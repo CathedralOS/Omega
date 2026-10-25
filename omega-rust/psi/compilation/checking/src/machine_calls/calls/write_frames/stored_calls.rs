@@ -30,8 +30,10 @@ use instantiation::{aggregate_argument_sources, argument_origin, destination_sou
 mod transfers;
 pub(super) use transfers::{apply, public_effects};
 
+mod declared_outputs;
+mod dynamic_outputs;
+pub(super) use dynamic_outputs::relative_effects as dynamic_effects;
 mod expression_effects;
-mod opaque_outputs;
 pub(super) mod retention;
 use expression_effects::CompletedArguments;
 pub(super) use expression_effects::statement_effects;
@@ -84,11 +86,36 @@ fn invocation_effects(
     inference: &mut FrameInference,
 ) -> Option<SlotRelationTransfer> {
     let arguments = &completed.expressions;
-    let Some((callee, state)) = super::machine_state_by_symbol(program, target) else {
-        if let Some((definition, signature)) =
-            crate::selected_requirement_signature(program, target)
-            && definition.is_boundary
+    // Instantiated public slots own the same complete output frontier as an
+    // abstract signature. Preserve every evaluated operand cut, including the
+    // selector's empty lifetime frontier, without replaying a private body.
+    if let Some(slot) = program.dynamic_slot_by_symbol(target) {
+        if let Some(relative) = dynamic_outputs::relative_effects(program, slot, symbols, inference)
         {
+            return instantiate(
+                program,
+                machine,
+                &slot.parameters,
+                completed,
+                &relative,
+                context,
+                symbols,
+                inference,
+            )
+            .map(SlotRelationTransfer::complete);
+        }
+        return declared_outputs::effects(
+            program,
+            machine,
+            &slot.parameters,
+            completed,
+            context,
+            symbols,
+            inference,
+        );
+    }
+    let Some((callee, state)) = super::machine_state_by_symbol(program, target) else {
+        if let Some((_, signature)) = crate::selected_requirement_signature(program, target) {
             let signature = if call_expression.is_valid() {
                 let call = program.expression_table.call_node(call_expression)?;
                 if call.target_symbol != target {
@@ -99,7 +126,7 @@ fn invocation_effects(
                 signature
             };
             let parameters = program.state_signature_parameters(signature);
-            return opaque_outputs::effects(
+            return declared_outputs::effects(
                 program, machine, parameters, completed, context, symbols, inference,
             );
         }
@@ -125,7 +152,7 @@ fn invocation_effects(
             | language_semantics::MachineSupplyMode::AdmissionClaim
             | language_semantics::MachineSupplyMode::ExternalRealization { .. }
     ) {
-        return opaque_outputs::effects(
+        return declared_outputs::effects(
             program, machine, parameters, completed, context, symbols, inference,
         );
     }
