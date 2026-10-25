@@ -1,0 +1,21 @@
+module generated;
+use main;
+
+public domain u64::Positive(value) requires value > 0;
+
+public machine checked(value: u64 in Positive) -> u64 { value - 1u64 }
+
+public trait Reading { machine read() -> u64; }
+public Reader satisfies Reading {
+    machine read() -> u64 { checked(7u64) }
+}
+
+public machine answer() -> u64 {
+    let expected: u64 = main::seed();
+    transition expected == 7u64 {
+        true -> matched()
+        _ -> other()
+    }
+    state matched() -> u64 { Reader::read() }
+    state other() -> u64 { 0u64 }
+}
