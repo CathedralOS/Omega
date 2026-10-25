@@ -292,7 +292,7 @@ impl TerminalExecution<'_> {
             self.account.as_ref(),
         )?;
         self.validate_scalar_array_qualifications(&snapshot, &result.qualifications)?;
-        self.scalar_array_values.insert(result.place, snapshot);
+        self.scalar_array_values.insert(result.place, snapshot)?;
         Ok(())
     }
 }

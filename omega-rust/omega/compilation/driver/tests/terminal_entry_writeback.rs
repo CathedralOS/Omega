@@ -65,6 +65,70 @@ fn produce(
 }
 
 #[test]
+fn empty_array_descriptor_requires_a_live_cell() {
+    use evaluation_accounting::{
+        BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+        TerminalStorageScheduleIdentity,
+    };
+    let (produced, _, _) = produce("empty_array_result");
+    let program = TerminalProgram::borrow(produced.artifact().view());
+    let measurement = EvaluationMeasurementIdentity::TerminalPsi {
+        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+    };
+    for cells in [2, 1] {
+        // Two cells fit the root header and live empty-array descriptor;
+        // one fits only the root. The payload itself needs zero cells.
+        let sponsor = BuildEvaluationSponsor::new_with_measurement(
+            BuildEvaluationSponsorLimits::new(100_000, 8, 2, 2, cells, 1000, 1000, 1000).unwrap(),
+            measurement,
+        )
+        .unwrap();
+        let account = sponsor.begin_invocation(measurement, 100_000).unwrap();
+        let mut instance = program
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                account: Some(&account),
+                ..Default::default()
+            })
+            .unwrap();
+        let mut meter = TerminalFuelMeter::with_invocation(account.clone(), Some(0)).unwrap();
+        let result = loop {
+            match instance.invoke(&mut meter) {
+                Ok(TerminalExecutionStatus::SponsorExhausted(_)) => meter.replenish(1).unwrap(),
+                result => break result,
+            }
+        };
+        if cells == 2 {
+            let TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarArray(returned)) =
+                result.unwrap()
+            else {
+                panic!("empty array result expected");
+            };
+            assert!(returned.value.elements().is_empty());
+            assert_eq!(sponsor.peak_live_cells(), 2);
+            instance.close().unwrap();
+            assert_eq!(sponsor.live_storage_cells(), 0);
+        } else {
+            let refusal = result.expect_err("an empty payload still needs its descriptor row");
+            assert!(
+                format!("{refusal:?}").contains("AllowanceExhausted(LiveStorage)"),
+                "{refusal:?}"
+            );
+            assert!(instance.result().is_none());
+            assert_eq!(
+                instance.close(),
+                Err(terminal_interpreter::TerminalInstanceCloseError::Busy)
+            );
+            let usage = *account.snapshot().unwrap().record();
+            assert_eq!(instance.invoke(&mut meter), Err(refusal));
+            assert_eq!(*account.snapshot().unwrap().record(), usage);
+        }
+        drop(instance);
+        assert_eq!(sponsor.live_storage_cells(), 0);
+    }
+}
+
+#[test]
 fn array_result_storage_outlives_the_completed_instance() {
     use evaluation_accounting::{
         BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,

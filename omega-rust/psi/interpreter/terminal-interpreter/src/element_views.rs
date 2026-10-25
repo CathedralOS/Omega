@@ -792,7 +792,7 @@ impl TerminalExecution<'_> {
                 )?;
                 descriptor_value = value;
                 self.local_structural_identities.commit_cursor(cursor);
-                self.byte_sequence_values.insert(result.place, binding);
+                self.byte_sequence_values.insert(result.place, binding)?;
             } else {
                 if !matches!(descriptor, StructuralTypeShape::ElementView { .. }) {
                     return Err(malformed());
@@ -815,7 +815,7 @@ impl TerminalExecution<'_> {
                         descriptor_home: None,
                         access,
                     },
-                );
+                )?;
             }
             self.structural_values
                 .insert(result.place, descriptor_value)?;
@@ -850,7 +850,7 @@ impl TerminalExecution<'_> {
                     descriptor_home: None,
                     access,
                 },
-            );
+            )?;
             self.structural_values.insert(
                 result.place,
                 TerminalStructuralValue {
@@ -960,7 +960,7 @@ impl TerminalExecution<'_> {
                     )
                 };
                 self.local_structural_identities.commit_cursor(cursor);
-                self.byte_sequence_values.insert(result.place, binding);
+                self.byte_sequence_values.insert(result.place, binding)?;
             }
             _ => {
                 // A borrowed fixed array already carries its original activation
@@ -995,7 +995,7 @@ impl TerminalExecution<'_> {
                     view
                 };
                 self.local_structural_identities.commit_cursor(cursor);
-                self.element_view_values.insert(result.place, view);
+                self.element_view_values.insert(result.place, view)?;
             }
         }
         self.structural_values
@@ -1494,7 +1494,7 @@ impl TerminalExecution<'_> {
             .with_descriptor_home(destination.clone());
         self.local_structural_identities
             .commit_cursor(identity_cursor);
-        self.element_view_values.insert(result.place, window);
+        self.element_view_values.insert(result.place, window)?;
         self.structural_values.insert(result.place, destination)?;
         if result.multiplicity == StructuralMultiplicity::Affine {
             self.live_affine_frontier

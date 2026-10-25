@@ -144,6 +144,9 @@ impl<Key: Ord, Value> RuntimeRows<Key, Value> {
     pub(crate) fn len(&self) -> usize {
         self.rows.len()
     }
+    pub(crate) fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
     pub(crate) fn keys(&self) -> btree_map::Keys<'_, Key, Value> {
         self.rows.keys()
     }

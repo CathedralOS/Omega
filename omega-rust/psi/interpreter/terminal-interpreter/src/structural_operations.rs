@@ -371,7 +371,7 @@ impl TerminalExecution<'_> {
                     ByteSequenceBinding::Immutable(ByteSequenceView::new(
                         ByteSequenceStorage::copy(bytes, self.account.as_ref())?,
                     )),
-                )
+                )?
                 .is_some()
             {
                 return Err(malformed());
@@ -1638,7 +1638,7 @@ impl TerminalExecution<'_> {
                 crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
                     bytes.detached_descriptor(),
                 ),
-            );
+            )?;
             self.structural_values.insert(result.place, copied)?;
             return Ok(OperationFlow::Advance);
         }
@@ -1701,7 +1701,7 @@ impl TerminalExecution<'_> {
                     let mut copied =
                         self.scalar_array_snapshot(&argument, result.structural_type)?;
                     copied.qualifications.clone_from(&result.qualifications);
-                    self.scalar_array_values.insert(result.place, copied);
+                    self.scalar_array_values.insert(result.place, copied)?;
                     return Ok(OperationFlow::Advance);
                 }
                 let mut elements = Vec::new();
@@ -1932,7 +1932,7 @@ impl TerminalExecution<'_> {
             self.byte_sequence_values.insert(
                 result.place,
                 ByteSequenceBinding::Immutable(bytes.detached_descriptor()),
-            );
+            )?;
         }
         if self
             .program
@@ -1967,7 +1967,7 @@ impl TerminalExecution<'_> {
             if self.element_view_values.contains_key(&result.place) {
                 return Err(malformed());
             }
-            self.element_view_values.insert(result.place, descriptor);
+            self.element_view_values.insert(result.place, descriptor)?;
         }
         self.clone_subtree(
             &StructuralRuntimePlace::from(&leaf),
@@ -1997,7 +1997,7 @@ impl TerminalExecution<'_> {
         let mut copied = self.scalar_array_snapshot(source, result.structural_type)?;
         self.validate_scalar_array_qualifications(&copied, &result.qualifications)?;
         copied.qualifications = result.qualifications.clone();
-        self.scalar_array_values.insert(result.place, copied);
+        self.scalar_array_values.insert(result.place, copied)?;
         Ok(OperationFlow::Advance)
     }
     /// Mint the copied record a byte-carrier leaf copy names: the resolved

@@ -90,7 +90,12 @@ per element with their backing: guest snapshots reserve independent copies,
 inspection clones share read-only backing, and writes reserve any overlapping
 replacement. Plain projection copies use that same snapshot operation. Returned
 payloads remain charged after instance close until the last inspection drops.
-Descriptor maps, placed/case storage and result publication are not yet completely accounted;
+Frame-local array, byte, element-view, primitive-loan and aggregate-backing
+descriptor tables use the same paid row owner through argument staging, saved
+frames, joins and return installation. Even an empty array needs its descriptor
+cell. A refused return retains its output, caller continuation and loan roster
+beside any partially installed rows until the failed activation is discarded.
+Global descriptor/placed/case storage and result publication are not yet completely accounted;
 these partial snapshots must not become production Build usage receipts.
 
 A failed execution retains its exact host fault and unfinished custody. Calling
