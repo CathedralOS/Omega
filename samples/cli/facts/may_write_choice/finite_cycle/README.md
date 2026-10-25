@@ -42,3 +42,11 @@ instruction selection, frame realization and native emission. Every positive
 binds all four hosted targets, with exit `0` required in both engines on a
 matching host. Pinned fixtures are
 `tests/omega/{pass,fail}/facts/may_write_choice_finite_cycle_through_<place>_*`.
+
+The [same-query control](same_query/main.omg) uses a decreasing non-Boolean
+counter, so successive arrivals have the same three-valued query key. Keeping
+reference roots in place returns only the first input and exits `0` in both
+engines. Its [twin](same_query/invalid/main.omg) changes only the backedge's
+reference permutation; its possible return roots include the indexed input and
+the stale bound rejects. The [unknown-selector control](unknown_selector/invalid/main.omg)
+also rejects: finite convergence must not invent a selector value.
