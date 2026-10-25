@@ -44,9 +44,20 @@ pub(crate) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHand
         source_bindings,
         binding_symbols,
     );
-    if !unit_statement
-        && let Some(result_type) = result_type
-        && let Some(return_expression) = lower_return_expression(
+    if unit_statement && let Some(result_type) = result_type {
+        super::trace_return_plan_refusal(
+            program,
+            state,
+            statement_ordinal,
+            CheckedScalarExpressionRole::Return,
+            expression,
+            result_type,
+            locals,
+            "expression classified as Unit statement",
+        );
+    }
+    if !unit_statement && let Some(result_type) = result_type {
+        let return_expression = lower_return_expression(
             program,
             operators,
             expression,
@@ -56,8 +67,20 @@ pub(crate) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHand
             locals,
             result_type,
             exact_integer_casts,
-        )
-    {
+        );
+        let Some(return_expression) = return_expression else {
+            super::trace_return_plan_refusal(
+                program,
+                state,
+                statement_ordinal,
+                CheckedScalarExpressionRole::Return,
+                expression,
+                result_type,
+                locals,
+                "expression has no pure scalar plan",
+            );
+            return;
+        };
         super::record_scalar_value_pair(
             source_bindings,
             expressions,

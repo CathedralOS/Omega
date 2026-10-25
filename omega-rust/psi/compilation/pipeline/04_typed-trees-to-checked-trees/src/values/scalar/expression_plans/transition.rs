@@ -77,55 +77,20 @@ pub(crate) fn plan(
                 result_type,
                 exact_integer_casts,
             );
-            if return_expression.is_none()
-                && std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some()
-            {
-                // Temporary refusal imaging: pure-plan absence may legitimately
-                // select the computation owner. Do not alter either decision.
-                let declared_locals = program
-                    .statement_table
-                    .indexed_statements(state.statement_nodes)
-                    .filter(|(index, _)| *index < statement_ordinal as usize)
-                    .filter_map(|(index, statement)| {
-                        statement.as_local_data().map(|local| {
-                            (
-                                index,
-                                local.symbol,
-                                local.type_reference,
-                                program
-                                    .type_reference_table
-                                    .type_reference(local.type_reference),
-                                local.initial_value,
-                            )
-                        })
-                    })
-                    .take(16)
-                    .collect::<Vec<_>>();
-                let declared_parameters = parameters
-                    .iter()
-                    .take(16)
-                    .map(|parameter| {
-                        (
-                            parameter.symbol,
-                            parameter.type_reference,
-                            program
-                                .type_reference_table
-                                .type_reference(parameter.type_reference),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                eprintln!(
-                    "SCALAR_RETURN_PLAN_REFUSAL state={:?} statement={} continuation={} expression={:?} node={:?} result={:?} scalar_local_count={} scalar_locals={:?} declared_locals={:?} parameters={:?}",
-                    state.symbol,
+            if return_expression.is_none() {
+                super::trace_return_plan_refusal(
+                    program,
+                    state,
                     statement_ordinal,
-                    continuation,
-                    expression,
-                    program.expression_table.expression(*expression),
+                    if continuation {
+                        CheckedScalarExpressionRole::ContinuationReturn
+                    } else {
+                        CheckedScalarExpressionRole::Return
+                    },
+                    *expression,
                     result_type,
-                    locals.len(),
-                    &locals[..locals.len().min(16)],
-                    declared_locals,
-                    declared_parameters,
+                    locals,
+                    "transition value has no pure scalar plan",
                 );
             }
             let Some(return_expression) = return_expression else {
