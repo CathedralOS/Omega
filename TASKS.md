@@ -2923,8 +2923,10 @@ crash and native exit behavior.
   rather than interpreting checked machines, traits, reaches or provider plans.
   Review consumes a compiler-issued evidence product and opaque source owner;
   checked-state custody, nomination and demand-driven component publication stay
-  behind the compiler facade. Package-owned review orchestration and Terminal
-  Build/helper activation scheduling still need migration. Psi
+  behind the compiler facade. Application Build runs install/update target reviews
+  from package-admitted requests; package management retains transaction custody,
+  decisions and publication. The inner review dependency loop, audit scheduling
+  and Terminal Build/helper activation scheduling still need migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
   Psi 00-07 and Build execute

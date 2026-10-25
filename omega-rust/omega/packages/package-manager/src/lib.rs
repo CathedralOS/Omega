@@ -3,7 +3,8 @@
 //! The compiler and command operations for Omega's registry-free package
 //! manager.
 //!
-//! Start with [`package_manager`] for command dispatch, review and publication.
+//! Start with [`package_manager`] for command admission, decisions and publication.
+//! Application Build schedules the admitted target-review requests.
 //! [`operations`] also exposes compiler preparation and read-only inspection.
 
 /// `bounded()` clamps every limit field against `Self::default()` — the hard
@@ -32,11 +33,12 @@ pub mod package_manager;
 pub mod resolution;
 pub mod review;
 
-pub use build_session::PackageBuildSession;
+pub use build_session::{PackageBuildSession, PackageSourceBindings};
 
 pub use package_manager::{
     PackageCommand, PackageCommandError, PackageCommandKind, PackageCommandOptions,
-    PackageCommandOutcome, PackageCommandStatus, discard_package_review, execute_package_command,
+    PackageCommandOutcome, PackageCommandReview, PackageCommandReviewRequest, PackageCommandStatus,
+    PackageCommandTransaction, PreparedPackageCommand, discard_package_review,
 };
 
 // The unit tests compile real packages on several threads; mimalloc's

@@ -7,7 +7,7 @@
 mod bindings;
 mod inputs;
 mod order;
-pub(crate) use bindings::PackageSourceBindings;
+pub use bindings::PackageSourceBindings;
 pub(crate) use inputs::{OccurrenceBuildInputs, reconcile_build_inputs};
 pub(crate) use order::{dependency_first_package_order, package_build_root};
 

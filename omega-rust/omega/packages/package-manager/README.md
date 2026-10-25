@@ -1,8 +1,10 @@
 # Omega Package Manager
 
 Start at [`src/package_manager.rs`](src/package_manager.rs): recover the project
-transaction, dispatch install/update/resume/discard, resolve the candidate,
-review it, then publish. Compiler preparation and read-only inspection have
+transaction, admit install/update/resume requests, resolve the candidate,
+and reconcile findings for publication. Application Build's
+[`package_commands.rs`](../../application/build/src/package_commands.rs) runs
+the target-review loop. Compiler preparation and read-only inspection have
 separate entrances in [`operations`](src/operations/mod.rs).
 
 [Source selection](../../../../wiki/spec/packages/sources.md) owns the
@@ -25,7 +27,7 @@ package-manager/
 ├── README.md
 ├── src/
 │   ├── lib.rs             Rust module wiring and exports
-│   ├── package_manager.rs command lifecycle and dispatch
+│   ├── package_manager.rs command admission, decision join and publication
 │   ├── package_manager/   edit planning, review files, proposal recovery
 │   ├── operations/        compiler preparation, inspection, publication
 │   ├── declarations/      checked package declarations from build.omg
@@ -34,7 +36,14 @@ package-manager/
 │   └── review/            compile, compare, audit, and decide
 ```
 
-`package_manager.rs` owns command orchestration and composes `operations`.
+`PackageCommandTransaction` keeps the project lock and retained review-file root
+alive while application Build executes its admitted target requests. Completion
+requires the whole target roster from that exact admission before writing decision documents or
+publishing accepted files. The original proposal handle remains borrowed across
+that work, so completion checks the file that admission read, not a replacement.
+Binding discovery, policy comparison and the lower-level review dependency loop
+still live in package management; that loop's migration is not completed by the
+command boundary.
 Supporting packages are siblings under [packages/](../README.md).
 The independent [declaration](../build-declarations/README.md),
 [output](../build-output/README.md) and [compilation-input](../compilation-inputs/README.md)
@@ -197,7 +206,7 @@ targets and rounds. [`inspect_packages.rs`](src/operations/inspect_packages.rs)
 creates and disposes the audit's owner. The CLI's
 [`packages::run`](../../application/cli/src/cli/packages/mod.rs) retains the
 install/update owner across automatic acceptance and resume rounds, lending it
-to `execute_package_command`. A later user-issued command creates its own
+to `omega_build::execute_package_command`. A later user-issued command creates its own
 session. Discard requires only project-state recovery, without a Build owner.
 Package commands close staging before publishing accepted project files;
 operation and decision-file failures return to the owner for disposal.

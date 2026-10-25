@@ -6,14 +6,17 @@
 //! publication. Project compilation admits a package batch, invokes the compiler,
 //! and returns its outcomes to package-owned identity reconciliation and disposal.
 //! `build_execution.rs` schedules dependency Builds, joins generated source and
-//! waits for demanded components before their consumers. Review scheduling and
-//! Terminal Build/helper suspension remain separate migration work.
+//! waits for demanded components before their consumers. `package_commands.rs`
+//! schedules admitted target reviews before package-owned publication. The
+//! inner review dependency loop and Terminal Build/helper suspension remain
+//! separate migration work.
 
 mod build;
 mod build_directory;
 mod build_execution;
 mod check_project;
 mod native_project;
+mod package_commands;
 mod package_compilation;
 mod products;
 mod project_compilation;
@@ -33,6 +36,7 @@ pub use native_project::{
     PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native,
     compile_prepared_local_project_for_native_targets,
 };
+pub use package_commands::execute_package_command;
 pub use package_compilation::{compile_packages, join_dependency_builds, prepare_package};
 
 use artifacts::compile_timings::CompileTimings;
