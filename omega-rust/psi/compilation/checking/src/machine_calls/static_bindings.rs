@@ -641,10 +641,10 @@ fn validate_const_binding(
     {
         // An open result tuple may forward its caller's own const binder. It
         // is not a closed value; prove the declared carrier equality instead.
-        let caller = program.machine_by_symbol(application.lexical_owner);
+        let caller = StaticDeclaration::find(program, application.lexical_owner);
         let forwarded = caller.and_then(|caller| {
-            program
-                .machine_type_parameters(caller)
+            caller
+                .parameters
                 .iter()
                 .find(|forwarded| forwarded.symbol == *symbol)
         });
