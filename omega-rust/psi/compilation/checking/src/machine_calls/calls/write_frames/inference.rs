@@ -104,9 +104,47 @@ impl FrameInference {
         for segment in segments {
             if let facts::PlaceSegment::Index { expression } = *segment
                 && expression.is_valid()
-                && let Some(index) = self.index_value(program, expression)
             {
-                *segment = facts::PlaceSegment::FixedIndex { index };
+                let index = self.index_value(program, expression);
+                if let Some(index) = index {
+                    *segment = facts::PlaceSegment::FixedIndex { index };
+                } else if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    // Metadata only: the existing value query has already refused.
+                    // Do not unwrap a capture, inspect current storage or retry it.
+                    let (kind, symbol, capture) =
+                        match program.expression_table.expression(expression) {
+                            ExpressionNode::Name(name) => ("name", name.symbol, Default::default()),
+                            ExpressionNode::SavedSubject(saved) => {
+                                ("saved-subject", SymbolHandle::invalid(), saved.capture)
+                            }
+                            ExpressionNode::Integer(_) => {
+                                ("integer", SymbolHandle::invalid(), Default::default())
+                            }
+                            ExpressionNode::Cast(_) => {
+                                ("cast", SymbolHandle::invalid(), Default::default())
+                            }
+                            ExpressionNode::Range(_) => {
+                                ("range", SymbolHandle::invalid(), Default::default())
+                            }
+                            _ => ("other", SymbolHandle::invalid(), Default::default()),
+                        };
+                    eprintln!(
+                        "CHECKSITE selector-specialization-unavailable expression={:?} kind={} name_symbol={:?} capture={:?} scope={:?} active_count={} active_prefix={:?}",
+                        expression,
+                        kind,
+                        symbol,
+                        capture,
+                        self.parameter_values.as_ref().map(|values| (
+                            values.state,
+                            values.entry_indices.len(),
+                            &values.entry_indices[..values.entry_indices.len().min(8)],
+                            values.indices.len(),
+                            &values.indices[..values.indices.len().min(8)],
+                        )),
+                        self.active_states.len(),
+                        &self.active_states[..self.active_states.len().min(4)],
+                    );
+                }
             }
         }
     }
