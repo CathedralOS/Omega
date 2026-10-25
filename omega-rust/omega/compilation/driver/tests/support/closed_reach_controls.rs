@@ -284,6 +284,19 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
                 .unwrap()
                 .telescope
                 .pop();
+            // Omit the corresponding consumer coordinates too: the independent
+            // declaration roster, rather than tuple disagreement, must reject.
+            for consumer in &mut bad.machines {
+                if let Some(application) = &mut consumer.closed_reach_application {
+                    for call in &mut application.calls {
+                        if let Some(invocation) = &mut call.application
+                            && invocation.callee == machine.id
+                        {
+                            invocation.arguments.pop();
+                        }
+                    }
+                }
+            }
             controls.push((
                 "omitted declaration argument",
                 "complete declaration telescope",

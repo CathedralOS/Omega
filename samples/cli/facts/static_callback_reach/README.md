@@ -61,8 +61,10 @@ not relabeled as accepted candidate products.
 
 Evidence is retained in the task's ignored `build/static-callback/` directory,
 with exact command, source/producer hashes, diagnostics and saved artifacts.
-The source fixture is the durable replay input. No publication has been
-authorized; no main acceptance is claimed.
+The source fixture is the durable replay input. The selected-identity, terminal
+guarantee and recursive-entry repairs landed in PR #145, published as
+`3c1b7104e4f62b22ddd31502f076fb3bf5ab7bef`. Follow-on retention changes
+remain under qualification in PR #168.
 
 On the Linux x86-64 executor, the ordinary CLI sample sequence produced nine
 native exits 0, nine Terminal exits 0, nine successful saved-artifact reloads,
@@ -153,11 +155,37 @@ reject independently. Concrete recursive edges still owe strict descent.
 - Omega 07–09 and emission: native/Terminal agreement is measured on the
   executing Linux x86-64 host only. Other hosted targets remain unexecuted.
 
-This row does not close the parent outcome. Proposition and declaration-identity
-binders, inlined/absent emitted callees, pruning-dependent applications,
-broader generic-schema transports
-still require their own retained-data and execution evidence in this fact
-folder. Existing callback fixtures remain regression controls.
+The follow-on controls exercise the remaining retained-data distinctions in this
+same fact folder:
+
+- `captured_selection`, `captured_schema` and `captured_scope` preserve an
+  outer selected callback while a conformance method adds its own invocation
+  telescope. Original and cloned binders keep exact correspondence.
+- `requirement_telescope` preserves unused proposition and declaration-identity
+  arguments in a nominal requirement's complete trait tuple. Same-shaped
+  declaration replacements and wrong-kind lexical shadows reject.
+- `evidence_scope` preserves the exact selected conformance application for a
+  nested proof-static requirement argument; another conformance rejects.
+- `private_helper` keeps both empty ordinary caller reach and a helper's fixed
+  Console contribution. Omitting the latter from the caller rejects.
+- `captured_unused` retains the whole capture even when its callback has no
+  emitted callee or invocation. Removing its application, outer telescope or
+  independent checked capture header rejects artifact ingress.
+- `captured_shadow` keeps outer and method-local const binders distinct despite
+  equal spelling. `boundary_schema` retains selected generic const tuples and
+  their bounds; its checked body is not evidence of an opaque foreign leaf.
+
+All nine follow-on controls execute with native/Terminal exit 0 and reload on
+Linux x86-64. Their eleven source reject controls still reject. The original
+nine-place row also passes both engines and reload, with nine Extra-reaching
+reject twins. The target-body source realizes all four authored hosted targets;
+foreign-host execution has not been observed. These observations retain their
+actual source and producer hashes in `build/static-callback/`.
+
+Full outcome acceptance still requires the focused fixture inspections/goldens,
+required existing effects fixtures, scoped Clippy, final review and verified
+landing of the follow-on source. An open draft or a source inspection does not
+supply those results.
 
 Run a place after ordinary package preparation:
 
