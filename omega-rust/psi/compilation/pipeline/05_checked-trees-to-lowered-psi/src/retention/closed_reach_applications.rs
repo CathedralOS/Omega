@@ -8,7 +8,9 @@
 //! call occurrences nevertheless let the consumer check every retained join.
 
 use checked_trees::CheckedTrees;
-use checked_trees::data::{MachineParameterContractView, TypeParameterKind};
+use checked_trees::data::{
+    MachineParameterContract, MachineParameterContractView, TypeParameterKind,
+};
 use language_semantics::ServiceReachId;
 use lowered_psi::LoweredSourceCallOccurrence;
 use semantic_vocabulary::{MachineId, ServiceId};
@@ -23,6 +25,265 @@ use crate::direct_calls::direct_call_parts;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 
+/// Checked substitution scopes, retaining capture and invocation separately.
+struct ReachApplicationView<'a> {
+    template: SymbolHandle,
+    instance: SymbolHandle,
+    parameters: Vec<checked_trees::data::TypeParameter>,
+    parameter_aliases: Vec<(SymbolHandle, SymbolHandle)>,
+    invocation_start: usize,
+    capture: Option<&'a typed_trees::typed_trees::CapturedMachineApplication>,
+    normalized_template_identity: &'a str,
+    type_argument_identities: Vec<String>,
+    const_argument_identities: Vec<String>,
+    machine_arguments: Vec<SymbolHandle>,
+    machine_contracts: Vec<[u8; 32]>,
+}
+
+impl ReachApplicationView<'_> {
+    fn position(&self, symbol: SymbolHandle) -> Option<usize> {
+        let symbol = self
+            .parameter_aliases
+            .iter()
+            .find_map(|(original, applied)| (*original == symbol).then_some(*applied))
+            .unwrap_or(symbol);
+        typed_trees::data::type_parameter_position(&self.parameters, symbol)
+    }
+}
+
+fn capture_view<'a>(
+    checked: &'a CheckedTrees,
+    capture: &'a typed_trees::typed_trees::CapturedMachineApplication,
+) -> Result<ReachApplicationView<'a>, LoweringError> {
+    use typed_trees::static_applications::StaticMachineBindingValue;
+    let owner = checked
+        .conformance_by_symbol(capture.conformance_application.declaration)
+        .ok_or(LoweringError::Unsupported(
+            "closed capture lost its selecting declaration",
+        ))?;
+    let parameters = checked.conformance_type_parameters(owner);
+    let bindings = checked
+        .expression_table
+        .static_machine_application_bindings(capture.binding_application);
+    if bindings.len() != parameters.len() {
+        return unsupported("closed capture lost its complete typed substitution");
+    }
+    let mut types = Vec::new();
+    let mut constants = Vec::new();
+    for parameter in parameters {
+        let mut matches = bindings
+            .iter()
+            .filter(|binding| binding.parameter == parameter.symbol);
+        let (Some(binding), None) = (matches.next(), matches.next()) else {
+            return unsupported("closed capture has no unique exact parameter binding");
+        };
+        match (&parameter.kind, &binding.value) {
+            (TypeParameterKind::Type, StaticMachineBindingValue::Type(reference)) => {
+                types.push(checked.normalized_type_identity_text(*reference));
+            }
+            (
+                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
+                StaticMachineBindingValue::Const(reference),
+            ) => {
+                constants.push(
+                    checked
+                        .static_const_type_reference_identity(*reference)
+                        .ok_or(LoweringError::Unsupported(
+                            "closed capture has an open const operand",
+                        ))?,
+                );
+            }
+            (TypeParameterKind::Machine { .. }, StaticMachineBindingValue::Machine(_)) => {}
+            _ => return unsupported("closed capture argument differs from its declared kind"),
+        }
+    }
+    let identity = checked
+        .facts
+        .specialization_identities
+        .for_instance(capture.instance)
+        .ok_or(LoweringError::Unsupported(
+            "closed capture lost its checked identity",
+        ))?;
+    Ok(ReachApplicationView {
+        template: capture.template,
+        instance: capture.instance,
+        parameters: parameters.to_vec(),
+        parameter_aliases: capture.parameters.clone(),
+        invocation_start: parameters.len(),
+        capture: Some(capture),
+        normalized_template_identity: &capture.normalized_template_identity,
+        type_argument_identities: types,
+        const_argument_identities: constants,
+        machine_arguments: checked
+            .expression_table
+            .static_machine_application_selected_machines(capture.binding_application)
+            .iter()
+            .map(|argument| argument.symbol)
+            .collect(),
+        machine_contracts: identity.machine_argument_contract_commitments.to_vec(),
+    })
+}
+
+fn application_views<'a>(
+    checked: &'a CheckedTrees,
+    sources: &[(SymbolHandle, MachineId)],
+) -> Result<Vec<ReachApplicationView<'a>>, LoweringError> {
+    let mut applications = Vec::with_capacity(
+        checked.machine_specializations.len() + checked.captured_machine_applications.len(),
+    );
+    for application in &checked.machine_specializations {
+        if exact_machine(sources, application.instance)?.is_none() {
+            continue;
+        }
+        let parameters = checked
+            .data_type_parameters
+            .span(application.template_parameters)
+            .ok_or(LoweringError::Unsupported(
+                "closed invocation has a stale telescope",
+            ))?;
+        let identity = checked
+            .facts
+            .specialization_identities
+            .for_instance(application.instance)
+            .ok_or(LoweringError::Unsupported(
+                "closed invocation lost its checked identity",
+            ))?;
+        let mut captures = checked
+            .captured_machine_applications
+            .iter()
+            .filter(|(_, capture)| capture.instance == application.template)
+            .map(|(_, capture)| capture);
+        let mut view = if let Some(capture) = captures.next() {
+            if captures.next().is_some() {
+                return unsupported("closed invocation has ambiguous capture ownership");
+            }
+            capture_view(checked, capture)?
+        } else {
+            ReachApplicationView {
+                template: application.template,
+                instance: application.instance,
+                parameters: Vec::new(),
+                parameter_aliases: Vec::new(),
+                invocation_start: 0,
+                capture: None,
+                normalized_template_identity: &application.normalized_template_identity,
+                type_argument_identities: Vec::new(),
+                const_argument_identities: Vec::new(),
+                machine_arguments: Vec::new(),
+                machine_contracts: Vec::new(),
+            }
+        };
+        view.instance = application.instance;
+        view.normalized_template_identity = &application.normalized_template_identity;
+        view.parameters.extend_from_slice(parameters);
+        view.type_argument_identities
+            .extend_from_slice(&application.type_argument_identities);
+        view.const_argument_identities
+            .extend_from_slice(&application.const_argument_identities);
+        view.machine_arguments
+            .extend_from_slice(&application.machine_arguments);
+        view.machine_contracts
+            .extend_from_slice(&identity.machine_argument_contract_commitments);
+        applications.push(view);
+    }
+    for (_, capture) in checked.captured_machine_applications.iter() {
+        if exact_machine(sources, capture.instance)?.is_some() {
+            applications.push(capture_view(checked, capture)?);
+        }
+    }
+    Ok(applications)
+}
+
+fn parameter_kind(parameter: &checked_trees::data::TypeParameter) -> u8 {
+    match &parameter.kind {
+        TypeParameterKind::Type => 0,
+        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => 1,
+        TypeParameterKind::Proposition { .. } => 2,
+        TypeParameterKind::Machine {
+            contract: MachineParameterContract::RequirementIdentity,
+        } => 4,
+        TypeParameterKind::Machine { .. } => 3,
+        TypeParameterKind::Implementation => 5,
+    }
+}
+
+fn requirement_arguments(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    application: &ReachApplicationView<'_>,
+    contract: &MachineParameterContract,
+) -> Result<(Vec<u8>, Vec<terminal_psi::TerminalIdentityIndex>), LoweringError> {
+    let MachineParameterContract::Nominal {
+        trait_definition,
+        trait_arguments,
+        ..
+    } = contract
+    else {
+        return Ok((Vec::new(), Vec::new()));
+    };
+    let declaration = checked
+        .trait_definition_by_symbol(*trait_definition)
+        .ok_or(LoweringError::Unsupported(
+            "closed reach requirement lost its exact trait",
+        ))?;
+    let parameters = checked.trait_type_parameters(declaration);
+    if parameters.len() != trait_arguments.len() {
+        return unsupported("closed reach requirement lost its full trait argument telescope");
+    }
+    let mut binders = application
+        .parameters
+        .iter()
+        .enumerate()
+        .map(|(position, parameter)| (parameter.symbol, format!("reach-slot({position})")))
+        .collect::<Vec<_>>();
+    if let Some(template) = checked.machine(application.template) {
+        binders.extend(
+            template
+                .conformance_bounds
+                .iter()
+                .enumerate()
+                .map(|(position, bound)| {
+                    (bound.binder, format!("reach-evidence-slot({position})"))
+                }),
+        );
+    }
+    for (original, applied) in &application.parameter_aliases {
+        if let Some((symbol, name)) = binders
+            .iter()
+            .find(|(symbol, _)| symbol == applied || symbol == original)
+        {
+            let other = if symbol == applied {
+                *original
+            } else {
+                *applied
+            };
+            let name = name.clone();
+            if !binders.iter().any(|(symbol, _)| *symbol == other) {
+                binders.push((other, name));
+            }
+        }
+    }
+    let arguments = trait_arguments
+        .iter()
+        .map(|argument| {
+            let text = checked.type_identity_request_text(
+                typed_trees::type_identity::TypeIdentityRequest {
+                    type_reference: *argument,
+                    binders: &binders,
+                    substitutions: &[],
+                    qualification:
+                        typed_trees::type_identity::TypeIdentityQualification::PackageQualified,
+                },
+            );
+            if text.is_empty() {
+                return unsupported("closed reach requirement has an empty argument identity");
+            }
+            Ok(identities.intern(&text))
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    Ok((parameters.iter().map(parameter_kind).collect(), arguments))
+}
+
 pub(crate) fn retain_closed_reach_applications(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
@@ -30,17 +291,13 @@ pub(crate) fn retain_closed_reach_applications(
     occurrences: &[LoweredSourceCallOccurrence],
     module: &mut TerminalModule,
 ) -> Result<(), LoweringError> {
-    if !checked.machine_specializations.iter().any(|application| {
-        source_machines
-            .iter()
-            .any(|(source, _)| *source == application.instance)
-    }) {
-        return Ok(());
-    }
-    // One prepared graph serves the complete selected batch.
+    // Invocation and conformance capture are distinct checked applications of
+    // an authored member. Both own a substitution ledger; neither is inferred
+    // again from the executable body's selected callbacks.
+    let applications = application_views(checked, source_machines)?;
     let operational = &checked.facts.operational;
     let inferred = &checked.facts.service_reaches;
-    for specialization in &checked.machine_specializations {
+    for specialization in &applications {
         let checked_identity = checked
             .facts
             .specialization_identities
@@ -51,19 +308,15 @@ pub(crate) fn retain_closed_reach_applications(
         let Some(owner) = exact_machine(source_machines, specialization.instance)? else {
             continue;
         };
-        let parameters = checked
-            .data_type_parameters
-            .span_or_empty(specialization.template_parameters);
-        if parameters.len() != specialization.template_parameters.len()
-            || u32::try_from(parameters.len()).is_err()
-        {
+        let parameters = &specialization.parameters;
+        if u32::try_from(parameters.len()).is_err() {
             return unsupported("closed reach application lost its complete portable telescope");
         }
         // Type/const-only applications still specialize an original contract:
         // their fixed dependency may include private-helper reach. An empty
         // machine-binder set needs no alternate representation or replay rule.
-        // Machine templates cannot author proposition or declaration-identity
-        // binders, so the telescope match below decides each real position.
+        // Every admitted invocation preserves its declaration order; nested
+        // trait telescopes retain their own proposition and identity slots.
         let template =
             inferred
                 .for_machine(specialization.template)
@@ -85,7 +338,7 @@ pub(crate) fn retain_closed_reach_applications(
             .dependency_parameters
             .span_or_empty(template.dependency.parameters)
         {
-            let position = typed_trees::data::type_parameter_position(parameters, *dependency)
+            let position = specialization.position(*dependency)
                 .ok_or(LoweringError::Unsupported(
                     "closed reach dependency is outside its full telescope",
                 ))?;
@@ -98,11 +351,9 @@ pub(crate) fn retain_closed_reach_applications(
         let mut types = specialization.type_argument_identities.iter();
         let mut constants = specialization.const_argument_identities.iter();
         let mut machines = specialization.machine_arguments.iter().zip(
-            checked_identity
-                .machine_argument_contract_commitments
-                .iter(),
+            specialization.machine_contracts.iter(),
         );
-        for parameter in parameters.iter() {
+        for parameter in parameters {
             telescope.push(match &parameter.kind {
                 TypeParameterKind::Type => ClosedReachParameter::Type {
                     argument: types
@@ -188,10 +439,7 @@ pub(crate) fn retain_closed_reach_applications(
                     // An unresolved installation selection keeps its effective
                     // row here: provider bounds are already part of the
                     // conservative contract rows, and the requirement axis is
-                    // retained separately for installation substitution. A
-                    // selected machine with no emitted body keeps its exact
-                    // identity, contract commitment and row; an absent callee
-                    // is evidence about emission, not about the selection.
+                    // retained separately for installation substitution.
                     let view = checked.machine_parameter_contract_view(contract).ok_or(
                         LoweringError::Unsupported(
                             "closed reach binder has no retained callable contract",
@@ -225,8 +473,12 @@ pub(crate) fn retain_closed_reach_applications(
                         checked.facts.service_reaches.rows.services(reach.effective),
                         module,
                     )?;
+                    let (requirement_parameter_kinds, requirement_arguments) =
+                        requirement_arguments(identities, checked, specialization, contract)?;
                     ClosedReachParameter::Machine(ClosedReachMachineBinding {
                         nominal_requirement,
+                        requirement_parameter_kinds,
+                        requirement_arguments,
                         upper_bound,
                         selected_identity: identities
                             .intern(&selected_static_machine_identity(checked, *selected)?),
@@ -262,10 +514,7 @@ pub(crate) fn retain_closed_reach_applications(
                 if !call.static_machine_parameter.is_valid() {
                     continue;
                 }
-                let binder = typed_trees::data::type_parameter_position(
-                    parameters,
-                    call.static_machine_parameter,
-                )
+                let binder = specialization.position(call.static_machine_parameter)
                 .ok_or(LoweringError::Unsupported(
                     "closed reach call lost its original binder",
                 ))?;
@@ -277,40 +526,25 @@ pub(crate) fn retain_closed_reach_applications(
                             == Some(call.target_state_symbol)
                 });
                 let Some(occurrence) = matches.next() else {
-                    // An inlined or otherwise unemitted call has no retained
-                    // operation to join. The binder's retained binding already
-                    // carries its dependency; only the exact emitted-call
-                    // record is absent, so no call row is produced for it.
+                    // The complete owner substitution survives without an
+                    // emitted direct operation.
                     continue;
                 };
                 if matches.next().is_some() {
                     return unsupported("closed reach call has ambiguous emitted occurrences");
                 }
-                // A boundary or dynamic completion edge is a valid emitted
-                // invocation site but names no owner operation; the call keeps
-                // its binder binding without an emitted-call record.
-                let Some(operation) = occurrence.terminal_site.operation() else {
-                    continue;
-                };
+                let Some(operation) = occurrence.terminal_site.operation() else { continue; };
                 let emitted = module.machine(owner)
                     .and_then(|machine| machine.operations().find(|emitted| emitted.id == operation))
                     .ok_or(LoweringError::Unsupported("closed reach call lost its emitted operation"))?;
-                // Only direct substitution joins this relation. Opaque calls
-                // retain their independent boundary application custody; the
-                // owner dependency and telescope survive either realization.
-                if emitted.kind.direct_callee().is_none() {
-                    continue;
-                }
+                if emitted.kind.direct_callee().is_none() { continue; }
                 calls.push(ClosedReachCall {
                     operation,
                     binder: binder as u32,
                     application: match &telescope[binder] {
                         ClosedReachParameter::Machine(binding) if binding.schema.is_some() => {
                             closed_call_application(
-                                identities,
-                                checked,
-                                source_machines,
-                                call.target_state_symbol,
+                                identities, checked, source_machines, call.target_state_symbol,
                             )?
                         }
                         _ => None,
@@ -361,27 +595,52 @@ pub(crate) fn retain_closed_reach_applications(
             let Some(ClosedReachParameter::Machine(_)) = telescope.get(call.binder as usize) else {
                 return unsupported("closed reach consumer does not select a machine binder");
             };
-            let mut operations = terminal_owner
+            let operation = terminal_owner
                 .blocks
                 .iter_mut()
                 .flat_map(|block| &mut block.operations)
-                .filter(|operation| operation.id == call.operation);
-            let (Some(operation), None) = (operations.next(), operations.next()) else {
-                return unsupported("closed reach consumer has no unique exact owner operation");
-            };
-            // Only a direct in-module call can carry the binder marker: a
-            // boundary or dispatch operation is the retained emitted site of
-            // the checked call but makes no direct substitution claim.
-            if direct_call_parts(&operation.kind).is_some() {
-                operation.static_reach_binding = Some(call.binder);
+                .find(|operation| operation.id == call.operation)
+                .ok_or(LoweringError::Unsupported(
+                    "closed reach consumer has no exact owner operation",
+                ))?;
+            if direct_call_parts(&operation.kind).is_none() {
+                return unsupported("closed reach consumer is not a direct machine call");
             }
+            operation.static_reach_binding = Some(call.binder);
         }
+        let capture = specialization
+            .capture
+            .map(|capture| {
+                let receipt = checked
+                    .facts
+                    .specialization_identities
+                    .for_instance(capture.instance)
+                    .ok_or(LoweringError::Unsupported(
+                        "closed capture lost its checked receipt",
+                    ))?;
+                let invocation = telescope.split_off(specialization.invocation_start);
+                let capture_telescope = std::mem::replace(&mut telescope, invocation);
+                Ok::<_, LoweringError>(terminal_psi::ClosedReachCapture {
+                    template_identity: identities.intern(&capture.normalized_template_identity),
+                    template_commitment: receipt.template_contract_commitment.as_bytes(),
+                    specialization_commitment: receipt.commitment.as_bytes(),
+                    parameter_kinds: specialization.parameters[..specialization.invocation_start]
+                        .iter()
+                        .map(parameter_kind)
+                        .collect(),
+                    telescope: capture_telescope,
+                })
+            })
+            .transpose()?;
         terminal_owner.closed_reach_application = Some(ClosedReachApplication {
             template_identity: identities
-                .intern(&specialization.normalized_template_identity.clone()),
+                .intern(specialization.normalized_template_identity),
             template_commitment: checked_identity.template_contract_commitment.as_bytes(),
             specialization_commitment: checked_identity.commitment.as_bytes(),
+            parameter_kinds: specialization.parameters[specialization.invocation_start..]
+                .iter().map(parameter_kind).collect(),
             telescope,
+            capture,
             fixed,
             dependencies,
             calls,

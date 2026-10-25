@@ -1,7 +1,26 @@
 //! Mutate real source-produced reach records independently of their call bodies.
 
 use terminal_codec::CanonicalTerminalArtifact;
-use terminal_psi::{ClosedReachParameter, TerminalModule};
+use terminal_psi::{ClosedReachApplication, ClosedReachParameter, TerminalModule};
+
+fn parameter_mut(
+    application: &mut ClosedReachApplication,
+    binder: u32,
+) -> Option<&mut ClosedReachParameter> {
+    let prefix = application
+        .capture
+        .as_ref()
+        .map_or(0, |capture| capture.telescope.len());
+    if (binder as usize) < prefix {
+        application
+            .capture
+            .as_mut()?
+            .telescope
+            .get_mut(binder as usize)
+    } else {
+        application.telescope.get_mut(binder as usize - prefix)
+    }
+}
 
 pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String> {
     let module = artifact.semantic_module();
@@ -70,12 +89,14 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
     ));
 
     let mut bad = module.clone();
-    let ClosedReachParameter::Machine(binding) = &mut bad.machines[owner]
-        .closed_reach_application
-        .as_mut()
-        .unwrap()
-        .telescope[dependency as usize]
-    else {
+    let ClosedReachParameter::Machine(binding) = parameter_mut(
+        bad.machines[owner]
+            .closed_reach_application
+            .as_mut()
+            .unwrap(),
+        dependency,
+    )
+    .unwrap() else {
         return Err("dependency is not a machine".to_owned());
     };
     binding.selected_contract_commitment = [0; 32];
@@ -147,7 +168,7 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
         let Some(application) = &machine.closed_reach_application else {
             continue;
         };
-        for (binder, parameter) in application.telescope.iter().enumerate() {
+        for (binder, parameter) in application.parameters().enumerate() {
             let ClosedReachParameter::Machine(binding) = parameter else {
                 continue;
             };
@@ -155,11 +176,9 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
                 continue;
             }
             let mut bad = module.clone();
-            let ClosedReachParameter::Machine(binding) = &mut bad.machines[position]
-                .closed_reach_application
-                .as_mut()
-                .unwrap()
-                .telescope[binder]
+            let ClosedReachParameter::Machine(binding) = parameter_mut(
+                bad.machines[position].closed_reach_application.as_mut().unwrap(), binder as u32,
+            ).unwrap()
             else {
                 unreachable!()
             };
@@ -208,8 +227,7 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
         if let Some(expected) = &mut application.calls[call].application {
             expected.callee = alternative;
         } else {
-            let ClosedReachParameter::Machine(binding) =
-                &mut application.telescope[binder as usize]
+            let ClosedReachParameter::Machine(binding) = parameter_mut(application, binder).unwrap()
             else {
                 unreachable!()
             };
@@ -254,8 +272,143 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
             break;
         }
     }
+    for (position, machine) in module.machines.iter().enumerate() {
+        let Some(application) = &machine.closed_reach_application else {
+            continue;
+        };
+        if !application.telescope.is_empty() {
+            let mut bad = module.clone();
+            bad.machines[position]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .telescope
+                .pop();
+            controls.push((
+                "omitted declaration argument",
+                "complete declaration telescope",
+                bad,
+            ));
+        }
+        if let Some((binder, _)) = application.parameters().enumerate().find(|(_, parameter)| {
+            matches!(parameter, ClosedReachParameter::Machine(binding) if !binding.requirement_arguments.is_empty())
+        }) {
+            let mut bad = module.clone();
+            let ClosedReachParameter::Machine(binding) = parameter_mut(
+                bad.machines[position].closed_reach_application.as_mut().unwrap(), binder as u32,
+            ).unwrap() else { unreachable!() };
+            binding.requirement_arguments.pop();
+            controls.push(("omitted nominal requirement argument", "full declaration telescope", bad));
+        }
+    }
     for (name, reason, bad) in controls {
         super::reject_module_at_ingress(&bad, name, reason)?;
+    }
+    Ok(())
+}
+
+pub(super) fn inspect_captures(artifact: &CanonicalTerminalArtifact) -> Result<(), String> {
+    let module = artifact.semantic_module();
+    let owners = module
+        .machines
+        .iter()
+        .enumerate()
+        .filter_map(|(position, machine)| {
+            machine
+                .closed_reach_application
+                .as_ref()?
+                .capture
+                .as_ref()?;
+            Some(position)
+        })
+        .collect::<Vec<_>>();
+    if owners.is_empty() {
+        return Err("capture controls need a retained source capture".to_owned());
+    }
+    for position in owners {
+        let mut bad = module.clone();
+        bad.machines[position]
+            .closed_reach_application
+            .as_mut()
+            .unwrap()
+            .capture = None;
+        super::reject_module_at_ingress(
+            &bad,
+            "omitted whole capture prefix",
+            "independent checked declaration",
+        )?;
+        let mut bad = module.clone();
+        bad.machines[position].closed_reach_application = None;
+        super::reject_module_at_ingress(
+            &bad,
+            "omitted unused captured application",
+            "no retained application",
+        )?;
+        let mut bad = module.clone();
+        bad.machines[position]
+            .declaration
+            .as_mut()
+            .unwrap()
+            .specialization
+            .as_mut()
+            .unwrap()
+            .capture = None;
+        super::reject_module_at_ingress(
+            &bad,
+            "missing independent capture declaration",
+            "independent checked declaration",
+        )?;
+        let capture = module.machines[position]
+            .closed_reach_application
+            .as_ref()
+            .unwrap()
+            .capture
+            .as_ref()
+            .unwrap();
+        if !capture.telescope.is_empty() {
+            let mut bad = module.clone();
+            bad.machines[position]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .capture
+                .as_mut()
+                .unwrap()
+                .telescope
+                .pop();
+            super::reject_module_at_ingress(
+                &bad,
+                "incomplete capture telescope",
+                "complete declaration telescope",
+            )?;
+        }
+        if let Some(other) = module
+            .machines
+            .iter()
+            .enumerate()
+            .find_map(|(other, machine)| {
+                let candidate = machine
+                    .closed_reach_application
+                    .as_ref()?
+                    .capture
+                    .as_ref()?;
+                (other != position
+                    && candidate.specialization_commitment != capture.specialization_commitment)
+                    .then_some(candidate)
+            })
+        {
+            let mut bad = module.clone();
+            bad.machines[position]
+                .closed_reach_application
+                .as_mut()
+                .unwrap()
+                .capture = Some(other.clone());
+            super::reject_module_at_ingress(
+                &bad,
+                "redirected capture selection",
+                "independent checked declaration",
+            )?;
+        }
     }
     Ok(())
 }

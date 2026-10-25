@@ -495,6 +495,27 @@ enum SelectedCallbackRegistration {
     ForeignLeaf,
 }
 
+/// A symbolic requirement template can own several checked closed tuples.
+/// This query recovers only its exact declaration category, never a selected
+/// implementation, native callback entry or provider placement.
+fn checked_symbolic_requirement_origin(
+    typed: &TypedTrees,
+    operation: symbols::SymbolHandle,
+) -> bool {
+    let mut families = typed
+        .closed_requirement_applications()
+        .filter(|family| family.template == operation);
+    let Some(first) = families.next() else {
+        return false;
+    };
+    if families.any(|family| family.declaring_trait != first.declaring_trait) {
+        return false;
+    }
+    typed
+        .trait_definition_by_symbol(first.declaring_trait)
+        .is_some_and(|declaration| !declaration.is_boundary)
+}
+
 fn selected_callback_registration(
     typed: &TypedTrees,
     selected: &effects::SelectedProviderPlanFacts,
@@ -517,6 +538,8 @@ fn selected_callback_registration(
     } else if typed.machine_parameter_signature(operation).is_some() {
         // A checked generic forwarding edge retains its binder declaration.
         // Its eventual concrete selection owns any external materialization.
+        return Ok(SelectedCallbackRegistration::CheckedSource);
+    } else if checked_symbolic_requirement_origin(typed, operation) {
         return Ok(SelectedCallbackRegistration::CheckedSource);
     } else {
         return Err(format!(
