@@ -234,32 +234,34 @@ fn visit_domain<'program>(
     visited: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
     selected: &mut Option<&'program CleanupSelection>,
 ) -> Result<(), Diagnostic> {
-    let domain = match identity {
+    let declared = program.domain_definition(symbol);
+    let supplied = match identity {
         Some(identity) => program.domain_definition_for_instance(symbol, identity),
-        None => program.domain_definition(symbol),
+        None => declared.filter(|domain| {
+            typed_trees::domain::index_parameters(program, domain).is_empty()
+                && !typed_trees::domain::has_generic_carrier(program, domain)
+        }),
     };
-    let Some(domain) = domain else {
-        // Builtin policies have no authored theory. An authored family must
-        // retain its exact application; its uninstantiated declaration cannot
-        // stand in for a missing instance while selecting owned cleanup.
-        return if program.domain_definition(symbol).is_some() {
-            let declared = program
-                .domain_definition(symbol)
-                .expect("declared domain checked above");
-            Err(Diagnostic::error(format!(
-                "owned cleanup requires the exact retained domain application for `{}` (requested {:?}, declaration {:?})",
-                declared.name, identity, declared.semantic_id,
-            )))
-        } else {
-            Ok(())
-        };
+    let Some(domain) = supplied.or(declared) else {
+        return Ok(());
     };
-    let instance = (symbol, domain.semantic_id);
+    // The declaration graph tells whether a cleanup obligation exists at
+    // all. Zero selections retain structural eligibility even for existing
+    // generic theories whose application has no cleanup work to materialize.
+    // A raw theory is never an executable selection: reaching any hook below
+    // requires the exact supplied view, including through inherited theories.
+    let instance = (symbol, identity.unwrap_or(domain.semantic_id));
     if visited.contains(&instance) {
         return Ok(());
     }
     visited.push(instance);
     if let Some(selection) = &domain.cleanup_selection {
+        if supplied.is_none() {
+            return Err(Diagnostic::error(format!(
+                "owned cleanup requires the exact retained domain application for `{}` (requested {:?}, declaration {:?})",
+                domain.name, identity, domain.semantic_id,
+            )));
+        }
         merge(program, selection, selected)?;
     }
     if let Some(alias) = &domain.alias {
