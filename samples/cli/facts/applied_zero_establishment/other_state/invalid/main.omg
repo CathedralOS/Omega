@@ -1,0 +1,15 @@
+// A zeroed Gate<0> establishes its exact Number == 0 application before its code field is read.
+// Expected exit: 0
+// Place: other_state.
+data Gate<const Number: u64> where Number == 0 { code: u8; }
+machine Gate::read<const Selected: u64>(gate: &Gate<Selected>) -> u8 { gate.code }
+machine start() crashes Trap {
+    let initial: Gate<2>;
+    transition { _ -> inspect(initial) }
+    state inspect(value: Gate<2>) {
+        let code: u8 = Gate::read(&value);
+        transition code == 0u8 { true -> done() _ -> bad() }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

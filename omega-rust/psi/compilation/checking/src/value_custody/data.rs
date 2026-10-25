@@ -296,6 +296,17 @@ fn type_requires_establishment_inner(
                 })
                 || type_requires_establishment_inner(program, *base_type, index)
         }
+        TypeReferenceNode::Reference { .. } => {
+            // Zero bits do not establish a loan or a referent. The shared
+            // byte-view carrier alone has an empty descriptor representation;
+            // its qualifications are checked by the enclosing constraint walk.
+            !matches!(
+                crate::byte_sequence_carrier(program, type_reference, &[]),
+                Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView {
+                    access: Some(checked_trees::CheckedStructuralAccess::SharedBorrow),
+                })
+            )
+        }
         TypeReferenceNode::FixedArray {
             element_type,
             length,

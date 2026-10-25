@@ -851,9 +851,9 @@ fn composed_value_established(
         .map(|(name, value)| (name.as_str(), *value))
         .collect::<Vec<_>>();
     for fact in program.proof_facts.span_or_empty(definition.where_facts) {
-        if !super::place_queries::fact_mentions_any_field(program, definition, fact) {
-            continue;
-        }
+        // Static predicates constrain the exact application even when no
+        // stored field occurs in them. A zero-valid sibling application cannot
+        // establish this one merely because both have the same owner.
         let Some(expression) = fact.as_expression() else {
             return false;
         };
