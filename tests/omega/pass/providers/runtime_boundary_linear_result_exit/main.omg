@@ -14,8 +14,8 @@ public domain Token::Issued;
 public data Packet { token: Token; marker: u64; }
 
 public boundary trait TokenMint {
-    machine issue(value: u64) -> Token in Token::Issued;
-    machine wrap(token: Token, marker: u64) -> Packet;
+    machine issue(value: u64) -> Token in Token::Issued reaches;
+    machine wrap(token: Token, marker: u64) -> Packet reaches;
 }
 
 data TokenMintProvider {}

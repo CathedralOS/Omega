@@ -8,7 +8,7 @@ fn retired_receiver_parameters_reject_in_every_signature_owner() {
         for source in [
             format!("data Counter {{ value: u32; }} machine Counter::step({parameter}) {{}}"),
             format!("trait Operation {{ machine step({parameter}); }}"),
-            format!("boundary trait Operation {{ machine step({parameter}); }}"),
+            format!("boundary trait Operation {{ machine step({parameter}) reaches; }}"),
             format!("machine run() {{ state step({parameter}) {{}} }}"),
         ] {
             let tokens = Lexer::new(&source).tokenize().unwrap();

@@ -10,7 +10,7 @@
 
 use omega_language_std::console;
 
-public boundary trait Sink { machine take(name: [u8; 7]) -> u64; }
+public boundary trait Sink { machine take(name: [u8; 7]) -> u64 reaches; }
 
 public data SinkProvider { seen: u64; }
 

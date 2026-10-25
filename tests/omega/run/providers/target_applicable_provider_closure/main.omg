@@ -6,10 +6,10 @@
 use omega_language_std::console;
 
 boundary trait Value {
-    machine read() -> i32;
-    machine other() -> i32;
+    machine read() -> i32 reaches;
+    machine other() -> i32 reaches;
 }
-boundary trait Upstream { machine read() -> i32; }
+boundary trait Upstream { machine read() -> i32 reaches; }
 
 PortableValue satisfies Value {
     machine read() -> i32 { selected_member() }

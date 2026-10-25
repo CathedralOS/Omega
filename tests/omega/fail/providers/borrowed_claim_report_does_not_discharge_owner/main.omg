@@ -2,7 +2,7 @@
 use omega::language::core::drop;
 data Token [linear] { value: u64; }
 data Report { value: u64; }
-boundary trait Reader { machine read(token: &Token) -> Report; }
+boundary trait Reader { machine read(token: &Token) -> Report reaches; }
 machine make() -> Token {
     let token: Token = Token { value: 42 };
     token

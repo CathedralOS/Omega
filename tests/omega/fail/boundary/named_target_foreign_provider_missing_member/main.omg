@@ -1,5 +1,5 @@
 // A map naming a family cannot borrow another target's realization.
-boundary trait Probe { machine read() -> u64; }
+boundary trait Probe { machine read() -> u64 reaches; }
 data NativeProbe {}
 uefi_x86_64 machine NativeProbe::read() -> u64
     satisfies Probe::read via ForeignBinding::Syscall(39);

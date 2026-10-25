@@ -3,8 +3,8 @@ data Word {}
 data Other {}
 domain<Value> Token::Issued<Value> established by Supply::issue;
 boundary trait Supply<Value> {
-    machine issue() -> Token ensures result in Issued<Value>;
-    machine forward(value: Token in Issued<Value>) -> Token in Issued<Value>;
+    machine issue() -> Token reaches ensures result in Issued<Value>;
+    machine forward(value: Token in Issued<Value>) -> Token in Issued<Value> reaches;
 }
 machine relay<Value>(value: Token in Issued<Value>) -> Token in Issued<Value>
 reaches Supply

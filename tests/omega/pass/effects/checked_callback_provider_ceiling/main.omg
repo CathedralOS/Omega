@@ -9,6 +9,7 @@ public boundary trait Handler {
 public boundary trait Registrar {
     machine execute<machine Callback>() -> u64
     where machine Callback satisfies Handler::read;
+    reaches
     invokes Handler;
 }
 data Provider {}

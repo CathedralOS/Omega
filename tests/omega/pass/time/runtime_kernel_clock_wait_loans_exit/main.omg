@@ -6,9 +6,9 @@ public data Instant [copy] { seconds: i64; nanoseconds: i64; marker: i64; }
 data Holder { prefix: i64; instant: Instant; suffix: i64; }
 data Main { holder: Holder; request: Instant; }
 public boundary trait ClockProbe {
-    machine read(selector: i32, instant: &mut Instant) -> i64;
-    machine sleep(request: &Instant, remainder: u64) -> i64;
-    machine sleep_unit(request: &Instant, remainder: u64);
+    machine read(selector: i32, instant: &mut Instant) -> i64 reaches;
+    machine sleep(request: &Instant, remainder: u64) -> i64 reaches;
+    machine sleep_unit(request: &Instant, remainder: u64) reaches;
 }
 data ClockImports {}
 

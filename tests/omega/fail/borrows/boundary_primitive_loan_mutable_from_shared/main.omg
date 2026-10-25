@@ -1,7 +1,7 @@
 use omega::language::core::external_binding;
 
 public boundary trait ScalarInput {
-    machine read(descriptor: i32, value: &mut f32, count: u64) -> i64 blocks;
+    machine read(descriptor: i32, value: &mut f32, count: u64) -> i64 reaches blocks;
 }
 public data ScalarImports {}
 data Main { }

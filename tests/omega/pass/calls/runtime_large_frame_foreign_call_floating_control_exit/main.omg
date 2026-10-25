@@ -7,7 +7,7 @@ use omega::language::core::external_binding;
 use omega_language_std::console;
 
 public boundary trait Magnitude {
-    machine absolute(value: i32) -> i32;
+    machine absolute(value: i32) -> i32 reaches;
 }
 
 macos_arm64 machine absolute_binding() -> ForeignBinding<26, 4, 0> {

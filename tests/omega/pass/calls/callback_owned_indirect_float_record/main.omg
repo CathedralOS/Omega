@@ -177,10 +177,10 @@ public boundary trait Prepare: Calling<PrepareCalling> {
     machine prepare(
         interface: &mut ForeignInterface, abi: u32, count: u32,
         result_type: &PairType, argument_types: &ArgumentTypes
-    ) -> u32;
+    ) -> u32 reaches;
 }
 public boundary trait Transform: Calling<TransformCalling> {
-    machine transform(pair: FloatRecord) -> FloatRecord;
+    machine transform(pair: FloatRecord) -> FloatRecord reaches;
 }
 public boundary trait Invoke: Calling<InvokeCalling> {
     machine invoke<machine Handler>(
@@ -188,6 +188,7 @@ public boundary trait Invoke: Calling<InvokeCalling> {
         result: &mut FloatRecord, arguments: &ArgumentValues
     )
     where machine Handler satisfies Transform::transform;
+    reaches
     invokes Transform;
 }
 

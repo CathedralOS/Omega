@@ -2,7 +2,7 @@
 // empty. Exercise direct, bound and helper calls without inventing an effect.
 use omega_language_std::console;
 
-public boundary trait Pure { machine evaluate(value: i32) -> i32; }
+public boundary trait Pure { machine evaluate(value: i32) -> i32 reaches; }
 data Provider {}
 machine Provider::evaluate(value: i32) -> i32 satisfies Pure::evaluate { value }
 

@@ -1,4 +1,4 @@
-public boundary trait Observe { machine read(bytes: &[u8]); }
+public boundary trait Observe { machine read(bytes: &[u8]) reaches; }
 machine cannot_observe(bytes: &write [u8]) {
     Observe::read(&write bytes);
 }

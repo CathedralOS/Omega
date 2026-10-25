@@ -2,5 +2,5 @@ data Token { value: u64; }
 data Other { value: u64; }
 domain Token::Issued established by Issuer::issue;
 data Outcome<T> { case Ready(value: T); }
-boundary trait Issuer { machine issue() -> Outcome<Other in Token::Issued>; }
+boundary trait Issuer { machine issue() -> Outcome<Other in Token::Issued> reaches; }
 machine main() {}

@@ -1,7 +1,7 @@
 // A shared source cannot supply an applied requirement's `&mut` parameter
 // that the mutable result borrows from.
 public boundary trait Parent<Value> {
-    machine borrow_mut<'source>(value: &'source mut Value) -> &'source mut Value;
+    machine borrow_mut<'source>(value: &'source mut Value) -> &'source mut Value reaches;
 }
 
 machine invalid<'source>(value: &'source i32)

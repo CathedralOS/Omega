@@ -13,8 +13,8 @@ public data ByteDescriptor {
 }
 
 public boundary trait NativeByteShapes {
-    machine take_separate(pointer: addr, length: u64) -> i32;
-    machine take_descriptor(value: ByteDescriptor) -> i32;
+    machine take_separate(pointer: addr, length: u64) -> i32 reaches;
+    machine take_descriptor(value: ByteDescriptor) -> i32 reaches;
 }
 
 windows_x86_64 machine windows_x86_64_take_separate_binding() -> ForeignBinding<19, 25, 0> {

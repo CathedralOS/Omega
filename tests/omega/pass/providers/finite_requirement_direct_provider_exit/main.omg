@@ -3,6 +3,7 @@
 // Count=12 is supported but uncalled: selection must retain the whole roster.
 public boundary trait Service {
     machine echo<const Count: u64>(value: i32) -> i32
+    reaches
     where Count == 4 || Count == 8 || Count == 12;
 }
 data Provider {}

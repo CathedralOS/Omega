@@ -1,10 +1,10 @@
 
 public data Counter { value: i32; }
 public boundary trait CounterOperations {
-    machine read(counter: &Counter) -> i32;
+    machine read(counter: &Counter) -> i32 reaches;
 }
 public boundary trait OtherOperations {
-    machine read(counter: &Counter) -> i32;
+    machine read(counter: &Counter) -> i32 reaches;
 }
 machine read_counter(counter: &Counter) -> i32
 satisfies OtherOperations::read { counter.value }

@@ -11,7 +11,7 @@ satisfies Content<Root, CountedQuantity<ByteUnit>>::project {
     CountedQuantity { magnitude: embed(root.value) as Nat }
 }
 boundary trait Grant {
-    machine grant(root: Root) -> Root ensures result in Root::Granted;
+    machine grant(root: Root) -> Root reaches ensures result in Root::Granted;
 }
 Provider satisfies Grant {
     machine grant(root: Root) -> Root { root }

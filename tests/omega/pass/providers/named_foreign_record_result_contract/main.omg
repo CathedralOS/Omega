@@ -6,6 +6,7 @@ public data Record { value: u64; }
 public data Output<'scope> { value: &'scope Record; }
 public boundary trait ForeignReports {
     machine read<'scope>(table: &'scope Table, output: &mut Output<'scope>) -> Status
+    reaches
     ensures result.code == 0;
 }
 public FirmwareReports satisfies ForeignReports {

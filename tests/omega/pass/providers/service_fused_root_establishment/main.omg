@@ -3,7 +3,7 @@
 // receives no such authority merely because the provider is selected.
 
 public boundary trait Ping {
-    machine ping();
+    machine ping() reaches;
 }
 
 data PingProvider { }

@@ -4,8 +4,8 @@
 use omega_language_std::console;
 
 public boundary trait Convert {
-    machine convert(value: i32) -> i32;
-    machine convert(value: i32) -> i32 in Saturating;
+    machine convert(value: i32) -> i32 reaches;
+    machine convert(value: i32) -> i32 in Saturating reaches;
 }
 
 data ConvertProvider {}

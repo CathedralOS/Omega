@@ -18,12 +18,12 @@ boundary trait WindowsFilesystemIo {
     machine c_create_file(path: &[u16; 4096] in WindowsNativePath, desired_access: u32, share_mode: u32, security_attributes: u64, creation_disposition: u32, flags_and_attributes: u32, template: u64) -> i64
     requires security_attributes == 0 && template == 0
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation blocks;
-    machine c_close_handle(handle: i64) -> i32 blocks;
-    machine c_get_last_error() -> u32;
-    machine c_flush_file_buffers(handle: i64) -> i32 blocks;
-    machine c_set_file_pointer(handle: i64, distance: i64, position: &mut i64, method: u32) -> i32 blocks;
-    machine c_get_current_process() -> i64;
-    machine c_duplicate_handle(source_process: i64, source: i64, target_process: i64, target: &mut i64, desired_access: u32, inherit: i32, options: u32) -> i32;
+    machine c_close_handle(handle: i64) -> i32 reaches blocks;
+    machine c_get_last_error() -> u32 reaches;
+    machine c_flush_file_buffers(handle: i64) -> i32 reaches blocks;
+    machine c_set_file_pointer(handle: i64, distance: i64, position: &mut i64, method: u32) -> i32 reaches blocks;
+    machine c_get_current_process() -> i64 reaches;
+    machine c_duplicate_handle(source_process: i64, source: i64, target_process: i64, target: &mut i64, desired_access: u32, inherit: i32, options: u32) -> i32 reaches;
     machine c_set_file_attributes(path: &[u16; 4096] in WindowsNativePath, attributes: u32) -> i32
 
     reaches FilesystemMetadataMutation blocks;
@@ -53,11 +53,12 @@ boundary trait WindowsFilesystemIo {
     machine c_get_file_time(handle: i64, creation_time: u64, access_time: &mut u64, write_time: &mut u64) -> i32
     requires creation_time == 0
     reaches FilesystemMetadataQuery blocks;
-    machine c_set_last_error(code: u32);
+    machine c_set_last_error(code: u32) reaches;
     machine c_file_mode(handle: i64, status: &mut WindowsFilesystemIoStatus, mode: &mut u32, length: u32, information_class: u32) -> i32
+    reaches
     requires length == 4 && information_class == 16
     blocks;
-    machine c_status_to_error(status: i32) -> u32;
+    machine c_status_to_error(status: i32) -> u32 reaches;
 }
 
 windows_x86_64 machine windows_file_mode_binding() -> ForeignBinding<9, 22, 0> {

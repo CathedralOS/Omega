@@ -4,8 +4,8 @@ data Guid { tag: u32; bytes: [u8; 2]; }
 domain Guid::Selected(value)
 requires value.tag == 7 && value.bytes[0] == 1 && value.bytes[1] == 2;
 boundary trait Reader {
-    machine read(prefix: u64, protocol: &Guid, suffix: u32) -> u64 requires protocol in Guid::Selected;
-    machine qualified(protocol: &Guid in Selected) -> u64;
+    machine read(prefix: u64, protocol: &Guid, suffix: u32) -> u64 reaches requires protocol in Guid::Selected;
+    machine qualified(protocol: &Guid in Selected) -> u64 reaches;
 }
 Provider satisfies Reader {
     machine read(prefix: u64, renamed: &Guid, suffix: u32) -> u64 requires renamed in Guid::Selected { 42 }

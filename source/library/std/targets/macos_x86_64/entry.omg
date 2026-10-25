@@ -12,7 +12,7 @@ use entry_shapes;
 // This calling contract supplies no bridge, loader admission, receiver, or
 // numeric stack guarantee. ProviderSelected requires independent backing.
 boundary trait MacosX64PhysicalEntry {
-    machine enter(argc: i32, argv: addr, envp: addr, apple: addr) -> i32;
+    machine enter(argc: i32, argv: addr, envp: addr, apple: addr) -> i32 reaches;
 }
 
 data MacosX64 {}

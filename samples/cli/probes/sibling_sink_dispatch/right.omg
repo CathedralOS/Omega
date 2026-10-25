@@ -1,5 +1,5 @@
 module right;
 
-public boundary trait Sink { machine emit() -> i32; }
+public boundary trait Sink { machine emit() -> i32 reaches; }
 public data Provider {}
 machine Provider::emit() -> i32 satisfies Sink::emit { 37 }

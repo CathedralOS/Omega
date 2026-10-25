@@ -1,7 +1,7 @@
 use omega_language_std::console;
 
 public boundary trait ArrayValue {
-    machine read(values: [i32; 2]) -> i32;
+    machine read(values: [i32; 2]) -> i32 reaches;
 }
 ArrayProvider satisfies ArrayValue {
     ArrayValue::read = first;

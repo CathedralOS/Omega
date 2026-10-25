@@ -11,7 +11,7 @@ public GenericPolicy<Element, const Width: u64> satisfies CallingPolicy {
 public const PolicyWidth: u64 = 8;
 public const PolicyCount: u64 = 1;
 public boundary trait LocalEntry: Calling<GenericPolicy<[Box<u64, 1>; 1], -1> > {
-    machine value() -> u64;
+    machine value() -> u64 reaches;
 }
 LocalMap satisfies LocalEntry {
     machine value() -> u64 { 42 }

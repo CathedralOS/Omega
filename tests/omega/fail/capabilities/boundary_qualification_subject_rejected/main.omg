@@ -8,6 +8,7 @@ boundary trait TokenIssuer {
     // A boundary receipt may establish the requirement's result, not an
     // arbitrary parameter selected by the provider.
     machine issue(candidate: Token) -> Token
+    reaches
     ensures
         candidate in Token::Issued;
 }

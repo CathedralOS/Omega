@@ -7,7 +7,7 @@ RejectCalling satisfies CallingPolicy {
         }
     }
 }
-boundary trait Process: Calling<RejectCalling> { machine current() -> u32; }
+boundary trait Process: Calling<RejectCalling> { machine current() -> u32 reaches; }
 data Native {}
 machine process_binding() -> ForeignBinding<12, 19, 0> {
     ForeignBinding::DllImport { import: DllImport::PeByName {

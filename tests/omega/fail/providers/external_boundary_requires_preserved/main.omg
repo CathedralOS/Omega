@@ -1,6 +1,6 @@
 use omega::language::core::external_binding;
 public boundary trait Magnitude {
-    machine absolute(value: i32) -> i32 requires value > -2147483648;
+    machine absolute(value: i32) -> i32 reaches requires value > -2147483648;
 }
 public macos_arm64 machine binding() -> ForeignBinding<26, 4, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {

@@ -2,8 +2,8 @@ use omega_language_std::console;
 
 public data Counter { value: i32; }
 public boundary trait CounterOperations {
-    machine replace(counter: &mut Counter, value: i32);
-    machine read(counter: &Counter) -> i32;
+    machine replace(counter: &mut Counter, value: i32) reaches;
+    machine read(counter: &Counter) -> i32 reaches;
 }
 
 // The selected map owns code. Two explicit state values remain independent.

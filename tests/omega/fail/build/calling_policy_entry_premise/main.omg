@@ -17,6 +17,6 @@ requires 0 == 0
 }
 
 boundary trait LocalEntry: Calling<LocalCalling> {
-    machine enter(value: u64) -> u64;
+    machine enter(value: u64) -> u64 reaches;
 }
 machine main() {}

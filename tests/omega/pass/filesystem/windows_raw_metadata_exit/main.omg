@@ -10,6 +10,7 @@ use omega::language::core::external_binding;
 // must classify it before entering a native query that excludes pipes.
 boundary trait FixturePipe {
     machine create(read: &mut u64, write: &mut u64, security: u64, size: u32) -> i32
+    reaches
     requires security == 0 && size == 0
     blocks;
 }

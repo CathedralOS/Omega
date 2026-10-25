@@ -7,9 +7,9 @@ public data Pair { left: Receipt; right: Receipt; }
 machine Receipt::drop(receipt: &mut Receipt) {}
 
 public boundary trait Relay {
-    machine forward(receipt: Receipt) -> Receipt;
-    machine replace(receipt: Receipt) -> Receipt;
-    machine pair(left: Receipt, right: Receipt) -> Pair;
+    machine forward(receipt: Receipt) -> Receipt reaches;
+    machine replace(receipt: Receipt) -> Receipt reaches;
+    machine pair(left: Receipt, right: Receipt) -> Pair reaches;
 }
 
 Adapter satisfies Relay {

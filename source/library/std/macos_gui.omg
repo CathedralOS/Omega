@@ -45,7 +45,7 @@ public boundary trait ObjectiveC {
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
         ProcessOutput + ProcessExit;
-    machine register_selector(name: &u8) -> u64;
+    machine register_selector(name: &u8) -> u64 reaches;
     machine send(recv: u64, sel: u64) -> u64
     reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
@@ -118,7 +118,7 @@ public boundary trait ObjectiveC {
     // outside any Cocoa-managed pool, so dequeued autoreleased NSEvents would
     // leak every frame without one. `pool_pop` is a void C call; the u64 result
     // is scratch.
-    machine pool_push() -> u64;
+    machine pool_push() -> u64 reaches;
     machine pool_pop(pool: u64) -> u64
     reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
@@ -131,16 +131,16 @@ public boundary trait ObjectiveC {
 
 // The Core Graphics seam (CoreGraphics framework) for the framebuffer blit.
 public boundary trait CoreGraphics {
-    machine color_space_rgb() -> u64;
-    machine color_space_release(space: u64);
+    machine color_space_rgb() -> u64 reaches;
+    machine color_space_release(space: u64) reaches;
     // The native bitmap context takes writable backing. Keep its exclusive
     // loan until the image snapshot is created and the context is released.
-    machine bitmap_context(data: &mut i32, w: i64, h: i64, bpc: i64, stride: i64, space: u64, info: i64) -> u64;
-    machine bitmap_context_image(ctx: u64) -> u64;
+    machine bitmap_context(data: &mut i32, w: i64, h: i64, bpc: i64, stride: i64, space: u64, info: i64) -> u64 reaches;
+    machine bitmap_context_image(ctx: u64) -> u64 reaches;
     // Create-rule drops for the per-frame context + CGImage snapshot (void C
     // calls; the u64 results are scratch). Without them every blit leaks both.
-    machine context_release(ctx: u64) -> u64;
-    machine image_release(image: u64) -> u64;
+    machine context_release(ctx: u64) -> u64 reaches;
+    machine image_release(image: u64) -> u64 reaches;
     // `CGEventSourceKeyState(state_id, keycode) -> bool` — is a physical key down?
     // The macOS backing for `Input.key_state` (see macos_key_state below).
     machine event_source_key_state(state_id: u64, keycode: u64) -> u64

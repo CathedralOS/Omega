@@ -1,7 +1,7 @@
 use omega_language_std::console;
 
 public boundary trait ArrayReader {
-    machine inspect(prefix: i32, values: [[u8; 2]; 2], suffix: i32) -> i32;
+    machine inspect(prefix: i32, values: [[u8; 2]; 2], suffix: i32) -> i32 reaches;
 }
 
 data ArrayReaderProvider {}

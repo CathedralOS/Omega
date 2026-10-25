@@ -32,7 +32,7 @@ invokes ProgramStorageEntry;
 data KernelState { phase: u64; }
 
 public boundary trait CleanupAudit {
-    machine finish() terminates;
+    machine finish() reaches terminates;
 }
 
 QuietAudit satisfies CleanupAudit {

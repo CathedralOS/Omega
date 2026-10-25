@@ -137,7 +137,7 @@ machine SortPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
 public data Elements { first: u64; second: u64; }
 
 public boundary trait Comparator: Calling<ComparatorCalling> {
-    machine compare(first: &u64, second: &u64) -> i32;
+    machine compare(first: &u64, second: &u64) -> i32 reaches;
 }
 public boundary trait SortRegistrar: Calling<SortCalling> {
     machine sort<machine Handler>(
@@ -145,6 +145,7 @@ public boundary trait SortRegistrar: Calling<SortCalling> {
         native callback compare from Handler
     )
     where machine Handler satisfies Comparator::compare;
+    reaches
     invokes Comparator;
     requires count == 2 && width == 8;
 }

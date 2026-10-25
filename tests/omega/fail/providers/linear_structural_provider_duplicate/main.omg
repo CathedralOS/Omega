@@ -1,5 +1,5 @@
 public data Token [linear] { value: u64; }
-public boundary trait Flow { machine forward(token: Token) -> Token; }
+public boundary trait Flow { machine forward(token: Token) -> Token reaches; }
 data Provider {}
 machine Provider::forward(token: Token) -> Token satisfies Flow::forward { token }
 data Harness { }

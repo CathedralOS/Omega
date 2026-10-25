@@ -1,6 +1,6 @@
 use omega::language::core::external_binding;
-boundary trait Process { machine current() -> u32; }
-boundary trait Other { machine unrelated(); }
+boundary trait Process { machine current() -> u32 reaches; }
+boundary trait Other { machine unrelated() reaches; }
 trait Restricted { machine current() -> u32 reaches Other; }
 data Native {}
 machine process_binding() -> ForeignBinding<12, 19, 0> {

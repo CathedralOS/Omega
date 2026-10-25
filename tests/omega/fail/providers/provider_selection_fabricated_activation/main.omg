@@ -1,5 +1,5 @@
 public boundary trait Echo {
-    machine value() -> i32;
+    machine value() -> i32 reaches;
 }
 
 data EchoProvider {}

@@ -8,7 +8,7 @@ module main;
 
 
 public boundary trait Assert {
-    machine check(ok: bool) crashes Trap;
+    machine check(ok: bool) reaches crashes Trap;
 }
 
 machine verify(ok: bool) -> bool

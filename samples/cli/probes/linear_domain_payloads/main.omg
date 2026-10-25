@@ -28,7 +28,7 @@ domain Receipt::Extra(receipt) requires receipt.code >= 0;
 domain Receipt::ExtraIssued = Issued & Extra;
 
 public boundary trait Acknowledgement {
-    machine acknowledge(receipt: Receipt in Receipt::Issued) crashes Trap;
+    machine acknowledge(receipt: Receipt in Receipt::Issued) reaches crashes Trap;
 }
 
 machine verify_payload(receipt: &Receipt) {}

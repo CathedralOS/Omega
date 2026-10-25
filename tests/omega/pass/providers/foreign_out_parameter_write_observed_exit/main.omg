@@ -18,7 +18,7 @@ use omega_language_std::console;
 public data ForeignWrittenInstant { seconds: i64; nanoseconds: i64; }
 
 public boundary trait ForeignOutParameter {
-    machine clock_gettime(clock_id: u32, instant: &mut ForeignWrittenInstant) -> i32;
+    machine clock_gettime(clock_id: u32, instant: &mut ForeignWrittenInstant) -> i32 reaches;
 }
 
 macos_arm64 machine foreign_out_parameter_binding() -> ForeignBinding<26, 14, 0> {

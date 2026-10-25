@@ -3,7 +3,7 @@ use omega::language::core::external_binding;
 
 public data Instant { seconds: i64; nanoseconds: i64; marker: u8; }
 public boundary trait ClockProbe {
-    machine read(selector: u32, instant: &mut Instant) -> i32;
+    machine read(selector: u32, instant: &mut Instant) -> i32 reaches;
 }
 data ClockImports {}
 data Holder { before: i64; instant: Instant; after: i64; }

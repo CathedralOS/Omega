@@ -1,7 +1,7 @@
 // Expected exit: 0. A named map selects the target member of a foreign family.
 use omega::language::core::external_binding;
 
-boundary trait ProcessProbe { machine identity() -> u32; }
+boundary trait ProcessProbe { machine identity() -> u32 reaches; }
 data NativeProcess {}
 machine windows_process_binding() -> ForeignBinding<12, 19, 0> {
     ForeignBinding::DllImport { import: DllImport::PeByName {
@@ -28,8 +28,8 @@ ProcessProvider satisfies ProcessProbe {
 data FunctionTable { direct: addr; virtual_call: addr; }
 data OtherTable { padding: u64; virtual_call: addr; }
 boundary trait TableProbe {
-    machine direct(table: &FunctionTable) -> u64;
-    machine virtual_call(table: &OtherTable) -> u64;
+    machine direct(table: &FunctionTable) -> u64 reaches;
+    machine virtual_call(table: &OtherTable) -> u64 reaches;
 }
 windows_x86_64 machine FunctionTable::direct(table: &FunctionTable) -> u64
     satisfies TableProbe::direct via ForeignBinding::TableFunction(direct);

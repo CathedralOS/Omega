@@ -1,7 +1,7 @@
 data Token { value: u64; }
 domain Token::Issued established by Issuer::issue;
 boundary trait Issuer<Input> {
-    machine issue(value: Input) -> Token ensures result in Token::Issued;
+    machine issue(value: Input) -> Token reaches ensures result in Token::Issued;
 }
 Provider satisfies Issuer<u64> {
     machine issue(renamed: u64) -> Token { Token { value: renamed } }

@@ -56,7 +56,7 @@ machine SignedByte::plan(schema: Schema) -> Plan {
 
 data PortableByte [copy] { value: i64; }
 data RawView { value: SignedByte<PortableByte>; }
-public boundary trait Fill { machine fill(value: &mut i64); }
+public boundary trait Fill { machine fill(value: &mut i64) reaches; }
 machine forward(value: &mut i64) reaches Fill { Fill::fill(value); }
 data Main { bytes: [u8; 2]; }
 machine Main::main(main: &mut Main) reaches Fill {

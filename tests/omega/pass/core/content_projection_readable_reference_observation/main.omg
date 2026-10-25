@@ -11,16 +11,21 @@ satisfies Content<Region, CountedQuantity<ByteUnit>>::project {
 // Readable access, not explicit shared-borrow syntax, forms the observation.
 boundary trait Direct {
     machine owned(whole: Region in Owned)
+    reaches
     ensures Owned::content(old(whole)) == Owned::content(whole);
     machine shared(whole: &Region in Owned)
+    reaches
     ensures Owned::content(old(whole)) == Owned::content(whole);
     machine mutable(whole: &mut Region in Owned)
+    reaches
     ensures Owned::content(old(whole)) == Owned::content(whole);
 }
 data Envelope { region: Region in Owned; }
 boundary trait Nested {
     machine shared(whole: &Envelope)
+    reaches
     ensures Owned::content(old(&whole.region)) == Owned::content(&whole.region);
     machine mutable(whole: &mut Envelope)
+    reaches
     ensures Owned::content(old(&whole.region)) == Owned::content(&whole.region);
 }

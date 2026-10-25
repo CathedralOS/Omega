@@ -2,7 +2,7 @@
 // even when the provider's referent is not spatially inside an input object.
 public data Output<'source> { value: &'source u8; }
 public boundary trait ReadView {
-    machine acquire<'source>(source: &'source [u8; 3], output: &mut Output<'source>);
+    machine acquire<'source>(source: &'source [u8; 3], output: &mut Output<'source>) reaches;
 }
 
 machine exercise() -> u8 reaches ReadView {

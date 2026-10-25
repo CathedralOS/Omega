@@ -2,6 +2,7 @@
 // The second tuple must retain its provider even though no call uses it.
 public boundary trait Service {
     machine echo<const Count: u64, const Stride: u64>(value: i32) -> i32
+    reaches
     where (Count == 4 && Stride == 1) || (Count == 8 && Stride == 2);
 }
 Provider satisfies Service { Service::echo = echo; }

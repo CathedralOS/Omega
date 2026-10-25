@@ -6,7 +6,7 @@
 // plan and the establishment rejoin failed.
 
 public boundary trait Ping {
-    machine ping();
+    machine ping() reaches;
 }
 
 data PingProvider { }

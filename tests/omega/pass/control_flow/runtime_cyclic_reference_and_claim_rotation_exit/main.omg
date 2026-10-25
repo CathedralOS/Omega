@@ -30,7 +30,7 @@ machine take_marker(marker: Marker, value: u32) -> u32 { value }
 
 // A bodied boundary adapter keeps the sequence consumer under the same exit rule.
 public boundary trait Selection {
-    machine select(token: Token, choose: bool) -> u32;
+    machine select(token: Token, choose: bool) -> u32 reaches;
 }
 Selector satisfies Selection {
     Selection::select = select_adapter;

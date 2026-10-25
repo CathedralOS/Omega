@@ -104,7 +104,7 @@ public data CallbackState [copy] {
     last_y: i32;
 }
 public boundary trait PointProcedure: Calling<PointCalling> {
-    machine visit(x: i32, y: i32, context: &mut CallbackState) crashes Trap;
+    machine visit(x: i32, y: i32, context: &mut CallbackState) reaches crashes Trap;
 }
 public boundary trait LineRaster: Calling<LineCalling> {
     machine draw<machine Handler>(
@@ -112,6 +112,7 @@ public boundary trait LineRaster: Calling<LineCalling> {
         native callback point from Handler, context: &mut CallbackState
     ) -> i32
     where machine Handler satisfies PointProcedure::visit;
+    reaches
     invokes PointProcedure;
 }
 

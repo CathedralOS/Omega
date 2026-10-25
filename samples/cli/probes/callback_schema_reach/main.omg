@@ -13,7 +13,7 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-boundary trait Console { machine ping(); }
+boundary trait Console { machine ping() reaches; }
 
 machine apply<machine Schema, machine Unused>(value: u64) -> u64
 where machine Schema<const Number: u64>(value: u64) -> u64 reaches Console;

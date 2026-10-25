@@ -1,9 +1,9 @@
 // Expected exit: 0. Two applications of one field declaration beneath one
 // entry owner must not share its supplying type operand or provider.
 
-public boundary trait Reading<Value> { machine read() -> i32; }
-public boundary trait UnsignedReading: Reading<u64> { machine choose_unsigned() -> i32; }
-public boundary trait BooleanReading: Reading<bool> { machine choose_boolean() -> i32; }
+public boundary trait Reading<Value> { machine read() -> i32 reaches; }
+public boundary trait UnsignedReading: Reading<u64> { machine choose_unsigned() -> i32 reaches; }
+public boundary trait BooleanReading: Reading<bool> { machine choose_boolean() -> i32 reaches; }
 UnsignedMap satisfies UnsignedReading {
     Reading::read = unsigned_read;
     UnsignedReading::choose_unsigned = choose_unsigned;

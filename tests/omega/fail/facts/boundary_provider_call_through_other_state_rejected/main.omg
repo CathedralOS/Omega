@@ -2,7 +2,7 @@
 // Place: other_state. The boundary call result passed as an argument across a state machine transition.
 // Expected rejection: exact arithmetic in machine `run` state `evaluate` may overflow `u64`.
 boundary trait Provider {
-    machine get() -> u64 ensures result >= 99u64 && result <= 99u64;
+    machine get() -> u64 reaches ensures result >= 99u64 && result <= 99u64;
 }
 
 Actual satisfies Provider {

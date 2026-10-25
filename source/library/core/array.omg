@@ -18,22 +18,26 @@ boundary trait ArrayAccess {
     // Length in elements: the static extent of the array. Cheap O(1)
     // measure. `N` stays in the semantic type; there is no length-erasing
     // `Array<T>` carrier distinct from Omega's native `[T; N]` value.
-    machine Length<T, const N: u64>(items: &[T; N]) -> u64;
+    machine Length<T, const N: u64>(items: &[T; N]) -> u64 reaches;
 
     machine index<T, const N: u64>(items: &[T; N], index: u64) -> T
+    reaches
     requires
         index < items.len;
 
     machine index_mut<T, const N: u64>(items: &mut [T; N], index: u64) -> &mut T
+    reaches
     requires
         index < items.len;
 
     // Borrow the elements as a slice view; the view length matches the array.
     machine as_slice<T, const N: u64>(items: &[T; N]) -> &[T]
+    reaches
     ensures
         result.len == items.len;
 
     machine as_mut_slice<T, const N: u64>(items: &mut [T; N]) -> &mut [T]
+    reaches
     ensures
         result.len == items.len;
 }

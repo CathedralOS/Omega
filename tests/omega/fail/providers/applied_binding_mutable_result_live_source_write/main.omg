@@ -1,6 +1,6 @@
 
 public boundary trait Parent<Value> {
-    machine borrow_mut<'source>(value: &'source mut Value) -> &'source mut Value;
+    machine borrow_mut<'source>(value: &'source mut Value) -> &'source mut Value reaches;
 }
 
 machine invalid(value: &mut i32) -> i32 reaches Parent {

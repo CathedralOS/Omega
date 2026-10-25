@@ -12,8 +12,8 @@
 // remain; the carrier receiver threads are what the migration removed.
 
 public boundary trait Character {
-    machine echo(value: i32) -> i32;
-    machine store(output: &mut i32, value: i32);
+    machine echo(value: i32) -> i32 reaches;
+    machine store(output: &mut i32, value: i32) reaches;
 }
 CharacterImplementation satisfies Character {
     Character::echo = echo;

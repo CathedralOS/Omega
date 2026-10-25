@@ -1,5 +1,5 @@
 // A call-site application owes its const parameter's range.
-public boundary trait Parent<const Count: u8> { machine read() -> i32; }
+public boundary trait Parent<const Count: u8> { machine read() -> i32 reaches; }
 machine invalid() -> i32 reaches Parent {
     Parent<256>::read()
 }

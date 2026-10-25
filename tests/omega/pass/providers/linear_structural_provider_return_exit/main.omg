@@ -10,10 +10,10 @@ public data Pair { left: Token in Token::Marked; right: Token in Token::Marked; 
 public data Envelope { pair: Pair; }
 public data Choice { case Empty; case Held(token: Token in Token::Marked); }
 public boundary trait TokenFlow {
-    machine forward(token: Token) -> Token ensures result in Token::SuspensionSafe;
-    machine replace(token: Token) -> Token;
-    machine pair() -> Envelope;
-    machine choose(held: bool) -> Choice;
+    machine forward(token: Token) -> Token reaches ensures result in Token::SuspensionSafe;
+    machine replace(token: Token) -> Token reaches;
+    machine pair() -> Envelope reaches;
+    machine choose(held: bool) -> Choice reaches;
 }
 data TokenProvider {}
 machine advance(token: Token) -> Token {

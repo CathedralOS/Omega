@@ -3,7 +3,7 @@
 public data Token [copy] { identity: u64; }
 public domain Token::Fair satisfies ProgressProfile established by Grants::grant;
 public boundary trait Grants {
-    machine grant(value: u64) -> Token ensures result in Token::Fair;
+    machine grant(value: u64) -> Token reaches ensures result in Token::Fair;
 }
 Provider satisfies Grants {
     machine grant(value: u64) -> Token { Token { identity: value } }

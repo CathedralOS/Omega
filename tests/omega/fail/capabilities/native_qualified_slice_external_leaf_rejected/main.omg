@@ -1,7 +1,7 @@
 use omega::language::core::external_binding;
 domain [u8]::Bytes;
 boundary trait NativeSlice {
-    machine send(value: &[u8] in Bytes);
+    machine send(value: &[u8] in Bytes) reaches;
 }
 machine send(value: &[u8] in Bytes)
 satisfies NativeSlice::send via ForeignBinding::Syscall(60);

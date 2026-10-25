@@ -56,7 +56,7 @@ machine SignedByte::plan(schema: Schema) -> Plan {
 data NarrowByte [copy] where -128 <= value, value <= 127 { value: i64; }
 data ByteView { value: u8; }
 public boundary trait ByteOutput {
-    machine write(descriptor: i32, value: &u8, count: u64) -> i64;
+    machine write(descriptor: i32, value: &u8, count: u64) -> i64 reaches;
 }
 public data ByteImports {}
 public macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {

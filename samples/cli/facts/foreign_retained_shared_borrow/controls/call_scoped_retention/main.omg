@@ -20,12 +20,14 @@ satisfies Content<Pending<'source>, CountedQuantity<ByteUnit>>::project {
 public data Capacity [linear] { token: u64; }
 public domain Capacity::Available established by Reader::acquire, Reader::complete;
 public boundary trait Reader {
-    machine acquire() -> Capacity ensures result in Capacity::Available crashes Trap;
+    machine acquire() -> Capacity reaches ensures result in Capacity::Available crashes Trap;
     machine register<'source>(capacity: Capacity in Capacity::Available, buffer: &'source Buffer in Buffer::Owned) -> Pending
+    reaches
     ensures result in Pending::Retained crashes Trap;
     machine complete<'source>(pending: Pending<'source> in Pending::Retained, observed: &mut u64) -> Capacity
+    reaches
     ensures result in Capacity::Available crashes Trap;
-    machine release(capacity: Capacity in Capacity::Available) crashes Trap;
+    machine release(capacity: Capacity in Capacity::Available) reaches crashes Trap;
 }
 linux_x86_64 machine acquire_binding() -> ForeignBinding<29, 17, 10> {
     ForeignBinding::DllImport { import: DllImport::ElfVersioned {

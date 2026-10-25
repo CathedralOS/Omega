@@ -9,7 +9,7 @@ public data Triple {
 }
 
 public boundary trait LargeAggregateResultImport {
-    machine receive(seed: u64) -> Triple;
+    machine receive(seed: u64) -> Triple reaches;
 }
 
 windows_x86_64 machine large_aggregate_result_binding() -> ForeignBinding<19, 30, 0> {

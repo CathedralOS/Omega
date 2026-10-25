@@ -1,9 +1,9 @@
 
 public boundary trait BoundaryRankReader {
-    machine read(value: &u32) -> u32 terminates;
+    machine read(value: &u32) -> u32 reaches terminates;
     requires value <= 9
     ensures result == value;
-    machine keep(value: u32) -> u32 terminates;
+    machine keep(value: u32) -> u32 reaches terminates;
     requires value <= 9
     ensures result == value;
 }

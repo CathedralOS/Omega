@@ -3,7 +3,7 @@
 // receiver keeps its Terminal attachment while it lends the field.
 
 public boundary trait Ping {
-    machine ping();
+    machine ping() reaches;
 }
 data PingProvider { }
 machine PingProvider::ping() satisfies Ping::ping { }

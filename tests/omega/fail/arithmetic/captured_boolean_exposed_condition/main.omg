@@ -5,7 +5,7 @@ requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
 { count }
 
 boundary trait Replace {
-    machine run(condition: &mut Condition);
+    machine run(condition: &mut Condition) reaches;
 }
 
 machine stale(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping

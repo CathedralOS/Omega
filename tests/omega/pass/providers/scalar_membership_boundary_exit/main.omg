@@ -2,7 +2,7 @@
 public domain u32::Flags(value) requires (value & 2) == 0;
 public data Prefix { marker: u32; }
 public boundary trait Gate {
-    machine accept(prefix: &Prefix, value: u32 in Flags) -> u32;
+    machine accept(prefix: &Prefix, value: u32 in Flags) -> u32 reaches;
 }
 data Provider {}
 machine Provider::accepted(prefix: &Prefix, value: u32 in Flags) -> u32

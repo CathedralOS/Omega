@@ -25,7 +25,7 @@ use omega::language::core::external_binding;
 public data Receipt [linear] { code: i32; }
 
 public boundary trait Acknowledgement {
-    machine ack(receipt: Receipt) -> i32;
+    machine ack(receipt: Receipt) -> i32 reaches;
 }
 
 public data ReceiptSink {}

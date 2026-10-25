@@ -12,7 +12,7 @@ machine Token::drop(token: &mut Token) {}
 public domain Token::Issued;
 
 public boundary trait TokenScale {
-    machine weigh(token: &Token) -> u64;
+    machine weigh(token: &Token) -> u64 reaches;
 }
 
 data TokenScaleProvider {}

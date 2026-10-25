@@ -10,7 +10,7 @@ satisfies Content<Ticket, CountedQuantity<Nat>>::project {
 }
 data Pair { left: Ticket in Owned; right: Ticket in Owned; }
 boundary trait Issuer {
-    machine combine(pair: Pair) -> Ticket in Owned;
+    machine combine(pair: Pair) -> Ticket in Owned reaches;
 }
 machine forward(ticket: Ticket in Owned) -> Ticket
 ensures result in Owned { ticket }

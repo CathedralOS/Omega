@@ -14,7 +14,7 @@ machine LocalPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult {
 }
 
 boundary trait LocalEntry: Calling<LocalPolicyCalling> {
-    machine enter(value: u64) -> u64;
+    machine enter(value: u64) -> u64 reaches;
 }
 
 machine main() {}

@@ -10,8 +10,8 @@ public data Outcome<T> {
 }
 public data Wrapper<T> { value: T; }
 public boundary trait Issuer {
-    machine issue(present: bool) -> Outcome<Token in Issued>;
-    machine nested() -> Outcome<Wrapper<Wrapper<Token in Issued>>>;
+    machine issue(present: bool) -> Outcome<Token in Issued> reaches;
+    machine nested() -> Outcome<Wrapper<Wrapper<Token in Issued>>> reaches;
 }
 machine mint(value: u64) -> Token in Issued { Token { value: value } }
 Provider satisfies Issuer {

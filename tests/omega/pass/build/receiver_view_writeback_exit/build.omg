@@ -21,7 +21,7 @@ machine configure_build_readback(builder: &mut Build) {
 }
 
 boundary trait ObserveBuild {
-    machine record(builder: &mut Build, sequence: u64);
+    machine record(builder: &mut Build, sequence: u64) reaches;
 }
 
 machine configure_build_boundary(builder: &mut Build)

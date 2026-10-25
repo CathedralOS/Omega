@@ -1,8 +1,8 @@
 use omega::language::core::external_binding;
 
 public boundary trait DescriptorIo {
-    machine read(descriptor: i32, words: &mut [u16; 3], count: u64) -> i64 blocks;
-    machine write(descriptor: i32, words: &[u16; 3], count: u64) -> i64;
+    machine read(descriptor: i32, words: &mut [u16; 3], count: u64) -> i64 reaches blocks;
+    machine write(descriptor: i32, words: &[u16; 3], count: u64) -> i64 reaches;
 }
 public data DescriptorImports {}
 public data Receipt [copy] { moved: i64; }

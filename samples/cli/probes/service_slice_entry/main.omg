@@ -15,7 +15,7 @@
 // ProcessExit provider.
 
 public boundary trait Ping {
-    machine ping();
+    machine ping() reaches;
 }
 
 data PingProvider { }

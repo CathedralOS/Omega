@@ -1,6 +1,6 @@
 
 public boundary trait Scheduler {
-    machine read(carrier: &Envelope<&i32>, nested: &Envelope<&i32>) -> i64 suspends;
+    machine read(carrier: &Envelope<&i32>, nested: &Envelope<&i32>) -> i64 reaches suspends;
 }
 
 InlineSchedulerImplementation satisfies Scheduler {

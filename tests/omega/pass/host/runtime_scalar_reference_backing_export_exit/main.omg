@@ -1,7 +1,7 @@
 // Expected exit: 0. Shared wide references export their actual eight-byte backing.
 use omega::language::core::external_binding;
 public boundary trait Compare {
-    machine compare(left: &u64, right: &u64, count: u64) -> i32;
+    machine compare(left: &u64, right: &u64, count: u64) -> i32 reaches;
 }
 linux_x86_64 machine compare_binding() -> ForeignBinding<9, 6, 11> {
     ForeignBinding::DllImport {

@@ -1,8 +1,8 @@
 // Expected exit: 0.
 use omega::language::core::external_binding;
 public boundary trait NativeBytes {
-    machine allocate(count: u64, width: u64) -> addr;
-    machine release(pointer: addr);
+    machine allocate(count: u64, width: u64) -> addr reaches;
+    machine release(pointer: addr) reaches;
 }
 public data LibSystemBytes {}
 public macos_arm64 machine calloc_binding() -> ForeignBinding<17, 7, 0> {

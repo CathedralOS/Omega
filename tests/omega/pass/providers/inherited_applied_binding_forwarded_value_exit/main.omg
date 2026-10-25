@@ -1,5 +1,5 @@
-public boundary trait Parent<Value> { machine echo(value: Value) -> Value; }
-public boundary trait Child: Parent<i32> { machine choose() -> i32; }
+public boundary trait Parent<Value> { machine echo(value: Value) -> Value reaches; }
+public boundary trait Child: Parent<i32> { machine choose() -> i32 reaches; }
 ChildMap satisfies Child {
     Parent::echo = echo;
     Child::choose = choose;

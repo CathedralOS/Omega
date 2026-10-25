@@ -63,7 +63,7 @@ impl PackagePolicyCallables {
                     | PackagePolicyCallableRole::Boundary
                     | PackagePolicyCallableRole::PrivateAssumption
                     | PackagePolicyCallableRole::PrivateExternal
-            ) && (callable.declared_service_reach.is_none()
+            ) && (callable.published_service_reach().is_none()
                 || callable.declared_synchronous_invocations.is_none()
                 || callable.declared_may_suspend.is_none()
                 || callable.declared_may_block.is_none())

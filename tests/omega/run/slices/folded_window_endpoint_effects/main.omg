@@ -7,7 +7,7 @@
 data Payload [copy] { bytes: [u8; 8]; }
 data Sequence [copy] { digits: u64 in Wrapping; }
 boundary trait ByteCounter {
-    machine count(prefix: u64, bytes: &[u8], suffix: u64) -> u64;
+    machine count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 reaches;
 }
 data Provider {}
 Selected satisfies ByteCounter {

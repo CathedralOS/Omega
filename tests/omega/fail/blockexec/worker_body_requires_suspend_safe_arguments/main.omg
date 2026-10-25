@@ -3,6 +3,7 @@ public boundary trait WorkerProvider {
     machine execute<T, Arguments, machine Target>(arguments: Arguments) -> T
     where machine Target(arguments: Arguments) -> T suspends; blocks;
     ensures true
+    reaches
     suspends; blocks;
 }
 data CheckedWorkerProvider {}

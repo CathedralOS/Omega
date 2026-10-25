@@ -2,7 +2,7 @@
 // Expected rejection: a direct supplier call does not receive the root-assumed qualification.
 data Index [copy] { value: u32; }
 domain Index::Bounded(index) requires index.value <= 1;
-boundary trait Supplied { machine get(index: Index) -> u32 requires index in Bounded; }
+boundary trait Supplied { machine get(index: Index) -> u32 reaches requires index in Bounded; }
 Actual satisfies Supplied {
     machine get(index: Index) -> u32 requires index in Bounded {
         let values: [u32; 2] = [7, 11];

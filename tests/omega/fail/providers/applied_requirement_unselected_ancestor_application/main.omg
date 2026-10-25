@@ -1,7 +1,7 @@
 // The selected `Child` provider satisfies `Parent<u64>`; it supplies no
 // provider for the different ancestor application `Parent<bool>`.
-public boundary trait Parent<Value> { machine read() -> i32; }
-public boundary trait Child: Parent<u64> { machine choose() -> i32; }
+public boundary trait Parent<Value> { machine read() -> i32 reaches; }
+public boundary trait Child: Parent<u64> { machine choose() -> i32 reaches; }
 ChildMap satisfies Child { Parent::read = read; Child::choose = choose; }
 machine read() -> i32 { 37 }
 machine choose() -> i32 { 19 }

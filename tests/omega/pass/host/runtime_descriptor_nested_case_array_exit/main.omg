@@ -10,10 +10,10 @@ public data Variant {
     case Empty;
 }
 public boundary trait PacketIo {
-    machine read(descriptor: i32, variant: &mut Variant, count: u64) -> i64 blocks;
+    machine read(descriptor: i32, variant: &mut Variant, count: u64) -> i64 reaches blocks;
 }
 public boundary trait ByteIo: Calling<ByteViewCallingPolicy<u8>> {
-    machine write(descriptor: i32, bytes: &[u8]) -> i64;
+    machine write(descriptor: i32, bytes: &[u8]) -> i64 reaches;
 }
 public data Imports {}
 data Envelope { prefix: u32; variant: Variant; suffix: u32; }

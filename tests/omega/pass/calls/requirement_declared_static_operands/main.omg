@@ -1,8 +1,8 @@
 // Ordinary method operands keep their declaration-defined slots in both call forms.
 public data Observation { value: i32; }
 public boundary trait Source {
-    machine keep<Value>(value: Value) -> Value;
-    machine fill<const Value: i32>(destination: &mut Observation);
+    machine keep<Value>(value: Value) -> Value reaches;
+    machine fill<const Value: i32>(destination: &mut Observation) reaches;
 }
 machine preserve(value: i32) -> i32 reaches Source {
     Source::keep<i32>(value)

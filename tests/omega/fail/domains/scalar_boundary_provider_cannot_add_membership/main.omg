@@ -2,7 +2,7 @@
 // Expected exit: 0.
 const START: u64 = 100;
 domain u64::AtLeast100(value) requires value >= 100 established by issue;
-boundary trait Consume { machine subtract(value: u64 in AtLeast100) -> u64; }
+boundary trait Consume { machine subtract(value: u64 in AtLeast100) -> u64 reaches; }
 domain u64::Extra(value) requires value >= 100 established by issue_extra;
 machine issue_extra(value: u64) -> u64 in Extra requires value >= 100 { value }
 Actual satisfies Consume {

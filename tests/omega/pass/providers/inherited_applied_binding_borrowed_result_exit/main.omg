@@ -2,10 +2,10 @@
 // independently of the applied ancestor's ordinary outer type argument.
 
 public boundary trait Parent<Value> {
-    machine borrow<'source>(value: &'source Value) -> &'source Value;
-    machine borrow_mut<'source>(value: &'source mut Value) -> &'source mut Value;
+    machine borrow<'source>(value: &'source Value) -> &'source Value reaches;
+    machine borrow_mut<'source>(value: &'source mut Value) -> &'source mut Value reaches;
 }
-public boundary trait Child: Parent<i32> { machine choose() -> i32; }
+public boundary trait Child: Parent<i32> { machine choose() -> i32 reaches; }
 ChildMap satisfies Child {
     Parent::borrow = borrow;
     Parent::borrow_mut = borrow_mut;

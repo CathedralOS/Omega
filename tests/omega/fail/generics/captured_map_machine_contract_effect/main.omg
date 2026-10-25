@@ -1,6 +1,6 @@
 // The public Console reach ceiling remains part of the callable contract,
 // even when this body happens not to invoke the service.
-boundary trait Console { machine touch(); }
+boundary trait Console { machine touch() reaches; }
 trait Getter { machine get() -> i32 blocks; }
 Selected<machine Callback> satisfies Getter
 where machine Callback() -> i32;

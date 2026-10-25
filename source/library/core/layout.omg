@@ -504,7 +504,7 @@ public data ResourceProfile where region_count <= 32 {
 // distinguishes independently selected backing policies in one artifact. It is
 // a static selector, not evidence of that backing or permission to access it.
 public boundary trait ResourceProfileSupply<Role> {
-    machine profile(storage: &Extent in Granted) -> ResourceProfile;
+    machine profile(storage: &Extent in Granted) -> ResourceProfile reaches;
 }
 
 // Settled placement identity and recovery vocabulary. `Placed<P, T>` is an

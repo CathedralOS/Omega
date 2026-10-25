@@ -14,6 +14,7 @@ public data Split {
 
 public boundary trait ExtentPartition {
     machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
+    reaches
     ensures
         Granted::content(old(&whole))
         == separate(

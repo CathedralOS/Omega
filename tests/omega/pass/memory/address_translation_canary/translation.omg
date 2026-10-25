@@ -172,6 +172,7 @@ public boundary trait TranslationAuthority {
         install: TranslationInstallObligations,
         release: TranslationReleaseObligations
     ) -> Mapping
+    reaches
     requires
         source.length == destination.length
     ensures
@@ -187,6 +188,7 @@ public boundary trait TranslationAuthority {
     // exact pending mapping, and the carrier's authored install set is
     // what the receipt behind this edge must establish.
     machine activate(pending: Mapping in Pending) -> Mapping
+    reaches
     ensures
         result in Mapping::Installed,
         separate(
@@ -201,6 +203,7 @@ public boundary trait TranslationAuthority {
     // establish, and the cross-core shootdown debt remains the caller's
     // to discharge.
     machine unmap(active: Mapping in Installed) -> Unmapped
+    reaches
     ensures
         separate(
             Granted::content(&result.destination),
@@ -219,6 +222,7 @@ public boundary trait TranslationAuthority {
         install: TranslationInstallObligations,
         release: TranslationReleaseObligations
     ) -> BorrowedMapping
+    reaches
     requires
         source.length == destination.length
     ensures
@@ -230,6 +234,7 @@ public boundary trait TranslationAuthority {
     // for the exact pending borrowed mapping.
     machine activate_borrowed(pending: BorrowedMapping in Pending)
         -> BorrowedMapping
+    reaches
     ensures
         result in BorrowedMapping::Installed,
         Granted::content(&result.destination)
@@ -239,6 +244,7 @@ public boundary trait TranslationAuthority {
     // shootdown debt remains the caller's to discharge.
     machine unmap_borrowed(active: BorrowedMapping in Installed)
         -> UnmappedBorrowed
+    reaches
     ensures
         Granted::content(&result.destination)
         == Granted::content(old(&active.destination));

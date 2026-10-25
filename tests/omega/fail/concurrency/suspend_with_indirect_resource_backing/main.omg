@@ -1,8 +1,8 @@
 
 public boundary trait Scheduler {
-    machine park() suspends;
-    machine inspect(value: &Restricted) suspends;
-    machine inspect_carrier(value: Envelope<&Restricted>) suspends;
+    machine park() reaches suspends;
+    machine inspect(value: &Restricted) reaches suspends;
+    machine inspect_carrier(value: Envelope<&Restricted>) reaches suspends;
 }
 
 public data Restricted [carry(suspension: forbidden, cpu: any, thread: any, address: movable)] {

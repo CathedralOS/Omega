@@ -20,7 +20,7 @@
 use omega::language::core::layout;
 
 public boundary trait WindowProcedure {
-    machine call(message: u64);
+    machine call(message: u64) reaches;
 }
 
 data Spread {}

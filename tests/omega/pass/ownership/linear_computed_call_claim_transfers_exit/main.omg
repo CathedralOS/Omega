@@ -21,7 +21,7 @@ trait Settlement<T> {
 }
 
 public boundary trait BoundarySettlement {
-    machine settle(prefix: i32, value: Receipt, suffix: i32) -> i32;
+    machine settle(prefix: i32, value: Receipt, suffix: i32) -> i32 reaches;
 }
 
 BoundarySettler satisfies BoundarySettlement { BoundarySettlement::settle = settle_boundary_settler; }

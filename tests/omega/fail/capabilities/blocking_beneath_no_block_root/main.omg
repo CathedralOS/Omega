@@ -3,7 +3,7 @@
 // beneath that root cannot hide the operational behavior.
 
 public boundary trait WaitService {
-    machine wait() blocks;
+    machine wait() reaches blocks;
 }
 
 public data Main {

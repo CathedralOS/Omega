@@ -142,7 +142,7 @@ public data Element [copy] { value: u64; stamp: u64; }
 public data Elements { first: Element; second: Element; }
 
 public boundary trait Comparator: Calling<ComparatorCalling> {
-    machine compare(first: &Element, direction: u64, second: &Element) -> i32;
+    machine compare(first: &Element, direction: u64, second: &Element) -> i32 reaches;
 }
 public boundary trait SortRegistrar: Calling<SortCalling> {
     machine sort<machine Handler>(
@@ -150,6 +150,7 @@ public boundary trait SortRegistrar: Calling<SortCalling> {
         native callback compare from Handler
     )
     where machine Handler satisfies Comparator::compare;
+    reaches
     invokes Comparator;
     requires count == 2 && width == 16;
 }

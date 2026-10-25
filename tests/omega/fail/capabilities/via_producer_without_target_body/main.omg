@@ -7,7 +7,7 @@
 // matching-target form.
 use omega::language::core::external_binding;
 use omega_language_std::console;
-public boundary trait Beeper { machine beep(value: i32) -> i32; }
+public boundary trait Beeper { machine beep(value: i32) -> i32 reaches; }
 data Main { m: i32; v: i32; }
 linux_x86_64 machine beeper_binding() -> ForeignBinding<10, 3, 0> {
     ForeignBinding::DllImport {

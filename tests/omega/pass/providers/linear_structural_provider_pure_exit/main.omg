@@ -1,7 +1,7 @@
 use omega::language::core::drop;
 public data Token [linear] { value: i32; }
 machine Token::drop(token: &mut Token) {}
-public boundary trait Flow { machine forward(token: Token) -> Token; }
+public boundary trait Flow { machine forward(token: Token) -> Token reaches; }
 data Provider {}
 machine Provider::forward(token: Token) -> Token satisfies Flow::forward { token }
 machine consume(token: Token) -> i32 { let value: i32 = token.value; drop(token); value }

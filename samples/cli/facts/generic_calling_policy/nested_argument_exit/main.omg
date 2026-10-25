@@ -9,7 +9,7 @@ public GenericPolicy<Element, const Width: u64> satisfies CallingPolicy {
 }
 public const PolicyWidth: u64 = 8;
 public boundary trait LocalEntry<Element>: Calling<GenericPolicy<Box<Element>, PolicyWidth>> {
-    machine value() -> u64;
+    machine value() -> u64 reaches;
 }
 LocalMap satisfies LocalEntry<u64> {
     machine value() -> u64 { 42 }

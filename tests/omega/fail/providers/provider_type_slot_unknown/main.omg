@@ -1,5 +1,5 @@
 boundary trait Pick {
-    machine choose() -> i32;
+    machine choose() -> i32 reaches;
 }
 
 data RealProvider { }

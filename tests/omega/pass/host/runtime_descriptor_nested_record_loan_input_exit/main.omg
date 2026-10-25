@@ -3,8 +3,8 @@ use omega::language::core::external_binding;
 public data Inner [copy] { bytes: [u8; 3]; }
 public data Packet [copy] { header: u8; inner: Inner; tail: u16; }
 public boundary trait DescriptorIo {
-    machine read(descriptor: i32, packet: &mut Packet, count: u64) -> i64 blocks;
-    machine write(descriptor: i32, packet: &Packet, count: u64) -> i64;
+    machine read(descriptor: i32, packet: &mut Packet, count: u64) -> i64 reaches blocks;
+    machine write(descriptor: i32, packet: &Packet, count: u64) -> i64 reaches;
 }
 public data DescriptorImports {}
 data Main { before: u32; packet: Packet; after: u32; }

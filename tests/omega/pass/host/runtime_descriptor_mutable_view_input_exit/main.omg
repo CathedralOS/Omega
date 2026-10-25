@@ -5,8 +5,8 @@ use omega_language_std::calling;
 use byte_view_calling;
 
 public boundary trait DescriptorIo: Calling<ByteViewCallingPolicy> {
-    machine read_bytes(descriptor: i32, bytes: &mut [u8]) -> i64 blocks;
-    machine write_bytes(descriptor: i32, bytes: &[u8]) -> i64;
+    machine read_bytes(descriptor: i32, bytes: &mut [u8]) -> i64 reaches blocks;
+    machine write_bytes(descriptor: i32, bytes: &[u8]) -> i64 reaches;
 }
 public data DescriptorImports { }
 data Main { }

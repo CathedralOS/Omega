@@ -4,7 +4,7 @@
 // parameters and local backing, then write again after every call completes.
 use omega_language_std::console;
 
-public boundary trait Observe { machine read(bytes: &[u8]) -> u8; }
+public boundary trait Observe { machine read(bytes: &[u8]) -> u8 reaches; }
 data Observer { }
 machine Observer::read(bytes: &[u8]) -> u8 satisfies Observe::read {
     transition bytes.len > 0 { true -> first(bytes) false -> (0) }

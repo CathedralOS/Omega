@@ -6,7 +6,7 @@ machine consume(token: Token) -> u32 { let value: u32 = token.value; drop(token)
 data Marker [copy] { value: u32; }
 machine make_marker() -> Marker { Marker { value: 7 } }
 machine pair(first: Marker, second: Marker) -> u32 { ((first.value as u32 in Wrapping) + (second.value as u32 in Wrapping)) as u32 }
-public boundary trait Selection { machine select(token: Token, choose: bool) -> u32; }
+public boundary trait Selection { machine select(token: Token, choose: bool) -> u32 reaches; }
 Selector satisfies Selection { Selection::select = select_adapter; }
 data Main { }
 machine select_adapter(token: Token, choose: bool) -> u32

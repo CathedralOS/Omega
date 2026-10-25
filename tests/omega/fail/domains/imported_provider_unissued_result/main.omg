@@ -3,7 +3,7 @@ use omega::language::core::external_binding;
 public data Resource { identity: u64; }
 public domain Resource::Open established by acquire;
 machine acquire() -> Resource in Open { Resource { identity: 73 } }
-public boundary trait Source { machine open() -> Resource in Open; }
+public boundary trait Source { machine open() -> Resource in Open reaches; }
 data ImportedSource {}
 machine imported_binding() -> ForeignBinding<26, 7, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {

@@ -32,13 +32,15 @@ public data Retired {
 
 public boundary trait ResidentStorage {
     machine place(storage: Extent in Granted & Vacant, value: Slot) -> Extent
+    reaches
     ensures
         result in Granted,
         Granted::content(old(&storage)) == Granted::content(&result);
 
-    machine view(storage: &Extent in Granted & Resident<SlotPlacement, Slot>) -> Slot;
+    machine view(storage: &Extent in Granted & Resident<SlotPlacement, Slot>) -> Slot reaches;
 
     machine retire_view(storage: Extent in Granted & Resident<SlotPlacement, Slot>) -> Retired
+    reaches
     ensures
         Granted::content(old(&storage)) == Granted::content(&result.storage);
 }

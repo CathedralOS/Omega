@@ -19,8 +19,8 @@ public boundary trait InitialSupply {
 // This is the actual native supply/custody leaf. The raw allocation result
 // has no Owned qualification; a null result never becomes a normal grant.
 public boundary trait NativeBytes {
-    machine allocate(count: u64, width: u64) -> addr;
-    machine release(buffer: Buffer in Buffer::Owned);
+    machine allocate(count: u64, width: u64) -> addr reaches;
+    machine release(buffer: Buffer in Buffer::Owned) reaches;
 }
 public data LibSystemBytes {}
 public macos_arm64 machine calloc_binding() -> ForeignBinding<17, 7, 0> {

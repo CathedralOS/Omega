@@ -15,7 +15,7 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-boundary trait Clock { machine tick(); }
+boundary trait Clock { machine tick() reaches; }
 
 data TimedWait { }
 

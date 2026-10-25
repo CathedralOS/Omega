@@ -18,7 +18,7 @@ use entry_shapes;
 // bridge, loader admission, receiver, or numeric stack guarantee.
 // ProviderSelected requires independent backing.
 boundary trait LinuxArm64PhysicalEntry {
-    machine enter(argc: u64) -> i32;
+    machine enter(argc: u64) -> i32 reaches;
 }
 
 data LinuxArm64 {}

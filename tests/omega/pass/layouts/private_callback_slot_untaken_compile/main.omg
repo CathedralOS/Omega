@@ -3,7 +3,7 @@
 use omega::language::core::layout;
 
 boundary trait Callback {
-    machine call(value: u64) -> u64;
+    machine call(value: u64) -> u64 reaches;
 }
 
 data Spread {}

@@ -4,8 +4,8 @@
 // so selecting it for `Reading` must still reject at admission.
 
 public boundary trait Reading {
-    machine read() -> u64;
-    machine peek() -> u64;
+    machine read() -> u64 reaches;
+    machine peek() -> u64 reaches;
 }
 
 data DecoyProvider {}

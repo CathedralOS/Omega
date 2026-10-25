@@ -1,6 +1,6 @@
 module payload;
 
 public data Packet { value: u64; }
-public boundary trait Reader { machine read() -> u64; }
+public boundary trait Reader { machine read() -> u64 reaches; }
 public data Provider {}
 machine Provider::read() -> u64 satisfies Reader::read { 7 }

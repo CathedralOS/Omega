@@ -14,7 +14,7 @@ machine acquire(identity: u64) -> Resource in Open requires identity != 0 {
     Resource { identity: identity }
 }
 public boundary trait Source {
-    machine open() -> Acquisition;
+    machine open() -> Acquisition reaches;
 }
 public CheckedSource satisfies Source {
     machine open() -> Acquisition {
