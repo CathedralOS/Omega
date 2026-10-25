@@ -81,6 +81,8 @@ pub(in crate::checks) fn proves_at_exit(
     let frontier =
         if crate::checks::contracts::return_values::completed_return_operand(program, facts, exit)
             .is_some()
+            || crate::checks::contracts::return_values::exit_return_call(program, facts, exit)
+                .is_some()
         {
             // This capture is published after evaluating the selected return, not
             // at entry to the statement that contains it. Live context ownership
@@ -374,6 +376,18 @@ pub(super) fn at_invocation(
             } else {
                 (occurrence, ValueObservation::Contents)
             };
+            if !length
+                && let Some(result) = validation::reserved_result_place(program, observed)
+                && result.machine_symbol == invocation.callable.owner_symbol()
+            {
+                return call_result_atom(
+                    program,
+                    caller,
+                    invocation_fact(facts, caller, invocation)?,
+                    &result.segments,
+                    primitive,
+                );
+            }
             let place = bound_place(program, invocation, observed)?;
             if !post_return_writes.is_empty() && matches!(place.root, facts::PlaceRoot::Symbol(_)) {
                 let storage = crate::flow::rebase_exact_local_place(
@@ -429,6 +443,72 @@ pub(super) fn at_invocation(
         },
     );
     result
+}
+
+/// Normal results are fresh values of one exact invocation, including named
+/// terminal calls which intentionally have no fabricated expression handle.
+/// Consumers must establish completion/availability before using this identity.
+pub(in crate::checks) fn call_result_atom(
+    program: &dyn ::validation::CheckingInput,
+    caller: &FlowStateFact,
+    call: &checked_trees::FlowCallFact,
+    segments: &[facts::PlaceSegment],
+    primitive: typed_trees::types::PrimitiveType,
+) -> Option<ScopedArithmeticValue> {
+    if !call.authored_source_custody_valid {
+        return None;
+    }
+    let reference = validation::call_target_return_type(program, call.target_symbol)?;
+    if validation::project_type_reference_from_segments(program, reference, segments)
+        .and_then(|reference| program.primitive_type_reference(reference))
+        != Some(primitive)
+    {
+        return None;
+    }
+    let site = validation::find_call_site(
+        program,
+        caller.machine_symbol,
+        caller.state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    )?;
+    match site {
+        validation::CallSite::Expression {
+            expression,
+            call: selected,
+        } if expression == call.authored_expression
+            && call.authored_site == checked_trees::FlowCallSite::Expression
+            && call.authored_target == selected.target_symbol =>
+        {
+            Some(atom(
+                validation::CanonicalPlace {
+                    root: facts::PlaceRoot::Expression(expression),
+                    segments: segments.to_vec(),
+                },
+                primitive,
+            ))
+        }
+        validation::CallSite::TransitionNamed { path, .. }
+            if !call.authored_expression.is_valid()
+                && call.authored_site == checked_trees::FlowCallSite::NamedTransition
+                && call.authored_target == path.symbol
+                && call.target_symbol
+                    == validation::call_target_state(program, path.symbol)
+                        .map_or(path.symbol, |state| state.symbol) =>
+        {
+            Some(ScopedArithmeticValue::Atom {
+                identity: format!(
+                    "\0call-result:{:?}:{}:{}:{segments:?}:{primitive:?}",
+                    caller.state_symbol, call.statement_index, call.call_ordinal
+                ),
+                unsigned: matches!(
+                    primitive,
+                    typed_trees::unsigned_integer_primitive_pattern!()
+                ),
+            })
+        }
+        _ => None,
+    }
 }
 
 pub(in crate::checks) fn value_origin(
