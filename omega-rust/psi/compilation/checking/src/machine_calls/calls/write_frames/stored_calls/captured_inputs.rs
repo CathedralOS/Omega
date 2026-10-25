@@ -160,6 +160,17 @@ fn observations(
         true,
         &query,
     )?;
+    // Completion already authenticated the descriptor and its original cut.
+    // An opaque performed output has a call/output namespace, not a missing
+    // declaration. Rejoin that namespace to its exact typed call parameter;
+    // this supplies neither an executable address nor new access authority.
+    let has_captured_namespace = |place: &super::super::FrameSourcePlace| {
+        if let Some(identity) = place.output_identity() {
+            crate::invocation_output_parameter(program, identity).is_some()
+        } else {
+            place.is_static() || place.root.is_valid()
+        }
+    };
     let mut sources = Vec::new();
     for source in returned {
         let (candidate, substitution) = match source {
@@ -183,9 +194,9 @@ fn observations(
             ReferenceSource::Symbolic(_) => return None,
         };
         for mut source in [candidate] {
-            if (!source.origin.source.root.is_valid() && !source.origin.source.is_static())
+            if !has_captured_namespace(&source.origin.source)
                 || !source.origin.source.builtin_coordinates
-                || (!source.carrier.root.is_valid() && !source.carrier.is_static())
+                || !has_captured_namespace(&source.carrier)
                 || !source.carrier.builtin_coordinates
             {
                 return None;

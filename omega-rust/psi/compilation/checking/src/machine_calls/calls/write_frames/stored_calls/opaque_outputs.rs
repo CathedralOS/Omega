@@ -109,28 +109,23 @@ pub(super) fn effects(
                                 lifetime_access: Some(dependency.access),
                             }],
                             ViewReturnInputSource::Stored => {
-                                stored_origins::captured_reference_projection_sources(
+                                // This dependency reads a descriptor stored inside the
+                                // already captured referent. Keep that leaf's own
+                                // carrier/backing pair; the outer reference's carrier
+                                // is the storage address, not this pointer value.
+                                stored_origins::completed_reference_projection_sources(
                                     program,
-                                    &captured.origin,
+                                    &captured,
                                     &projected,
                                     &context.stored,
-                                )
+                                )?
                                 .into_iter()
-                                .map(|source| {
-                                    let source = source?;
-                                    Some(SlotSource {
-                                        origin: source.origin,
-                                        carrier: if source.lifetime_access.is_some() {
-                                            source.carrier
-                                        } else {
-                                            carrier.clone()
-                                        },
-                                        lifetime_access: source
-                                            .lifetime_access
-                                            .or(Some(dependency.access)),
-                                    })
+                                .map(|mut source| {
+                                    source.lifetime_access =
+                                        source.lifetime_access.or(Some(dependency.access));
+                                    source
                                 })
-                                .collect::<Option<Vec<_>>>()?
+                                .collect()
                             }
                         });
                     }
