@@ -223,9 +223,14 @@ impl TypedTrees {
 
     /// The machine spelled `name`, if any.
     pub fn machine_by_name_str(&self, name: &str) -> Option<&machine::Machine> {
-        self.machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == name)
+        self.machines().iter().find(|machine| {
+            machine.name.as_str() == name
+                && self
+                    .symbols
+                    .get(self.symbols.get(machine.symbol).parent)
+                    .kind
+                    != symbols::SymbolKind::Machine
+        })
     }
 
     /// The state `state_symbol` of machine `machine_symbol`, or `None` when
