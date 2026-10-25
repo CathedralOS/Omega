@@ -14,64 +14,57 @@ pub fn publish_checked_component(
     checked: CheckedCompilation,
 ) -> Result<IndependentComponentDescription, Vec<Diagnostic>> {
     crate::checked::run_on_compile_thread(move || {
-        publish_checked_components(vec![Ok(checked)])
+        let ((), product) = publish_checked_component_products(vec![((), Ok(checked))])
             .into_iter()
             .next()
-            .ok_or_else(|| vec![Diagnostic::error("component publication lost its outcome")])?
+            .ok_or_else(|| vec![Diagnostic::error("component publication lost its outcome")])?;
+        product.map(|product| product.description().clone())
     })
-}
-
-/// Matching checked component owners share Terminal production. Each application
-/// retains its own entry receipt, provider facts and description; neither a
-/// sibling's publication nor source equality grants receiving authority.
-pub(crate) fn publish_checked_components(
-    checked: Vec<Result<CheckedCompilation, Vec<Diagnostic>>>,
-) -> Vec<Result<IndependentComponentDescription, Vec<Diagnostic>>> {
-    publish_checked_component_products(checked)
-        .into_iter()
-        .map(|product| product.map(|product| product.description().clone()))
-        .collect()
 }
 
 /// Executable composition retains the completed source-free product beside
 /// its review description. Review-only callers project the description above;
 /// package preparation keeps both before releasing the source continuation.
-pub(crate) fn publish_checked_component_products(
-    checked: Vec<Result<CheckedCompilation, Vec<Diagnostic>>>,
-) -> Vec<Result<IndependentComponentProduct, Vec<Diagnostic>>> {
-    let mut outcomes: Vec<_> = (0..checked.len()).map(|_| None).collect();
-    let mut applications = Vec::new();
-    for (position, checked) in checked.into_iter().enumerate() {
-        match checked.and_then(|checked| {
+/// Matching checked owners share Terminal production, but each application keeps
+/// its own entry receipt, provider facts, destination and publication authority.
+pub(crate) fn publish_checked_component_products<Owner>(
+    checked: Vec<(Owner, Result<CheckedCompilation, Vec<Diagnostic>>)>,
+) -> Vec<(Owner, Result<IndependentComponentProduct, Vec<Diagnostic>>)> {
+    let mut applications = Vec::with_capacity(checked.len());
+    for (owner, checked) in checked {
+        let application = checked.and_then(|mut checked| {
             if checked.sources().package_identity().is_none() {
                 return Err(vec![Diagnostic::error(
                     "component publication requires package-aware checked custody for the dependency compiled as its own component",
                 )]);
             }
-            Ok(checked)
-        }) {
-            Ok(mut checked) => {
-                let selections = optimization_core::OptimizationRollback::default()
-                    .settle(&checked.build().config.settings.optimizations);
-                let timings = std::mem::take(checked.timings_mut());
-                applications.push((position, checked, timings, selections));
-            }
-            Err(diagnostics) => outcomes[position] = Some(Err(diagnostics)),
-        }
+            let selections = optimization_core::OptimizationRollback::default()
+                .settle(&checked.build().config.settings.optimizations);
+            let timings = std::mem::take(checked.timings_mut());
+            Ok((checked, timings, selections))
+        });
+        applications.push((owner, application));
     }
 
     let requests = applications
         .iter_mut()
+        .filter_map(|(_, application)| application.as_mut().ok())
         .map(
-            |(_, checked, timings, selections)| crate::terminal::TerminalProductRequest {
+            |(checked, timings, selections)| crate::terminal::TerminalProductRequest {
                 view: crate::terminal::TerminalProductionView::checked(checked, timings),
                 selections: selections.effective(),
             },
         )
         .collect();
-    let produced = crate::terminal::produce_retained_terminal_artifacts(requests);
-    for ((position, checked, _, selections), produced) in applications.into_iter().zip(produced) {
-        outcomes[position] = Some(produced.and_then(|produced| {
+    let mut produced = crate::terminal::produce_retained_terminal_artifacts(requests).into_iter();
+    let mut outcomes = Vec::with_capacity(applications.len());
+    for (owner, application) in applications {
+        let product = application.and_then(|(checked, _, selections)| {
+            let produced = produced.next().ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "component publication lost its Terminal outcome",
+                )]
+            })??;
             let retained = crate::terminal::finish_terminal_application(
                 &checked,
                 produced,
@@ -88,16 +81,8 @@ pub(crate) fn publish_checked_component_products(
                 crate::native::accepted_terminal_authority_permission_policy(&checked)?;
             IndependentComponentProduct::new(description, retained, accepted_permissions)
                 .map_err(|reason| vec![Diagnostic::error(reason)])
-        }));
+        });
+        outcomes.push((owner, product));
     }
     outcomes
-        .into_iter()
-        .map(|outcome| {
-            outcome.unwrap_or_else(|| {
-                Err(vec![Diagnostic::error(
-                    "component publication lost its outcome",
-                )])
-            })
-        })
-        .collect()
 }
