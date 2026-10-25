@@ -7,6 +7,7 @@ fn stored_application_and_multiplicity_are_checked_before_consumption() {
     let application = [7; 32];
     for multiplicity in [
         StructuralMultiplicity::Affine,
+        StructuralMultiplicity::Linear,
         StructuralMultiplicity::Unrestricted,
     ] {
         let mut values = AddressValues {
@@ -17,17 +18,15 @@ fn stored_application_and_multiplicity_are_checked_before_consumption() {
             })],
         };
         assert!(values.argument(0, [8; 32], multiplicity).is_err());
-        let other = if multiplicity == StructuralMultiplicity::Affine {
-            StructuralMultiplicity::Unrestricted
-        } else {
-            StructuralMultiplicity::Affine
-        };
-        assert!(values.argument(0, application, other).is_err());
-        assert!(
-            values
-                .argument(0, application, StructuralMultiplicity::Linear)
-                .is_err()
-        );
+        for other in [
+            StructuralMultiplicity::Affine,
+            StructuralMultiplicity::Linear,
+            StructuralMultiplicity::Unrestricted,
+        ] {
+            if other != multiplicity {
+                assert!(values.argument(0, application, other).is_err());
+            }
+        }
         assert_eq!(
             values
                 .argument(0, application, multiplicity)
@@ -36,7 +35,7 @@ fn stored_application_and_multiplicity_are_checked_before_consumption() {
             Some(66051)
         );
         let again = values.argument(0, application, multiplicity);
-        if multiplicity == StructuralMultiplicity::Affine {
+        if multiplicity != StructuralMultiplicity::Unrestricted {
             assert!(again.is_err());
             // A later result does not recycle the consumed ordinal.
             values.values.push(Some(OwnedAddress {
