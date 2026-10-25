@@ -75,8 +75,9 @@ macro_rules! fact_plan_roots {
         /// partition on its own page, and hands back only those pages;
         /// adopting them keeps every handle the worker minted.
         impl FactPlan {
-            /// Share the complete baseline before independent worker page forks.
-            /// Handles and contents are unchanged; later writes detach pages.
+            /// Share the established baseline before independent producers fork it.
+            /// Every arena and the derived context index freeze together; later
+            /// pages belong to their producer and do not rewrite this baseline.
             pub fn share_pages(&mut self) {
                 let Self { $($root,)* } = self;
                 $($root.share_pages();)*

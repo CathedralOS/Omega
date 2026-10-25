@@ -1,5 +1,5 @@
-use super::{Arena, FactContext, FactContextGroup, FactContexts, Handle, ProgramPoint};
-use arena::HandleSpan;
+use super::{Arena, FactContext, FactContextGroup, FactContexts, ProgramPoint};
+use arena::{Handle, HandleSpan};
 use symbols::SymbolHandle;
 use typed_trees::statement::TransitionTargetHandle;
 
@@ -11,7 +11,7 @@ fn context(point: ProgramPoint, fact_ordinal: u32) -> FactContext {
 }
 
 #[test]
-fn clone_from_restores_baseline_groups_and_discards_divergent_tail_links() {
+fn clone_from_restores_baseline_groups_and_discards_divergent_additions() {
     let machine = ProgramPoint::Machine {
         machine_symbol: SymbolHandle::from_arena_index(7),
     };
@@ -22,24 +22,18 @@ fn clone_from_restores_baseline_groups_and_discards_divergent_tail_links() {
     let mut baseline = FactContexts::default();
     let first_context = baseline.append(context(ProgramPoint::Global, 1));
     baseline.append(context(machine, 2));
-    let first_link = baseline.groups[&ProgramPoint::Global].first;
     let declaration = baseline.group_at_point(machine);
     let expected = baseline.handles_in_group(declaration).collect::<Vec<_>>();
     let mut scratch = baseline.clone();
     scratch.append(context(machine, 3));
     scratch.append(context(state, 4));
     let contexts_pointer = std::ptr::from_ref(scratch.contexts.get(first_context));
-    let links_pointer = std::ptr::from_ref(scratch.links.get(first_link));
     for _ in 0..3 {
         scratch.clone_from(&baseline);
         assert_eq!(scratch, baseline);
         assert_eq!(
             std::ptr::from_ref(scratch.contexts.get(first_context)),
             contexts_pointer
-        );
-        assert_eq!(
-            std::ptr::from_ref(scratch.links.get(first_link)),
-            links_pointer
         );
         assert_eq!(
             scratch.handles_in_group(declaration).collect::<Vec<_>>(),
@@ -366,8 +360,7 @@ fn adopted_worker_pages_equal_sequential_partition_pages() {
         machine_symbol: SymbolHandle::from_arena_index(machine),
         state_symbol: SymbolHandle::from_arena_index(state),
     };
-    // The first partition extends a group the baseline already holds, so its
-    // first append rewrites a baseline tail link.
+    // The first partition extends a group the baseline already holds.
     let mut baseline = FactContexts::default();
     baseline.append(context(state(1, 2), 1));
     baseline.append(context(ProgramPoint::Global, 2));
@@ -379,7 +372,7 @@ fn adopted_worker_pages_equal_sequential_partition_pages() {
     sequential.begin_page(3);
     let second = sequential.append(context(state(4, 5), 5));
 
-    let mut worker = |page, appends: &[(ProgramPoint, u32)]| {
+    let worker = |page, appends: &[(ProgramPoint, u32)]| {
         let mut copy = baseline.clone();
         copy.begin_page(page);
         for (point, ordinal) in appends {
@@ -405,60 +398,139 @@ fn adopted_worker_pages_equal_sequential_partition_pages() {
 }
 
 #[test]
-fn shared_context_checkpoint_detaches_tail_links_and_restores_groups() {
-    let point = ProgramPoint::Global;
+fn shared_baseline_forks_keep_appends_frees_and_restoration_local() {
+    let point = ProgramPoint::Machine {
+        machine_symbol: SymbolHandle::from_parts(7, 2),
+    };
+    let other = ProgramPoint::State {
+        machine_symbol: SymbolHandle::from_parts(7, 2),
+        state_symbol: SymbolHandle::from_parts(8, 3),
+    };
     let mut baseline = FactContexts::default();
     let first = baseline.append(context(point, 1));
-    let group = baseline.group_at_point(point);
-    let tail = baseline.groups[&point].last;
+    let selected = baseline.group_at_point(point);
+    let absent = baseline.group_at_point(other);
     baseline.share_pages();
+    let first_pointer = std::ptr::from_ref(baseline.get(first));
+
     let mut worker = baseline.clone();
-    let sibling = baseline.clone();
-    assert!(std::ptr::eq(
-        baseline.contexts.get(first),
-        worker.contexts.get(first)
-    ));
-    assert!(std::ptr::eq(
-        baseline.links.get(tail),
-        worker.links.get(tail)
-    ));
+    assert!(std::sync::Arc::ptr_eq(&baseline.baseline, &worker.baseline));
     worker.begin_page(2);
-    let added = worker.append(context(point, 2));
-    assert!(!std::ptr::eq(
-        baseline.links.get(tail),
-        worker.links.get(tail)
-    ));
-    assert!(std::ptr::eq(
-        baseline.contexts.get(first),
-        worker.contexts.get(first)
-    ));
+    let second = worker.append(context(point, 2));
+    let local_first = worker.append(context(other, 3));
+    let local_selected = worker.group_at_point(other);
+    assert_eq!(std::ptr::from_ref(worker.get(first)), first_pointer);
+    assert!(std::sync::Arc::ptr_eq(&baseline.baseline, &worker.baseline));
     assert_eq!(
-        worker.handles_in_group(group).collect::<Vec<_>>(),
-        [first, added]
+        worker.handles_in_group(selected).collect::<Vec<_>>(),
+        [first, second]
     );
+    assert_eq!(worker.handles_in_group(absent).count(), 0);
     assert_eq!(
-        baseline.handles_in_group(group).collect::<Vec<_>>(),
+        baseline.handles_in_group(selected).collect::<Vec<_>>(),
         [first]
     );
-    assert_eq!(sibling.handles_in_group(group).collect::<Vec<_>>(), [first]);
+
     assert!(worker.free(first));
-    assert_eq!(worker.handles_in_group(group).collect::<Vec<_>>(), [added]);
-    worker.clone_from(&baseline);
-    assert!(std::ptr::eq(
-        baseline.contexts.get(first),
-        worker.contexts.get(first)
-    ));
-    assert!(std::ptr::eq(
-        baseline.links.get(tail),
-        worker.links.get(tail)
-    ));
-    assert_eq!(worker.handles_in_group(group).collect::<Vec<_>>(), [first]);
-    assert_eq!(worker.groups[&point].last, tail);
-    worker.begin_page(3);
-    let replacement = worker.append(context(point, 3));
+    assert!(worker.free(second));
+    assert_eq!(worker.handles_in_group(selected).count(), 0);
+    let third = worker.append(context(point, 4));
     assert_eq!(
-        worker.handles_in_group(group).collect::<Vec<_>>(),
-        [first, replacement]
+        worker.handles_in_group(selected).collect::<Vec<_>>(),
+        [third]
     );
-    assert_eq!(sibling.handles_in_group(group).collect::<Vec<_>>(), [first]);
+    worker.share_pages();
+    worker.begin_page(3);
+    let fourth = worker.append(context(point, 5));
+    let local_second = worker.append(context(other, 6));
+    assert_eq!(
+        worker.handles_in_group(local_selected).collect::<Vec<_>>(),
+        [local_first, local_second]
+    );
+    worker.share_pages();
+    assert_eq!(
+        worker.handles_in_group(local_selected).collect::<Vec<_>>(),
+        [local_first, local_second]
+    );
+    assert_eq!(worker.handles_in_group(absent).count(), 0);
+    assert_eq!(
+        worker.handles_in_group(selected).collect::<Vec<_>>(),
+        [third, fourth]
+    );
+    assert_eq!(
+        baseline.handles_in_group(selected).collect::<Vec<_>>(),
+        [first]
+    );
+
+    worker.clone_from(&baseline);
+    assert!(std::sync::Arc::ptr_eq(&baseline.baseline, &worker.baseline));
+    assert_eq!(std::ptr::from_ref(worker.get(first)), first_pointer);
+    assert_eq!(
+        worker.handles_in_group(selected).collect::<Vec<_>>(),
+        [first]
+    );
+    assert_eq!(worker.handles_at_point(other).count(), 0);
+    assert_eq!(worker, baseline);
+}
+
+#[test]
+fn overlapping_reverse_adoption_survives_sealing_and_page_transfer() {
+    let point = ProgramPoint::Global;
+    let other = ProgramPoint::Machine {
+        machine_symbol: SymbolHandle::from_parts(11, 4),
+    };
+    let mut baseline = FactContexts::default();
+    let first = baseline.append(context(point, 1));
+    let selected = baseline.group_at_point(point);
+    baseline.share_pages();
+    let mut first_worker = baseline.clone();
+    first_worker.begin_page(2);
+    let second = first_worker.append(context(point, 2));
+    let first_pages = first_worker.take_additional_pages();
+    let mut second_worker = baseline.clone();
+    second_worker.begin_page(3);
+    let third = second_worker.append(context(point, 3));
+    let second_pages = second_worker.take_additional_pages();
+
+    let mut merged = baseline.clone();
+    merged.adopt_additional_pages(second_pages);
+    merged.adopt_additional_pages(first_pages);
+    assert_eq!(
+        merged.handles_in_group(selected).collect::<Vec<_>>(),
+        [first, third, second]
+    );
+    assert_eq!(
+        merged.iter().map(|(handle, _)| handle).collect::<Vec<_>>(),
+        [first, second, third]
+    );
+    merged.share_pages();
+    assert_eq!(
+        merged.handles_in_group(selected).collect::<Vec<_>>(),
+        [first, third, second]
+    );
+
+    let mut retained = merged.clone();
+    let transferred = retained.take_additional_pages();
+    assert_eq!(transferred.len(), 2);
+    assert_eq!(
+        retained.handles_in_group(selected).collect::<Vec<_>>(),
+        [first]
+    );
+    // Reusing an unpublished page generation must not reinterpret an old
+    // membership as a context at a different program point.
+    retained.begin_page(2);
+    let replacement = retained.append(context(other, 4));
+    assert_eq!(replacement, second);
+    assert_eq!(
+        retained.handles_in_group(selected).collect::<Vec<_>>(),
+        [first]
+    );
+    assert_eq!(
+        retained.handles_at_point(other).collect::<Vec<_>>(),
+        [replacement]
+    );
+    assert_eq!(
+        merged.handles_in_group(selected).collect::<Vec<_>>(),
+        [first, third, second]
+    );
 }
