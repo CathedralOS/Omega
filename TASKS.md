@@ -1128,7 +1128,10 @@ defines the complete product bar.
     as value-home, occurrence and invalid-custody controls.
   - Complete scalar materialization of moved linear places and claim-bearing
     call results on **STATE-LOCAL-VALUE-FRONTIER**'s computed-call path. Preserve the
-    checked ordered temporary action roster and its scalar-call continuation in
+    exact completion-time cleanup facts for copied descriptor leaves, and end
+    borrowed carriers' loans before disposing their supplier storage; anonymous
+    descriptor-source completion remains unfinished.
+    Preserve the checked ordered temporary action roster and its scalar-call continuation in
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/calls.rs`
     with exact live-claim dispositions; claim-free discard/hook actions do not
     consume retained claims. Preserve the selected transfer and ordered
