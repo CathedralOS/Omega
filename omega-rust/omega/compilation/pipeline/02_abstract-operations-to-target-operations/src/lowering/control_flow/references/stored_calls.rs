@@ -7,7 +7,7 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use std::borrow::Cow;
 use terminal_semantics::descriptor_lifetimes::descriptor_path;
 use terminal_semantics::descriptor_results::{
-    DescriptorAnalysis, DescriptorStoredOrigin, writable_reference_slots,
+    DescriptorAnalysis, DescriptorSlotKind, DescriptorStoredOrigin,
 };
 
 type Location = (PlaceId, Vec<StructuralPathSegment>);
@@ -79,13 +79,14 @@ impl StoredEffects {
 
 fn writable_slots(function: &AbstractFunction, types: &StructuralTypeLookup<'_>) -> bool {
     function.structural_parameters.iter().any(|parameter| {
-        writable_reference_slots(
-            types.catalog(),
-            parameter.place,
-            parameter.structural_type,
-            parameter.access,
-        )
-        .is_none_or(|slots| !slots.is_empty())
+        DescriptorSlotKind::References
+            .writable_slots(
+                types.catalog(),
+                parameter.place,
+                parameter.structural_type,
+                parameter.access,
+            )
+            .is_none_or(|slots| !slots.is_empty())
     })
 }
 
@@ -319,7 +320,8 @@ pub(in super::super) fn stage(
             source_contract(function, live, argument.place)
                 .and_then(|ty| leaf_type(types, ty, &argument.path))
                 .is_some_and(|ty| {
-                    writable_reference_slots(types.catalog(), argument.place, ty, argument.access)
+                    DescriptorSlotKind::References
+                        .writable_slots(types.catalog(), argument.place, ty, argument.access)
                         .is_none_or(|slots| !slots.is_empty())
                 })
         }) {

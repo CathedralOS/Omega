@@ -2577,16 +2577,16 @@ then independent claimed restoration slices -> final closure.
   Full Build evaluation still uses the checked-tree engine. Connect settings
   readback to that replacement together with ordered binding observations,
   pause/resume without replay and foreign/malformed-input refusal.
-  Mutable boundary receivers also need a portable stored-descriptor
-  effect/lifetime contract.
-  `RetainedBorrow` covers shared inputs returned as structural results, not
-  Unit-return receiver writeback. Carry an authenticated general mutable-slot
-  effect/backing relation through checked admission, boundary declarations,
-  production, provider installation and normal-exit replay. Do not infer slot
-  preservation from the current observation-only adapter, a call name or source
-  custody; later unknown mutable writes remain unknown. Separate current-store
-  origins from output safety while retaining rejection of local backing escaping
-  through borrowed output on a Unit return. Every package root and dependency
+  Core Build now names the backing lifetime of its stored views; ordinary
+  boundary completion contracts cover both pointer slots and stored views.
+  `receiver_view_writeback_exit` has a portable corpus provision that loads the
+  produced artifact, executes two mutable boundary calls exactly once across
+  fuel pauses, rejects a foreign receiver and reads the final original storage.
+  This is prerequisite evidence, not execution of the full Build entry.
+  Connect those admitted operations to the production Build scheduler without
+  inferring slot preservation from an observation-only adapter, a call name or
+  source custody; a lifetime anchor is not backing identity. Local backing still
+  cannot escape through borrowed output on a Unit return. Every package root and dependency
   Build is sponsored. Connect the independent
   `evaluation-accounting` invocation accounts to actual Terminal semantic fuel,
   owned live storage and result custody before allocation or publication;

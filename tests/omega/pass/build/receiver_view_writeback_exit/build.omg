@@ -19,3 +19,16 @@ machine configure_build_readback(builder: &mut Build) {
     configure_build(builder);
     builder.subsystem = Subsystem::Gui;
 }
+
+boundary trait ObserveBuild {
+    machine record(builder: &mut Build, sequence: u64);
+}
+
+machine configure_build_boundary(builder: &mut Build)
+reaches ObserveBuild
+{
+    builder.identifier = "before";
+    ObserveBuild::record(builder, 1);
+    builder.identifier = "after";
+    ObserveBuild::record(builder, 2);
+}

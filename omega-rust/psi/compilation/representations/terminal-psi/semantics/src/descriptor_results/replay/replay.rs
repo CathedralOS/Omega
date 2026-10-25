@@ -1117,7 +1117,8 @@ impl<'a> Replay<'a> {
                 continue;
             };
             let slots = if self.slot_kind == DescriptorSlotKind::References {
-                writable_reference_slots(self.types, row.place, structural_type, access)?
+                self.slot_kind
+                    .writable_slots(self.types, row.place, structural_type, access)?
             } else {
                 if !matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
                     && !matches!(

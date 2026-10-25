@@ -297,3 +297,13 @@ or resident custody. This uses the public SDK, not compiler-internal mutation.
 Run with `OMEGA_CORPUS_HOST_PROVISIONS=1` and filter
 `pass/layouts/extent_view_external_content`; without opt-in it records
 `unrequested`. Cathedral's QEMU boot supplies the separate native observation.
+
+`runtime portable mutable-boundary` supplies an observation-only host adapter
+to `build/receiver_view_writeback_exit`'s source-produced Build helper. It loads
+the external artifact, checks the three stored-view lifetime promises, and
+requires effects 1 and 2 exactly once across fuel pauses, original-receiver
+identity, and final identifier readback `after`. A different receiver must
+reject without a normal-return observation. Run with
+`OMEGA_CORPUS_HOST_PROVISIONS=1`; without opt-in it records `unrequested`.
+This is Terminal embedding evidence, not a claim that production Build execution
+has left the checked-tree engine.
