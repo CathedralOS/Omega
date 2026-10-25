@@ -113,13 +113,6 @@ impl<'artifact> TerminalExecution<'artifact> {
                             .text(provider_type.identity),
                     )
                     .is_some_and(|(left, right)| !left.is_empty() && left == right)
-                || self.live_claims.values().any(|claim| {
-                    claim.place == Some(argument.place)
-                        && terminal_semantics::structural_paths_may_overlap(
-                            &claim.path,
-                            &argument.path,
-                        )
-                })
                 || crate::custody::has_live_loan(self.reference_referents.as_map(), value)
             {
                 return Err(reject(
@@ -143,7 +136,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             let mut receipts = completion_receipts
                 .iter()
                 .filter(|receipt| receipt.argument_index == argument_index);
-            if linear {
+            let carried_claim = if linear {
                 let claim = entry_claims
                     .next()
                     .ok_or_else(|| reject("linear component input lacks its whole entry claim"))?;
@@ -166,9 +159,21 @@ impl<'artifact> TerminalExecution<'artifact> {
                         "linear component input lacks exactly one whole owned claim",
                     ));
                 }
+                Some(receipt.claim)
             } else if entry_claims.next().is_some() || receipts.next().is_some() {
                 return Err(reject(
                     "nonlinear component input carries unexpected claims",
+                ));
+            } else {
+                None
+            };
+            if self.live_claims.iter().any(|(identity, claim)| {
+                claim.place == Some(argument.place)
+                    && terminal_semantics::structural_paths_may_overlap(&claim.path, &argument.path)
+                    && Some(*identity) != carried_claim
+            }) {
+                return Err(reject(
+                    "component input overlaps another live ownership claim",
                 ));
             }
             let home = StructuralRuntimePlace::from(&*value);
