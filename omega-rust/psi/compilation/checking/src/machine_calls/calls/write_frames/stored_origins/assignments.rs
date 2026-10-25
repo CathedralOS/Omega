@@ -190,6 +190,7 @@ fn assigned_stored_origins(
     let established = stored
         .iter()
         .find(|local| local.local_symbol == source.root);
+    inference.specialize_source(program, &mut source);
     let may_select = source
         .segments
         .iter()

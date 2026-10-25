@@ -32,7 +32,12 @@ pub(crate) fn call_reference_sources(
     call: &checked_trees::expression::TableCallExpression,
 ) -> Option<Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)>> {
     let fields = call_reference_lifetime_sources(program, state_symbol, call)?;
-    let sources = completed_sources(program, call.target_symbol, fields);
+    let sources = completed_sources(
+        program,
+        call.target_symbol,
+        fields,
+        program.expression_table.expression_handles(call.arguments),
+    );
     if sources
         .iter()
         .any(|source| matches!(source, CompletedReturnSource::UnresolvedDescriptor { .. }))
@@ -147,12 +152,13 @@ pub(super) fn completed_sources(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
     fields: Vec<ViewReturnFieldSource>,
+    arguments: &[ExpressionHandle],
 ) -> Vec<CompletedReturnSource> {
     // Nominal retained fields are nonspatial even when the body relation
     // cannot be reconstructed. Refine only actual descriptor fields below.
     let (dependencies, fields): (Vec<_>, Vec<_>) =
         fields.into_iter().partition(|field| field.lifetime_only);
-    let mut sources = match completed_field_sources(program, target, &fields, None) {
+    let mut sources = match completed_field_sources(program, target, &fields, None, arguments) {
         Some(Ok(sources)) => sources,
         // A contradictory body is rejected by the mandatory declaration check.
         // It must not manufacture loans from the signature fallback meanwhile.
@@ -269,6 +275,7 @@ fn completed_field_sources(
     target: SymbolHandle,
     fields: &[ViewReturnFieldSource],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    arguments: &[ExpressionHandle],
 ) -> Option<Result<Vec<CompletedReturnSource>, usize>> {
     let (machine, state) = validation::find_state(program, target)?;
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
@@ -284,7 +291,8 @@ fn completed_field_sources(
             &prepared_frames
         }
     };
-    let sources = call_frames.reference_result_leaf_origins(state.symbol)?;
+    let sources =
+        call_frames.reference_result_leaf_origins_for_arguments(state.symbol, arguments)?;
     let parameters = program.state_parameters(state);
     let declared_paths = fields
         .iter()

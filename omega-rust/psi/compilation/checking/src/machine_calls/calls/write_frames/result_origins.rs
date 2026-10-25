@@ -68,15 +68,18 @@ pub(super) fn call_result_origins(
     let mut relative = if let Some(origin) = primitive_origin {
         origin
     } else {
-        state_result_origins(
-            program,
-            machine,
-            state,
-            state.return_type,
-            symbols,
-            inference,
-            include_shared,
-        )?
+        let indices = inference.argument_indices(program, arguments);
+        inference.with_invocation(program, state, &[], &indices, |inference| {
+            state_result_origins(
+                program,
+                machine,
+                state,
+                state.return_type,
+                symbols,
+                inference,
+                include_shared,
+            )
+        })?
     };
     instantiate_result_origins(
         program,
@@ -396,6 +399,7 @@ fn merge_result_arm(
             context,
             relative,
             include_shared,
+            inference,
         )
     })
 }
@@ -528,6 +532,7 @@ fn merge_relative_origins(
     context: &CollectedStatementPrefix,
     relative: &mut AggregateOrigins,
     include_shared: bool,
+    inference: &FrameInference,
 ) -> Option<()> {
     let parameters = program.state_parameters(state);
     for case in returned.cases {
@@ -557,7 +562,10 @@ fn merge_relative_origins(
                 context,
             ),
         };
-        for origin in origins {
+        for mut origin in origins {
+            if let Some(origin) = &mut origin {
+                inference.specialize_source(program, &mut origin.source);
+            }
             if let Some(origin) = &origin
                 && include_shared
                 && parameters.iter().any(|parameter| {
@@ -822,6 +830,7 @@ fn instantiate_edge_origins(
             context,
             relative,
             include_shared,
+            inference,
         )
     })
 }

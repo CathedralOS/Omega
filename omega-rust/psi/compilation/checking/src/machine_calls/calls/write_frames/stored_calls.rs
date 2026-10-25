@@ -257,7 +257,15 @@ fn invocation_reference_effects(
     if destinations_empty {
         return Some(SlotRelationTransfer::complete(Vec::new()));
     }
-    let Some(mut relative) = state_effects(program, callee, state, symbols, inference) else {
+    let indices = captures
+        .iter()
+        .map(|captured| captured.inference.index_value(program, captured.expression))
+        .collect::<Vec<_>>();
+    let Some(mut relative) =
+        inference.with_invocation(program, state, &[], &indices, |inference| {
+            state_effects(program, callee, state, symbols, inference)
+        })
+    else {
         trace_refusal("relative-state-effects");
         return None;
     };

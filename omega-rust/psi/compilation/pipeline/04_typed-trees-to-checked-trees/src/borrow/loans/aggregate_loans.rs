@@ -110,8 +110,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
             ) else {
                 return Vec::new();
             };
-            let retained_access =
-                geometry.retained_access(program, &kind);
+            let retained_access = geometry.retained_access(program, &kind);
             let rebased =
                 rebase_borrow_geometry_through_local_loans(program, geometry, loan_trackers);
             rebased
@@ -362,7 +361,7 @@ pub(super) fn result_source_loans(
 ) -> Vec<StatementBorrowLoan> {
     let mut carried_arguments = Vec::new();
 
-    let sources = super::returned_carriers::completed_sources(program, target, fields);
+    let sources = super::returned_carriers::completed_sources(program, target, fields, arguments);
     sources
         .into_iter()
         .flat_map(|source| {

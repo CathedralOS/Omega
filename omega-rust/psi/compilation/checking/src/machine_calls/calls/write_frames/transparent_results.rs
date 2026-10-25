@@ -280,7 +280,7 @@ struct ResultSelection {
 impl ResultSelection {
     fn new(program: &dyn crate::CheckingInput, state: &State, actual_values: &[BoolTruth]) -> Self {
         Self {
-            values: ParameterValues::new(program, state, actual_values),
+            values: ParameterValues::new(program, state, actual_values, &[]),
             captured_results: Vec::new(),
         }
     }
