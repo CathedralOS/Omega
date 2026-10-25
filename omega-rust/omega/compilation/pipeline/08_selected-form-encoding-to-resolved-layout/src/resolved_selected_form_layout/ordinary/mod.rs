@@ -12,7 +12,9 @@ pub(super) use plan::branch_size;
 mod policy;
 mod row;
 
-pub(super) use branch::conditional_branch_family;
+pub(super) use branch::{
+    ConditionalBranchDescriptor, conditional_branch_descriptor, conditional_branch_family,
+};
 pub(super) use function::layout;
 pub(super) use plan::instructions;
 pub(super) use policy::select;
