@@ -7,7 +7,7 @@ machine produce<Width: u32>(value: u32) -> Indexed<Width> satisfies Family::row 
 Selected satisfies Family { Family::row = produce; }
 machine main() crashes Trap {
     let mut limit: u32 = 16;
-    let item: Indexed<limit> = Family::row<limit>(Selected as dyn Family, change(&mut limit));
+    let item: Indexed<32> = Family::row<16>(Selected as dyn Family, change(&mut limit));
     transition limit == 32 && item.value == 7 { true -> done() false -> bad() }
     state done() {} state bad() { crash Trap; }
 }
