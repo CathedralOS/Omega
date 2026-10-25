@@ -196,6 +196,21 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
             }
         }
         if receiver_kind == SymbolKind::Machine {
+            if crate::symbols::lookup::machine_scope_is_visible(
+                symbols,
+                machine.symbol,
+                receiver_symbol,
+            ) {
+                let nested = child_symbol_by_kinds(
+                    symbols,
+                    receiver_symbol,
+                    &[SymbolKind::Machine],
+                    target.as_str(),
+                );
+                if nested.is_valid() {
+                    return machine_entry_symbol(symbols, nested, target.as_str());
+                }
+            }
             if receiver_symbol == machine.symbol && machine.attached_data_symbol.is_valid() {
                 let target_symbol =
                     machine.attached_call_target(symbols, machine.attached_data_symbol, target);
@@ -290,7 +305,17 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         return proposition_parameter;
     }
 
-    resolve_free_call_target_symbol(symbols, target)
+    match crate::symbols::lookup::lexical_machine_declaration(
+        symbols,
+        machine.symbol,
+        target.as_str(),
+    ) {
+        SymbolLookup::Unique(declaration) => {
+            machine_entry_symbol(symbols, declaration, target.as_str())
+        }
+        SymbolLookup::Ambiguous { .. } => SymbolHandle::invalid(),
+        SymbolLookup::NotFound => resolve_free_call_target_symbol(symbols, target),
+    }
 }
 
 /// A visible authored callable shadows the outermost builtin. Ambiguity and
@@ -421,7 +446,17 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
         if concrete_type.is_valid() {
             return concrete_type;
         }
-        return resolve_free_machine_entry_state_symbol(symbols, target);
+        return match crate::symbols::lookup::lexical_machine_declaration(
+            symbols,
+            machine_symbol,
+            target.as_str(),
+        ) {
+            SymbolLookup::Unique(declaration) => {
+                machine_entry_symbol(symbols, declaration, target.as_str())
+            }
+            SymbolLookup::Ambiguous { .. } => SymbolHandle::invalid(),
+            SymbolLookup::NotFound => resolve_free_machine_entry_state_symbol(symbols, target),
+        };
     }
 
     let owner = owner.joined_path();

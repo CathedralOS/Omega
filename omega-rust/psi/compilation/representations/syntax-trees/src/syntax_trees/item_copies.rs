@@ -547,7 +547,18 @@ impl SyntaxCopy<'_> {
     }
 
     fn copy_machine(&mut self, other: &SyntaxTrees, machine: &Machine) -> Machine {
+        let nested = other
+            .items
+            .nested_machine_items(machine.nested_machines)
+            .iter()
+            .map(|item| match item {
+                Item::Machine(nested) => self.copy_machine(other, nested),
+                _ => unreachable!("a nested declaration span contains only machines"),
+            })
+            .collect::<Vec<_>>();
+        let nested_machines = self.items.insert_nested_machines(nested);
         Machine {
+            nested_machines,
             target_family_interface: machine.target_family_interface,
             name: machine.name.clone(),
             generic_data_template: machine.generic_data_template.clone(),

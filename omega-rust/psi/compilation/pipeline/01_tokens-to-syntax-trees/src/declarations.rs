@@ -10,6 +10,7 @@ mod data;
 mod domain;
 mod let_definition;
 mod machines;
+pub(crate) use machines::parse_machine;
 mod measure;
 mod namespace;
 mod operator;

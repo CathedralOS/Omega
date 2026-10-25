@@ -88,6 +88,9 @@ pub(crate) enum ConstResolutionMode {
     InitializerSelection,
 }
 pub(crate) struct Lowerer {
+    /// Construction ordinals connect lexical declarations until symbol
+    /// allocation records their exact parent handles in the symbol table.
+    pub(crate) nested_machine_scopes: Vec<(usize, usize)>,
     pub(crate) defer_machine_bodies: bool,
     pub(crate) pending_machine_bodies: Vec<crate::lowering::machine::PendingMachineBody>,
     pub(crate) pending_type_inputs: Vec<super::type_inputs::LoweredTypeInputs>,
@@ -254,6 +257,7 @@ impl Lowerer {
         source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     ) -> Self {
         Self {
+            nested_machine_scopes: Vec::new(),
             defer_machine_bodies: false,
             pending_machine_bodies: Vec::new(),
             pending_type_inputs: Vec::new(),

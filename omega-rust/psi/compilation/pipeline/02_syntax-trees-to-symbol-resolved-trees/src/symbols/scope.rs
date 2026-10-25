@@ -91,15 +91,16 @@ pub(crate) fn owned_conformance_namespace(
     Ok(owner)
 }
 
-/// Source lexical captures of owned map rows. Invocation binders remain in
-/// the machine's own telescope; an ordinary referenced row captures nothing.
-pub(super) struct ConformanceTypeScopes {
+/// Static declaration context of owned map rows and nested machines. Runtime
+/// invocation parameters and locals never enter this lexical telescope.
+pub(super) struct DeclarationTypeScopes {
     owned: Vec<(SymbolHandle, Vec<TypeParameter>)>,
 }
 
-impl ConformanceTypeScopes {
+impl DeclarationTypeScopes {
     pub(super) fn of(
         program: &symbol_resolved_trees::SymbolResolvedTrees,
+        symbols: &SymbolTable,
     ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
         let mut owned = Vec::new();
         let mut diagnostics = Vec::new();
@@ -129,6 +130,41 @@ impl ConformanceTypeScopes {
                         .to_vec(),
                 ));
             }
+        }
+        // Parents precede children in the construction roster. Retain exact
+        // static binders without importing an enclosing runtime activation.
+        for machine in program.machines.iter() {
+            let parent = symbols.get(machine.symbol).parent;
+            if symbols.get(parent).kind != symbols::SymbolKind::Machine {
+                continue;
+            }
+            let Some(declaration) = program
+                .machines
+                .iter()
+                .find(|candidate| candidate.symbol == parent)
+            else {
+                continue;
+            };
+            let mut parameters = program.machine_type_parameters(declaration).to_vec();
+            for parameter in &mut parameters {
+                if !parameter.symbol.is_valid() {
+                    let kind = if matches!(
+                        parameter.kind,
+                        symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
+                    ) {
+                        symbols::SymbolKind::MachineParameter
+                    } else {
+                        symbols::SymbolKind::TypeParameter
+                    };
+                    parameter.symbol = symbols
+                        .find_child_by_name_and_kind(parent, parameter.name.as_str(), kind)
+                        .unwrap_or_else(SymbolHandle::invalid);
+                }
+            }
+            if let Some((_, enclosing)) = owned.iter().find(|(owner, _)| *owner == parent) {
+                parameters = declaration_type_scope(&parameters, enclosing);
+            }
+            owned.push((machine.symbol, parameters));
         }
         if diagnostics.is_empty() {
             Ok(Self { owned })

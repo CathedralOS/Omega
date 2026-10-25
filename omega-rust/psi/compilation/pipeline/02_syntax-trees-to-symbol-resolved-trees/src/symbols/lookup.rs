@@ -1,5 +1,43 @@
 use symbols::{SymbolHandle, SymbolKind, SymbolLookup, SymbolTable};
 
+/// Lexical machine declarations are visible through declaration ancestry,
+/// never through an enclosing invocation's parameter or local children.
+pub(super) fn lexical_machine_declaration(
+    symbols: &SymbolTable,
+    mut owner: SymbolHandle,
+    name: &str,
+) -> SymbolLookup {
+    while owner.is_valid() && symbols.get(owner).kind == SymbolKind::Machine {
+        let mut matching = symbols
+            .child_handles(owner)
+            .into_iter()
+            .flatten()
+            .filter(|child| {
+                symbols.get(*child).kind == SymbolKind::Machine && symbols.name(*child) == name
+            });
+        match (matching.next(), matching.next()) {
+            (Some(first), Some(second)) => return SymbolLookup::Ambiguous { first, second },
+            (Some(selected), None) => return SymbolLookup::Unique(selected),
+            _ => owner = symbols.get(owner).parent,
+        }
+    }
+    SymbolLookup::NotFound
+}
+
+pub(super) fn machine_scope_is_visible(
+    symbols: &SymbolTable,
+    mut caller: SymbolHandle,
+    owner: SymbolHandle,
+) -> bool {
+    while caller.is_valid() && symbols.get(caller).kind == SymbolKind::Machine {
+        if caller == owner {
+            return true;
+        }
+        caller = symbols.get(caller).parent;
+    }
+    false
+}
+
 pub(super) fn diagnostic_path_source_span(
     members: &[symbol_resolved_trees::name::DiagnosticName],
 ) -> source::SourceSpan {

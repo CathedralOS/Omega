@@ -36,7 +36,7 @@ pub(super) fn assign_contract_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) -> Result<(), Vec<Diagnostic>> {
-    let conformance_scopes = super::scope::ConformanceTypeScopes::of(program)?;
+    let conformance_scopes = super::scope::DeclarationTypeScopes::of(program, symbols)?;
     let attached_machines = super::scope::attached_machines(program);
     let trait_scopes = super::scope::TraitLexicalScopes::of(program);
     let SymbolResolvedTrees { roots, tables, .. } = program;

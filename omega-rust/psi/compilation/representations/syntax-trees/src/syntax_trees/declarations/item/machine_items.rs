@@ -3,6 +3,9 @@ use super::*;
 #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct Machine {
     pub name: Identifier,
+    /// Authored lexical children, retained until resolution assigns their own
+    /// declaration identities. Nesting never supplies runtime parameters.
+    pub nested_machines: HandleSpan<Item>,
     /// Exact authored template token for a method cloned onto closed generic
     /// data. Empty on authored declarations and other synthesis families.
     pub generic_data_template: Identifier,

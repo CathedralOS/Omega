@@ -2,7 +2,7 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
 use super::insert_machine_type_parameter_children;
-use crate::symbols::symbol_table::names::{symbol_seed, type_parameter_seed};
+use crate::symbols::symbol_table::names::{machine_symbol_seed, symbol_seed, type_parameter_seed};
 
 pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
     builder: &mut impl SymbolTableAppender,
@@ -11,7 +11,8 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
     machine: &symbol_resolved_trees::machine::Machine,
     has_sources: bool,
     sources: Option<&source::SourceMap>,
-) {
+    nested_machines: &[symbol_resolved_trees::machine::Machine],
+) -> Vec<SymbolHandle> {
     let machine_children = builder.insert_children(
         machine_symbol,
         program
@@ -39,6 +40,11 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
                     .iter()
                     .map(|state| program.machine_state(*state))
                     .map(|state| symbol_seed(SymbolKind::State, &state.name, has_sources)),
+            )
+            .chain(
+                nested_machines
+                    .iter()
+                    .map(|machine| machine_symbol_seed(machine, has_sources)),
             ),
     );
     let mut machine_children = SymbolTableBuilder::child_handles(machine_children);
@@ -82,6 +88,7 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
             insert_state_symbol_children(builder, program, state_symbol, state, has_sources);
         }
     }
+    machine_children.collect()
 }
 
 fn collect_evidence_requirement_closure<'program>(

@@ -111,7 +111,10 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
             child_type_references,
             symbols,
         );
-        if symbols.get(target_symbol).kind == SymbolKind::MachineParameter {
+        if symbols.get(target_symbol).kind == SymbolKind::MachineParameter
+            || (symbols.get(target_symbol).kind == SymbolKind::State
+                && symbols.get(symbols.get(target_symbol).parent).kind == SymbolKind::Machine)
+        {
             named.head_symbol = target_symbol;
             named.symbol = target_symbol;
             return;

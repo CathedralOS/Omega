@@ -19,11 +19,10 @@ pub(super) fn assign_machine_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) -> Vec<Diagnostic> {
-    let root_machine_symbols = symbols
-        .child_handles(symbols.root())
-        .into_iter()
-        .flatten()
-        .filter(|symbol| symbols.get(*symbol).kind == SymbolKind::Machine)
+    let root_machine_symbols = program
+        .machines
+        .iter()
+        .map(|machine| machine.symbol)
         .collect::<Vec<_>>();
     let top_level_requirement_symbols = program
         .machines
@@ -62,13 +61,14 @@ pub(super) fn assign_machine_symbols(
             .unwrap_or_else(SymbolHandle::invalid);
     });
     let attached_machines = crate::symbols::scope::attached_machines(program);
-    let conformance_scopes = match crate::symbols::scope::ConformanceTypeScopes::of(program) {
-        Ok(scopes) => scopes,
-        Err(errors) => {
-            diagnostics.extend(errors);
-            return diagnostics;
-        }
-    };
+    let conformance_scopes =
+        match crate::symbols::scope::DeclarationTypeScopes::of(program, symbols) {
+            Ok(scopes) => scopes,
+            Err(errors) => {
+                diagnostics.extend(errors);
+                return diagnostics;
+            }
+        };
     let tables = &mut program.tables;
     let type_constraints = &tables.types.constraints;
     let declarations = &mut tables.declarations;

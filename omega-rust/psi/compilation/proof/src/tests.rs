@@ -144,6 +144,7 @@ fn collects_bounded_type_sites() {
         name: Identifier::generated("main"),
         generic_data_template: Default::default(),
         default_body_trait: Default::default(),
+        nested_machines: Default::default(),
         where_facts: HandleSpan::empty(),
         attached_data: None,
         spelling: None,

@@ -82,6 +82,7 @@ pub(crate) fn lower_machine_into(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
 ) -> Result<(), Diagnostic> {
+    let machine_ordinal = lowerer.symbol_resolved_trees.machines.len();
     // OPERATOR-MACHINE-SUPPLY: `machine.spelling` (the optional fixed token
     // after `machine`) is copied onto the symbol-resolved declaration below
     // and flows through the typed machine record, where the typed lowering
@@ -337,6 +338,21 @@ pub(crate) fn lower_machine_into(
         },
     });
     lowerer.current_compiler_selection_partition = None;
+    for nested in syntax_trees
+        .items
+        .nested_machine_items(machine.nested_machines)
+    {
+        let syntax::item::Item::Machine(nested) = nested else {
+            return Err(Diagnostic::error(
+                "a lexical machine declaration contains a non-machine child",
+            ));
+        };
+        let child_ordinal = lowerer.symbol_resolved_trees.machines.len();
+        lowerer
+            .nested_machine_scopes
+            .push((machine_ordinal, child_ordinal));
+        lower_machine_into(lowerer, syntax_trees, nested)?;
+    }
     Ok(())
 }
 
