@@ -639,10 +639,11 @@ defines the complete product bar.
     replacement, including direct views and constructed children with local backing.
     Complete remaining cyclic, opaque/provider and dependent result composition
     through the same producer and custody relationships. Runtime-indexed returned
-    carriers must also forward inferred machine Value binders without static
-    specialization or importing a callee-local recipe, and preserve post-write
-    descriptor observations when an earlier operand mutates a source before the
-    indexed producer runs. Retain the field-valued direct/public result row in
+    carriers must preserve post-write descriptor observations when an earlier
+    operand mutates a source before the indexed producer runs. Retain inferred
+    machine Value forwarding through the same completed operand capture, without
+    static specialization or importing a callee-local recipe; the
+    `inferred_indexed_byte_view` controls check once-only direct/public producers. Retain the field-valued direct/public result row in
     `copied_call_argument_snapshot/*/indexed_byte_view`: its type invariant carries
     the captured length across a later slot write without erasing the index.
     Retain copied returns

@@ -48,8 +48,9 @@ fn from_parameters(
                 parameter.name.as_str().to_owned(),
                 *type_reference,
             )),
-            // A `Value` binder binds through the static const path while its
-            // argument is statically known; dynamic realization is deferred.
+            // Ordinary Value binders share the index telescope. Closed
+            // arguments may specialize; runtime subjects retain their carrier
+            // and exact operand capture separately from the instance key.
             TypeParameterKind::Value { type_reference } => {
                 value_const_parameters.push(const_parameters.len());
                 const_parameters.push((

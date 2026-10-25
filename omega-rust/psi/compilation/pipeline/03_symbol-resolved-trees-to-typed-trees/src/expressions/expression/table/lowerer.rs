@@ -48,7 +48,7 @@ pub(super) struct ExpressionTableLowerer<'program, 'target, 'scope> {
     )>,
     match_captures: Vec<(
         arena::Handle<resolved::expression::MatchSubjectCapture>,
-        arena::Handle<typed::expression::MatchSubjectCapture>,
+        arena::Handle<typed::expression::CompletedValueCapture>,
     )>,
 }
 

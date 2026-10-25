@@ -67,7 +67,7 @@ impl<'program> Evaluator<'program> {
     ) -> Option<TypeReferenceHandle> {
         match self.program.expression_table.expression(expression) {
             ExpressionNode::SavedSubject(saved) => {
-                let subject = self.program.expression_table.saved_subject_source(saved)?;
+                let subject = self.program.saved_value_source(saved)?;
                 let machine = self.program.machine_by_symbol(frame.machine_symbol)?;
                 let state = self.program.state_in_machine(machine, frame.state_symbol)?;
                 validation::expression_result_type_reference(self.program, machine, state, subject)

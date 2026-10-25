@@ -26,8 +26,8 @@ use arena::{Handle, HandleSpan};
 struct CopyGraph {
     expressions: Vec<(ExpressionHandle, ExpressionHandle)>,
     subjects: Vec<(
-        Handle<super::MatchSubjectCapture>,
-        Handle<super::MatchSubjectCapture>,
+        Handle<super::CompletedValueCapture>,
+        Handle<super::CompletedValueCapture>,
     )>,
 }
 use symbols::SymbolHandle;
@@ -364,6 +364,58 @@ impl ExpressionTable {
         self.copy_expression_list(CopySource::Table(source), expressions, &retain_every_field)
     }
 
+    /// Copy one ordered operand graph with shared capture identities. The
+    /// statement owner closes its own definition handles after allocating it.
+    pub(crate) fn copy_call_operands_from(
+        &mut self,
+        source: &ExpressionTable,
+        expressions: &[ExpressionHandle],
+    ) -> (
+        HandleSpan<ExpressionHandle>,
+        Vec<(
+            Handle<super::CompletedValueCapture>,
+            super::ValueCaptureOwner,
+        )>,
+    ) {
+        let mut copies = CopyGraph::default();
+        let expressions = self.copy_expression_list_with_occurrences(
+            CopySource::Table(source),
+            expressions,
+            &retain_every_field,
+            &mut copies,
+        );
+        (
+            expressions,
+            copies
+                .subjects
+                .into_iter()
+                .map(|(original, capture)| (capture, source.value_capture(original).owner))
+                .collect(),
+        )
+    }
+
+    pub(crate) fn rebind_statement_operand_captures(
+        &mut self,
+        captures: &[(
+            Handle<super::CompletedValueCapture>,
+            super::ValueCaptureOwner,
+        )],
+        source: crate::statement::StatementHandle,
+        target: crate::statement::StatementHandle,
+    ) {
+        for &(capture, owner) in captures {
+            if let super::ValueCaptureOwner::StatementArgument { call, position } = owner
+                && call == source
+            {
+                self.completed_values.get_mut(capture).owner =
+                    super::ValueCaptureOwner::StatementArgument {
+                        call: target,
+                        position,
+                    };
+            }
+        }
+    }
+
     /// The one subtree copy behind `copy_from`, the filtered copy,
     /// `insert_copy` and the expression-handle copies. Each node and span is
     /// cloned out of `source` before anything is appended, which lets a copy
@@ -649,16 +701,30 @@ impl ExpressionTable {
             *self.index_expression_authority_mut(copied) = authority;
         }
         copies.expressions.push((expression, copied));
+        // A call owns aliases among its children. Their copied parent only
+        // exists after the children, so close that exact source back-edge now.
+        for (original, capture) in &copies.subjects {
+            if let super::ValueCaptureOwner::ExpressionArgument { call, position } =
+                source.table(self).value_capture(*original).owner
+                && call == expression
+            {
+                self.completed_values.get_mut(*capture).owner =
+                    super::ValueCaptureOwner::ExpressionArgument {
+                        call: copied,
+                        position,
+                    };
+            }
+        }
         copied
     }
 
     fn copy_match_subject<RetainField>(
         &mut self,
         source: CopySource<'_>,
-        capture: Handle<super::MatchSubjectCapture>,
+        capture: Handle<super::CompletedValueCapture>,
         retain: &RetainField,
         copies: &mut CopyGraph,
-    ) -> Handle<super::MatchSubjectCapture>
+    ) -> Handle<super::CompletedValueCapture>
     where
         RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
     {
@@ -672,9 +738,31 @@ impl ExpressionTable {
         {
             return *copied;
         }
-        let subject = source.table(self).match_subject(capture).subject;
-        let subject = self.copy_subtree_with_occurrences(source, subject, retain, copies);
-        let copied = self.insert_match_subject(subject);
+        let captured = *source.table(self).value_capture(capture);
+        let subject = self.copy_subtree_with_occurrences(source, captured.subject, retain, copies);
+        let copied = if matches!(captured.owner, super::ValueCaptureOwner::Match) {
+            self.insert_match_subject(subject)
+        } else {
+            let owner = match captured.owner {
+                super::ValueCaptureOwner::ExpressionArgument { call, position } => {
+                    let call = copies
+                        .expressions
+                        .iter()
+                        .find(|(source, _)| *source == call)
+                        .map(|(_, copied)| *copied)
+                        .unwrap_or_else(ExpressionHandle::invalid);
+                    super::ValueCaptureOwner::ExpressionArgument { call, position }
+                }
+                super::ValueCaptureOwner::StatementArgument { position, .. } => {
+                    super::ValueCaptureOwner::StatementArgument {
+                        call: crate::statement::StatementHandle::invalid(),
+                        position,
+                    }
+                }
+                owner => owner,
+            };
+            self.insert_call_operand_capture(subject, owner)
+        };
         copies.subjects.push((capture, copied));
         copied
     }

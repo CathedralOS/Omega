@@ -169,10 +169,9 @@ fn expression_uses_owner_path(
         )
     };
     match program.expression_table.expression(expression) {
-        ExpressionNode::SavedSubject(saved) => program
-            .expression_table
-            .saved_subject_source(saved)
-            .is_some_and(recurse),
+        ExpressionNode::SavedSubject(saved) => {
+            program.saved_value_source(saved).is_some_and(recurse)
+        }
         ExpressionNode::Match(dispatch) => program
             .expression_table
             .match_deep_any(dispatch, |handle| recurse(handle)),

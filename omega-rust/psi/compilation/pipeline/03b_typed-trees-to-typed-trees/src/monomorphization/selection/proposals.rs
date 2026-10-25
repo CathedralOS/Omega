@@ -28,7 +28,7 @@ pub(crate) struct StaticProposals {
     pub(crate) constants: Vec<TypeProposal>,
     pub(crate) machines: Vec<ValueProposal>,
     pub(crate) evidence: Vec<ValueProposal>,
-    pub(crate) runtime_values: Vec<ValueProposal>,
+    pub(crate) runtime_values: Vec<(usize, usize, crate::monomorphization::RuntimeValueBinding)>,
 }
 
 /// The invariant inputs of one candidate's binding inference.
