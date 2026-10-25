@@ -16,8 +16,6 @@ use facts::PlaceRoot;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 
-mod captured_contents;
-
 fn selected_call(
     facts: &CheckFacts,
     machine: SymbolHandle,
@@ -283,7 +281,7 @@ fn retained_parents(
         }) || ingress_covers_capture_path(
             program,
             facts,
-            operand,
+            capture,
             &crate::borrow::owner_place_segments(path),
             &ingress,
         ) {
@@ -328,16 +326,8 @@ fn retained_parents(
         {
             operand_parents.push(parent);
         }
-        let mut contents = Vec::new();
-        if !dependencies.contents(root, call.entry_constraints, &mut Vec::new(), &mut contents)
-            && !captured_contents::retained(&dependencies, resource.operand, root, &mut contents)
-        {
+        if !dependencies.contents(root, call.entry_constraints, &mut Vec::new(), &mut captured) {
             return Err("state loan parents: incomplete captured storage dependencies");
-        }
-        for relation in contents {
-            if !captured.contains(&relation) {
-                captured.push(relation);
-            }
         }
     }
     // Shared returned descriptors may outlive the temporary access that formed
@@ -419,15 +409,11 @@ fn shared_leaf_lifetime_roots(
 fn ingress_covers_capture_path<'capture>(
     program: &dyn validation::CheckingInput,
     facts: &'capture CheckFacts,
-    mut operand: Handle<checked_trees::FlowOperandFact>,
+    mut capture: &'capture checked_trees::FlowOperandFact,
     mut path: &[facts::PlaceSegment],
     ingress: &[(PlaceRoot, &[checked_trees::BorrowLoanOwnerSegment])],
 ) -> bool {
     loop {
-        if !facts.flow.control.operands.is_valid(operand) {
-            return false;
-        }
-        let capture = facts.flow.control.operands.get(operand);
         // A proved inactive case has no installed reference leaf. This is
         // selection only; an unresolved case still owes complete coverage.
         if crate::flow::literal_value_path_is_inactive(
@@ -440,7 +426,13 @@ fn ingress_covers_capture_path<'capture>(
         }
         if !capture.alternatives.is_empty() {
             return capture.alternatives.handles().all(|alternative| {
-                ingress_covers_capture_path(program, facts, alternative, path, ingress)
+                ingress_covers_capture_path(
+                    program,
+                    facts,
+                    facts.flow.control.operands.get(alternative),
+                    path,
+                    ingress,
+                )
             });
         }
         if path.is_empty() {
@@ -455,23 +447,8 @@ fn ingress_covers_capture_path<'capture>(
         ) else {
             break;
         };
-        operand = child;
+        capture = facts.flow.control.operands.get(child);
         path = &path[length..];
-    }
-    let capture = facts.flow.control.operands.get(operand);
-    // None is this selector's authenticated unchanged-ingress result. A
-    // newer stored descriptor, an unavailable cut, or mixed alternatives
-    // cannot inherit the old parameter's lifetime from source spelling.
-    if validation::completed_storage::reference_captures_at_path(
-        program,
-        &facts.flow.control,
-        operand,
-        path,
-        capture.storage_snapshot,
-    )
-    .is_some()
-    {
-        return false;
     }
     let Some(mut source) = validation::canonical_place_from_expression_in_state(
         program,
