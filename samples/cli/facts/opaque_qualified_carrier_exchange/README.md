@@ -63,6 +63,16 @@ component result. Exact sources, hashes, commands and raw diagnostics are
 retained under the owning claim's `build/opaque-copy/qualified-2add-baseline/`
 and `qualified-peer-probes-2add/` records. The current row is unfinished.
 
+The smaller [two-parameter control](parameter_pair/main.omg) retains the same
+fact, bounds and operation while both live values enter as qualified parameters.
+It isolates the later independent-return frontier without rewriting the local
+program or counting a parameter declaration as local-flow preservation. With
+the private exact issuer above, native compilation currently refuses the
+checked component result as though an untrusted native provider were trying
+to establish another issuer's provenance. Its [twin](parameter_pair/invalid/main.omg)
+uses the same missing qualified-output contract. Both are pinned beside the
+nine-place fixtures; neither closes the row.
+
 All authored positives and producer entries bind the four hosted targets and
 declare exit 0. Completion still needs all nine native/Terminal agreements,
 the pinned fixtures and exact independent review, general nested-machine
