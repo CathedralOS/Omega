@@ -21,7 +21,7 @@ machine receive(first: InternetAddress) -> bool reaches AddressParts, AddressBri
 
 machine main() reaches AddressParts, AddressBridge crashes Trap {
  transition { _ -> arrived(AddressBridge::make(10, 66051)) }
- state arrived(first: InternetAddress) { transition receive(first) { true -> done() _ -> failed() } }
- state done() {}
- state failed() { crash Trap; }
+ machine arrived(first: InternetAddress) reaches AddressParts, AddressBridge crashes Trap { transition receive(first) { true -> done() _ -> failed() } }
+ machine done() {}
+ machine failed() crashes Trap { crash Trap; }
 }

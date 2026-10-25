@@ -6,6 +6,18 @@ The unchanged consuming operation checks libc host numbers and replaces one
 field without disturbing its sibling. The caller then uses its retained copy;
 the invalid twin removes only the opaque copy permission in its producer.
 
+The local continuation now reuses the landed `3353916f943` implementation and
+this existing row. Its earlier separate copy folder is preserved on the
+`codex/opaque-linear-exchange` checkpoint at `2add9e8e02d6`, together with its
+actual Windows observations and independent review; it is not another fact to
+publish. This row keeps the stronger existing replacement-1027 operation.
+The current source migrates only declarations to canonical nested `machine`
+form with explicit nested reach/crash contracts. Earlier recorded native rows
+retain their actual legacy-form producer identities; execution of this combined
+canonical source remains pending. Full nested-machine source/product migration
+and the parent's linear, qualified, view-backed and other-host acceptance remain
+separate obligations.
+
 **A checked copy of a closed Inert opaque preserves libc host numbers 66051,
 513 and replacement 1027 across an independent consuming call while the
 original remains usable.**
