@@ -1405,7 +1405,9 @@ fn survives_payload_retirement(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::descriptor_lifetimes::{DescriptorFlowEdge, DescriptorPathSegment};
+    use crate::descriptor_lifetimes::{
+        DescriptorFlowBinding, DescriptorFlowEdge, DescriptorFlowSource, DescriptorPathSegment,
+    };
     use semantic_vocabulary::{
         BlockId, IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType, ValueId,
     };
@@ -1475,7 +1477,8 @@ mod tests {
             payload_scalar_bindings: BTreeMap::new(),
             scalar_payload_writes: BTreeMap::new(),
             payload_invalidations: BTreeMap::new(),
-            payload_arrivals: BTreeMap::new(),
+            case_constructors: BTreeMap::new(),
+            case_successors: BTreeMap::new(),
             unresolved_contents_writes: BTreeSet::new(),
             storage_derivations: BTreeSet::new(),
             calls: BTreeMap::new(),
@@ -1567,20 +1570,25 @@ mod tests {
                 DescriptorLocation::whole(root),
                 DescriptorLocation::whole(selected),
             ];
-            edge.bindings = vec![(
-                DescriptorLocation::whole(root),
-                DescriptorLocation::whole(root),
-            )];
-            machine.payload_arrivals.insert(
-                position(2),
-                vec![vec![PayloadMembershipBinding {
-                    parameter: selected,
-                    source: Some(DescriptorContentsQuery {
+            edge.bindings = vec![
+                DescriptorFlowBinding::new(
+                    DescriptorLocation::whole(root),
+                    DescriptorLocation::whole(root),
+                    StructuralAccess::Owned,
+                    StructuralAccess::Owned,
+                )
+                .unwrap(),
+                DescriptorFlowBinding::new(
+                    DescriptorFlowSource::Contents(DescriptorContentsQuery {
                         root,
                         steps: Vec::new(),
                     }),
-                }]],
-            );
+                    DescriptorLocation::whole(selected),
+                    StructuralAccess::Owned,
+                    StructuralAccess::Owned,
+                )
+                .unwrap(),
+            ];
             machine
                 .payload_edge_predicates
                 .insert(position(2), vec![Some(predicate.clone())]);
