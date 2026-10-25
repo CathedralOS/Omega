@@ -459,6 +459,7 @@ dependencies = [
  "native-production",
  "numerics",
  "object-file",
+ "omega-build",
  "optimization",
  "optimization-core",
  "package-compilation",
@@ -845,6 +846,7 @@ dependencies = [
  "effects",
  "image-emission",
  "mimalloc",
+ "omega-build",
  "optimization-core",
  "package-compilation",
  "package-evidence",
@@ -1319,11 +1321,14 @@ name = "omega-build"
 version = "0.1.0"
 dependencies = [
  "artifacts",
+ "build-declarations",
  "compilation-products",
  "compiler",
  "diagnostics",
+ "package-compilation",
  "package-manager",
  "platform-custody",
+ "semantic-vocabulary",
  "target",
  "terminal-codec",
 ]

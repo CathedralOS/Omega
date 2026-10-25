@@ -1,7 +1,7 @@
 //! One compiler invocation owns reusable source and language judgments.
 //!
-//! Package callers supply dependency-ordered custody and consent; the compiler
-//! executes their Builds and Product continuations. Callers never move parser
+//! Application Build schedules package occurrences and supplies their custody
+//! and consent; the compiler executes Builds and Product continuations. Callers never move parser
 //! frontiers, checker snapshots or completed Pure Build values between calls.
 //! This owner keeps them across review rounds and target requests, and drops
 //! them with the invocation.

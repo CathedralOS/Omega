@@ -1107,7 +1107,7 @@ fn build_native_fixture(
                 )
             })
             .collect::<Result<Vec<_>, Vec<diagnostics::Diagnostic>>>()?;
-        let outcomes = prepared.session.compile_packages(requests);
+        let outcomes = omega_build::compile_packages(&mut prepared.session, requests);
         Some(
             targets
                 .iter()
@@ -1552,16 +1552,18 @@ fn check_fail_fixture(
             compiler::CompilationProduct::Check,
             compiler::CompilationProduct::Native,
         );
-        session
-            .compile_packages(vec![compiler::PackageCompilationRequest {
+        omega_build::compile_packages(
+            &mut session,
+            vec![compiler::PackageCompilationRequest {
                 occurrences,
                 product,
                 terminal_permissions: prepared.assumed_permissions,
-            }])
-            .pop()
-            .expect("one fixture product")
-            .map(|_| ())
-            .map_err(|error| error.failure.into_diagnostics())
+            }],
+        )
+        .pop()
+        .expect("one fixture product")
+        .map(|_| ())
+        .map_err(|error| error.failure.into_diagnostics())
     } else if let Some(native_product) = native_product {
         session
             .produce(

@@ -67,7 +67,7 @@ fn build_submits_admitted_package_batches_together() {
     }
     let application = include_str!("../../../application/build/src/project_compilation.rs");
     assert!(application.contains("admit_project_compilation(request)"));
-    assert!(application.contains("compiler.compile_packages(admitted.requests)"));
+    assert!(application.contains("crate::compile_packages(&mut compiler, admitted.requests)"));
     assert!(application.contains("admitted.completion.complete(products)"));
     let admission =
         include_str!("../../../packages/package-manager/src/operations/accepted_compilation.rs");
@@ -85,9 +85,10 @@ fn build_submits_admitted_package_batches_together() {
 
 #[test]
 fn package_frontiers_batch_components_without_nested_source_workers() {
-    let preparation = include_str!("checked/package_preparation.rs");
-    assert!(preparation.contains(".select_build_batch(builds)"));
-    assert!(preparation.contains("publish_checked_component_products(checked)"));
+    let preparation = include_str!("../../../application/build/src/build_execution.rs");
+    assert!(preparation.contains("compiler.complete_package_components(builds)"));
+    let completion = include_str!("checked/package_compilation.rs");
+    assert!(completion.contains("publish_checked_component_products(checked)"));
     assert!(!preparation.contains("self.check_build("));
     assert!(!preparation.contains("run_on_compile_thread"));
     let batch = include_str!("checked/product_batch.rs");
@@ -98,7 +99,8 @@ fn package_frontiers_batch_components_without_nested_source_workers() {
 fn package_batches_carry_owners_instead_of_parallel_result_tables() {
     for source in [
         include_str!("checked/package_compilation.rs"),
-        include_str!("checked/package_preparation.rs"),
+        include_str!("../../../application/build/src/build_execution.rs"),
+        include_str!("../../../application/build/src/package_compilation.rs"),
         include_str!("checked/product_batch.rs"),
         include_str!("compiler/package.rs"),
     ] {

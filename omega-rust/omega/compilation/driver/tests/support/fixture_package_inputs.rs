@@ -889,8 +889,7 @@ pub fn produce_accepted_fixture(
     session: &mut compiler::CompilationSession,
     request: compiler::PackageCompilationRequest,
 ) -> Result<compiler::CompileReport, Vec<Diagnostic>> {
-    session
-        .compile_packages(vec![request])
+    omega_build::compile_packages(session, vec![request])
         .pop()
         .expect("one fixture product")
         .map_err(|error| error.failure.into_diagnostics())
@@ -1074,9 +1073,11 @@ pub fn reviewed_repository_fixture_package_inputs(
     {
         let occurrences =
             dependency_requests(graph, &package_inputs, authored_project_root, request)?;
+        let build = omega_build::prepare_package(&mut session, occurrences)
+            .map_err(|failure| failure.failure.into_diagnostics())?;
         session
-            .check_package(occurrences)
-            .map_err(|failure| failure.failure.into_diagnostics())?
+            .check_package_build(build)
+            .map_err(|failure| failure.into_diagnostics())?
     } else {
         session
             .check(request)
@@ -1204,7 +1205,7 @@ fn join_dependency_builds(
     root_request.package_inputs = Some(inputs.clone());
     root_request.build_execution_profile = TargetProfile::host_if_supported();
     let requests = dependency_requests(graph, &inputs, authored_project_root, root_request)?;
-    with_dependency_build_session(|session| session.join_dependency_builds(requests))
+    with_dependency_build_session(|session| omega_build::join_dependency_builds(session, requests))
         .map_err(|failure| failure.failure.into_diagnostics())
 }
 
@@ -1304,10 +1305,12 @@ pub fn check_fixture_request(
 ) -> Result<compiler::CheckedCompilation, Vec<Diagnostic>> {
     if request.target_name.is_some() && request.package_inputs.is_some() {
         let occurrences = fixture_occurrences(prepared, request)?;
+        let build = omega_build::prepare_package(&mut prepared.session, occurrences)
+            .map_err(|failure| failure.failure.into_diagnostics())?;
         prepared
             .session
-            .check_package(occurrences)
-            .map_err(|failure| failure.failure.into_diagnostics())
+            .check_package_build(build)
+            .map_err(|failure| failure.into_diagnostics())
     } else {
         prepared
             .session

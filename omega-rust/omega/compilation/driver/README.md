@@ -74,16 +74,19 @@ whole-program request. Native production consumes each
 target's retained Terminal artifact without a second scheduling pass. Product
 reports belong to their product owners.
 
-Application Build requests package admission, then supplies dependency-ordered
-`PackageCompilationRequest`s together to the session's
-[`compile_packages`](src/checked/package_compilation.rs) entrance, with the
-requested product and root permission consent supplied up front. That operation
-advances dependency-first [package frontiers](src/checked/package_preparation.rs)
-across the requested products. Each round joins generated dependency outputs,
-executes the next admitted Builds and retains their pending Product continuations.
-Selected independent components enter source completion together before their
-consumers advance. Package code supplies custody, consent and staging, not
-per-Build compiler calls or continuation tables. Independent-component publication
+Application Build requests package admission, then schedules dependency-ordered
+`PackageCompilationRequest`s in
+[`compile_packages`](../../application/build/src/package_compilation.rs), with the
+requested product and root permission consent supplied up front. Its
+[Build execution owner](../../application/build/src/build_execution.rs) advances
+dependency frontiers, joins generated outputs and waits for demanded independent
+components before their consumers advance. The compiler no longer schedules that
+dependency loop. Its [package facade](src/checked/package_compilation.rs) executes
+one admitted Build, returns opaque `PackageBuild` custody and completes ready
+component/product batches. Application code cannot extract the source continuation;
+component executable custody remains in this session. Package management supplies
+custody, consent and staging, not compiler calls or continuation tables.
+Independent-component publication
 belongs to [package.rs](src/compiler/package.rs), including when review requests
 a description. [Product batching](src/checked/product_batch.rs) partitions the
 admitted root and component continuations by complete source input and checks each partition
@@ -122,7 +125,7 @@ expected Builds to the default equal-source fixture must fail its assertion.
 Counts are process-wide: run each measurement alone.
 
 `mbx run -p compiler --example package_batch_sources` submits three products
-from two real source roots to the compiler's public package facade, interleaved
+from two real source roots through application Build, interleaved
 with a rejected empty package plan. The exact rejection stays at its submitted
 position without affecting the three products. Equal
 consumers share one checked/Terminal cohort; the different root retains another.
