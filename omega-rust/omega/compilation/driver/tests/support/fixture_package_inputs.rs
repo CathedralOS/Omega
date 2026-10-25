@@ -1073,11 +1073,13 @@ pub fn reviewed_repository_fixture_package_inputs(
     {
         let occurrences =
             dependency_requests(graph, &package_inputs, authored_project_root, request)?;
-        let build = omega_build::prepare_package(&mut session, occurrences)
-            .map_err(|failure| failure.failure.into_diagnostics())?;
-        session
-            .check_package_build(build)
-            .map_err(|failure| failure.into_diagnostics())?
+        compiler::checked::run_on_compile_thread(|| {
+            let build = omega_build::prepare_package(&mut session, occurrences)
+                .map_err(|failure| failure.failure.into_diagnostics())?;
+            session
+                .check_package_build(build)
+                .map_err(|failure| failure.into_diagnostics())
+        })?
     } else {
         session
             .check(request)
@@ -1305,12 +1307,14 @@ pub fn check_fixture_request(
 ) -> Result<compiler::CheckedCompilation, Vec<Diagnostic>> {
     if request.target_name.is_some() && request.package_inputs.is_some() {
         let occurrences = fixture_occurrences(prepared, request)?;
-        let build = omega_build::prepare_package(&mut prepared.session, occurrences)
-            .map_err(|failure| failure.failure.into_diagnostics())?;
-        prepared
-            .session
-            .check_package_build(build)
-            .map_err(|failure| failure.into_diagnostics())
+        compiler::checked::run_on_compile_thread(|| {
+            let build = omega_build::prepare_package(&mut prepared.session, occurrences)
+                .map_err(|failure| failure.failure.into_diagnostics())?;
+            prepared
+                .session
+                .check_package_build(build)
+                .map_err(|failure| failure.into_diagnostics())
+        })
     } else {
         prepared
             .session
