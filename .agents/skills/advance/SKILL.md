@@ -367,7 +367,9 @@ test-name filters select different things. For e2e-visible changes — diagnosti
 pipeline stages, acceptance behavior — `python3 tools/corpus_gate.py --filter
 <domain>` diffs the touched fixture domain against the recorded corpus golden in
 seconds-to-minutes; prefer it to chaining per-crate nextest suites as the first
-regression signal. The shared golden also carries other lanes' drift and other
+regression signal. Always filter: an unfiltered corpus gate or the full
+baseline is a manual trigger that only the user starts, never an agent. The
+shared golden also carries other lanes' drift and other
 hosts' rows, so its moves are a signal to attribute, not evidence against this
 change; attribute them with `--compare` (below) before acting on them. Record
 only the fixtures this change adds or moves (`--record --filter <fixtures>`),
