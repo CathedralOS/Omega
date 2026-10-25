@@ -522,7 +522,6 @@ impl TerminalExecution<'_> {
         result_type: semantic_vocabulary::StructuralTypeId,
         roles: terminal_psi::ResidentReferenceSource,
     ) -> Result<PlacedReference, TerminalInterpretError> {
-        use crate::provider_storage::ProviderStorageSlot;
         let plan = terminal_semantics::resident_reference_plan(
             &self.program.catalogs,
             source.structural_type,
@@ -571,16 +570,7 @@ impl TerminalExecution<'_> {
                 "resident reference changed its original owner, policy or schema",
             ));
         }
-        let ProviderStorageSlot::Live { allocation, .. } =
-            self.provider_storage.allocations.get(binding.allocation)
-        else {
-            return Err(malformed());
-        };
-        let base = allocation
-            .extent()
-            .base()
-            .checked_add(binding.offset)
-            .ok_or_else(malformed)?;
+        let (_, _, base) = self.provider_storage.live_provider_allocation(&binding)?;
         if !self.provider_storage_geometry_matches(
             &owner,
             &initialized.storage,

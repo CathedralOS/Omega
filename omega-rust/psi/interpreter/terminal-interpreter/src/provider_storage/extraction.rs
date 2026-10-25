@@ -6,7 +6,7 @@
 //! and non-byte bindings travel separately. Every refusing operation precedes
 //! retirement. The original allocation and its unused tail are never replaced.
 
-use super::{ProviderStorageBinding, ProviderStorageSlot};
+use super::ProviderStorageBinding;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
@@ -129,19 +129,8 @@ impl TerminalExecution<'_> {
                 "extraction changed the original resident policy or schema",
             ));
         }
-        let ProviderStorageSlot::Live {
-            allocation,
-            profile,
-            ..
-        } = self.provider_storage.allocations.get(binding.allocation)
-        else {
-            return Err(malformed());
-        };
-        let base = allocation
-            .extent
-            .base()
-            .checked_add(binding.offset)
-            .ok_or_else(malformed)?;
+        let (allocation, profile, base) =
+            self.provider_storage.live_provider_allocation(&binding)?;
         if !self.provider_storage_geometry_matches(&home, &plan.storage, base, binding.length) {
             return Err(TerminalInterpretError::ContentTransformationMismatch(
                 "extraction changed the original allocation geometry",

@@ -236,14 +236,7 @@ impl TerminalExecution<'_> {
             })
             .ok_or_else(malformed)?;
         let needs_read = write.is_none() || represented_bits != footprint.length_bytes() * 8;
-        let ProviderStorageSlot::Live {
-            allocation,
-            profile,
-            ..
-        } = self.provider_storage.allocations.get(binding.allocation)
-        else {
-            return Err(malformed());
-        };
+        let (allocation, profile, _) = self.provider_storage.live_provider_allocation(&binding)?;
         let loan = allocation
             .extent
             .loan(binding.offset, binding.length)

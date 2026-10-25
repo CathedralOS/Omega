@@ -125,6 +125,30 @@ impl RuntimeProviderStorage {
         }
         true
     }
+
+    /// The live allocation slot a binding names, with the profile admitted for
+    /// its supply and the absolute base of its window. Geometry, loans and
+    /// authority checks stay with each caller's operation.
+    pub(crate) fn live_provider_allocation(
+        &self,
+        binding: &ProviderStorageBinding,
+    ) -> Result<(&ProviderByteAllocation, &AdmittedResourceProfile, u64), TerminalInterpretError>
+    {
+        let ProviderStorageSlot::Live {
+            allocation,
+            profile,
+            ..
+        } = self.allocations.get(binding.allocation)
+        else {
+            return Err(malformed());
+        };
+        let base = allocation
+            .extent
+            .base()
+            .checked_add(binding.offset)
+            .ok_or_else(malformed)?;
+        Ok((allocation, profile, base))
+    }
 }
 
 impl TerminalExecution<'_> {
