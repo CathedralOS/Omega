@@ -7,11 +7,9 @@
 //! with the collection observation owner and never enter this field roster.
 
 use super::ScopedArithmeticValue;
-use super::citations::CitationFacts;
-use super::structural_case_arms::structural_arm_judge;
 use super::structural_judgment::{StructuralJudge, StructuralTerm};
 use super::structural_prefix::{
-    StructuralPrefixSite, StructuralPrefixVisitor, observe_runtime_state_prefix,
+    PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor, observe_runtime_state_prefix,
 };
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
@@ -160,24 +158,8 @@ impl StructuralPrefixVisitor for Observations {
         }
     }
 
-    fn visit<'program>(
-        &mut self,
-        program: &'program dyn crate::CheckingInput,
-        machine: &Machine,
-        judge: &StructuralJudge<'program>,
-        environment: &[(String, StructuralTerm)],
-        hypotheses: &[(String, StructuralTerm)],
-        equations: &[(StructuralTerm, StructuralTerm)],
-        guarantees: &CitationFacts,
-    ) {
-        let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
-        if judge.hypotheses_contradictory {
-            return;
-        }
-        guarantees.intake(&mut judge);
-        let Some(state) = program.state_in_machine(machine, self.state) else {
-            return;
-        };
+    fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
+        let (program, machine, state, judge, environment) = observation;
         self.collect(program, machine, state, &judge);
         let Some(statement) = program
             .statement_table
