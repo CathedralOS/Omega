@@ -11,8 +11,9 @@ use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
     TerminalEffectResult, TerminalExecutionResult, TerminalExecutionStatus, TerminalImportAdapter,
-    TerminalImportSignature, TerminalInterpretError, TerminalProgram, TerminalScalarValue,
-    TerminalStructuralInputs, TerminalStructuralScalarFieldValue, TerminalStructuralValue,
+    TerminalImportSignature, TerminalInstantiation, TerminalInterpretError, TerminalProgram,
+    TerminalScalarValue, TerminalStructuralInputs, TerminalStructuralScalarFieldValue,
+    TerminalStructuralValue,
 };
 
 struct Sink {
@@ -111,8 +112,12 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
     swapped[0].qualifications = arguments[1].qualifications.clone();
     swapped[1].qualifications = arguments[0].qualifications.clone();
     for invalid in [missing, swapped] {
-        assert!(matches!(program.instantiate(&[], TerminalStructuralInputs {
-            arguments: &invalid, scalar_fields: &scalar_fields, ..Default::default()
+        assert!(matches!(program.instantiate(TerminalInstantiation {
+            scalar_arguments: &[],
+            structural_inputs: TerminalStructuralInputs {
+                arguments: &invalid, scalar_fields: &scalar_fields, ..Default::default()
+            },
+            ..Default::default()
         }), Err(TerminalArtifactInterpretError::Execution(
             TerminalInterpretError::StructuralQualificationMissing(place)
         )) if place == parameters[0].place));
@@ -121,14 +126,15 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
     // The same source-produced program and ordinary public binding really
     // perform an effect with the correct inputs; refusal is not vacuous.
     let mut instance = program
-        .instantiate(
-            &[],
-            TerminalStructuralInputs {
+        .instantiate(TerminalInstantiation {
+            scalar_arguments: &[],
+            structural_inputs: TerminalStructuralInputs {
                 arguments: &arguments,
                 scalar_fields: &scalar_fields,
                 ..Default::default()
             },
-        )
+            ..Default::default()
+        })
         .expect("valid trusted contract inputs");
     let imports = instance.unbound_imports().collect::<Vec<_>>();
     let [slot] = imports.as_slice() else {
