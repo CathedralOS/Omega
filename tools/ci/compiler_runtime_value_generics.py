@@ -13,7 +13,7 @@ PLACES = ("local", "field", "parameter", "call_result", "match_join", "const_nam
           "other_state", "other_machine", "target_body")
 ROWS = ("runtime_index_application", "selected_value_application",
         "runtime_index_application_forwarded", "runtime_index_application_computed",
-        "runtime_index_application_equivalent_subject")
+        "runtime_index_application_equivalent_subject", "runtime_index_application_selected_operator", "runtime_index_application_nested_forwarded")
 GENERIC_PREFIXES = ("runtime_index_carrier_", "runtime_value_recipe_", "runtime_inferred_index_",
                     "runtime_index_borrow_call_", "selected_value_bool_public_contract_")
 RUNTIME_NAMED = ("runtime_index_application_root_exit", "runtime_value_generic_subject_exit", "runtime_forwarded_value_contract_exit",

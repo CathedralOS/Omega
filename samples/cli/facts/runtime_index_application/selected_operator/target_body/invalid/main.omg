@@ -1,0 +1,55 @@
+// Selected + retains its left operand; the index is captured once before payload writes.
+// Expected exit: 0
+trait Arithmetic { operator + add(left:u32,right:u32)->u32 ensures result == left; }
+RetainLeft satisfies Arithmetic {
+ machine add(left:u32,right:u32)->u32 ensures result == left { left }
+}
+data Index<Limit: u32> [copy] where value < Limit { value: u32; }
+data Observation [copy] { payload:u32; limit:u32; after:u32; }
+
+machine payload_bad(origin:&mut u32)->u32 ensures result == 10 { origin=4294967295; 10 }
+
+machine payload(origin:&mut u32)->u32 ensures result == 8 { origin=4294967295; 8 }
+
+machine create<Created:u32>(value:u32)->Index<Created>
+requires value < Created
+{ Index{value:value} }
+
+machine preserve_inner(limit:u32,item:&mut Index<limit>) {}
+machine preserve(limit:u32,item:&mut Index<limit>) { preserve_inner(limit,item); }
+
+machine observe<Observed:u32>(value:u32)->u32
+requires value < Observed
+{ create<Observed>(value).value }
+
+windows_x86_64 machine probe<Operations satisfies Arithmetic>(limit:u32)->Observation requires limit>=9 && limit<=10 {
+ let mut origin:u32=limit;
+ let mut indexed:Index<(origin+1u32)> = Index{value:payload_bad(&mut origin)};
+ preserve(limit,&mut indexed);
+ Observation{payload:observe<limit>(indexed.value),limit:indexed.Limit,after:origin}
+}
+linux_x86_64 machine probe<Operations satisfies Arithmetic>(limit:u32)->Observation requires limit>=9 && limit<=10 {
+ let mut origin:u32=limit;
+ let mut indexed:Index<(origin+1u32)> = Index{value:payload_bad(&mut origin)};
+ preserve(limit,&mut indexed);
+ Observation{payload:observe<limit>(indexed.value),limit:indexed.Limit,after:origin}
+}
+macos_arm64 machine probe<Operations satisfies Arithmetic>(limit:u32)->Observation requires limit>=9 && limit<=10 {
+ let mut origin:u32=limit;
+ let mut indexed:Index<(origin+1u32)> = Index{value:payload_bad(&mut origin)};
+ preserve(limit,&mut indexed);
+ Observation{payload:observe<limit>(indexed.value),limit:indexed.Limit,after:origin}
+}
+linux_arm64 machine probe<Operations satisfies Arithmetic>(limit:u32)->Observation requires limit>=9 && limit<=10 {
+ let mut origin:u32=limit;
+ let mut indexed:Index<(origin+1u32)> = Index{value:payload_bad(&mut origin)};
+ preserve(limit,&mut indexed);
+ Observation{payload:observe<limit>(indexed.value),limit:indexed.Limit,after:origin}
+}
+machine main() crashes Trap {
+ let first:Observation=probe<RetainLeft>(9);
+ let second:Observation=probe<RetainLeft>(10);
+ transition first.payload==8 && first.limit==9 && second.payload==8 && second.limit==10 && first.after==4294967295 && second.after==4294967295 { true->done() _->bad() }
+ state done(){}
+ state bad(){crash Trap;}
+}

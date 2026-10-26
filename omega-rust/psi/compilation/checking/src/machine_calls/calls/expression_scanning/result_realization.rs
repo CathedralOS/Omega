@@ -342,12 +342,13 @@ fn local_initializer_has_operand_evaluation(
     if !program.expression_table.expression_is_valid(value) {
         return false;
     }
-    let Some(call) = program.expression_table.call_node(value) else {
+    let Some(_) = program.expression_table.call_node(value) else {
         return false;
     };
-    if !call.carries_only_positional_arguments() {
-        return false;
-    }
+    // A generic source local can retain static/evidence operands before
+    // executable specialization. Those remain independent source admission
+    // obligations. Product construction still requires a closed ordered plan;
+    // this result-owner judgment establishes no executable operand supply.
     // An explicit implementation map retains its selection syntax, but that
     // does not change the local's ordered operand-evaluation owner. Actual
     // receiver, selection and custody admission remain ordinary call checks.

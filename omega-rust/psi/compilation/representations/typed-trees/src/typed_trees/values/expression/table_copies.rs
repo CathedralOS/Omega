@@ -394,6 +394,27 @@ impl ExpressionTable {
         )
     }
 
+    /// Relocate a statement within its existing lexical body without copying
+    /// its operand graph. The source statement must be retired by the owner;
+    /// every existing capture keeps its identity and its exact argument slot.
+    pub fn relocate_statement_operand_captures(
+        &mut self,
+        source: crate::statement::StatementHandle,
+        target: crate::statement::StatementHandle,
+    ) {
+        let captures = self
+            .completed_values
+            .iter()
+            .filter_map(|(capture, value)| {
+                matches!(value.owner,
+                    super::ValueCaptureOwner::StatementArgument { call, .. } if call == source
+                )
+                .then_some((capture, value.owner))
+            })
+            .collect::<Vec<_>>();
+        self.rebind_statement_operand_captures(&captures, source, target);
+    }
+
     pub(crate) fn rebind_statement_operand_captures(
         &mut self,
         captures: &[(
