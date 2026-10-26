@@ -19,6 +19,9 @@ use terminal_psi::{OperationKind, OperationResult, TerminalModule};
 use terminal_semantics::descriptor_results::{self as descriptors, PayloadMembershipContract};
 
 pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+    if module.structural_domains.is_empty() {
+        return Ok(());
+    }
     let memberships = membership_reachability::MembershipReachability::new(
         &module.structural_types,
         module
@@ -52,6 +55,7 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                         operation,
                         position,
                         &mut analysis,
+                        &memberships,
                     ) {
                         copies.push((machine_index, block_index, ordinal, contract));
                     }
@@ -60,6 +64,7 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                         machine,
                         operation,
                         position,
+                        &mut analysis,
                         &mut history,
                         &memberships,
                     ) {
@@ -79,7 +84,9 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                     };
                     if let Some((source, path)) = selected_source
                         && let Some(result) = operation.result.structural()
-                        && let Ok(root) = history.current_payload_contract(position, source)
+                        && memberships.may_contain(result.structural_type)
+                        && let Ok(root) =
+                            history.current_payload_contract_in(&mut analysis, position, source)
                         && terminal_semantics::qualification_path_carrier(
                             types.iter(),
                             root.carrier,
@@ -92,18 +99,20 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                                 &root.projected_qualifications,
                                 path,
                             );
-                        copies.push((
-                            machine_index,
-                            block_index,
-                            ordinal,
-                            PayloadMembershipContract {
-                                scalar_observations: Vec::new(),
-                                scalar_requirements: Vec::new(),
-                                carrier: result.structural_type,
-                                qualifications,
-                                projected_qualifications,
-                            },
-                        ));
+                        if !qualifications.is_empty() || !projected_qualifications.is_empty() {
+                            copies.push((
+                                machine_index,
+                                block_index,
+                                ordinal,
+                                PayloadMembershipContract {
+                                    scalar_observations: Vec::new(),
+                                    scalar_requirements: Vec::new(),
+                                    carrier: result.structural_type,
+                                    qualifications,
+                                    projected_qualifications,
+                                },
+                            ));
+                        }
                     }
                     let OperationKind::StructuralLeafCopy { source, path } = &operation.kind else {
                         continue;
@@ -111,6 +120,9 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                     let Some(result) = operation.result.structural() else {
                         continue;
                     };
+                    if !memberships.may_contain(result.structural_type) {
+                        continue;
+                    }
                     let Some(root) = descriptors::terminal_payload_contract(machine, *source)
                     else {
                         continue;
@@ -142,7 +154,10 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                     ) else {
                         continue;
                     };
-                    if contract.carrier == result.structural_type {
+                    if contract.carrier == result.structural_type
+                        && (!contract.qualifications.is_empty()
+                            || !contract.projected_qualifications.is_empty())
+                    {
                         copies.push((machine_index, block_index, ordinal, contract));
                     }
                 }
