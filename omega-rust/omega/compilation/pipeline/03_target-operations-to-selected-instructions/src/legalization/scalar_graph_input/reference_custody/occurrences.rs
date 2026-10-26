@@ -277,7 +277,16 @@ pub(super) fn merge_arrivals(
                     .find(|parameter| parameter.place == key.0)
             })
             .filter(|parameter| parameter.access == StructuralAccess::Owned)
-            .ok_or_else(|| invalid())?;
+            .ok_or_else(|| {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE reference-arrival-asymmetric machine={:?} block={:?} location={:?} left={} right={} identity={:?} contract={:?} root={:?}",
+                        function.machine, target, key, left.contains_key(key),
+                        right.contains_key(key), leaf.identity, leaf.contract, leaf.root,
+                    );
+                }
+                invalid()
+            })?;
         if !key
             .1
             .iter()
