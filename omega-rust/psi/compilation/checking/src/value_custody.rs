@@ -53,3 +53,5 @@ pub(crate) mod wire;
 pub(crate) mod write_only_borrows;
 
 pub mod completed_storage;
+
+pub mod membership_evidence;

@@ -737,6 +737,16 @@ fn terminal_graph_for(
         .iter()
         .map(|machine| terminal_flow::adapt(module, machine, kind, selected_calls, None))
         .collect::<Option<Vec<_>>>()?;
+    // The graph parameter is consulted only by dynamic calls. Ordinary
+    // modules already have their final graph; replaying every machine again
+    // would add work without discovering a stored selector.
+    if !module.machines.iter().any(|machine| {
+        machine
+            .operations()
+            .any(|operation| matches!(operation.kind, OperationKind::CallDynamic { .. }))
+    }) {
+        return Some(initial);
+    }
     module
         .machines
         .iter()

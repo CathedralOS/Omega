@@ -7533,6 +7533,7 @@ pass/ownership/indexed_element_loan_compile checked 1440ms @a92f16431042
 pass/ownership/invariant_member_loan_compile checked 1422ms @a92f16431042
 pass/ownership/invariant_record_move_compile checked 1812ms @a92f16431042
 pass/ownership/invariant_record_view_compile checked 1414ms @a92f16431042
+pass/ownership/linear_ambiguous_state_result_mapping built 2827ms exit:0 interpreter-exit:0 interpreter:agrees @717593f593c6+wt
 pass/ownership/linear_assignment_establishes checked 1687ms @a92f16431042
 pass/ownership/linear_bare_establish checked 1876ms @a92f16431042
 pass/ownership/linear_boundary_consume checked 1849ms @a92f16431042
@@ -7550,10 +7551,7 @@ pass/ownership/linear_entry_handoff checked 1703ms @a92f16431042
 pass/ownership/linear_inline_constructed_argument_claims_exit built 3547ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/ownership/linear_issued_argument_transfer_exit built 10858ms exit:37 interpreter-exit:37 interpreter:agrees @a92f16431042
 pass/ownership/linear_primitive_storage_exit built 2316ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/ownership/linear_qualified_call_result_claims rejected 641ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
-	dynamic selector lost its supplying type application
-	dynamic selector lost its supplying type application
-	dynamic selector lost its supplying type application
+pass/ownership/linear_qualified_call_result_claims built 3885ms exit:0 interpreter-exit:0 interpreter:agrees @717593f593c6+wt
 pass/ownership/linear_result_member_projection_arguments_exit built 3041ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/ownership/linear_result_owners_residual_cleanup_exit built 3472ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/ownership/linear_self_receiver_disposition checked 2229ms @a92f16431042
@@ -7561,6 +7559,8 @@ pass/ownership/linear_state_graph_call_arguments_exit built 2306ms exit:0 interp
 pass/ownership/linear_state_graph_claim_transport_exit built 3171ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/ownership/linear_submit_outcome checked 2717ms @a92f16431042
 pass/ownership/linear_sum_obligation checked 2105ms @a92f16431042
+pass/ownership/linear_transfer_and_consume built 12641ms exit:0 interpreter-exit:0 interpreter:agrees @717593f593c6+wt
+pass/ownership/linear_transparent_record_frontier built 8650ms exit:0 interpreter-exit:0 interpreter:agrees @717593f593c6+wt
 pass/ownership/local_element_loan_compile checked 1411ms @a92f16431042
 pass/ownership/local_shared_view_compile checked 1528ms @a92f16431042
 pass/ownership/match_selected_parameter_moves_exit built 1848ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

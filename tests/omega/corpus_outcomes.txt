@@ -17528,8 +17528,8 @@ fail/ownership/linear_state_parameter_scope_loss rejected 2219ms expected @a92f1
 	linear value `held` reaches scope exit without being consumed or transferred
 fail/ownership/linear_state_parameter_second_use rejected 1613ms expected @a92f16431042
 	cannot use `held` in machine `main` state `holding` (statement 1) after `held` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `held` first
-fail/ownership/linear_temporary_scalar_observation rejected 1024ms unexpected @a92f16431042
-	observed temporary source has no authorized owned completion
+fail/ownership/linear_temporary_scalar_observation rejected 1157ms expected @717593f593c6+wt
+	linear value `named(name(nominal\\(package-owner\\(32:7244114bd0397def69050b32afa61b1cb0c94ceaf0d4c1d7816126e05b8685fc\\)\\,path\\(Receipt\\)\\)))` reaches scope exit without being consumed or transferred
 fail/ownership/linear_transparent_record_member_scope_loss rejected 2183ms expected @a92f16431042
 	linear value `pair.right` reaches scope exit without being consumed or transferred
 fail/ownership/linear_zero_storage_not_established rejected 1560ms expected @a92f16431042
@@ -27845,10 +27845,7 @@ pass/ownership/linear_entry_handoff checked 2524ms @a92f16431042
 pass/ownership/linear_inline_constructed_argument_claims_exit checked 2717ms check-target:macos_arm64 @a92f16431042
 pass/ownership/linear_issued_argument_transfer_exit checked 5983ms check-target:macos_arm64 @a92f16431042
 pass/ownership/linear_primitive_storage_exit checked 1820ms check-target:macos_arm64 @a92f16431042
-pass/ownership/linear_qualified_call_result_claims rejected 693ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
-	dynamic selector lost its supplying type application
-	dynamic selector lost its supplying type application
-	dynamic selector lost its supplying type application
+pass/ownership/linear_qualified_call_result_claims checked 4074ms check-target:macos_arm64 @717593f593c6+wt
 pass/ownership/linear_result_member_projection_arguments_exit checked 2368ms check-target:macos_arm64 @a92f16431042
 pass/ownership/linear_result_owners_residual_cleanup_exit checked 3298ms check-target:macos_arm64 @a92f16431042
 pass/ownership/linear_self_receiver_disposition checked 1466ms @a92f16431042

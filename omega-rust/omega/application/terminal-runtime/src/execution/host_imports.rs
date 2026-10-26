@@ -26,6 +26,7 @@ mod buffered_output;
 pub(super) mod clock;
 mod descriptor_io;
 mod descriptor_mode;
+mod integer_absolute;
 mod integer_division;
 mod native_word;
 mod network_address;
@@ -296,6 +297,15 @@ pub(super) fn bind<'host>(
                     continue;
                 }
                 if let Some(adapter) = affine_transform::AffineTransformImport::admit(
+                    program,
+                    declaration,
+                    binding,
+                    provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
+                )? {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
+                if let Some(adapter) = integer_absolute::IntegerAbsoluteImport::admit(
                     program,
                     declaration,
                     binding,

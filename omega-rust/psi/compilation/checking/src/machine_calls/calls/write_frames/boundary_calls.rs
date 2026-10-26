@@ -174,7 +174,7 @@ pub(super) fn boundary_trait_signature_for_parts<'program>(
 /// The Boolean records actual runtime receiver storage, not a trait qualifier.
 /// Both static and receiver calls keep the same exact signature selection and
 /// exclusive-argument origin rules.
-fn boundary_trait_signature_and_receiver<'program>(
+pub(super) fn boundary_trait_signature_and_receiver<'program>(
     program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
     receiver_members: &[String],

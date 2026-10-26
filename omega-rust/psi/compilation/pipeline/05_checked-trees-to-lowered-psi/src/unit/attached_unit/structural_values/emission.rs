@@ -29,6 +29,7 @@ mod completed_storage;
 mod completions;
 mod content_transformations;
 mod copied_place;
+mod current_memberships;
 mod dispatch;
 mod element_views;
 mod parameters;
@@ -615,6 +616,7 @@ pub(crate) fn emit<'source>(
                     )
             }) {
             let place = emission.copied_leaf_place(
+                identities,
                 &StructuralArgument {
                     access: StructuralAccess::SharedBorrow,
                     ..source
@@ -623,6 +625,7 @@ pub(crate) fn emit<'source>(
                     .nodes
                     .get(*value)
                     .qualification_decisions,
+                structural_values(checked).nodes.get(*value).expression,
                 None,
             )?;
             StructuralArgument::whole(place, StructuralAccess::Owned)
@@ -2159,8 +2162,13 @@ impl Emission<'_, '_, '_> {
                         path,
                         access: StructuralAccess::SharedBorrow,
                     };
-                    let place =
-                        self.copied_leaf_place(&argument, node.qualification_decisions, None)?;
+                    let place = self.copied_leaf_place(
+                        identities,
+                        &argument,
+                        node.qualification_decisions,
+                        node.expression,
+                        None,
+                    )?;
                     let result_place = continuation
                         .as_ref()
                         .map_or(place, |continuation| continuation.place);
@@ -2228,7 +2236,13 @@ impl Emission<'_, '_, '_> {
             }
             CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
                 let argument = self.copied_place_argument(identities, node.expression, &source)?;
-                self.copied_leaf_place(&argument, node.qualification_decisions, continuation)
+                self.copied_leaf_place(
+                    identities,
+                    &argument,
+                    node.qualification_decisions,
+                    node.expression,
+                    continuation,
+                )
             }
             CheckedStructuralValueKind::ZeroedScalarArray {
                 element,
@@ -2424,8 +2438,10 @@ impl Emission<'_, '_, '_> {
                 }
                 if let Some(source) = self.copied_parameter(&argument)? {
                     let place = self.copied_leaf_place(
+                        identities,
                         &source,
                         node.qualification_decisions,
+                        node.expression,
                         continuation,
                     )?;
                     return Ok(StructuralArgument {
@@ -2689,19 +2705,17 @@ impl Emission<'_, '_, '_> {
     /// case fan-out, no residual bookkeeping.
     fn copied_leaf_place(
         &mut self,
+        identities: &terminal_psi::TerminalIdentityTableBuilder,
         argument: &StructuralArgument,
         qualification_decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
+        expression: typed_trees::expression::ExpressionHandle,
         continuation: Option<&mut ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         let path = self.copied_place_path(argument)?;
         // Ordinary records and bytes retain the same occurrence-relative
         // source roster. Receiving annotations never manufacture membership.
-        let source_contract = self.completed_memberships(argument.place);
-        let (mut qualifications, mut projected_qualifications) = source_contract
-            .map(|(whole, projected)| {
-                terminal_psi::StructuralPathQualification::select(whole, projected, &path)
-            })
-            .unwrap_or_default();
+        let (mut qualifications, mut projected_qualifications) =
+            self.occurrence_memberships(identities, argument, expression)?;
         terminal_semantics::present_structural_memberships(
             self.structural_types.iter(),
             self.domain_declarations.iter(),

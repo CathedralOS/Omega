@@ -217,6 +217,23 @@ fn catalog_graph<'function, 'boundary>(
             .collect::<Option<Vec<_>>>()
     };
     let initial = build(None)?;
+    // Only current projected dynamic invocations can read selector_graph.
+    // Their absence makes the initial adaptation the complete result.
+    if !functions.iter().any(|function| {
+        function.block_nodes().any(|node| {
+            operation(function, node).is_some_and(|operation| {
+                matches!(
+                    operation.as_ref(),
+                    O::CallStructural {
+                        callee: abstract_operations::AbstractCallTarget::Dynamic { .. },
+                        ..
+                    }
+                )
+            })
+        })
+    }) {
+        return Some(initial);
+    }
     build(Some(&initial))
 }
 

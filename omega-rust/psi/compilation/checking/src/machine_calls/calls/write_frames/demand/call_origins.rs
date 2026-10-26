@@ -147,7 +147,8 @@ impl<'program> CallFrameResolver<'program> {
                     return None;
                 };
                 (
-                    call.target_symbol,
+                    typed_trees::operator::resolve_named_expression_call(program, call)
+                        .map_or(call.target_symbol, |operator| operator.symbol),
                     call.target.as_str(),
                     call.receiver,
                     frames::receiver_member_chain(program, call.receiver).unwrap_or_default(),
@@ -207,12 +208,21 @@ impl<'program> CallFrameResolver<'program> {
                     receiver: Some(Vec::new()),
                     arguments: Vec::new(),
                 };
-                // Dynamic calls retain a resolved public telescope with an
-                // explicit selector operand. Their trait qualification is a
-                // namespace, never an implicit receiver whose origins must be
-                // recovered from caller storage.
+                // Resolved machines, dynamic slots and selected operators use
+                // explicit operands. Static boundary namespaces also carry no
+                // receiver storage; the exact signature distinguishes them
+                // from receiver-bearing requirements.
                 let callee_is_resolved = frames::machine_state_by_symbol(program, target).is_some()
-                    || program.dynamic_slot_by_symbol(target).is_some();
+                    || program.dynamic_slot_by_symbol(target).is_some()
+                    || program.operator_definition_by_symbol(target).is_some()
+                    || frames::boundary_calls::boundary_trait_signature_and_receiver(
+                        program,
+                        machine,
+                        &receiver_members,
+                        name,
+                        site,
+                    )
+                    .is_some_and(|(_, has_runtime_receiver)| !has_runtime_receiver);
                 // A nested call can follow effects in an enclosing operand. The
                 // prefix owner has not captured those substatement updates.
                 // Reuse its expression inventory and frame query; do not
