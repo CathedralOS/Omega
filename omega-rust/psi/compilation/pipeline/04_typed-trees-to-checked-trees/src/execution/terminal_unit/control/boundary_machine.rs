@@ -230,6 +230,21 @@ pub(crate) fn build_dynamic_slot_plans(
         else {
             continue;
         };
+        let family_tuple = if let Some(application) =
+            program.closed_requirement_application(slot.call_requirement)
+        {
+            let Some(tuple) = application
+                .local_arguments
+                .iter()
+                .map(|argument| program.static_const_type_reference_identity(*argument))
+                .collect::<Option<Vec<_>>>()
+            else {
+                continue;
+            };
+            tuple
+        } else {
+            Vec::new()
+        };
         plans.push(checked_trees::CheckedDynamicSlotPlan {
             slot: slot.symbol,
             interface_identity: slot.interface_identity.clone(),
@@ -237,6 +252,7 @@ pub(crate) fn build_dynamic_slot_plans(
             requirement: slot.requirement,
             requirement_identity: program
                 .trait_requirement_callable_identity(definition, requirement),
+            family_tuple,
             structural_parameters,
             entry_claim_paths,
             scalar_parameters,

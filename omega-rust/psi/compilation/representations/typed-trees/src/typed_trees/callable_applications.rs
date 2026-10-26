@@ -207,6 +207,9 @@ pub struct AppliedMachineCallable<'a> {
 
 #[derive(Default)]
 struct CallableApplication {
+    /// The freshly allocated executable signature whose entire child telescope
+    /// this application may install. Logical checking views own no such range.
+    owned_signature: SymbolHandle,
     region_scope: SymbolHandle,
     /// Complete captured application during materialization. Local callable
     /// binders remain in `lifetimes` and mask same-spelled captured regions.
