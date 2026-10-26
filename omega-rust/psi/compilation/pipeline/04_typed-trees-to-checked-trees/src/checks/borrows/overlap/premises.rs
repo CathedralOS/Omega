@@ -12,7 +12,7 @@
 //! When no single premise names both bounds, one ordered premise pair may
 //! compose transitively through a shared middle bound (`i < n` with
 //! `n <= j` proves `i < j`); `==` legs substitute from either side and `!=`
-//! legs never compose.
+//! legs compose only with exact equality substitution.
 //! Checked predicate calls contribute the relations the shared symbolic body
 //! prover establishes on every true return, substituted onto exact actuals.
 //! No relation can form a loan, extend a lifetime, or widen access.
@@ -883,8 +883,8 @@ fn premise_orientation_proves(
 /// line. A strictly separating middle (`m1 < m2`) makes the composed relation
 /// strict; at an equal middle the relation is strict when either leg is
 /// strict and loose when both are loose, with `==` absorbing a leg outright.
-/// `!=` legs never compose: a distinct middle could reorder or collapse the
-/// endpoints. Each query endpoint transports through its own premise's
+/// `!=` transports only across an equality leg with an exact shared middle;
+/// other relations or a shifted middle could reorder or collapse its endpoints. Each query endpoint transports through its own premise's
 /// parameter bindings, so a guard-scope premise may chain with a state-scope
 /// one. The composed outer endpoints still participate in the ordinary
 /// constant-offset algebra, so `i < n && n <= j` proves `i < j + 1`.
@@ -920,7 +920,7 @@ struct ChainLeg {
 }
 
 /// Orientations of `premise` usable as the left leg of a chain: the shared
-/// middle is its right endpoint. `==` contributes both orientations.
+/// middle is its right endpoint. Equality and disequality are symmetric.
 fn legs(
     premise: &StatedOrderingPremise,
     outer: &NormalizedBound,
@@ -931,12 +931,15 @@ fn legs(
         relation: premise.relation,
         middle: middle.clone(),
     });
-    let flipped =
-        matches!(premise.relation, BorrowCompatibilityPremiseRelation::Equal).then_some(ChainLeg {
-            outer: middle.clone(),
-            relation: premise.relation,
-            middle: outer.clone(),
-        });
+    let flipped = matches!(
+        premise.relation,
+        BorrowCompatibilityPremiseRelation::Equal | BorrowCompatibilityPremiseRelation::NotEqual
+    )
+    .then_some(ChainLeg {
+        outer: middle.clone(),
+        relation: premise.relation,
+        middle: outer.clone(),
+    });
     [stored, flipped]
 }
 
@@ -958,21 +961,26 @@ fn chained_legs_prove(
     right: NormalizedBound,
 ) -> bool {
     use BorrowCompatibilityPremiseRelation as Relation;
-    if matches!(
-        (first_leg.relation, second_leg.relation),
-        (Relation::NotEqual, _) | (_, Relation::NotEqual)
-    ) {
-        return false;
-    }
+    let transports_disequality = match (first_leg.relation, second_leg.relation) {
+        (Relation::NotEqual, Relation::Equal) | (Relation::Equal, Relation::NotEqual) => true,
+        (Relation::NotEqual, _) | (_, Relation::NotEqual) => return false,
+        _ => false,
+    };
     // The legs meet only when the first middle provably precedes or equals
     // the second on one shared term line.
     let Some(middle_gap) = bound_shift(second_leg.middle, first_leg.middle) else {
         return false;
     };
-    if middle_gap < 0 {
+    if middle_gap < 0 || (transports_disequality && middle_gap != 0) {
         return false;
     }
-    let relation = if middle_gap > 0 {
+    // Disequality has no ordering direction. An available exact equation may
+    // replace one endpoint, but a loose/strict leg or a shifted shared middle
+    // could collapse the two points. Keep this substitution distinct from
+    // ordinary ordered transitivity below.
+    let relation = if transports_disequality {
+        Relation::NotEqual
+    } else if middle_gap > 0 {
         Relation::StrictlyBefore
     } else {
         match (first_leg.relation, second_leg.relation) {

@@ -55,7 +55,10 @@ All positives bind all four hosted `ProgramEntry` targets and declare exit 0.
   cannot use a predicate result to establish that predicate call's own partial
   operands. [A changed selector](controls/stale_selector/invalid/main.omg)
   invalidates the entry relation before loan formation. Singleton disequality
-  does not establish separation of wider windows.
+  does not establish separation of wider windows. An
+  [ordered result](controls/ordered_result/invalid/main.omg) can equal the other
+  index even when its source differs: disequality transports only through an
+  exact completed-result equation, never through another inequality.
   Unsupported/effectful bodies and exhausted proof work supply no evidence.
 - **Psi 05–07:** admitted loans and stores use the existing Terminal Psi route;
   pure proof reasoning introduces no runtime authority or proof replay. Public
