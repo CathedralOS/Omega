@@ -206,13 +206,17 @@ pub(in crate::execution::terminal_unit) fn build(
     // expression of a value body, or the scalar-control terminator's own
     // statements. Those belong to the terminator and `completion`. A walk
     // that stops anywhere else would leave the authored statements after
-    // it unplanned, so the body has no route.
+    // it unplanned, so the body has no route. A proven nonreturning expression
+    // stays in the prefix: it evaluates its call rather than supplying a value
+    // to the return owner, independently of the declared result carrier.
     let sequenced = |index: usize, statement: &StatementNode| {
         (!matches!(statement, StatementNode::Transition(_))
             || call_occurrences::terminal_call(program, machine, state, index).is_some())
             && !is_arm_destructure_marker(statement)
             && !matches!(statement, StatementNode::Expression(expression)
                 if !is_unit(program, state.return_type)
+                    && validation::expression_normal_completion_possible(program, *expression)
+                        != Some(false)
                     && (!matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_))
                         || u32::try_from(index).ok().is_some_and(|ordinal| facts.values.scalar_computations.root_at(
                             state.symbol, ordinal, CheckedScalarExpressionRole::Return,
