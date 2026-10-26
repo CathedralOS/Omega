@@ -31,13 +31,12 @@
 //! do not own their referents, and empty arrays have no element debt. A whole
 //! accounted parent does not authorize discarding its active obligated children.
 //!
-//! Each derivation starts at one owned root and replaces consumed claims with
-//! the exact descendants of completed producers. Reunion consumes that entire
-//! live frontier. At external ingress, producer operations and callee returns
-//! authenticate each edge; equal geometry cannot substitute for this lineage.
-//! Several independently anchored derivations may commit together, but unrelated
-//! roots never become one account. Independent formal inputs still need an
-//! explicit shared-lineage contract before they can be reunited.
+//! Each derivation starts at the complete roster of owned roots and replaces
+//! consumed claims with the exact descendants of completed producers. Reunion
+//! consumes that entire live frontier. At external ingress, producer operations
+//! and callee returns authenticate every edge and exact actual input roster;
+//! numeric equality cannot substitute for this correspondence. Library contracts
+//! supply any additional backing compatibility requirements.
 //!
 //! The interpreter stages checks and result construction before retiring parents.
 //! Native lowering preserves parent consumption as an ownership effect while

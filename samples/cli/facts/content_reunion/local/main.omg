@@ -21,6 +21,17 @@ machine Region::drop(region: &mut Region) {}
 
 data Parts { left: Region in Owned; right: Region in Owned; }
 
+machine merge(left: Region in Owned, right: Region in Owned) -> Region in Owned
+requires left.base <= 58 && left.length <= 58 - left.base
+    && right.base == left.base + left.length && right.length <= 58 - right.base
+ensures result.base == left.base, result.length == left.length + right.length,
+    separate(Owned::content(old(&left)), Owned::content(old(&right))) == Owned::content(&result)
+{
+    let { base as left_base, length as left_length } = left;
+    let { base as right_base, length as right_length } = right;
+    Region { base: left_base, length: left_length + right_length }
+}
+
 machine partition(whole: Region in Owned, requested: u64) -> Parts
 requires whole.base <= 58 && whole.length <= 58 - whole.base && requested <= whole.length
 ensures
@@ -44,9 +55,9 @@ ensures result in Owned,
     let parts: Parts = partition(whole, requested);
     let left: Region in Owned = parts.left;
     let right: Region in Owned = parts.right;
-    let { base as left_base, length as left_length } = left;
-    let { base as right_base, length as right_length } = right;
-    let reunited: Region = Region { base: left_base, length: left_length + right_length };
+    let joined: Region in Owned = merge(left, right);
+    let { base, length } = joined;
+    let reunited: Region = Region { base: base, length: length };
     reunited
 }
 

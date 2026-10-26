@@ -18,6 +18,7 @@
 //! Unit computations.
 
 pub(crate) mod citation_erasure;
+pub(crate) mod content_consumption;
 pub(crate) mod finalize_execution;
 pub(crate) mod guard_complement;
 pub(crate) mod scalar_computations;

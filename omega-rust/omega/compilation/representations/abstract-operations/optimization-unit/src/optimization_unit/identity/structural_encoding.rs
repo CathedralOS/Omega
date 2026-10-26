@@ -359,7 +359,7 @@ pub(super) fn encode_content_transformation(
     derived: &terminal_psi::ContentTransformationDerivation,
 ) {
     encode_content_conservation(bytes, &derived.conservation);
-    bytes.id(derived.lineage_anchor);
+    bytes.slice(&derived.lineage_roots, |bytes, root| bytes.id(*root));
     match &derived.custody {
         terminal_psi::ContentTransformationCustody::Derived => bytes.u8(0),
         terminal_psi::ContentTransformationCustody::Boundary {

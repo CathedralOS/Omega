@@ -19,7 +19,7 @@ type OriginKey = (MachineId, ClaimId, ContentProjectionIdentity);
 /// that a larger graph is invalid or that an unchecked prefix is sufficient.
 struct OriginTraversal {
     active: Vec<OriginKey>,
-    completed: Vec<(OriginKey, ClaimId)>,
+    completed: Vec<(OriginKey, Vec<ClaimId>)>,
     remaining: usize,
 }
 
@@ -44,7 +44,15 @@ impl OriginTraversal {
 pub(super) fn validate_frontier(
     derived: &ContentTransformationDerivation,
 ) -> Result<(), &'static str> {
-    let mut frontier = vec![derived.lineage_anchor];
+    if derived.lineage_roots.is_empty()
+        || derived
+            .lineage_roots
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+    {
+        return Err("content ancestry root roster is empty or not strictly canonical");
+    }
+    let mut frontier = derived.lineage_roots.clone();
     let mut producers = Vec::new();
     for step in &derived.ancestry {
         if step.inputs.is_empty()
@@ -151,9 +159,10 @@ fn authenticate_step(
     }
     let mut inputs = Vec::new();
     for output in &step.outputs {
-        let input = call_input_origin(module, producer, *output, projection, traversal)?;
-        if !inputs.contains(&input) {
-            inputs.push(input);
+        for input in call_input_origins(module, producer, *output, projection, traversal)? {
+            if !inputs.contains(&input) {
+                inputs.push(input);
+            }
         }
     }
     inputs.sort();
@@ -163,13 +172,13 @@ fn authenticate_step(
     Ok(())
 }
 
-fn call_input_origin(
+fn call_input_origins(
     module: &TerminalModule,
     operation: &Operation,
     output: ClaimId,
     projection: ContentProjectionIdentity,
     traversal: &mut OriginTraversal,
-) -> Result<ClaimId, &'static str> {
+) -> Result<Vec<ClaimId>, &'static str> {
     let callee = operation
         .kind
         .direct_callee()
@@ -211,46 +220,60 @@ fn call_input_origin(
             .iter()
             .find(|binding| binding.path == output.path)
             .ok_or("content ancestry result lacks an exact returned-claim correspondence")?;
-        let root = local_root(module, callee, returned.claim, projection, traversal)?;
-        let entry = callee
-            .entry_claims
-            .iter()
-            .find(|entry| entry.claim == root)
-            .ok_or("content ancestry callee root is not an owned input")?;
-        let parameter = callee
-            .structural_parameters
-            .iter()
-            .position(|parameter| parameter.place == entry.input)
-            .ok_or("content ancestry entry has no structural parameter")?;
-        let mut matching = transfers.iter().filter(|transfer| {
-            transfer.argument_index as usize == parameter && transfer.path == entry.path
-        });
-        let transfer = matching
-            .next()
-            .ok_or("content ancestry entry has no exact actual claim transfer")?;
-        if matching.next().is_some() || origin.is_some_and(|previous| previous != transfer.claim) {
-            return Err("content ancestry has ambiguous normal-return origins");
+        let roots = local_roots(module, callee, returned.claim, projection, traversal)?;
+        let mut candidate = Vec::new();
+        for root in roots {
+            let entry = callee
+                .entry_claims
+                .iter()
+                .find(|entry| entry.claim == root)
+                .ok_or("content ancestry callee root is not an owned input")?;
+            let parameter = callee
+                .structural_parameters
+                .iter()
+                .position(|parameter| parameter.place == entry.input)
+                .ok_or("content ancestry entry has no structural parameter")?;
+            let mut matching = transfers.iter().filter(|transfer| {
+                transfer.argument_index as usize == parameter && transfer.path == entry.path
+            });
+            let transfer = matching
+                .next()
+                .ok_or("content ancestry entry has no exact actual claim transfer")?;
+            if matching.next().is_some() {
+                return Err("content ancestry entry has ambiguous actual claim transfers");
+            }
+            if !candidate.contains(&transfer.claim) {
+                candidate.push(transfer.claim);
+            }
         }
-        origin = Some(transfer.claim);
+        candidate.sort();
+        if candidate.is_empty()
+            || origin
+                .as_ref()
+                .is_some_and(|previous| previous != &candidate)
+        {
+            return Err("content ancestry has ambiguous normal-return input rosters");
+        }
+        origin = Some(candidate);
     }
     origin.ok_or("content ancestry callee has no grounded normal result")
 }
 
-fn local_root(
+fn local_roots(
     module: &TerminalModule,
     machine: &TerminalMachine,
     claim: ClaimId,
     projection: ContentProjectionIdentity,
     traversal: &mut OriginTraversal,
-) -> Result<ClaimId, &'static str> {
+) -> Result<Vec<ClaimId>, &'static str> {
     traversal.visit()?;
     let key = (machine.id, claim, projection);
-    if let Some((_, root)) = traversal
+    if let Some((_, roots)) = traversal
         .completed
         .iter()
         .find(|(completed, _)| *completed == key)
     {
-        return Ok(*root);
+        return Ok(roots.clone());
     }
     if machine.content_entry_claims.iter().any(|entry| {
         entry.claim == claim
@@ -259,7 +282,7 @@ fn local_root(
                 .iter()
                 .any(|row| row.projection == projection)
     }) {
-        return Ok(claim);
+        return Ok(vec![claim]);
     }
     if traversal.active.contains(&key) {
         return Err("content ancestry is circular rather than grounded in an input");
@@ -269,9 +292,10 @@ fn local_root(
     }
     traversal.active.push(key);
     let result = (|| {
-        let mut root = None;
+        let mut roots: Option<Vec<ClaimId>> = None;
         for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
             traversal.visit()?;
+            let mut candidates = Vec::new();
             if let OperationKind::TransformContent { derivations, .. } = &operation.kind {
                 for derived in derivations.iter().filter(|derived| {
                     derived
@@ -282,17 +306,14 @@ fn local_root(
                     if derived.inputs.is_empty() {
                         return Err("content ancestry transformation has no parent");
                     }
+                    let mut parents = Vec::new();
                     for input in &derived.inputs {
                         if input.projection != projection {
                             return Err("content ancestry changes qualification owner");
                         }
-                        let parent =
-                            local_root(module, machine, input.claim, projection, traversal)?;
-                        if root.is_some_and(|previous| previous != parent) {
-                            return Err("content ancestry combines independent roots");
-                        }
-                        root = Some(parent);
+                        parents.push(input.claim);
                     }
+                    candidates.push(parents);
                 }
             } else if operation.kind.direct_callee().is_some()
                 && operation
@@ -300,19 +321,35 @@ fn local_root(
                     .as_structural()
                     .is_some_and(|result| result.claims.iter().any(|output| output.claim == claim))
             {
-                let input = call_input_origin(module, operation, claim, projection, traversal)?;
-                let parent = local_root(module, machine, input, projection, traversal)?;
-                if root.is_some_and(|previous| previous != parent) {
-                    return Err("content ancestry has conflicting producers");
+                candidates.push(call_input_origins(
+                    module, operation, claim, projection, traversal,
+                )?);
+            }
+            for parents in candidates {
+                let mut candidate = Vec::new();
+                for parent in parents {
+                    for ancestor in local_roots(module, machine, parent, projection, traversal)? {
+                        if !candidate.contains(&ancestor) {
+                            candidate.push(ancestor);
+                        }
+                    }
                 }
-                root = Some(parent);
+                candidate.sort();
+                if candidate.is_empty()
+                    || roots
+                        .as_ref()
+                        .is_some_and(|previous| previous != &candidate)
+                {
+                    return Err("content ancestry has conflicting producer input rosters");
+                }
+                roots = Some(candidate);
             }
         }
-        root.ok_or("content ancestry cannot relate the returned qualification to an input")
+        roots.ok_or("content ancestry cannot relate the returned qualification to an input")
     })();
     traversal.active.pop();
-    if let Ok(root) = result {
-        traversal.completed.push((key, root));
+    if let Ok(roots) = &result {
+        traversal.completed.push((key, roots.clone()));
     }
     result
 }

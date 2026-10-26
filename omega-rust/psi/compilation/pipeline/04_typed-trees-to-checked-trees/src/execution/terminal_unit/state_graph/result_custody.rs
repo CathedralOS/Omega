@@ -126,17 +126,13 @@ pub(super) fn account<'calls>(
                 Default::default()
             };
         let occupies_result = |source: &CheckedUnitStructuralArgumentSourcePlan, before: usize| {
-            let source = match source {
-                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                    super::super::local_storage::source(
-                        program,
-                        state,
-                        &operations[..before],
-                        *symbol,
-                    )
-                }
-                source => Some(source.clone()),
-            };
+            let source = super::super::local_storage::operand_source(
+                program,
+                state,
+                &operations[..before],
+                structural_results,
+                source,
+            );
             matches!(source,
                 Some(CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal })
                     if binding_ordinal == result.binding_ordinal)
@@ -626,7 +622,7 @@ pub(super) fn account<'calls>(
         // or run cleanup.
         let return_arm_owns =
             |arm: &CheckedConditionalReturnArm,
-             uses: &[(usize, &CheckedUnitStructuralArgumentPlan)]| {
+             uses: &[(usize, CheckedUnitStructuralArgumentPlan)]| {
                 arm.abandons_custody()
                     || arm.definite_call_transfers(
                         &facts.values,
@@ -1459,12 +1455,13 @@ fn installed_view_claims(
 /// Borrow whole local operands once per supplied construction sequence. The
 /// sequence mutation walker also enters dispatch/projection nodes to update
 /// disposal flags; accounting cannot flatten those per-arm/residual receipts.
-/// Keep this inventory restricted to ordinary constructor composition.
-fn construction_local_uses<'a, 'operation>(
-    facts: &'a CheckFacts,
+/// Content authority derivation retains its consumed parents on the same
+/// completed value. They are owned operands even when absent from its fields.
+fn construction_local_uses<'operation>(
+    facts: &CheckFacts,
     state: symbols::SymbolHandle,
     operations: impl IntoIterator<Item = &'operation CheckedUnitEffectOperationPlan>,
-) -> Option<Vec<(usize, &'a checked_trees::CheckedUnitStructuralArgumentPlan)>> {
+) -> Option<Vec<(usize, checked_trees::CheckedUnitStructuralArgumentPlan)>> {
     use checked_trees::{CheckedStructuralRecordFieldValue, CheckedStructuralValueKind};
 
     let values = &facts.values.structural_values;
@@ -1493,12 +1490,16 @@ fn construction_local_uses<'a, 'operation>(
                 return None;
             }
             visited.push(value);
-            match &values.nodes.get(value).kind {
+            let node = values.nodes.get(value);
+            for parent in values.content_inputs.span_or_empty(node.content_inputs) {
+                uses.push((index, parent.clone()));
+            }
+            match &node.kind {
                 CheckedStructuralValueKind::Place(argument)
                 | CheckedStructuralValueKind::CopiedStructuralPlace {
                     source: argument, ..
                 } => {
-                    uses.push((index, argument));
+                    uses.push((index, argument.clone()));
                 }
                 checked_trees::record_or_structural_case_pattern!(fields, ..) => {
                     for field in values.record_fields.span(*fields)? {

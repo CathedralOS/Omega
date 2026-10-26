@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 191 even when every table
+order below. This layout uses semantic format marker 192 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -424,7 +424,7 @@ The conservation algebra and content-place grammar used by proposition 9.
 | content algebra | `u8` kind (1 IntervalSet, 2 CountedQuantity) + parameter string |
 | content structural place | `u8` version (1 entry, 2 current) + root place id + counted segments; each `u8`: 1 + field-name string, 2 + `u64` fixed index, 3 + case-name string |
 | content transformation claim projection | claim id + projection domain id + `u64` projection report fingerprint + content structural place |
-| content transformation derivation | content conservation (algebra + left term + right term) + lineage-anchor claim id + counted lineage steps + counted input claim projections + counted output claim projections |
+| content transformation derivation | content conservation (algebra + left term + right term) + counted lineage-root claim ids + counted lineage steps + counted input claim projections + counted output claim projections |
 | content lineage step | producer operation id + counted input claim ids + counted output claim ids |
 
 Transformation derivations and their input/output rosters are unordered sets,
@@ -695,7 +695,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 191 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 192 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.

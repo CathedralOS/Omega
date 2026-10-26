@@ -35,6 +35,51 @@ ensures
         right: Region { base: base + requested, length: length - requested } }
 }
 
+machine merge(left: Region in Owned, right: Region in Owned) -> Region in Owned
+requires left.base <= 58 && left.length <= 58 - left.base
+    && right.base == left.base + left.length && right.length <= 58 - right.base
+ensures result.base == left.base, result.length == left.length + right.length,
+    separate(Owned::content(old(&left)), Owned::content(old(&right))) == Owned::content(&result)
+{
+    let { base as left_base, length as left_length } = left;
+    let { base as right_base, length as right_length } = right;
+    Region { base: left_base, length: left_length + right_length }
+}
+
+machine merge_reversed(right: Region in Owned, left: Region in Owned) -> Region in Owned
+requires left.base <= 58 && left.length <= 58 - left.base
+    && right.base == left.base + left.length && right.length <= 58 - right.base
+ensures result.base == left.base, result.length == left.length + right.length,
+    separate(Owned::content(old(&left)), Owned::content(old(&right))) == Owned::content(&result)
+{
+    let combined: Region in Owned = merge(left, right);
+    combined
+}
+
+machine merge_selected(left: Region in Owned, right: Region in Owned, flag: bool) -> Region in Owned
+requires left.base <= 58 && left.length <= 58 - left.base
+    && right.base == left.base + left.length && right.length <= 58 - right.base
+ensures result.base == left.base, result.length == left.length + right.length,
+    separate(Owned::content(old(&left)), Owned::content(old(&right))) == Owned::content(&result)
+{
+    match flag {
+        true -> merge(left, right),
+        false -> merge_reversed(right, left),
+    }
+}
+
+machine merge_wrapped(left: Region in Owned, right: Region in Owned) -> Region in Owned
+requires left.base <= 58 && left.length <= 58 - left.base
+    && right.base == left.base + left.length && right.length <= 58 - right.base
+ensures result.base == left.base, result.length == left.length + right.length,
+    separate(Owned::content(old(&left)), Owned::content(old(&right))) == Owned::content(&result)
+{
+    let select_original: bool = left.length == 0;
+    let combined: Region in Owned = merge_selected(left, right, select_original);
+    let { base, length } = combined;
+    Region { base: base, length: length }
+}
+
 machine forward(whole: Region in Owned, requested: u64) -> Region
 requires whole.base == 10 && whole.length == 48 && requested <= whole.length
 ensures result in Owned,
@@ -45,9 +90,10 @@ ensures result in Owned,
     drop(whole);
     let left: Region in Owned = parts.left;
     let right: Region in Owned = parts.right;
-    let { base as left_base, length as left_length } = left;
-    let { base as right_base, length as right_length } = right;
-    Region { base: left_base, length: left_length + right_length }
+    let joined: Region in Owned = merge_wrapped(left, right);
+    let { base, length } = joined;
+    let reunited: Region = Region { base: base, length: length };
+    reunited
 }
 
 machine rejoin(whole: Region in Owned, requested: u64) -> Region

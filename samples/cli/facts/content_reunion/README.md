@@ -9,8 +9,17 @@ copies that sentence, partitions the issued root at requested counts 0, 16, and
 requires the reconstructed region to be in `Owned`. A freshly issued root of
 the same base and length does not supply that ownership.
 
-This is numeric custody, not physical storage, an allocator, or the separate
-checked-wrapper witness under CONSERVATION-CONTRACT.
+Every place now calls a separately checked `merge(left, right)` whose two
+owned parameters are its complete input frontier. The merge has no parent root
+in scope. Its authored separated-content equation and ordinary bounds establish
+one owned output. The caller then reconstructs a raw region and must derive its
+qualification from the original root's complete live descendants. The other
+machine also composes a two-parameter wrapper, selects both call alternatives,
+and reverses the formal order in one helper.
+
+This discharges the same-owner numeric split/recombine requirement of
+**EXTENT-LIBRARY-TRANSFORMS / CONSERVATION-CONTRACT**. Physical backing,
+provider issuance, cross-owner boundary custody and Cathedral remain open.
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
@@ -66,8 +75,9 @@ twin. Each invalid sample carries `sample.json` with the same fragments.
 
 - **Owning contract:** [content custody](../../../../wiki/spec/resources/content_custody.md)
 - **Parent outcome:** **EXTENT-LIBRARY-TRANSFORMS** in [TASKS.md](../../../../TASKS.md).
-  This row establishes local numeric reunion; checked wrappers, admitted initial
-  supply, physical backing, and Cathedral acceptance remain separate obligations.
+  This row establishes separately checked same-owner numeric reunion and its
+  checked-wrapper composition. Admitted initial supply, exact cross-owner
+  backing correspondence, physical storage and Cathedral acceptance remain open.
 
 1. **Establishment:** `issue` is the only establishment of the base-10
    length-48 root. `partition` authors the split of that root. The reunion
@@ -101,10 +111,31 @@ twin. Each invalid sample carries `sample.json` with the same fragments.
    Terminal Psi. Branch layout for the empty, interior, and full requests is
    in that image.
 
-### What remains open
+### Current repair and remaining acceptance
 
-Physical backing, provider issuance, and Cathedral's resident memory are not
-established here. A callee that reunites two region parameters without the
-parent root in scope still has no interval-set body judgment; these places
-author the reunion in the body that partitioned the root, or forward a reunion
-that body already proved.
+The fresh optimized compiler at baseline `f6b76a817aa` rejected the separately
+checked merge's returned `Owned` claim. The first repair exposed a second
+refusal when a two-input wrapper reconstructed a raw result after a completed
+merge. Joint frontier replay now retains all original inputs and each current
+claim's origins. A third refusal, `structural result has no selected disposition`,
+exposed missing content-parent operands in executable value planning. Checked
+values now retain the exact transaction and its complete owned operands before
+Unit disposition planning, and Terminal lowering consumes that transaction.
+
+The earlier Windows observations above cover the earlier local reconstruction
+production. They are historical evidence, not runs of this new merge production.
+Fresh qualification of the new production is recorded in this change's PR and
+its retained producer, raw engine streams, products and reject diagnostics.
+
+A wrong-root twin must still reconstruct an unqualified raw result after the
+checked merge: forwarding that merge's already-qualified result would be a legal
+use of independently established authority and would not test the original root's
+live frontier. The twins change only `partition(whole, requested)` to
+`partition(issue(), requested)` plus disposal of `whole`; they retain the same
+merge and raw reconstruction as their positive place.
+
+Physical backing, selected provider issuance and Cathedral's retirement/readback
+remain unfinished. A joint ancestry roster is not an original-to-current backing
+address or per-input projection correspondence. Cross-owner boundary bodies still
+require that exact correspondence and refuse unsupported multi-origin substitutions
+without consuming inputs or publishing a qualification.

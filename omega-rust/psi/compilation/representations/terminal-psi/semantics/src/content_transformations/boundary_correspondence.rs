@@ -175,7 +175,7 @@ pub(super) fn validate_authority(
                                         .get(row.candidate_index as usize)
                                         .is_some_and(|parameter| {
                                             machine.content_entry_claims.iter().any(|entry| {
-                                                entry.claim == derived.lineage_anchor
+                                                derived.lineage_roots.contains(&entry.claim)
                                                     && entry.input.root == parameter.place
                                                     && entry.input.segments == subject.segments
                                                     && entry.projections.iter().any(|entry| {

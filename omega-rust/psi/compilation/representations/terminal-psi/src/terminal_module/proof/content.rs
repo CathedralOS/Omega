@@ -80,9 +80,10 @@ pub struct ContentClaimProjection {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ContentTransformationDerivation {
     pub conservation: ContentConservation,
-    /// The existing account from which every consumed claim descends.
-    pub lineage_anchor: ClaimId,
-    /// Ordered completed replacements of the anchor's frontier. Each producer
+    /// The complete existing root roster of the consumed claims. Combining
+    /// established inputs does not fabricate a shared ancestry identity.
+    pub lineage_roots: Vec<ClaimId>,
+    /// Ordered completed replacements of the roots' joint frontier. Each producer
     /// must independently authenticate these exact input/result occurrences;
     /// this roster alone is not authority, nor is numeric conservation.
     pub ancestry: Vec<ContentLineageStep>,
