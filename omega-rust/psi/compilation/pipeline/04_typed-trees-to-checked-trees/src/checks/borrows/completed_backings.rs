@@ -262,6 +262,24 @@ impl Resolver<'_> {
                 .stored(operand, source, path)
                 .map(BackingFrontier::borrowed);
         }
+        // Literal formation authenticates image scope in the completed value
+        // inventory. Consume that positive evidence for any producer instead
+        // of inferring image backing from missing suppliers or source syntax.
+        if let Some(profiles) = validation::completed_storage::captured_retention_profiles_at_path(
+            self.program,
+            control,
+            operand,
+            path,
+        ) && !profiles.is_empty()
+            && profiles
+                .iter()
+                .all(|profile| self.immutable_image_profile(*profile, &mut Vec::new()))
+        {
+            return Ok(BackingFrontier {
+                places: Vec::new(),
+                immutable_image: true,
+            });
+        }
         // A saved subject is the producer's retained value, not another read
         // of its authored initializer. Missing saved custody has no backing.
         if matches!(
@@ -463,6 +481,32 @@ impl Resolver<'_> {
         } else {
             Err("the computed descriptor has no retained authority producer")
         }
+    }
+
+    fn immutable_image_profile(
+        &self,
+        profile: Handle<checked_trees::FlowOperandRetention>,
+        ancestors: &mut Vec<Handle<checked_trees::FlowOperandRetention>>,
+    ) -> bool {
+        let control = &self.facts.flow.control;
+        if !control.operand_retentions.is_valid(profile) || ancestors.contains(&profile) {
+            return false;
+        }
+        let retained = control.operand_retentions.get(profile);
+        if retained.alternatives.is_empty() {
+            return retained.immutable_image;
+        }
+        let Some(alternatives) = control.operand_retentions.span(retained.alternatives) else {
+            return false;
+        };
+        ancestors.push(profile);
+        let image = !alternatives.is_empty()
+            && retained
+                .alternatives
+                .handles()
+                .all(|alternative| self.immutable_image_profile(alternative, ancestors));
+        ancestors.pop();
+        image
     }
 
     fn stored(
