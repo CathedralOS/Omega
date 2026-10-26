@@ -1,0 +1,223 @@
+{
+  "context": {
+    "host": "macOS ARM64",
+    "target": "macos_arm64",
+    "parent": "STATE-LOCAL-VALUE-FRONTIER",
+    "requirement": "Saved match-subject storage origins identify exact descriptor replacement destination at guard completion."
+  },
+  "semantic_contracts": [
+    {
+      "contract": "wiki/spec/language/patterns.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/scalar_targets",
+        "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results",
+        "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/descriptor_results"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Preserve authenticated saved-subject storage coordinates when substituting call inputs. Replacing a reference leaf installs its exact new backing without releasing sibling or enclosing loans; selected arm reads the postguard descriptor. Every named structural producer must retain its binding in the consuming call transfer, including an owned field move. Preserve exact positive/negative case membership from one evaluated Boolean observation only while forwarding crosses no writes, calls, ownership changes or unresolved predecessors; case-guarded borrowed slots join only with independent absence evidence.",
+      "passages": [
+        "A dispatch evaluates its subject once, tests alternatives in authored order,\nand executes only the selected arm. Matching contributes facts valid for that\nsubject and program point. Failed alternatives do not execute their bodies.\nAn expression `match` produces compatible arm values; a `transition` selects an"
+      ]
+    },
+    {
+      "contract": "wiki/spec/language/lifetimes.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Preserve authenticated saved-subject storage coordinates when substituting call inputs. Replacing a reference leaf installs its exact new backing without releasing sibling or enclosing loans; selected arm reads the postguard descriptor.",
+      "passages": [
+        "Assignment evaluates the replacement while old loans remain active, ends the\noverwritten field's carried loans, then installs the replacement's exact loans.\nIf an owned move already emptied the field under a\n[borrowed-storage invariant window](ownership.md#borrowed-storage-invariant-windows),\nits contained loans moved with the removed value; filling the hole does not end\nthose loans a second time. The store installs the replacement's loans and closes\nthe exact place's restoration obligation, without ending the enclosing exclusive\nloan prematurely.\nReplacing one field neither preserves its former source nor releases a sibling's\nloans. Same-carrier casts and explicit erasure of non-owning qualifications\npreserve source places and access. [Representation recasts](../layouts/recasts.md)\ninstead require the complete validated footprint and overlap judgment."
+      ]
+    },
+    {
+      "contract": "wiki/spec/language/expressions.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Preserve authenticated saved-subject storage coordinates when substituting call inputs. Replacing a reference leaf installs its exact new backing without releasing sibling or enclosing loans; selected arm reads the postguard descriptor.",
+      "passages": [
+        "| Form | Evaluation order |\n| --- | --- |\n| Named machine call | All authored arguments left to right. |\n| Strict binary operator | Left operand, then right operand. |\n| `left && right` | Left; right only when left is true. |\n| `left || right` | Left; right only when left is false. |\n| Index | Collection, then index. |\n| Assignment `place = value` | Capture the destination place, then evaluate the value, then replace at the captured place. |\n| Range | Present start, then present end. |\n| Fixed-array literal | Increasing element index. |\n| Record or case literal | Authored field-expression order. |\n| Transition dispatch | Subject once before dispatch; only the selected arm runs. |\n| Value-position `match` | Subject once; first matching arm only. |\n\nEvery evaluated child runs exactly once. Unary operations, borrows, value casts,"
+      ]
+    },
+    {
+      "contract": "wiki/spec/language/machines.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames"
+      ],
+      "classification": "missing_implementation",
+      "reason": "A target-neutral call retains the complete checked target family roster. Join descriptor effects and result origins over every member, never a host-selected representative, while opaque/unresolved bodies withhold exact geometry.",
+      "passages": [
+        "A machine declaration prefixed with a target name is one body of a family keyed\nby target under one path. Families are data: every body is resolved, typed,\nchecked, and published in Terminal Psi with its target tag in every\ncompilation, and realizing a target selects that target's body\n([multi-target compilation](../build/configuration.md#multi-target-compilation)).\nA family is never filtered before checking, and no realization set narrows\nchecking. A realized target without a body for a called family rejects that\nrealization; it is not a checking error for the program."
+      ]
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/loans.md",
+      "implementation": [
+        "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/reference_custody"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Independent replay follows the complete authenticated granting chain through borrowed arrivals. Every intermediate parent remains an obligation; ancestors are suspended by the delegated access, while separate or descendant loans and lifetime debts retain interference checks. Provisional entry refusals are retained until the full predecessor fixed point; no failed entry is published, and every unresolved refusal rejects. A captured borrowed call argument retains exact parents and lifetime debts; the audit rejects demonstrated duplicates and live descendants without interpreting imprecise external pointer geometry as a new aliasing proof.",
+      "passages": [
+        "A direct reborrow names its immediate parent resource, exact formation event,\nand projection. A multihop chain cannot skip intermediate parents. Availability\nimmediately before formation is distinct from continued parent activity and\nfrom completed restoration.\n\nThe access relation below uses `Read` for shared access:\n\n| Parent | Shared child | Mutable child | Write-only child |\n| --- | --- | --- | --- |\n| Read | Release child; no exclusive authority restored. | Reject. | Reject. |\n| Mutable | Freeze mutation until the complete shared cohort ends; restore once. | Suspend that branch; restore original access. | Suspend that branch; restore original access. |\n| Write-only | Reject. | Reject. | Suspend that branch; restore original access. |\n| Owned | Freeze mutation in the loaned subtree until the complete shared cohort ends; restore owned access once. | Suspend that subtree; restore owned access. | Suspend that subtree; restore owned access. |\n\nCompatibility, exclusivity, and lifetime premises still apply to each allowed\ncell. Attenuation never changes the parent's original access. Close exclusive\nlineages deepest-first and release shared cohorts as a set; an omitted cohort"
+      ]
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/structural_access.md",
+      "implementation": [
+        "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/reference_custody.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "EstablishReference forms a reference to a captured place; it does not move an enclosing aggregate's sole reference leaf. Remove the shape-based implicit transfer; explicit move operations retain ownership transfer.",
+      "passages": [
+        "A first-class `Reference { referent, access }` structural value owns a permission\ncarrier, not its referent. `EstablishReference` captures the exact source place;\nthe explicit `Referent` path segment crosses the borrowed boundary. Owned\ntransfer, claims, and referent cleanup cannot cross that segment. Exclusive\ncarriers have affine custody even when their referent is unrestricted."
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "guard-descriptor-replacement-row",
+      "kind": "native",
+      "command": [
+        "python3",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/qualify-integrated-21.py"
+      ],
+      "inputs": [
+        "omega-rust",
+        "source/library",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "samples/cli/facts/descriptor_replacement_order",
+        "samples/cli/facts/case_payload_stored_loan",
+        "tools/corpus_gate.py",
+        "tools/corpus_records.py",
+        "tools/compiler_profile.py",
+        "tools/qualification.py",
+        "tests/omega/corpus_outcomes.txt",
+        "tests/omega/corpus_both_macos_arm64.txt",
+        "tests/omega/fail/facts/descriptor_guard_replacement_through_call_result_rejected",
+        "tests/omega/fail/facts/descriptor_guard_replacement_through_const_name_rejected",
+        "tests/omega/fail/facts/descriptor_guard_replacement_through_field_rejected",
+        "tests/omega/fail/facts/descriptor_guard_replacement_through_local_rejected",
+        "tests/omega/fail/facts/descriptor_guard_replacement_through_match_join_rejected",
+        "tests/omega/fail/facts/descriptor_guard_replacement_through_other_machine_rejected",
+        "tests/omega/fail/facts/descriptor_guard_replacement_through_other_state_rejected",
+        "tests/omega/fail/facts/descriptor_guard_replacement_through_parameter_rejected",
+        "tests/omega/fail/facts/descriptor_guard_replacement_through_target_body_rejected",
+        "tests/omega/pass/facts/descriptor_guard_replacement_through_call_result_exit",
+        "tests/omega/pass/facts/descriptor_guard_replacement_through_const_name_exit",
+        "tests/omega/pass/facts/descriptor_guard_replacement_through_field_exit",
+        "tests/omega/pass/facts/descriptor_guard_replacement_through_local_exit",
+        "tests/omega/pass/facts/descriptor_guard_replacement_through_match_join_exit",
+        "tests/omega/pass/facts/descriptor_guard_replacement_through_other_machine_exit",
+        "tests/omega/pass/facts/descriptor_guard_replacement_through_other_state_exit",
+        "tests/omega/pass/facts/descriptor_guard_replacement_through_parameter_exit",
+        "tests/omega/pass/facts/descriptor_guard_replacement_through_target_body_exit",
+        "tests/omega/fail/facts/case_payload_stored_loan_through_call_result_rejected",
+        "tests/omega/fail/facts/case_payload_stored_loan_through_const_name_rejected",
+        "tests/omega/fail/facts/case_payload_stored_loan_through_field_rejected",
+        "tests/omega/fail/facts/case_payload_stored_loan_through_local_rejected",
+        "tests/omega/fail/facts/case_payload_stored_loan_through_match_join_rejected",
+        "tests/omega/fail/facts/case_payload_stored_loan_through_other_machine_rejected",
+        "tests/omega/fail/facts/case_payload_stored_loan_through_other_state_rejected",
+        "tests/omega/fail/facts/case_payload_stored_loan_through_parameter_rejected",
+        "tests/omega/fail/facts/case_payload_stored_loan_through_target_body_rejected",
+        "tests/omega/fail/facts/descriptor_replacement_order_escaping_local_rejected",
+        "tests/omega/fail/facts/descriptor_replacement_order_moved_parent_rejected",
+        "tests/omega/fail/facts/descriptor_replacement_order_noncopy_carrier_rejected",
+        "tests/omega/fail/facts/descriptor_replacement_order_through_call_result_rejected",
+        "tests/omega/fail/facts/descriptor_replacement_order_through_const_name_rejected",
+        "tests/omega/fail/facts/descriptor_replacement_order_through_field_rejected",
+        "tests/omega/fail/facts/descriptor_replacement_order_through_local_rejected",
+        "tests/omega/fail/facts/descriptor_replacement_order_through_match_join_rejected",
+        "tests/omega/fail/facts/descriptor_replacement_order_through_other_machine_rejected",
+        "tests/omega/fail/facts/descriptor_replacement_order_through_other_state_rejected",
+        "tests/omega/fail/facts/descriptor_replacement_order_through_parameter_rejected",
+        "tests/omega/fail/facts/descriptor_replacement_order_through_target_body_rejected",
+        "tests/omega/pass/facts/case_payload_stored_loan_through_call_result_exit",
+        "tests/omega/pass/facts/case_payload_stored_loan_through_const_name_exit",
+        "tests/omega/pass/facts/case_payload_stored_loan_through_field_exit",
+        "tests/omega/pass/facts/case_payload_stored_loan_through_local_exit",
+        "tests/omega/pass/facts/case_payload_stored_loan_through_match_join_exit",
+        "tests/omega/pass/facts/case_payload_stored_loan_through_other_machine_exit",
+        "tests/omega/pass/facts/case_payload_stored_loan_through_other_state_exit",
+        "tests/omega/pass/facts/case_payload_stored_loan_through_parameter_exit",
+        "tests/omega/pass/facts/case_payload_stored_loan_through_target_body_exit",
+        "tests/omega/pass/facts/descriptor_replacement_order_borrow_first_array_exit",
+        "tests/omega/pass/facts/descriptor_replacement_order_captured_selector_exit",
+        "tests/omega/pass/facts/descriptor_replacement_order_copied_carrier_exit",
+        "tests/omega/pass/facts/descriptor_replacement_order_local_carrier_exit",
+        "tests/omega/pass/facts/descriptor_replacement_order_original_exit",
+        "tests/omega/pass/facts/descriptor_replacement_order_owned_first_array_exit",
+        "tests/omega/pass/facts/descriptor_replacement_order_reordered_state_exit",
+        "tests/omega/pass/facts/descriptor_replacement_order_through_call_result_exit",
+        "tests/omega/pass/facts/descriptor_replacement_order_through_const_name_exit",
+        "tests/omega/pass/facts/descriptor_replacement_order_through_field_exit",
+        "tests/omega/pass/facts/descriptor_replacement_order_through_local_exit",
+        "tests/omega/pass/facts/descriptor_replacement_order_through_match_join_exit",
+        "tests/omega/pass/facts/descriptor_replacement_order_through_other_machine_exit",
+        "tests/omega/pass/facts/descriptor_replacement_order_through_other_state_exit",
+        "tests/omega/pass/facts/descriptor_replacement_order_through_parameter_exit",
+        "tests/omega/pass/facts/descriptor_replacement_order_through_target_body_exit",
+        "tests/omega/fail/borrows/guard_subject_alias_held_through_call",
+        "tests/omega/fail/borrows/guard_observation_not_retired_during_guard",
+        "tests/omega/fail/borrows/target_family_backing_alternatives_rejected",
+        "tests/omega/fail/borrows/multi_origin_returned_reference_live_source_write",
+        "tests/omega/pass/borrows/target_family_backing_alternatives_exit",
+        "tests/omega/pass/borrows/guard_subject_ends_before_returning_call_exit",
+        "tests/omega/pass/borrows/runtime_guard_descriptor_replacement_exit",
+        "tests/omega/fail/contracts/target_family_window_unshared_length",
+        "tests/omega/fail/contracts/target_family_unshared_result",
+        "tests/omega/fail/contracts/target_family_window_invalid_sibling",
+        "tests/omega/fail/control_flow/saved_case_predicate_guard_write_retires",
+        "tests/omega/fail/control_flow/saved_case_predicate_local_write_retires",
+        "tests/omega/pass/control_flow/saved_case_predicate_disjoint_effects_exit",
+        "wiki/spec/language/patterns.md",
+        "wiki/spec/language/lifetimes.md",
+        "wiki/spec/language/expressions.md",
+        "wiki/spec/language/machines.md",
+        "wiki/spec/terminal-psi/loans.md",
+        "wiki/spec/terminal-psi/structural_access.md"
+      ],
+      "artifacts": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/corpus_runner",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21-with-cli.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/integrated-producer-21.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/qualify-integrated-21.py",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/build-20.log",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/corpus-build-20.log",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/corpus-build-21.log",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/corpus-source-21.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/corpus-both-21.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/saved-case-source-baseline-622.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/guard-row-baseline-frozen.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/case-condition-tests-20.log",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/integrated-config-21.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/corpus-source/6c26b7006b6da94ab956378e5a92f0a6d667931a.bundle",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/corpus-source/09efd3f912863ac47c7567f81e897bc2d84d8e80.bundle"
+      ],
+      "producer": {
+        "revision": "6c26b7006b6da94ab956378e5a92f0a6d667931a",
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "executables": [
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/corpus_runner"
+        ]
+      },
+      "closure_reason": "Actual conflict integration at main 35b424c99c4 preserves both equivalent granting-ancestor walks through the existing helper. Incoming compiler, component metadata, Terminal codec and package inputs changed, so rebuild CLI and corpus runner and repeat the complete focused 37-program both-engine and 77-fixture source checks on clean integrated source. Three pure IR tests also reran. Preserve the unchanged saved-case baseline refusal separately, and repeat direct nine-place samples with their exact reject twins and byte-identical corpus pins. Complete compiler/library/toolchain, fixture/oracle, harness and immutable executable/raw-capture closure retained.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 300
+    }
+  ]
+}

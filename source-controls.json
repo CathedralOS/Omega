@@ -1,0 +1,1147 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "6c26b7006b6da94ab956378e5a92f0a6d667931a",
+  "dirty": false,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 18405
+  },
+  "subset": true,
+  "filter": "facts/descriptor_guard_replacement_,facts/descriptor_replacement_order_,facts/case_payload_stored_loan_,borrows/runtime_guard_descriptor_replacement_exit,borrows/target_family_backing_alternatives,borrows/guard_subject,borrows/guard_observation,borrows/multi_origin_returned_reference_live_source_write,contracts/target_family_window_invalid_sibling,contracts/target_family_window_unshared_length,contracts/target_family_unshared_result,control_flow/saved_case_predicate_",
+  "shard": null,
+  "verdict": "regressed",
+  "exit_code": 3,
+  "counts": {
+    "fixtures": 77,
+    "by_status": {
+      "checked": 37,
+      "rejected": 40
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 1,
+    "lost_success_fixtures": [
+      "pass/control_flow/saved_case_predicate_disjoint_effects_exit"
+    ],
+    "pinned_off_target": 1,
+    "pinned_off_target_fixtures": [
+      "pass/control_flow/saved_case_predicate_disjoint_effects_exit"
+    ],
+    "by_verdict": {
+      "regressed": 1
+    }
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 77,
+    "legacy": 0,
+    "unknown_revisions": 0,
+    "oldest": {
+      "revision": "a92f16431042",
+      "commits_behind": 349
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 10,
+      "jobs": "2",
+      "load1_end": 8.21,
+      "load1_start": 7.27,
+      "machine": "arm64",
+      "platform": "darwin",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": "4",
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 4.25,
+      "load1_end": 5.36
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "pass/borrows/guard_subject_ends_before_returning_call_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1547,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/borrows/runtime_guard_descriptor_replacement_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1547,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/borrows/target_family_backing_alternatives_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1549,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/control_flow/saved_case_predicate_disjoint_effects_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 1283,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "machine `quotient` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1346,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1594,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1592,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1591,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1447,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1437,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1415,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1415,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1436,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1433,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1433,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1413,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1460,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1466,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1469,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1474,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1511,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1553,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_borrow_first_array_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1563,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_captured_selector_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1537,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_copied_carrier_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1719,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_local_carrier_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1720,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_original_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1695,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_owned_first_array_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1734,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_reordered_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1517,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1508,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1489,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1481,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1443,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1454,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1453,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1432,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1475,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1446,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/guard_observation_not_retired_during_guard",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1200,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `mutate` receives `cell` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 2)",
+        "statement 1 borrows `cell` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 2)",
+        "statement 1 mutates `cell.value` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 2)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/guard_subject_alias_held_through_call",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 643,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `clear_and_read` receives `frames` as both mutable and read-only",
+        "state `clear_and_read` receives `frames` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 6 and it is released at state exit)",
+        "state `clear_and_read` receives `frames` as both mutable and read-only",
+        "state `clear_and_read` receives `frames` while local borrow `saved` is still active",
+        "statement 5 mutates `frames[__hoist_15]` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 6 and it is released at state exit)",
+        "statement 6 mutates `frames[__hoist_15]` while local borrow `saved` is still active (borrowed at statement 0)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/multi_origin_returned_reference_live_source_write",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 628,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 2 mutates `second` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/target_family_backing_alternatives_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1150,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `selected` as both mutable and read-only",
+        "state `store_code` receives `second` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 4)",
+        "statement 4 borrows `second` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 4)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/contracts/target_family_unshared_result",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1431,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from ForwardedReports::status at statement 1: result.code == 7"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/contracts/target_family_window_invalid_sibling",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1356,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from window at statement 0: result.len == 2"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/contracts/target_family_window_unshared_length",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1187,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call need from main: view.len >= 2 (needs fact `items.len >= 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/control_flow/saved_case_predicate_guard_write_retires",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 628,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `quotient` state `entry` statement 2: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/control_flow/saved_case_predicate_local_write_retires",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 629,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `quotient` state `entry` statement 3: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1367,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `consume` receives `backing` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1371,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1262,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `envelope` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `envelope` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1120,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1205,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1203,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1205,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1201,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1216,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_guard_replacement_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1213,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_guard_replacement_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1211,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_guard_replacement_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1211,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_guard_replacement_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1201,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_guard_replacement_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1204,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_guard_replacement_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1191,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_guard_replacement_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1210,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_guard_replacement_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1205,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_guard_replacement_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1208,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_replacement_order_escaping_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1208,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `finish` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_replacement_order_moved_parent_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 991,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot store into `selected.entries[0].first` in machine `main` state `entry` (statement 7) after `selected.entries[0]` was transferred or consumed at statement 6: assign a whole value to `selected.entries[0]` to re-establish it",
+        "cannot use `selected` in machine `main` state `entry` (statement 8) after `selected.entries[0]` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `selected.entries[0]` first"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_replacement_order_noncopy_carrier_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1172,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot use `bundle.entries[0].first` in machine `replace` state `entry` (statement 1) after `bundle` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `bundle` first",
+        "cannot use `bundle` in machine `replace` state `entry` (statement 3) after `bundle` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `bundle` first",
+        "cannot store into `bundle.entries[0].first` in machine `replace` state `entry` (statement 3) after `bundle` was transferred or consumed at statement 0: assign a whole value to `bundle` to re-establish it",
+        "cannot use `bundle` in machine `replace` state `entry` (statement 4) after `bundle` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `bundle` first"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_replacement_order_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1170,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot use `selected.entries[0].first` in machine `main` state `entry` (statement 6) after `selected` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `selected` first"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_replacement_order_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1167,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot use `selected.entries[0].first` in machine `main` state `entry` (statement 6) after `selected` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `selected` first"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_replacement_order_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1007,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot use `selected.entries[0].first` in machine `main` state `entry` (statement 7) after `selected` was transferred or consumed at statement 7: it holds no value; read what is needed before the transfer or assign a whole value to `selected` first"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_replacement_order_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1019,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot use `selected.entries[0].first` in machine `main` state `entry` (statement 6) after `selected` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `selected` first"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_replacement_order_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1017,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot use `selected.entries[0].first` in machine `main` state `entry` (statement 6) after `selected` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `selected` first"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_replacement_order_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1018,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot use `selected.entries[0].first` in machine `main` state `entry` (statement 6) after `selected` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `selected` first"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_replacement_order_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1016,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot use `selected.entries[0].first` in machine `main` state `entry` (statement 6) after `selected` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `selected` first"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_replacement_order_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 897,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot use `bundle.entries[0].first` in machine `main` state `entry` (statement 5) after `bundle` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `bundle` first"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_replacement_order_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 900,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot use `selected.entries[0].first` in machine `main` state `entry` (statement 6) after `selected` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `selected` first"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/control_flow/saved_case_predicate_disjoint_effects_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status checked -> rejected",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/control_flow/saved_case_predicate_disjoint_effects_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2002,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/control_flow/saved_case_predicate_disjoint_effects_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 1283,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "machine `quotient` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": null
+      }
+    }
+  ]
+}

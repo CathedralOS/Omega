@@ -1,0 +1,594 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "09efd3f912863ac47c7567f81e897bc2d84d8e80",
+  "dirty": true,
+  "leg": "both",
+  "target": "macos_arm64",
+  "golden": "tests/omega/corpus_both_macos_arm64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 4608
+  },
+  "subset": true,
+  "filter": "facts/descriptor_guard_replacement_,facts/descriptor_replacement_order_,facts/case_payload_stored_loan_,borrows/runtime_guard_descriptor_replacement_exit,borrows/target_family_backing_alternatives,borrows/guard_subject_ends_before_returning_call_exit",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 37,
+    "by_status": {
+      "built": 37
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/borrows/guard_subject_ends_before_returning_call_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1984,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/borrows/runtime_guard_descriptor_replacement_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2071,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/borrows/target_family_backing_alternatives_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2164,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2251,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1953,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1946,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1679,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1849,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2104,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1919,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1758,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1595,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1828,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1850,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1854,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1846,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1878,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2038,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1813,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1786,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1918,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_borrow_first_array_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1971,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_captured_selector_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1663,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_copied_carrier_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1743,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_local_carrier_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1914,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_original_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1754,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_owned_first_array_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1919,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_reordered_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1749,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1836,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1635,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1747,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1749,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1871,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1916,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1929,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1667,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    },
+    {
+      "fixture": "pass/facts/descriptor_replacement_order_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1375,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "09efd3f91286"
+    }
+  ],
+  "fixtures": []
+}

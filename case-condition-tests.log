@@ -1,0 +1,52 @@
+   Compiling libc v0.2.189
+   Compiling cpufeatures v0.2.17
+   Compiling sha2 v0.10.9
+   Compiling optimization v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/optimization-selections)
+   Compiling semantic-vocabulary v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/semantic-vocabulary)
+   Compiling numerics v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/numerics)
+   Compiling optimization-core v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/omega/foundation/optimization-core)
+   Compiling language-core v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/language-core)
+warning: method `is_consistent` is never used
+  --> omega-rust/omega/foundation/optimization-core/src/optimization_core/rollback/receipt.rs:55:19
+   |
+20 | impl OptimizationRollbackReceipt {
+   | -------------------------------- method in this implementation
+...
+55 |     pub(crate) fn is_consistent(&self) -> bool {
+   |                   ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling source v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/source)
+   Compiling layout-plans v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/layout-plans)
+   Compiling evaluation-accounting v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/evaluation-accounting)
+   Compiling symbols v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/symbols)
+warning: `optimization-core` (lib) generated 1 warning
+   Compiling access-plans v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/access-plans)
+   Compiling language-semantics v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/language-semantics)
+   Compiling terminal-psi v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/compilation/representations/terminal-psi)
+   Compiling proof-admission v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/compilation/proof/admission)
+   Compiling terminal-fuel v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/compilation/representations/terminal-psi/fuel)
+   Compiling terminal-semantics v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/compilation/representations/terminal-psi/semantics)
+   Compiling terminal-codec v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/compilation/representations/terminal-psi/codec)
+   Compiling abstract-operations v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/omega/compilation/representations/abstract-operations)
+   Compiling optimization-unit v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/omega/compilation/representations/abstract-operations/optimization-unit)
+   Compiling optimization-unit-semantics v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[43235]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/zcanann/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `optimization-unit-semantics` (lib test) generated 1 warning
+    Finished `test` profile [optimized] target(s) in 22.89s
+     Running unittests src/lib.rs (target/debug/build/optimization-unit-semantics/188ab142b2670f53/out/optimization_unit_semantics-188ab142b2670f53)
+
+running 3 tests
+test descriptor_results::scalar_expressions::case_conditions::tests::forwarded_case_membership_preserves_both_edge_polarities ... ok
+test descriptor_results::scalar_expressions::case_conditions::tests::forwarded_negated_case_membership_reverses_edge_polarities ... ok
+test descriptor_results::scalar_expressions::case_conditions::tests::saved_case_membership_does_not_survive_replacement_or_call ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+

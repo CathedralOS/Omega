@@ -1,0 +1,11 @@
+{
+  "producer": "622df06cc0361f7998d4467faa73abf195061e77",
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/replacement-continuation/producer-1/omega",
+    "--check",
+    "tests/omega/pass/control_flow/saved_case_predicate_disjoint_effects_exit/main.omg"
+  ],
+  "exit": 1,
+  "stdout": "",
+  "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_predicate` with 1 diagnostic(s)\n  error: machine `quotient` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+}

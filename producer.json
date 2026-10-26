@@ -1,0 +1,26 @@
+{
+  "revision": "6c26b7006b6da94ab956378e5a92f0a6d667931a",
+  "dirty": false,
+  "corpus_sha256": "70800060edc780cefbb67b0d820f670c7a0d3b517008f251b9669c9e8c67fcc0",
+  "corpus_log": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/corpus-build-21.log",
+  "sha256": "b2cb769b8e29f423ee074bbb5791017a907334ec1d95b877f6cce56466dfe8dc",
+  "build_log": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/build-20.log",
+  "build_command": [
+    "cargo",
+    "build",
+    "--locked",
+    "-p",
+    "omega"
+  ],
+  "corpus_command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "compiler",
+    "--test",
+    "corpus_runner",
+    "--no-run",
+    "--message-format=json"
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "pull_request": "https://github.com/CathedralOS/Omega/pull/284",
+  "candidate": "6c26b7006b6da94ab956378e5a92f0a6d667931a",
+  "fixed_base": "bc51192fb51202e896f9ccb52867575b769e53cb",
+  "qualification": {
+    "id": "8f9965dc4b6341a69a374cc439011965",
+    "check": "guard-descriptor-replacement-row",
+    "revision": "6c26b7006b6da94ab956378e5a92f0a6d667931a",
+    "exit": 0,
+    "invalidations": [],
+    "duration_seconds": 15.714633875,
+    "receipt": {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/recursive-contracts/qualification-state.records/8f9965dc4b6341a69a374cc439011965.json",
+      "sha256": "7378fbdcf095210dc4ab68fbb237f1388044a0ce97f642e2f72617349a9c7889"
+    }
+  },
+  "files": {
+    "source.bundle": {
+      "sha256": "5fe6477197dacfd041ab39cbc3f4b99a972b5597c7ffbf1c822883e70656b27a",
+      "bytes": 98382
+    },
+    "golden-source.bundle": {
+      "sha256": "38e2fa4f1cb718bc36b56e8b8528dc0054b95559fafe526286290d765ccb040d",
+      "bytes": 92452
+    },
+    "producer.json": {
+      "sha256": "700692817571c2ffe53f4e02b3fbce82000ca464790e4f430ca779d67954398c",
+      "bytes": 757
+    },
+    "native-terminal.json": {
+      "sha256": "d0b2fbb34b6d4eb1ff0ed29eb51af0f39c8d5c85b7870373563ed9dada4b0571",
+      "bytes": 16148
+    },
+    "source-controls.json": {
+      "sha256": "f065703030cefb7debfef75e26ff9d87df8eccd4eb25d4030d3e88f05a317351",
+      "bytes": 38957
+    },
+    "nine-place-row.json": {
+      "sha256": "a5d85151aa47318ecfbefeaeccc86d40457c30ea0d9936638200a5cee8571a5d",
+      "bytes": 11516
+    },
+    "baseline-source-refusal.json": {
+      "sha256": "0920fb14fdf1bf43a983c1394d750df03a5920853f0dd90769d15f51993e23a1",
+      "bytes": 650
+    },
+    "guard-row-baseline.json": {
+      "sha256": "698fed54c5e3f5d6d2683dcaf5ef8d5c92d16543fa66da1d2832a63261b95e01",
+      "bytes": 14809
+    },
+    "case-condition-tests.log": {
+      "sha256": "0ecd1b1b36dc3002360cf6cc63e1d293ccca25ab93049a13906915190f3f28f0",
+      "bytes": 5159
+    },
+    "qualification-config.json": {
+      "sha256": "60739b92214faf1f77d390c396801bdbabd33ec9ccb26c4d6f16cb74b943e75b",
+      "bytes": 19889
+    },
+    "qualification-validator.py": {
+      "sha256": "a3af708b5346f5341ed08324b35b1270407664fd7c43d8650d6dfc375d3d3b46",
+      "bytes": 3810
+    },
+    "qualification-inputs.json": {
+      "sha256": "ba5c2bb52b80159514657a88a17cf594e28582285a926985b6a8f835f9f656eb",
+      "bytes": 1426
+    },
+    "golden-native-observation.json": {
+      "sha256": "ef571f8ae945377405056780cb26e07c5f5d8160a2aad9c9b39500f8d341ff2e",
+      "bytes": 15934
+    },
+    "qualification-receipt.json.gz": {
+      "sha256": "98b8302ad97c0c0727fd8811dfea8530635eccca64bf6facdbba09a26001fa7c",
+      "bytes": 217174
+    }
+  },
+  "limitation": "macOS ARM64 runtime only. Saved-case disjoint-effects source refusal reproduces on baseline and remains unfinished parent acceptance; Windows execution owner-deferred."
+}

@@ -1,0 +1,281 @@
+[
+  {
+    "place": "local",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/descriptor_replacement_order/local/guard_replacement/main.omg"
+    ],
+    "source_sha256": "61bb111d3c4620cf250c6916a0d4f50428bc372d93cb6446fa7bf1110f940be3",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "seconds": 1.515551042,
+    "accepted": true
+  },
+  {
+    "place": "local",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+      "--check",
+      "samples/cli/facts/descriptor_replacement_order/local/guard_replacement/invalid/main.omg"
+    ],
+    "source_sha256": "e38208dfb1ae88834b3b629d3912bdc748bfe33f6706c54987826373bb9e4eff",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `descriptor_guard_replacement` with 1 diagnostic(s)\n  error: state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only\n",
+    "seconds": 1.244461459,
+    "accepted": true
+  },
+  {
+    "place": "field",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/descriptor_replacement_order/field/guard_replacement/main.omg"
+    ],
+    "source_sha256": "14555db6db1d721158c4f282511c4166bf547945d6fdfa17a1f0c45fc536444f",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "seconds": 1.603933459,
+    "accepted": true
+  },
+  {
+    "place": "field",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+      "--check",
+      "samples/cli/facts/descriptor_replacement_order/field/guard_replacement/invalid/main.omg"
+    ],
+    "source_sha256": "a7c13bd8ad2d8a6bae45ab41e097db65438e5bf2a4e5b032844784ee97eee0aa",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `descriptor_guard_replacement` with 1 diagnostic(s)\n  error: state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only\n",
+    "seconds": 1.254761542,
+    "accepted": true
+  },
+  {
+    "place": "parameter",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/descriptor_replacement_order/parameter/guard_replacement/main.omg"
+    ],
+    "source_sha256": "a28b2630d0054e01f810e503c2654146d2212c49c5566df22e49c89ed4e5c3e5",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "seconds": 1.459410417,
+    "accepted": true
+  },
+  {
+    "place": "parameter",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+      "--check",
+      "samples/cli/facts/descriptor_replacement_order/parameter/guard_replacement/invalid/main.omg"
+    ],
+    "source_sha256": "a2a9f33c85cbd5e24a438e35f75370244055f286d08f1ca02736fd2dfe5d3fe8",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `descriptor_guard_replacement` with 1 diagnostic(s)\n  error: state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only\n",
+    "seconds": 1.168668791,
+    "accepted": true
+  },
+  {
+    "place": "call_result",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/descriptor_replacement_order/call_result/guard_replacement/main.omg"
+    ],
+    "source_sha256": "e039c928149c666ed469e927310cb504c47db24dbcf2efda4e24a428b4085ca0",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "seconds": 1.423930625,
+    "accepted": true
+  },
+  {
+    "place": "call_result",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+      "--check",
+      "samples/cli/facts/descriptor_replacement_order/call_result/guard_replacement/invalid/main.omg"
+    ],
+    "source_sha256": "58d23c98483e5b134a72a1c69aa278f6418e99b4ac6b846a06bcab3c1b6cdc89",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `descriptor_guard_replacement` with 1 diagnostic(s)\n  error: state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only\n",
+    "seconds": 1.160799791,
+    "accepted": true
+  },
+  {
+    "place": "match_join",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/descriptor_replacement_order/match_join/guard_replacement/main.omg"
+    ],
+    "source_sha256": "98f7daf8eb523e74e3e42b6c71298317a3251d89a321f9c2af688fd657d5b8f3",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "seconds": 1.575670084,
+    "accepted": true
+  },
+  {
+    "place": "match_join",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+      "--check",
+      "samples/cli/facts/descriptor_replacement_order/match_join/guard_replacement/invalid/main.omg"
+    ],
+    "source_sha256": "26bcbb3cc15e2b9ccedc2e1dfc693164b3ed6ca08dbcac94f5201b4d6b447a13",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `descriptor_guard_replacement` with 1 diagnostic(s)\n  error: state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only\n",
+    "seconds": 1.2892932079999997,
+    "accepted": true
+  },
+  {
+    "place": "const_name",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/descriptor_replacement_order/const_name/guard_replacement/main.omg"
+    ],
+    "source_sha256": "8dbb175a11735d4c344d3e162e8dca3fb4f351e7bad0d42d09b8313abc7f24a3",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "seconds": 1.6809002500000005,
+    "accepted": true
+  },
+  {
+    "place": "const_name",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+      "--check",
+      "samples/cli/facts/descriptor_replacement_order/const_name/guard_replacement/invalid/main.omg"
+    ],
+    "source_sha256": "730264e2cc4b8a4e85f6a6281d621c36ef81fb1fc88679b52c82b7fd64aa7264",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `descriptor_guard_replacement` with 1 diagnostic(s)\n  error: state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only\n",
+    "seconds": 1.2673035829999995,
+    "accepted": true
+  },
+  {
+    "place": "other_state",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/descriptor_replacement_order/other_state/guard_replacement/main.omg"
+    ],
+    "source_sha256": "19d5cbdd99e7e9a293bf587d4ddeb3a2849f5188c0803c8592e62a0f9e0121af",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "seconds": 1.4481055000000005,
+    "accepted": true
+  },
+  {
+    "place": "other_state",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+      "--check",
+      "samples/cli/facts/descriptor_replacement_order/other_state/guard_replacement/invalid/main.omg"
+    ],
+    "source_sha256": "9648bb96182d4c733c55c7a13b92d5f25a7662927488e0ede55b255332b2c3fc",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `descriptor_guard_replacement` with 1 diagnostic(s)\n  error: state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only\n",
+    "seconds": 1.1869180830000001,
+    "accepted": true
+  },
+  {
+    "place": "other_machine",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/descriptor_replacement_order/other_machine/guard_replacement/main.omg"
+    ],
+    "source_sha256": "ff96fcc8ff6eefe66fcbca1fe5162cb07c8a7417d09cc6d32f5062959208d4a7",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "seconds": 1.4165846669999995,
+    "accepted": true
+  },
+  {
+    "place": "other_machine",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+      "--check",
+      "samples/cli/facts/descriptor_replacement_order/other_machine/guard_replacement/invalid/main.omg"
+    ],
+    "source_sha256": "583ec6a7b76040e8900064ec87c207bf3807132667f0e5a5f6fe35a926e1cb80",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `descriptor_guard_replacement` with 1 diagnostic(s)\n  error: state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only\n",
+    "seconds": 1.2102774580000002,
+    "accepted": true
+  },
+  {
+    "place": "target_body",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/descriptor_replacement_order/target_body/guard_replacement/main.omg"
+    ],
+    "source_sha256": "17bc62aa629f821a05f21436663cc9805c8e3030c462461054453bee45bcabc0",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "seconds": 1.364701084,
+    "accepted": true
+  },
+  {
+    "place": "target_body",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/guard-descriptor/producer-21/omega",
+      "--check",
+      "samples/cli/facts/descriptor_replacement_order/target_body/guard_replacement/invalid/main.omg"
+    ],
+    "source_sha256": "b7f8201960abfed9d5d806d9161bddb7c1a546a144dffa1f12e86a97d0eb0548",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `descriptor_guard_replacement` with 1 diagnostic(s)\n  error: state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only\n",
+    "seconds": 1.076942625,
+    "accepted": true
+  }
+]
