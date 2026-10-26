@@ -5633,7 +5633,7 @@ fail/facts/checked_asm_compare_preserves_through_target_body_rejected rejected 2
 	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/checked_asm_countdown_through_call_result_rejected rejected 876ms expected @02dd96eebdad
+fail/facts/checked_asm_countdown_through_call_result_rejected rejected 1000ms expected @69168130b1c6
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
@@ -5649,7 +5649,7 @@ fail/facts/checked_asm_countdown_through_call_result_rejected rejected 876ms exp
 	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
 	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
-fail/facts/checked_asm_countdown_through_const_name_rejected rejected 907ms expected @02dd96eebdad
+fail/facts/checked_asm_countdown_through_const_name_rejected rejected 992ms expected @69168130b1c6
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
@@ -5665,7 +5665,7 @@ fail/facts/checked_asm_countdown_through_const_name_rejected rejected 907ms expe
 	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
 	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
-fail/facts/checked_asm_countdown_through_field_rejected rejected 895ms expected @02dd96eebdad
+fail/facts/checked_asm_countdown_through_field_rejected rejected 1056ms expected @69168130b1c6
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
@@ -5681,7 +5681,7 @@ fail/facts/checked_asm_countdown_through_field_rejected rejected 895ms expected 
 	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
 	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
-fail/facts/checked_asm_countdown_through_local_rejected rejected 918ms expected @02dd96eebdad
+fail/facts/checked_asm_countdown_through_local_rejected rejected 999ms expected @69168130b1c6
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
@@ -5697,7 +5697,7 @@ fail/facts/checked_asm_countdown_through_local_rejected rejected 918ms expected 
 	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
 	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
-fail/facts/checked_asm_countdown_through_match_join_rejected rejected 908ms expected @02dd96eebdad
+fail/facts/checked_asm_countdown_through_match_join_rejected rejected 994ms expected @69168130b1c6
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
@@ -5713,7 +5713,7 @@ fail/facts/checked_asm_countdown_through_match_join_rejected rejected 908ms expe
 	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
 	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
-fail/facts/checked_asm_countdown_through_other_machine_rejected rejected 876ms expected @02dd96eebdad
+fail/facts/checked_asm_countdown_through_other_machine_rejected rejected 991ms expected @69168130b1c6
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
@@ -5761,7 +5761,7 @@ fail/facts/checked_asm_countdown_through_parameter_rejected rejected 902ms expec
 	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
 	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
-fail/facts/checked_asm_countdown_through_target_body_rejected rejected 883ms expected @02dd96eebdad
+fail/facts/checked_asm_countdown_through_target_body_rejected rejected 969ms expected @69168130b1c6
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
 	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
@@ -23678,15 +23678,15 @@ pass/facts/checked_asm_compare_preserves_through_other_machine_exit checked 3298
 pass/facts/checked_asm_compare_preserves_through_other_state_exit checked 6687ms check-target:macos_arm64 @e06334c63dc4+wt
 pass/facts/checked_asm_compare_preserves_through_parameter_exit checked 5561ms check-target:macos_arm64 @e06334c63dc4+wt
 pass/facts/checked_asm_compare_preserves_through_target_body_exit checked 6041ms check-target:macos_arm64 @e06334c63dc4+wt
-pass/facts/checked_asm_countdown_through_call_result_exit checked 1275ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
-pass/facts/checked_asm_countdown_through_const_name_exit checked 1274ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
-pass/facts/checked_asm_countdown_through_field_exit checked 1199ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
-pass/facts/checked_asm_countdown_through_local_exit checked 1199ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
-pass/facts/checked_asm_countdown_through_match_join_exit checked 1199ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
-pass/facts/checked_asm_countdown_through_other_machine_exit checked 1199ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
+pass/facts/checked_asm_countdown_through_call_result_exit checked 1351ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @69168130b1c6
+pass/facts/checked_asm_countdown_through_const_name_exit checked 1337ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @69168130b1c6
+pass/facts/checked_asm_countdown_through_field_exit checked 1319ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @69168130b1c6
+pass/facts/checked_asm_countdown_through_local_exit checked 1305ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @69168130b1c6
+pass/facts/checked_asm_countdown_through_match_join_exit checked 1372ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @69168130b1c6
+pass/facts/checked_asm_countdown_through_other_machine_exit checked 1371ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @69168130b1c6
 pass/facts/checked_asm_countdown_through_other_state_exit checked 1239ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
 pass/facts/checked_asm_countdown_through_parameter_exit checked 1239ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
-pass/facts/checked_asm_countdown_through_target_body_exit checked 1212ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
+pass/facts/checked_asm_countdown_through_target_body_exit checked 1350ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @69168130b1c6
 pass/facts/checked_asm_flag_restore_through_call_result_exit checked 2969ms check-target:linux_x86_64 @a92f16431042
 pass/facts/checked_asm_flag_restore_through_const_name_exit checked 2926ms check-target:linux_x86_64 @a92f16431042
 pass/facts/checked_asm_flag_restore_through_field_exit checked 2951ms check-target:linux_x86_64 @a92f16431042
