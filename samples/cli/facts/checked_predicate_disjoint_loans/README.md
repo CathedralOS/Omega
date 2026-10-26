@@ -135,7 +135,9 @@ All positives bind all four hosted `ProgramEntry` targets and declare exit 0.
 
 Canonical authority: [loan compatibility and captured premises](../../../../wiki/spec/terminal-psi/loans.md),
 [invocation contracts](../../../../wiki/spec/language/state_contracts.md), and
-[checked predicate consequences](../../../../wiki/spec/language/dependent_values.md#collection-invariants).
+[checked predicate consequences](../../../../wiki/spec/language/dependent_values.md#collection-invariants),
+[structural predicate paths](../../../../wiki/spec/terminal-psi/structural_predicates.md), and
+[fact identity and lifetime](../../../../wiki/spec/terminal-psi/fact_validity.md).
 
 ## Recorded baseline and acceptance
 
@@ -180,3 +182,34 @@ observations successfully; the seven custody tests and five fixed-baseline
 comparisons also pass. Two focused consumers preserve main's domain-match field
 interval and reborrowed stored-view parameter behavior, including their reject
 controls. Earlier producer observations retain their original identities.
+
+The shared-record production was frozen against fresh optimized current-main
+`7810a10b28a58ad23f342fd1bb8bc3560eb9ed4e`: the predicate program refused
+both the loans and caller establishment, while the direct field relation ran
+with native and Terminal exit 0. Producer
+`39b908e3a33f98afcdd7169e0b1bcfcc8ec7b2e0` establishes the owned integer-field
+observation mechanism through all nine places and their weakened-predicate
+twins. Complete scoped retained checking observes 45 accepted programs and 59
+intended rejects; all 45 executable fixtures agree at native/Terminal exit 0.
+The public program route also supplies 46 dual-engine successes and 59 intended
+rejects, including the root program and exact root/path, saved snapshot,
+source-ordered operand, sibling-write and exclusive-call controls. The final
+operand oracle also observes the later argument's resulting field value.
+
+These are source-specific records: the final operand-oracle pair replaces its
+earlier observations with focused fresh public and retained runs. Other inputs
+and compiler components retain their verified hashes. Five affected historical
+fixtures lose no behavior against the recorded baseline; the ranked recursive
+helper-theorem core separately checks. Checking and native goldens record only
+the 31 new fixtures and their 15 executable positives. Source bundles, producer
+profiles, per-program input/oracle hashes and raw engine/rejection streams are
+retained in qualification evidence. Execution is measured on macOS ARM64;
+other hosted targets have bindings and source checking, not claimed execution.
+
+This closes common owned integer-field observations and complete owned field
+paths for this fact. It does not close the parent structured-callee/domain,
+runtime-projection or same-statement/theorem acceptance. Stored-reference
+crossings and other predicate control forms retain their own admission and
+validity obligations. Immutable formals have write restrictions distinct from
+owned local contents; caller facts use captured value/storage epochs rather
+than replaying an immutable local's aggregate initializer.
