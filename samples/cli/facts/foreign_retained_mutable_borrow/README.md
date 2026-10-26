@@ -86,12 +86,16 @@ The original Windows job remains failed because the subsequent existing
 `opaque_independent_linear_through_match_join_exit` native process timed out
 under its unchanged 20-second deadline; Terminal exited 0 and the other 35
 native cases succeeded. That is separate from the successful retained cohorts.
-One bounded unchanged-source followup is in progress; no environmental cause
-or success for the original failed observation is inferred. The codec suite
+The [one bounded Windows followup](https://github.com/CathedralOS/Omega/actions/runs/40271548919/job/121412519336)
+passes all 36 native/Terminal cases under the unchanged deadline. Its formerly
+timed-out client, two component images, descriptions and Terminal artifact are
+byte-identical to the original products. No environmental cause or success for
+the original failed observation is inferred. The codec suite
 has 40 passing tests and one existing artifact-dependent ignored test after
 repairing its specialization fixture's missing retained application. That
 fixture also failed on current main `d359fd2ba3a`; its issuer-drift rejection
-remains intact. Qualification and final review remain in progress.
+remains intact. [PR #213](https://github.com/CathedralOS/Omega/pull/213) records
+the exact-candidate qualification, independent review and publication admission.
 
 This establishes direct retained mutable loans for the exercised fixed-record
 ABI, with explicit normal preservation. Transfer of owned backing into a foreign

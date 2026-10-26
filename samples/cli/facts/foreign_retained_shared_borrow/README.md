@@ -107,7 +107,7 @@ foreign effects and executes in both engines.
 - Composition: the consuming completion receives the retained token through the
   nine places. No caller guard re-establishes the loan or authorizes a write.
 - Authority: nonspatial dependencies cannot supply reference-result pointers or
-  access exemptions. Phantom lifetime spelling supplies no loan. Unpropagated
+  spatial access exemptions. Phantom lifetime spelling supplies no loan. Unpropagated
   persistent stores remain rejected.
 - Psi 05–07: checked boundary custody retains its exact source/result projection;
   ordinary loan flow carries the token's dependency without a fabricated
