@@ -12,6 +12,7 @@ use optimization_unit::{
 use semantic_vocabulary::{BlockId, EdgeId};
 
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
+use crate::rules::control_flow_cleanup::descriptor_telescope_free;
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_is_identity;
 use crate::rules::control_flow_cleanup::provenance_realized_at;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
@@ -50,11 +51,7 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
         let mut candidates = Vec::new();
         for function in &unit.functions {
             // Descriptor telescopes require structural substitution, outside this scalar rewrite.
-            if function
-                .blocks
-                .iter()
-                .any(|block| !block.structural_parameters.is_empty())
-            {
+            if !descriptor_telescope_free(function) {
                 continue;
             }
             let Some((_, function_post_dominators)) = post_dominators.function(function.machine)
