@@ -258,7 +258,7 @@ pub(crate) struct Evaluator<'program> {
     root_build: Option<Cell>,
     pub(super) executed_root_bindings: Vec<ExecutedRootBinding>,
     pub(super) pending_root_bindings:
-        Vec<arena::Handle<language_semantics::declaration_selection::RootBindingRequest>>,
+        Vec<arena::Handle<language_semantics::declaration_selection::BuildSelectionRequest>>,
     /// Executed `exclude_crash`/`exclude_service` selections on the root
     /// Build, in evaluation order.
     pub(super) executed_behavior_exclusions: Vec<crate::ExecutedBehaviorExclusion>,

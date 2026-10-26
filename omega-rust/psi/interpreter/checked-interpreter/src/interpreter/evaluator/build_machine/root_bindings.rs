@@ -2,7 +2,7 @@
 use crate::interpreter::evaluator::{
     Cell, EvalResult, Evaluator, Frame, Halt, State, TypeReferenceNode, Value, trap,
 };
-use language_semantics::declaration_selection::RootBindingOperand;
+use language_semantics::declaration_selection::{BuildSelectionRequest, RootBindingOperand};
 use language_semantics::declaration_selection::{ExecutedRootBinding, RootBindingSelection};
 use typed_trees::expression::TableCallExpression;
 
@@ -65,7 +65,7 @@ impl<'program> Evaluator<'program> {
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         let protocol = self.root_binding_protocol(call.target_symbol);
-        if !call.root_binding.is_valid() {
+        if !call.build_selection.is_valid() {
             if matches!(protocol, Some("prepare" | "bind" | "bind_description")) {
                 return trap(
                     "Build binding protocol requires source-issued designated product operands",
@@ -76,7 +76,8 @@ impl<'program> Evaluator<'program> {
         let binding = self
             .program
             .expression_table
-            .root_binding_request(call.root_binding)
+            .build_selection_request(call.build_selection)
+            .and_then(BuildSelectionRequest::entry)
             .ok_or_else(|| {
                 Halt::Trap("root binding lost its admitted selection request".to_owned())
             })?
@@ -119,7 +120,7 @@ impl<'program> Evaluator<'program> {
             self.pending_root_bindings
                 .try_reserve(1)
                 .map_err(|_| Halt::Resource("root-binding ticket allocation was refused".into()))?;
-            self.pending_root_bindings.push(call.root_binding);
+            self.pending_root_bindings.push(call.build_selection);
             return Ok(Some(Value::Int(ticket)));
         }
         let Some(ticket_expression) = arguments.first().copied() else {
@@ -133,7 +134,12 @@ impl<'program> Evaluator<'program> {
         let issued = self
             .pending_root_bindings
             .get(ticket)
-            .and_then(|request| self.program.expression_table.root_binding_request(*request));
+            .and_then(|request| {
+                self.program
+                    .expression_table
+                    .build_selection_request(*request)
+            })
+            .and_then(BuildSelectionRequest::entry);
         if issued != Some(&binding) {
             return trap(
                 "root binding activation ticket is missing, consumed, or belongs to another selection",

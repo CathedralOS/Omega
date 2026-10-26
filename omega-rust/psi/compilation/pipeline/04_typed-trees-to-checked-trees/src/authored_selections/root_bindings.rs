@@ -6,7 +6,7 @@
 //! access. An integer ticket or a declared description type never proves issuance.
 
 use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::RootBindingOperand;
+use language_semantics::declaration_selection::{BuildSelectionRequest, RootBindingOperand};
 use typed_trees::expression::ExpressionNode;
 
 pub(super) fn validate(
@@ -56,7 +56,7 @@ pub(super) fn validate(
             .iter()
             .find(|(symbol, _)| *symbol == call.target_symbol)
             .map(|(_, name)| *name);
-        if !call.root_binding.is_valid() {
+        if !call.build_selection.is_valid() {
             if operation.is_some() {
                 return Err(Diagnostic::error(
                     "Build binding protocol requires source-issued designated product operands",
@@ -65,7 +65,8 @@ pub(super) fn validate(
             continue;
         }
         let binding = expressions
-            .root_binding_request(call.root_binding)
+            .build_selection_request(call.build_selection)
+            .and_then(BuildSelectionRequest::entry)
             .ok_or_else(|| {
                 Diagnostic::error("root binding lost its designated product operands")
             })?;

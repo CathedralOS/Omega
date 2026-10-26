@@ -7,7 +7,9 @@
 
 use crate::lowerer::Lowerer;
 use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::{RootBindingOperand, RootBindingRequest};
+use language_semantics::declaration_selection::{
+    BuildSelectionRequest, RootBindingOperand, RootBindingRequest,
+};
 use typed_trees::expression::{ExpressionNode, TableCallExpression, TableNamePath};
 
 pub(super) fn lower(
@@ -81,11 +83,12 @@ pub(super) fn lower(
         owner_symbol,
         owner_symbol,
     )));
-    let root_binding = table.insert_root_binding_request(RootBindingRequest {
-        source_span: binding.source_span,
-        slot: product_path(&binding.slot),
-        implementation,
-    });
+    let build_selection =
+        table.insert_build_selection_request(BuildSelectionRequest::Entry(RootBindingRequest {
+            source_span: binding.source_span,
+            slot: product_path(&binding.slot),
+            implementation,
+        }));
     // Receiver evaluation and authentication precede description evaluation,
     // but do not hold a mutable loan across it. The private scalar ticket is
     // the completed result of an ordinary nested call, not a source permission.
@@ -104,7 +107,7 @@ pub(super) fn lower(
         private_layout_operation: None,
         layout_query: None,
         native_code_layout: None,
-        root_binding,
+        build_selection,
         arguments: preparation_arguments,
         evidence_arguments: Box::default(),
         operational_acknowledgement: Default::default(),
@@ -126,7 +129,7 @@ pub(super) fn lower(
         private_layout_operation: None,
         layout_query: None,
         native_code_layout: None,
-        root_binding,
+        build_selection,
         arguments,
         evidence_arguments: Box::default(),
         operational_acknowledgement: Default::default(),

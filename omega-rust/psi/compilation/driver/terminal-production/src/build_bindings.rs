@@ -4,7 +4,7 @@
 //! and optimized operations share custody; consumers never parse debug names or
 //! reopen trees. Portable artifact bytes alone do not grant Build authority.
 
-use language_semantics::declaration_selection::RootBindingRequest;
+use language_semantics::declaration_selection::BuildSelectionRequest;
 use semantic_vocabulary::OperationId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,7 +18,7 @@ pub struct TerminalBuildBindingCall {
     pub operation: OperationId,
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub action: TerminalBuildBindingOperation,
-    pub request: RootBindingRequest,
+    pub request: BuildSelectionRequest,
 }
 
 /// Source-issued context bound to exact Terminal semantics and, for private
@@ -64,12 +64,12 @@ pub(super) fn capture(
         else {
             continue;
         };
-        if !call.root_binding.is_valid() {
+        if !call.build_selection.is_valid() {
             continue;
         }
         let request = checked
             .expression_table
-            .root_binding_request(call.root_binding)
+            .build_selection_request(call.build_selection)
             .ok_or_else(|| {
                 diagnostics::Diagnostic::error(
                     "Build call lost its designated operands before publication",

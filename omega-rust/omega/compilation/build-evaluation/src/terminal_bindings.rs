@@ -7,7 +7,7 @@
 //! remain inert until the product owner resolves and admits them.
 
 use language_semantics::declaration_selection::{
-    ExecutedRootBinding, RootBindingOperand, RootBindingRequest, RootBindingSelection,
+    BuildSelectionRequest, ExecutedRootBinding, RootBindingOperand, RootBindingSelection,
 };
 use psi_compiler::{
     TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
@@ -30,7 +30,7 @@ pub struct TerminalBuildBindingHost<'context> {
 
 #[derive(Default)]
 struct BindingState {
-    pending: Vec<Option<RootBindingRequest>>,
+    pending: Vec<Option<BuildSelectionRequest>>,
     executed: Vec<ExecutedRootBinding>,
 }
 
@@ -173,7 +173,12 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
                         "root binding ticket was consumed or belongs to another request",
                     ));
                 }
-                let RootBindingOperand::AuthoredPath(path) = &call.request.implementation else {
+                let BuildSelectionRequest::Entry(binding) = &call.request else {
+                    return Err(refuse(
+                        "declaration selection requires its admitted commit operation",
+                    ));
+                };
+                let RootBindingOperand::AuthoredPath(path) = &binding.implementation else {
                     return Err(refuse(
                         "Terminal Build descriptions require an issued product-query value",
                     ));
@@ -189,8 +194,8 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
                     .map_err(|_| refuse("cannot retain executed Build binding"))?;
                 state.pending[ticket] = None;
                 state.executed.push(ExecutedRootBinding {
-                    source_span: call.request.source_span,
-                    slot: call.request.slot.clone(),
+                    source_span: binding.source_span,
+                    slot: binding.slot.clone(),
                     implementation: RootBindingSelection::AuthoredPath(path.clone()),
                 });
                 Ok(TerminalEffectResult::Unit)
