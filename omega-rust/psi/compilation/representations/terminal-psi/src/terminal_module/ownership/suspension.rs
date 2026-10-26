@@ -141,6 +141,8 @@ pub enum TerminalSuspensionValueLoans {
 pub enum TerminalSuspensionCallTarget {
     Machine(MachineId),
     Boundary(BoundaryMachineId),
+    /// The public slot owns the shape; the call's captured selector selects its row.
+    Dynamic { interface: u32, slot: u32 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -210,6 +212,11 @@ pub fn suspension_frontier_commitment(
         TerminalSuspensionCallTarget::Boundary(boundary) => {
             hash.byte(2);
             hash.raw(&boundary.get().to_le_bytes());
+        }
+        TerminalSuspensionCallTarget::Dynamic { interface, slot } => {
+            hash.byte(5);
+            hash.raw(&interface.to_le_bytes());
+            hash.raw(&slot.to_le_bytes());
         }
     }
     hash_carry_policy(&mut hash, plan.effective);

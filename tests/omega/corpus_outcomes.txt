@@ -6338,6 +6338,28 @@ fail/facts/dynamic_float_refinement_through_parameter_outside_interval rejected 
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
 fail/facts/dynamic_float_refinement_through_target_body_outside_interval rejected 9426ms expected @a92f16431042
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
+fail/facts/dynamic_suspension_through_call_result_rejected rejected 2134ms expected @cbee4617745b+wt
+	cannot prove requires contract for call dyn DeferredValue::get from main: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_suspension_through_const_name_rejected rejected 2470ms expected @cbee4617745b+wt
+	cannot prove requires contract for call dyn DeferredValue::get from main: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_suspension_through_field_rejected rejected 3091ms expected @cbee4617745b+wt
+	cannot prove requires contract for call dyn DeferredValue::get from main: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_suspension_through_local_rejected rejected 2744ms expected @cbee4617745b+wt
+	cannot prove requires contract for call dyn DeferredValue::get from main: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_suspension_through_match_join_rejected rejected 2709ms expected @cbee4617745b+wt
+	cannot prove requires contract for call dyn DeferredValue::get from main: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call dyn DeferredValue::get from main: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_suspension_through_other_machine_rejected rejected 3166ms expected @cbee4617745b+wt
+	cannot prove requires contract for call dyn DeferredValue::get from invoke: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_suspension_through_other_state_rejected rejected 2727ms expected @cbee4617745b+wt
+	cannot prove requires contract for call dyn DeferredValue::get from invoke: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_suspension_through_parameter_rejected rejected 3144ms expected @cbee4617745b+wt
+	cannot prove requires contract for call dyn DeferredValue::get from invoke: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_suspension_through_target_body_rejected rejected 3050ms expected @cbee4617745b+wt
+	cannot prove requires contract for call dyn DeferredValue::get from invoke: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call dyn DeferredValue::get from invoke: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call dyn DeferredValue::get from invoke: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call dyn DeferredValue::get from invoke: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_trait_dispatch_through_call_result_rejected rejected 3672ms expected @a92f16431042
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_trait_dispatch_through_const_name_rejected rejected 3336ms expected @a92f16431042
@@ -20304,6 +20326,12 @@ fail/traits/dyn_structural_result_reuse_input rejected 2567ms expected @a92f1643
 	cannot use `token` in machine `probe` state `entry` (statement 3) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/traits/dyn_structural_result_unpromised_domain rejected 2901ms expected @a92f16431042
 	cannot prove requires contract for call consume from probe: Factory.dyn Factory::make(Plain as dyn Factory) in Token::Issued in state `entry`
+fail/traits/dyn_suspending_missing_marker rejected 2274ms expected @cbee4617745b+wt
+	call to `dyn DeferredValue::get` has operational envelope `suspend` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+fail/traits/dyn_suspending_nested_suspension rejected 2281ms expected @cbee4617745b+wt
+	suspending call to `dyn DeferredValue::get` is nested inside a partially evaluated expression; bind it as a complete statement, simple `let` right-hand side, transition subject, or terminal expression before continuation planning
+fail/traits/dyn_suspending_unit_call_precondition rejected 2309ms expected @cbee4617745b+wt
+	cannot prove requires contract for call dyn DeferredUnit::check from main: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/equatable_field_not_equatable rejected 109ms expected @a92f16431042
 	conformance `PlayerEquality satisfies Equatable<Player>`: field `pos` of `Player` is not Equatable: add `PosEquality satisfies Equatable<Pos> { }`
 fail/traits/equatable_missing_conformance_suggested rejected 109ms expected @a92f16431042
@@ -23490,6 +23518,15 @@ pass/facts/dynamic_float_refinement_through_other_machine_exit checked 12698ms c
 pass/facts/dynamic_float_refinement_through_other_state_exit checked 12705ms check-target:macos_arm64 @a92f16431042
 pass/facts/dynamic_float_refinement_through_parameter_exit checked 12635ms check-target:macos_arm64 @a92f16431042
 pass/facts/dynamic_float_refinement_through_target_body_exit checked 7982ms check-target:macos_arm64 @a92f16431042
+pass/facts/dynamic_suspension_through_call_result_exit checked 2921ms check-target:macos_arm64 @cbee4617745b+wt
+pass/facts/dynamic_suspension_through_const_name_exit checked 2844ms check-target:macos_arm64 @cbee4617745b+wt
+pass/facts/dynamic_suspension_through_field_exit checked 2865ms check-target:macos_arm64 @cbee4617745b+wt
+pass/facts/dynamic_suspension_through_local_exit checked 2952ms check-target:macos_arm64 @cbee4617745b+wt
+pass/facts/dynamic_suspension_through_match_join_exit checked 2895ms check-target:macos_arm64 @cbee4617745b+wt
+pass/facts/dynamic_suspension_through_other_machine_exit checked 2924ms check-target:macos_arm64 @cbee4617745b+wt
+pass/facts/dynamic_suspension_through_other_state_exit checked 3069ms check-target:macos_arm64 @cbee4617745b+wt
+pass/facts/dynamic_suspension_through_parameter_exit checked 2987ms check-target:macos_arm64 @cbee4617745b+wt
+pass/facts/dynamic_suspension_through_target_body_exit checked 2980ms check-target:macos_arm64 @cbee4617745b+wt
 pass/facts/dynamic_trait_dispatch_through_call_result_exit checked 2461ms check-target:macos_arm64 @a92f16431042
 pass/facts/dynamic_trait_dispatch_through_const_name_exit checked 3540ms check-target:macos_arm64 @a92f16431042
 pass/facts/dynamic_trait_dispatch_through_field_exit checked 3460ms check-target:macos_arm64 @a92f16431042
@@ -29862,6 +29899,8 @@ pass/traits/runtime_dyn_stored_byte_input rejected 1212ms check-target:macos_arm
 	machine `Header::window` state `window` does not satisfy trait `Payload` machine `window`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
 	machine `Trailer::window` state `window` does not satisfy trait `Payload` machine `window`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
 pass/traits/runtime_dyn_structural_result_exit checked 1848ms check-target:macos_arm64 @a92f16431042
+pass/traits/runtime_dyn_suspending_retained_selector_exit checked 2870ms check-target:macos_arm64 @cbee4617745b+wt
+pass/traits/runtime_dyn_suspending_unit_call_exit checked 2929ms check-target:macos_arm64 @cbee4617745b+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit checked 5871ms check-target:macos_arm64 @a92f16431042
 pass/traits/runtime_exact_requirement_edge_exit checked 5568ms check-target:macos_arm64 @a92f16431042
 pass/traits/runtime_explicit_implementation_arguments_exit rejected 807ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042

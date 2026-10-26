@@ -150,6 +150,11 @@ fn encode_suspension_call_target(writer: &mut Writer, target: TerminalSuspension
             writer.u8(2);
             writer.id(boundary);
         }
+        TerminalSuspensionCallTarget::Dynamic { interface, slot } => {
+            writer.u8(5);
+            writer.u32(interface);
+            writer.u32(slot);
+        }
     }
 }
 
@@ -163,6 +168,10 @@ fn decode_suspension_call_target(
         2 => Ok(TerminalSuspensionCallTarget::Boundary(
             reader.id("BoundaryMachineId")?,
         )),
+        5 => Ok(TerminalSuspensionCallTarget::Dynamic {
+            interface: reader.u32()?,
+            slot: reader.u32()?,
+        }),
         tag => Err(CodecError::InvalidTag("TerminalSuspensionCallTarget", tag)),
     }
 }
@@ -443,7 +452,10 @@ fn validate_loan_coordinates(
 
 #[cfg(test)]
 mod tests {
-    use super::{decode_suspension_call_plan, encode_suspension_call_plan};
+    use super::{
+        decode_suspension_call_plan, decode_suspension_call_target, encode_suspension_call_plan,
+        encode_suspension_call_target,
+    };
     use crate::codec_error::CodecError;
     use crate::sections::semantic_module::wire::{Reader, Writer};
     use language_semantics::CarryPolicy;
@@ -456,6 +468,38 @@ mod tests {
         TerminalSuspensionCallTarget, TerminalSuspensionLiveValue, TerminalSuspensionPlace,
         TerminalSuspensionStorage, TerminalSuspensionValueType, suspension_frontier_commitment,
     };
+
+    #[test]
+    fn dynamic_suspension_target_keeps_its_slot_and_rejects_retired_tags() {
+        for target in [
+            TerminalSuspensionCallTarget::Dynamic {
+                interface: 0,
+                slot: 0,
+            },
+            TerminalSuspensionCallTarget::Dynamic {
+                interface: 7,
+                slot: 13,
+            },
+        ] {
+            let mut writer = Writer::default();
+            encode_suspension_call_target(&mut writer, target);
+            let bytes = writer.finish();
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(
+                decode_suspension_call_target(&mut reader).expect("selector target"),
+                target
+            );
+            assert_eq!(reader.remaining(), 0);
+            assert_eq!(bytes[0], 5);
+        }
+        for retired in [3, 4] {
+            let bytes = [retired];
+            assert!(matches!(
+                decode_suspension_call_target(&mut Reader::new(&bytes)),
+                Err(CodecError::InvalidTag("TerminalSuspensionCallTarget", tag)) if tag == retired
+            ));
+        }
+    }
 
     #[test]
     fn suspension_storage_access_survives_wire_and_changes_identity() {

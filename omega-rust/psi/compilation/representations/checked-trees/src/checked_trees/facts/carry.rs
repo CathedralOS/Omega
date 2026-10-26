@@ -246,6 +246,18 @@ fn symbol_identity(
     program: &typed_trees::TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<Cow<'_, str>> {
+    if let Some(slot) = program.dynamic_slot_by_symbol(symbol) {
+        let definition = program.trait_definition_by_symbol(slot.declaring_trait)?;
+        let requirement = program
+            .closed_requirement_application(slot.call_requirement)
+            .map(|application| application.signature)
+            .or_else(|| program.dynamic_slot_requirement(slot))?;
+        return Some(Cow::Owned(format!(
+            "selector-slot:{}:{}",
+            program.type_identity_text(slot.interface_identity)?,
+            program.trait_requirement_callable_identity_text(definition, requirement),
+        )));
+    }
     for machine in program.machines() {
         if machine.symbol == symbol {
             return Some(crossing_declaration_name(

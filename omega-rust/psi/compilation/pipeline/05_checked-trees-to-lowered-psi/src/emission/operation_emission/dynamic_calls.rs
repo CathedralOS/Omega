@@ -97,14 +97,14 @@ pub(super) fn emit_dynamic_call_binding(
             "selector call value identity overflow",
         ))?;
     let operation = operations.allocate();
-    operations.record_source_call(
+    operations.record_source_call_with_values(
         call.source_coordinate,
         Some(checked_trees::NominalMachineUseSite::Expression(
             call.source_expression,
         )),
         operation,
         call.slot,
-        &lowered_psi::LoweredSourceFrontierBindings::default(),
+        parameters,
     )?;
     emit_dynamic_call_leaf(
         selector,

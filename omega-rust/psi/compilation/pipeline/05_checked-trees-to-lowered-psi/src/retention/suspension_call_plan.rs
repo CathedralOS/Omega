@@ -87,7 +87,7 @@ pub(crate) fn retain_suspension_call_plans(
         let operation =
             &module.machines[machine_index].blocks[block_index].operations[operation_index];
         let target = terminal_call_target(&operation.kind).ok_or(LoweringError::Unsupported(
-            "suspension crossing Terminal operation is not an ordinary call",
+            "suspension crossing Terminal operation is not a call",
         ))?;
 
         let mut live_values = Vec::with_capacity(crossing.live_values.len());
@@ -578,7 +578,7 @@ fn call_argument_binding(
     let scalar = checked
         .primitive_type_reference(parameter.type_reference)
         .is_some();
-    let lane_position = parameters[..position]
+    let mut lane_position = parameters[..position]
         .iter()
         .filter(|parameter| {
             !parameter.relevance.is_erased()
@@ -588,68 +588,115 @@ fn call_argument_binding(
                     == scalar
         })
         .count();
-    let (scalars, structural, structural_parameters) =
-        if let Some(call) = direct_call_parts(operation) {
-            let callee = module
-                .machines
-                .iter()
-                .find(|machine| machine.id == call.callee)
+    let (scalars, structural, structural_type) = if let Some(call) = direct_call_parts(operation) {
+        let callee = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == call.callee)
+            .ok_or(LoweringError::Unsupported(
+                "suspension call argument has no emitted callee",
+            ))?;
+        (
+            call.arguments,
+            call.structural_arguments,
+            callee
+                .structural_parameters
+                .get(lane_position)
+                .map(|parameter| parameter.structural_type),
+        )
+    } else if let OperationKind::BoundaryCall {
+        boundary,
+        arguments,
+        structural_arguments,
+        ..
+    } = operation
+    {
+        let callee = module
+            .boundary_machines
+            .iter()
+            .find(|callee| callee.id == *boundary)
+            .ok_or(LoweringError::Unsupported(
+                "suspension call argument has no emitted requirement",
+            ))?;
+        (
+            arguments.as_slice(),
+            structural_arguments.as_slice(),
+            callee
+                .structural_parameters
+                .get(lane_position)
+                .map(|parameter| parameter.structural_type),
+        )
+    } else if let OperationKind::CallDynamic {
+        selector,
+        interface,
+        slot,
+        arguments,
+        structural_arguments,
+        ..
+    } = operation
+    {
+        // The checked telescope includes the selector; the emitted data lane does not.
+        if scalar && lane_position == 0 {
+            return scalar_argument_binding(module, *selector);
+        }
+        if scalar {
+            lane_position = lane_position
+                .checked_sub(1)
                 .ok_or(LoweringError::Unsupported(
-                    "suspension call argument has no emitted callee",
+                    "suspension dynamic scalar argument has no data lane",
                 ))?;
-            (
-                call.arguments,
-                call.structural_arguments,
-                callee.structural_parameters.as_slice(),
-            )
-        } else if let OperationKind::BoundaryCall {
-            boundary,
-            arguments,
-            structural_arguments,
-            ..
-        } = operation
-        {
-            let callee = module
-                .boundary_machines
-                .iter()
-                .find(|callee| callee.id == *boundary)
-                .ok_or(LoweringError::Unsupported(
-                    "suspension call argument has no emitted requirement",
-                ))?;
-            (
-                arguments.as_slice(),
-                structural_arguments.as_slice(),
-                callee.structural_parameters.as_slice(),
-            )
-        } else {
-            return unsupported("suspension call argument is not an ordinary call");
-        };
+        }
+        let signature = module
+            .dynamic_dispatch
+            .interface(*interface)
+            .and_then(|interface| interface.slots.get(usize::try_from(*slot).ok()?))
+            .ok_or(LoweringError::Unsupported(
+                "suspension dynamic call has no public slot",
+            ))?;
+        (
+            arguments.as_slice(),
+            structural_arguments.as_slice(),
+            signature
+                .structural_parameters
+                .get(lane_position)
+                .map(|parameter| parameter.structural_type),
+        )
+    } else {
+        return unsupported("suspension call argument is not a call");
+    };
     if scalar {
         let value = scalars
             .get(lane_position)
             .copied()
-            .and_then(|value| scalar_declaration(module, value))
             .ok_or(LoweringError::Unsupported(
                 "suspension call scalar argument has no emitted value",
             ))?;
-        return Ok((
-            TerminalSuspensionPlace::Scalar(value.id),
-            TerminalSuspensionValueType::Scalar(value.scalar_type),
-        ));
+        return scalar_argument_binding(module, value);
     }
     let argument = structural
         .get(lane_position)
         .ok_or(LoweringError::Unsupported(
             "suspension call structural argument has no emitted storage",
         ))?;
-    let parameter = structural_parameters
-        .get(lane_position)
-        .ok_or(LoweringError::Unsupported(
-            "suspension call structural argument has no emitted formal",
-        ))?;
+    let structural_type = structural_type.ok_or(LoweringError::Unsupported(
+        "suspension call structural argument has no emitted formal",
+    ))?;
     Ok((
         TerminalSuspensionPlace::Structural(argument.clone()),
-        TerminalSuspensionValueType::Structural(parameter.structural_type),
+        TerminalSuspensionValueType::Structural(structural_type),
+    ))
+}
+
+fn scalar_argument_binding(
+    module: &TerminalModule,
+    value: ValueId,
+) -> Result<(TerminalSuspensionPlace, TerminalSuspensionValueType), LoweringError> {
+    let declaration = scalar_declaration(module, value).ok_or(LoweringError::Unsupported(
+        "suspension call scalar argument has no emitted value",
+    ))?;
+    Ok((
+        TerminalSuspensionPlace::Scalar(value),
+        TerminalSuspensionValueType::Scalar(declaration.scalar_type),
     ))
 }
 
@@ -678,6 +725,12 @@ fn terminal_call_target(
         OperationKind::BoundaryCall { boundary, .. } => Some(
             terminal_psi::TerminalSuspensionCallTarget::Boundary(*boundary),
         ),
+        OperationKind::CallDynamic {
+            interface, slot, ..
+        } => Some(terminal_psi::TerminalSuspensionCallTarget::Dynamic {
+            interface: *interface,
+            slot: *slot,
+        }),
         _ => None,
     }
 }

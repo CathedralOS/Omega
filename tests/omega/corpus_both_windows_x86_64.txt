@@ -2726,6 +2726,15 @@ pass/facts/dynamic_float_refinement_through_other_machine_exit built 10805ms exi
 pass/facts/dynamic_float_refinement_through_other_state_exit built 10339ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/dynamic_float_refinement_through_parameter_exit built 9331ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/dynamic_float_refinement_through_target_body_exit built 8174ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/facts/dynamic_suspension_through_call_result_exit built 2823ms exit:0 interpreter-exit:0 interpreter:agrees @cbee4617745b+wt
+pass/facts/dynamic_suspension_through_const_name_exit built 2749ms exit:0 interpreter-exit:0 interpreter:agrees @cbee4617745b+wt
+pass/facts/dynamic_suspension_through_field_exit built 3145ms exit:0 interpreter-exit:0 interpreter:agrees @cbee4617745b+wt
+pass/facts/dynamic_suspension_through_local_exit built 3234ms exit:0 interpreter-exit:0 interpreter:agrees @cbee4617745b+wt
+pass/facts/dynamic_suspension_through_match_join_exit built 2878ms exit:0 interpreter-exit:0 interpreter:agrees @cbee4617745b+wt
+pass/facts/dynamic_suspension_through_other_machine_exit built 3211ms exit:0 interpreter-exit:0 interpreter:agrees @cbee4617745b+wt
+pass/facts/dynamic_suspension_through_other_state_exit built 2898ms exit:0 interpreter-exit:0 interpreter:agrees @cbee4617745b+wt
+pass/facts/dynamic_suspension_through_parameter_exit built 2718ms exit:0 interpreter-exit:0 interpreter:agrees @cbee4617745b+wt
+pass/facts/dynamic_suspension_through_target_body_exit built 3128ms exit:0 interpreter-exit:0 interpreter:agrees @cbee4617745b+wt
 pass/facts/dynamic_trait_dispatch_through_call_result_exit built 3378ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/dynamic_trait_dispatch_through_const_name_exit built 3432ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/dynamic_trait_dispatch_through_field_exit built 3591ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -8696,6 +8705,8 @@ pass/traits/runtime_dyn_stored_byte_input rejected 4574ms interpreter:unchecked 
 	machine `Header::window` state `window` does not satisfy trait `Payload` machine `window`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
 	machine `Trailer::window` state `window` does not satisfy trait `Payload` machine `window`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
 pass/traits/runtime_dyn_structural_result_exit built 14047ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/traits/runtime_dyn_suspending_retained_selector_exit built 2781ms exit:0 interpreter-exit:0 interpreter:agrees @cbee4617745b+wt
+pass/traits/runtime_dyn_suspending_unit_call_exit built 2844ms exit:0 interpreter-exit:0 interpreter:agrees @cbee4617745b+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit built 14946ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/traits/runtime_exact_requirement_edge_exit built 14335ms exit:1 interpreter-exit:1 interpreter:agrees @5f668826adf3+wt
 pass/traits/runtime_explicit_implementation_arguments_exit rejected 1562ms interpreter:unchecked @5f668826adf3+wt

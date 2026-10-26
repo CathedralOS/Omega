@@ -343,10 +343,12 @@ helper that passes does not close an item.
       requirement's public contract independently of stronger implementation
       guarantees (preserving `samples/cli/facts/dynamic_float_refinement` across
       all nine places).
-    - Support suspending requirements at planning, crash-refinement rows when
-      operands lead with the selector, and ranked recursion cycles crossing a
-      dispatch edge (`fail/traits/dyn_selector_{reentry,self_reentry}_unranked`
-      until ranked).
+    - Complete suspending requirements with borrowed values and operational
+      envelope refinement, retaining the scalar/Unit-call and live-selector
+      witnesses in `samples/cli/facts/dynamic_suspension`; finish crash-refinement
+      rows when operands lead with the selector and ranked recursion cycles
+      crossing a dispatch edge
+      (`fail/traits/dyn_selector_{reentry,self_reentry}_unranked` until ranked).
     - Extend public slot metadata with returned-borrow origins and parameter
       qualification preconditions, consume the new records in package review,
       and implement `source/psi/` and `source/omega/` producer/consumer parity.

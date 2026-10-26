@@ -378,6 +378,7 @@ impl DirectSignatureEffects {
                     .closed_requirement_applications()
                     .map(|application| application.signature.symbol),
             )
+            .chain(program.dynamic_slots.iter().map(|slot| slot.symbol))
             .filter(|symbol| symbol.is_valid())
             .collect();
         symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
@@ -410,6 +411,12 @@ fn direct_operational_for_signature_symbol_uncached(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> DirectCallOperational {
+    if let Some(requirement) = program
+        .dynamic_slot_by_symbol(symbol)
+        .and_then(|slot| program.dynamic_slot_requirement(slot))
+    {
+        return signature_operational(program, requirement);
+    }
     if let Some((_, signature)) = program.machine_parameter_signature(symbol) {
         return signature_operational(program, signature);
     }
