@@ -243,6 +243,7 @@ pub(crate) fn build_contract_exit_facts(
                                 | typed_trees::statement::TransitionTargetNode::Value(_) => true,
                                 typed_trees::statement::TransitionTargetNode::Named {
                                     path,
+                                    static_machine_parameter,
                                     arguments,
                                     evidence_arguments,
                                     source_span,
@@ -251,6 +252,7 @@ pub(crate) fn build_contract_exit_facts(
                                 } => {
                                     let site = validation::CallSite::TransitionNamed {
                                         path,
+                                        static_machine_parameter: *static_machine_parameter,
                                         arguments: *arguments,
                                         evidence_arguments,
                                         source_span: *source_span,

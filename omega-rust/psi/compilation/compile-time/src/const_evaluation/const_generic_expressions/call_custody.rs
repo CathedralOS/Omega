@@ -662,28 +662,6 @@ impl<'program> Collector<'program> {
         self.selected_call(&site, context, authored, reference)
     }
 
-    fn retained_call(
-        &mut self,
-        target: SymbolHandle,
-        reference: SourceSpan,
-        occurrence: Option<typed_trees::AuthoredDeclarationSelectionOccurrenceId>,
-    ) -> Result<(), String> {
-        let selection = occurrence
-            .and_then(|occurrence| {
-                self.program
-                    .authored_declaration_selections()
-                    .get(occurrence)
-            })
-            .ok_or("constant call lost its authored selection occurrence")?;
-        if selection.kind() != Kind::Call
-            || selection.source_span() != reference
-            || !matches!(selection.target(), Target::Resolved(selected) if selected.selected_symbol() == self.authored_target(target, false)?)
-        {
-            return Err("constant call differs from its exact authored selection".into());
-        }
-        self.call(target, reference, false)
-    }
-
     fn call(
         &mut self,
         target: SymbolHandle,
@@ -1276,13 +1254,23 @@ impl<'program> Collector<'program> {
                             match table.transition_target(target) {
                                 TransitionTargetNode::Named {
                                     path,
+                                    static_machine_parameter,
                                     arguments,
+                                    evidence_arguments,
                                     source_span,
                                     authored_call_selection,
                                     ..
                                 } => {
-                                    self.retained_call(
-                                        path.symbol,
+                                    self.selected_retained_call(
+                                        validation::CallSite::TransitionNamed {
+                                            path,
+                                            static_machine_parameter: *static_machine_parameter,
+                                            arguments: *arguments,
+                                            evidence_arguments,
+                                            source_span: *source_span,
+                                            authored_call_selection: *authored_call_selection,
+                                        },
+                                        context,
                                         *source_span,
                                         *authored_call_selection,
                                     )?;

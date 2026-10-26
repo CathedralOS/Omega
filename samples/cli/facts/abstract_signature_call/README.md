@@ -97,6 +97,29 @@ keeps the premise true and changes only the selected `witness` result to false;
 it must refuse `hold`'s `direct == true` contract. This checks the oracle and
 selected body independently of the premise refusal.
 
+### Statement and terminal call productions
+
+Independent review of candidate `97d993169881f1071faf16ac700e00ebface2d01`
+found two additional valid productions of this same constant call:
+[`terminal_callback`](constant_initializer/terminal_callback/main.omg) forwards
+`Observe(kept)` through a terminal transition, and
+[`statement_explicit_discard`](constant_initializer/statement_explicit_discard/main.omg)
+explicitly discards the call before returning `true`. Both preserve the frozen
+premise, selected callback, constant and exit-0 oracle. Their pre-repair
+constant forms refuse respectively with `constant call differs from its exact
+authored selection` and `authored statement call reclassification found duplicate
+selections for the same source token`, while their runtime controls execute in
+both engines. Frozen source hashes are respectively
+`2c740bc17e25f12d6c0137408a17bf1fa676c2ff309ff422c8a08b4d11ad10a0`
+and `5c1d78452b23dae080d466a3fc98ec019f8ff03deb101c18acb1aac20c14203a`.
+
+Both productions have premise-false twins and corpus pins. Their required
+repair carries the original binder on the shared call-occurrence view in every
+call position and retains one authored selection across recipe, materialized,
+expression and statement copies. Duplicate or inconsistent selections remain
+errors. The rejected C1 review and its raw independent observations are retained;
+these new productions remain unfinished until the repaired producer passes them.
+
 ### Requirement accounting for this production
 
 - **Establishment:** the closed invocation evaluates only after ordinary checked

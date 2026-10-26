@@ -178,11 +178,7 @@ pub(super) fn static_callable_matches(
     site: &CallSite<'_>,
     authored: SymbolHandle,
 ) -> Result<bool, String> {
-    let parameter = match site {
-        CallSite::Statement(call) => call.static_machine_parameter,
-        CallSite::Expression { call, .. } => call.static_machine_parameter,
-        CallSite::TransitionNamed { .. } => return Ok(false),
-    };
+    let parameter = site.static_machine_parameter();
     if parameter != authored || program.retained_static_machine_contract(authored).is_none() {
         return Ok(false);
     }

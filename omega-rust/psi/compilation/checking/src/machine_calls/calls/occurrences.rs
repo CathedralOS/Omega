@@ -19,6 +19,7 @@ pub enum CallSite<'program> {
     },
     TransitionNamed {
         path: &'program typed_trees::statement::TableNamePath,
+        static_machine_parameter: SymbolHandle,
         arguments: arena::HandleSpan<ExpressionHandle>,
         evidence_arguments: &'program [Identifier],
         source_span: source::SourceSpan,
@@ -29,6 +30,20 @@ pub enum CallSite<'program> {
 }
 
 impl<'program> CallSite<'program> {
+    /// The source binder survives executable retargeting in every call
+    /// position. Terminal forwarding changes continuation ownership, not the
+    /// identity of the contract this occurrence selected.
+    pub fn static_machine_parameter(&self) -> SymbolHandle {
+        match self {
+            Self::Statement(call) => call.static_machine_parameter,
+            Self::Expression { call, .. } => call.static_machine_parameter,
+            Self::TransitionNamed {
+                static_machine_parameter,
+                ..
+            } => *static_machine_parameter,
+        }
+    }
+
     /// Parameter carriers belong to the occurrence's applied logical contract.
     /// A selected map's private body may still have open captured binders;
     /// those are not types in the caller and cannot classify its authority.
