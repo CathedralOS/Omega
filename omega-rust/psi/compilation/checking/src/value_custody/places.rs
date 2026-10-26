@@ -32,6 +32,7 @@ pub mod storage_path_relations;
 pub use captured_ownership::ownership_place_from_expression_in_state;
 pub mod collection_operations;
 mod declaration_types;
+pub(crate) use declaration_types::declaration_type_equations;
 pub use declaration_types::declaration_type_reference;
 
 use crate::value_custody::locals::WritableRoots;

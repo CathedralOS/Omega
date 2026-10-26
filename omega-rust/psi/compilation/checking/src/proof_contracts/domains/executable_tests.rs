@@ -3,9 +3,9 @@
 //! to select conflicting declarations under that ill-formed substitution.
 
 use diagnostics::Diagnostic;
-use symbols::{SymbolHandle, SymbolKind};
+use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 pub fn validate_executable_domain_test_carriers(
     program: &dyn crate::CheckingInput,
@@ -101,40 +101,10 @@ fn declared_type_equations(
     owners: &crate::expression_owners::OwnerEnvironmentIndex,
     expression: ExpressionHandle,
 ) -> Vec<(SymbolHandle, TypeReferenceHandle)> {
-    let mut substitutions = Vec::new();
-    let Some(mut owner) =
+    let Some(owner) =
         crate::expression_owners::source_declaration_owner(program, expression, owners)
     else {
-        return substitutions;
+        return Vec::new();
     };
-    // Nested machines inherit the same exact static binder scope. No runtime
-    // value or caller argument enters the declaration's assumptions.
-    let mut visited = Vec::new();
-    while owner.is_valid() && !visited.contains(&owner) {
-        visited.push(owner);
-        if let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == owner)
-        {
-            for equation in program
-                .declared_type_equations
-                .span_or_empty(machine.declared_type_equations)
-            {
-                let TypeReferenceNode::Named { symbol, .. } = program
-                    .type_reference_table
-                    .type_reference(equation.parameter)
-                else {
-                    continue;
-                };
-                if symbol.is_valid()
-                    && program.symbols.get(*symbol).kind == SymbolKind::TypeParameter
-                {
-                    substitutions.push((*symbol, equation.definition));
-                }
-            }
-        }
-        owner = program.declaration_scope_parent(owner);
-    }
-    substitutions
+    crate::value_custody::places::declaration_type_equations(program, owner)
 }

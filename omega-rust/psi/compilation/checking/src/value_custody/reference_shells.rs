@@ -41,7 +41,18 @@ pub fn reference_shell(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<ReferenceShell> {
-    let shell = peel_carrier_shells(program, reference, &[])?;
+    reference_shell_with_substitutions(program, reference, &[])
+}
+
+/// Classify the same reference under exact static type assumptions. The
+/// shell retains its access and complete referee; substitution never lends
+/// additional authority or removes a referent qualification.
+pub(crate) fn reference_shell_with_substitutions(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> Option<ReferenceShell> {
+    let shell = peel_carrier_shells(program, reference, substitutions)?;
     let TypeReferenceNode::Reference {
         referee, access, ..
     } = program.type_reference_table.type_reference(shell)

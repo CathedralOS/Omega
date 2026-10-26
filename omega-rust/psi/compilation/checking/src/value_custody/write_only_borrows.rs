@@ -37,6 +37,20 @@ struct WriteOnlyRoot {
     access: ReferenceAccess,
 }
 
+fn declared_reference_shell(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    reference: TypeReferenceHandle,
+) -> Option<crate::ReferenceShell> {
+    let substitutions =
+        crate::value_custody::places::declaration_type_equations(program, machine.symbol);
+    crate::value_custody::reference_shells::reference_shell_with_substitutions(
+        program,
+        reference,
+        &substitutions,
+    )
+}
+
 /// A generated target-family interface supplies no body itself. Non-observation
 /// comes from its complete checked member roster, never from one host's selected
 /// body. Opaque members still require boundary evidence, and checked adapters
@@ -75,21 +89,16 @@ pub(crate) fn validate_checked_write_only_slice(
                 .state_parameters(state)
                 .iter()
                 .filter_map(|parameter| {
-                    let TypeReferenceNode::Reference {
-                        referee,
-                        access: ReferenceAccess::WriteOnly,
-                        ..
-                    } = program
-                        .type_reference_table
-                        .type_reference(parameter.type_reference)
-                    else {
+                    let shell =
+                        declared_reference_shell(program, machine, parameter.type_reference)?;
+                    if shell.access != ReferenceAccess::WriteOnly {
                         return None;
-                    };
+                    }
                     Some(WriteOnlyRoot {
                         symbol: parameter.symbol,
                         receiver_machine: { SymbolHandle::invalid() },
                         name: parameter.name.as_str().to_owned(),
-                        referee: *referee,
+                        referee: shell.referee,
                         access: ReferenceAccess::WriteOnly,
                     })
                 })
@@ -101,21 +110,16 @@ pub(crate) fn validate_checked_write_only_slice(
                     .iter()
                     .filter_map(|statement| {
                         let local = statement.as_local_data()?;
-                        let TypeReferenceNode::Reference {
-                            referee,
-                            access: ReferenceAccess::WriteOnly,
-                            ..
-                        } = program
-                            .type_reference_table
-                            .type_reference(local.type_reference)
-                        else {
+                        let shell =
+                            declared_reference_shell(program, machine, local.type_reference)?;
+                        if shell.access != ReferenceAccess::WriteOnly {
                             return None;
-                        };
+                        }
                         Some(WriteOnlyRoot {
                             symbol: local.symbol,
                             receiver_machine: SymbolHandle::invalid(),
                             name: local.name.as_str().to_owned(),
-                            referee: *referee,
+                            referee: shell.referee,
                             access: ReferenceAccess::WriteOnly,
                         })
                     }),
@@ -1421,7 +1425,7 @@ fn validate_received_value(
     // observed normally; a reference-valued arm is descriptor transport only
     // under its receiving declaration, never because another arm supplied it.
     if receiving_type.is_some_and(|reference| {
-        crate::reference_shell(program, reference)
+        declared_reference_shell(program, machine, reference)
             .is_some_and(|shell| shell.access == ReferenceAccess::WriteOnly)
     }) && let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression)
     {
@@ -1475,8 +1479,8 @@ fn validate_received_value(
             Some(state),
             expression,
         )
-        && let Some(required) = crate::reference_shell(program, required)
-        && let Some(produced) = crate::reference_shell(program, produced)
+        && let Some(required) = declared_reference_shell(program, machine, required)
+        && let Some(produced) = declared_reference_shell(program, machine, produced)
         && required.access == ReferenceAccess::WriteOnly
         && produced.access == ReferenceAccess::WriteOnly
         && crate::value_custody::type_references::type_references_match(
@@ -1882,17 +1886,18 @@ fn validate_observation_access(
         ) else {
             return false;
         };
-        loop {
-            match program.type_reference_table.type_reference(reference) {
-                TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-                TypeReferenceNode::Reference {
-                    access: ReferenceAccess::WriteOnly,
-                    ..
-                } => return true,
-                TypeReferenceNode::Reference { referee, .. } => reference = *referee,
-                _ => return false,
+        let mut visited = Vec::new();
+        while !visited.contains(&reference) {
+            visited.push(reference);
+            let Some(shell) = declared_reference_shell(program, machine, reference) else {
+                return false;
+            };
+            if shell.access == ReferenceAccess::WriteOnly {
+                return true;
             }
+            reference = shell.referee;
         }
+        false
     });
     if !declared_write_only && root.is_none() {
         return false;
