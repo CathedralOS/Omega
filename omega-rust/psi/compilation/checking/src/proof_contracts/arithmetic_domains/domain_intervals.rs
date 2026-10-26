@@ -23,18 +23,17 @@ pub fn declared_domain_predicate_bounds(
     program: &dyn crate::CheckingInput,
     domain: &typed_trees::types::DomainConstraint,
 ) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
-    use numerics::bignum::BigInt;
     let interval = predicate_interval(program, domain)?;
     if interval.minimum.is_none() && interval.maximum.is_none() {
         return None;
     }
+    let declaration = program.domain_definition(domain.symbol)?;
+    let primitive =
+        crate::value_custody::recasts::exact_primitive_type(program, declaration.target_type)?;
+    let (minimum, maximum) = crate::proof_contracts::proof_embeddings::primitive_range(primitive)?;
     Some((
-        interval
-            .minimum
-            .unwrap_or_else(|| BigInt::from_i64(i64::MIN)),
-        interval
-            .maximum
-            .unwrap_or_else(|| BigInt::from_i64(i64::MAX)),
+        interval.minimum.unwrap_or(minimum),
+        interval.maximum.unwrap_or(maximum),
     ))
 }
 

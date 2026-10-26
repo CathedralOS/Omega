@@ -219,11 +219,21 @@ pub(super) fn propagate_statement_transfers(
             .stored_destination = target_place;
     }
 
+    let completed_source = build.control.statements.get(statement_fact).stored_value;
+    let completed_source_type = build
+        .control
+        .operands
+        .is_valid(completed_source)
+        .then(|| build.control.operands.get(completed_source))
+        .filter(|operand| operand.expression == source_expression)
+        .map(|operand| operand.type_reference)
+        .filter(|reference| reference.is_valid());
     context_transport::transport(
         program,
         semantic,
         build,
         &write,
+        completed_source_type,
         stable_value_target,
         machine_symbol,
         state_symbol,
@@ -805,16 +815,27 @@ fn completed_value_carriers_agree(
     statement_index: usize,
     source: &CanonicalPlace,
     target: &CanonicalPlace,
+    completed_source: Option<typed_trees::types::TypeReferenceHandle>,
 ) -> bool {
-    let type_at = |place, position| {
-        let reference =
-            validation::canonical_place_type_reference(program, state, position, place)?;
+    let carrier_identity = |reference| {
         let reference = validation::reference_shell(program, reference)
             .map_or(reference, |shell| shell.referee);
-        Some(program.normalized_type_identity(reference))
+        program.normalized_type_identity(reference)
     };
     // Only the installed destination's current declaration becomes visible.
-    type_at(source, statement_index)
-        .zip(type_at(target, statement_index.saturating_add(1)))
+    // A produced value already retained its actual type at completion. Its
+    // expression place need not have a declaration from which to rediscover
+    // that type (for example a Match); projected storage keeps its own query.
+    completed_source
+        .or_else(|| {
+            validation::canonical_place_type_reference(program, state, statement_index, source)
+        })
+        .zip(validation::canonical_place_type_reference(
+            program,
+            state,
+            statement_index.saturating_add(1),
+            target,
+        ))
+        .map(|(source, target)| (carrier_identity(source), carrier_identity(target)))
         .is_some_and(|(source, target)| source == target)
 }

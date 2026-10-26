@@ -39,6 +39,8 @@ pub(crate) fn check_product_source(
     let representations = representation_planning::rederive_opaque_representation_selections(
         &typed,
         computed_build_config.selected_build_machine_symbol,
+        &computed_build_config.declared_product_selections,
+        &computed_build_config.product_selection_requests,
         &build.opaque_representation_selections,
     )?;
     let opaque_properties = representations

@@ -132,7 +132,7 @@ pub use proof_contracts::domains::{
     scalar_field_domain_predicate, scalar_field_restriction, scalar_membership_carrier,
     scalar_membership_predicates, scalar_membership_value_carrier,
     scalar_membership_value_predicates, scalar_predicate_domains, scalar_type_routed_domains,
-    scalar_type_tags,
+    scalar_type_tags, validate_executable_domain_test_carriers,
 };
 pub use proof_contracts::parameter_domains::parameter_domain_constraints;
 pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;
@@ -273,7 +273,8 @@ pub use crate::value_custody::content_projections::build_content_projection_plan
 
 pub use crate::declarations::symbols::TopLevelSymbols;
 pub use crate::value_custody::cleanup::{
-    data_requires_nominal_drop, type_graph_requires_nominal_drop,
+    data_requires_nominal_drop, has_no_owned_cleanup_obligations,
+    has_plain_contents_without_nominal_cleanup, type_graph_requires_nominal_drop,
 };
 pub use crate::value_custody::data::{data_requires_establishment, type_requires_establishment};
 pub use crate::value_custody::type_references::{
@@ -363,7 +364,7 @@ pub use value_custody::expression_types::{
 };
 pub use value_custody::expression_types::{
     structural_match_cases_are_covered, structural_match_pattern_case,
-    structural_match_subject_type,
+    structural_match_pattern_is_total, structural_match_subject_type,
 };
 pub use value_custody::literals::builtin_constant_array_projection_type;
 pub use value_custody::literals::declared_constant_array_type;

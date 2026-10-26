@@ -95,6 +95,18 @@ public boundary trait BuildBindingOperations {
     machine prepare(builder: &Build) -> u64 reaches;
     machine bind(activation: u64) reaches;
     machine bind_description(activation: u64, description: ProductEntryRef) reaches;
+    machine select(activation: u64) reaches;
+    machine select_mode(activation: u64, independent: bool) reaches;
+}
+// This conversion is ordinary checked source, preserving the exact enum's
+// meaning without teaching a host adapter to infer a case from storage bits.
+public machine build_selection_independent(mode: CompositionMode) -> bool {
+    transition mode {
+        CompositionMode::Fused -> fused()
+        CompositionMode::Independent -> independent()
+    }
+    machine fused() -> bool { false }
+    machine independent() -> bool { true }
 }
 // A restricted, non-callable product-provider description (the
 // `ProductProviderRef` of wiki/spec/build/scoped_execution.md). Authored

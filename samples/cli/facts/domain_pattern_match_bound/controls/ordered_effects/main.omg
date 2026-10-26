@@ -1,0 +1,35 @@
+// A selected predicate-domain match arm establishes value >= 73, and the joined value discharges value - 73.
+// Expected exit: 0
+
+data Cell [copy] { value: u64; }
+domain Cell::Ready(cell) requires cell.value >= 73u64;
+domain Cell::Other(cell) requires cell.value >= 0u64;
+machine obtain(visits: &mut u64) -> Cell
+requires visits == 0u64
+{
+    visits = 1u64;
+    Cell { value: 73u64 }
+}
+machine mark(marker: &mut u64, value: u64) -> u64
+requires value >= 73u64
+ensures result >= 73u64
+{
+    marker = value;
+    value
+}
+machine main() crashes Trap {
+    let mut visits: u64 = 0u64;
+    let mut marker: u64 = 0u64;
+    let selected: u64 = match obtain(&mut visits) {
+        Cell::Ready -> mark(&mut marker, 73u64)
+        Cell::Other -> mark(&mut marker, 99u64)
+        _ -> mark(&mut marker, 111u64)
+    };
+    let difference: u64 = selected - 73u64;
+    transition difference == 0u64 && visits == 1u64 && marker == 73u64 {
+        true -> done()
+        false -> wrong()
+    }
+}
+machine done() {}
+machine wrong() crashes Trap { crash Trap; }

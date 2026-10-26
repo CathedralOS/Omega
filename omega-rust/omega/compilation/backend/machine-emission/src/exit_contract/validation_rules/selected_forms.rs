@@ -390,6 +390,13 @@ pub(in crate::exit_contract) fn validate_non_return(
         ));
     }
     let memory_matches = match (kind, effects.memory, encoding.address) {
+        (
+            SelectedInstructionKind::RegisterAccess {
+                operation: selected_instructions::RegisterOperation::MemoryFence(_),
+            },
+            MachineEncodedMemoryEffect::CatalogFenceV1,
+            None,
+        ) => effects == &selected_instructions::MachineEncodedEffects::catalog_fence_v1(),
         (SelectedInstructionKind::AtomicFence, MachineEncodedMemoryEffect::AtomicFenceV1, None) => {
             effects == &selected_instructions::MachineEncodedEffects::atomic_fence_v1()
         }

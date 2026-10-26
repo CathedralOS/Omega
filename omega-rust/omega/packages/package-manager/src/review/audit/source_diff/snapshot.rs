@@ -84,11 +84,14 @@ pub(super) fn capture_snapshot(
             .min(limits.maximum_bytes_per_snapshot()),
         max_depth: custody_limits.max_depth,
     };
-    let entries = capture_verified_package_source_snapshot(
-        custody.snapshot_root(),
-        custody.materialization().content(),
-        review_limits,
-    )
+    let entries = match custody.captured_source() {
+        Some(tree) => captured_entries(tree, review_limits),
+        None => capture_verified_package_source_snapshot(
+            custody.snapshot_root(),
+            custody.materialization().content(),
+            review_limits,
+        ),
+    }
     .map_err(|error| PackageSourcePatchError::SourceCustody { side, error })?;
     let mut metadata_bytes = 0_usize;
     let mut captured = BTreeMap::new();
@@ -120,6 +123,66 @@ pub(super) fn capture_snapshot(
     Ok(captured)
 }
 
+/// Render the same immutable namespace that the compiler consumed. A live
+/// checkout's later contents or permissions cannot replace this source view.
+fn captured_entries(
+    tree: &source::CapturedSourceTree,
+    limits: LocalSourceLimits,
+) -> Result<Vec<VerifiedPackageSourceEntry>, package_source::SourceResolveError> {
+    use package_source::SourceResolveError;
+    use source::CapturedSourceNode;
+    let mut entries = Vec::new();
+    let mut payload_bytes = 0u64;
+    for (path, node) in tree.entries() {
+        if entries.len() >= limits.max_entries {
+            return Err(SourceResolveError::TooManyFiles {
+                limit: limits.max_entries,
+            });
+        }
+        let directory_depth =
+            path.components().count() - usize::from(!matches!(node, CapturedSourceNode::Directory));
+        if directory_depth > limits.max_depth {
+            return Err(SourceResolveError::TooDeep {
+                path: path.to_path_buf(),
+                limit: limits.max_depth,
+            });
+        }
+        let size = match node {
+            CapturedSourceNode::Directory => 0,
+            CapturedSourceNode::File { bytes, .. } => bytes.len(),
+            CapturedSourceNode::Symlink { target } => target.as_os_str().as_encoded_bytes().len(),
+        };
+        payload_bytes = payload_bytes
+            .checked_add(size as u64)
+            .filter(|total| *total <= limits.max_bytes)
+            .ok_or(SourceResolveError::TooManyBytes {
+                limit: limits.max_bytes,
+            })?;
+        let kind = match node {
+            CapturedSourceNode::Directory => VerifiedPackageSourceEntryKind::Directory,
+            CapturedSourceNode::File { bytes, executable } => {
+                VerifiedPackageSourceEntryKind::File {
+                    bytes: bytes.to_vec(),
+                    executable: *executable,
+                }
+            }
+            CapturedSourceNode::Symlink { target } => VerifiedPackageSourceEntryKind::Symlink {
+                target_bytes: target.as_os_str().as_encoded_bytes().to_vec(),
+            },
+        };
+        let relative_path = path
+            .components()
+            .map(|component| component.as_os_str().as_encoded_bytes())
+            .collect::<Vec<_>>()
+            .join(&b'/');
+        entries.push(VerifiedPackageSourceEntry {
+            relative_path,
+            kind,
+        });
+    }
+    Ok(entries)
+}
+
 pub(super) fn revalidate_snapshot(
     custody: &PackageSourceCustody,
     side: PackageSourcePatchSide,
@@ -128,6 +191,9 @@ pub(super) fn revalidate_snapshot(
         .selection_evidence()
         .revalidate()
         .map_err(|error| PackageSourcePatchError::SourceSelectionCustody { side, error })?;
+    if custody.captured_source().is_some() {
+        return Ok(());
+    }
     verify_package_source_snapshot(
         custody.snapshot_root(),
         custody.materialization().content(),

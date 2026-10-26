@@ -18,7 +18,7 @@ use typed_trees::types::PrimitiveType;
 mod structural_patterns;
 pub use structural_patterns::{
     structural_match_cases_are_covered, structural_match_pattern_case,
-    structural_match_subject_type,
+    structural_match_pattern_is_total, structural_match_subject_type,
 };
 
 /// Find a retained subject carrier or an already-typed value-pattern peer.

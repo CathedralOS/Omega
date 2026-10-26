@@ -84,23 +84,24 @@ pub(super) fn narrow(
         let Some((low, high)) = values.bounds() else {
             continue;
         };
-        let Some(mut subject) =
-            super::super::ordered_values::operand(program, machine, state, *argument, None)
-        else {
-            continue;
-        };
-        let path = subject
-            .static_path()
+        let subject =
+            super::super::ordered_values::operand(program, machine, state, *argument, None);
+        let path = super::super::place_path(program, *argument)
+            .or_else(|| subject.as_ref().and_then(Operand::static_path))
             .map(|path| if extent { format!("{path}.len") } else { path });
-        if extent {
-            subject = Operand::CollectionLength(Box::new(subject));
-        }
         let interval = Interval {
             low: i64::try_from(low).ok(),
             high: i64::try_from(high).ok(),
         };
         if let Some(path) = path {
             environment.narrow(path, interval);
+        }
+        // A captured structural projection can own a precise interval even
+        // when the optional ordered-expression algebra has no term for it.
+        // Keep the enclosure; relation publication has its own admission.
+        let Some(mut subject) = subject else { continue };
+        if extent {
+            subject = Operand::CollectionLength(Box::new(subject));
         }
         for (bound, lower) in [(interval.low, true), (interval.high, false)] {
             let Some(bound) = bound else {

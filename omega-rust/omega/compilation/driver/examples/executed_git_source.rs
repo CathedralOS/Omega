@@ -15,14 +15,21 @@ fn main() {
         execute_fixture();
         return;
     }
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--workspace-worker")) {
+        execute_workspace_fixture();
+        return;
+    }
     #[cfg(unix)]
-    fixture_process();
+    {
+        fixture_process(false);
+        fixture_process(true);
+    }
     #[cfg(not(unix))]
     panic!("the local Git transport adapter currently requires a Unix host");
 }
 
 #[cfg(unix)]
-fn fixture_process() {
+fn fixture_process(workspace: bool) {
     use std::os::unix::fs::PermissionsExt;
     let temporary =
         platform_custody::temporary_directory::TemporaryDirectory::create("executed-git", false)
@@ -31,9 +38,24 @@ fn fixture_process() {
     let repository = fixture_package_inputs::repo_root();
     let remote = directory.join("remote");
     std::fs::create_dir(&remote).unwrap();
-    let library = repository.join("tests/omega/pass/build/executed_dependency_source_library");
-    for name in ["build.omg", "main.omg"] {
-        std::fs::copy(library.join(name), remote.join(name)).unwrap();
+    if workspace {
+        let authored = repository.join("tests/omega/packages/executed-workspace");
+        std::fs::copy(authored.join("build.omg"), remote.join("build.omg")).unwrap();
+        for member in ["member", "sibling", "unselected"] {
+            std::fs::create_dir(remote.join(member)).unwrap();
+            for name in ["build.omg", "main.omg"] {
+                std::fs::copy(
+                    authored.join(member).join(name),
+                    remote.join(member).join(name),
+                )
+                .unwrap();
+            }
+        }
+    } else {
+        let library = repository.join("tests/omega/pass/build/executed_dependency_source_library");
+        for name in ["build.omg", "main.omg"] {
+            std::fs::copy(library.join(name), remote.join(name)).unwrap();
+        }
     }
     let search = std::env::var_os("PATH").unwrap();
     let real_git = std::env::split_paths(&search)
@@ -51,7 +73,7 @@ fn fixture_process() {
         assert!(result.status.success(), "{result:?}");
     };
     git(&["init", "--quiet", "-b", "executed-build-fixture-v1"]);
-    git(&["add", "build.omg", "main.omg"]);
+    git(&["add", "--all"]);
     git(&[
         "-c",
         "user.name=Omega SDK",
@@ -73,7 +95,11 @@ fn fixture_process() {
     let search =
         std::env::join_paths(std::iter::once(tools).chain(std::env::split_paths(&search))).unwrap();
     let observed = std::process::Command::new(std::env::current_exe().unwrap())
-        .arg("--worker")
+        .arg(if workspace {
+            "--workspace-worker"
+        } else {
+            "--worker"
+        })
         .env("PATH", search)
         .env("OMEGA_FIXTURE_GIT_DIRECTORY", &directory)
         .env("OMEGA_FIXTURE_GIT_REPOSITORY", &remote)
@@ -87,6 +113,81 @@ fn fixture_process() {
         observed.status.success(),
         "Git source journey failed: {:?}",
         observed.status
+    );
+}
+
+fn execute_workspace_fixture() {
+    let directory = PathBuf::from(std::env::var_os("OMEGA_FIXTURE_GIT_DIRECTORY").unwrap());
+    let authored =
+        fixture_package_inputs::repo_root().join("tests/omega/packages/executed-workspace/client");
+    let project = directory.join("project");
+    std::fs::create_dir(&project).unwrap();
+    for name in ["main.omg", "build.omg"] {
+        std::fs::copy(authored.join(name), project.join(name)).unwrap();
+    }
+    let profile = target::TargetProfile::host_if_supported().unwrap();
+    let request = omega_build::BuildRequest {
+        root_path: project.join("main.omg"),
+        build_directory: Some(directory.join("output")),
+        targets: omega_build::BuildTargets::Single(profile),
+        product: omega_build::ProjectProduct::Native {
+            destination: omega_build::NativeDestination::Retained,
+            private_entry_ram: Vec::new(),
+        },
+        timings: false,
+        offline: false,
+        verify: false,
+        require_package_project: true,
+        optimization_rollback: Default::default(),
+        build_snapshot: None,
+    };
+    let before = artifacts::compile_timings::counters::build_execution_count();
+    let mut outcomes = omega_build::build(request.clone()).unwrap();
+    let outcome = outcomes.pop().unwrap();
+    let report = outcome.result.unwrap().into_report().unwrap().report;
+    joined_product_execution::execute_report(report, &directory.join("native"));
+    assert_eq!(
+        artifacts::compile_timings::counters::build_execution_count(),
+        before + 5,
+        "catalog, client and each observed member execute once; selected returns are reused"
+    );
+    let source = std::fs::read_to_string(project.join("main.omg")).unwrap();
+    std::fs::write(
+        project.join("main.omg"),
+        source.replace("selected::answer()", "selected::private_answer()"),
+    )
+    .unwrap();
+    let mut outcomes = omega_build::build(request.clone()).unwrap();
+    let error = outcomes
+        .pop()
+        .unwrap()
+        .result
+        .err()
+        .expect("workspace selection grants no private access");
+    assert!(
+        error
+            .to_string()
+            .contains("selects private machine `private_answer::entry`"),
+        "{error}"
+    );
+    std::fs::write(project.join("main.omg"), source).unwrap();
+    let declaration = std::fs::read_to_string(project.join("build.omg")).unwrap();
+    std::fs::write(
+        project.join("build.omg"),
+        declaration.replace("workspace_selected", "workspace_missing"),
+    )
+    .unwrap();
+    let error = omega_build::build(request)
+        .err()
+        .expect("named selection must exist in the executed catalog");
+    assert!(
+        error
+            .to_string()
+            .contains("workspace has no declared package `workspace_missing`"),
+        "{error}"
+    );
+    println!(
+        "production_workspace_named_members_relative_path_shared_activations_unselected_product_isolation_native_terminal_exit0_private_call_and_missing_name_refusals"
     );
 }
 
@@ -115,6 +216,7 @@ fn execute_fixture() {
                 .unwrap(),
                 execution_profile: profile,
                 snapshot: None,
+                collect_timings: false,
             },
         )
     };

@@ -1,0 +1,1 @@
+assembly catalog target requirement conflicts with the authored target body

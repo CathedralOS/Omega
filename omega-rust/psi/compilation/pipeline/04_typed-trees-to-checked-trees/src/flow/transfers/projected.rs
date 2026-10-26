@@ -259,6 +259,7 @@ fn append_value_predicates(
             statement_index,
             &source_value,
             &target_value,
+            None,
         ) {
             continue;
         }

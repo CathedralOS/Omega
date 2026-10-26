@@ -19,20 +19,65 @@ pub fn execute_package_command(
         return discard_package_review(&options.project_root);
     }
     let mut transaction = PackageCommandTransaction::open(options)?;
-    let prepared = transaction.prepare(command, None)?;
+    let preparation = transaction.prepare(command, None)?;
+    let (prepared, mut completed) = resolve_command_sources(preparation, session)?;
     let mut source_bindings = prepared.source_bindings();
     let mut reviews = Vec::new();
     for request in prepared.review_requests() {
         let review = request.review(
             &mut session.packages,
             &mut source_bindings,
-            &mut |plan, packages, bindings| {
-                crate::package_review::execute_pass(plan, &mut session.compiler, packages, bindings)
+            &mut |plan, bindings| {
+                crate::package_review::execute_pass(
+                    plan,
+                    &mut session.compiler,
+                    bindings,
+                    &mut completed,
+                )
             },
         )?;
         reviews.push(review);
     }
     prepared.complete(reviews, &mut session.packages)
+}
+
+/// Execute the staged candidate once before review selects target/purpose
+/// contexts. Source graphs and proposal checks stay with package management.
+fn resolve_command_sources<'workspace, 'storage>(
+    preparation: package_manager::PackageCommandPreparation<'workspace, 'storage>,
+    session: &mut BuildSession,
+) -> Result<
+    (
+        package_manager::PreparedPackageCommand<'workspace, 'storage>,
+        Vec<compiler::CompletedBuild>,
+    ),
+    PackageCommandError,
+> {
+    let profile = target::TargetProfile::host_if_supported().ok_or_else(|| {
+        PackageCommandError::from("package Build execution requires a supported host".to_owned())
+    })?;
+    let acquired = preparation.acquire_root()?;
+    let entry = acquired.entry_path();
+    let mut acquisitions = preparation.source_acquisitions()?;
+    let (resolved, builds) = crate::build_execution::source_resolution::resolve_acquired_sources(
+        session,
+        acquired,
+        &entry,
+        &mut acquisitions,
+        profile,
+        preparation.build_snapshot().cloned(),
+        false,
+    )
+    .map_err(|error| PackageCommandError::from(error.to_string()))?;
+    drop(acquisitions);
+    let prepared = preparation.complete_source_resolution(resolved)?;
+    let completed = crate::build_execution::source_resolution::settle_source_builds(
+        builds,
+        &mut session.compiler,
+        profile,
+    )
+    .map_err(|error| PackageCommandError::from(error.to_string()))?;
+    Ok((prepared, completed))
 }
 
 #[cfg(test)]
@@ -161,16 +206,56 @@ mod tests {
     }
 
     #[test]
+    fn source_changes_after_review_cannot_publish() {
+        let project = project();
+        let mut transaction = PackageCommandTransaction::open(options(project.path())).unwrap();
+        let mut session =
+            BuildSession::create(&project.path().join("build/package-manager")).unwrap();
+        let (prepared, mut completed) =
+            resolve_command_sources(transaction.prepare(update(), None).unwrap(), &mut session)
+                .unwrap();
+        let mut bindings = prepared.source_bindings();
+        let mut reviews = Vec::new();
+        for request in prepared.review_requests() {
+            reviews.push(
+                request
+                    .review(
+                        &mut session.packages,
+                        &mut bindings,
+                        &mut |plan, bindings| {
+                            crate::package_review::execute_pass(
+                                plan,
+                                &mut session.compiler,
+                                bindings,
+                                &mut completed,
+                            )
+                        },
+                    )
+                    .unwrap(),
+            );
+        }
+        let source = project.path().join("main.omg");
+        let changed = std::fs::read_to_string(&source).unwrap() + "\n// changed after review\n";
+        std::fs::write(source, changed).unwrap();
+        let error = prepared
+            .complete(reviews, &mut session.packages)
+            .unwrap_err();
+        assert!(error.to_string().contains("changed"), "{error}");
+        assert_unpublished(project.path());
+        session.close().unwrap();
+    }
+
+    #[test]
     fn missing_reviews_leave_decisions_and_accepted_files_untouched() {
         let project = project();
         let mut transaction =
             PackageCommandTransaction::open(options(project.path())).expect("transaction");
-        let prepared = transaction
-            .prepare(update(), None)
-            .expect("admitted command");
-        assert_eq!(prepared.review_requests().count(), 2);
         let mut session =
             BuildSession::create(&project.path().join("build/package-manager")).expect("session");
+        let (prepared, _) =
+            resolve_command_sources(transaction.prepare(update(), None).unwrap(), &mut session)
+                .expect("admitted command");
+        assert_eq!(prepared.review_requests().count(), 2);
         let error = prepared
             .complete(Vec::new(), &mut session.packages)
             .expect_err("incomplete roster");
@@ -184,11 +269,11 @@ mod tests {
         let project = project();
         let mut transaction =
             PackageCommandTransaction::open(options(project.path())).expect("transaction");
-        let prepared = transaction
-            .prepare(update(), None)
-            .expect("admitted command");
         let mut session =
             BuildSession::create(&project.path().join("build/package-manager")).expect("session");
+        let (prepared, mut completed) =
+            resolve_command_sources(transaction.prepare(update(), None).unwrap(), &mut session)
+                .expect("admitted command");
         let mut bindings = prepared.source_bindings();
         let mut reviews = prepared
             .review_requests()
@@ -197,12 +282,12 @@ mod tests {
                     .review(
                         &mut session.packages,
                         &mut bindings,
-                        &mut |plan, packages, bindings| {
+                        &mut |plan, bindings| {
                             crate::package_review::execute_pass(
                                 plan,
                                 &mut session.compiler,
-                                packages,
                                 bindings,
+                                &mut completed,
                             )
                         },
                     )
@@ -226,7 +311,9 @@ mod tests {
         let reviews = {
             let mut transaction = PackageCommandTransaction::open(options(project.path()))
                 .expect("first transaction");
-            let prepared = transaction.prepare(update(), None).expect("first command");
+            let (prepared, mut completed) =
+                resolve_command_sources(transaction.prepare(update(), None).unwrap(), &mut session)
+                    .expect("first command");
             let mut bindings = prepared.source_bindings();
             prepared
                 .review_requests()
@@ -235,12 +322,12 @@ mod tests {
                         .review(
                             &mut session.packages,
                             &mut bindings,
-                            &mut |plan, packages, bindings| {
+                            &mut |plan, bindings| {
                                 crate::package_review::execute_pass(
                                     plan,
                                     &mut session.compiler,
-                                    packages,
                                     bindings,
+                                    &mut completed,
                                 )
                             },
                         )
@@ -250,7 +337,9 @@ mod tests {
         };
         let mut transaction =
             PackageCommandTransaction::open(options(project.path())).expect("second transaction");
-        let prepared = transaction.prepare(update(), None).expect("second command");
+        let (prepared, _) =
+            resolve_command_sources(transaction.prepare(update(), None).unwrap(), &mut session)
+                .expect("second command");
         let error = prepared
             .complete(reviews, &mut session.packages)
             .expect_err("stale command receipt");

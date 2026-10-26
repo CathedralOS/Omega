@@ -13,6 +13,7 @@ use std::sync::Arc;
 /// The parse prefix supplies fresh contexts; the typed frontier is reusable
 /// only for its own assembly inputs or its still-deferred Product source.
 pub struct SettledBuildSource {
+    pub execution_contract: package_compilation::build_execution::BuildExecutionContract,
     pub parsed: crate::PreparedCheckedSource,
     pub frontier: crate::TypedCompilationFrontier,
     pub evaluated: crate::EvaluatedBuild,
@@ -44,6 +45,7 @@ impl SettledPackageBuild {
             rollback: self.rollback.clone(),
             permit_unsettled_fused_service_fields: self.permit_unsettled_fused_service_fields,
             source: SettledBuildSource {
+                execution_contract: self.source.execution_contract.clone(),
                 parsed: self.source.parsed.fork(),
                 frontier: self.source.frontier.clone(),
                 evaluated: self.source.evaluated.clone(),

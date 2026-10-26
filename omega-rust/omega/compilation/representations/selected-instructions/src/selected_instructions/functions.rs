@@ -17,14 +17,83 @@ use std::fmt;
 use std::ops::{Index, IndexMut};
 use std::sync::{Arc, OnceLock};
 
-use super::plan_identity::{CachedFunctionPrefix, selected_function_digest_with_prefix};
+use super::plan_identity::{
+    CachedFunctionPrefix, CachedPlanPrefix, selected_function_digest_with_prefix,
+};
 use super::{
     SelectedBlocks, SelectedBoundarySettlement, SelectedFunction, SelectedLocalStorageSlot,
     VirtualRegister,
 };
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct SelectedFunctions(Vec<Arc<FunctionEntry>>);
+const FUNCTION_PAGE_SIZE: usize = 64;
+
+#[derive(Clone)]
+pub(crate) struct FunctionPage {
+    entries: Vec<Arc<FunctionEntry>>,
+    digest_bytes: OnceLock<Box<[u8]>>,
+}
+
+impl FunctionPage {
+    fn new(entries: Vec<Arc<FunctionEntry>>) -> Arc<Self> {
+        Arc::new(Self {
+            entries,
+            digest_bytes: OnceLock::new(),
+        })
+    }
+
+    pub(crate) fn digest_bytes(&self) -> &[u8] {
+        self.digest_bytes.get_or_init(|| {
+            let mut bytes = Vec::with_capacity(self.entries.len() * 32);
+            for entry in &self.entries {
+                bytes.extend_from_slice(&entry.digest());
+            }
+            bytes.into_boxed_slice()
+        })
+    }
+}
+
+#[derive(Default)]
+pub struct SelectedFunctions {
+    pages: Vec<Arc<FunctionPage>>,
+    len: usize,
+    cached_plan_prefix: OnceLock<Arc<CachedPlanPrefix>>,
+    previous_plan_prefix: Option<Arc<CachedPlanPrefix>>,
+}
+
+impl Clone for SelectedFunctions {
+    fn clone(&self) -> Self {
+        let previous_plan_prefix = self
+            .cached_plan_prefix
+            .get()
+            .cloned()
+            .or_else(|| self.previous_plan_prefix.clone());
+        Self {
+            pages: self.pages.clone(),
+            len: self.len,
+            cached_plan_prefix: OnceLock::new(),
+            previous_plan_prefix,
+        }
+    }
+}
+
+impl PartialEq for SelectedFunctions {
+    fn eq(&self, other: &Self) -> bool {
+        self.len == other.len
+            && self
+                .pages
+                .iter()
+                .zip(&other.pages)
+                .all(|(left, right)| Arc::ptr_eq(left, right) || left.entries == right.entries)
+    }
+}
+
+impl Eq for SelectedFunctions {}
+
+impl fmt::Debug for SelectedFunctions {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.debug_list().entries(self.iter()).finish()
+    }
+}
 
 /// One function and the memoized digest of its identity encoding. Equality
 /// compares the function only; the digest is derived from it. Public only so
@@ -49,7 +118,7 @@ impl FunctionEntry {
         })
     }
 
-    fn digest(&self) -> [u8; 32] {
+    pub(crate) fn digest(&self) -> [u8; 32] {
         *self.digest.get_or_init(|| {
             let (digest, prefix) = selected_function_digest_with_prefix(
                 &self.function,
@@ -96,20 +165,44 @@ fn function_of(entry: &Arc<FunctionEntry>) -> &SelectedFunction {
 }
 
 impl SelectedFunctions {
+    fn invalidate_plan_prefix(&mut self) {
+        if let Some(prefix) = self.cached_plan_prefix.take() {
+            self.previous_plan_prefix = Some(prefix);
+        }
+    }
+
+    fn entry(&self, index: usize) -> Option<&Arc<FunctionEntry>> {
+        if index >= self.len {
+            return None;
+        }
+        let page = self.pages.get(index / FUNCTION_PAGE_SIZE)?;
+        page.entries.get(index % FUNCTION_PAGE_SIZE)
+    }
+
+    fn detach_entry(&mut self, index: usize) -> Option<&mut Arc<FunctionEntry>> {
+        if index >= self.len {
+            return None;
+        }
+        self.invalidate_plan_prefix();
+        let page = Arc::make_mut(self.pages.get_mut(index / FUNCTION_PAGE_SIZE)?);
+        page.digest_bytes.take();
+        page.entries.get_mut(index % FUNCTION_PAGE_SIZE)
+    }
+
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.len
     }
 
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.len == 0
     }
 
     pub fn get(&self, index: usize) -> Option<&SelectedFunction> {
-        self.0.get(index).map(function_of)
+        self.entry(index).map(function_of)
     }
 
     pub fn get_mut(&mut self, index: usize) -> Option<&mut SelectedFunction> {
-        self.0.get_mut(index).map(detach)
+        self.detach_entry(index).map(detach)
     }
 
     /// Mutate `index`'s dynamic storage slots, boundary settlements, blocks, and
@@ -125,7 +218,9 @@ impl SelectedFunctions {
             &mut SelectedBlocks,
         ) -> R,
     ) -> R {
-        let entry_arc = &mut self.0[index];
+        let entry_arc = self
+            .detach_entry(index)
+            .expect("function index must be in bounds");
         let prior_prefix = entry_arc.prefix.get().cloned();
         let entry = Arc::make_mut(entry_arc);
         entry.digest.take();
@@ -145,22 +240,53 @@ impl SelectedFunctions {
         result
     }
 
-    pub fn iter(&self) -> impl ExactSizeIterator<Item = &SelectedFunction> + DoubleEndedIterator {
-        self.0.iter().map(function_of)
+    pub fn iter(&self) -> Iter<'_> {
+        Iter {
+            pages: &self.pages,
+            front: 0,
+            back: self.len,
+        }
     }
 
-    pub fn iter_mut(
-        &mut self,
-    ) -> impl ExactSizeIterator<Item = &mut SelectedFunction> + DoubleEndedIterator {
-        self.0.iter_mut().map(detach)
+    pub fn iter_mut(&mut self) -> IterMut<'_> {
+        self.invalidate_plan_prefix();
+        for page_arc in &mut self.pages {
+            let page = Arc::make_mut(page_arc);
+            page.digest_bytes.take();
+        }
+        let mut pages = self.pages.iter_mut();
+        let current_front = pages
+            .next()
+            .map_or_else(|| [].iter_mut(), |page| Arc::make_mut(page).entries.iter_mut());
+        IterMut {
+            pages,
+            current_front,
+            current_back: [].iter_mut(),
+            remaining: self.len,
+        }
     }
 
     pub fn push(&mut self, function: SelectedFunction) {
-        self.0.push(FunctionEntry::new(function));
+        self.invalidate_plan_prefix();
+        let entry = FunctionEntry::new(function);
+        if let Some(last_page) = self.pages.last_mut()
+            && last_page.entries.len() < FUNCTION_PAGE_SIZE
+        {
+            let page = Arc::make_mut(last_page);
+            page.digest_bytes.take();
+            page.entries.push(entry);
+        } else {
+            let mut entries = Vec::with_capacity(FUNCTION_PAGE_SIZE);
+            entries.push(entry);
+            self.pages.push(FunctionPage::new(entries));
+        }
+        self.len += 1;
     }
 
     pub fn clear(&mut self) {
-        self.0.clear();
+        self.invalidate_plan_prefix();
+        self.pages.clear();
+        self.len = 0;
     }
 
     /// The selected function for `machine`, when the storage carries it.
@@ -170,16 +296,134 @@ impl SelectedFunctions {
 
     /// Reports storage reuse for diagnostics and allocation regression controls.
     pub fn shares_function_storage(&self, other: &Self, index: usize) -> bool {
-        self.0
-            .get(index)
-            .zip(other.0.get(index))
+        self.entry(index)
+            .zip(other.entry(index))
             .is_some_and(|(left, right)| Arc::ptr_eq(left, right))
     }
 
     /// Each function's identity digest, in order, hashing only the functions
     /// whose digest no clone of this storage has computed yet.
+    #[allow(dead_code)]
     pub(crate) fn identity_digests(&self) -> impl ExactSizeIterator<Item = [u8; 32]> + '_ {
-        self.0.iter().map(|entry| entry.digest())
+        (0..self.len).map(|index| {
+            self.pages[index / FUNCTION_PAGE_SIZE].entries[index % FUNCTION_PAGE_SIZE].digest()
+        })
+    }
+
+    pub(crate) fn pages(&self) -> &[Arc<FunctionPage>] {
+        &self.pages
+    }
+
+    pub(crate) fn cached_plan_prefix(&self) -> Option<&Arc<CachedPlanPrefix>> {
+        self.cached_plan_prefix.get()
+    }
+
+    pub(crate) fn previous_plan_prefix(&self) -> Option<&Arc<CachedPlanPrefix>> {
+        self.previous_plan_prefix.as_ref()
+    }
+
+    pub(crate) fn store_plan_prefix(&self, prefix: Arc<CachedPlanPrefix>) {
+        let _ = self.cached_plan_prefix.set(prefix);
+    }
+}
+
+pub struct Iter<'storage> {
+    pages: &'storage [Arc<FunctionPage>],
+    front: usize,
+    back: usize,
+}
+
+impl<'storage> Iterator for Iter<'storage> {
+    type Item = &'storage SelectedFunction;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.front == self.back {
+            return None;
+        }
+        let index = self.front;
+        self.front += 1;
+        Some(&self.pages[index / FUNCTION_PAGE_SIZE].entries[index % FUNCTION_PAGE_SIZE].function)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.back - self.front;
+        (len, Some(len))
+    }
+}
+
+impl<'storage> DoubleEndedIterator for Iter<'storage> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.front == self.back {
+            return None;
+        }
+        self.back -= 1;
+        let index = self.back;
+        Some(&self.pages[index / FUNCTION_PAGE_SIZE].entries[index % FUNCTION_PAGE_SIZE].function)
+    }
+}
+
+impl ExactSizeIterator for Iter<'_> {
+    fn len(&self) -> usize {
+        self.back - self.front
+    }
+}
+
+pub struct IterMut<'storage> {
+    pages: std::slice::IterMut<'storage, Arc<FunctionPage>>,
+    current_front: std::slice::IterMut<'storage, Arc<FunctionEntry>>,
+    current_back: std::slice::IterMut<'storage, Arc<FunctionEntry>>,
+    remaining: usize,
+}
+
+impl<'storage> Iterator for IterMut<'storage> {
+    type Item = &'storage mut SelectedFunction;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(entry) = self.current_front.next() {
+                self.remaining -= 1;
+                return Some(detach(entry));
+            }
+            if let Some(page) = self.pages.next() {
+                self.current_front = Arc::make_mut(page).entries.iter_mut();
+                continue;
+            }
+            if let Some(entry) = self.current_back.next() {
+                self.remaining -= 1;
+                return Some(detach(entry));
+            }
+            return None;
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining, Some(self.remaining))
+    }
+}
+
+impl<'storage> DoubleEndedIterator for IterMut<'storage> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(entry) = self.current_back.next_back() {
+                self.remaining -= 1;
+                return Some(detach(entry));
+            }
+            if let Some(page) = self.pages.next_back() {
+                self.current_back = Arc::make_mut(page).entries.iter_mut();
+                continue;
+            }
+            if let Some(entry) = self.current_front.next_back() {
+                self.remaining -= 1;
+                return Some(detach(entry));
+            }
+            return None;
+        }
+    }
+}
+
+impl ExactSizeIterator for IterMut<'_> {
+    fn len(&self) -> usize {
+        self.remaining
     }
 }
 
@@ -191,7 +435,28 @@ impl From<Vec<SelectedFunction>> for SelectedFunctions {
 
 impl FromIterator<SelectedFunction> for SelectedFunctions {
     fn from_iter<T: IntoIterator<Item = SelectedFunction>>(functions: T) -> Self {
-        Self(functions.into_iter().map(FunctionEntry::new).collect())
+        let iter = functions.into_iter();
+        let (lower, _) = iter.size_hint();
+        let mut pages = Vec::with_capacity(lower.div_ceil(FUNCTION_PAGE_SIZE));
+        let mut current = Vec::with_capacity(FUNCTION_PAGE_SIZE);
+        let mut len = 0;
+        for function in iter {
+            current.push(FunctionEntry::new(function));
+            len += 1;
+            if current.len() == FUNCTION_PAGE_SIZE {
+                pages.push(FunctionPage::new(current));
+                current = Vec::with_capacity(FUNCTION_PAGE_SIZE);
+            }
+        }
+        if !current.is_empty() {
+            pages.push(FunctionPage::new(current));
+        }
+        Self {
+            pages,
+            len,
+            cached_plan_prefix: OnceLock::new(),
+            previous_plan_prefix: None,
+        }
     }
 }
 
@@ -199,36 +464,33 @@ impl Index<usize> for SelectedFunctions {
     type Output = SelectedFunction;
 
     fn index(&self, index: usize) -> &Self::Output {
-        function_of(&self.0[index])
+        &self.pages[index / FUNCTION_PAGE_SIZE].entries[index % FUNCTION_PAGE_SIZE].function
     }
 }
 
 impl IndexMut<usize> for SelectedFunctions {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        detach(&mut self.0[index])
+        detach(
+            self.detach_entry(index)
+                .expect("function index must be in bounds"),
+        )
     }
 }
 
 impl<'storage> IntoIterator for &'storage SelectedFunctions {
     type Item = &'storage SelectedFunction;
-    type IntoIter = std::iter::Map<
-        std::slice::Iter<'storage, Arc<FunctionEntry>>,
-        fn(&'storage Arc<FunctionEntry>) -> &'storage SelectedFunction,
-    >;
+    type IntoIter = Iter<'storage>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.iter().map(function_of)
+        self.iter()
     }
 }
 
 impl<'storage> IntoIterator for &'storage mut SelectedFunctions {
     type Item = &'storage mut SelectedFunction;
-    type IntoIter = std::iter::Map<
-        std::slice::IterMut<'storage, Arc<FunctionEntry>>,
-        fn(&'storage mut Arc<FunctionEntry>) -> &'storage mut SelectedFunction,
-    >;
+    type IntoIter = IterMut<'storage>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.iter_mut().map(detach)
+        self.iter_mut()
     }
 }

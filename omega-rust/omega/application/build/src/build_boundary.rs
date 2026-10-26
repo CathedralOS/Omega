@@ -7,6 +7,7 @@ fn package_audit_owns_session_and_target_execution_in_build() {
         "PackageInspectionTransaction::open(options)",
         "BuildSession::create(",
         "transaction.prepare(None)",
+        "resolve_inspection_sources(&inspection, &mut session)",
         "for target in inspection.targets().to_vec()",
         "inspection.review_target(",
         "inspection.finish()",
@@ -46,6 +47,8 @@ fn review_policy_admits_work_and_application_executes_it() {
         ".publish_component(",
         "PendingReviewBuild",
         "run_closure_pass(",
+        "into_execution_request",
+        "reserve_build_directory",
     ] {
         assert!(
             !policy.contains(forbidden),
@@ -57,7 +60,8 @@ fn review_policy_admits_work_and_application_executes_it() {
         "plan.begin_round(",
         "plan.occurrences()",
         "round.admit_occurrence(",
-        "crate::build_execution::execute_package_build(",
+        ".require_execution_contract(",
+        ".prepare_package_product(",
         ".review_package_build(",
         ".publish_component(",
         "round.retain(",
@@ -69,7 +73,7 @@ fn review_policy_admits_work_and_application_executes_it() {
     }
     assert!(execution.contains("pending_builds.push(PendingReviewBuild"));
     assert!(execution.contains("recovered.push(round.into_retained())"));
-    assert!(execution.contains("completion.reserve_build_directory(session)"));
+    assert!(!execution.contains("execute_package_build("));
     let retention = execution.find("round.retain(").unwrap();
     let cache_publication = execution.find("cache_write.component_source()").unwrap();
     assert!(
@@ -86,6 +90,7 @@ fn package_commands_schedule_work_outside_package_policy() {
     for operation in [
         "PackageCommandTransaction::open(options)",
         "transaction.prepare(command, None)",
+        "resolve_command_sources(preparation, session)",
         "for request in prepared.review_requests()",
         "request.review(",
         "prepared.complete(reviews, &mut session.packages)",
@@ -141,7 +146,8 @@ fn build_entrance_shows_the_ordered_project_lifecycle() {
     let mut source = include_str!("build.rs");
     for operation in [
         "build_directory::admit_outputs(",
-        "prepare_local_project_for_targets(",
+        "begin_local_project_preparation(",
+        "crate::resolve_project_sources(",
         "products::compile(",
         "publication::publish_products(",
     ] {
@@ -184,15 +190,37 @@ fn ordinary_package_operations_admit_instead_of_execute() {
     }
     let execution = include_str!("project_compilation.rs");
     let admit = execution
-        .find("admit_project_compilation(request, &mut session.packages)")
+        .find("package_manager::operations::admit_project_products(")
         .unwrap();
     let compile = execution
-        .find("crate::compile_packages(&mut session.compiler, admitted.requests)")
+        .find("crate::package_compilation::compile_returned_packages(")
         .unwrap();
     let reconcile = execution
         .find("admitted.completion.complete(products, session.packages)")
         .unwrap();
     assert!(admit < compile && compile < reconcile);
+    let preparation =
+        include_str!("../../../packages/package-manager/src/operations/prepare_project.rs");
+    assert!(!preparation.contains("resolve_static_source_closure"));
+    let build_exports = include_str!("lib.rs");
+    for removed in [
+        "mod check_project",
+        "mod native_project",
+        "PreparedLocalProjectNativeRequest",
+        "PreparedLocalProjectCheckRequest",
+    ] {
+        assert!(
+            !build_exports.contains(removed),
+            "obsolete Build facade: {removed}"
+        );
+    }
+    for example in [
+        include_str!("../examples/package_batch.rs"),
+        include_str!("../../cli/examples/qualify_inputs.rs"),
+    ] {
+        assert!(example.contains("build(BuildRequest {"));
+        assert!(!example.contains("prepare_local_project"));
+    }
 }
 
 #[test]
@@ -219,7 +247,11 @@ fn application_schedules_dependencies_without_opening_source_continuations() {
     let execution = include_str!("build_execution.rs");
     assert!(execution.contains("while !frontiers.is_empty()"));
     assert!(execution.contains("join_generated_sources(occurrence, &frontier.products)"));
-    assert!(execution.contains("execute_package_build(compiler, occurrence)"));
+    assert!(execution.contains("occurrence.prepare(compiler, completed)"));
+    assert!(
+        execution.contains("Self::Execute(request) => execute_package_build(compiler, request)")
+    );
+    assert!(execution.contains("source.require_execution_contract(&request.execution)?"));
     assert!(execution.contains("compiler.begin_package_build(request)"));
     assert!(execution.contains("activation.advance(1024)"));
     assert!(execution.contains("compiler.complete_package_build(invocation, returned)"));

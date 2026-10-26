@@ -158,6 +158,7 @@ pub struct TraitDefaultOrigin {
 pub struct MachineStorage {
     pub lifetime_parameters: Vec<DiagnosticName>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
+    pub declared_type_equations: HandleSpan<DeclaredTypeEquation>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
     pub conformance_bounds: Vec<GenericConformanceBound>,
@@ -174,6 +175,14 @@ pub struct MachineStorage {
     pub blocks: bool,
     pub contracts: HandleSpan<SignatureContract>,
     pub states: HandleSpan<Handle<State>>,
+}
+
+/// A structural type equation from this declaration's own generic contract.
+/// Both sides acquire ordinary lexical declaration identities in resolution.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DeclaredTypeEquation {
+    pub parameter: TypeReference,
+    pub definition: TypeReference,
 }
 
 /// A generic evidence binder `Order satisfies Ranked<Element>`. The binder is
@@ -300,6 +309,7 @@ pub(crate) fn test_machine(states: HandleSpan<Handle<State>>) -> Machine {
         storage: MachineStorage {
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
+            declared_type_equations: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
             conformance_bounds: Vec::new(),

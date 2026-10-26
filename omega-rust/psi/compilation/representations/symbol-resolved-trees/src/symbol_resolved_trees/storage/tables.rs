@@ -92,6 +92,7 @@ impl SymbolResolvedTreeTables {
         let SymbolResolvedDeclarationStorage {
             data_members,
             data_payload_fields,
+            declared_type_equations,
             machine_owned_data,
             machine_state_handles,
             machine_states,
@@ -220,6 +221,7 @@ impl SymbolResolvedTreeTables {
         {
             tables.insert_machine_with_state_spans(
                 machine,
+                declared_type_equations,
                 machine_owned_data,
                 machine_state_handles,
                 machine_states,
@@ -359,6 +361,7 @@ impl SymbolResolvedTreeTables {
     fn insert_machine_with_state_spans(
         &mut self,
         machine: &Machine,
+        declared_type_equations: &Arena<crate::machine::DeclaredTypeEquation>,
         machine_owned_data: &Arena<OwnedData>,
         machine_state_handles: &Arena<arena::Handle<State>>,
         machine_states: &mut Arena<State>,
@@ -369,6 +372,16 @@ impl SymbolResolvedTreeTables {
         type_constraints: &Arena<TypeConstraint>,
         source_expressions: ExpressionSource<'_>,
     ) {
+        for equation in declared_type_equations.span_or_empty(machine.declared_type_equations) {
+            for reference in [&equation.parameter, &equation.definition] {
+                self.insert_type_reference(
+                    reference,
+                    child_type_references,
+                    type_constraints,
+                    source_expressions,
+                );
+            }
+        }
         for owned_data in machine_owned_data.span_or_empty(machine.owned_data) {
             self.insert_owned_data(
                 owned_data,

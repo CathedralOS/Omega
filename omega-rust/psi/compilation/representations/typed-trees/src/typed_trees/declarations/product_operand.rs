@@ -36,11 +36,22 @@ pub fn resolve_product_operand(
     occurrence: source::SourceSpan,
     kind: ProductOperandKind,
 ) -> Option<symbols::SymbolHandle> {
-    let program = typed.product_declarations();
     if !is_declaration_operand(argument) {
         return None;
     }
-    let path = argument.path.joined_path();
+    resolve_product_path(typed, &argument.path.joined_path(), occurrence, kind)
+}
+
+/// Resolve a source-issued locator at its retained lexical occurrence. Paths
+/// describe declarations; role, package and source-stratum authority remain
+/// with this common Product query.
+pub fn resolve_product_path(
+    typed: &TypedTrees,
+    path: &str,
+    occurrence: source::SourceSpan,
+    kind: ProductOperandKind,
+) -> Option<symbols::SymbolHandle> {
+    let program = typed.product_declarations();
     let candidates = match kind {
         ProductOperandKind::BoundarySubject => program
             .traits()
@@ -112,7 +123,7 @@ pub fn resolve_product_operand(
         Vec::new()
     };
     program.symbols.find_build_subject_declaration_from_source(
-        &path,
+        path,
         occurrence,
         candidates,
         &token_bound_machines,

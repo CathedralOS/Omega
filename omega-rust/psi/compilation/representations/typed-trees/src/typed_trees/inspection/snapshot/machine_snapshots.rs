@@ -56,6 +56,8 @@ pub struct MachineSnapshot {
     pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub declared_type_equations: Vec<DeclaredTypeEquationSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
     pub supply: MachineSupplySnapshot,
     pub body_is_present: bool,
@@ -92,6 +94,12 @@ pub struct GenericConformanceBoundSnapshot {
     pub trait_name: String,
     pub trait_symbol: u32,
     pub arguments: Vec<TypeReferenceSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DeclaredTypeEquationSnapshot {
+    pub parameter: TypeReferenceSnapshot,
+    pub definition: TypeReferenceSnapshot,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -249,6 +257,15 @@ pub(crate) fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> Machi
         supply: machine_supply_snapshot(machine.supply_mode),
         body_is_present: machine.body_is_present,
         structural_type_equations_pending: machine.structural_type_equations_pending,
+        declared_type_equations: program
+            .declared_type_equations
+            .span_or_empty(machine.declared_type_equations)
+            .iter()
+            .map(|equation| DeclaredTypeEquationSnapshot {
+                parameter: type_reference_snapshot(program, equation.parameter),
+                definition: type_reference_snapshot(program, equation.definition),
+            })
+            .collect(),
         termination: termination_interface_snapshot(&machine.termination_plan.interface),
         termination_witness: machine
             .termination_plan

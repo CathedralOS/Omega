@@ -20,7 +20,7 @@ static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
 // every command that reaches a package project first runs the package arm's
 // project discovery, source-closure resolution, and review walks on the
 // caller's stack: `--check`, `run`, and `inspect-terminal` on a package root
-// recurse through `prepare_local_project` before the compile worker exists.
+// enter application-owned source discovery before the compile worker exists.
 // Give every dispatched command this stack; only usage output stays shallow.
 const COMPILER_STACK_SIZE: usize = 256 * 1024 * 1024;
 

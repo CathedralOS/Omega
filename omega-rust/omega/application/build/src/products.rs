@@ -2,70 +2,57 @@
 
 use crate::{BuildError, BuildRequest, BuildTargets, ProjectProduct};
 use compiler::{CompilationOutput, CompileRequest, RequestedCompileProduct};
-use package_manager::operations as packages;
 use std::path::Path;
 use target::TargetProfile;
 
 pub(crate) fn compile(
     request: &BuildRequest,
-    prepared: Option<packages::PreparedLocalProject>,
+    prepared: Option<(crate::ResolvedProjectBuilds, crate::BuildSession)>,
     directory: &Path,
     targets: &[TargetProfile],
 ) -> Result<Vec<(TargetProfile, Result<CompilationOutput, BuildError>)>, BuildError> {
     let mut reports = Vec::with_capacity(targets.len());
-    match (prepared, &request.product) {
-        (
-            Some(prepared),
+    if let Some((resolved, session)) = prepared {
+        let product = match &request.product {
+            ProjectProduct::Check => compiler::CompilationProduct::Check,
+            ProjectProduct::Inspection { machine } => {
+                compiler::CompilationProduct::Inspection(machine.clone())
+            }
             ProjectProduct::Native {
                 private_entry_ram, ..
+            } => compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+                private_entry_ram: private_entry_ram.clone(),
+                terminal_authority_policy:
+                    compilation_products::compile_request::current_terminal_authority_policy(),
+                terminal_authority_permission_policy: None,
+                optimization_rollback: request.optimization_rollback.clone(),
+            }),
+        };
+        let outcomes = crate::project_compilation::compile_returned(
+            crate::project_compilation::ProjectCompilationRequest {
+                prepared: resolved.prepared,
+                target_profiles: targets,
+                snapshot: request.build_snapshot.as_ref(),
+                verify: request.verify,
+                timings: request.timings,
+                product,
             },
-        ) => {
-            let mut product = crate::PreparedLocalProjectNativeRequest::for_targets(
-                prepared,
-                directory,
-                targets.to_vec(),
-            )
-            .with_optimization_rollback(request.optimization_rollback.clone())
-            .with_private_entry_ram(private_entry_ram.clone())
-            .with_timings(request.timings);
-            if let Some(snapshot) = &request.build_snapshot {
-                product = product.with_build_snapshot(snapshot.clone());
-            }
-            for outcome in crate::compile_prepared_local_project_for_native_targets(product) {
-                reports.push((
+            resolved.builds,
+            session,
+            resolved.execution_profile,
+        );
+        return Ok(outcomes
+            .into_iter()
+            .map(|outcome| {
+                (
                     outcome.target,
-                    outcome
-                        .result
-                        .map(CompilationOutput::Report)
-                        .map_err(BuildError::PackageNative),
-                ));
-            }
-        }
-        (Some(prepared), ProjectProduct::Check) => {
-            RequestedCompileProduct::Check
-                .validate_optimization_rollback(&request.optimization_rollback)
-                .map_err(|error| BuildError::Diagnostics(vec![error]))?;
-            let mut product = crate::PreparedLocalProjectCheckRequest::for_targets(
-                prepared,
-                directory,
-                targets.to_vec(),
-            )
-            .with_verify(request.verify)
-            .with_timings(request.timings);
-            if let Some(snapshot) = &request.build_snapshot {
-                product = product.with_build_snapshot(snapshot.clone());
-            }
-            for outcome in crate::check_prepared_local_project_for_targets(product) {
-                reports.push((
-                    outcome.target,
-                    outcome
-                        .result
-                        .map(CompilationOutput::Report)
-                        .map_err(BuildError::PackageCheck),
-                ));
-            }
-        }
-        (prepared, ProjectProduct::Inspection { machine }) => {
+                    outcome.result.map_err(BuildError::ProjectCompilation),
+                )
+            })
+            .collect());
+    }
+    match &request.product {
+        ProjectProduct::Inspection { machine } => {
             let [profile] = targets else {
                 return Err(BuildError::Diagnostics(vec![
                     diagnostics::Diagnostic::error(
@@ -73,29 +60,21 @@ pub(crate) fn compile(
                     ),
                 ]));
             };
-            let output = match prepared {
-                Some(prepared) => {
-                    crate::inspect_prepared_local_project(prepared, directory, *profile, machine)
-                        .map(CompilationOutput::Inspection)
-                        .map_err(BuildError::Inspection)
-                }
-                None => {
-                    let target = (!matches!(request.targets, BuildTargets::Host))
-                        .then_some(profile.target_name());
-                    let mut source =
-                        compiler::CheckedCompileRequest::new(&request.root_path, target);
-                    source.build.directory = Some(directory.to_path_buf());
-                    compiler::CompilationSession::default()
-                        .produce(
-                            source,
-                            compiler::CompilationProduct::Inspection(machine.clone()),
-                        )
-                        .map_err(|error| BuildError::Diagnostics(error.into_diagnostics()))
-                }
+            let output = {
+                let target = (!matches!(request.targets, BuildTargets::Host))
+                    .then_some(profile.target_name());
+                let mut source = compiler::CheckedCompileRequest::new(&request.root_path, target);
+                source.build.directory = Some(directory.to_path_buf());
+                compiler::CompilationSession::default()
+                    .produce(
+                        source,
+                        compiler::CompilationProduct::Inspection(machine.clone()),
+                    )
+                    .map_err(|error| BuildError::Diagnostics(error.into_diagnostics()))
             };
             reports.push((*profile, output));
         }
-        (None, ProjectProduct::Check) => {
+        ProjectProduct::Check => {
             return compile_standalone_reports(
                 request,
                 directory,
@@ -104,12 +83,9 @@ pub(crate) fn compile(
                 &[],
             );
         }
-        (
-            None,
-            ProjectProduct::Native {
-                private_entry_ram, ..
-            },
-        ) => {
+        ProjectProduct::Native {
+            private_entry_ram, ..
+        } => {
             return compile_standalone_reports(
                 request,
                 directory,

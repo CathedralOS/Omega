@@ -57,6 +57,7 @@ fn keys() -> SelectedConstraintKeys {
         model_specific_write: Some(instruction(809)),
         processor_halt: Some(instruction(810)),
         interrupt_control: Some(instruction(811)),
+        memory_fence: Some(instruction(812)),
         atomic_fence: Some(instruction(800)),
         placed_read: Some(instruction(806)),
         placed_write: Some(instruction(807)),
@@ -797,8 +798,9 @@ fn identity_distinguishes_narrow_load_keys_and_semantics() {
 /// [`MachineSemanticKind::ALL`]. These bytes are the identity of an
 /// alternative in every catalog, program, physical-instruction and
 /// machine-code artifact, so this table changing is always a defect.
-const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u16); 135] = [
+const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u16); 136] = [
     (MachineAlternativeFamily::InterruptControl, 256),
+    (MachineAlternativeFamily::MemoryFence, 257),
     (MachineAlternativeFamily::PortWrite, 239),
     (MachineAlternativeFamily::SystemRegisterRead, 247),
     (MachineAlternativeFamily::SystemRegisterWrite, 248),

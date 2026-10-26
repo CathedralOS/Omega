@@ -528,7 +528,20 @@ fn attach_custody(
                 "realized call has ambiguous source declaration custody",
             ));
         }
-        occurrences.push(
+        // The authored recipe and its materialized value retain the same
+        // transitive call roster. They share its original occurrences; a
+        // second row would give an explicit-discard statement and its
+        // expression copy competing identities for one source token.
+        let occurrence = if let Some(occurrence) = program
+            .authored_declaration_selections()
+            .resolved_occurrence(
+                *reference,
+                Exposure::PrivateImplementation,
+                Kind::Call,
+                candidate.target,
+            ) {
+            occurrence
+        } else {
             program
                 .record_resolved_authored_declaration_selection(
                     *reference,
@@ -536,8 +549,9 @@ fn attach_custody(
                     Kind::Call,
                     candidate.target,
                 )
-                .map_err(crate::constant::selections::const_selection_record_diagnostic)?,
-        );
+                .map_err(crate::constant::selections::const_selection_record_diagnostic)?
+        };
+        occurrences.push(occurrence);
     }
     for origin in &custody.selections {
         let mut candidates = program.const_declarations.iter().filter(|candidate| {
