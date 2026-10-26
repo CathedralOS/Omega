@@ -354,6 +354,41 @@ pub fn declared_place_type_raw(
     }
 
     if let Some(path) = program.expression_table.name_path_node(handle)
+        && path.symbol.is_valid()
+        && program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            == 1
+    {
+        if path.head_symbol != path.symbol
+            || program
+                .expression_table
+                .name_path_member_symbols(path.member_symbols)
+                != [path.symbol]
+        {
+            return None;
+        }
+        let state = current_state?;
+        let mut matching = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .filter_map(|statement| statement.as_local_data())
+            .filter(|local| local.symbol == path.symbol)
+            .map(|local| local.type_reference)
+            .chain(
+                program
+                    .state_parameters(state)
+                    .iter()
+                    .filter(|parameter| parameter.symbol == path.symbol)
+                    .map(|parameter| parameter.type_reference),
+            );
+        let reference = matching.next()?;
+        return (matching.next().is_none() && reference.is_valid()).then_some(reference);
+    }
+
+    if let Some(path) = program.expression_table.name_path_node(handle)
         && path.head_symbol == path.symbol
         && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Field
         && program
