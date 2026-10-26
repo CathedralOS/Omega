@@ -198,7 +198,8 @@ fn exercise(
                 .iter()
                 .map(|request| match request {
                     language_semantics::declaration_selection::ExecutedBuildProductRequest::RootBinding(binding) => binding,
-                    language_semantics::declaration_selection::ExecutedBuildProductRequest::DeclarationSelection(_) => {
+                    language_semantics::declaration_selection::ExecutedBuildProductRequest::DeclarationSelection(_)
+                    | language_semantics::declaration_selection::ExecutedBuildProductRequest::BehaviorExclusion(_) => {
                         panic!("root-binding fixture recorded an unexpected declaration selection")
                     }
                 })

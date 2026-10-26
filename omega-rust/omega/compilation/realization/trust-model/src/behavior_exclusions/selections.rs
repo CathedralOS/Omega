@@ -233,3 +233,65 @@ fn evaluated_exclusion_case<'a>(
     }
     Ok(selected.name.as_str())
 }
+
+/// Rejoin a Terminal Build observation to the exact compiler-owned enum case.
+/// This accepts no interpreter-local handle, spelling-only classification or
+/// case supplied by a second Build value. Execution retains declaration spans;
+/// the final joined source owner independently authenticates their denotation.
+pub fn resolve_executed_behavior_exclusion(
+    typed: &TypedTrees,
+    executed: &language_semantics::declaration_selection::ExecutedBuildBehaviorExclusion,
+) -> Result<AuthoredBehaviorExclusion, Vec<Diagnostic>> {
+    use language_semantics::declaration_selection::BuildBehaviorExclusionKind;
+    let refuse = |reason: String| {
+        vec![Diagnostic::error(reason).with_source_span(executed.request.source_span)]
+    };
+    let author = typed_trees::product_operand::resolve_build_request_author(typed, executed.author)
+        .map_err(refuse)?;
+    let mut candidates = typed
+        .data_definitions()
+        .iter()
+        .filter(|definition| {
+            is_exact_toolchain_build_prelude_data(
+                typed,
+                definition.symbol,
+                executed.request.kind.type_name(),
+            )
+        })
+        .flat_map(|definition| typed.data_members(definition))
+        .filter_map(|member| match member {
+            typed_trees::data::DataMember::Variant(variant)
+                if typed.symbols.symbol_source_span(variant.symbol) == Some(executed.case) =>
+            {
+                Some(variant.symbol)
+            }
+            _ => None,
+        });
+    let case_symbol = candidates.next().ok_or_else(|| {
+        refuse("executed Build exclusion has no exact toolchain case in the joined source".into())
+    })?;
+    if candidates.next().is_some() {
+        return Err(refuse(
+            "executed Build exclusion has ambiguous case custody".into(),
+        ));
+    }
+    let kind = match executed.request.kind {
+        BuildBehaviorExclusionKind::Crash => AuthoredBehaviorExclusionKind::CrashCause {
+            cause: evaluated_crash_cause(typed, case_symbol)
+                .map_err(|diagnostic| vec![diagnostic])?,
+            case_symbol,
+        },
+        BuildBehaviorExclusionKind::PhysicalAuthority => {
+            AuthoredBehaviorExclusionKind::PhysicalAuthorityClass {
+                class: evaluated_physical_authority_class(typed, case_symbol)
+                    .map_err(|diagnostic| vec![diagnostic])?,
+                case_symbol,
+            }
+        }
+    };
+    Ok(AuthoredBehaviorExclusion {
+        kind,
+        selecting_machine: author,
+        source_span: executed.request.source_span,
+    })
+}

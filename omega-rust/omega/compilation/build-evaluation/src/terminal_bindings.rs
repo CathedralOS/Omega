@@ -7,8 +7,9 @@
 //! remain inert until the product owner resolves and admits them.
 
 use language_semantics::declaration_selection::{
-    BuildProductRequest, ExecutedBuildProductRequest, ExecutedProductDeclarationSelection,
-    ExecutedRootBinding, ProviderCompositionMode, RootBindingOperand, RootBindingSelection,
+    BuildProductRequest, ExecutedBuildBehaviorExclusion, ExecutedBuildProductRequest,
+    ExecutedProductDeclarationSelection, ExecutedRootBinding, ProviderCompositionMode,
+    RootBindingOperand, RootBindingSelection,
 };
 use psi_compiler::{
     TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
@@ -111,6 +112,11 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
             call.boundary == boundary && call.action == TerminalBuildBindingOperation::SelectMode
         }) {
             &[0]
+        } else if self.host.calls.iter().any(|call| {
+            call.boundary == boundary
+                && call.action == TerminalBuildBindingOperation::ExcludeBehavior
+        }) {
+            &[1]
         } else {
             &[]
         }
@@ -168,6 +174,72 @@ impl TerminalBuildBindingAdapter<'_, '_> {
             .lock()
             .map_err(|_| refuse("Build binding activation lock was poisoned"))?;
         match call.action {
+            TerminalBuildBindingOperation::ExcludeBehavior => {
+                let BuildProductRequest::BehaviorExclusion(request) = &call.request else {
+                    return Err(refuse(
+                        "Build exclusion has no authenticated source request",
+                    ));
+                };
+                let [original, _] = structural_arguments.as_slice() else {
+                    return Err(refuse(
+                        "Build exclusion requires its original Build and evaluated case",
+                    ));
+                };
+                if original != &self.host.original || !arguments.is_empty() {
+                    return Err(refuse(
+                        "Build exclusion requires the original compiler-issued Build receiver",
+                    ));
+                }
+                let expected = call
+                    .exclusion
+                    .as_ref()
+                    .ok_or_else(|| refuse("Build exclusion lost its checked case roster"))?;
+                let [TerminalBoundaryStorageBuffer::Structural(buffer)] = storage_buffers else {
+                    return Err(refuse(
+                        "Build exclusion requires its actual semantic case contents",
+                    ));
+                };
+                if buffer.argument_index() != 1
+                    || buffer.access() != terminal_psi::StructuralAccess::Owned
+                    || buffer.structural_type() != expected.structural_type
+                {
+                    return Err(refuse(
+                        "Build exclusion observation differs from its checked formal",
+                    ));
+                }
+                let [value] = buffer.values() else {
+                    return Err(refuse(
+                        "Build exclusion case has unexpected payload contents",
+                    ));
+                };
+                if !value.path.is_empty() {
+                    return Err(refuse("Build exclusion case has no root discriminator"));
+                }
+                let TerminalStorageContents::Case(case) = value.contents else {
+                    return Err(refuse("Build exclusion value is not a semantic case"));
+                };
+                let mut cases = expected.cases.iter().filter(|(id, _)| *id == case);
+                let (_, source_case) = cases.next().ok_or_else(|| {
+                    refuse("Build exclusion value is outside its checked case roster")
+                })?;
+                if cases.next().is_some() {
+                    return Err(refuse("Build exclusion has ambiguous case custody"));
+                }
+                state
+                    .executed
+                    .try_reserve(1)
+                    .map_err(|_| refuse("cannot retain executed Build exclusion"))?;
+                state
+                    .executed
+                    .push(ExecutedBuildProductRequest::BehaviorExclusion(
+                        ExecutedBuildBehaviorExclusion {
+                            request: request.clone(),
+                            author: call.author,
+                            case: *source_case,
+                        },
+                    ));
+                Ok(TerminalEffectResult::Unit)
+            }
             TerminalBuildBindingOperation::Prepare => {
                 if !storage_buffers.is_empty()
                     || !arguments.is_empty()

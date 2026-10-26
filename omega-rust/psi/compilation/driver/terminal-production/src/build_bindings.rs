@@ -13,6 +13,7 @@ pub enum TerminalBuildBindingOperation {
     Bind,
     Select,
     SelectMode,
+    ExcludeBehavior,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -23,6 +24,7 @@ pub struct TerminalBuildBindingCall {
     pub request: BuildProductRequest,
     pub author: source::SourceSpan,
     pub composition: Option<TerminalBuildCompositionCases>,
+    pub exclusion: Option<TerminalBuildExclusionCases>,
 }
 
 /// The checked Prelude sum joined to the exact emitted formal and case IDs.
@@ -34,6 +36,16 @@ pub struct TerminalBuildCompositionCases {
     pub fused: semantic_vocabulary::StructuralCaseId,
     pub independent: semantic_vocabulary::StructuralCaseId,
 }
+
+/// Semantic case IDs are artifact-local. Their exact checked declaration spans
+/// are the stable source companion consumed by final Product admission.
+#[derive(Debug, PartialEq, Eq)]
+pub struct TerminalBuildExclusionCases {
+    pub structural_type: semantic_vocabulary::StructuralTypeId,
+    pub cases: Vec<(semantic_vocabulary::StructuralCaseId, source::SourceSpan)>,
+}
+
+mod behavior_exclusions;
 
 /// Source-issued context bound to exact Terminal semantics and, for private
 /// code, its live invocation owner. Loading bytes cannot recreate this context.
@@ -129,8 +141,10 @@ pub(super) fn capture(
             request: request.clone(),
             author,
             composition,
+            exclusion: None,
         });
     }
+    calls.extend(behavior_exclusions::capture(checked, lowered)?);
     Ok(calls)
 }
 

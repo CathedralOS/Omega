@@ -15,7 +15,7 @@ mod selections;
 use diagnostics::Diagnostic;
 use effects::{AuthoredBehaviorExclusion, authored_behavior_exclusion_set_in};
 use effects::{BehaviorExclusionReport, BehaviorExclusionVerdict, establish_behavior_exclusions};
-pub use selections::harvest_behavior_exclusions;
+pub use selections::{harvest_behavior_exclusions, resolve_executed_behavior_exclusion};
 use terminal_psi::TerminalMachineProvenance;
 
 /// Admit the unoptimized composition under the authored product policy.

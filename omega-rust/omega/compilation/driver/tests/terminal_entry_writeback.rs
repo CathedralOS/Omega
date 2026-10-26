@@ -717,7 +717,8 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
                     .iter()
                     .map(|request| match request {
                         language_semantics::declaration_selection::ExecutedBuildProductRequest::RootBinding(binding) => binding,
-                        language_semantics::declaration_selection::ExecutedBuildProductRequest::DeclarationSelection(_) => {
+                        language_semantics::declaration_selection::ExecutedBuildProductRequest::DeclarationSelection(_)
+                    | language_semantics::declaration_selection::ExecutedBuildProductRequest::BehaviorExclusion(_) => {
                             panic!("entry binding fixture emitted a declaration selection")
                         }
                     })

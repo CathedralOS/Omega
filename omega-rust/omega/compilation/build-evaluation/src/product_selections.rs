@@ -41,6 +41,17 @@ pub fn apply_product_requests(
     config.root_bindings = provider_planning::program_entry::collect_root_bindings(typed, &roots)?;
     let mut providers = Vec::new();
     for executed in executed {
+        if let ExecutedBuildProductRequest::BehaviorExclusion(exclusion) = executed {
+            let row = trust_model::resolve_executed_behavior_exclusion(typed, exclusion)?;
+            if !config
+                .behavior_exclusions
+                .iter()
+                .any(|existing| existing == &row)
+            {
+                config.behavior_exclusions.push(row);
+            }
+            continue;
+        }
         let ExecutedBuildProductRequest::DeclarationSelection(selection) = executed else {
             continue;
         };

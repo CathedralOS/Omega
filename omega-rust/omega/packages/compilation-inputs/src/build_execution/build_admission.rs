@@ -101,6 +101,10 @@ pub fn admit_build_machine(
                         &typed.symbols,
                         definition.symbol,
                         "BuildFilesystemOperations",
+                    ) || language_semantics::build_requests::is_build_protocol(
+                        &typed.symbols,
+                        definition.symbol,
+                        "BuildBehaviorOperations",
                     )
                 })
         })

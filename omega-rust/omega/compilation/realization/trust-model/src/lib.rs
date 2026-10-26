@@ -23,7 +23,10 @@ mod trust_admission;
 pub(crate) use accepted_machine_grants::{NonProviderTrustGrant, resolve_non_provider_trust_grant};
 pub use accepted_templates::AcceptedTemplateClassifications;
 pub use admission_settlement::reconstruct_trust_obligations;
-pub use behavior_exclusions::{harvest_behavior_exclusions, verify_entry_behavior_exclusions};
+pub use behavior_exclusions::{
+    harvest_behavior_exclusions, resolve_executed_behavior_exclusion,
+    verify_entry_behavior_exclusions,
+};
 pub use component_assumptions::{
     AuthoredComponentAssumptionAcceptance, harvest_component_assumption_acceptances,
 };

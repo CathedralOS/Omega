@@ -125,6 +125,7 @@ impl ProductDeclarationSelectionRequest {
 pub enum BuildProductRequest {
     RootBinding(RootBindingRequest),
     DeclarationSelection(ProductDeclarationSelectionRequest),
+    BehaviorExclusion(BuildBehaviorExclusionRequest),
 }
 
 impl Default for BuildProductRequest {
@@ -138,7 +139,7 @@ impl BuildProductRequest {
     pub fn as_root_binding(&self) -> Option<&RootBindingRequest> {
         match self {
             Self::RootBinding(request) => Some(request),
-            Self::DeclarationSelection(_) => None,
+            Self::DeclarationSelection(_) | Self::BehaviorExclusion(_) => None,
         }
     }
 
@@ -146,6 +147,7 @@ impl BuildProductRequest {
         match self {
             Self::RootBinding(request) => request.source_span,
             Self::DeclarationSelection(request) => request.source_span,
+            Self::BehaviorExclusion(request) => request.source_span,
         }
     }
 }
@@ -172,4 +174,37 @@ pub struct ExecutedProductDeclarationSelection {
 pub enum ExecutedBuildProductRequest {
     RootBinding(ExecutedRootBinding),
     DeclarationSelection(ExecutedProductDeclarationSelection),
+    BehaviorExclusion(ExecutedBuildBehaviorExclusion),
+}
+
+/// A closed toolchain value vocabulary, not a user-defined behavior classifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildBehaviorExclusionKind {
+    Crash,
+    PhysicalAuthority,
+}
+
+impl BuildBehaviorExclusionKind {
+    pub const fn type_name(self) -> &'static str {
+        match self {
+            Self::Crash => "CrashCause",
+            Self::PhysicalAuthority => "PhysicalAuthorityClass",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildBehaviorExclusionRequest {
+    pub source_span: SourceSpan,
+    pub kind: BuildBehaviorExclusionKind,
+}
+
+/// Exact checked case occurrence, recorded only after observing its evaluated
+/// discriminator with the activation's original Build value. Source spans
+/// rejoin declarations after Product closure; interpreter-local IDs do not.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutedBuildBehaviorExclusion {
+    pub request: BuildBehaviorExclusionRequest,
+    pub author: SourceSpan,
+    pub case: SourceSpan,
 }

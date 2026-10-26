@@ -240,13 +240,19 @@ public machine Build::artifact_only(builder: &mut Build) reaches BuildRequestOpe
 // product-admission requirement that the selected executable composition
 // contains no reachable site of the named crash cause. The selection is
 // recorded when this call executes against the original Build value;
-// the evaluator intercepts the declaration, and a
+// the ordinary boundary records its evaluated case, and a
 // declaration that permits Trap cannot override it.
-public machine Build::exclude_crash(builder: &mut Build, cause: CrashCause) {
+public machine Build::exclude_crash(builder: &mut Build, cause: CrashCause) reaches BuildBehaviorOperations invokes BuildBehaviorOperations; {
+    BuildBehaviorOperations::exclude_crash(builder, cause);
 }
 // Native realization checks this executed selection using the shared
 // physical mechanism classifier, independently of receiver permissions.
-public machine Build::exclude_physical_authority(builder: &mut Build, authority: PhysicalAuthorityClass) {
+public machine Build::exclude_physical_authority(builder: &mut Build, authority: PhysicalAuthorityClass) reaches BuildBehaviorOperations invokes BuildBehaviorOperations; {
+    BuildBehaviorOperations::exclude_physical_authority(builder, authority);
+}
+public boundary trait BuildBehaviorOperations {
+    machine exclude_crash(builder: &mut Build, cause: CrashCause) reaches;
+    machine exclude_physical_authority(builder: &mut Build, authority: PhysicalAuthorityClass) reaches;
 }
 // Independent-component assumption acceptance
 // (wiki/spec/build/component_publication.md): a verified component

@@ -8,7 +8,8 @@ pub use product::{
     RootBindingOperand, RootBindingRequest, RootBindingSelection,
 };
 pub use product_requests::{
-    BuildProductOperand, BuildProductRequest, ExecutedBuildProductRequest,
+    BuildBehaviorExclusionKind, BuildBehaviorExclusionRequest, BuildProductOperand,
+    BuildProductRequest, ExecutedBuildBehaviorExclusion, ExecutedBuildProductRequest,
     ExecutedProductDeclarationSelection, ProductDeclarationLocator,
     ProductDeclarationSelectionRequest, ProductOperandRole, ProviderCompositionMode,
 };

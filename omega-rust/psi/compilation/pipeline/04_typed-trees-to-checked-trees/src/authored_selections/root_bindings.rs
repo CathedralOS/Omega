@@ -79,6 +79,12 @@ pub(super) fn validate(
                 .with_source_span(source_span)
         })?;
         let expected = match request {
+            BuildProductRequest::BehaviorExclusion(_) => {
+                return Err(Diagnostic::error(
+                    "behavior exclusions require their authenticated ordinary Build boundary",
+                )
+                .with_source_span(source_span));
+            }
             BuildProductRequest::RootBinding(binding) => {
                 if binding.slot.is_empty()
                     || matches!(&binding.implementation, RootBindingOperand::AuthoredPath(path) if path.is_empty())

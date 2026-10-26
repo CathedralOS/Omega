@@ -128,6 +128,7 @@ impl PreparedBuildExecution {
         let artifact_only = matches!(declaration, build_declarations::BuildDeclaration::Application(application) if application.artifact_only);
         let selects_executable = completed.product_requests.iter().any(|request| match request {
             language_semantics::declaration_selection::ExecutedBuildProductRequest::RootBinding(_) => true,
+            language_semantics::declaration_selection::ExecutedBuildProductRequest::BehaviorExclusion(_) => false,
             language_semantics::declaration_selection::ExecutedBuildProductRequest::DeclarationSelection(selection) => selection.request.operation == language_semantics::declaration_selection::BuildOperation::ProviderSelection,
         });
         if artifact_only && selects_executable {
