@@ -1,2 +1,3 @@
-requires 7 <= `limit`
-closes `limit` to 6
+constant invocation of `bounded` failed checking
+violates required fact `value <= 6`
+structurally false (`7 <= 6`)

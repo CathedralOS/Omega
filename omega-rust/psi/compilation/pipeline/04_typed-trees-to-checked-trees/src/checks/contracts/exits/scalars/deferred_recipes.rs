@@ -326,3 +326,6 @@ fn closed_terms_identical(
         _ => left == right,
     }
 }
+
+#[cfg(test)]
+mod tests;

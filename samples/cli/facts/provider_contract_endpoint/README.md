@@ -27,7 +27,11 @@ remain historical only. The current witnesses use ordinary
 both match choices. The independently migrated `provider_const_endpoint`
 customer also demonstrates the clause failure directly: changing only its
 suffix to `requires value <= limit()` loses the proof of `7 <= limit()`.
-Current full acceptance remains unverified while implementation continues.
+At immutable producer `3f5dbd042e845e859292cdf119069eda2bbb3780`, all nine
+positive places execute with native exit 0 and Terminal exit 0 on macOS ARM64.
+All nine twins reject the captured input 7 against the selected endpoint 6.
+These are source/native observations; the pinned corpus and final review are
+recorded separately before publication.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -45,7 +49,7 @@ Each reject changes only the selected provider's integer from 7 to 6. The
 consuming value and subtraction stay identical. The missing obligation must
 identify that the captured input 7 exceeds the selected closed endpoint 6.
 
-## Requirement evidence to establish
+## Requirement evidence
 
 - **Establishment:** the exact selected ordinary checked provider computes the
   endpoint. Call admission records the captured input's relation to that recipe;
@@ -73,8 +77,12 @@ identify that the captured input 7 exceeds the selected closed endpoint 6.
   with Terminal execution at exit 0. Other hosted targets' bindings are authored;
   native execution on those hosts is a separate, currently unverified claim.
 
-Still open: successful nine-place dual-engine qualification, fact-sensitive
-reject observations and pinned corpus fixtures. Parent acceptance also includes
+The nine places and their twins are pinned under `tests/omega/{pass,fail}/facts`.
+[Existing soundness controls](controls/README.md) pin formation, target ownership,
+write snapshots, result identity and authenticated Build request transport.
+The focused corpus and exact-candidate review remain publication gates.
+
+Parent acceptance also includes
 the three named legacy endpoint-customer migrations, remaining field/case/recast
 and collection compositions, filesystem parameter migration, product/bootstrap
 source migration, and retiring the suffix representation after its customers

@@ -1,0 +1,21 @@
+machine choose_provider<const Flag: bool>(forwarded: &mut Build) {
+    Build::select_provider<Endpoint, Actual>(forwarded);
+}
+machine build(builder: &mut Build) {
+    Build::application(builder, "provider_contract_endpoint_probe");
+    transition true { true -> first(builder) false -> second(builder) }
+    machine first(builder: &mut Build) {
+        choose_provider<true>(builder);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    }
+    machine second(builder: &mut Build) {
+        choose_provider<false>(builder);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    }
+}
