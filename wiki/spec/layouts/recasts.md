@@ -20,21 +20,76 @@ view, calling contract, or inverse conversion from `addr`.
 ## Shared and mutable views
 
 With compatible geometry, let `S` and `T` denote the source and target sets of
-valid representations. A shared view requires `S` to imply `T`; a mutable view
-requires both implications. Every value writable through the target must
-leave the source valid when the loan ends. Equal byte counts alone do not
+valid representations. A shared view requires `S` to imply `T`; an immediately
+established mutable view requires both implications. Every value writable through
+the target must leave the source valid when the loan ends. Equal byte counts alone do not
 establish either judgment.
 
 Raw bytes do not establish typed predicates or stronger foreign validity.
 Mutable raw-byte views require existing total-write or checked fit evidence.
 Established typed views may retain or weaken facts according to the judgment.
 Runtime conversion, validation, or authorized semantic establishment cannot be
-replaced by a representation cast.
+replaced by a representation cast. An exclusive cast may instead open deferred
+establishment as specified below; the cast itself supplies no missing evidence.
 
 Unsized views derive length by exact tiling of the source region. A zero-size
 element or remainder cannot determine that length. A runtime byte offset needs
 proved congruence before supporting multi-byte elements; bounds alone do not
 prove alignment or tiling.
+
+## Deferred establishment on exclusive storage casts
+
+Owner decision (2026-10-25): an exclusive storage recast may open an establishment
+window when target validity is not yet proved. This uses ordinary `as` and the
+existing invariant-window proof-debt machinery, not an unchecked cast, new keyword,
+runtime poison flag, or new domain-minting route. The initial result denotes an
+exclusively held target-shaped place pending establishment, not a valid `T` value.
+
+Geometry, bounds, alignment, lifetime, access authority and exclusive custody of
+the complete target footprint must already hold. Only target establishment is
+deferred. The footprint includes padding; slicing still needs exact tiling.
+An address or equal byte count cannot establish backing. `boundary data` supplies
+a layout contract, not content validity, grant authority or a foreign protocol.
+
+The checker records the exact place/storage version, remaining target validity
+and qualification obligations, occupied source content and eventual source handback
+obligations. The pending view excludes competing source-byte and typed aliases;
+overlapping writes invalidate their old facts. A retained shared reader or external
+writer prevents opening this window unless the required exclusion is established.
+
+Writes initialize fields with valid values under their existing access rules.
+No read may treat an unestablished enum tag, reference, field or domain as valid;
+invalid reference bytes cannot be materialized and then checked. Reading independently
+established fields needs their own validity/access facts and cannot assume the
+unfinished whole's coupling. Raw-byte validation must use a legal byte observation
+under exclusive custody, not a concurrent surviving alias. Write-only access cannot
+read its referent. Authorized domain-establishment routes and `read by` / `written by`
+restrictions remain mandatory throughout.
+
+Complete target establishment closes the window and permits ordinary typed use.
+The cast's own pending-view formation is not an immediate demand for a valid `T`;
+subsequent uses obey the existing
+[consumption fences](../language/dependent_values.md#invariant-windows). It cannot
+escape as a valid reference, cross an ordinary valid-`T` call, or be published to
+another process/device while unfinished. This grants no whole-value mid-window
+helper-call or terminal-transfer exception.
+
+Ending the loan must satisfy the original source's validity, ownership and cleanup
+obligations. A more restrictive target (`T` implies `S`) discharges the representation
+part after target establishment, but not source custody or resource conservation.
+Otherwise source restoration needs independent proof; arbitrary reversible
+reinterpretation is not licensed by opening a window. An occupied affine/linear
+value cannot be overwritten or forgotten with its cleanup/ownership debts unpaid.
+
+Abandoning failed initial establishment creates no whole `T` and runs no whole-`T`
+destructor. It returns the backing under its existing claim only after accounting
+for independently initialized resource-bearing fields and restoring any original
+source obligations. There is no implicit byte rollback or resource leak exemption.
+This differs from discarding an already-established value with a broken invariant.
+
+Shared casts remain strict. Placed-view recasts remain prohibited; this rule does
+not bypass placement admission or add atomic/concurrent access. Successful ordinary
+initialization and explicit placed initialization remain valid alternatives.
 
 ## Access authority and concurrent observation
 
@@ -61,7 +116,7 @@ can write through shared access. Their access rules apply to recasts too:
 | --- | --- |
 | Ordinary shared storage to shared atomic storage | Reject when the target introduces concurrent-write authority absent from the source. Equal bits do not grant it. |
 | Shared atomic storage to ordinary shared storage | Reject when ordinary observations would bypass the required atomic protocol. Non-atomic observation requires established exclusion over the backing, not merely ownership of a view descriptor. |
-| Exclusive ordinary/atomic storage to another exclusive representation | Eligible when layout and two-way validity hold, exclusivity covers the actual backing, and all outstanding obligations remain satisfied. Atomic storage is not categorically excluded. |
+| Exclusive ordinary/atomic storage to another exclusive representation | Requires actual backing exclusivity and unchanged operation authority. Immediate established views prove two-way validity; deferred establishment follows the window and handback rules above. Atomic storage is not categorically excluded. |
 | Atomic storage to another atomic view | Preserve the authorized operations, observation protocol, and validity obligations; the cast is not rejected merely because both views are atomic. |
 
 A shared target that permits mutation must preserve source validity through its

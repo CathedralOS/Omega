@@ -335,13 +335,63 @@ pub(super) fn rebase_borrow_places_through_local_loans(
     place: accesses::BorrowAccessPlace,
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<RebasedBorrowPlace> {
-    rebase_borrow_places_following(program, place, loan_trackers, &mut Vec::new())
+    rebase_borrow_places_following(program, place, loan_trackers, None, &mut Vec::new())
+}
+
+/// Address formation stops at the authored referee's stored identity. A
+/// borrow of descriptor bytes must not become a reborrow of its pointee.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn rebase_reference_formation_places(
+    program: &dyn validation::CheckingInput,
+    state: SymbolHandle,
+    statement: usize,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    place: accesses::BorrowAccessPlace,
+    loan_trackers: &[StateLoanTracker],
+) -> Vec<RebasedBorrowPlace> {
+    let declared =
+        validation::reference_formation_source(program, expression).is_some_and(|formation| {
+            formation.interpretation == validation::ReferenceFormationInterpretation::Declared
+        });
+    let expected = validation::reference_shell(program, reference)
+        .map(|shell| validation::stored_structural_type_identity(program, shell.referee, &[], &[]));
+    let Some(expected) = expected.filter(|identity| declared && identity.is_valid()) else {
+        return rebase_borrow_places_through_local_loans(program, place, loan_trackers);
+    };
+    let stop = |place: &accesses::BorrowAccessPlace| {
+        let Some(mut reference) = validation::canonical_place_type_reference(
+            program,
+            state,
+            statement,
+            &validation::CanonicalPlace {
+                root: place.root,
+                segments: place.segments.clone(),
+            },
+        ) else {
+            return false;
+        };
+        // A whole borrowed formal lends its ingress referent, rather than
+        // the callee's descriptor slot. Further reference shells are stored.
+        if place.segments.is_empty()
+            && let Some(symbol) = place.root.as_symbol()
+            && program
+                .state_by_symbol(state)
+                .is_some_and(|state| program.state_parameter_by_symbol(state, symbol).is_some())
+            && let Some(shell) = validation::reference_shell(program, reference)
+        {
+            reference = shell.referee;
+        }
+        validation::stored_structural_type_identity(program, reference, &[], &[]) == expected
+    };
+    rebase_borrow_places_following(program, place, loan_trackers, Some(&stop), &mut Vec::new())
 }
 
 fn rebase_borrow_places_following(
     program: &dyn ::validation::CheckingInput,
     place: accesses::BorrowAccessPlace,
     loan_trackers: &[StateLoanTracker],
+    storage_boundary: Option<&dyn Fn(&accesses::BorrowAccessPlace) -> bool>,
     active: &mut Vec<accesses::BorrowAccessPlace>,
 ) -> Vec<RebasedBorrowPlace> {
     let source_loans: Vec<&StateLoanTracker> = loan_trackers
@@ -352,7 +402,11 @@ fn rebase_borrow_places_following(
                 && owner_path_matches(program, &loan.owner_path, &place.segments)
         })
         .collect();
-    if source_loans.is_empty() || place.incoming_reference.is_valid() || active.contains(&place) {
+    if source_loans.is_empty()
+        || place.incoming_reference.is_valid()
+        || storage_boundary.is_some_and(|stop| stop(&place))
+        || active.contains(&place)
+    {
         return vec![RebasedBorrowPlace {
             source_place: place.clone(),
             retained_operand: None,
@@ -420,6 +474,7 @@ fn rebase_borrow_places_following(
                 program,
                 source.place.clone(),
                 loan_trackers,
+                storage_boundary,
                 active,
             );
             nested

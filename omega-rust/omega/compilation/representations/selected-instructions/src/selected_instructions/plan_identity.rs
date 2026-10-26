@@ -115,6 +115,8 @@ struct CachedRegisterPage {
 pub(crate) struct CachedFunctionPrefix {
     header: std::sync::Arc<CachedHeader>,
     pages: Vec<std::sync::Arc<CachedRegisterPage>>,
+    slot_count: usize,
+    slot_bytes: std::sync::Arc<Vec<u8>>,
 }
 
 fn encode_static_header(bytes: &mut Vec<u8>, function: &SelectedFunction) {
@@ -234,14 +236,55 @@ pub(crate) fn selected_function_digest_with_prefix(
             hasher: hasher.clone(),
         }));
     }
+    let slot_count = function.local_storage_slots.len();
+    let slot_bytes = if prefix_verified
+        && let Some(prev) = previous
+        && slot_count >= prev.slot_count
+    {
+        if slot_count == prev.slot_count {
+            std::sync::Arc::clone(&prev.slot_bytes)
+        } else {
+            let mut slot_vec = prev.slot_bytes.clone();
+            let buf = std::sync::Arc::make_mut(&mut slot_vec);
+            for row in &function.local_storage_slots[prev.slot_count..] {
+                contracts::encode_local_storage_slot(buf, row);
+            }
+            slot_vec
+        }
+    } else {
+        let mut buf = Vec::with_capacity(slot_count * 25);
+        for row in &function.local_storage_slots {
+            contracts::encode_local_storage_slot(&mut buf, row);
+        }
+        std::sync::Arc::new(buf)
+    };
     let tail = &function.virtual_registers[full_pages * REGISTER_PAGE_SIZE..];
     let mut trailer_bytes = Vec::with_capacity(256 + tail.len() * 40 + function.blocks.len() * 32);
-    encode_registers_and_trailer(&mut trailer_bytes, tail, function);
+    for register in tail {
+        trailer_bytes.push(1);
+        register::encode(&mut trailer_bytes, register);
+    }
+    trailer_bytes.push(0);
+    crate::codec_bytes::encode_len(&mut trailer_bytes, function.virtual_registers.len());
+    crate::codec_bytes::encode_len(&mut trailer_bytes, slot_count);
+    hasher.raw(&trailer_bytes);
+    hasher.raw(&slot_bytes);
+    trailer_bytes.clear();
+    contracts::encode_boundary_settlements(&mut trailer_bytes, function);
+    crate::codec_bytes::encode_len(&mut trailer_bytes, function.blocks.len());
+    for digest in function.blocks.identity_digests() {
+        trailer_bytes.extend_from_slice(&digest);
+    }
     hasher.raw(&trailer_bytes);
     let digest = hasher.finish();
     (
         digest,
-        std::sync::Arc::new(CachedFunctionPrefix { header, pages }),
+        std::sync::Arc::new(CachedFunctionPrefix {
+            header,
+            pages,
+            slot_count,
+            slot_bytes,
+        }),
     )
 }
 

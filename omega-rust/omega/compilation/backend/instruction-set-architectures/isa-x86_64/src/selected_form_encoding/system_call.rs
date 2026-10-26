@@ -96,18 +96,8 @@ pub fn validate_x86_64_selected_system_call_form(
         })
         .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
     let effects = MachineEncodedEffects {
-        external_operand_reads: row
-            .operands
-            .iter()
-            .filter(|operand| operand.access == RegisterOperandAccess::Use)
-            .map(|operand| operand.operand)
-            .collect(),
-        external_operand_writes: row
-            .operands
-            .iter()
-            .filter(|operand| operand.access == RegisterOperandAccess::Def)
-            .map(|operand| operand.operand)
-            .collect(),
+        external_operand_reads: row.operand_reads(),
+        external_operand_writes: row.operand_writes(),
         implicit_unit_uses: row.implicit_uses.clone(),
         implicit_unit_defs: row.implicit_defs.clone(),
         implicit_unit_clobbers: row.clobbers.clone(),

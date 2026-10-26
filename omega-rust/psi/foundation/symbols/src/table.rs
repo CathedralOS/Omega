@@ -958,6 +958,16 @@ impl SymbolTable {
         // namespace. Apply the authored declarations' existing scope rules.
         let left = self.authored_origin(left);
         let right = self.authored_origin(right);
+        let left_parent = self.get(left).parent;
+        let right_parent = self.get(right).parent;
+        if left_parent != right_parent
+            && (self.get(left_parent).kind == SymbolKind::Machine
+                || self.get(right_parent).kind == SymbolKind::Machine)
+        {
+            // Lexical machine scopes stay private even inside the same file.
+            // Package imports never expose another invocation's declarations.
+            return true;
+        }
         let (Some(left_span), Some(right_span)) = (
             self.symbol_source_span(left),
             self.symbol_source_span(right),

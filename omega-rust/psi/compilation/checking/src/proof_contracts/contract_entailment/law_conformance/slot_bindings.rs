@@ -115,6 +115,7 @@ pub(crate) fn carrier_slot_bindings(
 /// requirement of the SAME trait) to the carrier's bound machine names;
 /// slots with no binding are collected for the missing-slot diagnostic.
 pub(crate) fn rewrite_slot_applications(
+    program: &dyn crate::CheckingInput,
     term: &StructuralTerm,
     slot_names: &[String],
     slot_bindings: &[(String, (String, symbols::SymbolHandle))],
@@ -129,6 +130,7 @@ pub(crate) fn rewrite_slot_applications(
             observed_type: *observed_type,
             descriptor: descriptor.as_ref().map(|descriptor| {
                 Box::new(rewrite_slot_applications(
+                    program,
                     descriptor,
                     slot_names,
                     slot_bindings,
@@ -136,6 +138,7 @@ pub(crate) fn rewrite_slot_applications(
                 ))
             }),
             value: Box::new(rewrite_slot_applications(
+                program,
                 value,
                 slot_names,
                 slot_bindings,
@@ -152,16 +155,27 @@ pub(crate) fn rewrite_slot_applications(
             let arguments = arguments
                 .iter()
                 .map(|argument| {
-                    rewrite_slot_applications(argument, slot_names, slot_bindings, missing)
+                    rewrite_slot_applications(program, argument, slot_names, slot_bindings, missing)
                 })
                 .collect();
+            let mut result_type = *result_type;
             let (machine, target) = if slot_names.iter().any(|slot| slot == machine) {
                 match slot_bindings
                     .iter()
                     .find(|(slot, _)| slot == machine)
                     .map(|(_, bound)| bound.clone())
                 {
-                    Some(bound) => bound,
+                    Some(bound) => {
+                        // Selection replaces the complete callable carrier,
+                        // not just its name. A generic requirement result is
+                        // not the selected concrete operation's return type.
+                        let Some(entry) = program.state_by_symbol(bound.1) else {
+                            missing.push(machine.clone());
+                            return term.clone();
+                        };
+                        result_type = entry.return_type;
+                        bound
+                    }
                     None => {
                         missing.push(machine.clone());
                         (machine.clone(), *target)
@@ -171,7 +185,7 @@ pub(crate) fn rewrite_slot_applications(
                 (machine.clone(), *target)
             };
             StructuralTerm::Application {
-                result_type: *result_type,
+                result_type,
                 target,
                 selections: selections.clone(),
                 machine,
@@ -181,6 +195,7 @@ pub(crate) fn rewrite_slot_applications(
         StructuralTerm::IntegerEmbedding { reference, value } => StructuralTerm::IntegerEmbedding {
             reference: *reference,
             value: Box::new(rewrite_slot_applications(
+                program,
                 value,
                 slot_names,
                 slot_bindings,
@@ -194,12 +209,14 @@ pub(crate) fn rewrite_slot_applications(
         } => StructuralTerm::MathematicalBinary {
             operator: *operator,
             left: Box::new(rewrite_slot_applications(
+                program,
                 left,
                 slot_names,
                 slot_bindings,
                 missing,
             )),
             right: Box::new(rewrite_slot_applications(
+                program,
                 right,
                 slot_names,
                 slot_bindings,
@@ -217,12 +234,14 @@ pub(crate) fn rewrite_slot_applications(
             operator: *operator,
             meaning: *meaning,
             left: Box::new(rewrite_slot_applications(
+                program,
                 left,
                 slot_names,
                 slot_bindings,
                 missing,
             )),
             right: Box::new(rewrite_slot_applications(
+                program,
                 right,
                 slot_names,
                 slot_bindings,
@@ -237,13 +256,19 @@ pub(crate) fn rewrite_slot_applications(
                 .map(|(name, value)| {
                     (
                         name.clone(),
-                        rewrite_slot_applications(value, slot_names, slot_bindings, missing),
+                        rewrite_slot_applications(
+                            program,
+                            value,
+                            slot_names,
+                            slot_bindings,
+                            missing,
+                        ),
                     )
                 })
                 .collect(),
         },
         StructuralTerm::CallProjection { .. } => term.clone().map_argument_terms(|argument| {
-            rewrite_slot_applications(&argument, slot_names, slot_bindings, missing)
+            rewrite_slot_applications(program, &argument, slot_names, slot_bindings, missing)
         }),
         StructuralTerm::IndexedValue {
             element_type,
@@ -254,12 +279,14 @@ pub(crate) fn rewrite_slot_applications(
             element_type: *element_type,
             element_identity: *element_identity,
             collection: Box::new(rewrite_slot_applications(
+                program,
                 collection,
                 slot_names,
                 slot_bindings,
                 missing,
             )),
             index: Box::new(rewrite_slot_applications(
+                program,
                 index,
                 slot_names,
                 slot_bindings,
@@ -272,6 +299,7 @@ pub(crate) fn rewrite_slot_applications(
         } => StructuralTerm::CollectionMeasure {
             measure: *measure,
             collection: Box::new(rewrite_slot_applications(
+                program,
                 collection,
                 slot_names,
                 slot_bindings,
@@ -280,6 +308,7 @@ pub(crate) fn rewrite_slot_applications(
         },
         StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
             subject: Box::new(rewrite_slot_applications(
+                program,
                 subject,
                 slot_names,
                 slot_bindings,
@@ -317,6 +346,29 @@ pub(crate) fn diagnostic_shape_match(
             }
         }
         (StructuralTerm::Variable(left), StructuralTerm::Variable(right)) => left == right,
+        (
+            StructuralTerm::Projection { subject, path },
+            StructuralTerm::Projection {
+                subject: actual_subject,
+                path: actual_path,
+            },
+        ) => {
+            path == actual_path
+                && diagnostic_shape_match(subject, actual_subject, variables, bindings)
+        }
+        (
+            StructuralTerm::CollectionMeasure {
+                measure,
+                collection,
+            },
+            StructuralTerm::CollectionMeasure {
+                measure: actual_measure,
+                collection: actual_collection,
+            },
+        ) => {
+            measure == actual_measure
+                && diagnostic_shape_match(collection, actual_collection, variables, bindings)
+        }
         (
             StructuralTerm::Constructor { data, case, fields },
             StructuralTerm::Constructor {

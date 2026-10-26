@@ -357,6 +357,10 @@ pub use value_custody::literals::{
     is_closed_primitive_array_type, peel_arithmetic_policy, scalar_array_elements,
     scalar_array_preserves_memberships,
 };
+pub use value_custody::logical_matches::{
+    LogicalMatchBinding, LogicalRecordCapture, expression_has_closed_value_captures,
+    logical_record_match_capture, logical_saved_subject_projection,
+};
 pub use value_custody::places::ownership_place_from_expression_in_state;
 pub use value_custody::places::{assignment_value_type, declared_place_type_raw};
 pub use value_custody::places::{
@@ -592,3 +596,5 @@ pub use value_custody::const_expressions::{
 // One produced-storage association serves checking and flow consumers.
 pub use value_custody::completed_storage;
 pub use value_custody::places::storage_path_relations;
+
+pub use value_custody::membership_evidence;

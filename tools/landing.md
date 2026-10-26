@@ -112,8 +112,9 @@ another session's work, shared caches, dirty trees or unsubmitted later commits.
 For a squash-landed branch, deletion may need `git branch -D` after those checks;
 failure of `git branch -d` alone is not proof the work is unpublished.
 
-Fast-forward a clean starting checkout on main with `git merge --ff-only
-origin/main`. Do not reset, stash or overwrite a dirty/non-main starting checkout.
+Postlanding verification is read-only PR/commit/CI observation; it never requires
+a local rebuild or acceptance rerun. Leave the starting checkout at its recorded
+base. Do not reset, stash or overwrite dirty/non-main work.
 
 ## Migrating an old session
 

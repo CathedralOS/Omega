@@ -56,9 +56,19 @@ pub(crate) fn build_boundary_machine(
     // made `Opaque::operation(value)` demand a representation of Opaque even
     // when no argument or result contained it. All boundary storage and
     // custody come from the explicit signature, exactly as for checked bodies.
-    let (structural_parameters, scalar_parameters) =
+    let signature = if machine.target_family_interface {
+        super::super::calls::free_structural_scalar_entry_signature_traced(
+            program,
+            shapes,
+            state,
+            &binders,
+            &LocalConstructionTrace::default(),
+        )
+    } else {
         free_structural_scalar_signature(program, shapes, state, &binders)
-            .ok_or("boundary explicit parameters have no runtime signature")?;
+    };
+    let (structural_parameters, scalar_parameters) =
+        signature.ok_or("boundary explicit parameters have no runtime signature")?;
     let domain_requirements = boundary_domain_requirements(
         program,
         shapes,

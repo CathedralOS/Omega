@@ -69,7 +69,10 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
     match initializer.kind {
-        BorrowedInitializerKind::Reference { access } => {
+        BorrowedInitializerKind::Reference {
+            access,
+            type_reference,
+        } => {
             let kind = checked_trees::BorrowAccessKind::from(access);
             if let Some(mut loans) = super::returned_carriers::result_loans(
                 program,
@@ -110,7 +113,15 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
             ) else {
                 return Vec::new();
             };
-            let rebased = rebase_borrow_places_through_local_loans(program, place, loan_trackers);
+            let rebased = rebase_reference_formation_places(
+                program,
+                state_symbol,
+                statement_index,
+                initializer.expression,
+                type_reference,
+                place,
+                loan_trackers,
+            );
             rebased
                 .iter()
                 .map(|source| StatementBorrowLoan {
@@ -293,14 +304,30 @@ pub(super) fn aggregate_expression_borrow_loans(
             ) else {
                 return Vec::new();
             };
-            transferred_aggregate_loans(
-                program,
-                local_data,
-                expression,
-                &source,
-                owner_path_prefix,
-                loan_trackers.iter(),
-            )
+            // Copy the selected aggregate's descriptor leaves, not the
+            // containing pointer's whole-reference loan. Rebase every checked
+            // containing boundary before selecting leaf owner paths; each leaf
+            // keeps its historical supplier and independent activation below.
+            // A lifetime-only dependency is not a pointer to follow: preserve
+            // its original source occurrence for ordinary custody checking.
+            rebase_borrow_places_through_local_loans(program, source, loan_trackers)
+                .iter()
+                .flat_map(|source| {
+                    let storage = if source.lifetime_only {
+                        &source.source_place
+                    } else {
+                        &source.place
+                    };
+                    transferred_aggregate_loans(
+                        program,
+                        local_data,
+                        expression,
+                        storage,
+                        owner_path_prefix,
+                        loan_trackers.iter(),
+                    )
+                })
+                .collect()
         }
         checked_trees::expression::ExpressionNode::Cast(cast) if !cast.form.is_recast() => {
             // A same-carrier value cast preserves denotation and can erase only
