@@ -55,12 +55,14 @@ The original optimized e3 producer refused the root with `selected cleanup
 repeats its captured source home`; immutable receipt
 `e33c601612e44d8cb2a829145571b16e` retains exit 200 and no invalidations. Initial
 repair producer `421824b4308` runs that unchanged root with native exit 0 and
-Terminal exit 0, and its double-use twin rejects. Producer `753eedef5b84` additionally repairs selected parameter completion.
-The root, nine places and original two compositions have a complete fresh
-native/Terminal execution record, and all twelve twins reject. The two reviewer
-premise compositions also execute with their exact counters and their field-use
-twins reject. Current canonical fixture, focused regression and independent
-review work remain in progress; this is not parent capability closure.
+Terminal exit 0, and its double-use twin rejects. Producer `753eedef5b84`
+additionally repairs selected parameter completion: the root, nine places and
+four compositions execute with their authored results, and all fourteen twins
+reject. Execution, fixture and target observations belong to the qualification
+record, which retains exact producer identities and consumed package locks.
+The capture preserves the checked roster's reverse declaration order and its
+original source ordinals; it supplies storage correspondence, while the checked
+normal-death edges retain ownership of the actual cleanup schedule.
 
 Remaining parent acceptance includes linear child carriers, other heterogeneous
 residual and effectful-subject constructions, borrowed/address/descriptor/view

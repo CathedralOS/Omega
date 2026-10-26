@@ -140,7 +140,8 @@ pub(crate) fn emit<'source>(
                 ))?
                 .iter()
                 .enumerate()
-                .rev()
+                // The checked roster already carries reverse declaration
+                // order. Keep its original ordinals when filtering captures.
                 // Only residual owners need this physical cleanup roster.
                 // Whole moves still resolve through the complete receipt.
                 .filter(|(_, source)| source.retains_storage)
