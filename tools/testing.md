@@ -164,13 +164,16 @@ reason to reuse or rerun. Keep raw outcomes with their actual observed revision.
 Qualify the outcome on a fixed recorded revision, with source/oracle hashes,
 compiler binary identity and producer revision, toolchain, target and relevant
 environment/resources. Keep frozen expected results and refusal controls intact.
-After main advances, compare the incoming changes against those recorded inputs:
+Keep the initial base fixed through publication. A changed main or queue SHA
+alone does not trigger pull, rebase, rebuild, requalification or review. Only a
+demonstrated actual merge conflict, concrete prerequisite or changed affected
+source justifies targeted local work and reassessment against recorded inputs.
 
 Use the executable [pinned qualification runner](qualification.md) to capture
 reviewed dependency identities and measured checks on that revision. Keep the
-checkpoint fixed during qualification; integrate main near publication, outside
-the queue, then `assess`/`run-pending` the exact incoming changes. Its worktree
-registration binds the final assessment to ordinary landing verification, while
+checkpoint fixed through publication; `assess`/`run-pending` uses that recorded
+base. After justified source integration, assess only the actual changed closure.
+Qualification records source evidence; GitHub owns integration admission, while
 the original observation SHA remains visible when evidence is reused. Immutable
 producer artifacts and complete reviewed closures are required; file replacement
 during capture invalidates evidence even when the validator exits successfully.
@@ -216,6 +219,8 @@ Independent-workspace checks remain part of focused author validation, not a
 per-main-movement qualification loop. New affected failures still require repair;
 authority, custody, digest and golden rules remain. Post-merge runtime checks and
 release qualification are separate from the deliberately small admission gate.
+Postlanding verification observes the merged source head, published commit and
+CI results; it does not rebuild the compiler or rerun local qualification.
 
 ### Independent semantic review
 
@@ -473,20 +478,24 @@ print('not inspectable', len(absent | local), 'of', len(shas), 'stamps')
 PY
 ```
 
-`--record` now refuses a stamp that is not an ancestor of the published main
-this checkout can see. The refusal names both honest remedies and never
-substitutes a revision of its own, because what a row stamps belongs to the
-person recording. A fixture-only record satisfies the check by **anchoring**:
-leave the fixture and golden changes staged with HEAD at the published base the
-candidate sits on, and the stamp reads `@<base>+wt` — the base stays an ancestor
-after the candidate is rebased, and it names the revision the observation was
-taken against. A record whose *compiler* changed cannot be anchored that way,
-because the base's compiler is not the one that produced the rows; it has to be
-taken after the compiler commit lands. The existing unresolvable stamps are
-history and are deliberately not mass re-recorded here: re-recording
-un-dispositioned rows converts a possible regression into a baseline. A later
-scoped re-record still needs the
-[two-part golden guard](#splicing-a-golden-the-content-guard).
+For a commit outside known published main history, `--record` retains it in
+`refs/corpus-observations/<full-sha>` and an immutable Git bundle at
+`build/corpus-source/<full-sha>.bundle` before writing rows. Publish the bundle
+with PR evidence and preserve it with the run receipts through squash and branch
+cleanup. The bundle excludes only a locally known published ancestor; restore it
+in a clone containing that prerequisite with `git bundle unbundle FILE.bundle`.
+No ancestry on moving main or postlanding compiler run is required. A bundle
+failure refuses recording, and an existing bundle must verify and bind the exact
+stamped commit. This retains source provenance; it does not qualify behavior.
+
+A clean stamp still requires each measured fixture in that commit. `+wt` still
+means the working tree differs: retain its source patch, untracked sources and
+replay inputs with the existing run evidence, rather than treating the base as
+those changed bytes. Never move HEAD back to a published base to relabel a run.
+Historical unresolvable stamps are not mass re-recorded: that could turn a
+regression into a baseline. Scoped recording still requires the
+[two-part golden guard](#splicing-a-golden-the-content-guard), actual engine
+observations, optimized producer checks and all authored oracles.
 
 ### Attributing a move
 
