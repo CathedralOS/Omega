@@ -318,6 +318,37 @@ class CompareRecords(unittest.TestCase):
         self.assertEqual(corpus_records.compare_records(base, head)["losses"],
                          ["pass/a/x: exit 0 -> 1"])
 
+    def test_unchecked_refusal_to_typed_interpreter_refusal_is_neutral(self):
+        marker = "unimplemented: capability=host-bindings task=RUNTIME route=interpreter: unavailable"
+        for tier in ("pass", "run"):
+            for previous in ("rejected", "incomplete"):
+                fixture = f"{tier}/a/x"
+                base = [self.row(fixture, previous, facts={"interpreter": "unchecked"})]
+                head = [self.row(fixture, "built")]
+                head[0]["diagnostics"] = [marker]
+                result = corpus_records.compare_records(base, head)
+                self.assertEqual(result["losses"], [])
+                self.assertEqual(result["gains"], [f"{fixture}: {previous} -> built"])
+                base[0]["facts"]["exit"] = "0"
+                base[0]["facts"]["stdout"] = "match"
+                self.assertEqual(corpus_records.compare_records(base, head)["losses"],
+                                 [f"{fixture}: exit 0 -> -", f"{fixture}: stdout match -> -"])
+
+    def test_unchecked_refusal_needs_exact_marker_and_admission_improvement(self):
+        marker = "unimplemented: capability=host-bindings task=RUNTIME route=interpreter: unavailable"
+        for previous, interpreter, diagnostics in [
+                ("rejected", "unchecked", []),
+                ("rejected", "unchecked", [marker.replace("interpreter:", "native:")]),
+                ("rejected", "unchecked", [marker + "\nextra"]),
+                ("built", "unchecked", [marker]),
+                ("rejected", "agrees", [marker])]:
+            with self.subTest(previous=previous, interpreter=interpreter, diagnostics=diagnostics):
+                base = [self.row("pass/a/x", previous, facts={"interpreter": interpreter})]
+                head = [self.row("pass/a/x", "built")]
+                head[0]["diagnostics"] = diagnostics
+                self.assertIn(f"pass/a/x: interpreter {interpreter} -> -",
+                              corpus_records.compare_records(base, head)["losses"])
+
     def test_successful_publication_is_a_gain_after_refusing_a_positive(self):
         for tier in ("pass", "run"):
             for previous in ("rejected", "incomplete"):
