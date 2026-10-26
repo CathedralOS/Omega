@@ -12,7 +12,11 @@ machine build(builder: &mut Build) {
 }
 
 machine maybe_exclude(builder: &mut Build, enabled: bool) {
-    transition enabled -> exclude(builder), _ -> ();
+    transition enabled {
+        true -> exclude(builder)
+        false -> skip()
+    }
+    machine skip() {}
     machine exclude(builder: &mut Build) {
         Build::exclude_crash(builder, CrashCause::Trap);
     }
