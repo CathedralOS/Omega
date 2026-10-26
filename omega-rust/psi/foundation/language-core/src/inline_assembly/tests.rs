@@ -707,7 +707,7 @@ fn catalog_names_semantic_refusal_classes() {
     // Supervisor traps are service-admission candidates, not hidden exits;
     // address arithmetic and ordering barriers access no memory. Each keeps
     // the unknown-mnemonic failure rather than borrowing a semantic refusal.
-    for mnemonic in ["db", "svc", "hvc", "smc", "brk", "lea", "dmb", "dsb"] {
+    for mnemonic in ["db", "svc", "hvc", "smc", "brk", "lea", "dsb"] {
         assert_eq!(
             asm_catalog_entry(mnemonic),
             None,

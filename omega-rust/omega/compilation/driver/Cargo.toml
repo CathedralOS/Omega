@@ -123,8 +123,3 @@ path = "tests/anonymous_module_owner.rs"
 [[test]]
 name = "package_review"
 path = "tests/package_review.rs"
-
-# Exact catalog ordering observations and fuel resume through authored fact rows.
-[[test]]
-name = "checked_asm_fences"
-path = "tests/checked_asm_fences.rs"

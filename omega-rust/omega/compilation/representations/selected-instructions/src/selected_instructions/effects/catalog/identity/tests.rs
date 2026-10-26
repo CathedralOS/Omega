@@ -798,8 +798,9 @@ fn identity_distinguishes_narrow_load_keys_and_semantics() {
 /// [`MachineSemanticKind::ALL`]. These bytes are the identity of an
 /// alternative in every catalog, program, physical-instruction and
 /// machine-code artifact, so this table changing is always a defect.
-const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u16); 135] = [
+const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u16); 136] = [
     (MachineAlternativeFamily::InterruptControl, 256),
+    (MachineAlternativeFamily::MemoryFence, 257),
     (MachineAlternativeFamily::PortWrite, 239),
     (MachineAlternativeFamily::SystemRegisterRead, 247),
     (MachineAlternativeFamily::SystemRegisterWrite, 248),
