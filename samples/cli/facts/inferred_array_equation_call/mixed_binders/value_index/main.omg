@@ -1,0 +1,14 @@
+// Control: the explicit Count=7 shadows the global Count=99 in formal and returned type indices.
+// Expected exit: 0
+const Count: u64 = 99;
+data Selection<const Limit: u64> [copy] { value: u64; capacity: u64; }
+machine selected<Length [copy], Count: u64, const Capacity: u64>(items: Length, prior: Selection<Count>) -> Selection<Count>
+where Length == [u8; Capacity]
+{ Selection<Count> { value: Count, capacity: Capacity } }
+machine consume(value: Selection<7>) -> Selection<7> { value }
+machine main() crashes Trap {
+    let items: [u8; 2] = [7, 11];
+    let observed: Selection<7> = consume(selected<[u8; 2], 7>(items, Selection<7> { value: 0, capacity: 0 }));
+    transition observed.value == 7 && observed.capacity == 2 { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}

@@ -1,0 +1,17 @@
+// Fact: an array equation infers Capacity=2 while exact explicit callback, value, and evidence selections retain their tuple positions and each observes 7.
+// Expected exit: 0
+data Observation [copy] { capacity: u64; callback: u64; value: u64; evidence: u64; }
+trait Probe<Value> { machine probe(value: &Value) -> u64; }
+Positive satisfies Probe<[u8; 2]> { machine probe(value: &[u8; 2]) -> u64 { 7 } }
+machine marker() -> u64 { 7 }
+machine capacity<Length [copy], machine Callback, Count: u64, const Capacity: u64, Evidence satisfies Probe<Length>>(items: Length) -> Observation
+where machine Callback() -> u64;
+where Length == [u8; Capacity]
+{ Observation { capacity: Capacity, callback: Callback(), value: Count, evidence: Probe::probe<Length, Evidence>(&items) } }
+machine main() crashes Trap {
+    let original: [u8; 2] = [7, 11];
+    let items: [u8; 2] = original;
+    let observed: Observation = capacity<[u8; 2], marker, 7, 3, Positive>(items);
+    transition observed.capacity == 2 && observed.callback == 7 && observed.value == 7 && observed.evidence == 7 { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}

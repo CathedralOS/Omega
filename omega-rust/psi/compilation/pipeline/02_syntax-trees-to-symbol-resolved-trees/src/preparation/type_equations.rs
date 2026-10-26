@@ -69,6 +69,18 @@ use syntax_trees::types::{
 
 mod type_structure;
 
+pub(crate) fn type_reference_parameter_mentions(
+    syntax: &SyntaxTrees,
+    reference: TypeReferenceHandle,
+    names: &[String],
+) -> Vec<usize> {
+    let mut mentions = Vec::new();
+    if reference.is_valid() {
+        type_structure::collect_binder_mentions(syntax, reference, names, &mut mentions);
+    }
+    mentions
+}
+
 /// One declaration-level `where` fact that states a type equation, by its offset in
 /// the template's fact span. Instances never carry it: applying the template
 /// decides it against the complete argument tuple.
@@ -79,6 +91,22 @@ pub(crate) struct TypeEquation {
 }
 
 impl TypeEquation {
+    /// Keep non-equation telescope slots out of structural matching without
+    /// letting their names be reselected as closed declarations.
+    pub(crate) fn mentions_parameter(
+        &self,
+        syntax: &SyntaxTrees,
+        names: &[String],
+        index: usize,
+    ) -> bool {
+        match &self.shape {
+            EquationShape::Structural {
+                binder, structure, ..
+            } => *binder == index || structure.binder_mentions(syntax, names).contains(&index),
+            EquationShape::KindMismatch { .. } => false,
+        }
+    }
+
     pub(crate) fn validate_kind(&self, declaration: &str) -> Result<(), Diagnostic> {
         if let EquationShape::KindMismatch { span, description } = &self.shape {
             return Err(Diagnostic::error(format!(
