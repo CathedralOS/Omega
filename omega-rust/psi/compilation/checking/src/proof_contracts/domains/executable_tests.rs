@@ -38,26 +38,23 @@ pub fn validate_executable_domain_test_carriers(
                 continue;
             }
             let substitutions = declared_type_equations(program, owners, expression);
-            if crate::value_custody::places::declared_carriers_match_with_substitutions(
-                program,
-                subject,
-                target,
-                &substitutions,
-            ) {
+            let normalized_subject = executable_domain_carrier(program, subject, &substitutions);
+            let normalized_target = executable_domain_carrier(program, target, &substitutions);
+            if normalized_subject
+                .zip(normalized_target)
+                .is_some_and(|(subject, target)| {
+                    crate::value_custody::places::declared_carriers_match_with_substitutions(
+                        program,
+                        subject,
+                        target,
+                        &substitutions,
+                    )
+                })
+            {
                 continue;
             }
-            let subject = crate::value_custody::places::substituted_declared_carrier(
-                program,
-                subject,
-                &substitutions,
-            )
-            .unwrap_or(subject);
-            let target = crate::value_custody::places::substituted_declared_carrier(
-                program,
-                target,
-                &substitutions,
-            )
-            .unwrap_or(target);
+            let subject = normalized_subject.unwrap_or(subject);
+            let target = normalized_target.unwrap_or(target);
             return Err(Diagnostic::error(format!(
                 "executable domain test `{}` expects subject carrier `{}`, got `{}`",
                 domain.name.as_str(),
@@ -68,6 +65,35 @@ pub fn validate_executable_domain_test_carriers(
         }
     }
     Ok(())
+}
+
+/// Apply the same shell query to an open declaration as to its closed type.
+/// An equation can reveal another reference or constrained shell, so the
+/// substitution and shell queries must compose until neither exposes more.
+/// This is only the domain's carrier judgment; ordinary predicate reads still
+/// prove access to the original subject and never gain authority from a peel.
+fn executable_domain_carrier(
+    program: &dyn crate::CheckingInput,
+    mut reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> Option<TypeReferenceHandle> {
+    let mut visited = Vec::new();
+    loop {
+        if !reference.is_valid() || visited.contains(&reference) {
+            return None;
+        }
+        visited.push(reference);
+        let substituted = crate::value_custody::places::substituted_declared_carrier(
+            program,
+            reference,
+            substitutions,
+        )?;
+        let unwrapped = crate::unwrapped_type_reference(program, substituted)?;
+        if unwrapped == substituted {
+            return Some(unwrapped);
+        }
+        reference = unwrapped;
+    }
 }
 
 fn declared_type_equations(

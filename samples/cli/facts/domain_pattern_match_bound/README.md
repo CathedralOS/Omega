@@ -30,6 +30,7 @@ The [pure helper](controls/predicate_helper/main.omg) and its [weakened predicat
 
 ## Requirements and evidence
 
+- Reference equations: [the readable carrier](controls/generic_reference_equation/main.omg) declares `Value == &Cell`, so its generic domain test has the same carrier as an explicit `&Cell` parameter. The [write-only application](controls/generic_reference_write/main.omg) and [uninstantiated declaration](controls/generic_reference_uninstantiated_write/main.omg) retain the ordinary prohibition on predicate field reads through `&write`. Carrier normalization supplies no read authority. These additional controls are pending execution; their frozen source-checking comparison records the explicit readable declaration accepting and the equivalent generic declaration refusing at the retained optimized producer `108c8afcad49d7eda027884db2e8de5dc334e17e`.
 - Establishment: a pure finite domain predicate establishes its own selected-arm lower bound; each result arrival independently supplies at least 73.
 - Identity and lifetime: each predicate observes the same completed subject, with ordinary write invalidation and borrow authority. A saved observation cannot create facts about substituted storage.
 - Composition: the joined bound travels through the nine places into exact subtraction; the weak-domain twins must fail their own missing bound.
