@@ -271,6 +271,7 @@ pass/boundary/interleaved_structural_crash_formal_exit built 947ms exit:0 interp
 pass/boundary/later_state_requirement_scalar_result_exit built 69713ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
 pass/boundary/static_foreign_scalar_result_locals_exit built 69334ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
 pass/boundary/static_opaque_qualifier_exit built 762ms exit:0 interpreter-exit:0 interpreter:agrees @f07d2c3e0d94+wt
+pass/build/crash_exclusion_unexecuted_helper_exit built 2874ms exit:0 interpreter-exit:0 interpreter:agrees @5076dc7de0c7
 pass/build/discarded_provider_selection_exit built 6550ms exit:70 interpreter-exit:70 interpreter:agrees @ac7fc986d407+wt
 pass/build/installed_entry_ram_two_occurrences_exit built 1578ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @0360a23ad5f5+wt
 pass/build/nested_generated_dependency_dual_purpose built 983ms exit:0 interpreter-exit:0 interpreter:agrees @9176336860d9
@@ -292,6 +293,13 @@ pass/calls/mixed_value_forwarding_exit built 1368ms exit:70 interpreter-exit:70 
 pass/calls/nested_call_footprints_follow_occurrences built 3186ms exit:0 interpreter-exit:0 interpreter:agrees @94a66e05d152+wt
 pass/calls/nested_call_tail_roots_exit built 12707ms exit:0 interpreter-exit:0 interpreter:agrees @faab7e6c1b7d+wt
 pass/calls/nested_scalar_argument_evaluation_order_exit built 2935ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
+pass/calls/nonreturning_borrowed_argument_indirect_result_exit built 7115ms exit:0 interpreter-exit:0 interpreter:agrees @5076dc7de0c7
+pass/calls/nonreturning_large_call_required_argument_exit built 7166ms exit:0 interpreter-exit:0 interpreter:agrees @5076dc7de0c7
+pass/calls/nonreturning_record_constructor_prefix_exit built 7417ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5076dc7de0c7
+pass/calls/nonreturning_record_match_normal_exit built 7410ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5076dc7de0c7
+pass/calls/nonreturning_record_match_stopped_exit built 7382ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5076dc7de0c7
+pass/calls/nonreturning_scalar_arithmetic_operand_exit built 7135ms exit:0 interpreter-exit:0 interpreter:agrees @5076dc7de0c7
+pass/calls/nonreturning_scalar_call_initialization_exit built 7119ms exit:0 interpreter-exit:0 interpreter:agrees @5076dc7de0c7
 pass/calls/runtime_affine_record_call_results_reused_exit built 6655ms exit:0 interpreter-exit:0 interpreter:agrees @46f0869e8a22
 pass/calls/runtime_alias_write_through_guarded_transition_exit built 7164ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/calls/runtime_atomic_case_shared_argument_exit built 1638ms exit:0 interpreter-exit:0 interpreter:agrees @aea569c35b63
@@ -2332,6 +2340,15 @@ pass/facts/scalar_tag_field_loan_through_other_machine_exit built 844ms exit:0 i
 pass/facts/scalar_tag_field_loan_through_other_state_exit built 874ms exit:0 interpreter-exit:0 interpreter:agrees @3cdf6784ca76+wt
 pass/facts/scalar_tag_field_loan_through_parameter_exit built 874ms exit:0 interpreter-exit:0 interpreter:agrees @3cdf6784ca76+wt
 pass/facts/scalar_tag_field_loan_through_target_body_exit built 834ms exit:0 interpreter-exit:0 interpreter:agrees @3cdf6784ca76+wt
+pass/facts/selected_provider_issuance_through_call_result_exit built 3580ms exit:0 interpreter-exit:0 interpreter:agrees @5076dc7de0c7
+pass/facts/selected_provider_issuance_through_const_name_exit built 3375ms exit:0 interpreter-exit:0 interpreter:agrees @5076dc7de0c7
+pass/facts/selected_provider_issuance_through_field_exit built 3420ms exit:0 interpreter-exit:0 interpreter:agrees @5076dc7de0c7
+pass/facts/selected_provider_issuance_through_local_exit built 3385ms exit:0 interpreter-exit:0 interpreter:agrees @5076dc7de0c7
+pass/facts/selected_provider_issuance_through_match_join_exit built 3359ms exit:0 interpreter-exit:0 interpreter:agrees @5076dc7de0c7
+pass/facts/selected_provider_issuance_through_other_machine_exit built 3363ms exit:0 interpreter-exit:0 interpreter:agrees @5076dc7de0c7
+pass/facts/selected_provider_issuance_through_other_state_exit built 3365ms exit:0 interpreter-exit:0 interpreter:agrees @5076dc7de0c7
+pass/facts/selected_provider_issuance_through_parameter_exit built 3380ms exit:0 interpreter-exit:0 interpreter:agrees @5076dc7de0c7
+pass/facts/selected_provider_issuance_through_target_body_exit built 3434ms exit:0 interpreter-exit:0 interpreter:agrees @5076dc7de0c7
 pass/facts/selected_scalar_initializer_through_call_result_exit built 21327ms exit:0 interpreter-exit:0 interpreter:agrees @67b7c6dfba3d
 pass/facts/selected_scalar_initializer_through_const_name_exit built 21322ms exit:0 interpreter-exit:0 interpreter:agrees @67b7c6dfba3d
 pass/facts/selected_scalar_initializer_through_field_exit built 21825ms exit:0 interpreter-exit:0 interpreter:agrees @67b7c6dfba3d
@@ -3579,6 +3596,8 @@ pass/locals/runtime_deferred_scalar_initialization_exit built 1212ms exit:1 inte
 pass/locals/runtime_local_record_array_element_field_reads_exit built 1979ms exit:70 interpreter-exit:70 interpreter:agrees @ffe8db2ea9e9
 pass/memory/runtime_indexed_resident_exchange_exit built 9247ms exit:0 interpreter-exit:0 interpreter:agrees @226fbdd49549+wt
 pass/memory/runtime_selected_resident_exchange_exit built 9265ms exit:0 interpreter-exit:0 interpreter:agrees @226fbdd49549+wt
+pass/modules/packaged_structured_const_declared_carrier_exit built 2804ms exit:0 interpreter-exit:0 interpreter:agrees @5076dc7de0c7
+pass/modules/packaged_structured_const_generic_composition_exit built 2753ms exit:0 interpreter-exit:0 interpreter:agrees @5076dc7de0c7
 pass/modules/runtime_nominal_constant_lexical_ownership_exit built 3880ms exit:0 interpreter-exit:0 interpreter:agrees @e178570a8179+wt
 pass/modules/same_name_requirement_calls_exit built 6768ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @292c990572a9+wt
 pass/modules/same_name_service_callback_exit built 5517ms exit:0 interpreter-exit:0 interpreter:agrees @292c990572a9+wt

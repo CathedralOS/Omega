@@ -1872,14 +1872,13 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     Only proved bodies and admitted declarations supply theorem roots; unproved
     guarantees and recursive cycles cannot seed their own evidence. Keep every
     reachable return alternative, capture epoch and invocation correlation.
-  - Carry per-invocation geometry, backing, and live supply through provider
-    planning and native settlement in
-    `omega-rust/omega/compilation/realization/provider-planning/src/{service_schema/mod.rs,provider_planning/qualification_grants.rs}`
-    and stage 05 `unit/attached_unit/catalog.rs` so
-    `tests/omega/pass/core/content_retained_custody_round_trip` receives an
-    authorized initial claim from its selected admitted `InitialSupply::acquire`
-    invocation and executes its submit/complete cycle. Fresh native allocation
-    and constructor shape alone do not establish the initial claim.
+  - Complete provider issuance beyond the executable selected Count1
+    submit/complete row in `samples/cli/facts/selected_provider_issuance` and
+    `tests/omega/pass/core/content_retained_custody_round_trip`: general
+    per-invocation geometry, simultaneous live supply, and shared backing across
+    providers must retain exact custody through provider planning and native
+    settlement, including rejection of stale, replayed or duplicate supply.
+    Fresh native allocation and constructor shape alone establish no claim.
   - Complete canonical execution qualification of the hosted-entry programs
     `tests/omega/pass/terminal_psi/{content_custody_exit,structural_content_passthrough}`
     alongside the custody path, using bundled Content and quantity identities.
