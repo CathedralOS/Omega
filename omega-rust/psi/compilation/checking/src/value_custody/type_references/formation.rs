@@ -7,7 +7,27 @@ use super::TypeReferenceOwner;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::SignatureContractKind;
 
-impl TypeReferenceOwner<'_> {
+impl<'program> TypeReferenceOwner<'program> {
+    pub(super) fn local_value_formation(
+        self,
+    ) -> Option<crate::proof_contracts::arithmetic_domains::LocalValueFormation<'program>> {
+        match self {
+            Self::StateLocalData {
+                machine,
+                current_state,
+                value_environment,
+                ..
+            } => Some(
+                crate::proof_contracts::arithmetic_domains::LocalValueFormation {
+                    machine,
+                    state: current_state,
+                    environment: value_environment,
+                },
+            ),
+            _ => None,
+        }
+    }
+
     pub(super) fn value_formation_facts(
         self,
         program: &dyn crate::CheckingInput,

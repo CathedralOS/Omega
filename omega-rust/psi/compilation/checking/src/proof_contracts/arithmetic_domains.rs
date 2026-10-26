@@ -53,7 +53,7 @@ pub(super) mod division_definedness;
 mod domain_exclusions;
 pub(crate) mod domain_intervals;
 mod expression_analysis;
-pub(crate) use declaration_values::validate_declaration_value_range;
+pub(crate) use declaration_values::{LocalValueFormation, validate_declaration_value_range};
 mod float_arithmetic;
 mod float_contracts;
 pub use float_contracts::{float_return_postcondition, normal_return_float_predicates};

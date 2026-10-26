@@ -72,6 +72,9 @@ pub(super) fn retain(
     }
     let lifetimes = region_application::bindings(program, caller, caller_state, call)?;
     let target = call.target_symbol;
+    let parameters = validation::CallSite::Expression { expression, call }
+        .parameters(program, machine_symbol)
+        .map(|parameters| parameters.to_vec());
     let arguments = program
         .expression_table
         .expression_handles(call.arguments)
@@ -83,7 +86,14 @@ pub(super) fn retain(
             .apply_callable_type(returned, &substitutions, &[], target)
             .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?
     };
-    let returned = apply_result_type(program, target, &arguments, returned, &lifetimes)?;
+    let returned = apply_result_type(
+        program,
+        target,
+        parameters.as_deref(),
+        &arguments,
+        returned,
+        &lifetimes,
+    )?;
     Ok(Some(retain_placed_result_type(program, returned)))
 }
 
@@ -175,6 +185,7 @@ fn retain_placed_result_type(
 fn apply_result_type(
     program: &mut TypedTrees,
     target: SymbolHandle,
+    parameters: Option<&[typed_trees::signature::StateParameter]>,
     arguments: &[ExpressionHandle],
     return_type: TypeReferenceHandle,
     lifetimes: &[(
@@ -189,7 +200,7 @@ fn apply_result_type(
             .apply_callable_result_type(return_type, lifetimes, target)
             .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?
     };
-    apply_runtime_result_operands(program, target, arguments, return_type)
+    apply_runtime_result_operands(program, target, parameters, arguments, return_type)
 }
 
 /// All expression-bearing result carriers belong to the invocation's actual
@@ -201,13 +212,13 @@ fn apply_result_type(
 fn apply_runtime_result_operands(
     program: &mut TypedTrees,
     target: SymbolHandle,
+    parameters: Option<&[typed_trees::signature::StateParameter]>,
     arguments: &[ExpressionHandle],
     return_type: TypeReferenceHandle,
 ) -> Result<TypeReferenceHandle, Vec<diagnostics::Diagnostic>> {
-    let Some((_, state)) = validation::find_state(program, target) else {
+    let Some(parameters) = parameters else {
         return Ok(return_type);
     };
-    let parameters = program.state_parameters(state);
     if parameters.len() != arguments.len() {
         return Ok(return_type);
     }
