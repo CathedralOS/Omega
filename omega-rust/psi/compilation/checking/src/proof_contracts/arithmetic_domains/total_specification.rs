@@ -1217,14 +1217,12 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         }
     }
 
-    for (_, parameter) in program.data_type_parameters.iter() {
-        let typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
-            continue;
-        };
-        let Some(signature) = program.machine_parameter_contract_view(contract) else {
-            continue;
-        };
-        let signature = signature.signature();
+    // Backing arenas retain detached application scratch as well as live
+    // contracts. Formation and reserved-result typing must use the same
+    // reachable declaration telescopes, including their nested requirements.
+    for (parameter, signature) in
+        crate::proof_contracts::contract_results::machine_parameter_contract_signatures(program)
+    {
         validate_state_signature(
             program,
             signature,

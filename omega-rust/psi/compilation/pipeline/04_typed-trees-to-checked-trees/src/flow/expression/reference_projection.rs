@@ -129,11 +129,18 @@ impl Execution<'_, '_, '_> {
             .ok_or(ReferenceProjectionRefusal::MissingCapturedLeaf)?;
             let mut places = Vec::new();
             for descriptor in selected {
-                if !descriptor.projection.is_empty() {
-                    return Err(ReferenceProjectionRefusal::MissingCapturedLeaf);
-                }
-                let descriptor = self.context.control.operands.get(descriptor.capture);
-                let addresses = self.captured_reference_places(descriptor.referents);
+                // A completed inline copy retains the parent occurrence and
+                // typed residual path. Read that exact captured leaf, including
+                // its original formation, rather than requiring a new child.
+                let addresses =
+                    super::super::operand_values::captured_reference_places_with_formation(
+                        self.program,
+                        &self.context.control,
+                        descriptor.capture,
+                        descriptor.reference,
+                        &descriptor.projection,
+                    )
+                    .ok_or(ReferenceProjectionRefusal::MissingCapturedLeaf)?;
                 if addresses.is_empty() {
                     return Err(ReferenceProjectionRefusal::EmptyActualAddress);
                 }

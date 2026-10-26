@@ -1938,11 +1938,11 @@ impl<'program> StructuralJudge<'program> {
         let site = crate::CallSite::Expression { expression, call };
         let application =
             AppliedProofBindings::for_call_site(program, scope.0.symbol, &owner, site)?;
-        // Erasing executable static arguments does not authorize this value
-        // observer to interpret a selected machine application's telescope.
-        if !application.machines.is_empty() {
-            return None;
-        }
+        // The shared application intake authenticates the complete static
+        // telescope. This observer imports only its selected public contract;
+        // it never interprets a callback body. The exact call's callback
+        // dependencies still pass independent_call_application below before
+        // any normal guarantee is imported.
         let parameter_scope = super::super::specification_calls::call_parameter_scope(
             program,
             scope.0.symbol,

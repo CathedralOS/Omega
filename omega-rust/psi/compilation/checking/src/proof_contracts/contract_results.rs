@@ -455,7 +455,11 @@ pub fn callable_contract_scopes(
         .iter()
         .flat_map(|definition| program.trait_machine_signatures(definition))
         .chain(program.prepared_callable_signatures())
-        .chain(machine_parameter_contract_signatures(program))
+        .chain(
+            machine_parameter_contract_signatures(program)
+                .into_iter()
+                .map(|(_, signature)| signature),
+        )
         .map(|signature| {
             (
                 signature.symbol,
@@ -483,9 +487,12 @@ pub fn callable_contract_scopes(
 
 /// Follow machine-parameter contracts from live declaration telescopes. Backing
 /// arenas also retain private applications, so arena membership is not a scope.
-fn machine_parameter_contract_signatures(
+pub(crate) fn machine_parameter_contract_signatures(
     program: &dyn crate::CheckingInput,
-) -> Vec<&typed_trees::signature::StateSignature> {
+) -> Vec<(
+    &typed_trees::data::TypeParameter,
+    &typed_trees::signature::StateSignature,
+)> {
     let mut parameters = program
         .machines()
         .iter()
@@ -498,14 +505,25 @@ fn machine_parameter_contract_signatures(
         )
         .chain(
             program
+                .domain_definitions()
+                .iter()
+                .flat_map(|domain| program.domain_type_parameters(domain)),
+        )
+        .chain(
+            program
+                .conformances()
+                .iter()
+                .flat_map(|conformance| program.conformance_type_parameters(conformance)),
+        )
+        .chain(
+            program
                 .traits()
                 .iter()
                 .flat_map(|definition| program.trait_type_parameters(definition)),
         )
         .chain(
             program
-                .operators()
-                .iter()
+                .all_operators()
                 .flat_map(|operator| program.operator_type_parameters(operator)),
         )
         .collect::<Vec<_>>();
@@ -517,7 +535,10 @@ fn machine_parameter_contract_signatures(
     {
         parameters.extend(program.state_signature_type_parameters(signature));
     }
-    let mut signatures = Vec::<&typed_trees::signature::StateSignature>::new();
+    let mut signatures = Vec::<(
+        &typed_trees::data::TypeParameter,
+        &typed_trees::signature::StateSignature,
+    )>::new();
     while let Some(parameter) = parameters.pop() {
         let typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
             continue;
@@ -526,7 +547,7 @@ fn machine_parameter_contract_signatures(
             continue;
         };
         let signature = view.signature();
-        if signatures.iter().any(|previous| {
+        if signatures.iter().any(|(_, previous)| {
             previous.symbol == signature.symbol
                 && previous.parameters == signature.parameters
                 && previous.contracts == signature.contracts
@@ -534,7 +555,7 @@ fn machine_parameter_contract_signatures(
             continue;
         }
         parameters.extend(program.state_signature_type_parameters(signature));
-        signatures.push(signature);
+        signatures.push((parameter, signature));
     }
     signatures
 }
