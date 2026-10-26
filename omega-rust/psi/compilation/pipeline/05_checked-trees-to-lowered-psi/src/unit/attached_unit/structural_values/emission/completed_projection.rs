@@ -68,31 +68,7 @@ impl Emission<'_, '_, '_> {
         mut prepared: Vec<PreparedStructuralPathSegment>,
         access: StructuralAccess,
     ) -> Result<StructuralArgument, LoweringError> {
-        let root = self
-            .evaluation
-            .structural_root_parameters()
-            .find(|row| row.place == place)
-            .map(|row| row.structural_type)
-            .or_else(|| {
-                self.operations
-                    .iter()
-                    .chain(
-                        self.evaluation
-                            .blocks
-                            .iter()
-                            .flat_map(|block| block.operations.iter()),
-                    )
-                    .find_map(|operation| {
-                        operation
-                            .result
-                            .structural()
-                            .filter(|result| result.place == place)
-                            .map(|result| result.structural_type)
-                    })
-            })
-            .ok_or(LoweringError::Unsupported(
-                "projection lost its physical root declaration",
-            ))?;
+        let root = self.projection_root_type(place)?;
         let frontiers = crate::emission::completed_place::plan(
             self.structural_types,
             root,
@@ -210,6 +186,30 @@ impl Emission<'_, '_, '_> {
             path,
             access,
         })
+    }
+
+    /// Geometry comes from established source homes and producer declarations,
+    /// including private places that have no operation-result declaration.
+    /// This lookup grants neither storage liveness nor projection permission.
+    pub(super) fn projection_root_type(
+        &self,
+        place: PlaceId,
+    ) -> Result<super::StructuralTypeId, LoweringError> {
+        self.evaluation
+            .structural_root_parameters()
+            .find(|row| row.place == place)
+            .map(|row| row.structural_type)
+            .or_else(|| {
+                self.evaluation
+                    .completed_bindings(
+                        self.operations,
+                        self.environment.private_places.iter().cloned(),
+                    )
+                    .structural_place_type(place)
+            })
+            .ok_or(LoweringError::Unsupported(
+                "projection lost its physical root declaration",
+            ))
     }
 
     fn projection_selector(

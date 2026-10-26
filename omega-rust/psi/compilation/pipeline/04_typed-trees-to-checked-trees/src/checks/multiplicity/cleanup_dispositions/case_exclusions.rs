@@ -4,76 +4,85 @@
 //! cuts. Keep one exact-identity index alongside the publication order instead
 //! of comparing every prior structural path on every visit. This index decides
 //! only duplicate identity; it supplies no membership or overlap evidence.
+//! Hashes filter candidates; complete structural equality still decides every
+//! hit, including collisions. Publication and invalidation keep their order.
 
+use std::hash::{Hash, Hasher};
+use symbols::{SymbolHasher, SymbolKeyMap};
 use validation::CanonicalPlace;
+
+#[derive(Clone)]
+struct CaseObservation {
+    place: CanonicalPlace,
+    fingerprint: u64,
+}
 
 #[derive(Clone, Default)]
 pub(super) struct CaseExclusions {
-    observations: Vec<CanonicalPlace>,
-    by_identity: Vec<usize>,
+    observations: Vec<CaseObservation>,
+    by_identity: SymbolKeyMap<u64, usize>,
 }
 
 impl CaseExclusions {
+    fn observation_fingerprint(place: &CanonicalPlace) -> u64 {
+        let mut hasher = SymbolHasher::default();
+        place.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn identity_position(&self, fingerprint: u64, place: &CanonicalPlace) -> Option<usize> {
+        let &first = self.by_identity.get(&fingerprint)?;
+        if self.observations[first].place == *place {
+            return Some(first);
+        }
+        // A collision keeps the first indexed row. Search the exact retained
+        // observations rather than treating the hash as a semantic identity.
+        self.observations
+            .iter()
+            .position(|observation| observation.place == *place)
+    }
+
     pub(super) fn insert(&mut self, place: &CanonicalPlace) {
-        let Err(position) = self
-            .by_identity
-            .binary_search_by(|&position| self.observations[position].compare_identity(place))
-        else {
+        let fingerprint = Self::observation_fingerprint(place);
+        if self.identity_position(fingerprint, place).is_some() {
             return;
-        };
-        self.by_identity.insert(position, self.observations.len());
-        self.observations.push(place.clone());
+        }
+        self.by_identity
+            .entry(fingerprint)
+            .or_insert(self.observations.len());
+        self.observations.push(CaseObservation {
+            place: place.clone(),
+            fingerprint,
+        });
     }
 
     pub(super) fn contains(&self, place: &CanonicalPlace) -> bool {
-        self.by_identity
-            .binary_search_by(|&position| self.observations[position].compare_identity(place))
-            .is_ok()
+        self.identity_position(Self::observation_fingerprint(place), place)
+            .is_some()
     }
 
     pub(super) fn iter(&self) -> impl Iterator<Item = &CanonicalPlace> {
-        self.observations.iter()
+        self.observations
+            .iter()
+            .map(|observation| &observation.place)
     }
 
     pub(super) fn retain(&mut self, mut keep: impl FnMut(&CanonicalPlace) -> bool) {
         let previous_length = self.observations.len();
-        let mut remapped_positions = Vec::new();
-        let mut previous_position = 0;
-        let mut retained_position = 0;
-        self.observations.retain(|place| {
-            let retained = keep(place);
-            if !retained && remapped_positions.is_empty() {
-                // Until the first removal every position stays unchanged.
-                // A no-op invalidation needs neither scratch nor index work.
-                remapped_positions.reserve(previous_length);
-                remapped_positions.extend(0..previous_position);
-            }
-            if !retained || !remapped_positions.is_empty() {
-                remapped_positions.push(if retained {
-                    retained_position
-                } else {
-                    usize::MAX
-                });
-            }
-            previous_position += 1;
-            retained_position += usize::from(retained);
-            retained
-        });
+        self.observations
+            .retain(|observation| keep(&observation.place));
         if self.observations.len() == previous_length {
             return;
         }
-        // Identity keys do not change when their rows compact. Keep their
-        // existing sorted order and translate positions instead of comparing
-        // every surviving structural path again. Removed rows have no index.
-        self.by_identity.retain_mut(|position| {
-            let remapped = remapped_positions[*position];
-            if remapped == usize::MAX {
-                false
-            } else {
-                *position = remapped;
-                true
-            }
-        });
+        // Rebuild only the compact integer index after a real removal. The
+        // retained fingerprints avoid rehashing paths, and a colliding bucket
+        // now points at its first surviving observation.
+        self.by_identity.clear();
+        for (position, observation) in self.observations.iter().enumerate() {
+            self.by_identity
+                .entry(observation.fingerprint)
+                .or_insert(position);
+        }
     }
 
     pub(super) fn clear(&mut self) {
@@ -84,7 +93,7 @@ impl CaseExclusions {
 
 #[cfg(test)]
 mod tests {
-    use super::CaseExclusions;
+    use super::{CaseExclusions, CaseObservation};
     use facts::{PlaceRoot, PlaceSegment};
     use symbols::SymbolHandle;
     use validation::CanonicalPlace;
@@ -101,6 +110,46 @@ mod tests {
                 },
             ],
         }
+    }
+
+    #[test]
+    fn hash_collisions_do_not_join_structural_identities() {
+        let places = [
+            place(1, 1, 8),
+            place(1, 2, 8),
+            place(2, 1, 8),
+            place(1, 1, 9),
+        ];
+        let fingerprint = 7;
+        let mut exclusions = CaseExclusions {
+            observations: places[..3]
+                .iter()
+                .map(|place| CaseObservation {
+                    place: place.clone(),
+                    fingerprint,
+                })
+                .collect(),
+            by_identity: [(fingerprint, 0)].into_iter().collect(),
+        };
+        for (position, place) in places[..3].iter().enumerate() {
+            assert_eq!(
+                exclusions.identity_position(fingerprint, place),
+                Some(position)
+            );
+        }
+        assert_eq!(exclusions.identity_position(fingerprint, &places[3]), None);
+        exclusions.retain(|place| place != &places[1]);
+        assert_eq!(exclusions.identity_position(fingerprint, &places[1]), None);
+        assert_eq!(
+            exclusions.identity_position(fingerprint, &places[2]),
+            Some(1)
+        );
+        exclusions.retain(|place| place != &places[0]);
+        assert_eq!(exclusions.identity_position(fingerprint, &places[0]), None);
+        assert_eq!(
+            exclusions.identity_position(fingerprint, &places[2]),
+            Some(0)
+        );
     }
 
     #[test]

@@ -152,7 +152,7 @@ pub fn normalize_terminal_transition_calls(
                 private_layout_operation: None,
                 layout_query: None,
                 native_code_layout: None,
-                build_product_request: Default::default(),
+                build_selection: Default::default(),
                 arguments,
                 evidence_arguments,
                 operational_acknowledgement,

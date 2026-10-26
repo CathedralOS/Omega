@@ -11,30 +11,19 @@ use super::super::super::borrowed_windows::{OpenWindows, ValueReplacement};
 use super::super::call_results::checked_copied_result_type;
 use super::{
     CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
-    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralResultBindingPlan, LocalConstructionTrace, Multiplicity,
-    ScalarCalleeClosure, ShapeCollector, SymbolHandle, checked_structural_result_type, is_unit,
-    statement_call_target, structural_operands,
+    CheckedUnitStructuralResultBindingPlan, Construction, LocalConstructionTrace, Multiplicity,
+    ShapeCollector, SymbolHandle, checked_structural_result_type, is_unit, statement_call_target,
+    structural_operands,
 };
 
 /// The sequence state an assignment reads and extends.
 pub(super) struct Planner<'a, 'program, 'shapes> {
-    pub(super) program: &'program dyn ::validation::CheckingInput,
-    pub(super) facts: &'program CheckFacts,
-    pub(super) scalar_callees: ScalarCalleeClosure,
-    pub(super) shapes: &'a mut ShapeCollector<'shapes>,
-    pub(super) machine: &'program typed_trees::machine::Machine,
-    pub(super) state: &'program typed_trees::state::State,
-    pub(super) structural_parameters: &'a mut [CheckedUnitStructuralParameterPlan],
+    pub(super) construction: Construction<'a, 'program, 'shapes>,
+    pub(super) binders: &'a [(SymbolHandle, String)],
     pub(super) scalar_parameters: &'a [CheckedStructuralScalarParameterPlan],
     pub(super) parameter_storage: &'a [checked_trees::CheckedUnitParameterStoragePlan],
-    pub(super) entry_claims: &'a [CheckedUnitEntryClaimPlan],
-    pub(super) trivial_affine_locals:
-        &'a [(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
-    pub(super) trace: &'a LocalConstructionTrace,
-    pub(super) binders: &'a [(SymbolHandle, String)],
     pub(super) stores:
         &'a mut std::iter::Peekable<std::vec::IntoIter<CheckedUnitEffectOperationPlan>>,
     pub(super) operations: &'a mut Vec<CheckedUnitEffectOperationPlan>,
@@ -67,19 +56,22 @@ pub(super) fn plan(
     assignment: &typed_trees::statement::TableAssignment,
 ) -> Option<AssignmentPlan> {
     let Planner {
-        program,
-        facts,
-        scalar_callees,
-        shapes,
-        machine,
-        state,
-        structural_parameters,
+        construction:
+            Construction {
+                program,
+                facts,
+                scalar_callees,
+                shapes,
+                machine,
+                state,
+                structural_parameters,
+                entry_claims,
+                trivial_affine_locals,
+                trace,
+            },
+        binders,
         scalar_parameters,
         parameter_storage,
-        entry_claims,
-        trivial_affine_locals,
-        trace,
-        binders,
         stores,
         operations,
         scalar_count,

@@ -60,6 +60,7 @@ impl<'a> TerminalProductionRequest<'a> {
     ) -> Result<ProducedTerminalProgram, TerminalArtifactProductionError> {
         let TerminalProductionCustody { applications } = custody;
         let checked = self.checked;
+        let declaration_requests = crate::build_bindings::capture_declarations(checked);
         let lowered = observer
             .record_result(PsiCompilationStage::Lowering, || {
                 lower_machine(
@@ -169,7 +170,8 @@ impl<'a> TerminalProductionRequest<'a> {
                 Ok(receipt)
             })
             .collect();
-        let build_bindings = crate::TerminalBuildBindings::new(program.view(), binding_calls);
+        let build_bindings =
+            crate::TerminalBuildBindings::new(program.view(), binding_calls, declaration_requests);
         let build_requests = crate::TerminalBuildRequests::new(program.view(), request_calls);
         let build_filesystem =
             crate::TerminalBuildFilesystem::new(program.view(), filesystem_calls);

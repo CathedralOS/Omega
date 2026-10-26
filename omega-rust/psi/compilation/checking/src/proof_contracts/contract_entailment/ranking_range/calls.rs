@@ -4,7 +4,6 @@
 //! destination's formal and projection namespace replaces it. Source ranks and
 //! hypotheses are already polynomials, so rebinding cannot rewrite their past.
 
-use super::super::{StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding};
 use super::coordinate::{CoordinateFamily, CoordinateSet};
 use super::{
     BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine,
@@ -13,6 +12,7 @@ use super::{
     meanings, measure_body_shape, parameter_comparisons, projections, saved_arguments,
     validate_mapping,
 };
+use crate::{StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding};
 use symbols::SymbolHandle;
 mod endpoint_pins;
 pub(crate) use endpoint_pins::{RankingRangeCallEdge, mixed_call_endpoints_are_pinned};

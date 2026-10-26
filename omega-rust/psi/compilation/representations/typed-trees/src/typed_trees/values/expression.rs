@@ -12,7 +12,7 @@ use crate::static_applications::{
     StaticMachineLifetimeBinding,
 };
 use arena::{Arena, Handle, HandleSpan};
-use language_semantics::declaration_selection::BuildProductRequest;
+use language_semantics::declaration_selection::BuildSelectionRequest;
 use numerics::literals::IntegerLiteral;
 use source::SourceSpan;
 use std::ops::Deref;
@@ -88,10 +88,19 @@ pub struct AtomicExpression {
     pub result_custody: language_core::atomic::AtomicExpressionResultCustody,
 }
 
+/// An executable domain predicate retains its exact tested value and selected
+/// declaration after normalization into Boolean operations. This is an
+/// obligation to check, never membership or establishment authority.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ExecutableDomainTest {
+    pub subject: ExpressionHandle,
+    pub domain: SymbolHandle,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpressionTable {
     expressions: Arena<ExpressionNode>,
-    build_product_requests: Arena<BuildProductRequest>,
+    build_selection_requests: Arena<BuildSelectionRequest>,
     /// Iteration-visible expressions of this program. Backing rows remain at
     /// their stable handles when a compilation projects a closed body roster.
     expression_roots: Arena<ExpressionHandle>,
@@ -108,6 +117,8 @@ pub struct ExpressionTable {
     index_expression_authority_handles: Vec<Handle<IndexExpressionAuthority>>,
     authored_selection_occurrences: Vec<HandleSpan<StoredAuthoredSelectionOccurrenceId>>,
     authored_selection_occurrence_ids: Arena<StoredAuthoredSelectionOccurrenceId>,
+    executable_domain_tests: Vec<HandleSpan<ExecutableDomainTest>>,
+    executable_domain_test_rows: Arena<ExecutableDomainTest>,
     expression_handles: Arena<ExpressionHandle>,
     name_path_members: Arena<Identifier>,
     name_path_member_symbols: Arena<SymbolHandle>,
@@ -363,10 +374,11 @@ impl ExpressionTable {
     pub fn revision(&self) -> u64 {
         self.expressions
             .revision()
-            .wrapping_add(self.build_product_requests.revision())
+            .wrapping_add(self.build_selection_requests.revision())
             .wrapping_add(self.expression_roots.revision())
             .wrapping_add(self.index_expression_authorities.revision())
             .wrapping_add(self.authored_selection_occurrence_ids.revision())
+            .wrapping_add(self.executable_domain_test_rows.revision())
             .wrapping_add(self.expression_handles.revision())
             .wrapping_add(self.name_path_members.revision())
             .wrapping_add(self.name_path_member_symbols.revision())
@@ -383,6 +395,7 @@ impl ExpressionTable {
             .wrapping_add(self.static_machine_lifetime_bindings.revision())
             .wrapping_add(self.source_spans.len() as u64)
             .wrapping_add(self.authored_selection_occurrences.len() as u64)
+            .wrapping_add(self.executable_domain_tests.len() as u64)
     }
 
     pub fn with_expression_capacity(expression_capacity: usize) -> Self {
@@ -403,7 +416,7 @@ impl ExpressionTable {
     pub fn with_capacities(capacity: ExpressionTableCapacity) -> Self {
         Self {
             expressions: Arena::with_capacity(capacity.expressions),
-            build_product_requests: Arena::default(),
+            build_selection_requests: Arena::default(),
             expression_roots: Arena::with_capacity(capacity.expressions),
             source_spans: Vec::with_capacity(capacity.expressions),
             constructed_value_types: Arena::default(),
@@ -416,6 +429,8 @@ impl ExpressionTable {
             authored_selection_occurrence_ids: Arena::with_capacity(
                 capacity.authored_selection_occurrences,
             ),
+            executable_domain_tests: Vec::with_capacity(capacity.expressions),
+            executable_domain_test_rows: Arena::default(),
             expression_handles: Arena::with_capacity(capacity.expression_handles),
             name_path_members: Arena::with_capacity(capacity.name_path_members),
             name_path_member_symbols: Arena::with_capacity(capacity.name_path_member_symbols),
@@ -433,7 +448,7 @@ impl ExpressionTable {
 
     pub fn clear(&mut self) {
         self.expressions.reset_retain_capacity();
-        self.build_product_requests.reset_retain_capacity();
+        self.build_selection_requests.reset_retain_capacity();
         self.expression_roots.reset_retain_capacity();
         self.source_spans.clear();
         self.constructed_value_types.reset_retain_capacity();
@@ -445,6 +460,8 @@ impl ExpressionTable {
         self.authored_selection_occurrences.clear();
         self.authored_selection_occurrence_ids
             .reset_retain_capacity();
+        self.executable_domain_tests.clear();
+        self.executable_domain_test_rows.reset_retain_capacity();
         self.expression_handles.reset_retain_capacity();
         self.name_path_members.reset_retain_capacity();
         self.name_path_member_symbols.reset_retain_capacity();
@@ -671,6 +688,7 @@ impl ExpressionTable {
         self.source_spans.push(SourceSpan::default());
         self.authored_selection_occurrences
             .push(HandleSpan::empty());
+        self.executable_domain_tests.push(HandleSpan::empty());
         debug_assert_eq!(source_span_index(handle), self.source_spans.len() - 1);
         debug_assert_eq!(
             source_span_index(handle),
@@ -683,20 +701,20 @@ impl ExpressionTable {
         self.source_spans[source_span_index(handle)]
     }
 
-    pub fn insert_build_product_request(
+    pub fn insert_build_selection_request(
         &mut self,
-        request: BuildProductRequest,
-    ) -> Handle<BuildProductRequest> {
-        self.build_product_requests.insert(request)
+        request: BuildSelectionRequest,
+    ) -> Handle<BuildSelectionRequest> {
+        self.build_selection_requests.insert(request)
     }
 
-    pub fn build_product_request(
+    pub fn build_selection_request(
         &self,
-        request: Handle<BuildProductRequest>,
-    ) -> Option<&BuildProductRequest> {
-        self.build_product_requests
+        request: Handle<BuildSelectionRequest>,
+    ) -> Option<&BuildSelectionRequest> {
+        self.build_selection_requests
             .is_valid(request)
-            .then(|| self.build_product_requests.get(request))
+            .then(|| self.build_selection_requests.get(request))
     }
 
     pub fn set_source_span(&mut self, handle: ExpressionHandle, source_span: SourceSpan) {
@@ -822,6 +840,33 @@ impl ExpressionTable {
             .iter()
             .copied()
             .map(StoredAuthoredSelectionOccurrenceId::occurrence)
+    }
+
+    pub fn executable_domain_tests(&self, expression: ExpressionHandle) -> &[ExecutableDomainTest] {
+        self.executable_domain_test_rows
+            .span_or_empty(self.executable_domain_tests[source_span_index(expression)])
+    }
+
+    pub fn retain_executable_domain_test(
+        &mut self,
+        expression: ExpressionHandle,
+        test: ExecutableDomainTest,
+    ) {
+        if !self.executable_domain_tests(expression).contains(&test) {
+            self.executable_domain_test_rows.append_to_span(
+                &mut self.executable_domain_tests[source_span_index(expression)],
+                test,
+            );
+        }
+    }
+
+    fn replace_executable_domain_tests(
+        &mut self,
+        expression: ExpressionHandle,
+        tests: impl IntoIterator<Item = ExecutableDomainTest>,
+    ) {
+        self.executable_domain_tests[source_span_index(expression)] =
+            self.executable_domain_test_rows.insert_many(tests);
     }
 
     pub fn insert_expression_handles(
@@ -1548,7 +1593,7 @@ pub struct TableCallExpression {
     /// Source-issued selection carried by an ordinary Build boundary call.
     /// Zero denotes a call without designated product operands. The payload
     /// belongs to this expression table, not to an interpreter side channel.
-    pub build_product_request: Handle<BuildProductRequest>,
+    pub build_selection: Handle<BuildSelectionRequest>,
     /// Zero until specialization erases this call's authored static operands.
     pub authored_machine_application: StaticMachineApplicationHandle,
     /// An Exact carrier coercion elaborated to this conversion requirement.

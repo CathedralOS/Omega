@@ -31,6 +31,10 @@ pub(super) fn validate_machine(
                 .identities
                 .text(specialization.template_callable)
                 .is_none_or(str::is_empty)
+                || module
+                    .identities
+                    .text(specialization.template_semantic_declaration)
+                    .is_none_or(str::is_empty)
         })
     {
         return malformed("machine specialization lost its exact template callable");

@@ -43,9 +43,68 @@ pub(super) fn call_result_origins(
     include_shared: bool,
     inputs: &dyn ArgumentOrigins,
 ) -> Option<AggregateOrigins> {
-    // A stale or missing selected target cannot be repaired by its spelling.
     let call = program.expression_table.call_node(expression)?;
     let (machine, state) = machine_state_by_symbol(program, call.target_symbol)?;
+    let alternatives =
+        if primitive_results::result_origins(program, machine, state, expected, include_shared)
+            .is_some()
+        {
+            vec![state.symbol]
+        } else {
+            super::call_targets::checked_body_alternatives(program, machine, state)?
+        };
+    // Instantiate every alternative against the same completed actual values
+    // before joining. Member formals belong to distinct namespaces, so their
+    // raw coordinates cannot be compared or selected by the realization host.
+    let mut returned = AggregateOrigins::default();
+    for alternative in alternatives {
+        let (machine, state) = machine_state_by_symbol(program, alternative)?;
+        let origins = call_body_result_origins(
+            program,
+            caller_machine,
+            machine,
+            state,
+            expression,
+            expected,
+            symbols,
+            inference,
+            include_shared,
+            inputs,
+        )?;
+        for reference in origins.references {
+            if !returned.references.contains(&reference) {
+                returned.references.push(reference);
+            }
+        }
+        for case in origins.cases {
+            if !returned.cases.contains(&case) {
+                returned.cases.push(case);
+            }
+        }
+        for moved in origins.moves {
+            if !returned.moves.contains(&moved) {
+                returned.moves.push(moved);
+            }
+        }
+    }
+    Some(returned)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn call_body_result_origins(
+    program: &dyn crate::CheckingInput,
+    caller_machine: &Machine,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    include_shared: bool,
+    inputs: &dyn ArgumentOrigins,
+) -> Option<AggregateOrigins> {
+    // A stale or missing selected target cannot be repaired by its spelling.
+    let call = program.expression_table.call_node(expression)?;
     // The body relation uses callee coordinates, while its receiving carrier
     // belongs to this applied invocation. Comparing the raw result would ask
     // the caller to identify a foreign runtime index with its own captured
@@ -718,16 +777,9 @@ fn merge_named_edge<'program>(
     returns: &mut bool,
     boundary_prefix: Option<&CollectedStatementPrefix>,
 ) -> Option<()> {
-    let TransitionTargetNode::Named {
-        static_machine_parameter,
-        ..
-    } = program.statement_table.transition_target(edge)
-    else {
+    let TransitionTargetNode::Named { .. } = program.statement_table.transition_target(edge) else {
         return None;
     };
-    if static_machine_parameter.is_valid() {
-        return None;
-    }
     let call_target = super::terminal_calls::target(program, machine, edge);
     let (target_machine, target_state) = if call_target.is_valid() {
         let (callee, state) = machine_state_by_symbol(program, call_target)?;

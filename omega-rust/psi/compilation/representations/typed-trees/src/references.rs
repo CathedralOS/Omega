@@ -2044,6 +2044,13 @@ fn visit_machine_with_sidecars(
     }
     let from = machine.symbol;
     visit_type_parameters(program, retained, machine.type_parameters);
+    for equation in program
+        .declared_type_equations
+        .span_or_empty(machine.declared_type_equations)
+    {
+        visit_type_reference(program, retained, equation.parameter);
+        visit_type_reference(program, retained, equation.definition);
+    }
     visit_type_reference(program, retained, machine.attached_data_application);
     for contract in program
         .tables
@@ -2178,7 +2185,7 @@ mod conformance_occurrence_tests {
                     private_layout_operation: None,
                     layout_query: None,
                     native_code_layout: None,
-                    build_product_request: Default::default(),
+                    build_selection: Default::default(),
                     arguments: Default::default(),
                     evidence_arguments: Box::new([]),
                     operational_acknowledgement: Default::default(),

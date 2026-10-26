@@ -2,7 +2,7 @@ use super::ProviderPlanningContext;
 use checked_trees::typed_trees::TypedTrees;
 use symbols::SymbolHandle;
 
-pub use language_semantics::declaration_selection::ProviderCompositionMode as CompositionMode;
+pub use language_semantics::declaration_selection::CompositionMode;
 
 /// One exact declaration identity participating in a provider selection.
 #[derive(Debug, Clone, PartialEq, Eq)]

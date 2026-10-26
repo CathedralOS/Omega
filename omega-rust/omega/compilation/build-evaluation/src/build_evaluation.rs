@@ -63,6 +63,20 @@ pub struct PreparedBuildEvaluation {
 }
 
 impl PreparedBuildEvaluation {
+    /// Catalog discovery may observe a role before dependency settlement, but
+    /// only from this code owner's actual normal return. This is not success
+    /// evidence for generated outputs or a Product.
+    pub fn validate_return(&self, returned: &crate::ReturnedBuild) -> Result<(), CompileFailure> {
+        match &self.state {
+            BuildEvaluationState::Execute(execution) => execution
+                .validate_return(returned)
+                .map_err(CompileFailure::from),
+            BuildEvaluationState::Complete(_) => Err(vec![Diagnostic::error(
+                "Build declaration observation requires an executed activation",
+            )]
+            .into()),
+        }
+    }
     /// Defaults and freshly charged Pure reuse need no new activation.
     pub fn execution(&mut self) -> Option<&mut crate::PreparedBuildExecution> {
         match &mut self.state {
@@ -181,8 +195,10 @@ pub fn prepare_build_evaluation(
         return Ok(PreparedBuildEvaluation {
             state: BuildEvaluationState::Complete(Arc::new(crate::ComputedBuildConfig {
                 config: crate::BuildConfig::default(),
-                product_declaration_source_count: 0,
-                product_requests: Vec::new(),
+                root_binding_requests: Vec::new(),
+                declared_product_selections: Vec::new(),
+                product_selection_requests: Vec::new(),
+                behavior_exclusion_requests: Vec::new(),
                 project_declaration: None,
                 optimization_report_request:
                     optimization_core::OptimizationReportRequest::Suppressed,

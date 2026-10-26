@@ -483,14 +483,14 @@ fn diagnose_runtime_evidence_case_failure(module: &terminal_psi::TerminalModule,
                             );
                         }
                         for (branch, predicates) in &machine.case_successors {
-                            for observed in predicates
+                            for (observed, truth) in predicates
                                 .iter()
-                                .filter(|observed| observed.case == row.guard.result_case)
+                                .filter(|(observed, _)| observed.case == row.guard.result_case)
                             {
                                 let selected =
                                     analysis.case_is_established(caller.id, *position, observed);
                                 eprintln!(
-                                    "[runtime-evidence-case-observation] caller={:?} cut={position:?} branch={branch:?} subject={:?} case={:?} selected={selected}",
+                                    "[runtime-evidence-case-observation] caller={:?} cut={position:?} branch={branch:?} subject={:?} case={:?} truth={truth} selected={selected}",
                                     caller.id, observed.subject, observed.case
                                 );
                             }

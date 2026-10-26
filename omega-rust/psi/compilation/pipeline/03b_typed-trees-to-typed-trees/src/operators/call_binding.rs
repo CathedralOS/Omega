@@ -411,7 +411,7 @@ pub(crate) fn bind_selected_operator_calls(
                 private_layout_operation: None,
                 layout_query: None,
                     native_code_layout: None,
-                    build_product_request: Default::default(),
+                    build_selection: Default::default(),
                 arguments,
                 evidence_arguments: Box::default(),
                 operational_acknowledgement: language_semantics::CallOperationalAcknowledgement {
@@ -564,7 +564,7 @@ fn rewrite_match_equality(
             private_layout_operation: None,
             layout_query: None,
             native_code_layout: None,
-            build_product_request: Default::default(),
+            build_selection: Default::default(),
             arguments,
             evidence_arguments: Box::default(),
             operational_acknowledgement: language_semantics::CallOperationalAcknowledgement {

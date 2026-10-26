@@ -22,6 +22,29 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
         CheckedUnitStructuralTypePlan,
     >,
 ) -> Option<(Vec<u32>, Vec<CheckedUnitPartialAffineDiscardPlan>, bool)> {
+    // A checked selection owns the complete conditional disposition of each
+    // source, including parameter roots. normal_edges publishes its selected
+    // whole/residual/retirement actions against the receipt's captured homes.
+    // This provisional ordinary-return roster cannot summarize those branches
+    // as an unconditional partial move, reject them before that owner runs, or
+    // grant the same storage a second death. Non-selected parameters still owe
+    // this function's whole or exact partial return-edge cleanup below.
+    let selected_sources = facts
+        .flow
+        .ownership
+        .owned_selections
+        .iter()
+        .filter(|(_, receipt)| receipt.machine == machine && receipt.state == state)
+        .flat_map(|(_, receipt)| {
+            facts
+                .flow
+                .ownership
+                .selection_sources
+                .span_or_empty(receipt.sources)
+                .iter()
+                .map(|source| source.symbol)
+        })
+        .collect::<Vec<_>>();
     let mut transferred_parameters = BTreeSet::new();
     let mut moved_parameter_paths = BTreeMap::<
         u32,
@@ -35,6 +58,9 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
             continue;
         }
         let source = source_parameters.get(parameter.position as usize)?;
+        if selected_sources.contains(&source.symbol) {
+            continue;
+        }
         let parameter_index = u32::try_from(parameter_index).ok()?;
         let vacancies = super::super::storage_transfers::parameter_vacancies(
             program,
@@ -187,6 +213,9 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
         }
         let parameter_index = parameter_index?;
         let parameter = &structural_parameters[parameter_index];
+        if selected_sources.contains(&source_parameters.get(parameter.position as usize)?.symbol) {
+            continue;
+        }
         let parameter_index = u32::try_from(parameter_index).ok()?;
         if transferred_parameters.contains(&parameter_index)
             || residual_roots.contains(&parameter_index)

@@ -26,6 +26,7 @@ pub(super) fn encode_catalog(bytes: &mut CanonicalBytes, catalog: &RuntimeEviden
                 |bytes, specialization| {
                     bytes.u32(specialization.template.identity().0);
                     bytes.u32(specialization.template_callable.0);
+                    bytes.u32(specialization.template_semantic_declaration.0);
                     bytes.bytes(&specialization.commitment);
                 },
             );

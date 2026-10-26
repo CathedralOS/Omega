@@ -11,9 +11,9 @@
 //! follow the same rule. Within a component only its caller-state conjunction
 //! is assumed; externally only already proved predicates may be imported.
 
-use super::demands;
 use super::{AdmittedGuarantee, Arrival, Header};
-use crate::checks::termination::{machine_adjacency, strongly_connected_components};
+use super::{completions, demands};
+use crate::checks::termination::strongly_connected_components;
 use checked_trees::CheckFacts;
 use symbols::SymbolHandle;
 use validation::{ScopedArithmeticExpression, ScopedArithmeticHypothesis};
@@ -27,9 +27,7 @@ pub(super) fn admitted(
         return Vec::new();
     };
     let states = program.machine_states(machine);
-    let adjacency = machine_adjacency(program, machine);
-    let components = strongly_connected_components(&adjacency);
-    let solved = crate::flow::machine_parameter_origins(program, machine);
+    let solved = crate::flow::activation_parameter_origins(program, machine);
     let origins = states
         .iter()
         .map(|state| crate::flow::state_parameter_origins(program, machine, state, &solved))
@@ -48,6 +46,22 @@ pub(super) fn admitted(
     else {
         return Vec::new();
     };
+    // The proof's graph comes from its admitted arrival roster. Source-only
+    // state topology excludes recursive entry calls and cannot describe this
+    // whole-activation invariant.
+    let mut adjacency = vec![Vec::new(); headers.len()];
+    for (destination, incoming) in arrivals.iter().enumerate() {
+        for arrival in incoming {
+            if let Some(caller) = headers
+                .iter()
+                .position(|header| header.header.symbol == arrival.caller)
+                && !adjacency[caller].contains(&destination)
+            {
+                adjacency[caller].push(destination);
+            }
+        }
+    }
+    let components = strongly_connected_components(&adjacency);
     let candidates = headers.iter().map(Header::candidates).collect::<Vec<_>>();
     let mut demands = headers
         .iter()
@@ -73,6 +87,7 @@ pub(super) fn admitted(
             }
         }
     }
+    completions::extend(program, facts, machine, &adjacency, &mut admitted);
     admitted
 }
 

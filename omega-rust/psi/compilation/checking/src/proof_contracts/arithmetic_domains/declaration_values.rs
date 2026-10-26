@@ -155,10 +155,10 @@ pub(super) fn binary_result_fits(
     expression: ExpressionHandle,
     primitive: PrimitiveType,
 ) -> bool {
-    use crate::proof_contracts::contract_entailment::{
+    use crate::proof_contracts::contract_entailment::scoped_arithmetic_values_relation_for_declaration;
+    use crate::{
         ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
         ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
-        scoped_arithmetic_values_relation_for_declaration,
     };
     use typed_trees::expression::BinaryOperator;
     if prior_facts.is_empty() {

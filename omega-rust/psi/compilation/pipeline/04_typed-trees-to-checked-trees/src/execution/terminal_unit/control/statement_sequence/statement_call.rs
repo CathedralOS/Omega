@@ -11,32 +11,19 @@
 //! replacement only after operand preparation updates the open-window ledger;
 //! selecting it earlier would dispose an actual that the call already consumed.
 use super::{
-    CheckFacts, CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralResultBindingPlan, ExpectedCallValueResult, LocalConstructionTrace,
-    Multiplicity, ScalarCalleeClosure, ShapeCollector, StatementNode, SymbolHandle,
-    bind_scalar_call_result, bind_structural_call_result, build_call_operation, consume_results,
-    structural_operands,
+    CheckedUnitEffectOperationPlan, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralResultBindingPlan, Construction,
+    ExpectedCallValueResult, Multiplicity, StatementNode, SymbolHandle, bind_scalar_call_result,
+    bind_structural_call_result, build_call_operation, consume_results, structural_operands,
 };
 use checked_trees::CheckedUnitPartialAffineDiscardPlan;
 
 /// The sequence state a statement's call reads and extends.
 pub(super) struct Planner<'a, 'program, 'shapes> {
-    pub(super) program: &'program dyn ::validation::CheckingInput,
-    pub(super) facts: &'program CheckFacts,
-    pub(super) scalar_callees: ScalarCalleeClosure,
-    pub(super) shapes: &'a mut ShapeCollector<'shapes>,
-    pub(super) machine: &'program typed_trees::machine::Machine,
-    pub(super) state: &'program typed_trees::state::State,
-    pub(super) structural_parameters: &'a mut [CheckedUnitStructuralParameterPlan],
+    pub(super) construction: Construction<'a, 'program, 'shapes>,
     pub(super) scalar_parameters: &'a [super::CheckedStructuralScalarParameterPlan],
     pub(super) parameter_storage: &'a [checked_trees::CheckedUnitParameterStoragePlan],
-    pub(super) entry_claims: &'a [CheckedUnitEntryClaimPlan],
-    pub(super) trivial_affine_locals:
-        &'a [(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     pub(super) calls: &'a [&'a checked_trees::FlowCallFact],
-    pub(super) trace: &'a LocalConstructionTrace,
     pub(super) operations: &'a mut Vec<CheckedUnitEffectOperationPlan>,
     pub(super) structural_count: &'a mut usize,
     pub(super) call_count: &'a mut usize,
@@ -68,19 +55,22 @@ pub(super) fn plan(
     statement_call: StatementCall,
 ) -> Option<()> {
     let Planner {
-        program,
-        facts,
-        scalar_callees,
-        shapes,
-        machine,
-        state,
-        structural_parameters,
+        construction:
+            Construction {
+                program,
+                facts,
+                scalar_callees,
+                shapes,
+                machine,
+                state,
+                structural_parameters,
+                entry_claims,
+                trivial_affine_locals,
+                trace,
+            },
         scalar_parameters,
         parameter_storage,
-        entry_claims,
-        trivial_affine_locals,
         calls,
-        trace,
         operations,
         structural_count,
         call_count,

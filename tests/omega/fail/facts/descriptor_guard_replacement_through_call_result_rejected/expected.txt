@@ -1,0 +1,2 @@
+state `store` receives
+as both mutable and read-only

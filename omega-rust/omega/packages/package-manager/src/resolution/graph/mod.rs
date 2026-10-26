@@ -1,28 +1,25 @@
 //! Complete dependency-graph construction and identity.
 //!
-//! [`resolve`] connects declared workspace, local, and Git requests to source
-//! custody. [`reconcile`] builds the complete dependency closure, this file
+//! Source acquisition executes declarations before [`reconcile`] builds the
+//! complete dependency closure. [`accepted`] compares retained lock subjects;
+//! [`git_pins`] selects exact acquisition policy. This file
 //! owns its validated shape ([`ResolvedPackageClosure`]), and [`subject`]
 //! gives that exact closure a canonical review subject.
 
+mod accepted;
+mod git_pins;
 pub(crate) mod reconcile;
-mod resolve;
 mod root_request;
 pub(crate) mod subject;
 
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::declarations::{AliasName, PackageKey};
+pub(crate) use accepted::{admit_locked_source_request, mutable_local_graph_matches};
+pub(crate) use git_pins::{GitDependencyPins, GitResolutionOptions};
 use package_source::{IdentityError, ImmutableSourceResolution};
 pub(crate) use reconcile::{
-    DependencyRequestPath, ExactTargetPackageSourceClosure, PackageSourceClosureLimits,
-    PackageSourceClosureResolutionError, ResolvedPackageSourceClosure,
-};
-pub(crate) use resolve::resolve_locked_local_project_closure;
-pub(crate) use resolve::{
-    GitDependencyPins, GitResolutionOptions, ResolveDependencySourceError,
-    ResolveExternalLocalPackageClosureError, resolve_external_local_project_closure,
-    resolve_staged_external_local_project_closure,
+    DependencyRequestPath, ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure,
 };
 pub(crate) use root_request::PackageRootSourceRequest;
 use std::collections::{BTreeMap, BTreeSet};

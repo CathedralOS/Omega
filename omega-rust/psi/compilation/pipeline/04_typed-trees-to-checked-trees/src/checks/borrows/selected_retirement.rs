@@ -23,21 +23,35 @@ pub(super) fn before_call(
     let Some(state) = program.state_in_machine(machine, flow.state_symbol) else {
         return false;
     };
-    let checked_trees::FlowPermissionEvaluation::TransitionTarget(target) =
-        crate::flow::call_permission_evaluation(
-            program,
-            machine,
-            state,
-            call.statement_index,
-            call.call_ordinal,
-        )
-    else {
-        return false;
-    };
-    before_target(program, facts, flow, call.statement_index, target, loan)
+    let evaluation = crate::flow::call_permission_evaluation(
+        program,
+        machine,
+        state,
+        call.statement_index,
+        call.call_ordinal,
+    );
+    before_evaluation(program, facts, flow, call.statement_index, evaluation, loan)
 }
 
-pub(super) fn before_target(
+/// All accesses in a selected target consume the same completed-observation
+/// boundary. The guard itself, ordinary statements and unknown occurrences
+/// retain their active loans. The target proof below also retains every child
+/// or later use, so this query cannot manufacture restoration from last use.
+pub(super) fn before_evaluation(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    flow: &FlowStateFact,
+    statement_index: usize,
+    evaluation: checked_trees::FlowPermissionEvaluation,
+    loan: Handle<BorrowLoanFact>,
+) -> bool {
+    let checked_trees::FlowPermissionEvaluation::TransitionTarget(target) = evaluation else {
+        return false;
+    };
+    before_target(program, facts, flow, statement_index, target, loan)
+}
+
+fn before_target(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     flow: &FlowStateFact,

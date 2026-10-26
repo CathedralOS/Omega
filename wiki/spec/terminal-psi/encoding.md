@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 194 even when every table
+order below. This layout uses semantic format marker 195 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -586,6 +586,15 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 125 | TransformContent | counted structural arguments containing exactly one raw payload + counted parent structural arguments + counted content transformation derivations |
 | 126 | RegisterObservation | `u16` catalog identity + declared scalar input IDs; no service authority |
 
+Catalog ordering events use the existing authority-free `RegisterObservation`
+carrier, with no scalar operands or result. Their `u16` identities are 0x500
+(x86 LFENCE), 0x501 (SFENCE), 0x502 (MFENCE), 0x503 (A64 full-system DMB LD),
+0x504 (DMB ST), and 0x505 (DMB SY). The exact identity fixes the target and
+ordering mask; these are not aliases for ordinary `AtomicFence`. Unknown
+identities, service-bearing encodings and invented operands reject. Execution
+still needs an explicitly supplied compatible environment; wire admission
+supplies neither that environment nor access authority.
+
 A byte-sequence operand is `u8` 2 + whole source structural argument + length value id,
 or `u8` 1 + source place id + structural access + structural path + field id
 + length value id. Tag 0's retired whole-place operand rejects. Whole operands
@@ -696,7 +705,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 194 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 195 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.

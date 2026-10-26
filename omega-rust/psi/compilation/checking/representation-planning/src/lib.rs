@@ -22,6 +22,7 @@ pub use representation_selections::{
 };
 
 pub use representation_selection::{
-    close_resolved_representation_selection, rederive_opaque_representation_selections,
+    FormedOpaqueRepresentation, collect_opaque_representation_selections,
+    form_opaque_representation_request, rederive_opaque_representation_selections,
 };
 pub use representation_trait::is_compiler_owned_opaque_representation_trait;

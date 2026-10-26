@@ -80,7 +80,7 @@ pub(super) fn check_compatibility<'p>(
             );
             let target_name = call_target_label(program, call.target_symbol);
             let entry_constraints = call_borrow_constraints(program, call, state_flow, facts);
-            check_build_product_receiver(
+            check_build_selection_receiver(
                 program,
                 facts,
                 state_flow,
@@ -110,7 +110,7 @@ pub(super) fn check_compatibility<'p>(
 /// preparation only observes identity. Judge the exact evaluated preparation
 /// prefix, independently of whether the commit is a statement or a nested
 /// expression. The emitted protocol never manufactures writes to Build fields.
-fn check_build_product_receiver<'p>(
+fn check_build_selection_receiver<'p>(
     program: &'p dyn validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
@@ -129,12 +129,12 @@ fn check_build_product_receiver<'p>(
     else {
         return;
     };
-    if !operation.build_product_request.is_valid() || operation.target.as_str() == "prepare" {
+    if !operation.build_selection.is_valid() || operation.target.as_str() == "prepare" {
         return;
     }
     let request = program
         .expression_table
-        .build_product_request(operation.build_product_request);
+        .build_selection_request(operation.build_selection);
     let arguments = program
         .expression_table
         .expression_handles(operation.arguments);
@@ -142,7 +142,7 @@ fn check_build_product_receiver<'p>(
         let preparation = program.expression_table.call_node(*expression)?;
         let retained = program
             .expression_table
-            .build_product_request(preparation.build_product_request)?;
+            .build_selection_request(preparation.build_selection)?;
         // Copies allocate independent request handles for each call. Their
         // source-issued payload, never arena-index equality, links the pair.
         if preparation.target.as_str() != "prepare" || Some(retained) != request {

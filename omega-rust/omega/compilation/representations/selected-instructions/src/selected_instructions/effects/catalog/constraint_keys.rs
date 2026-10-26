@@ -37,6 +37,7 @@ impl SelectedConstraintKeys {
             self.model_specific_write,
             self.processor_halt,
             self.interrupt_control,
+            self.memory_fence,
             self.atomic_fence,
             self.atomic_load,
             self.atomic_store,
@@ -169,6 +170,7 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::ModelSpecificWrite => return self.model_specific_write,
             MachineSemanticKind::ProcessorHalt => return self.processor_halt,
             MachineSemanticKind::InterruptControl => return self.interrupt_control,
+            MachineSemanticKind::MemoryFence => return self.memory_fence,
             MachineSemanticKind::AtomicFence => return self.atomic_fence,
             MachineSemanticKind::AtomicAccess(form) => {
                 return match form.operation {

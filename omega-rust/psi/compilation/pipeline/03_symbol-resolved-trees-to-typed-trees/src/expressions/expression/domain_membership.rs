@@ -283,7 +283,15 @@ fn lower_atomic_domain_membership_expression(
         lowered_facts.push(lowered);
     }
 
-    combine_conjunction(target, lowered_facts)
+    let predicate = combine_conjunction(target, lowered_facts)?;
+    target.expression_table.retain_executable_domain_test(
+        predicate,
+        typed::expression::ExecutableDomainTest {
+            subject: value,
+            domain: domain_symbol,
+        },
+    );
+    Ok(predicate)
 }
 
 fn case_symbols_for_domain_fact(

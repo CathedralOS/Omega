@@ -183,7 +183,8 @@ pub(crate) fn capture(
             break;
         };
         remaining = remaining.checked_sub(1)?;
-        if !shell.access.is_readable() || !access_can_supply(shell.access.into(), access) {
+        // Crossing descriptor metadata forms the loan without observing its referent.
+        if !access_can_supply(shell.access.into(), access) {
             return None;
         }
         crossings += 1;

@@ -86,6 +86,7 @@ pub struct TerminalExecution<'artifact> {
     /// One immutable selected route per boundary. Catalog alternatives are
     /// never a substitute for a checked installation or explicit host choice.
     pub(crate) x86_flags: Option<crate::effects::TerminalX86FlagsEnvironment>,
+    pub(crate) memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
     pub(crate) boundary_supplies:
         BTreeMap<BoundaryMachineId, crate::effects::AdmittedBoundarySupply>,
     /// Exact family catalog selection, never provider or boundary issuance.
@@ -560,6 +561,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         let mut execution = Self {
             failure: None,
             x86_flags: installation.and_then(|supplies| supplies.x86_flags),
+            memory_ordering: installation.and_then(|supplies| supplies.memory_ordering),
             activation_storage: crate::activation_storage::RuntimeActivationStorage::new(
                 account.as_ref(),
             ),
@@ -1051,6 +1053,21 @@ impl<'artifact> TerminalExecution<'artifact> {
                                     }
                                     OperationKind::PortWrite { .. } => {
                                         self.execute_port_write(operation, handler)?
+                                    }
+                                    OperationKind::RegisterAccess { event: terminal_psi::RegisterAccessEvent::MemoryFence { kind }, .. } => {
+                                        if !matches!(operation.result, terminal_psi::OperationResult::Unit) { return Err(malformed()); }
+                                        if self.memory_ordering.is_none_or(|model| !model.supports(kind)) {
+                                            return Err(TerminalInterpretError::UnsupportedCapability(
+                                                crate::capabilities::TerminalUnsupportedCapability::RegisterAccess {
+                                                    operation: terminal_psi::RegisterOperation::MemoryFence(kind),
+                                                },
+                                            ));
+                                        }
+                                        // The supplied model completes every access in program
+                                        // order. Record this exact event only after admission;
+                                        // ordinary fuel/next-operation progress prevents replay.
+                                        self.effects.push(crate::effects::TerminalEffect::MemoryFence { operation: operation.id, kind });
+                                        OperationFlow::Advance
                                     }
                                     OperationKind::RegisterAccess { event: terminal_psi::RegisterAccessEvent::Read { register: terminal_psi::SystemRegister::Rflags }, .. } => {
                                         let image = self.x86_flags.ok_or(TerminalInterpretError::UnsupportedCapability(crate::capabilities::TerminalUnsupportedCapability::RegisterAccess { operation: terminal_psi::RegisterOperation::SystemRead(terminal_psi::SystemRegister::Rflags) }))?.snapshot();

@@ -41,6 +41,7 @@ pub(super) fn decode_instruction(
         12 => MachineMemoryEffect::ZeroBytesV1,
         4 => MachineMemoryEffect::WritePointerV1,
         15 => MachineMemoryEffect::AtomicFenceV1,
+        16 => MachineMemoryEffect::CatalogFenceV1,
         8 => MachineMemoryEffect::AtomicPointerV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
@@ -598,6 +599,7 @@ fn decode_alternative_for_version(
         254 => MachineAlternativeFamily::ControlRegisterRead,
         255 => MachineAlternativeFamily::ControlRegisterWrite,
         256 => MachineAlternativeFamily::InterruptControl,
+        257 => MachineAlternativeFamily::MemoryFence,
 
         238 => MachineAlternativeFamily::AtomicFence,
         235 => MachineAlternativeFamily::ZeroBytes,
@@ -638,7 +640,7 @@ fn decode_alternative_for_version(
         17 => MachineAlternativeFamily::Store64,
         18 => MachineAlternativeFamily::FrameAddress,
         232 => MachineAlternativeFamily::ImageAddress,
-        257 => MachineAlternativeFamily::InvokeNoNormal,
+        258 => MachineAlternativeFamily::InvokeNoNormal,
         19 => MachineAlternativeFamily::CallUnit,
         3 => MachineAlternativeFamily::ExactAddI64,
         51 => MachineAlternativeFamily::BitwiseAndI64,
@@ -786,6 +788,7 @@ fn decode_encoded_effects(
         },
 
         18 => MachineEncodedMemoryEffect::AtomicFenceV1,
+        19 => MachineEncodedMemoryEffect::CatalogFenceV1,
         11 => MachineEncodedMemoryEffect::AtomicPointerV1 {
             pointer_operand: cursor.u16()?,
             form: crate::AtomicForm::from_ordinal(cursor.byte()?)
@@ -1153,7 +1156,7 @@ mod float_result_policy_tests {
         assert_eq!(cursor.remaining(), 0);
         // Neither truncating to the low byte nor accepting an unknown high
         // family may reinterpret the event as a legacy arithmetic alternative.
-        for tag in [258_u16, u16::MAX] {
+        for tag in [259_u16, u16::MAX] {
             encoded[..2].copy_from_slice(&tag.to_le_bytes());
             assert!(decode_alternative(&mut Cursor::new(&encoded)).is_err());
         }

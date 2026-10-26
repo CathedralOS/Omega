@@ -86,17 +86,52 @@ public data BuildProduct {
 // the exact selected identity.
 public data ProductEntryRef [copy] {
 }
-// Execution protocol for designated Product bindings and selections. Typing supplies
+// Execution protocol for the designated Build::bind syntax. Typing supplies
 // the exact product-selection occurrence beside the ordinary boundary call.
 // Calling this requirement directly supplies no selection or host authority.
 // These are compiler host operations, not a user-selected service binding.
 // Their activation-local ticket is interpreted only at admitted call sites.
-public boundary trait BuildProductOperations {
+public boundary trait BuildBindingOperations {
     machine prepare(builder: &Build) -> u64 reaches;
     machine bind(activation: u64) reaches;
-    machine select(activation: u64) reaches;
-    machine select_mode(activation: u64, mode: CompositionMode) reaches;
     machine bind_description(activation: u64, description: ProductEntryRef) reaches;
+    machine select(activation: u64) reaches;
+    machine select_mode(activation: u64, independent: bool) reaches;
+    machine exclude(activation: u64, code: u64) reaches;
+}
+machine build_exclusion_crash_code(cause: CrashCause) -> u64 {
+    match cause {
+        CrashCause::Trap -> 0u64
+        CrashCause::Abort -> 1u64
+    }
+}
+machine build_exclusion_physical_code(authority: PhysicalAuthorityClass) -> u64 {
+    match authority {
+        PhysicalAuthorityClass::FilesystemContentRead -> 0u64
+        PhysicalAuthorityClass::FilesystemContentWrite -> 1u64
+        PhysicalAuthorityClass::FilesystemMetadataQuery -> 2u64
+        PhysicalAuthorityClass::DirectoryEnumeration -> 3u64
+        PhysicalAuthorityClass::FilesystemNamespaceMutation -> 4u64
+        PhysicalAuthorityClass::FilesystemMetadataMutation -> 5u64
+        PhysicalAuthorityClass::ProcessOutput -> 6u64
+        PhysicalAuthorityClass::ProcessTermination -> 7u64
+        PhysicalAuthorityClass::MachineControl -> 8u64
+        PhysicalAuthorityClass::PortIo -> 9u64
+        PhysicalAuthorityClass::InterruptControl -> 10u64
+        PhysicalAuthorityClass::InterruptEntry -> 11u64
+        PhysicalAuthorityClass::RootMemoryAccess -> 12u64
+        PhysicalAuthorityClass::ProcessInput -> 13u64
+    }
+}
+// This conversion is ordinary checked source, preserving the exact enum's
+// meaning without teaching a host adapter to infer a case from storage bits.
+public machine build_selection_independent(mode: CompositionMode) -> bool {
+    transition mode {
+        CompositionMode::Fused -> fused()
+        CompositionMode::Independent -> independent()
+    }
+    machine fused() -> bool { false }
+    machine independent() -> bool { true }
 }
 // A restricted, non-callable product-provider description (the
 // `ProductProviderRef` of wiki/spec/build/scoped_execution.md). Authored
@@ -240,22 +275,13 @@ public machine Build::artifact_only(builder: &mut Build) reaches BuildRequestOpe
 // product-admission requirement that the selected executable composition
 // contains no reachable site of the named crash cause. The selection is
 // recorded when this call executes against the original Build value;
-// the ordinary boundary records its evaluated case, and a
+// typing normalizes the declaration to the authenticated selection protocol. A
 // declaration that permits Trap cannot override it.
-public machine Build::exclude_crash(builder: &mut Build, cause: CrashCause) reaches BuildBehaviorOperations invokes BuildBehaviorOperations; {
-    BuildBehaviorOperations::exclude_crash(builder, cause);
+public machine Build::exclude_crash(builder: &mut Build, cause: CrashCause) {
 }
 // Native realization checks this executed selection using the shared
 // physical mechanism classifier, independently of receiver permissions.
-public machine Build::exclude_physical_authority(builder: &mut Build, authority: PhysicalAuthorityClass) reaches BuildBehaviorOperations invokes BuildBehaviorOperations; {
-    BuildBehaviorOperations::exclude_physical_authority(builder, authority);
-}
-// Internal recording observes identity; it never replaces Build storage.
-// Source admission permits these calls only in the exact mutable public
-// helpers above. A user-authored direct call carries no host authority.
-public boundary trait BuildBehaviorOperations {
-    machine exclude_crash(builder: &Build, cause: CrashCause) reaches;
-    machine exclude_physical_authority(builder: &Build, authority: PhysicalAuthorityClass) reaches;
+public machine Build::exclude_physical_authority(builder: &mut Build, authority: PhysicalAuthorityClass) {
 }
 // Independent-component assumption acceptance
 // (wiki/spec/build/component_publication.md): a verified component

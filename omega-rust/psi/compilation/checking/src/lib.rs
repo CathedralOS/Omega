@@ -98,21 +98,32 @@ pub use proof_contracts::arithmetic_domains::{
     selected_scalar_interval,
 };
 pub use proof_contracts::collection_predicates::{
-    exact_predicate_intervals, length_member, premises_prove_expression,
+    PredicateIntegerOperand, exact_predicate_intervals, exact_predicate_ordering, length_member,
+    predicate_ordering_consequences, premises_prove_expression,
 };
-pub use proof_contracts::contract_entailment::{
-    CapturedIntegerOperation, CapturedNumericObservations, CapturedScalarObservation,
+pub use proof_contracts::contract_entailment::call_projection_identity::{
+    captured_call_argument_index_matches, captured_call_index_value,
+    captured_call_subject_identity, owned_contract_subject,
+};
+pub use proof_contracts::contract_entailment::completed_domains::{
+    completed_value_proves_bound_domain_predicate, completed_value_proves_domain_predicate,
+    completed_value_refutes_domain,
+};
+pub use proof_contracts::contract_entailment::completed_observations::completed_value_is_bounded_by_static;
+pub use proof_contracts::contract_entailment::content_conservation::{
     ConditionalContentGuarantee, ContentBackingAddressGoal, ContentConservationDependencies,
-    ContentConservationImplication, NumericObservationDemand, captured_call_argument_index_matches,
-    captured_call_index_value, captured_call_subject_identity, captured_collection_length,
-    captured_integer_value, captured_numeric_observations, closed_collection_length,
+    ContentConservationImplication, completed_value_content_conservation_dependencies,
+    completed_value_has_content_conservation_candidate, completed_value_preserves_entry_projection,
+    completed_value_proves_backing_addresses, completed_value_proves_content_conservation,
+};
+pub use proof_contracts::contract_entailment::numeric_observations::{
+    CapturedIntegerOperation, CapturedNumericObservations, CapturedScalarObservation,
+    NumericObservationDemand, captured_numeric_observations,
+};
+pub use proof_contracts::contract_entailment::ranking_range::{
+    captured_collection_length, captured_integer_value, closed_collection_length,
     closed_collection_length_at_place, closed_collection_length_under_matches,
-    completed_value_content_conservation_dependencies,
-    completed_value_has_content_conservation_candidate, completed_value_is_bounded_by_static,
-    completed_value_preserves_entry_projection, completed_value_proves_backing_addresses,
-    completed_value_proves_bound_domain_predicate, completed_value_proves_content_conservation,
-    completed_value_proves_domain_predicate, completed_value_refutes_domain,
-    owned_contract_subject, unique_literal_field,
+    unique_literal_field,
 };
 pub use proof_contracts::contract_results::{
     ReservedResultPlace, callable_contract_scopes, reserved_result_owner, reserved_result_place,
@@ -122,7 +133,7 @@ pub use proof_contracts::domains::{
     scalar_field_domain_predicate, scalar_field_restriction, scalar_membership_carrier,
     scalar_membership_predicates, scalar_membership_value_carrier,
     scalar_membership_value_predicates, scalar_predicate_domains, scalar_type_routed_domains,
-    scalar_type_tags,
+    scalar_type_tags, validate_executable_domain_test_carriers,
 };
 pub use proof_contracts::parameter_domains::parameter_domain_constraints;
 pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;
@@ -263,7 +274,8 @@ pub use crate::value_custody::content_projections::build_content_projection_plan
 
 pub use crate::declarations::symbols::TopLevelSymbols;
 pub use crate::value_custody::cleanup::{
-    data_requires_nominal_drop, type_graph_requires_nominal_drop,
+    data_requires_nominal_drop, has_no_owned_cleanup_obligations,
+    has_plain_contents_without_nominal_cleanup, type_graph_requires_nominal_drop,
 };
 pub use crate::value_custody::data::{data_requires_establishment, type_requires_establishment};
 pub use crate::value_custody::type_references::{
@@ -353,7 +365,7 @@ pub use value_custody::expression_types::{
 };
 pub use value_custody::expression_types::{
     structural_match_cases_are_covered, structural_match_pattern_case,
-    structural_match_subject_type,
+    structural_match_pattern_is_total, structural_match_subject_type,
 };
 pub use value_custody::literals::builtin_constant_array_projection_type;
 pub use value_custody::literals::declared_constant_array_type;
@@ -425,11 +437,22 @@ pub use proof_contracts::arithmetic_domains::{
     stored_integer_source_projection, stored_integer_source_projections,
     stored_integer_source_reach,
 };
-pub use proof_contracts::contract_entailment::integer_embedding_sources_equal;
+pub use proof_contracts::contract_entailment::arithmetic_judgment::integer_embedding_sources_equal;
+pub use proof_contracts::contract_entailment::call_requirements::selected_value_call_requirement_entailed;
+pub use proof_contracts::contract_entailment::call_requirements::structural_call_requirement_entailed;
+pub use proof_contracts::contract_entailment::collection_bounds::CollectionBoundsObservations;
 pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
-pub use proof_contracts::contract_entailment::selected_value_call_requirement_entailed;
-pub use proof_contracts::contract_entailment::structural_call_requirement_entailed;
-pub use proof_contracts::contract_entailment::{
+pub use proof_contracts::contract_entailment::law_conformance::{
+    InheritedRequirementApplication, inherited_requirement_proposition_application,
+    inherited_requirement_proposition_label, inherited_satisfier_parameters,
+};
+pub use proof_contracts::contract_entailment::law_conformance::{
+    MatchedLawGuarantee, matched_machine_law_guarantees,
+};
+pub use proof_contracts::contract_entailment::proof_integer::{
+    anonymous_integer_math_literal, proof_integer_expression,
+};
+pub use proof_contracts::contract_entailment::ranking_range::{
     ArithmeticCallObservation, RankArrivalCompatibility, RankArrivalCorrespondence,
     RankArrivalDemand, RankCoordinateBinding, RankCoordinateTransport, RankLocalCapture,
     RankPremiseCoordinate, RankPremiseInput, RankPremiseObservation, RankProtectedPath,
@@ -444,39 +467,29 @@ pub use proof_contracts::contract_entailment::{
     ranking_range_state_premise_coordinates, ranking_slice_length_observation,
     select_rank_arrival_correspondence,
 };
-pub use proof_contracts::contract_entailment::{
-    CollectionBoundsObservations, StatementPredicateObservations,
-};
-pub use proof_contracts::contract_entailment::{
+pub use proof_contracts::contract_entailment::ranking_range::{
     ComputationBodyShape, DeclaredScalarView, MeasureBodyShape, ProjectionStep,
     ScalarViewComputation, computation_body_shape, declared_scalar_view, find_declared_measure,
     identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
 };
-pub use proof_contracts::contract_entailment::{
-    InheritedRequirementApplication, inherited_requirement_proposition_application,
-    inherited_requirement_proposition_label, inherited_satisfier_parameters,
-};
-pub use proof_contracts::contract_entailment::{
-    InheritedRequirementEdge, transparent_call_requirement_entailed,
-    transparent_proposition_application_entailed,
-};
-pub use proof_contracts::contract_entailment::{
-    MatchedLawGuarantee, matched_machine_law_guarantees,
-};
-pub use proof_contracts::contract_entailment::{
+pub use proof_contracts::contract_entailment::refuted_requires::instantiated_value_call_requires_proven;
+pub use proof_contracts::contract_entailment::scoped_arithmetic::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticComparison,
     ScopedArithmeticExpression, ScopedArithmeticHypothesis, ScopedArithmeticValue,
-    ScopedCallCompletion, StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
+    ScopedCallCompletion, scoped_arithmetic_comparisons_unsatisfiable,
+    scoped_arithmetic_implication, scoped_arithmetic_value_bounds,
+    scoped_arithmetic_values_relation, scoped_completed_call_guarantees,
+};
+pub use proof_contracts::contract_entailment::specification_calls::call_contract_parameter_position;
+pub use proof_contracts::contract_entailment::statement_predicates::StatementPredicateObservations;
+pub use proof_contracts::contract_entailment::strict_arithmetic::{
+    StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
     StrictArithmeticImplicationJudgment, StrictArithmeticSymbolBinding,
-    scoped_arithmetic_comparisons_unsatisfiable, scoped_arithmetic_implication,
-    scoped_arithmetic_value_bounds, scoped_arithmetic_values_relation,
-    scoped_completed_call_guarantees, strict_arithmetic_expression_implication,
+    strict_arithmetic_expression_implication,
 };
-pub use proof_contracts::contract_entailment::{
-    anonymous_integer_math_literal, proof_integer_expression,
-};
-pub use proof_contracts::contract_entailment::{
-    call_contract_parameter_position, instantiated_value_call_requires_proven,
+pub use proof_contracts::contract_entailment::transparent_applications::{
+    InheritedRequirementEdge, transparent_call_requirement_entailed,
+    transparent_proposition_application_entailed,
 };
 pub use proof_contracts::default_domains::{
     case_where_field_intervals, data_where_field_intervals, impossible_variant,

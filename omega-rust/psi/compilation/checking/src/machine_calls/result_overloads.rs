@@ -288,7 +288,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                     private_layout_operation: None,
                     layout_query: None,
                     native_code_layout: None,
-                    build_product_request: Default::default(),
+                    build_selection: Default::default(),
                     arguments,
                     evidence_arguments: call.evidence_arguments,
                     operational_acknowledgement: call.operational_acknowledgement,

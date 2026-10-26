@@ -309,6 +309,7 @@ fn domain_requires_terminator(input: Input<'_, '_>) -> bool {
         || input.at_keyword(KeywordKind::Public)
         || input.at_keyword(KeywordKind::Data)
         || input.at_keyword(KeywordKind::Machine)
+        || super::parse_declaration::starts_machine_declaration(input)
         || input.at_keyword(KeywordKind::Use)
         || input.at_contextual("domain")
         || input.at_contextual("operator")

@@ -8,7 +8,7 @@
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
-use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct, compile};
+use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct};
 use std::path::Path;
 
 fn produce(
@@ -31,7 +31,7 @@ fn produce(
     if let Some(inputs) = prepared.package_inputs {
         request = request.with_package_inputs(inputs);
     }
-    compile(request)
+    omega_build::compile_sources(&mut compiler::CompilationSession::default(), request)
         .expect("request admission")
         .into_single_report()
         .expect("source reaches its requested product")
@@ -170,6 +170,7 @@ fn main() {
     let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
         native_provider: None,
         x86_flags: None,
+        memory_ordering: None,
         provider_proposal: None,
         artifact: artifact.psi_artifact(),
         target: None,

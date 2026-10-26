@@ -188,30 +188,28 @@ fn context_survival<'mutation, 'dependency>(
     )>,
     invalidated: &mut impl FnMut(facts::FactHandle, &CanonicalPlace, &[facts::PlaceSegment]),
 ) -> ContextSurvival {
-    let fact_handles: Vec<facts::FactHandle> = semantic
+    let fact_refs = semantic
         .refs
-        .span_or_empty(semantic.contexts.get(context).facts)
-        .iter()
-        .map(|reference| reference.fact)
-        .collect();
-    if fact_handles.iter().any(|handle| {
-        let fact = semantic.facts.get(*handle);
+        .span_or_empty(semantic.contexts.get(context).facts);
+    if fact_refs.iter().any(|reference| {
+        let fact = semantic.facts.get(reference.fact);
         fact.place.as_place().is_none()
             && matches!(fact.payload, FactPayload::StorageDependency { .. })
     }) {
         return ContextSurvival::Dropped;
     }
     let mut dropped = Vec::new();
-    for handle in &fact_handles {
-        let fact = semantic.facts.get(*handle);
+    for reference in fact_refs {
+        let handle = reference.fact;
+        let fact = semantic.facts.get(handle);
         let Some(place) = fact.place.as_place() else {
             continue;
         };
         let Some((mutation, dependencies)) = matching_mutation(semantic, fact, place) else {
             continue;
         };
-        if !dropped.contains(handle) {
-            dropped.push(*handle);
+        if !dropped.contains(&handle) {
+            dropped.push(handle);
         }
         if let FactPayload::StorageDependency { dependent } = fact.payload
             && !dropped.contains(&dependent)
@@ -219,30 +217,33 @@ fn context_survival<'mutation, 'dependency>(
         {
             dropped.push(dependent);
         }
-        invalidated(*handle, mutation, dependencies);
+        invalidated(handle, mutation, dependencies);
+    }
+    if dropped.is_empty() {
+        return ContextSurvival::Unchanged;
     }
     let mut changed = true;
     while changed {
         changed = false;
-        for handle in &fact_handles {
-            let FactPayload::StorageDependency { dependent } = semantic.facts.get(*handle).payload
+        for reference in fact_refs {
+            let handle = reference.fact;
+            let FactPayload::StorageDependency { dependent } = semantic.facts.get(handle).payload
             else {
                 continue;
             };
-            if dropped.contains(&dependent) && !dropped.contains(handle) {
-                dropped.push(*handle);
+            if dropped.contains(&dependent) && !dropped.contains(&handle) {
+                dropped.push(handle);
                 changed = true;
             }
         }
     }
-    if dropped.is_empty() {
-        ContextSurvival::Unchanged
-    } else if dropped.len() == fact_handles.len() {
+    if dropped.len() == fact_refs.len() {
         ContextSurvival::Dropped
     } else {
         ContextSurvival::Reduced(
-            fact_handles
-                .into_iter()
+            fact_refs
+                .iter()
+                .map(|reference| reference.fact)
                 .filter(|handle| !dropped.contains(handle))
                 .collect(),
         )

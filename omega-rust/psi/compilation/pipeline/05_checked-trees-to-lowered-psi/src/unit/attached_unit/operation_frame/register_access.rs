@@ -71,6 +71,9 @@ impl OperationFrame<'_, '_> {
             inputs.push(value.id);
         }
         let event = match (operation, inputs.as_slice()) {
+            (AsmRegisterOperation::MemoryFence(kind), []) => {
+                terminal_psi::RegisterAccessEvent::MemoryFence { kind }
+            }
             (AsmRegisterOperation::ProcessorHalt, []) => {
                 terminal_psi::RegisterAccessEvent::ProcessorHalt
             }

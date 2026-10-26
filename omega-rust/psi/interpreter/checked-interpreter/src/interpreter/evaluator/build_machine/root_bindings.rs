@@ -2,7 +2,10 @@
 use crate::interpreter::evaluator::{
     Cell, EvalResult, Evaluator, Frame, Halt, State, TypeReferenceNode, Value, trap,
 };
-use language_semantics::declaration_selection::RootBindingOperand;
+use language_semantics::declaration_selection::{
+    BuildOperation, BuildSelectionRequest, CompositionMode,
+    ExecutedBuildSelection as SourceBuildSelection, ExecutedProductSelection, RootBindingOperand,
+};
 use language_semantics::declaration_selection::{ExecutedRootBinding, RootBindingSelection};
 use typed_trees::expression::TableCallExpression;
 
@@ -41,7 +44,7 @@ impl<'program> Evaluator<'program> {
         Ok(())
     }
 
-    pub(in crate::interpreter::evaluator) fn root_binding_protocol(
+    pub(in crate::interpreter::evaluator) fn source_selection_protocol(
         &self,
         target: symbols::SymbolHandle,
     ) -> Option<&str> {
@@ -52,21 +55,26 @@ impl<'program> Evaluator<'program> {
             .traits()
             .iter()
             .filter(|definition| {
-                definition.is_boundary && definition.name.as_str() == "BuildProductOperations"
+                definition.is_boundary && definition.name.as_str() == "BuildBindingOperations"
             })
             .flat_map(|definition| self.program.trait_machine_signatures(definition))
             .find(|signature| signature.symbol == target)
             .map(|signature| signature.name.as_str())
     }
 
-    pub(in crate::interpreter::evaluator) fn try_root_binding_call(
+    pub(in crate::interpreter::evaluator) fn try_source_selection_call(
         &mut self,
         call: &TableCallExpression,
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
-        let protocol = self.root_binding_protocol(call.target_symbol);
-        if !call.build_product_request.is_valid() {
-            if matches!(protocol, Some("prepare" | "bind" | "bind_description")) {
+        let protocol = self.source_selection_protocol(call.target_symbol);
+        if !call.build_selection.is_valid() {
+            if matches!(
+                protocol,
+                Some(
+                    "prepare" | "bind" | "bind_description" | "select" | "select_mode" | "exclude"
+                )
+            ) {
                 return trap(
                     "Build binding protocol requires source-issued designated product operands",
                 );
@@ -76,17 +84,21 @@ impl<'program> Evaluator<'program> {
         let binding = self
             .program
             .expression_table
-            .build_product_request(call.build_product_request)
-            .and_then(
-                language_semantics::declaration_selection::BuildProductRequest::as_root_binding,
-            )
+            .build_selection_request(call.build_selection)
             .ok_or_else(|| {
                 Halt::Trap("root binding lost its admitted selection request".to_owned())
             })?
             .clone();
-        let operation = match binding.implementation {
-            RootBindingOperand::AuthoredPath(_) => "bind",
-            RootBindingOperand::Description => "bind_description",
+        let operation = match &binding {
+            BuildSelectionRequest::Exclusion(_) => "exclude",
+            BuildSelectionRequest::Entry(binding) => match binding.implementation {
+                RootBindingOperand::AuthoredPath(_) => "bind",
+                RootBindingOperand::Description => "bind_description",
+            },
+            BuildSelectionRequest::Declaration(_) => match protocol {
+                Some("select_mode") => "select_mode",
+                _ => "select",
+            },
         };
         let preparation = protocol.and_then(|name| match name {
             "prepare" => Some(true),
@@ -117,12 +129,12 @@ impl<'program> Evaluator<'program> {
             {
                 return trap("root binding requires the current activation's original Build value");
             }
-            let ticket = i64::try_from(self.pending_root_bindings.len())
+            let ticket = i64::try_from(self.pending_build_selections.len())
                 .map_err(|_| Halt::Resource("root-binding ticket space exhausted".into()))?;
-            self.pending_root_bindings
+            self.pending_build_selections
                 .try_reserve(1)
                 .map_err(|_| Halt::Resource("root-binding ticket allocation was refused".into()))?;
-            self.pending_root_bindings.push(call.build_product_request);
+            self.pending_build_selections.push(call.build_selection);
             return Ok(Some(Value::Int(ticket)));
         }
         let Some(ticket_expression) = arguments.first().copied() else {
@@ -134,47 +146,120 @@ impl<'program> Evaluator<'program> {
         let ticket = usize::try_from(ticket)
             .map_err(|_| Halt::Trap("root binding activation ticket is invalid".into()))?;
         let issued = self
-            .pending_root_bindings
+            .pending_build_selections
             .get(ticket)
             .and_then(|request| {
                 self.program
                     .expression_table
-                    .build_product_request(*request)
-            })
-            .and_then(
-                language_semantics::declaration_selection::BuildProductRequest::as_root_binding,
-            );
+                    .build_selection_request(*request)
+            });
         if issued != Some(&binding) {
             return trap(
                 "root binding activation ticket is missing, consumed, or belongs to another selection",
             );
         }
-        // A delegated operand binds the description the compiler issued for
-        // it; the target machine is looked up, never executed.
-        let implementation = match binding.implementation {
-            RootBindingOperand::Description => {
-                let [_, description] = arguments else {
-                    return trap("delegated root binding requires one issued description");
+        let selection = match binding {
+            BuildSelectionRequest::Exclusion(request) => {
+                let [_, value] = arguments else {
+                    return trap("behavior exclusion requires its evaluated code");
                 };
-                let operand = self.eval_expression(*description, frame)?;
-                RootBindingSelection::Described(self.described_product_entry(&operand)?)
-            }
-            RootBindingOperand::AuthoredPath(path) => {
-                if arguments.len() != 1 {
-                    return trap("static root binding has unexpected runtime arguments");
+                let Value::Int(code) = self.eval_expression(*value, frame)? else {
+                    return trap("behavior exclusion code is not an integer");
+                };
+                let code = u64::try_from(code)
+                    .map_err(|_| Halt::Trap("invalid behavior exclusion code".into()))?;
+                if code >= request.vocabulary.cases().len() as u64 {
+                    return trap("behavior exclusion code is outside its vocabulary");
                 }
-                RootBindingSelection::AuthoredPath(path)
+                SourceBuildSelection::Exclusion(
+                    language_semantics::declaration_selection::ExecutedEnumExclusion {
+                        request,
+                        code,
+                        selecting_machine: self
+                            .program
+                            .symbols
+                            .symbol_source_span(frame.machine_symbol)
+                            .ok_or_else(|| {
+                                Halt::Trap(
+                                    "behavior exclusion lost its authored machine coordinate"
+                                        .into(),
+                                )
+                            })?,
+                    },
+                )
+            }
+            BuildSelectionRequest::Entry(binding) => {
+                let implementation = match binding.implementation {
+                    RootBindingOperand::Description => {
+                        let [_, description] = arguments else {
+                            return trap("delegated root binding requires one issued description");
+                        };
+                        let operand = self.eval_expression(*description, frame)?;
+                        RootBindingSelection::Described(self.described_product_entry(&operand)?)
+                    }
+                    RootBindingOperand::AuthoredPath(path) => {
+                        if arguments.len() != 1 {
+                            return trap("static root binding has unexpected runtime arguments");
+                        }
+                        RootBindingSelection::AuthoredPath(path)
+                    }
+                };
+                SourceBuildSelection::Entry(ExecutedRootBinding {
+                    source_span: binding.source_span,
+                    slot: binding.slot,
+                    implementation,
+                })
+            }
+            BuildSelectionRequest::Declaration(request) => {
+                let independent = match (operation, arguments) {
+                    ("select", [_]) => None,
+                    ("select_mode", [_, mode]) => {
+                        let Value::Bool(independent) = self.eval_expression(*mode, frame)? else {
+                            return trap(
+                                "Product selection requires its checked composition value",
+                            );
+                        };
+                        Some(independent)
+                    }
+                    _ => return trap("Product selection lost its ordinary arguments"),
+                };
+                let composition = match request.operation {
+                    BuildOperation::ProviderSelection => Some(if independent.unwrap_or(false) {
+                        CompositionMode::Independent
+                    } else {
+                        CompositionMode::Fused
+                    }),
+                    BuildOperation::RepresentationSelection | BuildOperation::ServiceExclusion
+                        if independent.is_none() =>
+                    {
+                        None
+                    }
+                    _ => {
+                        return trap(
+                            "Product selection operation disagrees with its ordinary arguments",
+                        );
+                    }
+                };
+                SourceBuildSelection::Declaration(ExecutedProductSelection {
+                    request,
+                    composition,
+                    selecting_machine: self
+                        .program
+                        .symbols
+                        .symbol_source_span(frame.machine_symbol)
+                        .ok_or_else(|| {
+                            Halt::Trap(
+                                "Product selection lost its authored machine coordinate".into(),
+                            )
+                        })?,
+                })
             }
         };
-        self.executed_root_bindings
+        self.executed_source_selections
             .try_reserve(1)
             .map_err(|_| Halt::Resource("root-binding result allocation was refused".to_owned()))?;
-        self.pending_root_bindings[ticket] = Default::default();
-        self.executed_root_bindings.push(ExecutedRootBinding {
-            source_span: binding.source_span,
-            slot: binding.slot,
-            implementation,
-        });
+        self.pending_build_selections[ticket] = Default::default();
+        self.executed_source_selections.push(selection);
         Ok(Some(Value::Unit))
     }
 }

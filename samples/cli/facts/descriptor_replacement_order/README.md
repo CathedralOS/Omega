@@ -124,3 +124,68 @@ descriptor array: byte indexing refuses at Psi 05's declared projection walk,
 and length reads execute natively but fail Terminal interpretation with
 `VerifiedOperationMalformed`. The broader failed probe and both baseline and
 candidate streams remain in the repair's evidence; this row does not fix them.
+
+## Guard replacement through a saved case subject
+
+Each place also has a `guard_replacement/` production, with its corresponding
+`invalid/` twin. The same fact and write of 41 now pass through an `Envelope`
+whose active payload points to `Message`. Its guard replaces `Message.body`,
+then the selected arm writes through the installed descriptor while reading
+`Message.sibling`. The old backing stays 17 and the untouched sibling stays 19.
+The twins change only that later read from `.sibling` to `.body`, conflicting
+with the earlier exclusive operand. These are pinned as
+`{pass,fail}/facts/descriptor_guard_replacement_through_<place>_*`.
+
+Optimized producer `622df06cc036` rejects the nine positive places with an
+incomplete destination/backing relation. The original corpus witness
+`pass/borrows/runtime_guard_descriptor_replacement_exit` is kept unchanged.
+It now runs with native and Terminal exit 0, as do all nine new places on
+macOS ARM64. Their four hosted bindings retain the same program contract;
+native execution on the other three hosts remains unverified.
+
+The source origin resolver now gives names and saved subjects the same
+context-authenticated storage treatment. A moved subject retains its home;
+a copied descriptor cannot acquire that home's identity. Descriptor loads
+cross each pointer boundary before appending the destination slot, so the old
+leaf's backing never becomes the address of its replacement. Field moves also
+retain their exact named result owner through call-plan validation. Target
+families join all checked result origins and descriptor effects by formal
+position; they never select a representative target body. Closed dynamic
+suppliers use the same descriptor-effect join. The independent target audit
+follows each borrowed arrival's exact granting ancestors. Reference formation
+remains a reborrow even when an owned aggregate contains only one reference
+leaf; only an explicit move operation transfers that permission. The former
+sole-leaf transfer heuristic is removed.
+
+Borrowed arrivals carry the physical storage coordinate and its exact granting
+occurrences together. Relative field stores update that original slot across
+forwarding blocks. One evaluated case test can reach a Boolean conditional
+through scalar bindings and negation; intervening writes, calls, ownership
+changes, divergent observations and unresolved cycles withhold that fact.
+A case-guarded slot may be absent at a join only when the missing predecessor
+independently proves its case impossible. Custody replay settles all arriving
+paths before accepting or rejecting the resulting entry; a provisional refusal
+is retried on changed arrivals and every unresolved refusal still rejects.
+Calls through captured borrowed storage preserve their granting chain, live
+children and independent lifetime debts. Possible external aliasing alone does
+not prove duplicate custody; exact duplicate origins remain conflicting.
+
+The [target-alternatives control](controls/target_alternatives/main.omg)
+returns one backing on macOS and another on the other hosted targets. Its
+[invalid twin](controls/target_alternatives/invalid/main.omg) reads the latter
+while the returned exclusive loan is active and must reject even on macOS.
+
+This extends the existing eight requirement layers: construction and completed
+guard writes establish the leaf; saved ownership and exact pointer boundaries
+retain its identity; nine transports, field extraction and every target body
+compose it; conflicting operands remain invalid; canonical Terminal execution
+and direct native emission agree. The tests exercise the existing record/case,
+reference, call, register/frame and relocation routes without claiming those
+entire layers complete. Generic saved observations, aggregate construction and
+opaque provider compositions remain under the parent task.
+
+Focused validation also retains the pre-existing source refusal in
+`pass/control_flow/saved_case_predicate_disjoint_effects_exit`: both frozen
+producer `622df06cc036` and this repair report missing live case evidence at
+`choice.amount`. It is outside the guard-replacement row and remains in the
+parent task's generic saved-observation acceptance; its success oracle is kept.

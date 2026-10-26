@@ -80,24 +80,7 @@ impl Execution<'_, '_, '_> {
                     &dispatch,
                     arm.pattern,
                 )
-                && match arm.pattern {
-                    MatchPattern::Destructure(pattern) => {
-                        !pattern.guard.is_valid()
-                            && !self
-                                .program
-                                .expression_table
-                                .match_fields(pattern.fields)
-                                .iter()
-                                .any(|field| {
-                                    matches!(
-                                        field.action,
-                                        typed_trees::expression::MatchFieldAction::Equal(_)
-                                    )
-                                })
-                    }
-                    MatchPattern::Value(_) => true,
-                    MatchPattern::Wildcard => false,
-                }
+                && validation::structural_match_pattern_is_total(self.program, arm.pattern)
             {
                 if !case_coverage.contains(&case) {
                     case_coverage.push(case);

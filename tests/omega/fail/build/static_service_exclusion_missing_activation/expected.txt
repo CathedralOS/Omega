@@ -1,1 +1,1 @@
-Build product recording operation requires its explicit mutable Build argument and declared value operands
+exclude_service requires one bare declaration operand and its explicit mutable Build argument

@@ -150,6 +150,15 @@ pub(crate) fn check_with_private_entry_ram(
                             },
                         ..
                     } if installation.is_some_and(|supplies| supplies.x86_flags.is_some()) => None,
+                    OperationKind::RegisterAccess {
+                        event: terminal_psi::RegisterAccessEvent::MemoryFence { kind },
+                        ..
+                    } if installation
+                        .and_then(|supplies| supplies.memory_ordering)
+                        .is_some_and(|model| model.supports(*kind)) =>
+                    {
+                        None
+                    }
                     OperationKind::RegisterAccess { event, .. } => {
                         return Err(TerminalInterpretError::UnsupportedCapability(
                             TerminalUnsupportedCapability::RegisterAccess {
@@ -840,6 +849,7 @@ mod tests {
         );
         let installation = TerminalRuntimeSupplies {
             x86_flags: None,
+            memory_ordering: None,
             terminal_psi: program.identity,
             entry: None,
             supplies: BTreeMap::from([(
@@ -1076,6 +1086,7 @@ mod tests {
         set_machine(&mut program, target, machine(2, Vec::new()));
         let mut installation = TerminalRuntimeSupplies {
             x86_flags: None,
+            memory_ordering: None,
             terminal_psi: program.identity,
             entry: None,
             supplies: BTreeMap::from([(boundary, AdmittedBoundarySupply::CheckedProvider(target))]),

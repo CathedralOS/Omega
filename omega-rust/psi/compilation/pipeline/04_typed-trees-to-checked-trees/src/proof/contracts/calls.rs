@@ -248,14 +248,28 @@ pub(crate) fn build_contract_exit_facts(
                                 }
                                 typed_trees::statement::TransitionTargetNode::Named {
                                     path,
+                                    static_machine_parameter,
+                                    arguments,
+                                    evidence_arguments,
+                                    source_span,
+                                    authored_call_selection,
                                     ..
                                 } => {
-                                    // Another machine returns to this invocation's
-                                    // caller. A state transfer within this machine
-                                    // keeps the invocation and its obligations live.
+                                    let site = validation::CallSite::TransitionNamed {
+                                        path,
+                                        static_machine_parameter: *static_machine_parameter,
+                                        arguments: *arguments,
+                                        evidence_arguments,
+                                        source_span: *source_span,
+                                        authored_call_selection: *authored_call_selection,
+                                    };
+                                    // Recursive machine calls complete this
+                                    // invocation too. Only an actual internal
+                                    // arrival keeps its postconditions pending.
                                     contract_target_from_state_symbol(program, path.symbol)
-                                        .is_some_and(|(owner, state)| {
-                                            owner != machine.symbol
+                                        .is_some_and(|(_, state)| {
+                                            !site
+                                                .is_internal_state_transfer(program, machine.symbol)
                                                 && validation::call_target_state(program, state)
                                                     .is_none_or(|target| {
                                                         validation::normal_completion_possible(

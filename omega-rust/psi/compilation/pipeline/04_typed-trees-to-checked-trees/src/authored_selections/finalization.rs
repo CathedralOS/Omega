@@ -58,9 +58,11 @@ pub(crate) fn finalize_checked_authored_selections(
 
     {
         let _s = phase_profile::guard("05.d.11_13.a.2.root_bindings");
-        super::root_bindings::validate(program, &owner_index)?;
+        super::build_selections::validate(program, &owner_index)?;
     }
 
+    let product_operands =
+        validation::execution_projection::product_request_operand_occurrences(program);
     {
         let _s = phase_profile::guard("05.d.11_13.a.3.expression_loop");
         for (expression, node) in expressions.iter_expressions() {
@@ -81,6 +83,9 @@ pub(crate) fn finalize_checked_authored_selections(
                     continue;
                 };
 
+                if product_operands.contains(&occurrence) {
+                    continue;
+                }
                 if binding == AuthoredDeclarationSelectionLateBinding::CheckedOperator {
                     for selected_symbol in checked_operator_conformance_targets(facts, expression) {
                         let inferred = (
@@ -157,7 +162,12 @@ pub(crate) fn finalize_checked_authored_selections(
                     ExpressionNode::Call(call),
                 ) => {
                     let _s = phase_profile::guard("05.d.11_13.a.3.call");
-                    validation::compiler_operations::classify_expression_call_intrinsic(program, call)
+                    program.expression_table.build_selection_request(call.build_selection)
+                    .and_then(|request| match request {
+                        language_semantics::declaration_selection::BuildSelectionRequest::Declaration(request) => Some(request.operation.intrinsic()),
+                        _ => None,
+                    })
+                    .or_else(|| validation::compiler_operations::classify_expression_call_intrinsic(program, call))
                     .map(AuthoredSelectionResolutionTarget::Intrinsic)
                     .or_else(|| {
                         declaration_target(

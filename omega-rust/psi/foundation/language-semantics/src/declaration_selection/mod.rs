@@ -2,16 +2,12 @@ use source::SourceSpan;
 use symbols::SymbolHandle;
 
 mod product;
-mod product_requests;
 pub use product::{
-    DescribedProductEntry, DescribedProductProvider, DescribedProductSchema, ExecutedRootBinding,
-    RootBindingOperand, RootBindingRequest, RootBindingSelection,
-};
-pub use product_requests::{
-    BuildBehaviorExclusionKind, BuildBehaviorExclusionRequest, BuildProductOperand,
-    BuildProductRequest, ExecutedBuildBehaviorExclusion, ExecutedBuildProductRequest,
-    ExecutedProductDeclarationSelection, ProductDeclarationLocator,
-    ProductDeclarationSelectionRequest, ProductOperandRole, ProviderCompositionMode,
+    BuildSelectionRequest, CompositionMode, DescribedProductEntry, DescribedProductProvider,
+    DescribedProductSchema, EnumExclusionRequest, ExclusionVocabulary, ExecutedBuildSelection,
+    ExecutedEnumExclusion, ExecutedProductSelection, ExecutedRootBinding,
+    ProductDeclarationOperand, ProductDeclarationRequest, ProductOperandRole, RootBindingOperand,
+    RootBindingRequest, RootBindingSelection,
 };
 
 /// Whether an authored declaration selection contributes only to an

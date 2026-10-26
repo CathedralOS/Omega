@@ -22,10 +22,12 @@ fn checked_owner(root: &Path) -> PackageKeyIdentity {
 }
 
 fn checked_owner_for(root: &Path, file: &str) -> PackageKeyIdentity {
-    let checked = CompilationSession::default()
-        .check(CheckedCompileRequest::new(&root.join(file), None))
-        .result
-        .unwrap_or_else(|failure| panic!("anonymous check: {:?}", failure.into_diagnostics()));
+    let checked = omega_build::check_source(
+        &mut CompilationSession::default(),
+        CheckedCompileRequest::new(&root.join(file), None),
+    )
+    .result
+    .unwrap_or_else(|failure| panic!("anonymous check: {:?}", failure.into_diagnostics()));
     let owners = checked
         .execution()
         .program
@@ -43,23 +45,23 @@ fn checked_owner_for(root: &Path, file: &str) -> PackageKeyIdentity {
 }
 
 fn artifact(root: &Path) -> CanonicalTerminalArtifact {
-    CompilationSession::default()
-        .produce(
-            CheckedCompileRequest::new(&root.join("library.omg"), None),
-            CompilationProduct::Inspection("library::read".to_owned()),
+    omega_build::produce_source(
+        &mut CompilationSession::default(),
+        CheckedCompileRequest::new(&root.join("library.omg"), None),
+        CompilationProduct::Inspection("library::read".to_owned()),
+    )
+    .and_then(CompilationOutput::into_inspection)
+    .map(|produced| {
+        produced
+            .into_artifact()
+            .expect("portable inspection product")
+    })
+    .unwrap_or_else(|error| {
+        panic!(
+            "anonymous Terminal publication: {:?}",
+            error.into_diagnostics()
         )
-        .and_then(CompilationOutput::into_inspection)
-        .map(|produced| {
-            produced
-                .into_artifact()
-                .expect("portable inspection product")
-        })
-        .unwrap_or_else(|error| {
-            panic!(
-                "anonymous Terminal publication: {:?}",
-                error.into_diagnostics()
-            )
-        })
+    })
 }
 
 fn declaration(artifact: &CanonicalTerminalArtifact) -> &terminal_psi::CheckedMachineDeclaration {
@@ -211,13 +213,15 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
             &authored,
         );
         let supplied = inputs(&staged, &library, owner, None);
-        let checked = CompilationSession::default()
-            .check(CheckedCompileRequest {
+        let checked = omega_build::check_source(
+            &mut CompilationSession::default(),
+            CheckedCompileRequest {
                 package_inputs: Some(supplied.clone()),
                 ..CheckedCompileRequest::new(&staged.join("main.omg"), Some("linux_x86_64"))
-            })
-            .result
-            .unwrap_or_else(|failure| panic!("{place} source: {:?}", failure.into_diagnostics()));
+            },
+        )
+        .result
+        .unwrap_or_else(|failure| panic!("{place} source: {:?}", failure.into_diagnostics()));
         assert!(
             checked
                 .execution()
@@ -230,7 +234,8 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
         );
         let output = fixture_package_inputs::sealed_fixture_staging::temporary_session_root()
             .join(format!("native-{place}"));
-        let report = compiler::compile(
+        let report = omega_build::compile_sources(
+            &mut compiler::CompilationSession::default(),
             compiler::CompileRequest::new(compiler::CompileOptions {
                 root_path: staged.join("main.omg"),
                 build_dir: Some(output.clone()),
@@ -250,6 +255,7 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
         let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
             native_provider: None,
             x86_flags: None,
+            memory_ordering: None,
             provider_proposal: None,
             artifact: &reloaded,
             target: Some("linux_x86_64"),
@@ -287,14 +293,16 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
             &repository,
             &authored.join("invalid"),
         );
-        let failure = CompilationSession::default()
-            .check(CheckedCompileRequest {
+        let failure = omega_build::check_source(
+            &mut CompilationSession::default(),
+            CheckedCompileRequest {
                 package_inputs: Some(inputs(&invalid, &library, owner, None)),
                 ..CheckedCompileRequest::new(&invalid.join("main.omg"), Some("linux_x86_64"))
-            })
-            .result
-            .err()
-            .unwrap_or_else(|| panic!("{place}: copied namespace must reject"));
+            },
+        )
+        .result
+        .err()
+        .unwrap_or_else(|| panic!("{place}: copied namespace must reject"));
         let diagnostic = format!("{:?}", failure.into_diagnostics());
         assert!(
             diagnostic.contains("expects the `library::Token` data type but got `copied::Token`"),
@@ -328,8 +336,9 @@ fn equal_shaped_types_from_a_changed_anonymous_owner_cannot_substitute() {
         let staged = fixture_package_inputs::sealed_fixture_staging::stage_sealed_snapshot(
             temporary, &authored,
         );
-        let result = CompilationSession::default()
-            .check(CheckedCompileRequest {
+        let result = omega_build::check_source(
+            &mut CompilationSession::default(),
+            CheckedCompileRequest {
                 package_inputs: Some(inputs(
                     &staged,
                     &library,
@@ -337,8 +346,9 @@ fn equal_shaped_types_from_a_changed_anonymous_owner_cannot_substitute() {
                     Some((&copied, copied_owner)),
                 )),
                 ..CheckedCompileRequest::new(&staged.join("main.omg"), Some("linux_x86_64"))
-            })
-            .result;
+            },
+        )
+        .result;
         if rejects {
             let failure = result
                 .err()

@@ -722,7 +722,7 @@ class QualificationTests(unittest.TestCase):
         with self.assertRaisesRegex(qualification.RecoveryError, "dependency absent"):
             self.run_check()
 
-    def test_semantic_mapping_requires_final_review_and_prior_canonical_authority(self):
+    def test_semantic_mapping_requires_prior_authority_without_adding_review(self):
         (self.repository / "wiki/spec").mkdir(parents=True)
         base = self.commit("wiki/spec/contract.md", "existing canonical contract")
         self.assess(base)
@@ -730,15 +730,30 @@ class QualificationTests(unittest.TestCase):
         config["semantic_contracts"] = [dict(implementation=["src/program"], contract="wiki/spec/contract.md",
             classification="missing_implementation", reason="implement the existing declared behavior",
             passages=["existing canonical contract"])]
-        with self.assertRaisesRegex(qualification.RecoveryError, "final-candidate review"):
-            qualification.amend(self.state, 1, config, "semantic repair")
-        review = copy.deepcopy(config["checks"][0])
-        review.update(id="review", kind="review", final=True)
-        config["checks"].append(review)
-        qualification.amend(self.state, 1, config, "independent reviewer checks canonical mapping")
+        record = qualification.amend(self.state, 1, config, "semantic repair")
+        self.assertEqual([check["id"] for check in record["config"]["checks"]], ["values"])
         candidate = self.commit("wiki/spec/contract.md", "invented semantics in the same candidate")
         with self.assertRaisesRegex(qualification.RecoveryError, "retroactive authority"):
             self.assess(base)
+
+    def test_explicit_semantic_review_remains_required(self):
+        (self.repository / "wiki/spec").mkdir(parents=True)
+        base = self.commit("wiki/spec/contract.md", "The existing rule.")
+        self.assess(base)
+        config = copy.deepcopy(self.config)
+        config["semantic_contracts"] = [dict(implementation=["src/program"],
+            contract="wiki/spec/contract.md", classification="missing_implementation",
+            reason="implement the existing rule", passages=["The existing rule."])]
+        review = copy.deepcopy(config["checks"][0])
+        review.update(id="requested-review", kind="review", final=True)
+        config["checks"].append(review)
+        qualification.amend(self.state, 1, config, "retain explicitly requested review")
+        self.run_check()
+        self.assess(base)
+        with self.assertRaisesRegex(qualification.RecoveryError, "affected/final checks"):
+            qualification.validate(self.repository, self.state, base, base)
+        self.assertTrue(self.run_check("requested-review")[1])
+        qualification.validate(self.repository, self.state, base, base)
 
     def canonical_amendment_fixture(self):
         (self.repository / "wiki/spec").mkdir(parents=True)
@@ -913,7 +928,7 @@ class QualificationTests(unittest.TestCase):
         text = launch.canonical_context_block(session)
         self.assertIn("The actual rule.", text)
         self.assertIn(base, text)
-        self.assertIn("independent final review", text)
+        self.assertIn("any explicitly required review", text)
 
     def test_handoff_and_continuation_refresh_only_focused_changed_context(self):
         (self.repository / "wiki/spec").mkdir(parents=True)

@@ -183,13 +183,14 @@ pub(in crate::checks) fn available<'program>(
         // source when its selected declaration depends on this caller. Keep
         // exact retained callback selections in this shared availability owner
         // before any numeric, Boolean, borrow or copied-result consumer imports
-        // the guarantee. Strict recursive induction has a separate edge owner.
+        // the guarantee. Recursive induction needs its exact admitted edge.
         if !validation::independent_call_site(
             program,
             caller.machine_symbol,
             supplied.callable.owner_symbol(),
             &supplied.site,
-        ) {
+        ) && !super::induction::strict_recursive_call(program, facts, caller, &supplied)
+        {
             continue;
         }
         if !owns_guarantee(program, &supplied, source, expression)

@@ -314,7 +314,7 @@ impl CallSiteVisitor for InvocationCallSites<'_> {
         if self
             .program
             .expression_table
-            .build_product_request(call.build_product_request)
+            .build_selection_request(call.build_selection)
             .is_some()
         {
             return;

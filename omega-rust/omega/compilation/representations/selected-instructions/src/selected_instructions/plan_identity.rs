@@ -32,6 +32,17 @@ mod register;
 use crate::effects::program::identity::{encode_ids, encode_integer};
 use primitives::encode_constraint_key;
 
+#[derive(Clone)]
+pub(crate) struct CachedPlanPrefix {
+    header_bytes: Box<[u8]>,
+    header_hasher: crate::digest_encoder::DomainDigestEncoder,
+    page_states: Vec<(
+        std::sync::Arc<super::functions::FunctionPage>,
+        crate::digest_encoder::DomainDigestEncoder,
+    )>,
+    identity: SelectedInstructionPlanIdentity,
+}
+
 /// The identity of a complete selected plan: its roots and the ordered
 /// digests of its functions (`selected_function_digest`). Each function's
 /// digest is memoized on its shared storage entry, so a rewrite that clones
@@ -41,18 +52,59 @@ pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
     let domain = b"omega.terminal-selected-instructions.v54\0".as_slice();
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(domain);
-    bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, plan.psi.vocabulary_marker.get().to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
-    bytes.extend_from_slice(&plan.target.identity_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, plan.entry.get().to_le_bytes());
-    crate::codec_bytes::encode_len(&mut bytes, plan.functions.len());
-    for digest in plan.functions.identity_digests() {
-        bytes.extend_from_slice(&digest);
+    let mut header_bytes = Vec::with_capacity(128);
+    header_bytes.extend_from_slice(domain);
+    header_bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
+    crate::codec_bytes::push_encoded(
+        &mut header_bytes,
+        plan.psi.vocabulary_marker.get().to_le_bytes(),
+    );
+    crate::codec_bytes::push_encoded(&mut header_bytes, plan.fuel_schedule.marker().to_le_bytes());
+    header_bytes.extend_from_slice(&plan.target.identity_bytes());
+    crate::codec_bytes::push_encoded(&mut header_bytes, plan.entry.get().to_le_bytes());
+    crate::codec_bytes::encode_len(&mut header_bytes, plan.functions.len());
+
+    if let Some(cached) = plan.functions.cached_plan_prefix()
+        && cached.header_bytes.as_ref() == header_bytes.as_slice()
+    {
+        return cached.identity;
     }
-    SelectedInstructionPlanIdentity::from_canonical_bytes(&bytes)
+
+    let pages = plan.functions.pages();
+    let mut page_states = Vec::with_capacity(pages.len());
+    let header_hasher = if let Some(prev) = plan.functions.previous_plan_prefix()
+        && prev.header_bytes.as_ref() == header_bytes.as_slice()
+    {
+        for ((prev_page, prev_hasher), page) in prev.page_states.iter().zip(pages) {
+            if std::sync::Arc::ptr_eq(prev_page, page) {
+                page_states.push((std::sync::Arc::clone(page), prev_hasher.clone()));
+            } else {
+                break;
+            }
+        }
+        prev.header_hasher.clone()
+    } else {
+        let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(b"");
+        hasher.raw(&header_bytes);
+        hasher
+    };
+
+    let mut hasher = page_states
+        .last()
+        .map_or_else(|| header_hasher.clone(), |(_, state)| state.clone());
+    for page in &pages[page_states.len()..] {
+        hasher.raw(page.digest_bytes());
+        page_states.push((std::sync::Arc::clone(page), hasher.clone()));
+    }
+    let identity = SelectedInstructionPlanIdentity::from_bytes(hasher.finish());
+    plan.functions
+        .store_plan_prefix(std::sync::Arc::new(CachedPlanPrefix {
+            header_bytes: header_bytes.into_boxed_slice(),
+            header_hasher,
+            page_states,
+            identity,
+        }));
+    identity
 }
 
 const REGISTER_PAGE_SIZE: usize = 64;
@@ -547,7 +599,6 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ByteViewAddress => 22,
         SelectedInstructionKind::Store64 { .. } => 17,
         SelectedInstructionKind::FrameAddress { .. } => 18,
-        SelectedInstructionKind::InvokeNoNormal { .. } => 248,
         SelectedInstructionKind::CallUnit { .. } => 19,
 
         SelectedInstructionKind::Jump => 14,
@@ -615,7 +666,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             bytes.push(width.byte_size());
         }
         SelectedInstructionKind::ReturnAggregate { fragment_count } => bytes.push(fragment_count),
-        crate::selected_call_pattern!(target, ..) => target.encode_identity(bytes),
+        SelectedInstructionKind::CallAggregate { target } => target.encode_identity(bytes),
         crate::hosted_slot_quad_pattern!(slot, ..) => {
             contracts::frame_slot(bytes, crate::FrameStorageSlotId::Local(slot));
         }
@@ -746,7 +797,10 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::ReturnUnit
         | SelectedInstructionKind::Jump => {}
-
+        SelectedInstructionKind::CallScalar { target }
+        | SelectedInstructionKind::CallUnit { target } => {
+            target.encode_identity(bytes);
+        }
         SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => {
             crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, ordinal.to_le_bytes());

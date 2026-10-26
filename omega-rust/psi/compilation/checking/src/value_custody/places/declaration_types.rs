@@ -1,6 +1,40 @@
 //! Parent links select the current declaration's type, never its template's.
 
 use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+/// Exact static assumptions of this declaration and its lexical ancestors.
+/// Neither runtime inputs nor a template's current callers supply equations.
+pub(crate) fn declaration_type_equations(
+    program: &dyn crate::CheckingInput,
+    mut owner: SymbolHandle,
+) -> Vec<(SymbolHandle, TypeReferenceHandle)> {
+    let mut substitutions = Vec::new();
+    let mut visited = Vec::new();
+    while owner.is_valid() && !visited.contains(&owner) {
+        visited.push(owner);
+        if let Some(machine) = program.machine_by_symbol(owner) {
+            for equation in program
+                .declared_type_equations
+                .span_or_empty(machine.declared_type_equations)
+            {
+                let TypeReferenceNode::Named { symbol, .. } = program
+                    .type_reference_table
+                    .type_reference(equation.parameter)
+                else {
+                    continue;
+                };
+                if symbol.is_valid()
+                    && program.symbols.get(*symbol).kind == SymbolKind::TypeParameter
+                {
+                    substitutions.push((*symbol, equation.definition));
+                }
+            }
+        }
+        owner = program.declaration_scope_parent(owner);
+    }
+    substitutions
+}
 
 pub fn declaration_type_reference(
     program: &dyn crate::CheckingInput,

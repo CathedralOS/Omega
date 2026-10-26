@@ -35,13 +35,7 @@ pub(crate) fn call_reference_sources(
     state_symbol: SymbolHandle,
     call: &checked_trees::expression::TableCallExpression,
 ) -> Option<Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)>> {
-    let fields = call_reference_lifetime_sources(program, state_symbol, call)?;
-    let sources = completed_sources(
-        program,
-        call.target_symbol,
-        fields,
-        program.expression_table.expression_handles(call.arguments),
-    );
+    let sources = completed_call_reference_sources(program, state_symbol, call)?;
     if sources
         .iter()
         .any(|source| matches!(source, CompletedReturnSource::UnresolvedDescriptor { .. }))
@@ -54,6 +48,22 @@ pub(crate) fn call_reference_sources(
             .filter_map(CompletedReturnSource::descriptor_candidate)
             .collect(),
     )
+}
+
+/// Complete returned descriptor alternatives, keeping immutable image storage
+/// distinct from input suppliers, lifetime debts and unavailable spatial rows.
+pub(crate) fn completed_call_reference_sources(
+    program: &dyn validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    call: &checked_trees::expression::TableCallExpression,
+) -> Option<Vec<CompletedReturnSource>> {
+    let fields = call_reference_lifetime_sources(program, state_symbol, call)?;
+    Some(completed_sources(
+        program,
+        call.target_symbol,
+        fields,
+        program.expression_table.expression_handles(call.arguments),
+    ))
 }
 
 /// The complete declared lifetime relation, without optional body geometry.
@@ -80,7 +90,13 @@ pub(crate) fn call_reference_lifetime_sources(
 /// conservative lifetime/interference frontier. Actual address selection or a
 /// further reference load still needs its own exact captured geometry; the
 /// frontier alone cannot identify that address or grant a stored descriptor.
-pub(super) enum CompletedReturnSource {
+pub(crate) enum CompletedReturnSource {
+    /// Positive body-derived image formation, never inferred from an empty
+    /// input roster. It supplies no caller storage address or loan ancestry.
+    ImmutableImage {
+        owner_path: Vec<BorrowOwnerSegment>,
+        kind: checked_trees::BorrowAccessKind,
+    },
     DescriptorCandidate {
         field: ViewReturnFieldSource,
         projection: Vec<facts::PlaceSegment>,
@@ -101,7 +117,9 @@ impl CompletedReturnSource {
     fn descriptor_candidate(self) -> Option<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)> {
         match self {
             Self::DescriptorCandidate { field, projection } => Some((field, projection)),
-            Self::LifetimeDependency { .. } | Self::UnresolvedDescriptor { .. } => None,
+            Self::ImmutableImage { .. }
+            | Self::LifetimeDependency { .. }
+            | Self::UnresolvedDescriptor { .. } => None,
         }
     }
 
@@ -117,6 +135,9 @@ impl CompletedReturnSource {
         ) -> Vec<StatementBorrowLoan>,
     ) -> Vec<StatementBorrowLoan> {
         match self {
+            // Image storage owes no borrowed input loan. Independent declared
+            // lifetime dependencies remain separate rows in this same roster.
+            Self::ImmutableImage { .. } => Vec::new(),
             Self::UnresolvedDescriptor {
                 mut owner_path,
                 kind,
@@ -256,17 +277,76 @@ pub(crate) fn returned_body_source_mismatch(
         };
         if !fields.iter().any(|field| {
             field.parameter_index == parameter_index
-                && field.source == source
                 && ((field.lifetime_only
                     && returned.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency)
                     || field.kind == returned.kind)
                 && structural_owner_path(program, &field.owner_path).as_ref() == Some(&owner_path)
-                && source_path_covers(program, &field.source_path, source_path)
+                && ((field.source == source
+                    && source_path_covers(program, &field.source_path, source_path))
+                    || incoming_reborrow_matches_input_lifetime(
+                        program,
+                        facts,
+                        borrowing,
+                        field,
+                        returned,
+                        source_path,
+                    ))
         }) {
             return Some(parameter_index);
         }
     }
     None
+}
+
+/// A borrow of a carrier bounds reborrows of its stored permissions, without
+/// making their referents part of the carrier's inline storage. The exact
+/// entry permission and typed leaf establish this lifetime correspondence;
+/// the returned capture keeps its incoming namespace, suffix and lineage.
+/// In particular, this neither turns Stored into Referent nor invents an
+/// immediate parent from a matching path. Formation still owns that judgment.
+fn incoming_reborrow_matches_input_lifetime(
+    program: &dyn validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
+    state: &checked_trees::StateBorrowFact,
+    field: &ViewReturnFieldSource,
+    returned: &checked_trees::BorrowReturnedLoanFact,
+    source_path: &[BorrowOwnerSegment],
+) -> bool {
+    if field.lifetime_only
+        || field.source != ViewReturnInputSource::Referent
+        || !field.source_path.is_empty()
+        || !facts
+            .borrow
+            .state_owns_incoming_reference(state, returned.incoming_reference)
+    {
+        return false;
+    }
+    let incoming = facts
+        .borrow
+        .incoming_references
+        .get(returned.incoming_reference);
+    let Some(input) = validation::reference_shell(program, field.source_type) else {
+        return false;
+    };
+    if incoming.carrier_type != input.referee {
+        return false;
+    }
+    let Some(leaves) =
+        validation::reference_result_custody::declared_carrier_references(program, input.referee)
+    else {
+        return false;
+    };
+    leaves.iter().any(|leaf| {
+        let Some(segments) = validation::reference_result_custody::origin_place_segments(
+            program,
+            input.referee,
+            leaf.path.iter().cloned(),
+        ) else {
+            return false;
+        };
+        let owner_path = super::owner_paths::owner_path_from_place_segments(program, &segments);
+        source_path_covers(program, &owner_path, source_path)
+    })
 }
 
 /// Refine declaration-level lifetime candidates with the checked body's
@@ -308,12 +388,6 @@ fn completed_field_sources(
     let mut output = Vec::with_capacity(sources.len());
     let mut covered = vec![false; fields.len()];
     for source in sources {
-        // Presentation coordinates require their checked formation/codec at
-        // executable publication. A pre-flow lifetime relation cannot use
-        // them as physical projections; retain its declared region instead.
-        if !source.source.recasts.is_empty() || source.source.representation.is_some() {
-            return None;
-        }
         let owner_path = structural_owner_path(
             program,
             &super::owner_paths::owner_path_from_place_segments(program, &source.result_path),
@@ -324,6 +398,21 @@ fn completed_field_sources(
             &source.result_path,
         )?;
         let kind = reference_borrow_access_kind(program, result_leaf)?;
+        if source.source.is_image_storage {
+            output.push(CompletedReturnSource::ImmutableImage {
+                owner_path: super::owner_paths::owner_path_from_place_segments(
+                    program,
+                    &source.result_path,
+                ),
+                kind,
+            });
+            continue;
+        }
+        // An image observation above establishes no physical projection.
+        // Other presentation coordinates still need their checked geometry.
+        if !source.source.recasts.is_empty() || source.source.representation.is_some() {
+            return None;
+        }
         if source.source.invocation_output.is_some() {
             output.push(CompletedReturnSource::UnresolvedDescriptor {
                 owner_path: super::owner_paths::owner_path_from_place_segments(

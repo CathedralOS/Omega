@@ -106,7 +106,7 @@ pub(super) struct StatementNumericObservations {
     statement_index: usize,
     pub(super) integer_operations: Vec<crate::CapturedIntegerOperation>,
     pub(super) scalar_associations:
-        Vec<crate::proof_contracts::contract_entailment::CapturedScalarAssociation>,
+        Vec<crate::proof_contracts::contract_entailment::numeric_observations::CapturedScalarAssociation>,
 }
 
 /// The IEEE portion of one Boolean polarity: the ordered float enclosure,
@@ -360,6 +360,36 @@ impl ValueEnvironment {
         pairs!(false; joint_subtract_bounds, signed_joint_subtract_lower_bounds,
             signed_joint_subtract_upper_bounds);
         rebound
+    }
+
+    /// Copy the path-based arithmetic observations of one completed value to
+    /// an independently justified equal path. The caller owns that equality's
+    /// lifetime; ordinary write invalidation still applies to the destination.
+    pub(super) fn copy_path_facts(&mut self, source: &str, target: &str) {
+        let rebound = self.rebind(&[(source.to_owned(), target.to_owned())]);
+        for (path, interval) in rebound.intervals {
+            self.narrow(path, interval);
+        }
+        for (path, interval) in rebound.float_intervals {
+            self.narrow_float(path, interval);
+        }
+        self.known_u64_values.extend(rebound.known_u64_values);
+        self.non_nan.extend(rebound.non_nan);
+        self.float_aliases.extend(rebound.float_aliases);
+        self.joint_subtract_bounds
+            .extend(rebound.joint_subtract_bounds);
+        self.signed_joint_subtract_lower_bounds
+            .extend(rebound.signed_joint_subtract_lower_bounds);
+        self.signed_joint_subtract_upper_bounds
+            .extend(rebound.signed_joint_subtract_upper_bounds);
+        self.joint_multiply_bounds
+            .extend(rebound.joint_multiply_bounds);
+        self.signed_joint_multiply_lower_bounds
+            .extend(rebound.signed_joint_multiply_lower_bounds);
+        self.signed_joint_multiply_upper_bounds
+            .extend(rebound.signed_joint_multiply_upper_bounds);
+        self.signed_joint_multiply_negation_bounds
+            .extend(rebound.signed_joint_multiply_negation_bounds);
     }
 
     pub(crate) fn new() -> Self {

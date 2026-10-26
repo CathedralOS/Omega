@@ -2,8 +2,9 @@
 
 This domain turns Omega source into Terminal Psi. It owns source meaning and
 its evidence, not package acquisition, command policy or native realization.
-The [product driver](../../omega/compilation/driver/src/compiler.rs) owns the
-whole compilation request; there is no additional Psi application or driver.
+The [Psi facade](driver/src/lib.rs) owns source-stage sequencing.
+The [product coordinator](../../omega/compilation/driver/src/compiler.rs) owns
+request sharing and target products; the application owns Build execution.
 
 | Reader's question | Entrance and responsibility |
 | --- | --- |
@@ -21,8 +22,8 @@ libraries, but must not depend on producing stages in their production dependenc
 graph. Compile-time elaboration can invoke an interpreter; it cannot be placed
 inside that interpreter merely because it evaluates a machine.
 
-The product driver's [Terminal production sequence](../../omega/compilation/driver/terminal-production/README.md)
+The Psi facade's [Terminal production sequence](driver/terminal-production/README.md)
 coordinates stages 05–07. Stage 05 validates checked permission ledgers at its
 own entrance; stage 07 owns publication and source-correspondence judgments.
 The coordinator carries those results without deciding language rules. It is
-not another Psi stage or compiler driver; see the [pipeline contract](../../pipeline.md).
+not another Psi stage; see the [pipeline contract](../../pipeline.md).

@@ -123,6 +123,7 @@ fn exercise(
             installation: Some(&installed),
             host_imports: &[],
             x86_flags: None,
+            memory_ordering: None,
             entry: None,
             target_machines: None,
             target_layouts: None,

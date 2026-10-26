@@ -177,6 +177,9 @@ impl PackageBuildSession {
         Ok(compiler::CheckedCompileRequest {
             source_capture: Some(capture.clone()),
             build: package_compilation::BuildExecutionInputs {
+                snapshot: Some(package_compilation::BuildSnapshotRequest::new(
+                    std::iter::empty(),
+                )),
                 directory: Some(directory),
                 filesystem_sponsor: Some(self.filesystem_sponsor.clone()),
                 evaluation_sponsor: Some(self.evaluation_sponsor.clone()),

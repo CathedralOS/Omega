@@ -190,14 +190,14 @@ pub fn build_product_request_intrinsic(
     selection: &language_semantics::declaration_selection::AuthoredDeclarationSelection,
 ) -> Result<Option<AuthoredDeclarationSelectionIntrinsic>, String> {
     use language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionKind as Kind, BuildProductOperand, BuildProductRequest,
+        AuthoredDeclarationSelectionKind as Kind, BuildSelectionRequest, ProductOperandRole,
     };
     let Some(call) = program.expression_table.call_node(expression) else {
         return Ok(None);
     };
-    let Some(BuildProductRequest::DeclarationSelection(request)) = program
+    let Some(BuildSelectionRequest::Declaration(request)) = program
         .expression_table
-        .build_product_request(call.build_product_request)
+        .build_selection_request(call.build_selection)
     else {
         return Ok(None);
     };
@@ -209,7 +209,7 @@ pub fn build_product_request_intrinsic(
         .iter()
         .find(|owner| {
             owner.is_boundary
-                && owner.name.as_str() == "BuildProductOperations"
+                && owner.name.as_str() == "BuildBindingOperations"
                 && program.symbols.is_build_prelude_symbol(owner.symbol)
                 && program
                     .trait_machine_signatures(owner)
@@ -241,26 +241,22 @@ pub fn build_product_request_intrinsic(
         .operation
         .product_operand_role(position)
         .ok_or("Build product operand has no declared role")?;
-    match operand {
-        BuildProductOperand::Declaration(locator) => {
-            if locator.source_span != selection.source_span() {
-                return Err("Build product operand lost its exact authored occurrence".into());
-            }
-            Ok(Some(
-                AuthoredDeclarationSelectionIntrinsic::BuildProductOperand {
-                    operation: request.operation,
-                    position,
-                    role,
-                },
-            ))
-        }
-        BuildProductOperand::WireFact { source_span, fact } => {
-            if *source_span != selection.source_span() {
-                return Err("Build wire fact lost its exact authored occurrence".into());
-            }
-            Ok(Some(
-                AuthoredDeclarationSelectionIntrinsic::WireCompatibilityFact(*fact),
-            ))
-        }
+    if operand.source_span != selection.source_span() {
+        return Err("Build product operand lost its exact authored occurrence".into());
+    }
+    if role == ProductOperandRole::WireCompatibilityFact {
+        let fact = language_semantics::wire::WireCompatibilityFact::from_name(&operand.path)
+            .ok_or("Build wire demand names an unknown compatibility fact")?;
+        Ok(Some(
+            AuthoredDeclarationSelectionIntrinsic::WireCompatibilityFact(fact),
+        ))
+    } else {
+        Ok(Some(
+            AuthoredDeclarationSelectionIntrinsic::BuildProductOperand {
+                operation: request.operation,
+                position,
+                role,
+            },
+        ))
     }
 }

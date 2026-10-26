@@ -70,6 +70,7 @@ pub struct ReferenceObservationContext {
     pub resident_path: Option<Vec<terminal_psi::StructuralPathSegment>>,
     pub resident_referent: Option<semantic_vocabulary::StructuralTypeId>,
     pub origin_count: Option<usize>,
+    pub interference: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

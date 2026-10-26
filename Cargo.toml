@@ -49,7 +49,6 @@ members = [
     "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi",
     "omega-rust/psi/compilation/pipeline/06_lowered-psi-to-lowered-psi",
     "omega-rust/psi/compilation/pipeline/07_lowered-psi-to-terminal-psi",
-    "omega-rust/omega/compilation/driver/terminal-production",
     "omega-rust/psi/compilation/driver",
     "omega-rust/psi/compilation/driver/terminal-production",
     "omega-rust/psi/compilation/proof/admission",

@@ -498,7 +498,6 @@ dependencies = [
  "terminal-fuel",
  "terminal-installation",
  "terminal-interpreter",
- "terminal-production",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-runtime",
@@ -2382,20 +2381,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "terminal-production"
-version = "0.1.0"
-dependencies = [
- "artifacts",
- "diagnostics",
- "effects",
- "psi-compiler",
- "semantic-vocabulary",
- "target",
- "terminal-psi",
- "trust-model",
-]
-
-[[package]]
 name = "terminal-psi"
 version = "0.1.0"
 dependencies = [
@@ -2514,21 +2499,14 @@ dependencies = [
 name = "trust-model"
 version = "0.1.0"
 dependencies = [
- "build-time-evaluation",
- "checked-interpreter",
  "checked-trees",
  "diagnostics",
  "effects",
  "language-semantics",
  "optimization-core",
- "semantic-vocabulary",
  "source",
  "symbols",
- "target",
- "terminal-installation",
- "terminal-psi",
  "typed-trees",
- "typed-trees-to-checked-trees",
  "validation",
 ]
 

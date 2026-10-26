@@ -34,8 +34,7 @@ fn main() {
         if let Some(inputs) = prepared.package_inputs.clone() {
             request = request.with_package_inputs(inputs);
         }
-        let report = session
-            .compile(request)
+        let report = omega_build::compile_sources(&mut session, request)
             .expect("request admission")
             .into_single_report()
             .expect("target publication");
@@ -75,7 +74,7 @@ fn main() {
         )
         .expect("current Terminal measurement"),
     );
-    let result = session.check(limited);
+    let result = omega_build::check_source(&mut session, limited);
     let diagnostics = match result.result {
         Err(failure) => failure.into_diagnostics(),
         Ok(_) => panic!("fresh fuel authority must not be borrowed from a prior result"),
@@ -83,7 +82,7 @@ fn main() {
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("build-evaluation aggregate fuel sponsor exhausted at 1 fuel units")),
+            .contains("Terminal Build failed: evaluation Fuel allowance exhausted")),
         "unexpected rejection: {diagnostics:?}"
     );
     assert_eq!(counters::build_execution_count() - before, 2);
@@ -105,8 +104,7 @@ fn main() {
     if let Some(inputs) = other.package_inputs {
         request = request.with_package_inputs(inputs);
     }
-    let report = session
-        .compile(request)
+    let report = omega_build::compile_sources(&mut session, request)
         .expect("distinct request")
         .into_single_report()
         .expect("distinct native product");

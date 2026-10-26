@@ -7,12 +7,42 @@
 use super::{RecordLeafLoans, StoredCarrierSource, local_record_loans, record_carrier_sources};
 use checked_trees::{CheckFacts, CheckedUnitStructuralArgumentSourcePlan, FlowCallResult};
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionHandle;
 
 pub struct RecordCallReception {
     /// Returned leaves not installed in the receiving local. These remain
     /// owned by the temporary result until projection/operand disposal.
     pub residual_paths: Vec<Vec<checked_trees::CheckedUnitStructuralPathSegment>>,
+}
+
+/// Rejoin the complete checked occurrence, including its invocation ordinal.
+/// Expression calls, statement calls and terminal calls share this namespace.
+/// A source expression is optional provenance, never the invocation identity.
+pub(super) fn retained_call<'facts>(
+    facts: &'facts CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    call: &checked_trees::FlowCallFact,
+) -> Result<&'facts checked_trees::FlowCallFact, &'static str> {
+    let flow = super::state_flow(facts, machine, state)
+        .ok_or("reference reception has no unique caller flow")?;
+    let mut calls = facts
+        .flow
+        .control
+        .calls
+        .span(flow.calls)
+        .ok_or("reference reception has a stale call span")?
+        .iter()
+        .filter(|candidate| {
+            candidate.statement_index == call.statement_index
+                && candidate.call_ordinal == call.call_ordinal
+        });
+    let retained = calls
+        .next()
+        .ok_or("reference reception has no matching call occurrence")?;
+    if calls.next().is_some() || retained != call {
+        return Err("reference reception differs from its checked call occurrence");
+    }
+    Ok(retained)
 }
 
 /// Find the exact receiving leaves of this call occurrence. Constructor
@@ -24,39 +54,18 @@ pub fn record_call_reception(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
-    statement_index: u32,
-    expression: ExpressionHandle,
+    call: &checked_trees::FlowCallFact,
 ) -> Result<RecordCallReception, &'static str> {
-    let call = program
-        .expression_table
-        .call_node(expression)
-        .ok_or("reference reception has no authored call")?;
-    let return_type = crate::call_target_return_type(program, call.target_symbol)
+    let occurrence = retained_call(facts, machine, state.symbol, call)?;
+    let statement_index = u32::try_from(occurrence.statement_index)
+        .map_err(|_| "reference record call index exceeds u32")?;
+    let expression = occurrence.authored_expression;
+    let return_type = crate::call_target_return_type(program, occurrence.target_symbol)
         .ok_or("reference reception has no destination result contract")?;
-    // The checked call row carries this occurrence's actual capture: which
-    // authored construct receives the result. Replaying the typed
-    // `local.initial_value` re-derives a node preparation may already have
-    // rewritten (substituted specialization arguments, folded constructors),
-    // so a mutable holder's genuine receiver can never join its own call.
     let flow = super::state_flow(facts, machine, state.symbol)
         .ok_or("reference reception has no unique caller flow")?;
-    let Some(occurrence) = facts
-        .flow
-        .control
-        .calls
-        .span(flow.calls)
-        .ok_or("reference reception has a stale call span")?
-        .iter()
-        .find(|occurrence| {
-            occurrence.authored_expression == expression
-                && occurrence.statement_index == statement_index as usize
-                && occurrence.target_symbol == call.target_symbol
-        })
-    else {
-        // The semantic call roster owns every executed invocation; a
-        // missing row is an incomplete relation, not an anonymous receiver.
-        return Err("reference reception has no matching call occurrence");
-    };
+    // The checked occurrence carries the actual capture. Terminal completion
+    // has no expression-local receiver and retains temporary custody instead.
     let paths = super::captured_returns::call_result_paths(program, facts, occurrence)
         .ok_or("reference result has no complete captured origin paths")?;
     let returned: Vec<_> = record_carrier_sources(

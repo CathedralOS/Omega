@@ -166,6 +166,35 @@ pub(crate) fn machine_state_by_symbol(
         .map(|state| (machine, state))
 }
 
+/// Exact checked bodies behind one call. Portable interfaces are not opaque
+/// suppliers: every retained target member contributes an alternative. Never
+/// select the build host here or infer a body from a matching name.
+pub(super) fn checked_body_alternatives(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+) -> Option<Vec<SymbolHandle>> {
+    if !machine.target_family_interface {
+        return (machine.body_is_present && machine.supply_mode.is_checked_body())
+            .then_some(vec![state.symbol]);
+    }
+    if program.machine_states(machine).first()?.symbol != state.symbol {
+        return None;
+    }
+    crate::target_family_members(program, machine)?
+        .iter()
+        .map(|member| {
+            let machine = program.machine(member.machine)?;
+            (machine.body_is_present && machine.supply_mode.is_checked_body()).then(|| {
+                program
+                    .machine_states(machine)
+                    .first()
+                    .map(|state| state.symbol)
+            })?
+        })
+        .collect()
+}
+
 /// A signature's formal types in declaration order — the argument context
 /// either signature lane supplies.
 fn signature_parameter_types(

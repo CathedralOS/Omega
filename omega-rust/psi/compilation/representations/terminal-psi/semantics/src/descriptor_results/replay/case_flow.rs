@@ -39,7 +39,7 @@ pub(super) fn validate_graph(replay: &Replay<'_>, machine: &DescriptorMachine) -
         if predicates.len() != machine.flow.get(position)?.successors.len() {
             return None;
         }
-        for predicate in predicates {
+        for (predicate, _) in predicates {
             valid_subject(replay, machine, predicate)?;
         }
     }
@@ -92,6 +92,7 @@ pub(super) fn select(
     machine: &DescriptorMachine,
     state: &mut State,
     predicate: &DescriptorCasePredicate,
+    truth: bool,
 ) -> Option<bool> {
     valid_subject(replay, machine, predicate)?;
     let Some(storage) = replay.canonical_storage(machine, state, &predicate.subject) else {
@@ -101,20 +102,32 @@ pub(super) fn select(
         .cases
         .copies
         .equivalents(&storage, machine.flow.len().saturating_mul(4096).max(4096))?;
-    if subjects.iter().any(|subject| {
-        state
-            .cases
-            .facts
-            .get(subject)
-            .is_some_and(|cases| !cases.contains(&predicate.case))
-    }) {
+    let ty = crate::descriptor_lifetimes::descriptor_location_type(
+        replay.types,
+        *machine.place_types.get(&predicate.subject.root)?,
+        &predicate.subject.path,
+    )?;
+    let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+        &find_structural_type(replay.types, ty)?.shape
+    else {
+        return None;
+    };
+    let mut possible = cases
+        .iter()
+        .map(|case| case.id)
+        .filter(|case| (*case == predicate.case) == truth)
+        .collect::<BTreeSet<_>>();
+    for subject in &subjects {
+        if let Some(known) = state.cases.facts.get(subject) {
+            possible.retain(|case| known.contains(case));
+        }
+    }
+    if possible.is_empty() {
         return Some(false);
     }
     let cases = Arc::make_mut(&mut state.cases);
     for subject in subjects {
-        cases
-            .facts
-            .insert(subject, BTreeSet::from([predicate.case]));
+        cases.facts.insert(subject, possible.clone());
     }
     Some(true)
 }

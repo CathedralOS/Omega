@@ -163,6 +163,9 @@ fn classify_builtin_function(function: BuiltinFunction) -> TerminalAuthorityDisp
         | BuiltinFunction::AsmLoadFence
         | BuiltinFunction::AsmStoreFence
         | BuiltinFunction::AsmFullFence
+        | BuiltinFunction::AsmAarch64LoadFence
+        | BuiltinFunction::AsmAarch64StoreFence
+        | BuiltinFunction::AsmAarch64FullFence
         | BuiltinFunction::AsmSerialize
         | BuiltinFunction::AsmInstructionSyncBarrier
         | BuiltinFunction::AsmSpinPause

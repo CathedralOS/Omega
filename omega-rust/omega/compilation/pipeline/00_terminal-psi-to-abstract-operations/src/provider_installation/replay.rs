@@ -156,10 +156,9 @@ pub(super) fn replay_installed_provider_calls(
                     && boundary_declaration.identity != provider.requirement_identity)
                 || !replays_result(
                     &terminal_operation.result,
-                    &boundary_declaration.result,
+                    boundary_declaration,
                     &candidate.result,
                     terminal_candidate,
-                    boundary_declaration.identity,
                     &module.structural_domains,
                 )
                 || structural_arguments.len() != provider.signature.parameters.len()
@@ -319,16 +318,28 @@ pub(super) fn replay_installed_provider_calls(
 /// their signatures without substituting either place for the other.
 fn replays_result(
     occurrence: &terminal_psi::OperationResult,
-    boundary: &terminal_psi::BoundaryMachineResult,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
     candidate: &AbstractFunctionResult,
     terminal_machine: &terminal_psi::TerminalMachine,
-    requirement: terminal_psi::TerminalIdentityIndex,
     domains: &[terminal_psi::StructuralDomainDeclaration],
 ) -> bool {
-    if !boundary.accepts_provider_result(&terminal_machine.result, requirement, domains) {
+    if !boundary.result.accepts_provider_result(
+        &terminal_machine.result,
+        boundary.identity,
+        boundary
+            .declaration
+            .as_ref()
+            .map(|callable| callable.source.semantic_declaration),
+        domains,
+    ) {
         return false;
     }
-    match (occurrence, boundary, candidate, &terminal_machine.result) {
+    match (
+        occurrence,
+        &boundary.result,
+        candidate,
+        &terminal_machine.result,
+    ) {
         (
             terminal_psi::OperationResult::Unit,
             terminal_psi::BoundaryMachineResult::Unit,

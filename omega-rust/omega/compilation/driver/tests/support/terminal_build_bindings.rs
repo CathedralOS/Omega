@@ -194,16 +194,20 @@ fn exercise(
                 .unwrap_err();
             assert!(rejection.reason.contains("no source-issued"));
             let executed = host.into_executed().unwrap();
-            let requests: Vec<_> = executed
+            let requests = executed
                 .iter()
-                .map(|request| match request {
-                    language_semantics::declaration_selection::ExecutedBuildProductRequest::RootBinding(binding) => binding,
-                    language_semantics::declaration_selection::ExecutedBuildProductRequest::DeclarationSelection(_)
-                    | language_semantics::declaration_selection::ExecutedBuildProductRequest::BehaviorExclusion(_) => {
-                        panic!("root-binding fixture recorded an unexpected declaration selection")
-                    }
+                .map(|selection| {
+                    let language_semantics::declaration_selection::ExecutedBuildSelection::Entry(
+                        binding,
+                    ) = selection
+                    else {
+                        panic!(
+                            "root-binding fixture emitted an unexpected Product declaration choice"
+                        );
+                    };
+                    binding
                 })
-                .collect();
+                .collect::<Vec<_>>();
             assert_eq!(
                 requests
                     .iter()

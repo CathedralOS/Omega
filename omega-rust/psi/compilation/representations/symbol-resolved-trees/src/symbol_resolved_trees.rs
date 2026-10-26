@@ -177,6 +177,7 @@ pub struct SymbolResolvedDeclarationStorage {
     pub data_members: Arena<data::DataMember>,
     pub data_payload_fields: Arena<data::DataField>,
     pub data_type_parameters: Arena<data::TypeParameter>,
+    pub declared_type_equations: Arena<crate::machine::DeclaredTypeEquation>,
     pub proof_facts: Arena<domain::ProofFact>,
     proof_fact_source_spans: Vec<Option<source::SourceSpan>>,
     pub domain_path_members: Arena<crate::name::DiagnosticName>,

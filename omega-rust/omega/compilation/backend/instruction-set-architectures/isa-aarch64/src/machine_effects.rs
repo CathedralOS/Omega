@@ -61,6 +61,11 @@ pub fn aarch64_machine_effect_catalog(
             .declaration_keys()
             .into_iter()
             .map(|(semantic, constraint)| {
+                if semantic == MachineSemanticKind::MemoryFence {
+                    return Ok(crate::selected_form_encoding::memory_fence::declaration(
+                        constraint,
+                    ));
+                }
                 if matches!(
                     semantic,
                     MachineSemanticKind::SystemRegisterRead
@@ -260,6 +265,7 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
             model_specific_write: None,
             processor_halt: None,
             interrupt_control: None,
+            memory_fence: Some(crate::AARCH64_MEMORY_FENCE),
             atomic_fence: Some(crate::AARCH64_ATOMIC_FENCE),
             // Apple's arm64 macOS baseline is Apple Silicon (M1 or later),
             // which includes FEAT_LSE. Generic AArch64/ELF does not promise it.
@@ -547,6 +553,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::SystemRegisterWrite => {
             return crate::selected_form_encoding::register_access::effects(false);
         }
+        MachineSemanticKind::MemoryFence => return MachineEncodedEffects::catalog_fence_v1(),
         MachineSemanticKind::AtomicFence => return MachineEncodedEffects::atomic_fence_v1(),
         MachineSemanticKind::LoadEncodedScalar => (vec![0, 1], vec![2, 3, 4, 5]),
         MachineSemanticKind::StoreEncodedScalar => (vec![0, 1, 2], vec![3, 4, 5]),

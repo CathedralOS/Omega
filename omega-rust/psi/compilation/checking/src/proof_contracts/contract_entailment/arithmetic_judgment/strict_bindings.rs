@@ -2,11 +2,12 @@
 //! strict bindings, scoped-value normalization under the original declaration
 //! and selected arithmetic policy, and admitted operator occurrence bindings.
 use super::super::{
-    BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, Machine,
-    StrictArithmeticBindingValue, StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding,
-    SymbolHandle,
+    BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, Machine, SymbolHandle,
 };
 use super::{Engine, OpaqueTerm, Polynomial};
+use crate::{
+    StrictArithmeticBindingValue, StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding,
+};
 
 impl<'program> Engine<'program> {
     /// Actuals are completed in the caller before this complete formal roster
@@ -215,9 +216,9 @@ impl<'program> Engine<'program> {
     /// an implicit successor or a current storage observation.
     pub(in crate::proof_contracts::contract_entailment) fn normalize_scoped_value(
         &mut self,
-        value: &super::super::ScopedArithmeticValue,
+        value: &crate::ScopedArithmeticValue,
     ) -> Option<Polynomial> {
-        use super::super::ScopedArithmeticValue;
+        use crate::ScopedArithmeticValue;
         Some(match value {
             ScopedArithmeticValue::TypeReference(_) => return None,
             ScopedArithmeticValue::Atom { identity, unsigned } => {
@@ -277,7 +278,7 @@ impl<'program> Engine<'program> {
 
     fn with_scoped_expression(
         &mut self,
-        term: &super::super::ScopedArithmeticExpression,
+        term: &crate::ScopedArithmeticExpression,
         query: impl FnOnce(&mut Self) -> Option<Polynomial>,
     ) -> Option<Polynomial> {
         let previous_owner = self.source_owner;
@@ -295,7 +296,7 @@ impl<'program> Engine<'program> {
     /// Actual values are normalized before the formal roster is published.
     pub(in crate::proof_contracts::contract_entailment) fn install_scoped_expression(
         &mut self,
-        expression: &super::super::ScopedArithmeticExpression,
+        expression: &crate::ScopedArithmeticExpression,
     ) -> bool {
         if !expression.owner.is_valid() {
             return false;
@@ -464,8 +465,17 @@ impl<'program> Engine<'program> {
         &mut self,
         selection: crate::proof_contracts::arithmetic_domains::DispatchSelection,
     ) {
-        let operands =
-            [selection.subject, selection.pattern].map(|operand| self.source_result_type(operand));
+        use crate::proof_contracts::arithmetic_domains::DispatchCondition;
+        let (subject, pattern) = match selection.condition {
+            DispatchCondition::Equality { subject, pattern } => (subject, pattern),
+            DispatchCondition::Predicate(condition) => {
+                let mut comparisons = Vec::new();
+                self.collect_condition_comparisons(condition, selection.matched, &mut comparisons);
+                self.install_hypotheses(comparisons);
+                return;
+            }
+        };
+        let operands = [subject, pattern].map(|operand| self.source_result_type(operand));
         if !typed_trees::operator::has_builtin_spelled_expression_meaning(
             self.program,
             self.source_owner,
@@ -476,18 +486,14 @@ impl<'program> Engine<'program> {
             return;
         }
         let mut comparisons = Vec::new();
-        if let ExpressionNode::Boolean(value) =
-            self.program.expression_table.expression(selection.pattern)
-        {
+        if let ExpressionNode::Boolean(value) = self.program.expression_table.expression(pattern) {
             self.collect_condition_comparisons(
-                selection.subject,
+                subject,
                 selection.matched == *value,
                 &mut comparisons,
             );
-        } else if let (Some(left), Some(right)) = (
-            self.normalize(selection.subject),
-            self.normalize(selection.pattern),
-        ) {
+        } else if let (Some(left), Some(right)) = (self.normalize(subject), self.normalize(pattern))
+        {
             comparisons.push((
                 if selection.matched {
                     BinaryOperator::Equal
@@ -569,9 +575,9 @@ impl<'program> Engine<'program> {
     /// bound twice to different values, or a term outside the language.
     pub(in crate::proof_contracts::contract_entailment) fn install_scoped_bindings(
         &mut self,
-        bindings: &[super::super::ScopedArithmeticBinding],
+        bindings: &[crate::ScopedArithmeticBinding],
     ) -> bool {
-        use super::super::ScopedArithmeticBinder;
+        use crate::ScopedArithmeticBinder;
         if !self.strict_symbol_bindings_valid {
             return false;
         }

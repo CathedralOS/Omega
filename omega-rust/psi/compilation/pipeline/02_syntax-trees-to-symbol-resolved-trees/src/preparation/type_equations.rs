@@ -87,10 +87,20 @@ pub(crate) fn type_reference_parameter_mentions(
 #[derive(Clone)]
 pub(crate) struct TypeEquation {
     pub(crate) fact_offset: usize,
+    definition: ExpressionHandle,
     shape: EquationShape,
 }
 
 impl TypeEquation {
+    /// The classifier, rather than an expression's spelling, gives this
+    /// operand type role. Retain the equation in that declaration's scope.
+    pub(crate) fn structural_definition(&self) -> Option<(usize, ExpressionHandle)> {
+        match self.shape {
+            EquationShape::Structural { binder, .. } => Some((binder, self.definition)),
+            EquationShape::KindMismatch { .. } => None,
+        }
+    }
+
     /// Keep non-equation telescope slots out of structural matching without
     /// letting their names be reselected as closed declarations.
     pub(crate) fn mentions_parameter(
@@ -404,6 +414,11 @@ pub(crate) fn classify_type_equations(
             let span = syntax.expressions.source_span(*expression);
             let left = classify_side(syntax, parameters, binary.left);
             let right = classify_side(syntax, parameters, binary.right);
+            let definition = if matches!(left, Side::TypeBinder(_)) {
+                binary.right
+            } else {
+                binary.left
+            };
             let shape = match (left, right) {
                 (Side::TypeBinder(binder), other) | (other, Side::TypeBinder(binder)) => {
                     equation_shape(syntax, parameters, binder, other, span)
@@ -428,7 +443,11 @@ pub(crate) fn classify_type_equations(
                 }
                 _ => return None,
             };
-            Some(TypeEquation { fact_offset, shape })
+            Some(TypeEquation {
+                fact_offset,
+                definition,
+                shape,
+            })
         })
         .collect()
 }

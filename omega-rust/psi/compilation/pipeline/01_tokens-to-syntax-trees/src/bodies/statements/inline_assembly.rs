@@ -160,21 +160,13 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             continue;
         }
         let (instruction, rest) = parse_asm_instruction_statement_handle(syntax_trees, input)?;
-        // Arithmetic and physical register moves erase into ordinary scalar
-        // operations. Retain their ISA demand here. Executable catalog calls
-        // retain their existing target contract on the call itself.
-        if instruction.arithmetic.is_some()
-            || matches!(
-                instruction.contract.shape,
-                AsmInstructionShape::RegisterMove | AsmInstructionShape::JumpState
-            )
-        {
-            target_requirement = target_requirement
-                .intersect(instruction.contract.target)
-                .ok_or_else(|| {
-                    input.error_here("assembly body mixes incompatible catalog targets")
-                })?;
-        }
+        // Every instruction constrains the enclosing body, including executable
+        // catalog calls whose operation contract also survives lowering. The
+        // block demand is what rejects a mixed ISA or conflicting authored body
+        // before target realization, even when no scratch register is present.
+        target_requirement = target_requirement
+            .intersect(instruction.contract.target)
+            .ok_or_else(|| input.error_here("assembly body mixes incompatible catalog targets"))?;
         realized_clobbers.extend(instruction.contract.clobbers.iter().copied());
         observes_hardware_flags |= matches!(
             instruction.contract.shape,
@@ -743,7 +735,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     let Some(entry) = asm_catalog_entry(mnemonic.as_str(syntax_trees)) else {
         return Err(mnemonic_site.error_here(format!(
             "unknown asm instruction `{}`: only known-contract instructions compile \
-             (`hlt`, `in`, `out`, `jmp`, `mov`/`movq`, `lfence`, `sfence`, `mfence`, `cli`, `sti`, \
+             (`hlt`, `in`, `out`, `jmp`, `mov`/`movq`, `lfence`, `sfence`, `mfence`, `dmb`, `cli`, `sti`, \
              `serialize`, `isb`, `pause`, `yield`, `wfe`, `wfi`, `sev`, `sevl`, `nop`, `pushfq`, `popfq`, \
              `rdmsr`, `wrmsr`, `wbinvd`, `invd`, `wbnoinvd`, \
              `ldr`, `str`, structured `read_crN`/`write_crN`/`read_<sysreg>`/`write_<sysreg>`); opaque \
@@ -1024,13 +1016,31 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             );
             ParsedAsmInstruction::ok(statement, contract, input)
         }
-        AsmInstructionShape::MemoryFence(kind) => parsed_intrinsic_instruction(
-            syntax_trees,
-            &mnemonic,
-            kind.intrinsic_name(),
-            contract,
-            input,
-        ),
+        AsmInstructionShape::MemoryFence(kind) => {
+            let (kind, input) = if kind.target()
+                == language_core::inline_assembly::AsmTargetApplicability::Aarch64
+            {
+                let (option, rest) = input.take_identifier()?;
+                let kind = language_core::inline_assembly::AsmFenceKind::from_aarch64_option(
+                    option.as_str(syntax_trees),
+                )
+                .ok_or_else(|| {
+                    input.error_here(
+                        "dmb requires an explicit supported full-system option: ld, st, or sy",
+                    )
+                })?;
+                (kind, rest)
+            } else {
+                (kind, input)
+            };
+            parsed_intrinsic_instruction(
+                syntax_trees,
+                &mnemonic,
+                kind.intrinsic_name(),
+                language_core::inline_assembly::AsmInstructionContract::memory_fence(kind),
+                input,
+            )
+        }
         AsmInstructionShape::InterruptControl(kind) => parsed_intrinsic_instruction(
             syntax_trees,
             &mnemonic,

@@ -376,7 +376,7 @@ fn declaration_anonymous_fit(
     prior_facts: &[ExpressionHandle],
     target: typed_trees::types::PrimitiveType,
 ) -> super::operand_fits::CarrierFit {
-    use super::{ScopedArithmeticExpression, ScopedArithmeticHypothesis, ScopedArithmeticValue};
+    use crate::{ScopedArithmeticExpression, ScopedArithmeticHypothesis, ScopedArithmeticValue};
     let bindings = arithmetic_caller_bindings(program, caller);
     let hypotheses = prior_facts
         .iter()
@@ -1719,7 +1719,7 @@ fn arithmetic_caller_bindings(
     program: &dyn crate::CheckingInput,
     caller: SpecificationCaller<'_>,
 ) -> Vec<super::ScopedArithmeticBinding> {
-    use super::{ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticValue};
+    use crate::{ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticValue};
     let mut bindings = Vec::new();
     for parameter in caller.parameters(program) {
         let Some(primitive) =
@@ -1755,7 +1755,7 @@ fn arithmetic_requirement(
     arguments: &[ExpressionHandle],
     applied: &AppliedProofBindings,
 ) -> bool {
-    use super::{
+    use crate::{
         ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
         ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
     };

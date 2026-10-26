@@ -117,6 +117,50 @@ forbidden behavior or insufficient evidence rejects the product. Dynamic
 replacement must preserve the exclusions through its installation envelope;
 selecting one benign provider now does not certify every later binding.
 
+## Build provider readiness
+
+The owner-ratified `explicit-build-provider-backing` decision (2026-10-26)
+requires the caller to name both the pre-known exact boundary requirement
+application and its exact named implementation:
+
+```omega
+suspend Build::await_provider<
+    topology_api::TopologyBuild,
+    topology_impl::DiagnosticTopology
+>(builder);
+```
+
+`topology_api::TopologyBuild` must already be available when the root Build is
+checked. `topology_impl` names the caller's explicitly requested build dependency;
+the rest of the qualified path names its implementation. Both operands support
+ordinary namespace qualification and retain exact declaration ownership. The
+dependency qualifier supplies the edge identity, so there is no redundant alias
+value argument and no fallback to the product-dependency namespace.
+
+The backing operand is an inert designated selection reference until dependency
+preparation resolves it against that exact immutable package instance. This uses
+Build's designated-selection mechanism, not an ordinary import of unresolved
+code. It grants no general nameability, direct calls, execution authority, or
+new source-level conformance evidence. The root is checked against the known
+requirement; preparation checks the named implementation's visibility, exact
+satisfaction of that requirement, and admission for the Build execution profile
+before installing it. Matching names or signatures cannot replace nominal
+identity. Missing, inaccessible, mismatched, or unadmitted supply rejects rather
+than selecting another implementation.
+
+Readiness never searches for a satisfier, chooses the sole visible candidate,
+or consumes a dependency-selected default. Multiple exported implementations
+are unambiguous because the caller names one. An already-installed different
+backing does not satisfy this request or get silently replaced; distinct static
+roles require distinct exact requirement applications.
+
+After installation, calls use the exact static `R::operation(arguments)` slot.
+Readiness returns no routing value and resumes the same Terminal continuation
+without replay. Ordinary product `Build::select_provider` rows do not select or
+authorize this Build-host slot. See [Build execution](execution.md#admission-before-execution)
+for preparation and admission order. This is the accepted contract; provider
+readiness and deferred backing resolution remain implementation work.
+
 ## Toolchain-selected checked implementations
 
 The `toolchain-settled-constant-binding` decision distinguishes who selects an

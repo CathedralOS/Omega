@@ -1,0 +1,42 @@
+// A call inside an abstract signature is the premise. The signature
+// records that call's result, and the caller reads the record.
+// Place: field.
+// Expected exit: 0
+machine premise(kept: bool) -> bool {
+    false
+}
+
+machine hold(direct: bool) -> bool
+requires direct == true
+{
+    true
+}
+
+machine witness(kept: bool) -> bool
+requires premise(kept)
+{
+    premise(kept)
+}
+
+machine apply<machine Observe>(kept: bool) -> bool
+where machine Observe(kept: bool) -> bool
+requires premise(kept);
+requires premise(kept)
+{
+    Observe(kept)
+}
+
+const DIRECT: bool = apply<witness>(true);
+
+data Holder [copy] { direct: bool; }
+
+machine main() crashes Trap {
+    let holder: Holder = Holder { direct: DIRECT };
+    transition hold(holder.direct) {
+        true -> done()
+        _ -> bad()
+    }
+}
+
+machine done() {}
+machine bad() crashes Trap { crash Trap; }

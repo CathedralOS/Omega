@@ -234,6 +234,7 @@ pub(super) fn validate_asm_statement_call(
             "asm#lfence" => ("lfence", 0),
             "asm#sfence" => ("sfence", 0),
             "asm#mfence" => ("mfence", 0),
+            "asm#dmb_ld" | "asm#dmb_st" | "asm#dmb_sy" => ("dmb", 0),
             "asm#cli" => ("cli", 0),
             "asm#sti" => ("sti", 0),
             "asm#serialize" => ("serialize", 0),

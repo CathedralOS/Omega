@@ -452,9 +452,12 @@ impl PackageCompilationInputs {
 
     #[doc(hidden)]
     pub fn package_for_source(&self, source: &Path) -> Option<PackageKeyIdentity> {
-        self.source.packages.iter().find_map(|(identity, record)| {
-            source.starts_with(&record.source_root).then_some(*identity)
-        })
+        self.source
+            .packages
+            .iter()
+            .filter(|(_, record)| source.starts_with(&record.source_root))
+            .max_by_key(|(_, record)| record.source_root.components().count())
+            .map(|(identity, _)| *identity)
     }
 }
 

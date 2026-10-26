@@ -43,6 +43,47 @@ class EntryRamOracleTests(unittest.TestCase):
                     self.assertTrue(corpus_gate.entry_ram_failures([row], corpus, prefix))
 
 
+class TerminalFenceOracleTests(unittest.TestCase):
+    def test_missing_reordered_or_incomplete_progress_cannot_record_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            corpus = Path(directory)
+            fixture = corpus / "pass" / "asm" / "fences_exit"
+            fixture.mkdir(parents=True)
+            (fixture / "expected_terminal_targets.txt").write_text("linux_x86_64 0\n")
+            (fixture / "expected_terminal_fences.txt").write_text("linux_x86_64 lfence sfence mfence\n")
+            facts = {"terminal-fences.linux_x86_64": "lfence,sfence,mfence",
+                     "terminal-fence-artifact": "unchanged", "terminal-fences": "match"}
+            row = record("pass/asm/fences_exit", "built", facts=facts)
+            self.assertEqual(corpus_gate.terminal_fence_failures([row], corpus), [])
+            for key, value in [("terminal-fences.linux_x86_64", None),
+                               ("terminal-fences.linux_x86_64", "sfence,lfence,mfence"),
+                               ("terminal-fence-artifact", "changed"),
+                               ("terminal-fences", "differs")]:
+                row["facts"] = dict(facts)
+                if value is None:
+                    del row["facts"][key]
+                else:
+                    row["facts"][key] = value
+                self.assertTrue(corpus_gate.terminal_fence_failures([row], corpus))
+
+    def test_malformed_or_unrequested_target_oracle_is_nonrecordable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            corpus = Path(directory)
+            fixture = corpus / "pass" / "asm" / "fences_exit"
+            fixture.mkdir(parents=True)
+            row = record("pass/asm/fences_exit", "checked")
+            for text in ["", "linux_x86_64\n", "linux_x86_64 lfence unknown\n",
+                         "linux_x86_64 lfence\nlinux_x86_64 mfence\n"]:
+                (fixture / "expected_terminal_targets.txt").write_text("linux_x86_64 0\n")
+                (fixture / "expected_terminal_fences.txt").write_text(text)
+                failures = corpus_gate.terminal_fence_failures([row], corpus)
+                self.assertEqual(len(failures), 1)
+                self.assertFalse(failures[0]["recordable"])
+            (fixture / "expected_terminal_targets.txt").unlink()
+            (fixture / "expected_terminal_fences.txt").write_text("linux_x86_64 lfence\n")
+            self.assertFalse(corpus_gate.terminal_fence_failures([row], corpus)[0]["recordable"])
+
+
 def fake_runner(records: str, stdout: str = "", *, reported_root=None, report_root=True):
     """A Popen stand-in that writes `records` where the gate asks for them."""
     def popen(arguments, **options):

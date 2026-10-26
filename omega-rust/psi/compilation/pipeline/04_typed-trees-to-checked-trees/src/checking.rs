@@ -266,8 +266,9 @@ fn check_program(
     // decision point — nobody rejudges them.
     let proven_machine_contracts =
         std::mem::take(&mut validated.validation_facts.proven_machine_contracts);
-    // The range checker bounds indexes with the intervals the same
-    // arithmetic walk established; nothing after checking reads them.
+    // Retain the arithmetic walk's occurrence intervals for value publication
+    // and the later range/contract checks. The analysis already hulled every
+    // clean evaluation of a shared expression; no initializer is replayed.
     let expression_intervals = std::mem::take(&mut validated.validation_facts.expression_intervals);
     let proof_recipe_obligations = std::mem::take(&mut validated.constant_recipe_obligations);
     let integer_range_obligations =
@@ -281,6 +282,7 @@ fn check_program(
             validated.operational,
             validated.service_reaches,
             validated.validation_facts,
+            &expression_intervals,
             &mutation_summaries,
         )
     })?;

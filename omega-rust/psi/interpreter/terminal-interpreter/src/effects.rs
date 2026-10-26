@@ -29,6 +29,12 @@ use terminal_psi::{BoundaryMachineResult, CompletionReceipt};
 /// One externally observable terminal-Psi effect in semantic execution order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalEffect {
+    /// A completed compiler-defined ordering event in the supplied private
+    /// sequential model. This is an observation, never a host callback.
+    MemoryFence {
+        operation: OperationId,
+        kind: terminal_psi::MemoryFenceKind,
+    },
     BoundaryCall {
         operation: OperationId,
         boundary: BoundaryMachineId,
@@ -173,6 +179,7 @@ pub use terminal_installation::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalRuntimeSupplies {
     pub(crate) x86_flags: Option<TerminalX86FlagsEnvironment>,
+    pub(crate) memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
     pub(crate) entry: Option<terminal_psi::TargetMachineCallable>,
     pub(crate) terminal_psi: terminal_psi::TerminalPsiIdentity,
     pub(crate) supplies: BTreeMap<BoundaryMachineId, AdmittedBoundarySupply>,
@@ -202,6 +209,8 @@ pub(crate) enum AdmittedBoundarySupply {
 pub struct TerminalRuntimeSupplyRequest<'installation> {
     /// Explicit modeled processor state. Absence supplies no PUSHFQ capability.
     pub x86_flags: Option<TerminalX86FlagsEnvironment>,
+    /// Explicit scoped memory model; absence supplies no catalog fence semantics.
+    pub memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
     /// Requested retained callable; absence selects the artifact's default.
     /// This supplies no parameter backing or host/provider authority.
     pub entry: Option<terminal_psi::TargetMachineCallable>,
@@ -217,6 +226,7 @@ impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntim
     fn from(selected: &terminal_installation::AdmittedProviderSelections) -> Self {
         Self {
             x86_flags: None,
+            memory_ordering: None,
             terminal_psi: selected.terminal_psi(),
             entry: None,
             supplies: selected

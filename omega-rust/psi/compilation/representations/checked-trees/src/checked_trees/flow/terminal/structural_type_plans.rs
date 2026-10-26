@@ -396,6 +396,9 @@ impl CheckedByteSequenceCarrier {
 /// One normalized structural qualification required by a retained parameter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralDomainPlan {
+    /// The retained predicate/issuer vocabulary describes the complete source
+    /// theory; no independent role, cleanup, alias or refinement is omitted.
+    pub complete_predicate_theory: bool,
     /// Complete closed declaration predicates over formal subject zero; None is opaque.
     pub predicate: Option<crate::CheckedBooleanExpression>,
     pub byte_predicate: Option<language_semantics::byte_predicates::ByteSequencePredicate>,

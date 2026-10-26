@@ -82,7 +82,7 @@ pub fn captured_call_index_value(
     parameters: &[StateParameter],
     owner: SymbolHandle,
     argument: typed_trees::types::TypeReferenceHandle,
-) -> Option<super::ScopedArithmeticValue> {
+) -> Option<crate::ScopedArithmeticValue> {
     match capture_projection(
         program,
         caller_state,
@@ -151,7 +151,7 @@ enum ProjectionRequest {
 enum ProjectionValue {
     Equality(bool),
     Identity(String),
-    Scalar(super::ScopedArithmeticValue),
+    Scalar(crate::ScopedArithmeticValue),
 }
 
 fn capture_projection(
@@ -498,11 +498,11 @@ fn completed_index_value(
     value: &StructuralTerm,
     state: SymbolHandle,
     unsigned: Option<bool>,
-) -> Option<super::ScopedArithmeticValue> {
+) -> Option<crate::ScopedArithmeticValue> {
     use typed_trees::expression::BinaryOperator;
     match value.semantic_value() {
         StructuralTerm::Integer(integer) => {
-            Some(super::ScopedArithmeticValue::Integer(integer.clone()))
+            Some(crate::ScopedArithmeticValue::Integer(integer.clone()))
         }
         StructuralTerm::MathematicalBinary {
             operator,
@@ -513,13 +513,13 @@ fn completed_index_value(
             BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
         ) =>
         {
-            Some(super::ScopedArithmeticValue::IntegerOperation {
+            Some(crate::ScopedArithmeticValue::IntegerOperation {
                 operator: *operator,
                 left: Box::new(completed_index_value(left, state, unsigned)?),
                 right: Box::new(completed_index_value(right, state, unsigned)?),
             })
         }
-        _ => Some(super::ScopedArithmeticValue::Atom {
+        _ => Some(crate::ScopedArithmeticValue::Atom {
             identity: format!(
                 "state:{state:?}:completed-index:{}",
                 value.observation_identity_key()?

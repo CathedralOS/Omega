@@ -118,8 +118,29 @@ impl<'program> CaseEvidence<'program> {
     pub(crate) fn inactive_owned_cases(&self) -> Vec<CanonicalPlace> {
         let mut inactive = Vec::new();
         let mut previous = None;
+        let mut previous_root = None;
+        let mut root_is_plain_without_cleanup = false;
+        let mut subject_cleanup_types = Vec::new();
         for observation in &self.observations {
             let subject = &observation.place;
+            if previous_root != Some(&subject.root) {
+                // A nested plain field can still serve an ancestor's hook or
+                // loan cleanup. Authenticate the original whole root first.
+                let root = CanonicalPlace {
+                    root: subject.root,
+                    segments: Vec::new(),
+                };
+                root_is_plain_without_cleanup = validation::canonical_owned_place_type_reference(
+                    self.program,
+                    self.state.symbol,
+                    self.statement_index,
+                    &root,
+                )
+                .is_some_and(|reference| {
+                    validation::has_plain_contents_without_nominal_cleanup(self.program, reference)
+                });
+                previous_root = Some(&subject.root);
+            }
             if previous == Some(subject) {
                 continue;
             }
@@ -141,6 +162,26 @@ impl<'program> CaseEvidence<'program> {
             ) else {
                 continue;
             };
+            if root_is_plain_without_cleanup {
+                // No claim or descriptor lies below a complete unrestricted
+                // subject, so its case namespaces cannot affect affine sibling
+                // or ancestor custody. Reuse only exact original type answers
+                // in this immutable batch, never across writes or joins.
+                let no_owned_cleanup = if let Some((_, answer)) = subject_cleanup_types
+                    .iter()
+                    .find(|(retained, _)| *retained == reference)
+                {
+                    *answer
+                } else {
+                    let answer =
+                        validation::has_no_owned_cleanup_obligations(self.program, reference);
+                    subject_cleanup_types.push((reference, answer));
+                    answer
+                };
+                if no_owned_cleanup {
+                    continue;
+                }
+            }
             let reference = validation::peel_declared_constraints(self.program, reference);
             let Some(data) = self.program.closed_data_definition(reference) else {
                 continue;

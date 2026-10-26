@@ -112,9 +112,25 @@ pub struct ProjectCompilationOutcome {
 /// Requests and their package-owned reconciliation. The application retains
 /// its package session while compiling, then transfers it into completion for
 /// disposal. Neither admission nor reconciliation invokes a compiler.
-pub struct AdmittedProjectCompilation {
-    pub requests: Vec<PackageCompilationRequest>,
+pub struct AdmittedProjectCompilation<Request = PackageCompilationRequest> {
+    pub requests: Vec<Request>,
     pub completion: ProjectCompilationCompletion,
+}
+
+/// Product preparation after source discovery already executed Build. This
+/// carries an execution requirement, not another activation or fresh grants.
+pub struct PackageProductSourceRequest {
+    pub target: target::TargetProfile,
+    pub inputs: package_compilation::PackageCompilationInputs,
+    pub execution: package_compilation::build_execution::BuildExecutionContract,
+    pub optimization_rollback: optimization_core::OptimizationRollback,
+}
+
+pub struct PackageProductCompilationRequest {
+    pub occurrences: Vec<PackageProductSourceRequest>,
+    pub product: CompilationProduct,
+    pub terminal_permissions:
+        Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
 }
 
 struct TargetCompletion {
@@ -143,6 +159,31 @@ pub fn admit_project_compilation(
     request: ProjectCompilationAdmissionRequest<'_>,
     session: &mut PackageBuildSession,
 ) -> AdmittedProjectCompilation {
+    admit_project(request, session, prepare_accepted_project)
+}
+
+/// Admit Product contexts without issuing a second execution request. Source
+/// work must already have settled under each occurrence's exact contract.
+/// Application discovery has no consumer restricted grants and stops any such
+/// request before effects; accepted Product rows never authorize it retroactively.
+pub fn admit_project_products(
+    request: ProjectCompilationAdmissionRequest<'_>,
+    session: &mut PackageBuildSession,
+    execution_profile: target::TargetProfile,
+) -> AdmittedProjectCompilation<PackageProductCompilationRequest> {
+    admit_project(request, session, |request, session| {
+        prepare_accepted_products(request, session, execution_profile)
+    })
+}
+
+fn admit_project<Request>(
+    request: ProjectCompilationAdmissionRequest<'_>,
+    session: &mut PackageBuildSession,
+    prepare: impl Fn(
+        AcceptedCompilationRequest<'_>,
+        &mut PackageBuildSession,
+    ) -> Result<(Request, Vec<PackageKey>, [u8; 32]), Error>,
+) -> AdmittedProjectCompilation<Request> {
     let (entry, closure, prepared_targets) = request.prepared.into_target_review_parts();
     let root = closure.graph().root().clone();
     let targets: Vec<_> = prepared_targets
@@ -188,7 +229,7 @@ pub fn admit_project_compilation(
                     timings: request.timings,
                     product: request.product.clone(),
                 };
-                match prepare_accepted_project(inputs, session) {
+                match prepare(inputs, session) {
                     Ok((plan, packages, identity)) => {
                         requests.push(plan);
                         Ok(CompilationReceipt { packages, identity })
@@ -298,6 +339,25 @@ fn prepare_accepted_project(
     request: AcceptedCompilationRequest<'_>,
     session: &mut PackageBuildSession,
 ) -> Result<(PackageCompilationRequest, Vec<PackageKey>, [u8; 32]), Error> {
+    let (terminal_permissions, compiler_identity) = admit_accepted_contexts(&request)?;
+    let (occurrences, packages) = prepare_occurrences(&request, session)?;
+    let plan = PackageCompilationRequest {
+        occurrences,
+        product: request.product,
+        terminal_permissions,
+    };
+    Ok((plan, packages, compiler_identity))
+}
+
+fn admit_accepted_contexts(
+    request: &AcceptedCompilationRequest<'_>,
+) -> Result<
+    (
+        Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+        [u8; 32],
+    ),
+    Error,
+> {
     let root = request.closure.source_closure().graph().root();
     let compiler_identity = compiler_input_identity().map_err(|error| failure(root, error))?;
     if let Some(accepted) = request.accepted {
@@ -319,19 +379,107 @@ fn prepare_accepted_project(
     } else {
         None
     };
-    let (occurrences, packages) = prepare_occurrences(&request, session)?;
-    let plan = PackageCompilationRequest {
-        occurrences,
-        product: request.product,
-        terminal_permissions,
-    };
-    Ok((plan, packages, compiler_identity))
+    Ok((terminal_permissions, compiler_identity))
+}
+
+fn prepare_accepted_products(
+    request: AcceptedCompilationRequest<'_>,
+    _session: &mut PackageBuildSession,
+    execution_profile: target::TargetProfile,
+) -> Result<(PackageProductCompilationRequest, Vec<PackageKey>, [u8; 32]), Error> {
+    let (terminal_permissions, compiler_identity) = admit_accepted_contexts(&request)?;
+    let mut occurrences = Vec::new();
+    let mut packages = Vec::new();
+    for occurrence in prepare_occurrence_contexts(&request, Some(execution_profile))? {
+        packages.push(occurrence.key);
+        occurrences.push(PackageProductSourceRequest {
+            target: occurrence.context.target(),
+            inputs: occurrence.inputs,
+            execution: package_compilation::build_execution::BuildExecutionContract {
+                profile: occurrence.context.build_execution_profile(),
+                snapshot: Some(occurrence.snapshot),
+            },
+            optimization_rollback: request.product.optimization_rollback(),
+        });
+    }
+    Ok((
+        PackageProductCompilationRequest {
+            occurrences,
+            product: request.product,
+            terminal_permissions,
+        },
+        packages,
+        compiler_identity,
+    ))
+}
+
+struct AdmittedOccurrence {
+    key: PackageKey,
+    context: PackageCheckedContext,
+    inputs: package_compilation::PackageCompilationInputs,
+    entry: std::path::PathBuf,
+    snapshot: build_evaluation::BuildSnapshotRequest,
 }
 
 fn prepare_occurrences(
     request: &AcceptedCompilationRequest<'_>,
     session: &mut PackageBuildSession,
 ) -> Result<(Vec<CheckedCompileRequest>, Vec<PackageKey>), Error> {
+    let checkpoint = if request.verify {
+        None
+    } else {
+        request.accepted.map(RestrictedBuildCheckpoint::derive)
+    };
+    let closure = request.closure.source_closure();
+    let mut occurrences = Vec::new();
+    let mut packages = Vec::new();
+    for occurrence in
+        prepare_occurrence_contexts(request, target::TargetProfile::host_if_supported())?
+    {
+        let AdmittedOccurrence {
+            key,
+            context,
+            inputs,
+            entry,
+            snapshot,
+        } = occurrence;
+        let custody = closure
+            .custody(&key)
+            .ok_or_else(|| failure(&key, "resolved package has no source custody"))?;
+        let compile_request = CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            build: package_compilation::BuildExecutionInputs {
+                profile: context.build_execution_profile(),
+                directory: Some(session.create_occurrence_directory(
+                    &key,
+                    custody.resolution(),
+                    context.purpose(),
+                )?),
+                filesystem_sponsor: Some(session.filesystem_sponsor().clone()),
+                evaluation_sponsor: Some(session.evaluation_sponsor().clone()),
+                snapshot: Some(snapshot),
+                restricted_grants: checkpoint.as_ref().map(|checkpoint| {
+                    Box::new(checkpoint.grants(
+                        key.identity(),
+                        context,
+                        closure.dependency_path(&key),
+                    )) as Box<dyn compiler::RestrictedBuildGrants>
+                }),
+            },
+            collect_timings: request.timings,
+            optimization_rollback: request.product.optimization_rollback(),
+            ..CheckedCompileRequest::new(&entry, Some(context.target().target_name()))
+        };
+        occurrences.push(compile_request);
+        packages.push(key);
+    }
+    Ok((occurrences, packages))
+}
+
+fn prepare_occurrence_contexts(
+    request: &AcceptedCompilationRequest<'_>,
+    execution_profile: Option<target::TargetProfile>,
+) -> Result<Vec<AdmittedOccurrence>, Error> {
     let closure = request.closure.source_closure();
     let graph = closure.graph();
     let root = graph.root();
@@ -342,14 +490,7 @@ fn prepare_occurrences(
     .map_err(|error| failure(root, error.to_string()))?;
     let roster = PackageOccurrenceRoster::derive(&source)
         .map_err(|error| failure(root, error.to_string()))?;
-    let execution_profile = target::TargetProfile::host_if_supported();
-    let checkpoint = if request.verify {
-        None
-    } else {
-        request.accepted.map(RestrictedBuildCheckpoint::derive)
-    };
     let mut occurrences = Vec::new();
-    let mut packages = Vec::new();
 
     for key in dependency_first_package_order(closure) {
         let custody = closure
@@ -407,33 +548,14 @@ fn prepare_occurrences(
             .unwrap_or_else(|| {
                 build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
             });
-            let compile_request = CheckedCompileRequest {
-                package_inputs: Some(inputs),
-                build: package_compilation::BuildExecutionInputs {
-                    profile: execution_profile,
-                    directory: Some(session.create_occurrence_directory(
-                        &key,
-                        custody.resolution(),
-                        purpose,
-                    )?),
-                    filesystem_sponsor: Some(session.filesystem_sponsor().clone()),
-                    evaluation_sponsor: Some(session.evaluation_sponsor().clone()),
-                    snapshot: Some(snapshot),
-                    restricted_grants: checkpoint.as_ref().map(|checkpoint| {
-                        Box::new(checkpoint.grants(
-                            key.identity(),
-                            context,
-                            closure.dependency_path(&key),
-                        )) as Box<dyn compiler::RestrictedBuildGrants>
-                    }),
-                },
-                collect_timings: request.timings,
-                optimization_rollback: request.product.optimization_rollback(),
-                ..CheckedCompileRequest::new(&entry, Some(target.target_name()))
-            };
-            occurrences.push(compile_request);
-            packages.push(key.clone());
+            occurrences.push(AdmittedOccurrence {
+                key: key.clone(),
+                context,
+                inputs,
+                entry,
+                snapshot,
+            });
         }
     }
-    Ok((occurrences, packages))
+    Ok(occurrences)
 }

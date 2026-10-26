@@ -7,7 +7,7 @@
 
 use super::ordered_values::{Operand, RelationConstraint};
 use super::{ArithmeticDomain, BinaryOperator, ExpressionHandle, Machine, State, ValueEnvironment};
-use crate::proof_contracts::contract_entailment::{
+use crate::{
     ScopedArithmeticComparison, ScopedArithmeticValue, scoped_arithmetic_comparisons_unsatisfiable,
 };
 use numerics::bignum::BigInt;

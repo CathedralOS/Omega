@@ -1,0 +1,9 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "product_choice_probe");
+    select(builder);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+ Build::bind(builder, linux_x86_64::ProgramEntry, main);
+ Build::bind(builder, linux_arm64::ProgramEntry, main);
+ Build::bind(builder, macos_arm64::ProgramEntry, main);
+}
+machine select(builder: &mut Build) { Build::select_representation<Token, TokenRepresentation>(builder); }

@@ -1,5 +1,5 @@
-//! An exact owner hook uses its data declaration's telescope, not fresh method
-//! binders. Ordinary callable qualification does not confer that cleanup role.
+//! Attached owner hooks use their data declaration's telescope. Independent
+//! selected cleanup machines retain their own ordinary declaration scope.
 
 use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
@@ -30,7 +30,7 @@ pub(crate) fn callable_declaration_scope<'a>(
             "a nominal cleanup owner differing from checked declaration custody",
         ));
     }
-    let Some(owner) = owner else {
+    let Some(owner) = owner.filter(|_| machine.attached_data_symbol.is_valid()) else {
         // Ordinary members retain the complete accepted lexical telescope,
         // including enclosing named implementations. Specialization captures
         // are not new binders; this is the existing declaration-scope query.

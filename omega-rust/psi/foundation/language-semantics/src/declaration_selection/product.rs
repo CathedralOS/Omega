@@ -7,6 +7,224 @@
 //! the product join resolves them under that source's authority.
 //! These are in-process source selections, not serialized Terminal identities.
 
+use super::BuildOperation;
+
+/// Compiler-issued context for one ordinary Build selection call. Entry slots
+/// and declaration choices share activation custody, while retaining their
+/// distinct Product admission obligations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BuildSelectionRequest {
+    Entry(RootBindingRequest),
+    Declaration(std::sync::Arc<ProductDeclarationRequest>),
+    Exclusion(EnumExclusionRequest),
+}
+
+impl Default for BuildSelectionRequest {
+    fn default() -> Self {
+        Self::Entry(RootBindingRequest::default())
+    }
+}
+
+impl BuildSelectionRequest {
+    pub fn source_span(&self) -> source::SourceSpan {
+        match self {
+            Self::Entry(request) => request.source_span,
+            Self::Declaration(request) => request.source_span,
+            Self::Exclusion(request) => request.source_span,
+        }
+    }
+
+    pub fn entry(&self) -> Option<&RootBindingRequest> {
+        match self {
+            Self::Entry(request) => Some(request),
+            Self::Declaration(_) | Self::Exclusion(_) => None,
+        }
+    }
+}
+
+/// Evaluated enum selections use checked Omega helpers to encode the closed
+/// toolchain vocabulary. Codes are protocol values, never guessed layout tags.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExclusionVocabulary {
+    CrashCause,
+    PhysicalAuthorityClass,
+}
+
+impl ExclusionVocabulary {
+    pub const fn type_name(self) -> &'static str {
+        match self {
+            Self::CrashCause => "CrashCause",
+            Self::PhysicalAuthorityClass => "PhysicalAuthorityClass",
+        }
+    }
+
+    pub const fn helper(self) -> &'static str {
+        match self {
+            Self::CrashCause => "build_exclusion_crash_code",
+            Self::PhysicalAuthorityClass => "build_exclusion_physical_code",
+        }
+    }
+
+    pub const fn cases(self) -> &'static [&'static str] {
+        match self {
+            Self::CrashCause => &["Trap", "Abort"],
+            Self::PhysicalAuthorityClass => &[
+                "FilesystemContentRead",
+                "FilesystemContentWrite",
+                "FilesystemMetadataQuery",
+                "DirectoryEnumeration",
+                "FilesystemNamespaceMutation",
+                "FilesystemMetadataMutation",
+                "ProcessOutput",
+                "ProcessTermination",
+                "MachineControl",
+                "PortIo",
+                "InterruptControl",
+                "InterruptEntry",
+                "RootMemoryAccess",
+                "ProcessInput",
+            ],
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumExclusionRequest {
+    pub source_span: source::SourceSpan,
+    pub vocabulary: ExclusionVocabulary,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutedEnumExclusion {
+    pub request: EnumExclusionRequest,
+    pub code: u64,
+    pub selecting_machine: source::SourceSpan,
+}
+
+/// Declaration role required by one exact compiler-owned Build operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProductOperandRole {
+    BoundarySubject,
+    Provider,
+    Requirement,
+    Data,
+    Representation,
+    WireCompatibilityFact,
+}
+
+impl BuildOperation {
+    pub const fn product_operand_role(self, position: usize) -> Option<ProductOperandRole> {
+        use ProductOperandRole as Role;
+        match (self, position) {
+            (Self::ProviderSelection, 0)
+            | (Self::ServiceExclusion | Self::ServiceAudit | Self::BoundaryAcceptance, 0) => {
+                Some(Role::BoundarySubject)
+            }
+            (Self::ProviderSelection, 1) => Some(Role::Provider),
+            (Self::AssumedBindingContract, 0 | 1) => Some(Role::Requirement),
+            (Self::RepresentationSelection, 0) | (Self::WireCompatibilityRequest, 0..=3) => {
+                Some(Role::Data)
+            }
+            (Self::RepresentationSelection, 1) => Some(Role::Representation),
+            (Self::WireCompatibilityRequest, 4..) => Some(Role::WireCompatibilityFact),
+            _ => None,
+        }
+    }
+
+    pub const fn product_operand_count_valid(self, count: usize) -> bool {
+        match self {
+            Self::ProviderSelection
+            | Self::RepresentationSelection
+            | Self::AssumedBindingContract => count == 2,
+            Self::ServiceExclusion | Self::ServiceAudit | Self::BoundaryAcceptance => count == 1,
+            Self::WireCompatibilityRequest => count >= 5,
+            _ => false,
+        }
+    }
+}
+
+/// Source-authorized locators until the Product join admits their exact roles.
+/// Neither these strings nor a copied request grants declaration visibility.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProductDeclarationRequest {
+    pub source_span: source::SourceSpan,
+    pub operation: super::BuildOperation,
+    pub operands: Box<[ProductDeclarationOperand]>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProductDeclarationOperand {
+    pub path: String,
+    pub source_span: source::SourceSpan,
+}
+
+impl ProductDeclarationRequest {
+    pub fn validate_shape(&self) -> Result<(), &'static str> {
+        if !self
+            .operation
+            .product_operand_count_valid(self.operands.len())
+        {
+            return Err("Build product request has the wrong declaration operand count");
+        }
+        if self.source_span.span.start >= self.source_span.span.end {
+            return Err("Build product request has no authored occurrence");
+        }
+        for (position, operand) in self.operands.iter().enumerate() {
+            if operand.path.is_empty()
+                || operand.source_span.span.start >= operand.source_span.span.end
+            {
+                return Err("Build product operand has no authored declaration locator");
+            }
+            if self.operation.product_operand_role(position)
+                == Some(ProductOperandRole::WireCompatibilityFact)
+            {
+                let fact = crate::wire::WireCompatibilityFact::from_name(&operand.path)
+                    .ok_or("Build wire demand names an unknown compatibility fact")?;
+                if self.operands[..position]
+                    .iter()
+                    .enumerate()
+                    .any(|(index, previous)| {
+                        self.operation.product_operand_role(index)
+                            == Some(ProductOperandRole::WireCompatibilityFact)
+                            && crate::wire::WireCompatibilityFact::from_name(&previous.path)
+                                == Some(fact)
+                    })
+                {
+                    return Err("Build wire demand repeats a compatibility fact");
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// The ordinary provider composition choice, independent of declaration or
+/// target identity. Omission at the source surface means Fused.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CompositionMode {
+    #[default]
+    Fused,
+    Independent,
+}
+
+/// One reached operation authenticated against its original Build activation.
+/// Capturing a potential call does not mint an execution event.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExecutedBuildSelection {
+    Entry(ExecutedRootBinding),
+    Declaration(ExecutedProductSelection),
+    Exclusion(ExecutedEnumExclusion),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutedProductSelection {
+    pub request: std::sync::Arc<ProductDeclarationRequest>,
+    pub selecting_machine: source::SourceSpan,
+    /// Provider choices retain the actual evaluated mode. Representation
+    /// choices carry no composition argument.
+    pub composition: Option<CompositionMode>,
+}
+
 /// Inert designated operands retained under their authored lexical scope.
 /// They are not executable arguments or authority to publish a product.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
