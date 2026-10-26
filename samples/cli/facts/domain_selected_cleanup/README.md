@@ -22,11 +22,24 @@ and Linux x86-64 both-engine goldens with the exact candidate applied to recorde
 base `290b093a0ecc`. Every positive build binds all four hosted ProgramEntry
 targets; execution here qualifies only the actual Linux x86-64 host.
 
-Known red on main: `erased_predicates` (predicate erasure) refuses native
-compilation at the landing commit (`f8645229c43`) and at current main —
-Terminal Psi lowering reports `InvalidUnitMachinePlan`, "resident membership
-home has no exact source projection" (05 structural-values emission,
-`current_memberships.rs`). The other places in the same sweep (28 of 29) exit 0.
+The fixed baseline `453b3c364314c5f3910d2bb0ff4051696f6313e3` runs
+`erased_predicates` at exit 0 in both engines on Linux x86-64, so its earlier
+main regression is no longer open. The same baseline rejects the new
+[`lifetime_application`](lifetime_application/main.omg) at executable cleanup
+selection: "cleanup hook has no executable selection" in `consume::entry`.
+Removing that refusal exposes package review's separate rejection of
+"method-local binders on a nominal cleanup hook". Independent cleanup machines
+own their ordinary declaration telescope; lifetime binders carry checked loans
+but contribute no runtime generic arity.
+
+Semantic checkpoint `20e8935d3bc7b87ccd414cc362d9bdb64edd8a85` preserves
+explicit lifetime binders across all nine places and their corpus pins. The
+Linux and Windows x86-64 sample sweeps each observe 27 positives at native and
+Terminal exit 0 and 15 discovered intended-invalid controls rejecting for their
+authored reasons. Three older lexical probes have no oracle and are unscored.
+The lifetime application's [reject twin](lifetime_application/invalid/main.omg)
+changes only code 7 to code 6; its cleanup prerequisite still rejects. These
+observations qualify these two hosts, not macOS or Linux AArch64.
 
 | Place | Runtime result | Sensitive twin |
 | --- | --- | --- |
@@ -72,7 +85,7 @@ engines, with their code-6 twins rejecting on `Label` membership. It checks the
 original const recipe before substituting a canonical value into the private
 applied theory. The overflow control rejects the exact out-of-carrier value
 `u64(18446744073709551616)`; normalization does not erase that obligation.
-Affected-library Clippy passes with warnings. Enclosing generic/lifetime telescopes,
+Historical affected-library Clippy passed with warnings. Enclosing generic telescopes,
 general erased-interface transport, product-producer parity, source retirement,
 and the whole item's required applications/corpus/host results remain open.
 No TASKS acceptance has been subtracted. The full migration item remains open.
@@ -81,3 +94,17 @@ Immutable producers, source manifests, exact commands and raw logs live in this
 worktree's ignored `build/slot3-evidence/`. Durable private source checkpoints
 preserve their own recorded revisions; historical results are not relabeled as
 results from a later producer.
+
+The lifetime repair exercises these requirement layers without closing the
+parent migration's broader acceptance:
+
+| Requirement | Evidence and boundary |
+| --- | --- |
+| Establishment | Construction supplies code 7; code-6 twins fail the cleanup prerequisite. |
+| Identity and lifetime | The explicit `'storage` binds the original exclusive Counter backing; cleanup writes that backing once. |
+| Composition | The same fact and operation survive all nine linked places and pinned pass/fail fixtures. |
+| Soundness boundaries | Exact cleanup owner custody, receiver type/access, prerequisites, and finite normal completion remain checked; conflict, authority and invalid-hook controls remain. |
+| Psi 05–07 | Ordinary cleanup actions retain the selected machine and captured receiver through Terminal production and interpretation. |
+| Omega 00–02 | Package review retains independent callable binders; ordinary provider, layout and calling-plan production consumes the result. |
+| Omega 03–06 | Native execution observes the cleanup store and invocation count through ordinary instruction, register and frame realization; this is not a stack-boundary stress test. |
+| Omega 07–09 and emission | Emitted PE and ELF programs execute and agree with Terminal Psi on their matching x86-64 hosts; other hosted execution remains open. |
