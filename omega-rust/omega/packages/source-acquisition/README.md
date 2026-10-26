@@ -80,8 +80,9 @@ These are deliberate public seams; cache machinery, native process assembly,
 object verification, and publication internals remain private.
 
 `local::operations::recover_cached_local_source_in_lane` finds historical bytes
-for a caller-known canonical local origin and accepted content digest. It scans
-bounded existing metadata, then verifies the matching snapshot under its entry
+for a caller-known canonical local origin and accepted content digest. It first
+selects the origin/content-addressed publication; only its absence enters the
+bounded legacy metadata search. It verifies the selected snapshot under its entry
 lock. The origin is not opened; the result is historical source, not an
 observation that the live source still matches. Missing snapshots return no
 source, invalid matching trees reject, and neither creates an archive, index,
