@@ -35,26 +35,42 @@ pub fn validate_executable_domain_test_carriers(
             let Some(target) = crate::unwrapped_type_reference(program, domain.target_type) else {
                 continue;
             };
-            if carrier_has_open_binders(program, subject)
-                || carrier_has_open_binders(program, target)
-            {
-                // A binder is not a different nominal carrier. The same
-                // judgment runs again on the completed application; ordinary
-                // generic checking still proves the template's requirements.
+            if crate::declared_carriers_match(program, subject, target) {
                 continue;
             }
-            if !crate::declared_carriers_match(program, subject, target) {
-                return Err(Diagnostic::error(format!(
-                    "executable domain test `{}` expects subject carrier `{}`, got `{}`",
-                    domain.name.as_str(),
-                    program.display_type_reference_with_constraints(target),
-                    program.display_type_reference_with_constraints(subject),
-                ))
-                .with_source_span(program.expression_table.source_span(expression)));
+            if (carrier_has_open_binders(program, subject)
+                || carrier_has_open_binders(program, target))
+                && awaits_declared_equations(program, owners, expression)
+            {
+                // Source equation preparation retains this nonexecutable
+                // template until a closed explicit application discharges its
+                // declared equations. This is a pending obligation, not an
+                // equation inferred from the current consumers. Unconstrained
+                // templates must form their tests independently of callers.
+                continue;
             }
+            return Err(Diagnostic::error(format!(
+                "executable domain test `{}` expects subject carrier `{}`, got `{}`",
+                domain.name.as_str(),
+                program.display_type_reference_with_constraints(target),
+                program.display_type_reference_with_constraints(subject),
+            ))
+            .with_source_span(program.expression_table.source_span(expression)));
         }
     }
     Ok(())
+}
+
+fn awaits_declared_equations(
+    program: &dyn crate::CheckingInput,
+    owners: &crate::expression_owners::OwnerEnvironmentIndex,
+    expression: ExpressionHandle,
+) -> bool {
+    let sites = owners.containing_statement_sites(expression);
+    !sites.is_empty()
+        && sites
+            .into_iter()
+            .all(|(machine, _, _)| program.machines()[machine].structural_type_equations_pending)
 }
 
 #[derive(Default)]
