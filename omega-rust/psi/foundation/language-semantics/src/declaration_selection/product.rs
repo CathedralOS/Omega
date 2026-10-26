@@ -14,6 +14,7 @@
 pub enum BuildSelectionRequest {
     Entry(RootBindingRequest),
     Declaration(std::sync::Arc<ProductDeclarationRequest>),
+    Exclusion(EnumExclusionRequest),
 }
 
 impl Default for BuildSelectionRequest {
@@ -27,15 +28,75 @@ impl BuildSelectionRequest {
         match self {
             Self::Entry(request) => request.source_span,
             Self::Declaration(request) => request.source_span,
+            Self::Exclusion(request) => request.source_span,
         }
     }
 
     pub fn entry(&self) -> Option<&RootBindingRequest> {
         match self {
             Self::Entry(request) => Some(request),
-            Self::Declaration(_) => None,
+            Self::Declaration(_) | Self::Exclusion(_) => None,
         }
     }
+}
+
+/// Evaluated enum selections use checked Omega helpers to encode the closed
+/// toolchain vocabulary. Codes are protocol values, never guessed layout tags.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExclusionVocabulary {
+    CrashCause,
+    PhysicalAuthorityClass,
+}
+
+impl ExclusionVocabulary {
+    pub const fn type_name(self) -> &'static str {
+        match self {
+            Self::CrashCause => "CrashCause",
+            Self::PhysicalAuthorityClass => "PhysicalAuthorityClass",
+        }
+    }
+
+    pub const fn helper(self) -> &'static str {
+        match self {
+            Self::CrashCause => "build_exclusion_crash_code",
+            Self::PhysicalAuthorityClass => "build_exclusion_physical_code",
+        }
+    }
+
+    pub const fn cases(self) -> &'static [&'static str] {
+        match self {
+            Self::CrashCause => &["Trap", "Abort"],
+            Self::PhysicalAuthorityClass => &[
+                "FilesystemContentRead",
+                "FilesystemContentWrite",
+                "FilesystemMetadataQuery",
+                "DirectoryEnumeration",
+                "FilesystemNamespaceMutation",
+                "FilesystemMetadataMutation",
+                "ProcessOutput",
+                "ProcessTermination",
+                "MachineControl",
+                "PortIo",
+                "InterruptControl",
+                "InterruptEntry",
+                "RootMemoryAccess",
+                "ProcessInput",
+            ],
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumExclusionRequest {
+    pub source_span: source::SourceSpan,
+    pub vocabulary: ExclusionVocabulary,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutedEnumExclusion {
+    pub request: EnumExclusionRequest,
+    pub code: u64,
+    pub selecting_machine: source::SourceSpan,
 }
 
 /// Source-authorized locators until the Product join admits their exact roles.
@@ -68,11 +129,13 @@ pub enum CompositionMode {
 pub enum ExecutedBuildSelection {
     Entry(ExecutedRootBinding),
     Declaration(ExecutedProductSelection),
+    Exclusion(ExecutedEnumExclusion),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutedProductSelection {
     pub request: std::sync::Arc<ProductDeclarationRequest>,
+    pub selecting_machine: source::SourceSpan,
     /// Provider choices retain the actual evaluated mode. Representation
     /// choices carry no composition argument.
     pub composition: Option<CompositionMode>,

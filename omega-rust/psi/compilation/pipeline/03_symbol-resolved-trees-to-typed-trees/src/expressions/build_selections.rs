@@ -19,6 +19,7 @@ pub(crate) fn lower(
 ) -> Result<ExpressionHandle, Diagnostic> {
     let source_span = request.source_span();
     let operation = match (&request, arguments.len()) {
+        (BuildSelectionRequest::Exclusion(_), 2) => "exclude",
         (BuildSelectionRequest::Entry(binding), 1)
             if matches!(binding.implementation, RootBindingOperand::AuthoredPath(_)) =>
         {
@@ -79,6 +80,11 @@ pub(crate) fn lower(
     };
     let preparation = find("prepare")?;
     let commit = find(operation)?;
+    let value_helper = match &request {
+        BuildSelectionRequest::Exclusion(request) => Some(request.vocabulary.helper()),
+        _ if operation == "select_mode" => Some("build_selection_independent"),
+        _ => None,
+    };
     let table = &mut target.expression_table;
     let mut members = Default::default();
     let mut member_symbols = Default::default();
@@ -120,22 +126,23 @@ pub(crate) fn lower(
         table.set_source_span(expression, source_span);
         expression
     };
-    if operation == "select_mode" {
-        // Composition is ordinary checked data. Its exact compiler-owned enum
-        // is consumed by a checked exhaustive helper, not decoded from names,
-        // ordinals or a guessed structural tag by the host adapter.
+    if let Some(helper_name) = value_helper {
+        // Closed toolchain enums are ordinary checked data. Exhaustive helpers
+        // encode protocol values; hosts never guess structural layout tags.
         let helper = source
             .machines
             .iter()
             .find(|machine| {
-                machine.name.as_str() == "build_selection_independent"
+                machine.name.as_str() == helper_name
                     && source.symbols.is_build_prelude_symbol(machine.symbol)
             })
             .and_then(|machine| source.machine_state_handles(machine.states).first())
             .map(|state| source.machine_state(*state))
             .ok_or_else(|| {
-                Diagnostic::error("Build provider selection has no checked mode helper")
-                    .with_source_span(source_span)
+                Diagnostic::error(format!(
+                    "Build selection has no checked value helper `{helper_name}`"
+                ))
+                .with_source_span(source_span)
             })?;
         arguments[1] = emit(
             helper.symbol,

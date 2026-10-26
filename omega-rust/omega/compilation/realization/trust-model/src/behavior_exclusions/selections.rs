@@ -1,146 +1,156 @@
-//! Rejoin executed Build exclusions to their exact authored declarations.
+//! Join executed, source-issued Build exclusions to the final Product namespace.
+//! Formation checks every service operand; only the normal-return execution
+//! ledger selects restrictions. No source walk substitutes for execution.
 
 use build_time_evaluation::is_exact_toolchain_build_prelude_data;
 use diagnostics::Diagnostic;
 use effects::{AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind};
+use language_semantics::declaration_selection::{
+    BuildOperation, ExclusionVocabulary, ExecutedEnumExclusion, ExecutedProductSelection,
+    ProductDeclarationRequest,
+};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
-/// Behavior exclusions (wiki/spec/build/behavior_exclusions.md):
-/// Build crash, physical-authority, and service exclusions are
-/// product-admission requirements the granted build evaluation records as
-/// each call actually executes against the activation's original `Build`.
-/// A call present in the static call scope but never reached — an uncalled
-/// helper, an untaken branch — selected nothing; authorized helpers select
-/// only because the root `Build` value reaches their frame at run time.
-///
-/// This pass rejoins the executed coordinates and validates the retained
-/// argument identities — an exact toolchain enum case or one exact
-/// boundary trait — so replayable evidence, not a call-scope syntax pattern,
-/// admits the exclusion.
 pub fn harvest_behavior_exclusions(
     typed: &TypedTrees,
-    executed: &[checked_interpreter::ExecutedBehaviorExclusion],
+    activation: Option<SymbolHandle>,
+    declared: &[std::sync::Arc<ProductDeclarationRequest>],
+    executed: &[ExecutedProductSelection],
+    enums: &[ExecutedEnumExclusion],
 ) -> Result<Vec<AuthoredBehaviorExclusion>, Vec<Diagnostic>> {
-    let mut diagnostics = Vec::new();
-    let mut exclusions: Vec<AuthoredBehaviorExclusion> = Vec::new();
-    for row in executed {
-        // Rejoin the executed coordinate to its authored call for the
-        // retained source span and the `exclude_service` type argument.
-        let source_span = match row.site {
-            checked_interpreter::ExecutedBehaviorExclusionSite::Statement(handle) => {
-                match typed.statement_table.statement(handle) {
-                    typed_trees::statement::StatementNode::Call(call) => Some(call.source_span),
-                    _ => None,
-                }
-            }
-            checked_interpreter::ExecutedBehaviorExclusionSite::Expression(handle) => {
-                match typed.expression_table.expression(handle) {
-                    typed_trees::expression::ExpressionNode::Call(_) => {
-                        Some(typed.expression_table.source_span(handle))
-                    }
-                    _ => None,
-                }
-            }
-        };
-        let Some(source_span) = source_span else {
-            diagnostics.push(Diagnostic::error(
-                "executed behavior exclusion did not rejoin its authored call",
-            ));
-            continue;
-        };
-        let kind = match row.kind {
-            checked_interpreter::ExecutedBehaviorExclusionKind::CrashCause { case_symbol } => {
-                match evaluated_crash_cause(typed, case_symbol) {
-                    Ok(cause) => AuthoredBehaviorExclusionKind::CrashCause { cause, case_symbol },
-                    Err(diagnostic) => {
-                        diagnostics.push(diagnostic.with_source_span(source_span));
-                        continue;
-                    }
-                }
-            }
-            checked_interpreter::ExecutedBehaviorExclusionKind::Service => {
-                match authored_service_exclusion(typed, row.site, source_span) {
-                    Ok((identity, name)) => {
-                        AuthoredBehaviorExclusionKind::Service { identity, name }
-                    }
-                    Err(diagnostic) => {
-                        diagnostics.push(diagnostic.with_source_span(source_span));
-                        continue;
-                    }
-                }
-            }
-            checked_interpreter::ExecutedBehaviorExclusionKind::PhysicalAuthorityClass {
-                case_symbol,
-            } => match evaluated_physical_authority_class(typed, case_symbol) {
-                Ok(class) => {
-                    AuthoredBehaviorExclusionKind::PhysicalAuthorityClass { class, case_symbol }
-                }
-                Err(diagnostic) => {
-                    diagnostics.push(diagnostic.with_source_span(source_span));
-                    continue;
-                }
-            },
-        };
-        let exclusion = AuthoredBehaviorExclusion {
+    for request in declared
+        .iter()
+        .filter(|request| request.operation == BuildOperation::ServiceExclusion)
+    {
+        service(typed, request)
+            .map_err(|error| vec![error.with_source_span(request.source_span)])?;
+    }
+    let mut exclusions = Vec::new();
+    let mut retain = |kind, source_span, machine_span| -> Result<(), Diagnostic> {
+        activation
+            .filter(|symbol| typed.machine(*symbol).is_some())
+            .ok_or_else(|| {
+                Diagnostic::error("behavior exclusion has no authoritative Build activation")
+            })?;
+        let selecting_machine = typed
+            .machines()
+            .iter()
+            .find(|machine| typed.symbols.symbol_source_span(machine.symbol) == Some(machine_span))
+            .map(|machine| machine.symbol)
+            .ok_or_else(|| {
+                Diagnostic::error("behavior exclusion lost its authored selecting machine")
+            })?;
+        let row = AuthoredBehaviorExclusion {
             kind,
-            selecting_machine: row.machine,
             source_span,
+            selecting_machine,
         };
-        if !exclusions.iter().any(|existing| {
-            existing.kind == exclusion.kind && existing.source_span == exclusion.source_span
-        }) {
-            exclusions.push(exclusion);
+        if !exclusions.contains(&row) {
+            exclusions.push(row);
         }
+        Ok(())
+    };
+    for event in executed
+        .iter()
+        .filter(|event| event.request.operation == BuildOperation::ServiceExclusion)
+    {
+        let result = (|| {
+            if !declared.contains(&event.request) || event.composition.is_some() {
+                return Err(Diagnostic::error(
+                    "executed service exclusion lost its source-issued declaration request",
+                ));
+            }
+            retain(
+                service(typed, &event.request)?,
+                event.request.source_span,
+                event.selecting_machine,
+            )
+        })();
+        result.map_err(|error| vec![error.with_source_span(event.request.source_span)])?;
     }
-    if diagnostics.is_empty() {
-        Ok(exclusions)
-    } else {
-        Err(diagnostics)
+    for event in enums {
+        let result = (|| {
+            let vocabulary = event.request.vocabulary;
+            let case = usize::try_from(event.code)
+                .ok()
+                .and_then(|code| vocabulary.cases().get(code))
+                .ok_or_else(|| {
+                    Diagnostic::error("executed behavior exclusion has an invalid vocabulary code")
+                })?;
+            let declaration = typed
+                .data_definitions()
+                .iter()
+                .find(|definition| {
+                    is_exact_toolchain_build_prelude_data(
+                        typed,
+                        definition.symbol,
+                        vocabulary.type_name(),
+                    )
+                })
+                .ok_or_else(|| {
+                    Diagnostic::error("behavior exclusion lost its exact toolchain enum")
+                })?;
+            let case_symbol = typed
+                .data_members(declaration)
+                .iter()
+                .find_map(|member| match member {
+                    typed_trees::data::DataMember::Variant(variant)
+                        if variant.name.as_str() == *case =>
+                    {
+                        Some(variant.symbol)
+                    }
+                    _ => None,
+                })
+                .ok_or_else(|| {
+                    Diagnostic::error("behavior exclusion lost its exact toolchain case")
+                })?;
+            let kind = match vocabulary {
+                ExclusionVocabulary::CrashCause => AuthoredBehaviorExclusionKind::CrashCause {
+                    cause: evaluated_crash_cause(typed, case_symbol)?,
+                    case_symbol,
+                },
+                ExclusionVocabulary::PhysicalAuthorityClass => {
+                    AuthoredBehaviorExclusionKind::PhysicalAuthorityClass {
+                        class: evaluated_physical_authority_class(typed, case_symbol)?,
+                        case_symbol,
+                    }
+                }
+            };
+            retain(kind, event.request.source_span, event.selecting_machine)
+        })();
+        result.map_err(|error| vec![error.with_source_span(event.request.source_span)])?;
     }
+    Ok(exclusions)
 }
 
-/// Retain the service identity selected by `Build::exclude_service<Trait>`:
-/// the hermetic declaration identity Terminal service catalogs publish, plus
-/// the declared name as its diagnostic label.
-/// Resolve it in the executed Build's product-declaration environment, not its
-/// own executable declarations: dependencies need not be executable Build code.
-/// native realization must not reopen typed source to interpret this selection.
-/// The call retains exactly one plain type path in its product namespace. Data,
-/// ordinary traits, machines and unresolved paths reject: a service name is
-/// an authorized declaration, never a label.
-fn authored_service_exclusion(
+fn service(
     typed: &TypedTrees,
-    site: checked_interpreter::ExecutedBehaviorExclusionSite,
-    occurrence: source::SourceSpan,
-) -> Result<(String, String), Diagnostic> {
-    let checked_interpreter::ExecutedBehaviorExclusionSite::Expression(expression) = site else {
+    request: &ProductDeclarationRequest,
+) -> Result<AuthoredBehaviorExclusionKind, Diagnostic> {
+    let [operand] = request.operands.as_ref() else {
         return Err(Diagnostic::error(
-            "service exclusion must retain its checked static Build call",
+            "service exclusion requires one exact Product boundary trait",
         ));
     };
-    let selected = validation::compiler_operations::resolve_build_static_operand(
-        typed, expression, 0, occurrence,
-    )
-    .map_err(Diagnostic::error)?;
-    let validation::selection_resolution::AuthoredSelectionResolutionTarget::Declaration(symbol) =
-        selected
-    else {
-        return Err(Diagnostic::error(
-            "service exclusion operand is not a Product declaration",
-        ));
-    };
-    let definition = typed.product_declarations().trait_definition_by_symbol(symbol)
+    let symbol = typed_trees::product_operand::resolve_product_path(
+        typed, &operand.path, operand.source_span,
+        typed_trees::product_operand::ProductOperandKind::BoundarySubject,
+    ).ok_or_else(|| Diagnostic::error("service exclusion does not resolve to an exact visible product boundary trait declaration"))?;
+    let definition = typed
+        .product_declarations()
+        .trait_definition_by_symbol(symbol)
         .filter(|definition| definition.is_boundary)
-        .ok_or_else(|| Diagnostic::error(
-            "service exclusion does not resolve to an exact visible product boundary trait declaration",
-        ))?;
+        .ok_or_else(|| Diagnostic::error("service exclusion requires an exact boundary trait"))?;
     let identity = typed
         .normalized_hermetic_symbol_identity(definition.symbol)
         .map_err(|error| {
             Diagnostic::error(format!("service exclusion declaration identity: {error}"))
         })?;
-    Ok((identity, definition.name.as_str().to_owned()))
+    Ok(AuthoredBehaviorExclusionKind::Service {
+        identity,
+        name: definition.name.as_str().to_owned(),
+    })
 }
 
 /// Map the `CrashCause` variant one EXECUTED `exclude_crash` selection

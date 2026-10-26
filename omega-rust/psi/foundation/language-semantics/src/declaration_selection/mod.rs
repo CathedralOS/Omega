@@ -4,7 +4,8 @@ use symbols::SymbolHandle;
 mod product;
 pub use product::{
     BuildSelectionRequest, CompositionMode, DescribedProductEntry, DescribedProductProvider,
-    DescribedProductSchema, ExecutedBuildSelection, ExecutedProductSelection, ExecutedRootBinding,
+    DescribedProductSchema, EnumExclusionRequest, ExclusionVocabulary, ExecutedBuildSelection,
+    ExecutedEnumExclusion, ExecutedProductSelection, ExecutedRootBinding,
     ProductDeclarationOperand, ProductDeclarationRequest, RootBindingOperand, RootBindingRequest,
     RootBindingSelection,
 };

@@ -47,6 +47,7 @@ pub struct ReturnedBuild {
     pub(crate) optimization_report: optimization_core::OptimizationReportRequest,
     pub(crate) root_bindings: Vec<ExecutedRootBinding>,
     pub(crate) product_selections: Vec<ExecutedProductSelection>,
+    pub(crate) exclusions: Vec<language_semantics::declaration_selection::ExecutedEnumExclusion>,
     pub(crate) declared_product_selections: Vec<std::sync::Arc<ProductDeclarationRequest>>,
     pub(crate) log: crate::terminal_requests::BuildLog,
     pub(crate) filesystem: Option<package_compilation::build_execution::BuildFilesystemEffects>,
@@ -275,9 +276,11 @@ impl TerminalBuildActivation<'_, '_> {
         let declaration = project::declaration(&self.requests)?;
         let mut root_bindings = Vec::new();
         let mut product_selections = Vec::new();
+        let mut exclusions = Vec::new();
         for selection in self.host.bindings.take_executed()? {
             match selection {
                 ExecutedBuildSelection::Entry(binding) => root_bindings.push(binding),
+                ExecutedBuildSelection::Exclusion(selection) => exclusions.push(selection),
                 ExecutedBuildSelection::Declaration(selection) => {
                     product_selections.push(selection)
                 }
@@ -293,6 +296,7 @@ impl TerminalBuildActivation<'_, '_> {
             optimization_report,
             root_bindings,
             product_selections,
+            exclusions,
             declared_product_selections,
             log: self.host.requests.take_log()?,
             filesystem: self.host.filesystem.take_effects()?,
