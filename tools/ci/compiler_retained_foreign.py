@@ -21,7 +21,8 @@ PLACES = ("local", "field", "parameter", "call_result", "match_join", "const_nam
 FACTS = (
     ("foreign_retained_shared_borrow",
      ("shared_aliases", "resident_whole_move", "enclosing_allocation"), ()),
-    ("foreign_retained_mutable_borrow", (), ("stale_completion_fact",)),
+    ("foreign_retained_mutable_borrow", ("reverse_completion", "mixed_issuers"),
+     ("stale_completion_fact", "other_registration_live", "overlapping_registration", "mixed_issuers_live")),
 )
 
 
@@ -104,8 +105,39 @@ def main():
         retained = cohort / name
         shutil.copy2(built, retained)
         samples(cohort, compiler_pilot.corpus_gate.host_target(), retained, fact, controls)
+        if fact_name == "foreign_retained_mutable_borrow":
+            uncovered_qualification(cohort, compiler_pilot.corpus_gate.host_target(), retained, fact)
     unoffered_descriptor(output, compiler_pilot.corpus_gate.host_target(), retained)
     return 0
+
+
+def uncovered_qualification(output, target, cli, fact):
+    """A normal guarantee cannot cover an extra qualification on the caller."""
+    authored = fact / "controls/uncovered_qualification"
+    replay = output / "uncovered-qualification"
+    replay.mkdir(exist_ok=False)
+    sources = {}
+    for name in ("main.omg", "build.omg"):
+        shutil.copy2(authored / name, replay / name)
+        sources[name] = hashlib.sha256((authored / name).read_bytes()).hexdigest()
+    failure, review = sample_native_gate.accept_review(str(cli), str(replay), target, 180)
+    (output / "uncovered-qualification.review.log").write_text(review, encoding="utf-8")
+    if failure:
+        raise ValueError(f"uncovered qualification: package preparation failed: {failure}")
+    arguments = [str(cli), "run", "--both", str(replay / "main.omg")]
+    result = subprocess.run(arguments, cwd=ROOT, stdin=subprocess.DEVNULL,
+                            capture_output=True, text=True, timeout=180)
+    (output / "uncovered-qualification.stdout.txt").write_text(result.stdout, encoding="utf-8")
+    (output / "uncovered-qualification.stderr.txt").write_text(result.stderr, encoding="utf-8")
+    refused = (result.returncode == 201 and "native exit 0" in result.stderr.splitlines()
+               and "mutable host storage has an uncovered original qualification or owner"
+               in result.stderr)
+    (output / "uncovered-qualification.json").write_text(json.dumps(dict(
+        argv=arguments, exit=result.returncode, target=target, source_sha256=sources,
+        compiler_sha256=hashlib.sha256(Path(cli).read_bytes()).hexdigest(),
+        intended_refusal=refused), indent=2) + "\n", encoding="utf-8")
+    if not refused:
+        raise ValueError(f"uncovered qualification: missing intended refusal: {result.stderr}")
 
 
 def unoffered_descriptor(output, target, cli):
