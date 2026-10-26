@@ -29,7 +29,6 @@ mod copies;
 
 use crate::PsiOptimizationStageError;
 use lowered_psi::LoweredPsi;
-use std::collections::BTreeSet;
 
 pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
     // One proposal, two treatments of the retained join invariants: the
@@ -44,22 +43,8 @@ pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizatio
         // These are semantic uses even when no executable operand reads the
         // value: proof projections, retained suspension frontiers, and
         // recorded source-call operand joins keep their exact identities.
-        let mut retained_values = BTreeSet::new();
-        retained_values.extend(crate::retained_identities::quotient_call_results(
-            &after.semantic_module,
-        ));
-        for projection in &after.semantic_module.float_meaning_projections {
-            if let terminal_psi::FloatMeaningSource::DirectBlockParameter(parameter) =
-                &projection.source
-            {
-                retained_values.insert(parameter.parameter);
-            }
-        }
-        for plan in &after.semantic_module.suspension_call_plans {
-            plan.visit_value_ids(|value| {
-                retained_values.insert(value);
-            });
-        }
+        let mut retained_values =
+            crate::retained_identities::record_named_rows(&after.semantic_module).values;
         if !rewrite_invariants {
             for invariant in &after.semantic_module.scalar_block_invariants {
                 invariant.predicate.visit_value_ids(|value| {

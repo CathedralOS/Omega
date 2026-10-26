@@ -10,14 +10,14 @@ use terminal_psi::{OperationKind as O, TerminalMachine, Terminator};
 pub(super) fn eliminate(
     machine: &mut TerminalMachine,
     source_calls: &[lowered_psi::LoweredSourceCallOccurrence],
-    retained_values: &[ValueId],
+    retained_values: &BTreeSet<ValueId>,
 ) {
     let operations = machine.operations().collect::<Vec<_>>();
     // Ranking evidence pins the covered components' parameter tables and
     // keeps the values it names live wherever they are declared; parameters
     // on blocks outside the covered components follow the ordinary rule.
     let coverage = crate::retained_identities::ranked_coverage::ranked_coverage(machine);
-    let mut pending = retained_values.to_vec();
+    let mut pending = retained_values.iter().copied().collect::<Vec<_>>();
     pending.extend(coverage.values.iter().copied());
     for operation in &operations {
         if !terminal_semantics::is_unconditionally_total_scalar(&operation.kind)
