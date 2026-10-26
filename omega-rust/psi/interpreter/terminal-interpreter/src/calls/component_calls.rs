@@ -153,8 +153,6 @@ impl<'artifact> TerminalExecution<'artifact> {
                     .ok_or_else(|| reject("component producer lost its result type".to_owned()))?;
                 if returned.value.structural_type != right.structural_type
                     || left.multiplicity != right.multiplicity
-                    || !left.qualifications.is_empty()
-                    || !right.qualifications.is_empty()
                     || !left.projected_qualifications.is_empty()
                     || !right.projected_qualifications.is_empty()
                     || receiver_type.owns_linear_claim
@@ -187,6 +185,16 @@ impl<'artifact> TerminalExecution<'artifact> {
                 // key; retain the same nonrecycled host token and exact payload.
                 let mut value = returned.value.clone();
                 value.structural_type = left.structural_type;
+                value.qualifications = value
+                    .qualifications
+                    .iter()
+                    .map(|domain| {
+                        selected.result_membership(*domain).ok_or_else(|| {
+                            reject("component returned an unmapped membership".to_owned())
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                value.qualifications.sort();
                 let claims = completed.returned_claims().ok_or_else(|| {
                     reject("component return lost its owned claim bindings".to_owned())
                 })?;
