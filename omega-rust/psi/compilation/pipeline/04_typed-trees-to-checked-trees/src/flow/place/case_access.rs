@@ -181,6 +181,35 @@ impl<'program> CaseEvidence<'program> {
                         variant: variant.symbol,
                     });
                     inactive.push(path);
+                    if inactive.len() == 8192
+                        && std::env::var_os("OMEGA_CASE_BATCH_PROFILE").is_some()
+                    {
+                        let root = CanonicalPlace {
+                            root: subject.root,
+                            segments: Vec::new(),
+                        };
+                        let root_type = validation::canonical_owned_place_type_reference(
+                            self.program,
+                            self.state.symbol,
+                            self.statement_index,
+                            &root,
+                        );
+                        eprintln!(
+                            "case-batch machine={} state={} statement={} root={:?} root_type={:?} subject={:?} sum={} members={} observations={}",
+                            self.machine.name.as_str(),
+                            crate::labels::symbol_name(self.program, self.state.symbol),
+                            self.statement_index,
+                            subject.root,
+                            root_type.map(|reference| self
+                                .program
+                                .type_reference_table
+                                .type_reference(reference)),
+                            subject.segments,
+                            crate::labels::symbol_name(self.program, data.symbol),
+                            self.program.data_members(data).len(),
+                            self.observations.len(),
+                        );
+                    }
                 }
             }
         }
