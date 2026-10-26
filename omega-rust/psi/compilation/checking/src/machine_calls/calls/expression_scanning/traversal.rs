@@ -10,7 +10,7 @@
 //! arithmetic; visiting it would invent boolean/numeric operations and repeat
 //! checks on the observed-prior placeholder instead of the authored operands.
 
-use super::validate_expression_call_bounds;
+use super::{CallExpressionUse, validate_expression_call_bounds};
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use crate::value_custody::locals::WritableRoots;
@@ -150,7 +150,7 @@ pub(crate) fn validate_value_position_calls(
                 writable_roots,
                 value_environment,
                 *expression,
-                true,
+                CallExpressionUse::Statement,
                 executes,
                 boundary_operator_applications,
                 diagnostics,
@@ -240,12 +240,7 @@ pub(crate) fn validate_value_position_calls(
                                 .first()
                                 .unwrap_or(value_environment),
                             *expression,
-                            super::super::unit_returns::call_completes_unit_state(
-                                program,
-                                machine,
-                                state,
-                                *expression,
-                            ),
+                            CallExpressionUse::TerminalResult,
                             executes,
                             boundary_operator_applications,
                             diagnostics,
@@ -283,7 +278,7 @@ fn scan_expression_calls(
         writable_roots,
         value_environment,
         expression,
-        false,
+        CallExpressionUse::Value,
         executes,
         boundary_operator_applications,
         diagnostics,
@@ -383,7 +378,7 @@ fn scan_expression_calls_at_position(
     writable_roots: &WritableRoots<'_, '_>,
     value_environment: &ValueEnvironment,
     expression: ExpressionHandle,
-    statement_root: bool,
+    expression_use: CallExpressionUse,
     executes: bool,
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -713,7 +708,7 @@ fn scan_expression_calls_at_position(
                 value_environment,
                 expression,
                 &call,
-                statement_root,
+                expression_use,
                 executes,
                 boundary_operator_applications,
                 diagnostics,
