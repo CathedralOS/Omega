@@ -38,6 +38,7 @@ use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
 use access_plans::BorrowPolarity;
 use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -649,8 +650,23 @@ pub fn declared_carriers_match(
     left: TypeReferenceHandle,
     right: TypeReferenceHandle,
 ) -> bool {
-    let left = peel_declared_constraints(program, left);
-    let right = peel_declared_constraints(program, right);
+    declared_carriers_match_with_substitutions(program, left, right, &[])
+}
+
+/// Declaration-owned type equations refine an open carrier. Their substitutions
+/// use exact binder symbols, never arguments inferred from current consumers.
+pub(crate) fn declared_carriers_match_with_substitutions(
+    program: &dyn crate::CheckingInput,
+    left: TypeReferenceHandle,
+    right: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    let (Some(left), Some(right)) = (
+        substituted_declared_carrier(program, left, substitutions),
+        substituted_declared_carrier(program, right, substitutions),
+    ) else {
+        return false;
+    };
     match (
         program.type_reference_table.type_reference(left),
         program.type_reference_table.type_reference(right),
@@ -668,7 +684,12 @@ pub fn declared_carriers_match(
             },
         ) => {
             left_access == right_access
-                && declared_carriers_match(program, *left_referee, *right_referee)
+                && declared_carriers_match_with_substitutions(
+                    program,
+                    *left_referee,
+                    *right_referee,
+                    substitutions,
+                )
         }
         (
             TypeReferenceNode::Slice {
@@ -677,7 +698,12 @@ pub fn declared_carriers_match(
             TypeReferenceNode::Slice {
                 element_type: right_element,
             },
-        ) => declared_carriers_match(program, *left_element, *right_element),
+        ) => declared_carriers_match_with_substitutions(
+            program,
+            *left_element,
+            *right_element,
+            substitutions,
+        ),
         (
             TypeReferenceNode::FixedArray {
                 element_type: left_element,
@@ -689,11 +715,17 @@ pub fn declared_carriers_match(
             },
         ) => {
             program
-                .fixed_array_length_identity(left_length, &[], &[])
+                .fixed_array_length_identity(left_length, &[], substitutions)
                 .is_some_and(|left| {
-                    Some(left) == program.fixed_array_length_identity(right_length, &[], &[])
+                    Some(left)
+                        == program.fixed_array_length_identity(right_length, &[], substitutions)
                 })
-                && declared_carriers_match(program, *left_element, *right_element)
+                && declared_carriers_match_with_substitutions(
+                    program,
+                    *left_element,
+                    *right_element,
+                    substitutions,
+                )
         }
         (
             TypeReferenceNode::Generic {
@@ -717,15 +749,49 @@ pub fn declared_carriers_match(
                 && left_handles.len() == right_handles.len()
                 && left_handles.iter().zip(right_handles.iter()).all(
                     |(left_argument, right_argument)| {
-                        declared_carriers_match(program, *left_argument, *right_argument)
+                        declared_carriers_match_with_substitutions(
+                            program,
+                            *left_argument,
+                            *right_argument,
+                            substitutions,
+                        )
                     },
                 )
         }
         _ => {
-            program.type_identity_with_simultaneous_substitutions(
-                typed_trees::type_identity::TypeIdentityRequest::ordinary(left),
-            ) == program.normalized_type_identity(right)
+            let identity = |reference| {
+                program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
+                    substitutions,
+                    ..typed_trees::type_identity::TypeIdentityRequest::ordinary(reference)
+                })
+            };
+            identity(left) == identity(right)
         }
+    }
+}
+
+pub(crate) fn substituted_declared_carrier(
+    program: &dyn crate::CheckingInput,
+    mut reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> Option<TypeReferenceHandle> {
+    let mut visited = Vec::new();
+    loop {
+        reference = peel_declared_constraints(program, reference);
+        let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(reference)
+        else {
+            return Some(reference);
+        };
+        let Some((_, replacement)) = substitutions.iter().find(|(binder, _)| binder == symbol)
+        else {
+            return Some(reference);
+        };
+        if visited.contains(symbol) {
+            return None;
+        }
+        visited.push(*symbol);
+        reference = *replacement;
     }
 }
 

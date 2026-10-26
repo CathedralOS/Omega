@@ -70,6 +70,21 @@ pub fn canonical_template_contract_bytes(
         bytes.push(0xfe);
     }
     let mut conformance_bounds = Vec::new();
+    for equation in program
+        .declared_type_equations
+        .span_or_empty(machine.declared_type_equations)
+    {
+        for reference in [equation.parameter, equation.definition] {
+            encode_identity_text(
+                &program.type_identity_request_text(TypeIdentityRequest {
+                    binders: &binders,
+                    ..TypeIdentityRequest::ordinary(reference)
+                }),
+                &mut bytes,
+            );
+        }
+        bytes.push(0xf9);
+    }
     for bound in &machine.conformance_bounds {
         let mut encoded = Vec::new();
         encoded.extend(bound.trait_name.as_str().as_bytes());

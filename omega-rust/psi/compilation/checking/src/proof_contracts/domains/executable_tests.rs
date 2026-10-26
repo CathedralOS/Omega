@@ -5,8 +5,7 @@
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::expression::ExpressionHandle;
-use typed_trees::references::{TypedReferences, visit_type_reference};
-use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub fn validate_executable_domain_test_carriers(
     program: &dyn crate::CheckingInput,
@@ -38,17 +37,27 @@ pub fn validate_executable_domain_test_carriers(
             if crate::declared_carriers_match(program, subject, target) {
                 continue;
             }
-            if (carrier_has_open_binders(program, subject)
-                || carrier_has_open_binders(program, target))
-                && awaits_declared_equations(program, owners, expression)
-            {
-                // Source equation preparation retains this nonexecutable
-                // template until a closed explicit application discharges its
-                // declared equations. This is a pending obligation, not an
-                // equation inferred from the current consumers. Unconstrained
-                // templates must form their tests independently of callers.
+            let substitutions = declared_type_equations(program, owners, expression);
+            if crate::value_custody::places::declared_carriers_match_with_substitutions(
+                program,
+                subject,
+                target,
+                &substitutions,
+            ) {
                 continue;
             }
+            let subject = crate::value_custody::places::substituted_declared_carrier(
+                program,
+                subject,
+                &substitutions,
+            )
+            .unwrap_or(subject);
+            let target = crate::value_custody::places::substituted_declared_carrier(
+                program,
+                target,
+                &substitutions,
+            )
+            .unwrap_or(target);
             return Err(Diagnostic::error(format!(
                 "executable domain test `{}` expects subject carrier `{}`, got `{}`",
                 domain.name.as_str(),
@@ -61,70 +70,45 @@ pub fn validate_executable_domain_test_carriers(
     Ok(())
 }
 
-fn awaits_declared_equations(
+fn declared_type_equations(
     program: &dyn crate::CheckingInput,
     owners: &crate::expression_owners::OwnerEnvironmentIndex,
     expression: ExpressionHandle,
-) -> bool {
-    let sites = owners.containing_statement_sites(expression);
-    !sites.is_empty()
-        && sites
-            .into_iter()
-            .all(|(machine, _, _)| program.machines()[machine].structural_type_equations_pending)
-}
-
-#[derive(Default)]
-struct CarrierReferences {
-    symbols: Vec<SymbolHandle>,
-    types: Vec<TypeReferenceHandle>,
-    expressions: Vec<ExpressionHandle>,
-}
-
-impl Extend<SymbolHandle> for CarrierReferences {
-    fn extend<References: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: References) {
-        self.symbols.extend(symbols);
-    }
-}
-
-impl TypedReferences for CarrierReferences {
-    fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
-        if self.types.contains(&reference) {
-            return false;
-        }
-        self.types.push(reference);
-        true
-    }
-
-    fn expression(&mut self, expression: ExpressionHandle) -> bool {
-        if self.expressions.contains(&expression) {
-            return false;
-        }
-        self.expressions.push(expression);
-        true
-    }
-}
-
-fn carrier_has_open_binders(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> bool {
-    let mut references = CarrierReferences::default();
-    visit_type_reference(program.typed_program(), &mut references, reference);
-    // Elaboration can replace a generic root with its exact data instance.
-    // Its retained application, rather than its rendered name, owns binders.
-    let mut ordinal = 0;
-    while ordinal < references.symbols.len() {
-        let symbol = references.symbols[ordinal];
-        ordinal += 1;
-        if symbol.is_valid() && program.symbols.get(symbol).kind == SymbolKind::TypeParameter {
-            return true;
-        }
-        if let Some(application) = program
-            .data_definition_by_symbol(symbol)
-            .and_then(|definition| definition.generic_instance)
+) -> Vec<(SymbolHandle, TypeReferenceHandle)> {
+    let mut substitutions = Vec::new();
+    let Some(mut owner) =
+        crate::expression_owners::source_declaration_owner(program, expression, owners)
+    else {
+        return substitutions;
+    };
+    // Nested machines inherit the same exact static binder scope. No runtime
+    // value or caller argument enters the declaration's assumptions.
+    let mut visited = Vec::new();
+    while owner.is_valid() && !visited.contains(&owner) {
+        visited.push(owner);
+        if let Some(machine) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == owner)
         {
-            visit_type_reference(program.typed_program(), &mut references, application);
+            for equation in program
+                .declared_type_equations
+                .span_or_empty(machine.declared_type_equations)
+            {
+                let TypeReferenceNode::Named { symbol, .. } = program
+                    .type_reference_table
+                    .type_reference(equation.parameter)
+                else {
+                    continue;
+                };
+                if symbol.is_valid()
+                    && program.symbols.get(*symbol).kind == SymbolKind::TypeParameter
+                {
+                    substitutions.push((*symbol, equation.definition));
+                }
+            }
         }
+        owner = program.declaration_scope_parent(owner);
     }
-    false
+    substitutions
 }

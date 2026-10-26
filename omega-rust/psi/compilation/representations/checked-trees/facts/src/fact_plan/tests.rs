@@ -360,6 +360,7 @@ fn expression_places_resolve_attached_data_members() {
         structural_type_equations_pending: false,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
+        declared_type_equations: HandleSpan::empty(),
         attached_data: Some(Identifier::generated("Main")),
         attached_data_symbol: main_data_symbol,
         attached_data_application: TypeReferenceHandle::invalid(),

@@ -326,6 +326,7 @@ pub struct TypedTreeTables {
     /// root roster: substitution creates no new nominal or field identity.
     pub data_application_definitions: Arena<DataApplicationView>,
     pub data_type_parameters: Arena<data::TypeParameter>,
+    pub declared_type_equations: Arena<machine::DeclaredTypeEquation>,
     pub data_members: Arena<data::DataMember>,
     pub data_payload_fields: Arena<data::DataField>,
     pub domain_definitions: Arena<domain::DomainDefinition>,
