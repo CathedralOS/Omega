@@ -20,6 +20,7 @@ use terminal_psi::CheckedProgramEntryTerminalReceipt;
 #[must_use = "Terminal production retains independent application judgments"]
 pub struct ProducedTerminalProgram {
     pub(super) program: terminal_codec::TerminalProgramProduct,
+    pub(super) build_provider_selections: crate::TerminalBuildProviderSelections,
     pub(super) build_bindings: crate::TerminalBuildBindings,
     pub(super) build_requests: crate::TerminalBuildRequests,
     pub(super) build_filesystem: crate::TerminalBuildFilesystem,
@@ -28,6 +29,9 @@ pub struct ProducedTerminalProgram {
 }
 
 impl ProducedTerminalProgram {
+    pub const fn build_provider_selections(&self) -> &crate::TerminalBuildProviderSelections {
+        &self.build_provider_selections
+    }
     pub const fn build_filesystem(&self) -> &crate::TerminalBuildFilesystem {
         &self.build_filesystem
     }

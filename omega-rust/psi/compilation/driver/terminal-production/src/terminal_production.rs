@@ -143,6 +143,9 @@ impl<'a> TerminalProductionRequest<'a> {
                 }
             })
             .collect();
+        let provider_calls =
+            crate::build_provider_selections::capture(checked, optimized.lowered())
+                .map_err(TerminalArtifactProductionError::BuildContext)?;
         let binding_calls = crate::build_bindings::capture(checked, optimized.lowered())
             .map_err(TerminalArtifactProductionError::BuildContext)?;
         let request_calls = crate::build_requests::capture(checked, optimized.lowered())
@@ -174,6 +177,10 @@ impl<'a> TerminalProductionRequest<'a> {
         let build_filesystem =
             crate::TerminalBuildFilesystem::new(program.view(), filesystem_calls);
         Ok(ProducedTerminalProgram {
+            build_provider_selections: crate::TerminalBuildProviderSelections::new(
+                program.view(),
+                provider_calls,
+            ),
             program,
             build_bindings,
             build_requests,

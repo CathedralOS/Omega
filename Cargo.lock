@@ -1738,6 +1738,7 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "typed-trees",
+ "validation",
 ]
 
 [[package]]

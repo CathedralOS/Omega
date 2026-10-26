@@ -44,6 +44,13 @@ pub(super) enum BoundaryRequirement<'program> {
         definition: &'program typed_trees::trait_definition::TraitDefinition,
         signature: &'program typed_trees::signature::StateSignature,
     },
+    /// Source checking admitted the exact compiler Build operation; its
+    /// executable presentation is this toolchain protocol, with the original
+    /// source occurrence and captured arguments retained independently.
+    BuildProviderSelection {
+        definition: &'program typed_trees::trait_definition::TraitDefinition,
+        signature: &'program typed_trees::signature::StateSignature,
+    },
     Operator(&'program typed_trees::operator::OperatorDefinition),
 }
 
@@ -81,6 +88,10 @@ pub(super) fn build(
         callback_parameters,
     ) = match requirement {
         BoundaryRequirement::Trait {
+            definition,
+            signature,
+        }
+        | BoundaryRequirement::BuildProviderSelection {
             definition,
             signature,
         } => (
@@ -142,10 +153,11 @@ pub(super) fn build(
     // The authored static machine arguments the ordinal of each retained
     // selection indexes: validation filtered the `<>` argument list to
     // machine-typed members before recording `static_machine_ordinal`.
-    let authored_machine_arguments = match &call_site {
-        validation::CallSite::Statement(call) => call.machine_arguments.as_ref(),
-        validation::CallSite::Expression { call, .. } => call.machine_arguments.as_ref(),
-        validation::CallSite::TransitionNamed { .. } => &[],
+    let authored_machine_arguments = match (requirement, &call_site) {
+        (BoundaryRequirement::BuildProviderSelection { .. }, _) => &[][..],
+        (_, validation::CallSite::Statement(call)) => call.machine_arguments.as_ref(),
+        (_, validation::CallSite::Expression { call, .. }) => call.machine_arguments.as_ref(),
+        (_, validation::CallSite::TransitionNamed { .. }) => &[],
     }
     .iter()
     .filter(|argument| {
@@ -191,7 +203,8 @@ pub(super) fn build(
     // arity. Machine-only ordinals are the same ordinals MP2b records; type
     // or const binders cannot shift a callback's selection to another row.
     let callback_contract_parameters = match requirement {
-        BoundaryRequirement::Trait { signature, .. } => {
+        BoundaryRequirement::Trait { signature, .. }
+        | BoundaryRequirement::BuildProviderSelection { signature, .. } => {
             program.requirement_invocation_contract_parameters(signature)
         }
         BoundaryRequirement::Operator(operator) => program.operator_type_parameters(operator),
@@ -522,6 +535,13 @@ pub(super) fn build(
     }
     if if let Some((_, qualifier)) = selected_realization {
         call.has_receiver && call.receiver_symbol != qualifier
+    } else if matches!(
+        requirement,
+        BoundaryRequirement::BuildProviderSelection { .. }
+    ) {
+        !matches!(call_site, validation::CallSite::Expression { expression, .. }
+            if validation::compiler_operations::provider_selection_protocol(program, *expression)
+                .is_some_and(|(definition, signature)| definition.symbol == owner && signature.symbol == target))
     } else if matches!(requirement, BoundaryRequirement::Trait { .. }) {
         let receiver = boundary_trait_receiver_source(program, state, call, call_site, owner);
         if receiver.is_none()

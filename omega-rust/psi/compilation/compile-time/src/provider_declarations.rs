@@ -101,6 +101,7 @@ fn harvest_provider_selections(
                             ),
                             machine: machine.symbol,
                             composition_case: None,
+                            evaluated_composition: None,
                             product_operands: false,
                         });
                     }
@@ -115,6 +116,7 @@ fn harvest_provider_selections(
                         source_span: call.source_span,
                         machine: machine.symbol,
                         composition_case: None,
+                        evaluated_composition: None,
                         product_operands: false,
                     });
                 }
@@ -132,6 +134,7 @@ struct ProviderSelectionCall<'a> {
     source_span: source::SourceSpan,
     machine: SymbolHandle,
     composition_case: Option<SymbolHandle>,
+    evaluated_composition: Option<CompositionMode>,
     product_operands: bool,
 }
 
@@ -168,6 +171,7 @@ pub fn collect_executed_provider_selections(
                         source_span: provider_selection_expression_source_span(typed, handle),
                         machine: row.machine,
                         composition_case: Some(row.composition_case),
+                        evaluated_composition: None,
                         product_operands: true,
                     })
                 }
@@ -180,6 +184,59 @@ pub fn collect_executed_provider_selections(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
+    collect_provider_selections(
+        ProviderPlanningContext::new(
+            typed.product_declarations(),
+            source::DependencyScope::Product,
+        ),
+        requests,
+    )
+}
+
+/// Rejoin observations of the admitted Terminal activation in the completed
+/// Product context. Source spans identify the same retained authored occurrence;
+/// neither an old arena handle nor a leaf spelling can select its declaration.
+pub fn collect_terminal_provider_selections(
+    typed: &TypedTrees,
+    executed: &[language_semantics::declaration_selection::ExecutedProductProviderSelection],
+) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+    let mut requests = Vec::new();
+    for row in executed {
+        let machines = typed
+            .machines()
+            .iter()
+            .filter(|machine| {
+                typed.symbols.symbol_source_span(machine.symbol) == Some(row.selecting_machine)
+            })
+            .collect::<Vec<_>>();
+        let [machine] = machines.as_slice() else {
+            return Err(vec![Diagnostic::error(
+                "executed provider selection did not rejoin its exact authored machine",
+            )]);
+        };
+        let calls = typed.expression_table.iter_expressions().filter_map(|(expression, node)| {
+            let typed_trees::expression::ExpressionNode::Call(call) = node else { return None; };
+            (validation::compiler_operations::build_operation(typed, expression)
+                == Some(language_semantics::declaration_selection::BuildOperation::ProviderSelection)
+                && provider_selection_expression_source_span(typed, expression) == row.source_span)
+                .then_some(call)
+        }).collect::<Vec<_>>();
+        let [call] = calls.as_slice() else {
+            return Err(vec![Diagnostic::error(
+                "executed provider selection did not rejoin its exact authored call",
+            )]);
+        };
+        requests.push(ProviderSelectionCall {
+            target: "select_provider",
+            arguments: &call.machine_arguments,
+            value_arguments: typed.expression_table.expression_handles(call.arguments),
+            source_span: row.source_span,
+            machine: machine.symbol,
+            composition_case: None,
+            evaluated_composition: Some(row.composition_mode),
+            product_operands: true,
+        });
+    }
     collect_provider_selections(
         ProviderPlanningContext::new(
             typed.product_declarations(),
@@ -224,6 +281,7 @@ fn collect_provider_selections<'a>(
             source_span,
             machine,
             composition_case,
+            evaluated_composition,
             product_operands,
         } = request;
         if target != "select_provider" {
@@ -270,9 +328,14 @@ fn collect_provider_selections<'a>(
             )));
             return;
         }
-        let composition_mode = match composition_case.map_or_else(
-            || provider_selection_composition_mode(typed, value_arguments),
-            |case| provider_composition_case(typed, case),
+        let composition_mode = match evaluated_composition.map_or_else(
+            || {
+                composition_case.map_or_else(
+                    || provider_selection_composition_mode(typed, value_arguments),
+                    |case| provider_composition_case(typed, case),
+                )
+            },
+            Ok,
         ) {
             Ok(mode) => mode,
             Err(diagnostic) => {

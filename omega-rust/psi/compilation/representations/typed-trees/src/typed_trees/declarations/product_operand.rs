@@ -12,7 +12,6 @@ use symbols::{JoinedPath, SymbolHandle};
 pub enum ProductOperandKind {
     BoundarySubject,
     Provider,
-    TrustSubject,
     Requirement,
     Data,
     Representation,
@@ -78,23 +77,6 @@ pub fn resolve_product_operand(
                             && definition.lifetime_parameters.is_empty()
                     })
                     .map(|definition| (definition.symbol, definition.is_public)),
-            )
-            .collect(),
-        ProductOperandKind::TrustSubject => program
-            .conformances()
-            .iter()
-            .filter(|definition| {
-                definition.type_parameters.is_empty() && definition.lifetime_parameters.is_empty()
-            })
-            .map(|definition| (definition.symbol, definition.is_public))
-            .chain(
-                program
-                    .machines()
-                    .iter()
-                    .filter(|machine| {
-                        machine.supply_mode == language_semantics::MachineSupplyMode::AdmissionClaim
-                    })
-                    .map(|machine| (machine.symbol, machine.is_public)),
             )
             .collect(),
         ProductOperandKind::Requirement => program

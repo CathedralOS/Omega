@@ -34,7 +34,7 @@ pub fn is_build_declaration_selection(
 /// or grants execution authority. The admitted executed request retains its path
 /// and source custody; Product selection resolves role, package and visibility
 /// after the deferred Product forest exists.
-pub fn describe_build_static_operand(
+fn describe_build_operand_shape(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     argument_index: usize,
@@ -82,6 +82,32 @@ pub fn describe_build_static_operand(
     ))
 }
 
+/// Only provider selections have the deferred executed-request settlement
+/// implemented by this protocol. Other operations retain their prior exact
+/// source admission until their own executed Product join supplies custody.
+pub fn describe_build_static_operand(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    argument_index: usize,
+) -> Result<AuthoredSelectionResolutionTarget, String> {
+    let description = describe_build_operand_shape(program, expression, argument_index)?;
+    if build_operation(program, expression) == Some(BuildOperation::ProviderSelection) {
+        return Ok(description);
+    }
+    let occurrence = program
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .filter_map(|occurrence| program.authored_declaration_selections().get(occurrence))
+        .find(|selection| selection.top_level_static_argument_position() == Some(argument_index))
+        .ok_or("Build static operand has no authored source occurrence")?;
+    resolve_build_static_operand(
+        program,
+        expression,
+        argument_index,
+        occurrence.source_span(),
+    )
+}
+
 /// Resolve the inert description in the completed Product frontier. This is
 /// declaration authority; the earlier operation marker cannot replace it.
 pub fn resolve_build_static_operand(
@@ -90,7 +116,7 @@ pub fn resolve_build_static_operand(
     argument_index: usize,
     occurrence: source::SourceSpan,
 ) -> Result<AuthoredSelectionResolutionTarget, String> {
-    let description = describe_build_static_operand(program, expression, argument_index)?;
+    let description = describe_build_operand_shape(program, expression, argument_index)?;
     if matches!(
         description,
         AuthoredSelectionResolutionTarget::Intrinsic(
@@ -132,7 +158,7 @@ fn build_operand_kind(
         | (BuildOperation::ServiceExclusion | BuildOperation::ServiceAudit, 0) => {
             ProductOperandKind::BoundarySubject
         }
-        (BuildOperation::BoundaryAcceptance, 0) => ProductOperandKind::TrustSubject,
+        (BuildOperation::BoundaryAcceptance, 0) => ProductOperandKind::BoundarySubject,
         (BuildOperation::ProviderSelection, 1) => ProductOperandKind::Provider,
         (BuildOperation::AssumedBindingContract, 0 | 1) => ProductOperandKind::Requirement,
         (BuildOperation::WireCompatibilityRequest, 0..=3)
@@ -143,14 +169,15 @@ fn build_operand_kind(
     Ok(role)
 }
 
-/// Complete every authored Product description after source assembly. All
-/// operation classes share this join, including requests with no later planner.
-/// Exact static-argument occurrences supply lexical/package visibility custody.
-pub fn validate_build_product_operands(
-    program: &dyn crate::CheckingInput,
+/// Complete authored provider descriptions after Product source assembly.
+/// Their exact static occurrences supply lexical/package visibility custody,
+/// and the completed selection ledger retains the declarations for review.
+pub fn complete_build_product_operands(
+    program: &mut typed_trees::TypedTrees,
 ) -> Result<(), diagnostics::Diagnostic> {
+    let mut resolved = Vec::new();
     for (expression, _) in program.expression_table.iter_expressions() {
-        if !is_build_declaration_selection(program, expression) {
+        if build_operation(program, expression) != Some(BuildOperation::ProviderSelection) {
             continue;
         }
         let call = program.expression_table.call_node(expression).unwrap();
@@ -168,7 +195,7 @@ pub fn validate_build_product_operands(
                     "Build Product operand has no unique authored static-argument occurrence",
                 ));
             };
-            resolve_build_static_operand(
+            let target = resolve_build_static_operand(
                 program,
                 expression,
                 argument_index,
@@ -177,9 +204,86 @@ pub fn validate_build_product_operands(
             .map_err(|message| {
                 diagnostics::Diagnostic::error(message).with_source_span(selection.source_span())
             })?;
+            if let AuthoredSelectionResolutionTarget::Declaration(symbol) = target {
+                resolved.push((selection.occurrence_id(), symbol));
+            }
         }
     }
+    let mut selections = program.authored_declaration_selections().clone();
+    for (occurrence, symbol) in resolved {
+        use language_semantics::declaration_selection::{
+            AuthoredDeclarationSelectionLateBinding as Binding,
+            AuthoredDeclarationSelectionTarget as Target,
+        };
+        match selections
+            .get(occurrence)
+            .map(|selection| selection.target())
+        {
+            Some(Target::Resolved(selected)) if selected.selected_symbol() == symbol => {}
+            Some(Target::LateBound(Binding::CheckedStaticArgument)) => {
+                selections
+                    .finalize_late_bound(occurrence, Binding::CheckedStaticArgument, symbol)
+                    .map_err(|error| {
+                        diagnostics::Diagnostic::error(format!(
+                            "Product descriptor completion failed: {error:?}"
+                        ))
+                    })?;
+            }
+            _ => {
+                return Err(diagnostics::Diagnostic::error(
+                    "Product descriptor has a conflicting retained declaration selection",
+                ));
+            }
+        }
+    }
+    program.retain_authored_declaration_selections(selections);
     Ok(())
+}
+
+/// The executable presentation of one authenticated compiler operation.
+/// Product operands remain source descriptions; the ordinary import carries
+/// exactly the evaluated Build argument and optional composition value.
+pub fn provider_selection_protocol<'program>(
+    program: &'program dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<(
+    &'program typed_trees::trait_definition::TraitDefinition,
+    &'program typed_trees::signature::StateSignature,
+)> {
+    if build_operation(program, expression) != Some(BuildOperation::ProviderSelection) {
+        return None;
+    }
+    let call = program.expression_table.call_node(expression)?;
+    let name = match program
+        .expression_table
+        .expression_handles(call.arguments)
+        .len()
+    {
+        1 => "select_provider",
+        2 => "select_provider_mode",
+        _ => return None,
+    };
+    let mut definitions = program.traits().iter().filter(|definition| {
+        definition.is_boundary
+            && language_semantics::build_requests::is_build_protocol(
+                &program.symbols,
+                definition.symbol,
+                "BuildProviderSelectionOperations",
+            )
+    });
+    let definition = definitions.next()?;
+    if definitions.next().is_some() {
+        return None;
+    }
+    let mut signatures = program
+        .trait_machine_signatures(definition)
+        .iter()
+        .filter(|signature| signature.name.as_str() == name);
+    let signature = signatures.next()?;
+    if signatures.next().is_some() {
+        return None;
+    }
+    Some((definition, signature))
 }
 
 pub fn is_provider_selection_call(

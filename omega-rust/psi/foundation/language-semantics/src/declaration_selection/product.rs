@@ -90,3 +90,22 @@ pub struct ExecutedRootBinding {
     pub slot: String,
     pub implementation: RootBindingSelection,
 }
+
+/// Evaluated composition belongs to the executed request, never a source
+/// expression recognizer. Omission explicitly means fused composition.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ProviderCompositionMode {
+    #[default]
+    Fused,
+    Independent,
+}
+
+/// An operation observed on the original Build activation. Source coordinates
+/// rejoin its exact declaration and static operands in the completed Product;
+/// this receipt grants no declaration visibility or provider installation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutedProductProviderSelection {
+    pub source_span: source::SourceSpan,
+    pub selecting_machine: source::SourceSpan,
+    pub composition_mode: ProviderCompositionMode,
+}

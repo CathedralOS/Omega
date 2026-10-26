@@ -374,11 +374,23 @@ fn expression_occurrence_violation(
                 if matches!(selection.kind(), Kind::StaticArgument | Kind::Conformance)
                     && let Some(argument_index) = selection.top_level_static_argument_position()
                 {
-                    let expected = validation::compiler_operations::describe_build_static_operand(
-                        input,
-                        expression,
-                        argument_index,
-                    );
+                    let expected = if matches!(
+                        selection.target(),
+                        typed_trees::AuthoredDeclarationSelectionTarget::Resolved(_)
+                    ) {
+                        validation::compiler_operations::resolve_build_static_operand(
+                            input,
+                            expression,
+                            argument_index,
+                            selection.source_span(),
+                        )
+                    } else {
+                        validation::compiler_operations::describe_build_static_operand(
+                            input,
+                            expression,
+                            argument_index,
+                        )
+                    };
                     let expected = match expected {
                         Ok(expected) => expected,
                         Err(message) => return Some(located(message)),

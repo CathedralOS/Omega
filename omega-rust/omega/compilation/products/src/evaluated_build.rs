@@ -123,6 +123,8 @@ pub struct ComputedBuildConfig {
     /// Executed, source-issued choices remain inert until Product declarations
     /// exist under their final owners. Build execution does not select Product
     /// symbols from its private checking context.
+    pub provider_selection_requests:
+        Vec<language_semantics::declaration_selection::ExecutedProductProviderSelection>,
     pub root_binding_requests: Vec<language_semantics::declaration_selection::ExecutedRootBinding>,
     pub project_declaration: Option<build_declarations::BuildDeclaration>,
     pub optimization_report_request: optimization_core::OptimizationReportRequest,

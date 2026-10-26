@@ -3,7 +3,8 @@ use symbols::SymbolHandle;
 
 mod product;
 pub use product::{
-    DescribedProductEntry, DescribedProductProvider, DescribedProductSchema, ExecutedRootBinding,
+    DescribedProductEntry, DescribedProductProvider, DescribedProductSchema,
+    ExecutedProductProviderSelection, ExecutedRootBinding, ProviderCompositionMode,
     RootBindingOperand, RootBindingRequest, RootBindingSelection,
 };
 

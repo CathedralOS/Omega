@@ -160,6 +160,7 @@ impl PreparedBuildExecution {
         Ok(ComputedBuildConfig {
             config,
             root_binding_requests: completed.root_bindings,
+            provider_selection_requests: completed.provider_selections,
             project_declaration: Some(completed.declaration),
             optimization_report_request: completed.optimization_report,
             evaluation_usage: Some(usage),
