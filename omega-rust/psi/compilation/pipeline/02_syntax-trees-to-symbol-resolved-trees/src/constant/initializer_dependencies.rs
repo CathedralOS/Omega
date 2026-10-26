@@ -855,6 +855,7 @@ impl<'program> Collector<'program> {
             // The requirement declaration stays the dependency so checking can
             // reject the selection; this row does not execute that body.
             NamedImplementationDependency::RequirementOnly(requirement) => {
+                self.dependencies.pending_target_observation = true;
                 self.record_logical_call(requirement, target_span)
             }
             NamedImplementationDependency::Realization(entry) => self.call(entry, target_span),
@@ -1047,6 +1048,41 @@ impl<'program> Collector<'program> {
         Ok(())
     }
 
+    /// Invocation formation demands the complete published clauses before a
+    /// body can execute. A helper whose value body is independent can still
+    /// need selected providers to form its requires/ensures operands.
+    fn contracts(
+        &mut self,
+        contracts: arena::HandleSpan<symbol_resolved_trees::signature::SignatureContract>,
+    ) -> Result<(), String> {
+        let program = self.program;
+        let clauses = program.signature_contracts(contracts);
+        if clauses.len() != contracts.len() {
+            return Err("constant dependency has stale signature clauses".to_owned());
+        }
+        for clause in clauses {
+            let facts = program.proof_facts(clause.facts);
+            if facts.len() != clause.facts.len() {
+                return Err("constant dependency has stale contract facts".to_owned());
+            }
+            for fact in facts {
+                match fact {
+                    symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+                        self.expressions.push(*expression)
+                    }
+                    symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+                        self.expressions.push(membership.value);
+                        for reference in program.child_type_references(membership.domain_arguments)
+                        {
+                            self.types.push(reference);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn machine(&mut self, symbol: SymbolHandle) -> Result<(), String> {
         use symbol_resolved_trees::statement::{Statement, TransitionGuard, TransitionTarget};
         let program = self.program;
@@ -1060,7 +1096,9 @@ impl<'program> Collector<'program> {
         if machines.next().is_some() {
             return Err("constant dependency machine is ambiguous".to_owned());
         }
+        self.contracts(machine.contracts)?;
         if machine.target_family_interface {
+            self.dependencies.pending_target_observation = true;
             // A portable head selects no deployment's private body. Dependency
             // discovery retains every exact family member; this grants no
             // permission to interpret one member as a shared constant value.
@@ -1106,6 +1144,7 @@ impl<'program> Collector<'program> {
         let expressions = &program.tables.bodies.expressions;
         for handle in states {
             let state = program.machine_state(*handle);
+            self.contracts(state.contracts)?;
             self.state_parameters(state.parameters)?;
             if let Some(reference) = &state.return_type {
                 self.types.push(reference);
