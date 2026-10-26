@@ -80,8 +80,8 @@ reject. The nine places and the selector production are pinned under
 
 At fixed base `37dabdc19193fe27968bb97d5922118db61b68db`, the original
 customer refused with `computed borrow lost its established local`. Of the ten
-root/place positives, only the call-result production already ran with native
-and Terminal exit 0; the other nine refused. All ten sensitive controls rejected
+root/place positives, only the call-result production met its native oracle in the sample gate;
+that gate did not measure Terminal execution. The other nine refused. All ten sensitive controls rejected
 for the intended write-only read. The parameter production additionally exposed
 a missing retained selector operand, rather than an invalid source program.
 
@@ -93,9 +93,9 @@ python tools/corpus_gate.py --runner <optimized-runner> --both --filter write_on
 ```
 
 Candidate validation and remaining hosted coverage are recorded in the claim and
-qualification ledger. A recovered pre-crash four-file candidate ran the original
-root, nine places and binary-selector production on Linux and Windows, while its
-corpus route exposed a native-custody replay refusal. That candidate is historical:
+qualification ledger. A recovered pre-crash four-file candidate passed the native-only sample gates
+for the original root, nine places and binary-selector production on Linux and
+Windows, while its corpus route exposed a native-custody replay refusal. That candidate is historical:
 the complete repair also retains cast/unary inputs and exact ancestor permission
 in borrowed arrivals. Its fresh validation is recorded separately; the earlier
 observations are not evidence for the later producer.
