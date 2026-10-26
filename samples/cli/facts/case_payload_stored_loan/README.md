@@ -167,3 +167,9 @@ control attempts mutation during the guard and must keep rejecting. The existing
 The fact sentence, original sources and their corpus pins remain unchanged.
 Other-host execution and the parent capability's remaining runtime/case
 construction, replacement and saved-observation acceptance remain open.
+
+The broader `tests/omega/pass/borrows/runtime_guard_descriptor_replacement_exit`
+control still refuses on both the frozen `ac9b6d8d9762` baseline and this repair:
+`exercise` statement 5 stores a borrowed value without a complete
+destination/backing relation. That remains a source-producer repair under the
+parent, rather than a passing observation or a change to this row's oracle.
