@@ -42,7 +42,10 @@ pub(in super::super) fn proves_with_recipe_conditions<'program>(
     };
     let mut hypotheses = Vec::new();
     for expression in program.contract_expressions(
-        machine.contracts.iter().chain(entry.contracts.iter()),
+        program
+            .machine_contracts(machine)
+            .iter()
+            .chain(program.state_contracts(entry).iter()),
         typed_trees::signature::SignatureContractKind::Requires,
     ) {
         conjuncts(&evaluator, expression, &mut hypotheses)?;
