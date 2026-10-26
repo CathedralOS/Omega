@@ -28,8 +28,8 @@ pub(super) enum InvocationUse {
 
 pub(super) enum InvocationScope {
     State {
-        machine: typed_trees::machine::Machine,
-        state: typed_trees::state::State,
+        machine: SymbolHandle,
+        state: SymbolHandle,
     },
     Declaration(SymbolHandle),
 }
@@ -37,7 +37,7 @@ pub(super) enum InvocationScope {
 impl InvocationScope {
     fn owner(&self) -> SymbolHandle {
         match self {
-            Self::State { machine, .. } => machine.symbol,
+            Self::State { machine, .. } => *machine,
             Self::Declaration(owner) => *owner,
         }
     }
@@ -56,6 +56,11 @@ impl InvocationScope {
     ) -> Option<TypeReferenceHandle> {
         match self {
             Self::State { machine, state } => {
+                let machine = program.machine_by_symbol(*machine)?;
+                let state = program
+                    .machine_states(machine)
+                    .iter()
+                    .find(|candidate| candidate.symbol == *state)?;
                 validation::expression_result_type_reference(program, machine, state, expression)
             }
             Self::Declaration(owner) => validation::parameter_expression_result_type_reference(
@@ -119,8 +124,8 @@ pub(super) fn collect(program: &mut TypedTrees) -> Result<Vec<Invocation>, Vec<s
         for state in program.machine_states(machine) {
             let scope = scopes.len();
             scopes.push(InvocationScope::State {
-                machine: machine.clone(),
-                state: state.clone(),
+                machine: machine.symbol,
+                state: state.symbol,
             });
             for (statement_handle, statement) in program
                 .statement_table
