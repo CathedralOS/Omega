@@ -20,15 +20,7 @@ pub(super) fn validate(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let operands = super::index_identity_arguments(bindings);
-    let regions = lifetimes
-        .iter()
-        .map(|binding| {
-            (
-                binding.parameter.as_str().to_owned(),
-                binding.argument.as_str().to_owned(),
-            )
-        })
-        .collect::<Vec<_>>();
+    let regions = super::lifetime_identity_rows(lifetimes);
     let scope = AppliedTypeIdentityScope {
         declaration: machine.symbol,
         arguments: &operands,

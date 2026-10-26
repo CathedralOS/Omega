@@ -106,7 +106,7 @@ pub(super) struct StatementNumericObservations {
     statement_index: usize,
     pub(super) integer_operations: Vec<crate::CapturedIntegerOperation>,
     pub(super) scalar_associations:
-        Vec<crate::proof_contracts::contract_entailment::CapturedScalarAssociation>,
+        Vec<crate::proof_contracts::contract_entailment::numeric_observations::CapturedScalarAssociation>,
 }
 
 /// The IEEE portion of one Boolean polarity: the ordered float enclosure,

@@ -18,7 +18,7 @@ use typed_trees::name::Identifier;
 use typed_trees::statement::StatementNode;
 use typed_trees::static_applications::{
     StaticMachineApplication, StaticMachineApplicationHandle, StaticMachineBinding,
-    StaticMachineBindingValue,
+    StaticMachineBindingValue, StaticMachineLifetimeBinding,
 };
 use typed_trees::type_identity::IndexIdentityArgument;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -808,6 +808,21 @@ pub(crate) fn index_identity_arguments<'application>(
         .collect()
 }
 
+/// Transcribe a retained lifetime tuple into the scope's exact name rows.
+pub(crate) fn lifetime_identity_rows(
+    lifetimes: &[StaticMachineLifetimeBinding],
+) -> Vec<(String, String)> {
+    lifetimes
+        .iter()
+        .map(|binding| {
+            (
+                binding.parameter.as_str().to_owned(),
+                binding.argument.as_str().to_owned(),
+            )
+        })
+        .collect()
+}
+
 fn index_identity_argument(value: &StaticMachineBindingValue) -> IndexIdentityArgument<'_> {
     match value {
         StaticMachineBindingValue::Type(actual) => IndexIdentityArgument::TypeArgument(*actual),
@@ -842,15 +857,7 @@ fn conformance_arguments_match(
     use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
 
     let substitutions = index_identity_arguments(bindings);
-    let lifetimes = lifetimes
-        .iter()
-        .map(|binding| {
-            (
-                binding.parameter.as_str().to_owned(),
-                binding.argument.as_str().to_owned(),
-            )
-        })
-        .collect::<Vec<_>>();
+    let lifetimes = lifetime_identity_rows(lifetimes);
     let machine_scope = AppliedTypeIdentityScope {
         declaration: machine.symbol,
         arguments: &substitutions,

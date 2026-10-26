@@ -14,11 +14,11 @@
 //! of its memo identity, so a partial request cannot supply another consumer's
 //! omitted facts. Unknown prefixes remain uncacheable for every demand.
 
-use crate::ScopedArithmeticValue;
 use super::structural_judgment::{StructuralJudge, StructuralTerm};
 use super::structural_prefix::{
     PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor, observe_runtime_state_prefix,
 };
+use crate::ScopedArithmeticValue;
 use crate::proof_contracts::arithmetic_domains::{
     CopiedIntegerValue, ScalarOperand, scalar_operand,
 };
