@@ -131,7 +131,9 @@ pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(),
                 identity(expected.template_identity)?;
             }
             _ => {
-                return Err("closed reach capture differs from its independent checked declaration");
+                return Err(
+                    "closed reach capture differs from its independent checked declaration",
+                );
             }
         }
         validate_telescope(&application.parameter_kinds, &application.telescope)?;
