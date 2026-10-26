@@ -169,6 +169,16 @@ pub(super) fn validate(
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type"
             )));
+        } else {
+            super::atomic_establishment::validate_once_resident(
+                scope,
+                local_data,
+                &carrier,
+                value_environment,
+                arithmetic_decisions,
+                &owner,
+                diagnostics,
+            );
         }
     }
     // Unit is not storage for an initializer's value. Generated
