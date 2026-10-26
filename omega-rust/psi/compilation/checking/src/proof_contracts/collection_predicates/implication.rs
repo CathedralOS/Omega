@@ -192,6 +192,29 @@ pub(super) fn ordering_consequences(
     program: &dyn crate::CheckingInput,
     application: &super::PredicateApplication<'_>,
 ) -> Vec<super::PredicateOrderingConsequence> {
+    ordering_relations(program, application, RelationMeaning::Necessary)
+}
+
+pub(super) fn exact_ordering(
+    program: &dyn crate::CheckingInput,
+    application: &super::PredicateApplication<'_>,
+) -> Option<super::PredicateOrderingConsequence> {
+    ordering_relations(program, application, RelationMeaning::Equivalent)
+        .into_iter()
+        .next()
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RelationMeaning {
+    Necessary,
+    Equivalent,
+}
+
+fn ordering_relations(
+    program: &dyn crate::CheckingInput,
+    application: &super::PredicateApplication<'_>,
+    meaning: RelationMeaning,
+) -> Vec<super::PredicateOrderingConsequence> {
     let machine = &program.machines()[application.machine];
     let Some(entry) = program.machine_states(machine).first() else {
         return Vec::new();
@@ -261,6 +284,27 @@ pub(super) fn ordering_consequences(
                     0,
                 ) == Some(true)
                 {
+                    if meaning == RelationMeaning::Equivalent {
+                        // Public replacement requires the converse on the same
+                        // complete formal carriers, independently of P being
+                        // true. A necessary relation alone may omit requirements.
+                        let Some(Some(converse_path)) = proof.assume(path.clone(), &goal, true)
+                        else {
+                            continue;
+                        };
+                        if proof.generalized_activation(
+                            application.machine,
+                            0,
+                            arguments.clone(),
+                            converse_path,
+                            &Boolean::Constant(true),
+                            Judgment::RequiredResult,
+                            0,
+                        ) != Some(true)
+                        {
+                            continue;
+                        }
+                    }
                     consequences.push(super::PredicateOrderingConsequence {
                         left: super::PredicateIntegerOperand::Argument(
                             application.arguments[left_position],
@@ -270,6 +314,9 @@ pub(super) fn ordering_consequences(
                         ),
                         operator,
                     });
+                    if meaning == RelationMeaning::Equivalent {
+                        return consequences;
+                    }
                 }
                 if proof.remaining == 0 {
                     return consequences;

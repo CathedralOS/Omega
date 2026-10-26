@@ -88,6 +88,8 @@ All positives bind all four hosted `ProgramEntry` targets and declare exit 0.
   +1 valid; [nonzero does not mean positive](controls/signed_nonzero_not_positive/invalid/main.omg).
   A [disconnected implementation requirement](controls/disconnected_public_envelope/invalid/main.omg)
   cannot stand for its convex hull in a public contract. A
+  [stronger pair predicate](controls/relational_public_envelope/invalid/main.omg)
+  cannot be replaced by its necessary disequality without proving the converse. A
   [recursive changed-goal control](controls/recursive_changed_goal/invalid/main.omg)
   returns true whenever its second index is nonzero, independently of the first.
   A decreasing first index cannot justify reusing a lemma about the original

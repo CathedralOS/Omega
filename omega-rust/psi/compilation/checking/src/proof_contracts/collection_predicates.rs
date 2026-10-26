@@ -142,6 +142,18 @@ pub struct PredicateOrderingConsequence {
     pub operator: BinaryOperator,
 }
 
+/// A whole predicate may be replaced by one relation only after both
+/// directions are proved over its complete formal carriers. Entry formation
+/// and exact readable actuals remain obligations of the consuming contract.
+pub fn exact_predicate_ordering(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<PredicateOrderingConsequence> {
+    let application = predicate_application(program, owner, expression)?;
+    implication::exact_ordering(program, &application)
+}
+
 /// Recover integer relations from a positive, already-available predicate
 /// occurrence. The shared symbolic implication engine interprets its checked
 /// body, including calls and branches; naming a predicate supplies no relation.
