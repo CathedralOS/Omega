@@ -1,1 +1,1 @@
-{"role":"intended-invalid","entry":"main.omg","rejection_contains":[]}
+{"role": "intended-invalid", "entry": "main.omg", "rejection_contains": ["cannot replace non-type binder `Evidence` with a global declaration"]}

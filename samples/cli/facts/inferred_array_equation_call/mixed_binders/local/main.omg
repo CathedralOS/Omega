@@ -13,5 +13,5 @@ machine main() crashes Trap {
     let items: [u8; 2] = original;
     let observed: Observation = capacity<[u8; 2], marker, 7, Positive>(items);
     transition observed.capacity == 2 && observed.callback == 7 && observed.value == 7 && observed.evidence == 7 { true -> done() _ -> bad() }
-    machine done() {} machine bad() { crash Trap; }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
 }

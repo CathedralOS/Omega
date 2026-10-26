@@ -18,5 +18,5 @@ machine main() crashes Trap {
     let left_result: Observation = joined(true);
     let right_result: Observation = joined(false);
     transition left_result.capacity == 2 && left_result.callback == 7 && left_result.value == 7 && left_result.evidence == 7 && right_result.capacity == 2 && right_result.callback == 7 && right_result.value == 7 && right_result.evidence == 7 { true -> done() _ -> bad() }
-    machine done() {} machine bad() { crash Trap; }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
 }
