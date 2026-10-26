@@ -126,7 +126,7 @@ impl PreparedBuildExecution {
             ));
         }
         let artifact_only = matches!(declaration, build_declarations::BuildDeclaration::Application(application) if application.artifact_only);
-        if artifact_only && !completed.root_bindings.is_empty() {
+        if artifact_only && !completed.product_requests.is_empty() {
             return Err(
                 self.refuse("artifact-only Build cannot select executable entries or providers")
             );
@@ -159,7 +159,8 @@ impl PreparedBuildExecution {
             .record();
         Ok(ComputedBuildConfig {
             config,
-            root_binding_requests: completed.root_bindings,
+            product_declaration_source_count: 0,
+            product_requests: completed.product_requests,
             project_declaration: Some(completed.declaration),
             optimization_report_request: completed.optimization_report,
             evaluation_usage: Some(usage),

@@ -2177,7 +2177,7 @@ mod conformance_occurrence_tests {
                     private_layout_operation: None,
                     layout_query: None,
                     native_code_layout: None,
-                    root_binding: Default::default(),
+                    build_product_request: Default::default(),
                     arguments: Default::default(),
                     evidence_arguments: Box::new([]),
                     operational_acknowledgement: Default::default(),

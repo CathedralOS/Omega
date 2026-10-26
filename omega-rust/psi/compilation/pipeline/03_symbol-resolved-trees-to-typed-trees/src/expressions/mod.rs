@@ -2,6 +2,7 @@
 //! declared call results, propositions, equality and Equatable synthesis,
 //! exhaustiveness, fixed byte-array literals and qualification casts.
 
+pub(crate) mod build_product_requests;
 pub(crate) mod call_results;
 pub(crate) mod equality;
 pub(crate) mod equatable;

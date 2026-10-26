@@ -378,7 +378,11 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.machines,
     )?;
-    bind_dynamic_call_targets(&mut lowerer.typed_trees)
+    bind_dynamic_call_targets(&mut lowerer.typed_trees)?;
+    crate::expressions::build_product_requests::normalize(
+        &mut lowerer.typed_trees,
+        cohort.typed_expressions,
+    )
 }
 
 fn lower_authored_service_reach_row(

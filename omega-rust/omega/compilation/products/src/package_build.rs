@@ -70,7 +70,8 @@ impl PreparedPackageBuild {
             // Execution receipts and charges remain on each activation. They
             // cannot partition source work, nor be replaced by a sibling's.
             && build.config == other_build.config
-            && build.root_binding_requests == other_build.root_binding_requests
+            && build.product_requests == other_build.product_requests
+            && build.product_declaration_source_count == other_build.product_declaration_source_count
             && build.selected_build_machine_symbol == other_build.selected_build_machine_symbol
             && build.generated_sources == other_build.generated_sources
             && build.project_declaration == other_build.project_declaration

@@ -6,7 +6,9 @@
 //! access. An integer ticket or a declared description type never proves issuance.
 
 use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::RootBindingOperand;
+use language_semantics::declaration_selection::{
+    BuildOperation, BuildProductRequest, RootBindingOperand,
+};
 use typed_trees::expression::ExpressionNode;
 
 pub(super) fn validate(
@@ -18,7 +20,7 @@ pub(super) fn validate(
         .traits()
         .iter()
         .filter(|definition| {
-            definition.is_boundary && definition.name.as_str() == "BuildBindingOperations"
+            definition.is_boundary && definition.name.as_str() == "BuildProductOperations"
         })
         .filter(|definition| {
             program
@@ -56,7 +58,7 @@ pub(super) fn validate(
             .iter()
             .find(|(symbol, _)| *symbol == call.target_symbol)
             .map(|(_, name)| *name);
-        if !call.root_binding.is_valid() {
+        if !call.build_product_request.is_valid() {
             if operation.is_some() {
                 return Err(Diagnostic::error(
                     "Build binding protocol requires source-issued designated product operands",
@@ -64,39 +66,55 @@ pub(super) fn validate(
             }
             continue;
         }
-        let binding = expressions
-            .root_binding_request(call.root_binding)
-            .ok_or_else(|| {
-                Diagnostic::error("root binding lost its designated product operands")
-            })?;
+        let request = expressions
+            .build_product_request(call.build_product_request)
+            .ok_or_else(|| Diagnostic::error("Build call lost its designated product operands"))?;
+        let source_span = request.source_span();
         let sites = owners.containing_statement_sites(expression);
         if sites.is_empty() {
             continue;
         }
         let operation = operation.ok_or_else(|| {
-            Diagnostic::error("root binding lost its toolchain boundary requirement")
-                .with_source_span(binding.source_span)
+            Diagnostic::error("Build request lost its toolchain boundary requirement")
+                .with_source_span(source_span)
         })?;
-        if binding.slot.is_empty()
-            || matches!(&binding.implementation, RootBindingOperand::AuthoredPath(path) if path.is_empty())
-        {
-            return Err(Diagnostic::error("root-slot binding requires exactly one slot path and one implementation path or description expression").with_source_span(binding.source_span));
-        }
-        let arguments = expressions.expression_handles(call.arguments);
-        let expected = match (&binding.implementation, operation) {
-            (_, "prepare") | (RootBindingOperand::AuthoredPath(_), "bind") => 1,
-            (RootBindingOperand::Description, "bind_description") => 2,
-            _ => {
-                return Err(Diagnostic::error(
-                    "root binding operation disagrees with its designated product operands",
-                )
-                .with_source_span(binding.source_span));
+        let expected = match request {
+            BuildProductRequest::RootBinding(binding) => {
+                if binding.slot.is_empty()
+                    || matches!(&binding.implementation, RootBindingOperand::AuthoredPath(path) if path.is_empty())
+                {
+                    return Err(Diagnostic::error("root-slot binding requires exactly one slot path and one implementation path or description expression").with_source_span(source_span));
+                }
+                match (&binding.implementation, operation) {
+                    (_, "prepare") | (RootBindingOperand::AuthoredPath(_), "bind") => 1,
+                    (RootBindingOperand::Description, "bind_description") => 2,
+                    _ => {
+                        return Err(Diagnostic::error(
+                            "root binding operation disagrees with its designated product operands",
+                        )
+                        .with_source_span(source_span));
+                    }
+                }
+            }
+            BuildProductRequest::DeclarationSelection(selection) => {
+                selection
+                    .validate_shape()
+                    .map_err(|reason| Diagnostic::error(reason).with_source_span(source_span))?;
+                match operation {
+                    "prepare" | "select" => 1,
+                    "select_mode" if selection.operation == BuildOperation::ProviderSelection => 2,
+                    _ => return Err(Diagnostic::error(
+                        "Build selection operation disagrees with its designated product operands",
+                    )
+                    .with_source_span(source_span)),
+                }
             }
         };
+        let arguments = expressions.expression_handles(call.arguments);
         if arguments.len() != expected {
             return Err(
-                Diagnostic::error("root binding operation lost its ordinary arguments")
-                    .with_source_span(binding.source_span),
+                Diagnostic::error("Build request operation lost its ordinary arguments")
+                    .with_source_span(source_span),
             );
         }
         for (machine, state, statement) in sites {
@@ -118,7 +136,7 @@ pub(super) fn validate(
                         return Err(Diagnostic::error(
                             "root binding requires a compiler-issued &mut Build place",
                         )
-                        .with_source_span(binding.source_span));
+                        .with_source_span(source_span));
                     }
                     explicit_mutable_borrow = true;
                     receiver = borrow.target;
@@ -143,7 +161,7 @@ pub(super) fn validate(
                     return Err(Diagnostic::error(
                         "root binding requires a compiler-issued &mut Build receiver",
                     )
-                    .with_source_span(binding.source_span));
+                    .with_source_span(source_span));
                 }
             } else if operation == "bind_description"
                 && !argument_type(arguments[1]).is_some_and(|reference| {
@@ -154,7 +172,7 @@ pub(super) fn validate(
                     )
                 })
             {
-                return Err(Diagnostic::error("delegated root binding requires an operand of the compiler-owned ProductEntryRef description type").with_source_span(binding.source_span));
+                return Err(Diagnostic::error("delegated root binding requires an operand of the compiler-owned ProductEntryRef description type").with_source_span(source_span));
             }
         }
     }

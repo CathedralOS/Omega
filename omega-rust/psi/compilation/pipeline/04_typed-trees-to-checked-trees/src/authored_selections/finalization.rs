@@ -93,7 +93,17 @@ pub(crate) fn finalize_checked_authored_selections(
                         }
                     }
                 }
-                let target = match (binding, node) {
+                let request_target =
+                    validation::compiler_operations::build_product_request_intrinsic(
+                        program, expression, selection,
+                    )
+                    .map_err(|reason| {
+                        Diagnostic::error(reason).with_source_span(selection.source_span())
+                    })?;
+                let target = if let Some(intrinsic) = request_target {
+                    Some(AuthoredSelectionResolutionTarget::Intrinsic(intrinsic))
+                } else {
+                    match (binding, node) {
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStaticArgument,
                     ExpressionNode::Call(call),
@@ -294,7 +304,8 @@ pub(crate) fn finalize_checked_authored_selections(
                         })
                 }
                 _ => None,
-            };
+            }
+                };
                 if let Some(target) = target {
                     push_consistent_resolution(
                         &mut resolutions,

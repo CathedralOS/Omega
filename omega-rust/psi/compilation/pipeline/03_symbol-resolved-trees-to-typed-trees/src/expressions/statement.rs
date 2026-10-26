@@ -122,7 +122,7 @@ fn lower_statement_node(
                     private_layout_operation: None,
                     layout_query: None,
                     native_code_layout: Some(request),
-                    root_binding: Default::default(),
+                    build_product_request: Default::default(),
                     arguments: Default::default(),
                     evidence_arguments: Box::default(),
                     operational_acknowledgement: call.operational_acknowledgement,

@@ -8,14 +8,7 @@ use symbols::{JoinedPath, SymbolHandle};
 /// Declaration roles of non-callable Product operands. A requirement member,
 /// a boundary subject and a representation have different declaration roles;
 /// none acquires ordinary host-call nameability through this selection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProductOperandKind {
-    BoundarySubject,
-    Provider,
-    Requirement,
-    Data,
-    Representation,
-}
+pub use language_semantics::declaration_selection::ProductOperandRole as ProductOperandKind;
 
 /// A product description names a declaration, not an applied type, value or
 /// evidence projection. Checking and later path resolution share this shape.
@@ -36,12 +29,37 @@ pub fn resolve_product_operand(
     occurrence: source::SourceSpan,
     kind: ProductOperandKind,
 ) -> Option<symbols::SymbolHandle> {
-    let program = typed.product_declarations();
     if !is_declaration_operand(argument) {
         return None;
     }
-    let path = argument.path.joined_path();
+    resolve_product_locator(typed, &argument.path.joined_path(), occurrence, kind)
+}
+
+/// Resolve an inert recorded locator after dependency admission. This is the
+/// same declaration/visibility judgment as immediate Product descriptions;
+/// the final join never reconstructs a synthetic Build AST operand.
+pub fn resolve_product_locator(
+    typed: &TypedTrees,
+    path: &str,
+    occurrence: source::SourceSpan,
+    kind: ProductOperandKind,
+) -> Option<symbols::SymbolHandle> {
+    resolve_product_locator_in_frontier(typed, path, occurrence, kind, usize::MAX)
+}
+
+/// Generated declarations appended by this activation cannot grant new
+/// authority to requests issued in its authored predecessor. Dependency-owned
+/// generated sources admitted before this frontier remain ordinary inputs.
+pub fn resolve_product_locator_in_frontier(
+    typed: &TypedTrees,
+    path: &str,
+    occurrence: source::SourceSpan,
+    kind: ProductOperandKind,
+    source_count: usize,
+) -> Option<symbols::SymbolHandle> {
+    let program = typed.product_declarations();
     let candidates = match kind {
+        ProductOperandKind::WireCompatibilityFact => return None,
         ProductOperandKind::BoundarySubject => program
             .traits()
             .iter()
@@ -105,16 +123,27 @@ pub fn resolve_product_operand(
         program
             .machine_token_bindings()
             .iter()
-            .filter(|binding| binding.is_boundary)
+            .filter(|binding| {
+                binding.is_boundary
+                    && program
+                        .symbols
+                        .symbol_provenance_source_span(binding.symbol)
+                        .is_some_and(|span| span.source_id.0 < source_count)
+            })
             .map(|binding| binding.symbol)
             .collect::<Vec<_>>()
     } else {
         Vec::new()
     };
     program.symbols.find_build_subject_declaration_from_source(
-        &path,
+        path,
         occurrence,
-        candidates,
+        candidates.into_iter().filter(|(symbol, _)| {
+            program
+                .symbols
+                .symbol_provenance_source_span(*symbol)
+                .is_some_and(|span| span.source_id.0 < source_count)
+        }),
         &token_bound_machines,
     )
 }
@@ -243,4 +272,24 @@ impl<'program> ProductEntryDeclaration<'program> {
                 }),
         }
     }
+}
+
+/// Rejoin an authored Build declaration, independently of a generated execution
+/// instance or a previous typing arena. Generated instances have no direct
+/// authored declaration span, and cannot make this selection ambiguous.
+pub fn resolve_build_request_author(
+    typed: &TypedTrees,
+    author: source::SourceSpan,
+) -> Result<SymbolHandle, String> {
+    let mut matches = typed
+        .machines()
+        .iter()
+        .filter(|machine| typed.symbols.symbol_source_span(machine.symbol) == Some(author));
+    let machine = matches
+        .next()
+        .ok_or("executed Build request has no authored machine in the joined source")?;
+    if matches.next().is_some() {
+        return Err("executed Build request has ambiguous authored machine custody".into());
+    }
+    Ok(machine.symbol)
 }

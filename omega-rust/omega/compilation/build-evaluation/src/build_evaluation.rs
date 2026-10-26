@@ -181,7 +181,8 @@ pub fn prepare_build_evaluation(
         return Ok(PreparedBuildEvaluation {
             state: BuildEvaluationState::Complete(Arc::new(crate::ComputedBuildConfig {
                 config: crate::BuildConfig::default(),
-                root_binding_requests: Vec::new(),
+                product_declaration_source_count: 0,
+                product_requests: Vec::new(),
                 project_declaration: None,
                 optimization_report_request:
                     optimization_core::OptimizationReportRequest::Suppressed,

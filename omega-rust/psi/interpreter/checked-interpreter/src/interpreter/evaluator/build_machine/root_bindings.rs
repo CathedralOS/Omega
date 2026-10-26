@@ -52,7 +52,7 @@ impl<'program> Evaluator<'program> {
             .traits()
             .iter()
             .filter(|definition| {
-                definition.is_boundary && definition.name.as_str() == "BuildBindingOperations"
+                definition.is_boundary && definition.name.as_str() == "BuildProductOperations"
             })
             .flat_map(|definition| self.program.trait_machine_signatures(definition))
             .find(|signature| signature.symbol == target)
@@ -65,7 +65,7 @@ impl<'program> Evaluator<'program> {
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         let protocol = self.root_binding_protocol(call.target_symbol);
-        if !call.root_binding.is_valid() {
+        if !call.build_product_request.is_valid() {
             if matches!(protocol, Some("prepare" | "bind" | "bind_description")) {
                 return trap(
                     "Build binding protocol requires source-issued designated product operands",
@@ -76,7 +76,10 @@ impl<'program> Evaluator<'program> {
         let binding = self
             .program
             .expression_table
-            .root_binding_request(call.root_binding)
+            .build_product_request(call.build_product_request)
+            .and_then(
+                language_semantics::declaration_selection::BuildProductRequest::as_root_binding,
+            )
             .ok_or_else(|| {
                 Halt::Trap("root binding lost its admitted selection request".to_owned())
             })?
@@ -119,7 +122,7 @@ impl<'program> Evaluator<'program> {
             self.pending_root_bindings
                 .try_reserve(1)
                 .map_err(|_| Halt::Resource("root-binding ticket allocation was refused".into()))?;
-            self.pending_root_bindings.push(call.root_binding);
+            self.pending_root_bindings.push(call.build_product_request);
             return Ok(Some(Value::Int(ticket)));
         }
         let Some(ticket_expression) = arguments.first().copied() else {
@@ -133,7 +136,14 @@ impl<'program> Evaluator<'program> {
         let issued = self
             .pending_root_bindings
             .get(ticket)
-            .and_then(|request| self.program.expression_table.root_binding_request(*request));
+            .and_then(|request| {
+                self.program
+                    .expression_table
+                    .build_product_request(*request)
+            })
+            .and_then(
+                language_semantics::declaration_selection::BuildProductRequest::as_root_binding,
+            );
         if issued != Some(&binding) {
             return trap(
                 "root binding activation ticket is missing, consumed, or belongs to another selection",

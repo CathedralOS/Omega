@@ -4,13 +4,15 @@
 //! and optimized operations share custody; consumers never parse debug names or
 //! reopen trees. Portable artifact bytes alone do not grant Build authority.
 
-use language_semantics::declaration_selection::RootBindingRequest;
+use language_semantics::declaration_selection::BuildProductRequest;
 use semantic_vocabulary::OperationId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalBuildBindingOperation {
     Prepare,
     Bind,
+    Select,
+    SelectMode,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -18,7 +20,19 @@ pub struct TerminalBuildBindingCall {
     pub operation: OperationId,
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub action: TerminalBuildBindingOperation,
-    pub request: RootBindingRequest,
+    pub request: BuildProductRequest,
+    pub author: source::SourceSpan,
+    pub composition: Option<TerminalBuildCompositionCases>,
+}
+
+/// The checked Prelude sum joined to the exact emitted formal and case IDs.
+/// Case spelling is used only at production, beside the nominal declaration;
+/// host execution reads the interpreter's actual semantic discriminator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalBuildCompositionCases {
+    pub structural_type: semantic_vocabulary::StructuralTypeId,
+    pub fused: semantic_vocabulary::StructuralCaseId,
+    pub independent: semantic_vocabulary::StructuralCaseId,
 }
 
 /// Source-issued context bound to exact Terminal semantics and, for private
@@ -64,12 +78,12 @@ pub(super) fn capture(
         else {
             continue;
         };
-        if !call.root_binding.is_valid() {
+        if !call.build_product_request.is_valid() {
             continue;
         }
         let request = checked
             .expression_table
-            .root_binding_request(call.root_binding)
+            .build_product_request(call.build_product_request)
             .ok_or_else(|| {
                 diagnostics::Diagnostic::error(
                     "Build call lost its designated operands before publication",
@@ -85,6 +99,8 @@ pub(super) fn capture(
         let action = match call.target.as_str() {
             "prepare" => TerminalBuildBindingOperation::Prepare,
             "bind" | "bind_description" => TerminalBuildBindingOperation::Bind,
+            "select" => TerminalBuildBindingOperation::Select,
+            "select_mode" => TerminalBuildBindingOperation::SelectMode,
             _ => {
                 return Err(diagnostics::Diagnostic::error(
                     "checked Build binding has no admitted operation",
@@ -92,11 +108,28 @@ pub(super) fn capture(
             }
         };
         let boundary = emitted_boundary(lowered, operation)?;
+        let author = checked
+            .machine_holding_state(occurrence.source_state)
+            .and_then(|machine| {
+                checked
+                    .symbols
+                    .symbol_provenance_source_span(machine.symbol)
+            })
+            .ok_or_else(|| {
+                diagnostics::Diagnostic::error("Build request lost its authored machine coordinate")
+            })?;
+        let composition = if action == TerminalBuildBindingOperation::SelectMode {
+            Some(composition_cases(checked, lowered, boundary)?)
+        } else {
+            None
+        };
         calls.push(TerminalBuildBindingCall {
             operation,
             boundary,
             action,
             request: request.clone(),
+            author,
+            composition,
         });
     }
     Ok(calls)
@@ -120,4 +153,86 @@ pub(super) fn emitted_boundary(
         ));
     };
     Ok(*boundary)
+}
+
+fn composition_cases(
+    checked: &checked_trees::CheckedTrees,
+    lowered: &lowered_psi::LoweredPsi,
+    boundary: semantic_vocabulary::BoundaryMachineId,
+) -> Result<TerminalBuildCompositionCases, diagnostics::Diagnostic> {
+    let refuse = || {
+        diagnostics::Diagnostic::error("Build composition mode lost its exact checked Prelude sum")
+    };
+    let mut declarations = checked.data_definitions().iter().filter(|definition| {
+        definition.name.as_str() == "CompositionMode"
+            && checked.symbols.is_build_prelude_symbol(definition.symbol)
+    });
+    let declaration = declarations.next().ok_or_else(refuse)?;
+    if declarations.next().is_some() {
+        return Err(refuse());
+    }
+    let variants = checked
+        .data_members(declaration)
+        .iter()
+        .filter_map(|member| {
+            if let typed_trees::data::DataMember::Variant(variant) = member {
+                Some(variant)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    if variants.len() != 2
+        || variants
+            .iter()
+            .any(|variant| !checked.data_payload_fields(variant).is_empty())
+    {
+        return Err(refuse());
+    }
+    let fused = variants
+        .iter()
+        .find(|variant| variant.name.as_str() == "Fused")
+        .ok_or_else(refuse)?
+        .path_identity();
+    let independent = variants
+        .iter()
+        .find(|variant| variant.name.as_str() == "Independent")
+        .ok_or_else(refuse)?
+        .path_identity();
+    let module = &lowered.semantic_module;
+    let parameters = &module
+        .boundary_machines
+        .iter()
+        .find(|declaration| declaration.id == boundary)
+        .ok_or_else(refuse)?
+        .structural_parameters;
+    let [parameter] = parameters.as_slice() else {
+        return Err(refuse());
+    };
+    if parameter.access != terminal_psi::StructuralAccess::Owned {
+        return Err(refuse());
+    }
+    let definition = module
+        .structural_types
+        .iter()
+        .find(|definition| definition.id == parameter.structural_type)
+        .ok_or_else(refuse)?;
+    let terminal_psi::StructuralTypeShape::Sum { cases } = &definition.shape else {
+        return Err(refuse());
+    };
+    if cases.len() != 2 || cases.iter().any(|case| !case.fields.is_empty()) {
+        return Err(refuse());
+    }
+    let case = |identity: &str| {
+        cases
+            .iter()
+            .find(|case| module.identities.text(case.identity) == Some(identity))
+            .map(|case| case.id)
+            .ok_or_else(refuse)
+    };
+    Ok(TerminalBuildCompositionCases {
+        structural_type: parameter.structural_type,
+        fused: case(&fused)?,
+        independent: case(&independent)?,
+    })
 }

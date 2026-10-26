@@ -429,6 +429,15 @@ pub(super) fn complete_product_frontend(
     } = built;
     let source =
         source.complete_authored(&mut terminal_production::PsiStageTimings::new(timings))?;
+    let config = Arc::make_mut(&mut computed_build_config);
+    config.product_declaration_source_count = base_sources.len();
+    build_evaluation::apply_product_requests(
+        source.authored_program(),
+        config.selected_build_machine_symbol,
+        config.product_declaration_source_count,
+        &config.product_requests,
+        &mut config.config,
+    )?;
     // Package custody, generated-byte admission and parsing stay outside Psi's
     // resolver/typing owner. No authored Build effects repeat on this path.
     let prepared = if let Some((extension, package_inputs)) = sources.admit_generated_extension(
@@ -462,13 +471,6 @@ pub(super) fn complete_product_frontend(
     } else {
         source.finish()
     };
-    let bindings = provider_planning::program_entry::collect_root_bindings(
-        &prepared.typed,
-        &computed_build_config.root_binding_requests,
-    )?;
-    Arc::make_mut(&mut computed_build_config)
-        .config
-        .root_bindings = bindings;
     Ok((
         prepared.typed,
         prepared.pending_pre_checks,

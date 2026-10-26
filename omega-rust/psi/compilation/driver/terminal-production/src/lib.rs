@@ -19,6 +19,7 @@ mod terminal_production;
 
 pub use build_bindings::{
     TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
+    TerminalBuildCompositionCases,
 };
 pub use build_filesystem::{
     TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,

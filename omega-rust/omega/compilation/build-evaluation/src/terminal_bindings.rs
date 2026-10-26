@@ -7,15 +7,17 @@
 //! remain inert until the product owner resolves and admits them.
 
 use language_semantics::declaration_selection::{
-    ExecutedRootBinding, RootBindingOperand, RootBindingRequest, RootBindingSelection,
+    BuildProductRequest, ExecutedBuildProductRequest, ExecutedProductDeclarationSelection,
+    ExecutedRootBinding, ProviderCompositionMode, RootBindingOperand, RootBindingSelection,
 };
 use psi_compiler::{
     TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
 };
 use std::sync::Mutex;
 use terminal_interpreter::{
-    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
-    TerminalImportAdapter, TerminalImportSignature, TerminalScalarValue, TerminalStructuralValue,
+    TerminalBoundaryByteBuffer, TerminalBoundaryStorageBuffer, TerminalEffect,
+    TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult, TerminalImportAdapter,
+    TerminalImportSignature, TerminalScalarValue, TerminalStorageContents, TerminalStructuralValue,
 };
 
 /// One activation shared by its prepare/commit imports, never across builds.
@@ -30,12 +32,12 @@ pub struct TerminalBuildBindingHost<'context> {
 
 #[derive(Default)]
 struct BindingState {
-    pending: Vec<Option<RootBindingRequest>>,
-    executed: Vec<ExecutedRootBinding>,
+    pending: Vec<Option<BuildProductRequest>>,
+    executed: Vec<ExecutedBuildProductRequest>,
 }
 
 impl BindingState {
-    fn take_executed(&mut self) -> Result<Vec<ExecutedRootBinding>, String> {
+    fn take_executed(&mut self) -> Result<Vec<ExecutedBuildProductRequest>, String> {
         if self.pending.iter().any(Option::is_some) {
             return Err("Build binding activation ended with an uncommitted request".to_owned());
         }
@@ -69,7 +71,7 @@ impl<'context> TerminalBuildBindingHost<'context> {
         }
     }
 
-    pub fn into_executed(self) -> Result<Vec<ExecutedRootBinding>, String> {
+    pub fn into_executed(self) -> Result<Vec<ExecutedBuildProductRequest>, String> {
         self.state
             .into_inner()
             .map_err(|_| "Build binding activation lock was poisoned".to_owned())?
@@ -78,7 +80,7 @@ impl<'context> TerminalBuildBindingHost<'context> {
 
     /// Retire committed selections after the sole activation has returned.
     /// The activation owner prevents a second execution with these adapters.
-    pub(crate) fn take_executed(&self) -> Result<Vec<ExecutedRootBinding>, String> {
+    pub(crate) fn take_executed(&self) -> Result<Vec<ExecutedBuildProductRequest>, String> {
         self.state
             .lock()
             .map_err(|_| "Build binding activation lock was poisoned".to_owned())?
@@ -104,9 +106,43 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
         ))
     }
 
+    fn storage_arguments(&self, boundary: semantic_vocabulary::BoundaryMachineId) -> &[usize] {
+        if self.host.calls.iter().any(|call| {
+            call.boundary == boundary && call.action == TerminalBuildBindingOperation::SelectMode
+        }) {
+            &[0]
+        } else {
+            &[]
+        }
+    }
+
     fn handle_effect_result(
         &mut self,
         effect: &TerminalEffect,
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        self.dispatch(effect, &[])
+    }
+
+    fn handle_effect_with_buffers(
+        &mut self,
+        effect: &TerminalEffect,
+        byte_buffers: &mut [TerminalBoundaryByteBuffer],
+        storage_buffers: &mut [TerminalBoundaryStorageBuffer],
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        if !byte_buffers.is_empty() {
+            return Err(TerminalEffectRejection::new(
+                "Build product recording has unexpected byte operands",
+            ));
+        }
+        self.dispatch(effect, storage_buffers)
+    }
+}
+
+impl TerminalBuildBindingAdapter<'_, '_> {
+    fn dispatch(
+        &self,
+        effect: &TerminalEffect,
+        storage_buffers: &[TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
         let refuse = TerminalEffectRejection::new;
@@ -133,7 +169,8 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
             .map_err(|_| refuse("Build binding activation lock was poisoned"))?;
         match call.action {
             TerminalBuildBindingOperation::Prepare => {
-                if !arguments.is_empty()
+                if !storage_buffers.is_empty()
+                    || !arguments.is_empty()
                     || structural_arguments.as_slice() != std::slice::from_ref(&self.host.original)
                 {
                     return Err(refuse(
@@ -156,7 +193,9 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
                     value: IntegerValue::Unsigned(u128::from(ticket)),
                 }))
             }
-            TerminalBuildBindingOperation::Bind => {
+            TerminalBuildBindingOperation::Bind
+            | TerminalBuildBindingOperation::Select
+            | TerminalBuildBindingOperation::SelectMode => {
                 let [
                     TerminalScalarValue::Integer {
                         value: IntegerValue::Unsigned(ticket),
@@ -173,26 +212,111 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
                         "root binding ticket was consumed or belongs to another request",
                     ));
                 }
-                let RootBindingOperand::AuthoredPath(path) = &call.request.implementation else {
-                    return Err(refuse(
-                        "Terminal Build descriptions require an issued product-query value",
-                    ));
+                let executed = match (&call.request, call.action) {
+                    (
+                        BuildProductRequest::RootBinding(request),
+                        TerminalBuildBindingOperation::Bind,
+                    ) => {
+                        let RootBindingOperand::AuthoredPath(path) = &request.implementation else {
+                            return Err(refuse(
+                                "Terminal Build descriptions require an issued product-query value",
+                            ));
+                        };
+                        if !structural_arguments.is_empty() || !storage_buffers.is_empty() {
+                            return Err(refuse(
+                                "authored root binding has unexpected structural operands",
+                            ));
+                        }
+                        ExecutedBuildProductRequest::RootBinding(ExecutedRootBinding {
+                            source_span: request.source_span,
+                            slot: request.slot.clone(),
+                            implementation: RootBindingSelection::AuthoredPath(path.clone()),
+                        })
+                    }
+                    (
+                        BuildProductRequest::DeclarationSelection(request),
+                        action @ (TerminalBuildBindingOperation::Select
+                        | TerminalBuildBindingOperation::SelectMode),
+                    ) => {
+                        let composition = if action == TerminalBuildBindingOperation::SelectMode {
+                            if structural_arguments.len() != 1 {
+                                return Err(refuse(
+                                    "Build provider selection has no evaluated composition mode",
+                                ));
+                            }
+                            let expected = call.composition.ok_or_else(|| {
+                                refuse(
+                                    "Build provider selection lost its checked composition cases",
+                                )
+                            })?;
+                            let [TerminalBoundaryStorageBuffer::Structural(buffer)] =
+                                storage_buffers
+                            else {
+                                return Err(refuse(
+                                    "Build composition mode requires its actual semantic contents",
+                                ));
+                            };
+                            if buffer.argument_index() != 0
+                                || buffer.access() != terminal_psi::StructuralAccess::Owned
+                                || buffer.structural_type() != expected.structural_type
+                            {
+                                return Err(refuse(
+                                    "Build composition observation differs from its checked formal",
+                                ));
+                            }
+                            let [value] = buffer.values() else {
+                                return Err(refuse(
+                                    "Build composition mode has unexpected payload contents",
+                                ));
+                            };
+                            if !value.path.is_empty() {
+                                return Err(refuse(
+                                    "Build composition mode has no root discriminator",
+                                ));
+                            }
+                            match value.contents {
+                                TerminalStorageContents::Case(case) if case == expected.fused => {
+                                    ProviderCompositionMode::Fused
+                                }
+                                TerminalStorageContents::Case(case)
+                                    if case == expected.independent =>
+                                {
+                                    ProviderCompositionMode::Independent
+                                }
+                                _ => {
+                                    return Err(refuse(
+                                        "Build composition mode is outside its checked case roster",
+                                    ));
+                                }
+                            }
+                        } else {
+                            if !structural_arguments.is_empty() || !storage_buffers.is_empty() {
+                                return Err(refuse(
+                                    "Build selection has unexpected structural operands",
+                                ));
+                            }
+                            ProviderCompositionMode::Fused
+                        };
+                        ExecutedBuildProductRequest::DeclarationSelection(
+                            ExecutedProductDeclarationSelection {
+                                request: request.clone(),
+                                author: call.author,
+                                composition,
+                            },
+                        )
+                    }
+                    _ => {
+                        return Err(refuse(
+                            "Build commit action differs from its source-issued request",
+                        ));
+                    }
                 };
-                if !structural_arguments.is_empty() {
-                    return Err(refuse(
-                        "authored root binding has unexpected structural operands",
-                    ));
-                }
                 state
                     .executed
                     .try_reserve(1)
                     .map_err(|_| refuse("cannot retain executed Build binding"))?;
                 state.pending[ticket] = None;
-                state.executed.push(ExecutedRootBinding {
-                    source_span: call.request.source_span,
-                    slot: call.request.slot.clone(),
-                    implementation: RootBindingSelection::AuthoredPath(path.clone()),
-                });
+                state.executed.push(executed);
                 Ok(TerminalEffectResult::Unit)
             }
         }

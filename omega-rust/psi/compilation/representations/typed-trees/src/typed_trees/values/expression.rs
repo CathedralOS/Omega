@@ -12,7 +12,7 @@ use crate::static_applications::{
     StaticMachineLifetimeBinding,
 };
 use arena::{Arena, Handle, HandleSpan};
-use language_semantics::declaration_selection::RootBindingRequest;
+use language_semantics::declaration_selection::BuildProductRequest;
 use numerics::literals::IntegerLiteral;
 use source::SourceSpan;
 use std::ops::Deref;
@@ -91,7 +91,7 @@ pub struct AtomicExpression {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpressionTable {
     expressions: Arena<ExpressionNode>,
-    root_binding_requests: Arena<RootBindingRequest>,
+    build_product_requests: Arena<BuildProductRequest>,
     /// Iteration-visible expressions of this program. Backing rows remain at
     /// their stable handles when a compilation projects a closed body roster.
     expression_roots: Arena<ExpressionHandle>,
@@ -363,7 +363,7 @@ impl ExpressionTable {
     pub fn revision(&self) -> u64 {
         self.expressions
             .revision()
-            .wrapping_add(self.root_binding_requests.revision())
+            .wrapping_add(self.build_product_requests.revision())
             .wrapping_add(self.expression_roots.revision())
             .wrapping_add(self.index_expression_authorities.revision())
             .wrapping_add(self.authored_selection_occurrence_ids.revision())
@@ -403,7 +403,7 @@ impl ExpressionTable {
     pub fn with_capacities(capacity: ExpressionTableCapacity) -> Self {
         Self {
             expressions: Arena::with_capacity(capacity.expressions),
-            root_binding_requests: Arena::default(),
+            build_product_requests: Arena::default(),
             expression_roots: Arena::with_capacity(capacity.expressions),
             source_spans: Vec::with_capacity(capacity.expressions),
             constructed_value_types: Arena::default(),
@@ -433,7 +433,7 @@ impl ExpressionTable {
 
     pub fn clear(&mut self) {
         self.expressions.reset_retain_capacity();
-        self.root_binding_requests.reset_retain_capacity();
+        self.build_product_requests.reset_retain_capacity();
         self.expression_roots.reset_retain_capacity();
         self.source_spans.clear();
         self.constructed_value_types.reset_retain_capacity();
@@ -683,20 +683,20 @@ impl ExpressionTable {
         self.source_spans[source_span_index(handle)]
     }
 
-    pub fn insert_root_binding_request(
+    pub fn insert_build_product_request(
         &mut self,
-        request: RootBindingRequest,
-    ) -> Handle<RootBindingRequest> {
-        self.root_binding_requests.insert(request)
+        request: BuildProductRequest,
+    ) -> Handle<BuildProductRequest> {
+        self.build_product_requests.insert(request)
     }
 
-    pub fn root_binding_request(
+    pub fn build_product_request(
         &self,
-        request: Handle<RootBindingRequest>,
-    ) -> Option<&RootBindingRequest> {
-        self.root_binding_requests
+        request: Handle<BuildProductRequest>,
+    ) -> Option<&BuildProductRequest> {
+        self.build_product_requests
             .is_valid(request)
-            .then(|| self.root_binding_requests.get(request))
+            .then(|| self.build_product_requests.get(request))
     }
 
     pub fn set_source_span(&mut self, handle: ExpressionHandle, source_span: SourceSpan) {
@@ -1548,7 +1548,7 @@ pub struct TableCallExpression {
     /// Source-issued selection carried by an ordinary Build boundary call.
     /// Zero denotes a call without designated product operands. The payload
     /// belongs to this expression table, not to an interpreter side channel.
-    pub root_binding: Handle<RootBindingRequest>,
+    pub build_product_request: Handle<BuildProductRequest>,
     /// Zero until specialization erases this call's authored static operands.
     pub authored_machine_application: StaticMachineApplicationHandle,
     /// An Exact carrier coercion elaborated to this conversion requirement.

@@ -71,7 +71,7 @@ pub(super) fn check_statement_borrows<'p>(
         if let Some(expression) = statement_node.as_expression()
             && let typed_trees::expression::ExpressionNode::Call(commit) =
                 program.expression_table.expression(*expression)
-            && commit.root_binding.is_valid()
+            && commit.build_product_request.is_valid()
             && let Some(preparation) = program
                 .expression_table
                 .expression_handles(commit.arguments)

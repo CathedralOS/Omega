@@ -11,7 +11,7 @@ pub use source_join::BuildDependencySelection;
 
 use build_time_evaluation::BuildTimeValue;
 use evaluation_accounting::EvaluationInvocationAccount;
-use language_semantics::declaration_selection::ExecutedRootBinding;
+use language_semantics::declaration_selection::ExecutedBuildProductRequest;
 use package_compilation::build_execution::build_value::{
     BuildValueAdmission, EvaluatedBuildSettings,
 };
@@ -42,7 +42,7 @@ pub struct ReturnedBuild {
     pub(crate) requests: Vec<IssuedBuildRequest>,
     pub(crate) settings: EvaluatedBuildSettings,
     pub(crate) optimization_report: optimization_core::OptimizationReportRequest,
-    pub(crate) root_bindings: Vec<ExecutedRootBinding>,
+    pub(crate) product_requests: Vec<ExecutedBuildProductRequest>,
     pub(crate) log: crate::terminal_requests::BuildLog,
     pub(crate) filesystem: Option<package_compilation::build_execution::BuildFilesystemEffects>,
 }
@@ -275,7 +275,7 @@ impl TerminalBuildActivation<'_, '_> {
             requests: self.requests,
             settings,
             optimization_report,
-            root_bindings: self.host.bindings.take_executed()?,
+            product_requests: self.host.bindings.take_executed()?,
             log: self.host.requests.take_log()?,
             filesystem: self.host.filesystem.take_effects()?,
         })

@@ -180,3 +180,87 @@ pub fn build_operation(
     (super::classify_expression_call_intrinsic(program, call) == Some(operation.intrinsic()))
         .then_some(operation)
 }
+
+/// Rejoin source provenance after the recording call became an ordinary host
+/// protocol call. The request classifies only its own original occurrences;
+/// unrelated argument calls and names keep their ordinary host authority.
+pub fn build_product_request_intrinsic(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    selection: &language_semantics::declaration_selection::AuthoredDeclarationSelection,
+) -> Result<Option<AuthoredDeclarationSelectionIntrinsic>, String> {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionKind as Kind, BuildProductOperand, BuildProductRequest,
+    };
+    let Some(call) = program.expression_table.call_node(expression) else {
+        return Ok(None);
+    };
+    let Some(BuildProductRequest::DeclarationSelection(request)) = program
+        .expression_table
+        .build_product_request(call.build_product_request)
+    else {
+        return Ok(None);
+    };
+    request.validate_shape().map_err(str::to_owned)?;
+    // The source issuer selects an exact compiler-owned requirement. Annotation
+    // alone cannot turn a user machine into an admitted recording operation.
+    let owner = program
+        .traits()
+        .iter()
+        .find(|owner| {
+            owner.is_boundary
+                && owner.name.as_str() == "BuildProductOperations"
+                && program.symbols.is_build_prelude_symbol(owner.symbol)
+                && program
+                    .trait_machine_signatures(owner)
+                    .iter()
+                    .any(|signature| {
+                        signature.symbol == call.target_symbol
+                            && matches!(
+                                signature.name.as_str(),
+                                "prepare" | "select" | "select_mode"
+                            )
+                    })
+        })
+        .ok_or("Build product request has no exact compiler-owned recording operation")?;
+    let _ = owner;
+    if selection.kind() == Kind::Call && selection.source_span() == request.source_span {
+        return Ok(Some(request.operation.intrinsic()));
+    }
+    if !matches!(selection.kind(), Kind::StaticArgument | Kind::Conformance) {
+        return Ok(None);
+    }
+    let Some(position) = selection.top_level_static_argument_position() else {
+        return Ok(None);
+    };
+    let operand = request
+        .operands
+        .get(position)
+        .ok_or("Build product operand occurrence is outside its request")?;
+    let role = request
+        .operation
+        .product_operand_role(position)
+        .ok_or("Build product operand has no declared role")?;
+    match operand {
+        BuildProductOperand::Declaration(locator) => {
+            if locator.source_span != selection.source_span() {
+                return Err("Build product operand lost its exact authored occurrence".into());
+            }
+            Ok(Some(
+                AuthoredDeclarationSelectionIntrinsic::BuildProductOperand {
+                    operation: request.operation,
+                    position,
+                    role,
+                },
+            ))
+        }
+        BuildProductOperand::WireFact { source_span, fact } => {
+            if *source_span != selection.source_span() {
+                return Err("Build wire fact lost its exact authored occurrence".into());
+            }
+            Ok(Some(
+                AuthoredDeclarationSelectionIntrinsic::WireCompatibilityFact(*fact),
+            ))
+        }
+    }
+}

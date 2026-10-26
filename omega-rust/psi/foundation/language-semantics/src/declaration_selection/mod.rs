@@ -2,9 +2,15 @@ use source::SourceSpan;
 use symbols::SymbolHandle;
 
 mod product;
+mod product_requests;
 pub use product::{
     DescribedProductEntry, DescribedProductProvider, DescribedProductSchema, ExecutedRootBinding,
     RootBindingOperand, RootBindingRequest, RootBindingSelection,
+};
+pub use product_requests::{
+    BuildProductOperand, BuildProductRequest, ExecutedBuildProductRequest,
+    ExecutedProductDeclarationSelection, ProductDeclarationLocator,
+    ProductDeclarationSelectionRequest, ProductOperandRole, ProviderCompositionMode,
 };
 
 /// Whether an authored declaration selection contributes only to an
@@ -332,6 +338,13 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     ByteSequencePredicate(crate::byte_predicates::ByteSequencePredicate),
     /// Runtime storage referent exposure; carries no retained loan or access authority.
     StorageAddress,
+    /// An inert Product locator of one source-issued Build recording request.
+    /// It grants no host nameability; the Product join must resolve this exact role.
+    BuildProductOperand {
+        operation: BuildOperation,
+        position: usize,
+        role: ProductOperandRole,
+    },
     BuildProviderSelection,
     /// `Build::assume_binding_contract<Required::operation, Supplied::operation>(b)`:
     /// the consuming root's runtime-only authorization of one boundary

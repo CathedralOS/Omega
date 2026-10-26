@@ -360,6 +360,23 @@ fn expression_occurrence_violation(
                 message,
                 source_span: Some(selection.source_span()),
             };
+            match validation::compiler_operations::build_product_request_intrinsic(
+                input, expression, selection,
+            ) {
+                Ok(Some(expected)) => {
+                    if selection.target()
+                        != typed_trees::AuthoredDeclarationSelectionTarget::Intrinsic(expected)
+                    {
+                        return Some(located(
+                            "Build request occurrence differs from its source-issued inert meaning"
+                                .to_owned(),
+                        ));
+                    }
+                    continue;
+                }
+                Ok(None) => {}
+                Err(reason) => return Some(located(reason)),
+            }
             // Product references are operands of one exact Build operation,
             // not host generic arguments. Keep every authored occurrence, but
             // establish its lexical product authority without consulting the

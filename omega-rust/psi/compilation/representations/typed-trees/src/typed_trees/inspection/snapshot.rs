@@ -179,6 +179,14 @@ fn authored_declaration_selection_intrinsic_name(
         Intrinsic::ByteSequencePredicate(predicate) => {
             ("byte_sequence_predicate", Some(format!("{predicate:?}")))
         }
+        Intrinsic::BuildProductOperand {
+            operation,
+            position,
+            role,
+        } => (
+            "build_product_operand",
+            Some(format!("{operation:?}:{position}:{role:?}")),
+        ),
         Intrinsic::BuildProviderSelection => ("build_provider_selection", None),
         Intrinsic::BuildAssumedBindingContract => ("build_assumed_binding_contract", None),
         Intrinsic::BuildRepresentationSelection => ("build_representation_selection", None),

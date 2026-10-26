@@ -209,60 +209,31 @@ fn provider_selection_expression_source_span(
         )
 }
 
-fn collect_provider_selections<'a>(
+/// Exact resolved inputs shared by static defaults and the executed Product
+/// request join. No Build expression handle survives into this decoder.
+pub struct ResolvedProviderSelectionOperands {
+    pub subject: ProviderSelectionIdentity,
+    pub provider: ProviderSelectionIdentity,
+    pub composition: CompositionMode,
+    pub selecting_machine: SymbolHandle,
+    pub source_span: source::SourceSpan,
+}
+
+pub fn collect_resolved_provider_selections(
     context: ProviderPlanningContext<'_>,
-    requests: impl IntoIterator<Item = ProviderSelectionCall<'a>>,
+    requests: impl IntoIterator<Item = ResolvedProviderSelectionOperands>,
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
     let typed = context.typed;
     let mut selections: Vec<ProviderSelection> = Vec::new();
     let mut diagnostics = Vec::new();
-    let mut record = |request: ProviderSelectionCall<'_>| {
-        let ProviderSelectionCall {
-            target,
-            arguments,
-            value_arguments,
+    let mut record = |request: ResolvedProviderSelectionOperands| {
+        let ResolvedProviderSelectionOperands {
+            subject: boundary_identity,
+            provider: provider_type,
+            composition: composition_mode,
+            selecting_machine: machine,
             source_span,
-            machine,
-            composition_case,
-            product_operands,
         } = request;
-        if target != "select_provider" {
-            return;
-        }
-        let [boundary_argument, provider_argument] = arguments else {
-            diagnostics.push(Diagnostic::error(
-                "provider selection must retain exactly two resolved type paths",
-            ));
-            return;
-        };
-        let project_identity =
-            |argument: &checked_trees::typed_trees::expression::StaticMachineArgument,
-             is_provider: bool| {
-                let authored_path = argument.path.joined_path();
-                let symbol = if product_operands {
-                    checked_trees::typed_trees::product_operand::resolve_product_operand(
-                        typed,
-                        argument,
-                        source_span,
-                        if is_provider {
-                            typed_trees::product_operand::ProductOperandKind::Provider
-                        } else {
-                            typed_trees::product_operand::ProductOperandKind::BoundarySubject
-                        },
-                    )
-                    .unwrap_or_else(SymbolHandle::invalid)
-                } else {
-                    argument.symbol
-                };
-                ProviderSelectionIdentity {
-                    symbol,
-                    package: typed.symbols.symbol_package_identity(symbol),
-                    canonical_path: typed.symbols.display_path(symbol, "::"),
-                    authored_path,
-                }
-            };
-        let boundary_identity = project_identity(boundary_argument, false);
-        let provider_type = project_identity(provider_argument, true);
         if !context.contains(boundary_identity.symbol) || !context.contains(provider_type.symbol) {
             diagnostics.push(Diagnostic::error(format!(
                 "provider selection subject or provider is outside the {:?} planning context",
@@ -270,16 +241,6 @@ fn collect_provider_selections<'a>(
             )));
             return;
         }
-        let composition_mode = match composition_case.map_or_else(
-            || provider_selection_composition_mode(typed, value_arguments),
-            |case| provider_composition_case(typed, case),
-        ) {
-            Ok(mode) => mode,
-            Err(diagnostic) => {
-                diagnostics.push(diagnostic);
-                return;
-            }
-        };
         let subject = if boundary_identity.symbol.is_valid()
             && typed.symbols.get(boundary_identity.symbol).kind == SymbolKind::Trait
             && typed.traits().iter().any(|definition| {
@@ -390,6 +351,88 @@ fn collect_provider_selections<'a>(
     }
     if diagnostics.is_empty() {
         Ok(selections)
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn collect_provider_selections<'a>(
+    context: ProviderPlanningContext<'_>,
+    requests: impl IntoIterator<Item = ProviderSelectionCall<'a>>,
+) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+    let typed = context.typed;
+    let mut resolved = Vec::new();
+    let mut diagnostics = Vec::new();
+    let mut record = |request: ProviderSelectionCall<'_>| {
+        let ProviderSelectionCall {
+            target,
+            arguments,
+            value_arguments,
+            source_span,
+            machine,
+            composition_case,
+            product_operands,
+        } = request;
+        if target != "select_provider" {
+            return;
+        }
+        let [boundary_argument, provider_argument] = arguments else {
+            diagnostics.push(Diagnostic::error(
+                "provider selection must retain exactly two resolved type paths",
+            ));
+            return;
+        };
+        let project_identity =
+            |argument: &checked_trees::typed_trees::expression::StaticMachineArgument,
+             is_provider: bool| {
+                let authored_path = argument.path.joined_path();
+                let symbol = if product_operands {
+                    checked_trees::typed_trees::product_operand::resolve_product_operand(
+                        typed,
+                        argument,
+                        source_span,
+                        if is_provider {
+                            typed_trees::product_operand::ProductOperandKind::Provider
+                        } else {
+                            typed_trees::product_operand::ProductOperandKind::BoundarySubject
+                        },
+                    )
+                    .unwrap_or_else(SymbolHandle::invalid)
+                } else {
+                    argument.symbol
+                };
+                ProviderSelectionIdentity {
+                    symbol,
+                    package: typed.symbols.symbol_package_identity(symbol),
+                    canonical_path: typed.symbols.display_path(symbol, "::"),
+                    authored_path,
+                }
+            };
+        let boundary_identity = project_identity(boundary_argument, false);
+        let provider_type = project_identity(provider_argument, true);
+        let composition = match composition_case.map_or_else(
+            || provider_selection_composition_mode(typed, value_arguments),
+            |case| provider_composition_case(typed, case),
+        ) {
+            Ok(mode) => mode,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                return;
+            }
+        };
+        resolved.push(ResolvedProviderSelectionOperands {
+            subject: boundary_identity,
+            provider: provider_type,
+            composition,
+            selecting_machine: machine,
+            source_span,
+        });
+    };
+    for request in requests {
+        record(request);
+    }
+    if diagnostics.is_empty() {
+        collect_resolved_provider_selections(context, resolved)
     } else {
         Err(diagnostics)
     }

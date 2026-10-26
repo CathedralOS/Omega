@@ -81,6 +81,9 @@
 //! `provider-planning` realization owner. This crate selects Build helpers for
 //! the admitted execution target before ordinary Psi resolution.
 
+mod product_selections;
+pub use product_selections::apply_product_requests;
+
 mod admission;
 mod admitted_build_program;
 mod build_evaluation;
