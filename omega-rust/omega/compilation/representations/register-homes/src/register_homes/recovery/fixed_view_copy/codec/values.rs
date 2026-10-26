@@ -8,7 +8,7 @@ use semantic_vocabulary::{
 use crate::FixedViewCopyDecodeError;
 use selected_instructions::{LiveRangePoint, LivenessPosition, VirtualFixedConstraintSite};
 
-use super::primitives::{Cursor, decode_id, length};
+use super::primitives::{Cursor, decode_id};
 
 pub(super) fn decode_definition_site(
     cursor: &mut Cursor<'_>,
@@ -64,17 +64,7 @@ pub(super) fn decode_fixed_site(
 }
 
 pub(super) fn encode_target(bytes: &mut Vec<u8>, target: target::NativeTarget) {
-    bytes.push(match target.architecture {
-        target::Architecture::X86_64 => 0,
-        target::Architecture::Aarch64 => 1,
-    });
-    bytes.push(match target.object_format {
-        target::ObjectFormat::Elf => 0,
-        target::ObjectFormat::MachO => 1,
-        target::ObjectFormat::Coff => 2,
-    });
-    length(bytes, target.pointer_size);
-    length(bytes, target.pointer_alignment);
+    crate::codec_bytes::encode_target(bytes, target);
 }
 
 pub(super) fn decode_target(
