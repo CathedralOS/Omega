@@ -39,6 +39,19 @@ pub struct PackageBuildInvocation {
     source: super::checking::PreparedPackageInvocation,
 }
 
+/// Settled Build effects and captured source, before Product preparation.
+/// Independent Product admissions borrow this output; none can replay Build or
+/// replace its source graph, execution inputs, output bytes or observations.
+pub struct CompletedBuild {
+    source: compilation_products::SettledPackageBuild,
+}
+
+impl CompletedBuild {
+    pub fn package_inputs(&self) -> &package_compilation::PackageCompilationInputs {
+        &self.source.inputs
+    }
+}
+
 impl PackageBuildInvocation {
     /// Join the final Product target and package custody after Build declares
     /// its identity. Completion compares the original acquired capture and
@@ -111,6 +124,39 @@ pub struct PreparedPackageProduct {
 }
 
 impl CompilationSession {
+    /// Consume the exact activation return and settle all source/output duties.
+    /// Authored Product source remains deferred; later admissions are separate
+    /// judgments even when default Build already prepared a source prefix.
+    pub fn settle_package_build(
+        &mut self,
+        invocation: PackageBuildInvocation,
+        returned: Option<build_evaluation::ReturnedBuild>,
+    ) -> Result<CompletedBuild, CompileFailure> {
+        super::run_on_compile_thread(|| {
+            self.settle_build(invocation.source, returned)
+                .map(|source| CompletedBuild { source })
+        })
+    }
+
+    /// Prepare one Product context from settled Build output, without effects.
+    /// Source-routing and semantic admissions are checked in this context rather
+    /// than copied from a sibling Product judgment.
+    pub fn prepare_package_product(
+        &mut self,
+        completed: &mut CompletedBuild,
+        target: target::TargetProfile,
+        inputs: package_compilation::PackageCompilationInputs,
+    ) -> Result<PackageBuild, CompileFailure> {
+        super::run_on_compile_thread(|| {
+            super::checking::prepare_settled_package_product(
+                completed.source.fork(),
+                target,
+                inputs,
+            )
+            .map(|source| PackageBuild { source })
+        })
+    }
+
     /// Admit an occurrence without executing Build or loading Product imports.
     /// An acquired unbound capture needs no provisional package identity. Its
     /// final package custody must join before completion prepares Product.

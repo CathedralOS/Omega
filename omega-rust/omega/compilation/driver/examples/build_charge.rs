@@ -53,6 +53,8 @@ fn main() {
     application_source_resolution("executed_dependency_shared_source_exit", false);
     project_session_lifecycle();
     completed_build_target_fanout();
+    settled_build_product_contexts();
+    settled_default_build_contexts();
     interleaved_build_invocations();
     terminal_build_filesystem();
     anonymous_generator_source_scope();
@@ -1734,6 +1736,208 @@ fn completed_build_target_fanout() {
     session.close().unwrap();
     println!(
         "one_returned_build_one_product_source_two_portable_targets_host_native_terminal_exit0_and_isolated_target_refusal"
+    );
+}
+
+fn settled_build_product_contexts() {
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "settled-product-contexts",
+        false,
+    )
+    .unwrap();
+    let repository = fixture_package_inputs::repo_root();
+    let fixture = repository.join("tests/omega/pass/build/project_session_shared_budget_exit");
+    let project = temporary.path().join("project");
+    std::fs::create_dir(&project).unwrap();
+    std::fs::copy(fixture.join("main.omg"), project.join("main.omg")).unwrap();
+    let authored = std::fs::read_to_string(fixture.join("build.omg")).unwrap();
+    let dependency = format!(
+        "Build::depend_as(builder, \"std\", Source::Path {{ location: {:?} }});",
+        repository.join("source/library/std").to_str().unwrap(),
+    );
+    std::fs::write(project.join("build.omg"), authored.replace(
+        "Build::application(builder, \"project_session_shared_budget_exit\");",
+        &format!("Build::application(builder, \"project_session_shared_budget_exit\");\n    {dependency}"),
+    )).unwrap();
+    let host = target::TargetProfile::host_if_supported().unwrap();
+    let preparation = package_manager::operations::begin_local_project_preparation(
+        &project.join("main.omg"),
+        &[host],
+        true,
+    )
+    .unwrap()
+    .unwrap();
+    let mut session = omega_build::BuildSession::create(&temporary.path().join("session")).unwrap();
+    let sponsor = session.resources().evaluation_sponsor().clone();
+    let before = counters::build_execution_count();
+    let completions = counters::product_source_completion_count();
+    let mut resolved = omega_build::resolve_project_sources(
+        &mut session,
+        omega_build::ProjectSourceRequest {
+            preparation,
+            execution_profile: host,
+            snapshot: None,
+        },
+    )
+    .unwrap();
+    assert_eq!(resolved.builds.len(), 2);
+    let child = resolved.builds.pop().unwrap();
+    let child_inputs = child.package_inputs().clone();
+    let child = child
+        .complete(session.compiler(), host, child_inputs)
+        .unwrap();
+    let root = resolved.builds.pop().unwrap();
+    let inputs = root
+        .package_inputs()
+        .clone()
+        .with_complete_dependency_generated_sources(vec![child.generated_source_bundle().clone()])
+        .unwrap();
+    let mut settled = root
+        .settle(session.compiler(), host, inputs.clone())
+        .unwrap();
+    assert_eq!(counters::product_source_completion_count(), completions);
+    let fuel = sponsor.consumed_fuel_units();
+    for name in ["main.omg", "build.omg"] {
+        std::fs::remove_file(project.join(name)).unwrap();
+    }
+    let (standard_library, standard_library_root) = inputs
+        .packages()
+        .find(|(identity, _)| inputs.package_name(*identity) == Some("omega_language_std"))
+        .unwrap();
+    let candidate = fixture_package_inputs::candidate_program_entry_binding(
+        host.target_name(),
+        standard_library_root,
+        standard_library,
+    )
+    .unwrap()
+    .unwrap();
+    let accepted = inputs
+        .clone()
+        .with_accepted_semantic_bindings(vec![candidate])
+        .unwrap();
+    let reviewed = accepted.clone().with_semantic_role_discovery(true);
+    assert_ne!(reviewed, accepted);
+    assert_eq!(reviewed.source_inputs(), accepted.source_inputs());
+    let review = session
+        .compiler()
+        .prepare_package_product(&mut settled, host, reviewed)
+        .unwrap();
+    session.compiler().check_package_build(review).unwrap();
+    let product = session
+        .compiler()
+        .prepare_package_product(&mut settled, host, accepted)
+        .unwrap();
+    execute_joined_product(
+        session.compiler(),
+        product,
+        &temporary.path().join("native"),
+    )
+    .unwrap();
+    let unaccepted = session
+        .compiler()
+        .prepare_package_product(&mut settled, host, inputs.clone())
+        .unwrap();
+    let failure = session
+        .compiler()
+        .check_package_build(unaccepted)
+        .err()
+        .expect("an accepted sibling cannot grant this Product entry acceptance");
+    assert!(failure.into_diagnostics().iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("needs an accepted program-entry binding")
+    }));
+    let mut changed_request = inputs.dependency_acquisitions().to_vec();
+    let build_declarations::BuildRequest::Dependency {
+        source: build_declarations::BuildDependencySource::Path(location),
+        ..
+    } = &mut changed_request[0].request
+    else {
+        panic!("this fixture selects the standard library by Path");
+    };
+    *location = "../different_source_with_the_same_alias".into();
+    let foreign = inputs
+        .clone()
+        .with_dependency_acquisitions(changed_request)
+        .unwrap();
+    let failure = session
+        .compiler()
+        .prepare_package_product(&mut settled, host, foreign)
+        .err()
+        .expect("a new Product context cannot replace executed request custody");
+    assert!(failure.into_diagnostics().iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot replace its settled Build source graph")
+    }));
+    assert_eq!(counters::build_execution_count(), before + 2);
+    assert_eq!(
+        sponsor.consumed_fuel_units(),
+        fuel,
+        "Product cannot replay Build"
+    );
+    assert_eq!(settled.package_inputs(), &inputs);
+    session.close().unwrap();
+    println!(
+        "one_settled_build_review_and_accepted_product_contexts_native_terminal_exit0_source_substitution_refused"
+    );
+}
+
+fn settled_default_build_contexts() {
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "settled-default-build",
+        false,
+    )
+    .unwrap();
+    std::fs::write(temporary.path().join("main.omg"), "machine main() {}\n").unwrap();
+    let acquired = package_manager::resolution::source::AcquiredBuildSource::capture_local(
+        temporary.path(),
+        package_source::LocalSourceLimits::default(),
+        package_source::ExternalSourceContext::derive(b"settled-default-build-sdk"),
+    )
+    .unwrap();
+    let capture = acquired.source_capture();
+    let root = capture.canonical_live_root().join("main.omg");
+    let identity = fixture_package_inputs::fixture_package_identity(85);
+    let binding = package_compilation::PackageSourceBinding::new(
+        identity,
+        "settled_default_build",
+        capture.canonical_live_root().to_path_buf(),
+    )
+    .with_captured_source(capture.tree().clone())
+    .unwrap();
+    let inputs = package_compilation::PackageCompilationInputs::new(
+        identity,
+        build_declarations::BuildDeclarationKind::Application,
+        vec![binding],
+        Vec::new(),
+    )
+    .unwrap();
+    let host = target::TargetProfile::host_if_supported().unwrap();
+    let mut session = CompilationSession::default();
+    let before = counters::build_execution_count();
+    let mut invocation = session
+        .begin_package_build(CheckedCompileRequest {
+            package_inputs: Some(inputs.clone()),
+            ..CheckedCompileRequest::new(&root, Some(host.target_name()))
+        })
+        .unwrap();
+    let returned = return_build(&mut invocation);
+    let mut settled = session.settle_package_build(invocation, returned).unwrap();
+    std::fs::remove_file(&root).unwrap();
+    for purpose in [
+        build_declarations::DependencyPurpose::Build,
+        build_declarations::DependencyPurpose::Product,
+    ] {
+        let selected = inputs.clone().with_compilation_purpose(purpose).unwrap();
+        let product = session
+            .prepare_package_product(&mut settled, host, selected)
+            .unwrap();
+        session.check_package_build(product).unwrap();
+    }
+    assert_eq!(counters::build_execution_count(), before);
+    println!(
+        "settled_default_build_reprepares_distinct_purposes_from_retained_parsing_without_live_source"
     );
 }
 
