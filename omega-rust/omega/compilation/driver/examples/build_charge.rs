@@ -253,8 +253,7 @@ fn source_discovery_root_inputs() {
 
     // Absence cannot fall back to the root's same-named input.txt or acquire
     // an ambient host path for the slot.
-    let mut session =
-        package_manager::PackageBuildSession::create(&temporary.path().join("absent")).unwrap();
+    let mut session = omega_build::BuildSession::create(&temporary.path().join("absent")).unwrap();
     let error = omega_build::resolve_project_sources(
         &mut session,
         omega_build::ProjectSourceRequest {
@@ -278,7 +277,7 @@ fn source_discovery_root_inputs() {
     session.close().unwrap();
 
     let mut session =
-        package_manager::PackageBuildSession::create(&temporary.path().join("assigned")).unwrap();
+        omega_build::BuildSession::create(&temporary.path().join("assigned")).unwrap();
     let before = counters::build_execution_count();
     let mut resolved = omega_build::resolve_project_sources(
         &mut session,
@@ -317,7 +316,7 @@ fn source_discovery_root_inputs() {
     session.close().unwrap();
 
     let mut session =
-        package_manager::PackageBuildSession::create(&temporary.path().join("required")).unwrap();
+        omega_build::BuildSession::create(&temporary.path().join("required")).unwrap();
     let mut resolved = omega_build::resolve_project_sources(
         &mut session,
         omega_build::ProjectSourceRequest {
@@ -379,9 +378,9 @@ fn anonymous_generator_source_scope() {
         .expect("acquire anonymous source");
     let capture = acquired.source_capture().clone();
     let entry = preparation.entry_path();
-    let mut session =
-        package_manager::PackageBuildSession::create(&temporary.path().join("session")).unwrap();
+    let mut session = omega_build::BuildSession::create(&temporary.path().join("session")).unwrap();
     let request = session
+        .resources()
         .source_build_request(
             acquired.source_capture(),
             &preparation.entry_path(),
@@ -452,6 +451,7 @@ fn anonymous_generator_source_scope() {
     )
     .unwrap();
     let mut scoped = session
+        .resources()
         .source_build_request(&capture, &entry, profile)
         .unwrap();
     scoped.build.snapshot = Some(package_compilation::BuildSnapshotRequest::scoped(
@@ -508,6 +508,7 @@ fn anonymous_generator_source_scope() {
     )
     .unwrap();
     let mut omitted = session
+        .resources()
         .source_build_request(&capture, &entry, profile)
         .unwrap();
     omitted.build.snapshot = Some(package_compilation::BuildSnapshotRequest::scoped(
@@ -542,6 +543,7 @@ fn anonymous_generator_source_scope() {
     )
     .unwrap();
     let mut omitted = session
+        .resources()
         .source_build_request(&capture, &entry, profile)
         .unwrap();
     omitted.build.snapshot = Some(package_compilation::BuildSnapshotRequest::scoped(
@@ -563,6 +565,7 @@ fn anonymous_generator_source_scope() {
     assert_eq!(counters::build_execution_count(), before_refusal);
 
     let mut missing_output = session
+        .resources()
         .source_build_request(&capture, &entry, profile)
         .unwrap();
     missing_output.build.snapshot = Some(package_compilation::BuildSnapshotRequest::new([
@@ -604,8 +607,7 @@ fn anonymous_generator_source_scope() {
             .unwrap()
             .unwrap();
     let mut session =
-        package_manager::PackageBuildSession::create(&temporary.path().join("application-session"))
-            .unwrap();
+        omega_build::BuildSession::create(&temporary.path().join("application-session")).unwrap();
     let before = counters::build_execution_count();
     let mut resolved = omega_build::resolve_project_sources(
         &mut session,
@@ -1151,10 +1153,9 @@ fn application_source_resolution(project: &str, private_call: bool) {
     )
     .unwrap()
     .unwrap();
-    let mut session =
-        package_manager::PackageBuildSession::create(&temporary.path().join("session"))
-            .expect("one project resource owner");
-    let sponsor = session.evaluation_sponsor().clone();
+    let mut session = omega_build::BuildSession::create(&temporary.path().join("session"))
+        .expect("one project resource owner");
+    let sponsor = session.resources().evaluation_sponsor().clone();
     let before = counters::build_execution_count();
     let resolved = omega_build::resolve_project_sources(
         &mut session,
@@ -1255,7 +1256,7 @@ fn application_source_resolution(project: &str, private_call: bool) {
             timings: false,
             product: compiler::CompilationProduct::Check,
         },
-        &mut session,
+        session.resources(),
     );
     assert_eq!(
         admitted.requests.len(),
@@ -1528,9 +1529,8 @@ fn project_session_lifecycle() {
             .unwrap()
             .unwrap()
     };
-    let mut session =
-        package_manager::PackageBuildSession::create(&temporary.path().join("limited")).unwrap();
-    let sponsor = session.evaluation_sponsor().clone();
+    let mut session = omega_build::BuildSession::create(&temporary.path().join("limited")).unwrap();
+    let sponsor = session.resources().evaluation_sponsor().clone();
     // Model earlier work spending the invocation's entire result allowance.
     // Source discovery must use this same sponsor and refuse its own result.
     let maximum = sponsor.limits().maximum_result_storage_cells();
@@ -1610,8 +1610,7 @@ fn completed_build_target_fanout() {
     )
     .unwrap()
     .unwrap();
-    let mut session =
-        package_manager::PackageBuildSession::create(&temporary.path().join("session")).unwrap();
+    let mut session = omega_build::BuildSession::create(&temporary.path().join("session")).unwrap();
     let before = counters::build_execution_count();
     let mut resolved = omega_build::resolve_project_sources(
         &mut session,

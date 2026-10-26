@@ -165,12 +165,14 @@ struct ReviewPackage<'pass> {
 
 /// One complete dependency execution service supplied by application Build.
 /// Package management selects policy passes; it does not assemble compiler stages.
-pub type PackageReviewExecutor =
-    for<'pass> fn(
+/// The borrowed executor retains application state across passes without moving
+/// a compiler into package-owned resource accounting.
+pub type PackageReviewExecutor<'execution> = dyn for<'pass> FnMut(
         PackageReviewPass<'pass>,
         &mut PackageBuildSession,
         &mut PackageSourceBindings,
-    ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError>;
+    ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError>
+    + 'execution;
 
 impl<'pass> PackageReviewPass<'pass> {
     #[allow(clippy::too_many_arguments)]

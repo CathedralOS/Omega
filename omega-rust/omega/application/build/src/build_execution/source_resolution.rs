@@ -5,10 +5,10 @@
 //! final source join. That work remains available to Product admission/review
 //! rather than requiring Build replay. No source IR crosses this boundary.
 
+use crate::BuildSession;
 use crate::build_execution::{ReturnedPackageBuild, execute_returned_build};
 use compiler::{CompilationSession, CompileFailure, PackageBuild};
 use package_compilation::PackageCompilationInputs;
-use package_manager::PackageBuildSession;
 use package_manager::operations::{
     LocalProjectPreparation, PrepareLocalProjectError, PreparedLocalProject,
 };
@@ -76,7 +76,7 @@ impl ResolvedPackageBuild {
 /// Named Git/workspace selection still requires executed workspace declarations;
 /// it never falls back to static declaration projection here.
 pub fn resolve_project_sources(
-    session: &mut PackageBuildSession,
+    session: &mut BuildSession,
     request: ProjectSourceRequest,
 ) -> Result<ResolvedProjectBuilds, ProjectSourceResolutionError> {
     use ProjectSourceResolutionError::{Compilation, Preparation, Resources, Source};
@@ -89,6 +89,7 @@ pub fn resolve_project_sources(
     let mut acquisitions = preparation.source_acquisitions().map_err(Preparation)?;
     let acquired = preparation.acquire_root().map_err(Preparation)?;
     let mut request = session
+        .packages
         .source_build_request(
             acquired.source_capture(),
             &preparation.entry_path(),
@@ -96,7 +97,7 @@ pub fn resolve_project_sources(
         )
         .map_err(Resources)?;
     request.build.snapshot = snapshot;
-    let root = execute_returned_build(session.compiler(), request).map_err(Compilation)?;
+    let root = execute_returned_build(&mut session.compiler, request).map_err(Compilation)?;
     let declared = acquired
         .declare_build(normal_return(&root)?)
         .map_err(Source)?;
@@ -116,10 +117,11 @@ pub fn resolve_project_sources(
                 };
                 let capture = acquired.source_capture();
                 let request = session
+                    .packages
                     .source_build_request(capture, &acquired.entry_path(), execution_profile)
                     .map_err(Resources)?;
                 let build =
-                    execute_returned_build(session.compiler(), request).map_err(Compilation)?;
+                    execute_returned_build(&mut session.compiler, request).map_err(Compilation)?;
                 let (identity, next) = acquired.complete(normal_return(&build)?).map_err(Source)?;
                 pending.push((identity, build));
                 resolution = next;

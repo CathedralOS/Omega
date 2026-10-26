@@ -5,7 +5,7 @@ fn package_audit_owns_session_and_target_execution_in_build() {
     let mut application = include_str!("package_inspection.rs");
     for operation in [
         "PackageInspectionTransaction::open(options)",
-        "PackageBuildSession::create(",
+        "BuildSession::create(",
         "transaction.prepare(None)",
         "for target in inspection.targets().to_vec()",
         "inspection.review_target(",
@@ -88,7 +88,7 @@ fn package_commands_schedule_work_outside_package_policy() {
         "transaction.prepare(command, None)",
         "for request in prepared.review_requests()",
         "request.review(",
-        "prepared.complete(reviews, session)",
+        "prepared.complete(reviews, &mut session.packages)",
     ] {
         let position = execution
             .find(operation)
@@ -103,7 +103,7 @@ fn package_commands_schedule_work_outside_package_policy() {
         );
     }
     let cli = include_str!("../../cli/src/cli/packages/mod.rs");
-    assert!(cli.contains("use omega_build::execute_package_command;"));
+    assert!(cli.contains("use omega_build::{BuildSession, execute_package_command};"));
 }
 
 #[test]
@@ -184,15 +184,34 @@ fn ordinary_package_operations_admit_instead_of_execute() {
     }
     let execution = include_str!("project_compilation.rs");
     let admit = execution
-        .find("admit_project_compilation(request, &mut session)")
+        .find("admit_project_compilation(request, &mut session.packages)")
         .unwrap();
     let compile = execution
-        .find("crate::compile_packages(session.compiler(), admitted.requests)")
+        .find("crate::compile_packages(&mut session.compiler, admitted.requests)")
         .unwrap();
     let reconcile = execution
-        .find("admitted.completion.complete(products, session)")
+        .find("admitted.completion.complete(products, session.packages)")
         .unwrap();
     assert!(admit < compile && compile < reconcile);
+}
+
+#[test]
+fn application_owns_the_compiler_separately_from_package_resources() {
+    let resources = include_str!("../../../packages/package-manager/src/build_session.rs");
+    assert!(!resources.contains("CompilationSession"));
+    assert!(!resources.contains("fn compiler("));
+    let owner = include_str!("build_session.rs");
+    assert!(owner.contains("compiler: CompilationSession"));
+    assert!(owner.contains("packages: PackageBuildSession"));
+    for entrance in [
+        include_str!("package_commands.rs"),
+        include_str!("package_inspection.rs"),
+        include_str!("project_compilation.rs"),
+        include_str!("build_execution/source_resolution.rs"),
+    ] {
+        assert!(entrance.contains("BuildSession"));
+        assert!(!entrance.contains("CompilationSession::default()"));
+    }
 }
 
 #[test]
