@@ -599,6 +599,18 @@ fail/borrow/bounded_reference_store_preserves_range rejected 3655ms expected @a9
 	cannot prove ensures contract for exit from reset at statement 1: position <= 1
 fail/borrow/captured_selector_result_retires_written_bound rejected 2815ms expected @a92f16431042
 	cannot prove index `chosen` is within length 4 in main::entry
+fail/borrow/captured_window_replacement_loan_keeps_loan rejected 1430ms expected @fe4789a121e2
+	statement 6 mutates `replacement[0].value` while local borrow `windows` is still active (borrowed at statement 5; its last use is at statement 7)
+fail/borrow/captured_window_sibling_loan_keeps_loan rejected 1315ms expected @fe4789a121e2
+	statement 6 mutates `neighbor[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 7)
+fail/borrow/captured_window_unknown_slot_keeps_loan rejected 1354ms expected @fe4789a121e2
+	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/borrow/captured_window_write_through_keeps_loan rejected 1280ms expected @fe4789a121e2
+	statement 3 mutates `original.value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 4)
+fail/borrow/captured_window_wrong_slot_keeps_loan rejected 1207ms expected @fe4789a121e2
+	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/borrow/exposed_selector_retires_entry_bound rejected 2582ms expected @a92f16431042
 	cannot prove index `other` is within length 4 in main::entry
 fail/borrow/lifetime_argument_arity rejected 1744ms expected @a92f16431042
@@ -865,10 +877,9 @@ fail/borrows/callable_shared_candidate_cannot_supply_mutable_result rejected 740
 	machine `choose` returns a view whose access cannot be supplied by matching input `first`
 fail/borrows/captured_reference_membership_ignores_later_selector rejected 1906ms expected @a92f16431042
 	cannot prove requires contract for call consume from stale: held.value in u64::Positive in state `entry`
-fail/borrows/captured_window_write_invalidates_backing rejected 5220ms expected @a92f16431042
+fail/borrows/captured_window_write_invalidates_backing rejected 1008ms expected @fe4789a121e2
 	cannot prove default-domain field requirement for return from corrupt at statement 2: rows[0][1] requires u64::Positive
 	cannot prove default-domain field requirement for return from corrupt at statement 2: rows[1][1] requires u64::Positive
-	cannot prove index `0` is within unknown slice length of `window` in corrupt::entry
 fail/borrows/case_descriptor_scalar_sibling_keeps_live_loan rejected 7221ms expected @a92f16431042
 	statement 2 mutates `storage[0]` while local borrow `packet` is still active (borrowed at statement 0; its last use is at statement 3)
 fail/borrows/case_payload_borrowed_affine_copy rejected 8012ms expected @a92f16431042
@@ -4902,6 +4913,39 @@ fail/facts/callee_saved_across_nested_calls_unproved_target_body rejected 982ms 
 	exact arithmetic in machine `run` state `entry` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/captured_scalar_is_not_current_storage rejected 1648ms expected @a92f16431042
 	cannot prove requires contract for call demand_equal from main: saved == current (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/captured_window_slot_retirement_through_call_result_rejected rejected 1250ms expected @fe4789a121e2
+	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/captured_window_slot_retirement_through_const_name_rejected rejected 1262ms expected @fe4789a121e2
+	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/captured_window_slot_retirement_through_field_rejected rejected 1264ms expected @fe4789a121e2
+	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 7 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/captured_window_slot_retirement_through_local_rejected rejected 1321ms expected @fe4789a121e2
+	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 7 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/captured_window_slot_retirement_through_match_join_rejected rejected 1252ms expected @fe4789a121e2
+	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 7 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/captured_window_slot_retirement_through_other_machine_rejected rejected 1228ms expected @fe4789a121e2
+	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/captured_window_slot_retirement_through_other_state_rejected rejected 1203ms expected @fe4789a121e2
+	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/captured_window_slot_retirement_through_parameter_rejected rejected 1288ms expected @fe4789a121e2
+	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/captured_window_slot_retirement_through_target_body_rejected rejected 1285ms expected @fe4789a121e2
+	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/facts/case_const_unequal_literals_subtraction_rejected rejected 508ms expected @a92f16431042
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/case_const_unequal_predicate_rejected rejected 21ms expected @a92f16431042
@@ -7472,6 +7516,27 @@ fail/facts/indexed_owned_case_replacement_through_target_body_rejected rejected 
 	cannot prove initializer of `payload` in witness is in domain `u64::PositiveSmall`; an annotation cannot establish routed qualification
 	cannot prove initializer of `payload` in witness is in domain `u64::PositiveSmall`; an annotation cannot establish routed qualification
 	cannot prove initializer of `payload` in witness is in domain `u64::PositiveSmall`; an annotation cannot establish routed qualification
+fail/facts/indexed_recoverable_replacement_window_through_call_result_rejected rejected 1568ms expected @fe4789a121e2
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+fail/facts/indexed_recoverable_replacement_window_through_const_name_rejected rejected 1477ms expected @fe4789a121e2
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+fail/facts/indexed_recoverable_replacement_window_through_field_rejected rejected 1504ms expected @fe4789a121e2
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+fail/facts/indexed_recoverable_replacement_window_through_local_rejected rejected 1519ms expected @fe4789a121e2
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+fail/facts/indexed_recoverable_replacement_window_through_match_join_rejected rejected 1511ms expected @fe4789a121e2
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+fail/facts/indexed_recoverable_replacement_window_through_other_machine_rejected rejected 1431ms expected @fe4789a121e2
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+fail/facts/indexed_recoverable_replacement_window_through_other_state_rejected rejected 1437ms expected @fe4789a121e2
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+fail/facts/indexed_recoverable_replacement_window_through_parameter_rejected rejected 1494ms expected @fe4789a121e2
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+fail/facts/indexed_recoverable_replacement_window_through_target_body_rejected rejected 1456ms expected @fe4789a121e2
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
 fail/facts/indexed_storage_address_identity_missing_bound rejected 1443ms expected @a92f16431042
 	cannot prove index `index` is within length 2 in probe::entry
 	cannot prove index `index` is within length 2 in probe::entry
@@ -20332,6 +20397,7 @@ pass/borrows/runtime_byte_view_element_reference_calls_exit checked 2151ms check
 pass/borrows/runtime_callee_alias_descriptor_replacement_exit checked 2121ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_captured_primitive_reference_exit checked 6108ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_captured_record_nested_field_snapshot_exit checked 6078ms check-target:macos_arm64 @a92f16431042
+pass/borrows/runtime_captured_window_effectful_selector_exit checked 1701ms check-target:macos_arm64 @fe4789a121e2
 pass/borrows/runtime_carrier_reference_reselection_exit checked 6789ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_carrier_reference_store_exit checked 5702ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_case_byte_field_length_cleanup_exit checked 882ms check-target:macos_arm64 @77f91fb3da34
@@ -22318,6 +22384,15 @@ pass/facts/callee_saved_across_nested_calls_through_other_machine_exit checked 2
 pass/facts/callee_saved_across_nested_calls_through_other_state_exit checked 3420ms check-target:macos_arm64 @a92f16431042
 pass/facts/callee_saved_across_nested_calls_through_parameter_exit checked 2795ms check-target:macos_arm64 @a92f16431042
 pass/facts/callee_saved_across_nested_calls_through_target_body_exit checked 2827ms check-target:macos_arm64 @a92f16431042
+pass/facts/captured_window_slot_retirement_through_call_result_exit checked 1592ms check-target:macos_arm64 @fe4789a121e2
+pass/facts/captured_window_slot_retirement_through_const_name_exit checked 1683ms check-target:macos_arm64 @fe4789a121e2
+pass/facts/captured_window_slot_retirement_through_field_exit checked 1680ms check-target:macos_arm64 @fe4789a121e2
+pass/facts/captured_window_slot_retirement_through_local_exit checked 1587ms check-target:macos_arm64 @fe4789a121e2
+pass/facts/captured_window_slot_retirement_through_match_join_exit checked 1695ms check-target:macos_arm64 @fe4789a121e2
+pass/facts/captured_window_slot_retirement_through_other_machine_exit checked 1627ms check-target:macos_arm64 @fe4789a121e2
+pass/facts/captured_window_slot_retirement_through_other_state_exit checked 1755ms check-target:macos_arm64 @fe4789a121e2
+pass/facts/captured_window_slot_retirement_through_parameter_exit checked 1633ms check-target:macos_arm64 @fe4789a121e2
+pass/facts/captured_window_slot_retirement_through_target_body_exit checked 1718ms check-target:macos_arm64 @fe4789a121e2
 pass/facts/case_const_equal_literals_with_predicate checked 3348ms @a92f16431042
 pass/facts/case_const_equal_literals_without_predicate checked 1637ms @a92f16431042
 pass/facts/case_const_forwarded_binder_compile checked 2047ms @a92f16431042
@@ -23330,6 +23405,15 @@ pass/facts/indexed_owned_case_replacement_through_other_machine checked 8814ms c
 pass/facts/indexed_owned_case_replacement_through_other_state checked 8163ms check-target:macos_arm64 @a92f16431042
 pass/facts/indexed_owned_case_replacement_through_parameter checked 9868ms check-target:macos_arm64 @a92f16431042
 pass/facts/indexed_owned_case_replacement_through_target_body checked 9768ms check-target:macos_arm64 @a92f16431042
+pass/facts/indexed_recoverable_replacement_window_through_call_result_exit checked 2141ms check-target:macos_arm64 @fe4789a121e2
+pass/facts/indexed_recoverable_replacement_window_through_const_name_exit checked 2231ms check-target:macos_arm64 @fe4789a121e2
+pass/facts/indexed_recoverable_replacement_window_through_field_exit checked 2161ms check-target:macos_arm64 @fe4789a121e2
+pass/facts/indexed_recoverable_replacement_window_through_local_exit checked 2270ms check-target:macos_arm64 @fe4789a121e2
+pass/facts/indexed_recoverable_replacement_window_through_match_join_exit checked 2219ms check-target:macos_arm64 @fe4789a121e2
+pass/facts/indexed_recoverable_replacement_window_through_other_machine_exit checked 2311ms check-target:macos_arm64 @fe4789a121e2
+pass/facts/indexed_recoverable_replacement_window_through_other_state_exit checked 2344ms check-target:macos_arm64 @fe4789a121e2
+pass/facts/indexed_recoverable_replacement_window_through_parameter_exit checked 2177ms check-target:macos_arm64 @fe4789a121e2
+pass/facts/indexed_recoverable_replacement_window_through_target_body_exit checked 2531ms check-target:macos_arm64 @fe4789a121e2
 pass/facts/indexed_storage_address_identity_through_call_result_exit checked 2267ms check-target:macos_arm64 @a92f16431042
 pass/facts/indexed_storage_address_identity_through_const_name_exit checked 3460ms check-target:macos_arm64 @a92f16431042
 pass/facts/indexed_storage_address_identity_through_field_exit checked 2771ms check-target:macos_arm64 @a92f16431042
@@ -29174,9 +29258,7 @@ run/borrows/local_mut_borrow checked 5779ms check-target:macos_arm64 @a92f164310
 run/borrows/mut_record_loan_member_access checked 5450ms check-target:macos_arm64 @a92f16431042
 run/borrows/owned_array_view_establishment checked 1720ms check-target:macos_arm64 @a92f16431042
 run/borrows/probe_shared_len checked 5509ms check-target:macos_arm64 @a92f16431042
-run/borrows/proved_window_index_replacement rejected 1733ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
-	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+run/borrows/proved_window_index_replacement checked 1562ms check-target:macos_arm64 @fe4789a121e2
 run/borrows/qualified_owner_views incomplete 1756ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	`main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has duplicate dispositions); in state `main::entry`, statement 5
 run/borrows/recast_mut_borrow checked 5752ms check-target:macos_arm64 @a92f16431042
