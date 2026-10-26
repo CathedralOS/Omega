@@ -242,9 +242,16 @@ pub(super) fn collect_state_argument_facts<'program>(
     if states.len() <= 1 {
         return Vec::new();
     }
-    let Some(entry) = states.first() else {
+    let Some((entry, non_entry_states)) = states.split_first() else {
         return Vec::new();
     };
+    let has_internal_edge: Vec<bool> = states
+        .iter()
+        .map(|state| state_has_internal_edge(program, non_entry_states, state))
+        .collect();
+    if !has_internal_edge[0] {
+        return Vec::new();
+    }
     let mut collected: Vec<StateArgumentFacts> = Vec::new();
     // Source-owned outputs preserve statement encounter order. A dirty source
     // replaces its complete contribution, including edges that lost facts.
@@ -258,7 +265,9 @@ pub(super) fn collect_state_argument_facts<'program>(
             }
             let outgoing = &mut contributions[state_index];
             outgoing.clear();
-            if state_index != 0 && !collected.iter().any(|facts| facts.state == state.symbol) {
+            if !has_internal_edge[state_index]
+                || (state_index != 0 && !collected.iter().any(|facts| facts.state == state.symbol))
+            {
                 continue;
             }
             let context = ExpressionTransfer {
@@ -306,6 +315,7 @@ pub(super) fn collect_state_argument_facts<'program>(
         }
         for (state_index, state) in states.iter().enumerate() {
             dirty[state_index] = state_index != 0
+                && has_internal_edge[state_index]
                 && next.iter().find(|facts| facts.state == state.symbol)
                     != collected.iter().find(|facts| facts.state == state.symbol);
         }
@@ -314,6 +324,183 @@ pub(super) fn collect_state_argument_facts<'program>(
     // Keep synchronous rounds and the original budget: an unfinished fixed
     // point cannot publish provisional facts, even if only one state is dirty.
     Vec::new()
+}
+
+fn state_has_internal_edge(
+    program: &dyn ::validation::CheckingInput,
+    non_entry_states: &[State],
+    state: &State,
+) -> bool {
+    use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+    let is_internal =
+        |symbol: SymbolHandle| non_entry_states.iter().any(|state| state.symbol == symbol);
+    for (_, statement) in program
+        .statement_table
+        .admitted_execution_statements(state.statement_nodes)
+    {
+        let has_edge = match statement {
+            StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => false,
+            StatementNode::Assignment(assignment) => {
+                expression_has_internal_call(program, non_entry_states, assignment.target, 0)
+                    || expression_has_internal_call(program, non_entry_states, assignment.value, 0)
+            }
+            StatementNode::Call(call) => {
+                is_internal(call.target_symbol)
+                    || program
+                        .statement_table
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .any(|arg| expression_has_internal_call(program, non_entry_states, *arg, 0))
+            }
+            StatementNode::Expression(expression) => {
+                expression_has_internal_call(program, non_entry_states, *expression, 0)
+            }
+            StatementNode::LocalData(local) => {
+                expression_has_internal_call(program, non_entry_states, local.initial_value, 0)
+            }
+            StatementNode::Transition(transition) => {
+                (if let TransitionGuardNode::When(guard) = transition.guard {
+                    expression_has_internal_call(program, non_entry_states, guard, 0)
+                } else {
+                    false
+                }) || [transition.target, transition.continuation]
+                    .into_iter()
+                    .filter(|target| target.is_valid())
+                    .any(
+                        |target| match program.statement_table.transition_target(target) {
+                            TransitionTargetNode::Named {
+                                path, arguments, ..
+                            } => {
+                                is_internal(path.symbol)
+                                    || program
+                                        .statement_table
+                                        .expression_handles(*arguments)
+                                        .iter()
+                                        .any(|arg| {
+                                            expression_has_internal_call(
+                                                program,
+                                                non_entry_states,
+                                                *arg,
+                                                0,
+                                            )
+                                        })
+                            }
+                            TransitionTargetNode::Value(value) => {
+                                expression_has_internal_call(program, non_entry_states, *value, 0)
+                            }
+                            TransitionTargetNode::Terminal => false,
+                        },
+                    )
+            }
+        };
+        if has_edge {
+            return true;
+        }
+    }
+    false
+}
+
+fn expression_has_internal_call(
+    program: &dyn ::validation::CheckingInput,
+    non_entry_states: &[State],
+    expression: typed_trees::expression::ExpressionHandle,
+    depth: usize,
+) -> bool {
+    use typed_trees::expression::ExpressionNode;
+    let Some(node) = program
+        .expression_table
+        .expression_at_depth(expression, depth)
+    else {
+        return false;
+    };
+    let next = depth + 1;
+    match node {
+        ExpressionNode::SavedSubject(_) => false,
+        ExpressionNode::Call(call) => {
+            non_entry_states
+                .iter()
+                .any(|state| state.symbol == call.target_symbol)
+                || expression_has_internal_call(program, non_entry_states, call.receiver, next)
+                || program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .any(|arg| expression_has_internal_call(program, non_entry_states, *arg, next))
+        }
+        ExpressionNode::Match(dispatch) => {
+            expression_has_internal_call(program, non_entry_states, dispatch.subject, next)
+                || program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .any(|arm| {
+                        program
+                            .expression_table
+                            .match_pattern_operands(arm.pattern)
+                            .any(|operand| {
+                                expression_has_internal_call(
+                                    program,
+                                    non_entry_states,
+                                    operand,
+                                    next,
+                                )
+                            })
+                            || expression_has_internal_call(
+                                program,
+                                non_entry_states,
+                                arm.value,
+                                next,
+                            )
+                    })
+        }
+        ExpressionNode::Binary(binary) => {
+            expression_has_internal_call(program, non_entry_states, binary.left, next)
+                || expression_has_internal_call(program, non_entry_states, binary.right, next)
+        }
+        ExpressionNode::Cast(cast) => {
+            expression_has_internal_call(program, non_entry_states, cast.value, next)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            expression_has_internal_call(program, non_entry_states, indexed.collection, next)
+                || expression_has_internal_call(program, non_entry_states, indexed.index, next)
+        }
+        ExpressionNode::Atomic(atomic) => {
+            if let Some(carrier) = validation::atomic_once_carrier(program, expression) {
+                expression_has_internal_call(program, non_entry_states, carrier.place, next)
+                    || carrier.operands.into_iter().any(|operand| {
+                        expression_has_internal_call(program, non_entry_states, operand, next)
+                    })
+            } else {
+                expression_has_internal_call(program, non_entry_states, atomic.value, next)
+            }
+        }
+        ExpressionNode::ArrayLiteral(values) => program
+            .expression_table
+            .expression_handles(*values)
+            .iter()
+            .any(|value| expression_has_internal_call(program, non_entry_states, *value, next)),
+        ExpressionNode::Member(member) => {
+            expression_has_internal_call(program, non_entry_states, member.receiver, next)
+        }
+        ExpressionNode::Borrow(borrow) => {
+            expression_has_internal_call(program, non_entry_states, borrow.target, next)
+        }
+        ExpressionNode::Unary(unary) => {
+            expression_has_internal_call(program, non_entry_states, unary.operand, next)
+        }
+        ExpressionNode::Range(range) => {
+            expression_has_internal_call(program, non_entry_states, range.start, next)
+                || expression_has_internal_call(program, non_entry_states, range.end, next)
+        }
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .any(|field| {
+                expression_has_internal_call(program, non_entry_states, field.value, next)
+            }),
+        typed_trees::literal_expression_pattern!() => false,
+    }
 }
 
 fn merge_contribution(collected: &mut Vec<StateArgumentFacts>, incoming: &StateArgumentFacts) {

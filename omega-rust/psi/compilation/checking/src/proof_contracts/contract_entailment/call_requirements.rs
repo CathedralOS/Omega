@@ -356,6 +356,23 @@ fn structural_requirement_at_prefix(
         if local.is_some() && requirement.seen && requirement.proven {
             return true;
         }
+        if caller_state.symbol == entry.symbol && !case_facts_only {
+            return borrowed_match_join_records_selected_place(
+                program,
+                machine,
+                state,
+                statement_index,
+                in_transition_target,
+                callee_owner,
+                parameters,
+                call_site,
+                call_expression,
+                leading_operands,
+                arguments,
+                expression,
+                inherited,
+            );
+        }
         requirement.seen = false;
         requirement.proven = true;
     }
@@ -1005,6 +1022,10 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
         }
     }
 
+    fn is_complete(&self) -> bool {
+        !self.proven
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn entered(&mut self) {
         self.seen = true;
@@ -1015,6 +1036,9 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
     }
 
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
+        if !self.proven {
+            return;
+        }
         let (program, machine, state, mut judge, environment) = observation;
         let _s = phase_profile::guard("05.d.7.3b.1.cap.2e_visit");
         // Runtime invocations transport only checked tag guarantees. Their saved
@@ -1059,6 +1083,9 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             .as_ref()
             .map_or(self.parameters, |predicate| predicate.parameters.as_slice());
         for entry in entries {
+            if !self.proven {
+                return;
+            }
             let mut requirement_parameters = predicate_parameters.to_vec();
             let mut static_substitution = Vec::new();
             if let Some(site) = self.call_site {
