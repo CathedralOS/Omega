@@ -42,7 +42,13 @@ recorded identity for reconciliation rather than allocating a replacement.
    No eligible completed session stops selection unless `--allow-create` explicitly
    authorizes requesting a new one. This command never starts a session.
 5. Refresh the actual runtime observation before sending. Run `arm --attempt FILE --session-observation FRESH-ROW.json`
-   once: it rechecks main, gap, session observation and the exact live reservation.
+   once: it fetches main successfully and checks that it still descends from the
+   reserved base, then rechecks the gap at that fixed base, session observation
+   and the exact live reservation. The receipt records `dispatch_main` separately
+   from `base`. Ordinary descendant publication does not change the selected
+   source, producer, or historical evidence and requires no rebuild or recapture.
+   A lost base, changed evidence, unavailable session, or conflicting owner still
+   refuses the send. Initial reservation still requires fresh fetched-main review.
    The fresh row must name the same reserved session and be observed after reservation;
    running or unavailable sessions refuse admission. Then use the discovered supported runtime or existing durable cloud adapter to
    send exactly once to the selected session ID, or create only when authorized.

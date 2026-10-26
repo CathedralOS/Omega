@@ -197,7 +197,7 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(next_record['phase'], 'no_work')
         self.assertEqual([r['ticket'] for r in self.registry()['claims']], [record['ticket']])
 
-    def test_reuse_preserves_cache_and_progress_but_refuses_stale_main(self):
+    def test_reserved_dispatch_preserves_base_when_main_advances(self):
         (self.a / 'unpublished-progress').write_text('keep this session branch')
         before = self.probe_row()
         attempt, record = self.reserve()
@@ -209,13 +209,33 @@ class DispatchTests(unittest.TestCase):
         kit.git(self, self.b, 'add', '.')
         kit.git(self, self.b, 'commit', '-m', 'advance main')
         kit.git(self, self.b, 'push', 'origin', 'main')
-        self.arm(attempt, expected=1)
-        self.assertEqual(json.loads(attempt.read_text())['phase'], 'reserved')
+        current_main = kit.git(self, self.b, 'rev-parse', 'HEAD')
+        armed = self.arm(attempt)
+        self.assertEqual(armed['phase'], 'sending')
+        self.assertEqual(armed['base'], self.base)
+        self.assertEqual(armed['dispatch_main'], current_main)
+        self.assertEqual(armed['candidate'], record['candidate'])
+        self.assertEqual(armed['gap'], record['gap'])
         self.assertEqual((self.a / 'unpublished-progress').read_text(), 'keep this session branch')
         self.assertEqual(self.probe_row(), before)
-        self.call(self.a, 'cancel', '--attempt', attempt)
         self.call(self.a, 'reserve', '--packet', self.root / 'attempt.json', '--attempt',
                   self.root / 'stale-attempt.json', '--owner', 'parent', expected=1)
+
+    def test_reserved_dispatch_refuses_main_that_loses_its_base(self):
+        attempt, record = self.reserve()
+        row = record['session']['observation']
+        row['observed_utc'] = datetime.now(timezone.utc).isoformat()
+        observation = self.root / 'rewound-refresh.json'
+        self.binding(observation, row)
+        unrelated_main = kit.git_input(self, self.a, 'commit-tree', self.base + '^{tree}',
+                                       input_text='unrelated root history\n')
+        with mock.patch.object(self.module, 'main_base', return_value=unrelated_main):
+            with self.assertRaisesRegex(self.module.RecoveryError, 'no longer descends'):
+                self.module.transition(self.a, attempt, 'arm', session_observation=observation)
+        preserved = json.loads(attempt.read_text())
+        self.assertEqual(preserved['phase'], 'reserved')
+        self.assertEqual(preserved['base'], self.base)
+        self.assertEqual([row['ticket'] for row in self.registry()['claims']], [record['ticket']])
 
     def test_arm_refreshes_expired_observation_and_refuses_running_session(self):
         attempt, record = self.reserve()

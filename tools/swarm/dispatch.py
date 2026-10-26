@@ -230,7 +230,13 @@ def transition(repository, attempt, action, evidence=None, session_observation=N
             atomic_json(attempt, record)
             require(eligible, 'reserved session is no longer completed and available')
             record['session'] = eligible[0]
-        require(main_base(repository) == record['base'], 'main moved; preserve reservation and refresh gap review')
+        # Reservation pins the reviewed source and producer. Ordinary queue
+        # publication must not turn the single-send fence into a rebuild loop.
+        # Still fetch successfully and refuse a remote history that lost that
+        # base; the evidence and ownership fences below remain independent.
+        dispatch_main = main_base(repository)
+        require(not git(repository, 'rev-list', '--max-count=1', record['base'], '--not', dispatch_main),
+                'fetched main no longer descends from the reserved base; reconcile before sending')
         require(unfinished(repository, record['base'], record['candidate']) == record['gap'], 'gap changed')
         reader = claims.Claims(repository, 'origin')
         registry = reader.snapshot()['record']
@@ -242,6 +248,7 @@ def transition(repository, attempt, action, evidence=None, session_observation=N
         require(not reader.reservation_conflicts(registry, record['candidate']['item'],
                     owned[0].get('provenance', {}), record['ticket']),
                 'another outcome/session owner appeared; reconcile before automatic send')
+        record['dispatch_main'] = dispatch_main
         record['phase'] = 'sending'
     elif action == 'cancel':
         require(record['phase'] == 'reserved', 'only definitely unsent reservations may auto-release')
