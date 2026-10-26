@@ -610,6 +610,7 @@ pub(super) fn validate_successors(
             )
         }
         AbstractOperation::Return { .. }
+        | AbstractOperation::InvokeNoNormal { .. }
         | AbstractOperation::ExternalCompletion { .. }
         | AbstractOperation::Crash { .. }
         | AbstractOperation::ReturnStructural { .. }

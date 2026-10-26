@@ -396,6 +396,9 @@ pub(super) fn lower(
         ranges.push(entry.operation_offset..end);
         let targets = match &function.operations[end - 1] {
             AbstractOperation::ReturnStructural { .. }
+            // The invocation retains this activation and enters another
+            // machine; it creates no successor inside this function.
+            | AbstractOperation::InvokeNoNormal { .. }
             | AbstractOperation::ExternalCompletion { .. }
             | AbstractOperation::Crash { .. } => Vec::new(),
             abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..)
