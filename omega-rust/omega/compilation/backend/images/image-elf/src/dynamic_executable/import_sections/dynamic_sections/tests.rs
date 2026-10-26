@@ -254,6 +254,20 @@ fn independent_validation_rejects_every_cross_table_corruption() {
 }
 
 #[test]
+fn empty_gnu_hash_has_no_symbol_chain() {
+    let hash = build_gnu_hash(&[]).expect("empty GNU hash");
+    assert_eq!(hash.symbol_offset, 1);
+    assert_eq!(hash.bloom, [0]);
+    assert_eq!(hash.buckets, [0]);
+    assert!(hash.chains.is_empty());
+    validate_gnu_hash_reachability(&hash, &[]).expect("empty lookup domain");
+
+    let mut nonempty_bucket = hash;
+    nonempty_bucket.buckets[0] = 1;
+    assert!(validate_gnu_hash_reachability(&nonempty_bucket, &[]).is_err());
+}
+
+#[test]
 fn gnu_hash_matches_known_vectors_and_exact_canonical_chain() {
     assert_eq!(gnu_hash(b""), 0x0000_1505);
     assert_eq!(gnu_hash(b"exit"), 0x7c96_7e3f);
