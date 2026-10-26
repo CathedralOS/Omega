@@ -520,7 +520,14 @@ pub(super) fn collect_argument_calls(
         if structural_operands::has_register_operands_only(program, call.target_symbol) {
             return Some(());
         }
-        let parameters = validation::call_target_parameters(program, call.target_symbol)?;
+        let site = validation::find_call_site(
+            program,
+            machine,
+            state,
+            call.statement_index,
+            call.call_ordinal,
+        )?;
+        let parameters = site.execution_parameters(program, machine)?;
         let formals = parameters.iter().collect::<Vec<_>>();
         if arguments.len() != formals.len() {
             return None;
