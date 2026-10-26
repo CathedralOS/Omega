@@ -133,3 +133,14 @@ fact-sensitive invalid programs reject with their authored diagnostics. Source,
 producer digests and separate engine/rejection streams remain in the fixed lane
 qualification record. These observations do not claim execution on another host
 or closure of the parent capability's remaining premise kinds.
+
+Fresh optimized producer `16fbd2f862483ecc41ba2e7e44e6cb1a5cccbfd5` also
+passes the retained corpus route: all 30 positive fixtures execute with native
+and Terminal exit 0, and all 43 reject fixtures retain their authored reasons.
+The retained target audit distinguishes demonstrated duplicate captured storage
+from unknown dynamic geometry; exact source-to-target operands, access, live
+parent lineage, moves and descriptor dependencies remain independently checked.
+Seven focused custody tests pass, and the five affected historical slice/helper
+fixtures lose no behavior against the fixed baseline. The ranked recursive
+predicate/helper-theorem core separately checks on baseline and repaired source;
+that control is checking evidence, not a runtime claim.
