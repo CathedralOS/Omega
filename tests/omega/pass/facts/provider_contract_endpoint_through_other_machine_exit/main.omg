@@ -16,9 +16,10 @@ ensures result <= limit()
 machine transfer(input: u64) -> u64
 requires input <= limit()
 ensures result <= limit()
-{ bounded(input) }
+{ input }
 public machine main() crashes Trap {
-    let value: u64 = transfer(7);
+    let produced: u64 = bounded(7);
+    let value: u64 = transfer(produced);
     let difference: u64 = 7u64 - value;
     transition difference == 0 {
         true -> done()

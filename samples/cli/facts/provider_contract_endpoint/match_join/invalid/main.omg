@@ -13,11 +13,13 @@ machine bounded(value: u64) -> u64
 requires value <= limit()
 ensures result <= limit()
 { value }
-machine choose(flag: bool) -> u64 { match flag { true -> 7, false -> 7 } }
+machine choose(flag: bool) -> u64
+ensures result <= limit()
+{ match flag { true -> bounded(7), false -> bounded(7) } }
 public machine main() crashes Trap {
-    let value: u64 = bounded(choose(true));
+    let value: u64 = choose(true);
     let difference: u64 = 7u64 - value;
-    let other: u64 = bounded(choose(false));
+    let other: u64 = choose(false);
     let other_difference: u64 = 7u64 - other;
     transition difference == 0 && other_difference == 0 {
         true -> done()

@@ -13,9 +13,9 @@ machine bounded(value: u64) -> u64
 requires value <= limit()
 ensures result <= limit()
 { value }
-const VALUE: u64 = 7;
+const VALUE: u64 = bounded(7);
 public machine main() crashes Trap {
-    let value: u64 = bounded(VALUE);
+    let value: u64 = VALUE;
     let difference: u64 = 7u64 - value;
     transition difference == 0 {
         true -> done()

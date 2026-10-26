@@ -13,12 +13,25 @@ machine bounded(value: u64) -> u64
 requires value <= limit()
 ensures result <= limit()
 { value }
-linux_x86_64 machine produce() -> u64 { 7 }
-linux_arm64 machine produce() -> u64 { 7 }
-windows_x86_64 machine produce() -> u64 { 7 }
-macos_arm64 machine produce() -> u64 { 7 }
+linux_x86_64 machine transfer(input: u64) -> u64
+requires input <= limit()
+ensures result <= limit()
+{ input }
+linux_arm64 machine transfer(input: u64) -> u64
+requires input <= limit()
+ensures result <= limit()
+{ input }
+windows_x86_64 machine transfer(input: u64) -> u64
+requires input <= limit()
+ensures result <= limit()
+{ input }
+macos_arm64 machine transfer(input: u64) -> u64
+requires input <= limit()
+ensures result <= limit()
+{ input }
 public machine main() crashes Trap {
-    let value: u64 = bounded(produce());
+    let produced: u64 = bounded(7);
+    let value: u64 = transfer(produced);
     let difference: u64 = 7u64 - value;
     transition difference == 0 {
         true -> done()
