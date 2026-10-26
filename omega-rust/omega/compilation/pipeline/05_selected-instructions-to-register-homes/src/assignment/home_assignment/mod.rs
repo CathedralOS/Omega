@@ -85,36 +85,18 @@ pub struct RegisterHomeValidationReceipt {
 }
 
 impl RegisterHomeValidationReceipt {
-    pub const fn identity(self) -> RegisterHomeIdentity {
-        self.identity
-    }
-    pub const fn legality(self) -> AllocationLegalityIdentity {
-        self.legality
-    }
-    pub const fn ranges(self) -> LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn assignment_count(self) -> usize {
-        self.assignment_count
-    }
-    pub const fn tied_pair_count(self) -> usize {
-        self.tied_pair_count
-    }
-    pub const fn tied_component_count(self) -> usize {
-        self.tied_component_count
-    }
-    pub const fn early_clobber_count(self) -> usize {
-        self.early_clobber_count
-    }
+    receipt_accessor_rows!(RegisterHomeValidationReceipt {
+        identity: RegisterHomeIdentity,
+        legality: AllocationLegalityIdentity,
+        ranges: LiveRangeIdentity,
+        register_environment: TargetRegisterEnvironmentIdentity,
+        allocator_availability: AllocatorAvailabilityIdentity,
+        function_count: usize,
+        assignment_count: usize,
+        tied_pair_count: usize,
+        tied_component_count: usize,
+        early_clobber_count: usize,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -132,9 +114,9 @@ impl ValidatedRegisterHomes {
     pub fn plan(&self) -> &RegisterHomePlan {
         &self.plan
     }
-    pub const fn receipt(&self) -> RegisterHomeValidationReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(ref ValidatedRegisterHomes {
+        receipt: RegisterHomeValidationReceipt,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

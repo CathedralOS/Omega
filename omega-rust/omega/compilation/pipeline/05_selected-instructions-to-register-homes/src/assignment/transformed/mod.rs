@@ -128,9 +128,9 @@ impl StagedOptimizedRegisterHomesAfterLiteralFolds {
             .optimized_target_owner()
     }
     assignment_context_accessors!();
-    pub const fn custody(&self) -> &StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
-        &self.custody
-    }
+    receipt_accessor_rows!(borrow StagedOptimizedRegisterHomesAfterLiteralFolds {
+        custody: &StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -143,21 +143,15 @@ pub struct StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
 }
 
 impl StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
-    pub const fn source(&self) -> &StagedOptimizedLiteralFoldCustodyReceipt {
-        &self.source
-    }
-    pub const fn homes(&self) -> RegisterHomeIdentity {
-        self.homes
-    }
-    pub const fn post_allocation_manifest(&self) -> PostAllocationOptimizationManifestIdentity {
-        self.post_allocation_manifest
-    }
-    pub const fn function_count(&self) -> usize {
-        self.function_count
-    }
-    pub const fn assignment_count(&self) -> usize {
-        self.assignment_count
-    }
+    receipt_accessor_rows!(borrow StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
+        source: &StagedOptimizedLiteralFoldCustodyReceipt,
+    });
+    receipt_accessor_rows!(ref StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
+        homes: RegisterHomeIdentity,
+        post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
+        function_count: usize,
+        assignment_count: usize,
+    });
 }
 
 /// Strict homes after a complete named selected-lowering suite. The suite's
@@ -233,9 +227,9 @@ impl StagedOptimizedRegisterHomesAfterSelectedLowering {
             .optimized_target_owner()
     }
     assignment_context_accessors!();
-    pub const fn custody(&self) -> &StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
-        &self.custody
-    }
+    receipt_accessor_rows!(borrow StagedOptimizedRegisterHomesAfterSelectedLowering {
+        custody: &StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -248,21 +242,15 @@ pub struct StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
 }
 
 impl StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
-    pub const fn source(&self) -> &StagedSelectedLoweringOptimizationCustodyReceipt {
-        &self.source
-    }
-    pub const fn homes(&self) -> RegisterHomeIdentity {
-        self.homes
-    }
-    pub const fn post_allocation_manifest(&self) -> PostAllocationOptimizationManifestIdentity {
-        self.post_allocation_manifest
-    }
-    pub const fn function_count(&self) -> usize {
-        self.function_count
-    }
-    pub const fn assignment_count(&self) -> usize {
-        self.assignment_count
-    }
+    receipt_accessor_rows!(borrow StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
+        source: &StagedSelectedLoweringOptimizationCustodyReceipt,
+    });
+    receipt_accessor_rows!(ref StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
+        homes: RegisterHomeIdentity,
+        post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
+        function_count: usize,
+        assignment_count: usize,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -344,9 +332,9 @@ impl StagedOptimizedRegisterHomesAfterPreAllocation {
             .optimized_target_owner()
     }
     assignment_context_accessors!();
-    pub const fn custody(&self) -> &StagedOptimizedPostPreAllocationHomeCustodyReceipt {
-        &self.custody
-    }
+    receipt_accessor_rows!(borrow StagedOptimizedRegisterHomesAfterPreAllocation {
+        custody: &StagedOptimizedPostPreAllocationHomeCustodyReceipt,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -359,21 +347,15 @@ pub struct StagedOptimizedPostPreAllocationHomeCustodyReceipt {
 }
 
 impl StagedOptimizedPostPreAllocationHomeCustodyReceipt {
-    pub const fn source(&self) -> &StagedPreAllocationOptimizationCustodyReceipt {
-        &self.source
-    }
-    pub const fn homes(&self) -> RegisterHomeIdentity {
-        self.homes
-    }
-    pub const fn post_allocation_manifest(&self) -> PostAllocationOptimizationManifestIdentity {
-        self.post_allocation_manifest
-    }
-    pub const fn function_count(&self) -> usize {
-        self.function_count
-    }
-    pub const fn assignment_count(&self) -> usize {
-        self.assignment_count
-    }
+    receipt_accessor_rows!(borrow StagedOptimizedPostPreAllocationHomeCustodyReceipt {
+        source: &StagedPreAllocationOptimizationCustodyReceipt,
+    });
+    receipt_accessor_rows!(ref StagedOptimizedPostPreAllocationHomeCustodyReceipt {
+        homes: RegisterHomeIdentity,
+        post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
+        function_count: usize,
+        assignment_count: usize,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

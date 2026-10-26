@@ -29,6 +29,23 @@
 //! and the seven selected-program analysis names listed last, which the
 //! post-allocation stages still import through this crate.
 
+/// One owner row per receipt accessor: the field's own name read back as its
+/// own type. A receipt whose rows are not one of the shared identity blocks
+/// lists them here instead of restating the body at the site; `ref` selects
+/// the `&self` receiver and `borrow` the `&self` receiver with a `&` field
+/// read, for receipts whose callers hold a reference.
+macro_rules! receipt_accessor_rows {
+    (ref $name:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
+        $( $(#[$meta])* pub const fn $field(&self) -> $ty { self.$field } )*
+    };
+    (borrow $name:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
+        $( $(#[$meta])* pub const fn $field(&self) -> $ty { &self.$field } )*
+    };
+    ($name:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
+        $( $(#[$meta])* pub const fn $field(self) -> $ty { self.$field } )*
+    };
+}
+
 pub(crate) use optimization_core::digest_encoder;
 mod assignment;
 mod output;

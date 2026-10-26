@@ -116,9 +116,9 @@ impl StagedOptimizedRegisterHomes {
             .optimized_target_owner()
     }
     assignment_context_accessors!();
-    pub const fn custody(&self) -> StagedOptimizedRegisterHomeCustodyReceipt {
-        self.custody
-    }
+    receipt_accessor_rows!(ref StagedOptimizedRegisterHomes {
+        custody: StagedOptimizedRegisterHomeCustodyReceipt,
+    });
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -138,33 +138,17 @@ pub struct StagedOptimizedRegisterHomeCustodyReceipt {
 impl StagedOptimizedRegisterHomeCustodyReceipt {
     target_operations_to_selected_instructions::staging_custody_core_accessors!();
 
-    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
-    pub const fn selected(self) -> SelectedInstructionPlanIdentity {
-        self.selected
-    }
-    pub const fn liveness(self) -> LivenessIdentity {
-        self.liveness
-    }
-    pub const fn ranges(self) -> LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn legality(self) -> AllocationLegalityIdentity {
-        self.legality
-    }
-    pub const fn homes(self) -> RegisterHomeIdentity {
-        self.homes
-    }
-    pub const fn post_allocation_manifest(self) -> PostAllocationOptimizationManifestIdentity {
-        self.post_allocation_manifest
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn assignment_count(self) -> usize {
-        self.assignment_count
-    }
+    receipt_accessor_rows!(StagedOptimizedRegisterHomeCustodyReceipt {
+        allocator_availability: AllocatorAvailabilityIdentity,
+        selected: SelectedInstructionPlanIdentity,
+        liveness: LivenessIdentity,
+        ranges: LiveRangeIdentity,
+        legality: AllocationLegalityIdentity,
+        homes: RegisterHomeIdentity,
+        post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
+        function_count: usize,
+        assignment_count: usize,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -241,9 +225,9 @@ impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
             .optimized_target_owner()
     }
     assignment_context_accessors!();
-    pub const fn custody(&self) -> StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
-        self.custody
-    }
+    receipt_accessor_rows!(ref StagedOptimizedRegisterHomesAfterFixedViewCopies {
+        custody: StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
+    });
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -256,21 +240,13 @@ pub struct StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
 }
 
 impl StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
-    pub const fn source(self) -> StagedOptimizedSelectedReanalysisCustodyReceipt {
-        self.source
-    }
-    pub const fn homes(self) -> RegisterHomeIdentity {
-        self.homes
-    }
-    pub const fn post_allocation_manifest(self) -> PostAllocationOptimizationManifestIdentity {
-        self.post_allocation_manifest
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn assignment_count(self) -> usize {
-        self.assignment_count
-    }
+    receipt_accessor_rows!(StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
+        source: StagedOptimizedSelectedReanalysisCustodyReceipt,
+        homes: RegisterHomeIdentity,
+        post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
+        function_count: usize,
+        assignment_count: usize,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
