@@ -1662,17 +1662,26 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     independently reviewed finite diagnostic; that original run remains red.
     The [Linear continuation](samples/cli/facts/opaque_closed_carrier_exchange/independent_linear/README.md)
     carries actual whole ownership claims through independent inputs and returns
-    across all nine places on all four targets.
+    across all nine places on all four targets. Restore their current Build
+    selection path across the deferred Product source/dependency join: the
+    unchanged baseline now refuses the first `select_representation` Data
+    operand before execution. Preserve the qualified source contracts and
+    exact representation/provider authority through that repair.
   - Complete installed-provider custody and native marshaling for protocol-owned
-    backing, permitted snapshots and the wider resident/view
-    codecs those boundaries require. Preserve the complete lifetime, range and
+    backing, permitted snapshots and the remaining resident/view codecs.
+    Finite embedded ordinary records now retain original borrowed backing
+    through [nested record codecs](samples/cli/facts/foreign_nested_record_backing/README.md)
+    in all nine places on all four hosts; arrays, tagged/dynamic carriers,
+    independently qualified descendants and nested owned/result publication
+    still require their own codecs. Preserve the complete lifetime, range and
     revision/lease records through stage 05
     `retention/retained_borrow_custody.rs` and the selected provider; private
     per-call captures cannot supply original backing.
 
   Acceptance: `samples/cli/facts/opaque_closed_carrier_exchange`,
   `samples/cli/facts/foreign_retained_shared_borrow`,
-  `samples/cli/facts/foreign_retained_mutable_borrow`, and the `providers/foreign_*`
+  `samples/cli/facts/foreign_retained_mutable_borrow`,
+  `samples/cli/facts/foreign_nested_record_backing`, and the `providers/foreign_*`
   corpus fixtures pass `omega run --both` across matching hosts with exact
   register/stack placement, occurrence preservation, and retention leases, while
   carrier/target/lifecycle/multiplicity drift and unauthorized retention reject.
