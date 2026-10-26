@@ -26,22 +26,57 @@ pub enum ConstantRecipeRequirement {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConstantRecipeObligation {
-    pub recipe: ConstantRecipeHandle,
-    pub requirement: ConstantRecipeRequirement,
-    pub source_span: source::SourceSpan,
+    owner: symbols::SymbolHandle,
+    recipe: ConstantRecipeHandle,
+    requirement: ConstantRecipeRequirement,
+    source_span: source::SourceSpan,
     /// The checked occurrence, for the refusal a closure reports.
-    pub description: String,
+    description: String,
+    discharged: bool,
 }
 
 impl ConstantRecipeObligation {
+    /// Retain an unproved target condition. Only successful discharge can
+    /// mark it publishable, and its subjects cannot mutate afterward.
+    pub fn retain(
+        owner: symbols::SymbolHandle,
+        recipe: ConstantRecipeHandle,
+        requirement: ConstantRecipeRequirement,
+        source_span: source::SourceSpan,
+        description: String,
+    ) -> Self {
+        Self {
+            owner,
+            recipe,
+            requirement,
+            source_span,
+            description,
+            discharged: false,
+        }
+    }
+
+    pub fn owner(&self) -> symbols::SymbolHandle {
+        self.owner
+    }
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn is_pending(&self) -> bool {
+        !self.discharged
+    }
+
     /// Discharge every obligation against the closure `program` carries.
     /// Rows are independent; every failure is reported.
     pub fn discharge_all(
-        obligations: &[Self],
+        obligations: &mut [Self],
         program: &TypedTrees,
     ) -> Result<(), Vec<Diagnostic>> {
+        for obligation in obligations.iter_mut() {
+            obligation.discharged = false;
+        }
         let mut diagnostics = Vec::new();
-        for obligation in obligations {
+        for obligation in obligations.iter() {
             let recipe = program.constant_recipes.get(obligation.recipe);
             let Some(value) = program.closed_constant_recipe_value(obligation.recipe) else {
                 diagnostics.push(
@@ -80,6 +115,9 @@ impl ConstantRecipeObligation {
             }
         }
         if diagnostics.is_empty() {
+            for obligation in obligations {
+                obligation.discharged = true;
+            }
             Ok(())
         } else {
             Err(diagnostics)

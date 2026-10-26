@@ -6,7 +6,7 @@
 
 mod build_declarations;
 pub use build_declarations::{
-    build_operation, is_build_declaration_selection, resolve_build_static_operand,
+    build_operation, describe_build_static_operand, is_build_declaration_selection,
 };
 
 use language_semantics::declaration_selection::{

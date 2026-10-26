@@ -106,6 +106,10 @@ impl TypedTrees {
         expression: ExpressionHandle,
         machine: symbols::SymbolHandle,
     ) -> Option<BigInt> {
+        let recipe = self.constant_recipe_for_contract_expression(expression);
+        if let Some(value) = self.closed_constant_recipe_value(recipe) {
+            return Some(value.clone());
+        }
         Some(self.closed_integer_value_in(expression, machine)?.value)
     }
 

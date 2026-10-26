@@ -10,6 +10,7 @@ pub(crate) mod const_initializers;
 pub(crate) mod const_lengths;
 pub(crate) mod const_qualifications;
 pub(crate) mod constant_recipes;
+pub(crate) mod contract_expressions;
 pub(crate) mod data_layout_queries;
 mod initializer_probe;
 pub(crate) mod range_arguments;

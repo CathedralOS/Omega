@@ -987,6 +987,7 @@ fn resolve_application_callee(
             root: call.root,
             machine: call.machine,
             static_application: call.static_application,
+            contract_expression: false,
         },
     )
 }
@@ -1093,10 +1094,9 @@ fn visit_argument(
                         {
                             matches!(
                                 typed.symbols.get(path.symbol).kind,
-                                SymbolKind::Local
-                                    | SymbolKind::Parameter
-                                    | SymbolKind::Field
-                            ) || typed.data_type_parameter_by_symbol(path.symbol)
+                                SymbolKind::Local | SymbolKind::Parameter | SymbolKind::Field
+                            ) || typed
+                                .data_type_parameter_by_symbol(path.symbol)
                                 .is_some_and(|parameter| {
                                     matches!(parameter.kind, TypeParameterKind::Value { .. })
                                 })

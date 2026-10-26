@@ -291,12 +291,26 @@ fn declared_return_range(
                     .map_or(ensured, |carrier| ensured.intersect(carrier))
             },
         );
+    let recipe = crate::machine_calls::contract_dependencies::independent_call_application(
+        program,
+        walk.lexical_owner,
+        call.target_symbol,
+        typed_trees::references::StaticArgumentCall::Expression(expression, call),
+    )
+    .then(|| crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol))
+    .flatten()
+    .and_then(|callee| super::super::call_result_bounds::normal_return_recipe(program, &callee));
     let interval = match (declared, ensured) {
         (Some(declared), Some(ensured)) => Some(declared.intersect(ensured)),
         (declared, ensured) => declared.or(ensured),
-    }?;
+    }
+    .or_else(|| {
+        recipe
+            .as_ref()
+            .and_then(|_| primitive.and_then(primitive_range))
+    })?;
     Some(Analysis {
-        recipe: None,
+        recipe,
         domain: None,
         interval,
         primitive,

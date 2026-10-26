@@ -107,6 +107,9 @@ pub(super) fn zero_argument_invocation_discharges(
     else {
         return false;
     };
+    if require_complete_invocation_conditions(&checked, owner).is_err() {
+        return false;
+    }
     matches!(
         typed_trees_to_checked_trees::infer_checked_machine_crash_causes(
             &checked.typed,
@@ -138,7 +141,8 @@ pub(super) fn argument_independent_closure_discharges(
     // call/transition premises. This proves nothing about entry arguments,
     // hence the unconditional-entry test above remains mandatory. The caller
     // still checks every independent execution-admission axis.
-    if matches!(input, BuildTimeProgram::Checked(_)) {
+    if let BuildTimeProgram::Checked(checked) = input {
+        require_complete_invocation_conditions(checked, machine.symbol)?;
         return Ok(true);
     }
     // A layout policy may be admitted before unrelated runtime declarations
@@ -165,14 +169,14 @@ pub(super) fn argument_independent_closure_discharges(
                 )
             },
         )?;
-    typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, &checking).map_err(
-        |error| {
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, &checking)
+        .map_err(|error| {
             format!(
                 "demanded premise closure checking failed: {}",
                 diagnostics::join_messages(&error)
             )
-        },
-    )?;
+        })?;
+    require_complete_invocation_conditions(&checked, machine.symbol)?;
     Ok(true)
 }
 
@@ -290,6 +294,7 @@ pub(crate) fn snapshot_arguments_discharge(
                 diagnostics::join_messages(&diagnostics)
             )
         })?;
+    require_complete_invocation_conditions(&checked, owner)?;
     let causes = typed_trees_to_checked_trees::infer_checked_machine_crash_causes(
         &checked.typed,
         &checked.facts,
@@ -345,4 +350,50 @@ pub(super) fn append_invocation_probe(
     probe.push_machine_state(&mut probe_machine, state);
     probe.push_machine(probe_machine);
     symbol
+}
+
+/// A checked source judgment can retain target conditions for later closure;
+/// it is not yet permission to execute a partial invocation. Only conditions
+/// owned by this demanded declaration closure matter: probes retain unrelated
+/// declarations for visibility, and their outer pending work grants no premise
+/// and need not finish to evaluate this independent call. Unknown ownership
+/// cannot establish independence. The same fence serves every admission route.
+fn require_complete_invocation_conditions(
+    checked: &checked_trees::CheckedTrees,
+    root: SymbolHandle,
+) -> Result<(), String> {
+    let domain = crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
+        &checked.typed,
+        &[root],
+        &[],
+    );
+    let demanded = |owner: SymbolHandle| !owner.is_valid() || domain.contains(owner);
+    if let Some(obligation) = checked
+        .facts
+        .constant_recipe_obligations
+        .iter()
+        .find(|obligation| obligation.is_pending() && demanded(obligation.owner()))
+    {
+        return Err(format!(
+            "constant invocation cannot establish its own pending target condition: {}",
+            obligation.description()
+        ));
+    }
+    if checked
+        .facts
+        .constant_predicate_obligations
+        .iter()
+        .any(|obligation| obligation.is_pending() && demanded(obligation.caller()))
+        || checked
+            .facts
+            .integer_range_obligations
+            .iter()
+            .any(|obligation| obligation.is_pending() && demanded(obligation.owner()))
+    {
+        return Err(
+            "constant invocation retains a pending target proof condition in its demanded closure"
+                .to_owned(),
+        );
+    }
+    Ok(())
 }

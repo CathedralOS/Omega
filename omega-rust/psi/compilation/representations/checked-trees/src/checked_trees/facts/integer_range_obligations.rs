@@ -31,6 +31,8 @@ enum RangeStep {
     Subtract,
     Multiply,
     Union,
+    Interval,
+    Intersect,
 }
 
 /// Invocation-owned construction storage. Equal snapshots compare by value,
@@ -70,6 +72,15 @@ impl IntegerRangeRecipe {
             _ => return None,
         };
         Some(self.compose(right, step))
+    }
+
+    /// Bounds established by a checked source guarantee, not a runtime read.
+    pub fn interval(lower: &Self, upper: &Self) -> Self {
+        lower.compose(upper, RangeStep::Interval)
+    }
+
+    pub fn intersect(&self, right: &Self) -> Self {
+        self.compose(right, RangeStep::Intersect)
     }
 
     pub fn union(&self, right: &Self) -> Self {
@@ -193,6 +204,20 @@ fn evaluate(steps: &[RangeStep], program: &TypedTrees) -> Result<(BigInt, BigInt
                 values.push(match operation {
                     RangeStep::Add => (left_low.add(&right_low), left_high.add(&right_high)),
                     RangeStep::Subtract => (left_low.sub(&right_high), left_high.sub(&right_low)),
+                    RangeStep::Interval => {
+                        if left_low > right_high {
+                            return Err("inverted contract bounds".to_owned());
+                        }
+                        (left_low, right_high)
+                    }
+                    RangeStep::Intersect => {
+                        let low = left_low.max(right_low);
+                        let high = left_high.min(right_high);
+                        if low > high {
+                            return Err("inconsistent captured contract bounds".to_owned());
+                        }
+                        (low, high)
+                    }
                     RangeStep::Multiply => {
                         let corners = [
                             left_low.mul(&right_low),

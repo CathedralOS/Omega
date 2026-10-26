@@ -60,6 +60,48 @@ pub fn lower_machine(
             "integer range obligations require target closure before Terminal production",
         );
     }
+    // Contract invocation formation was retained with the constant root, even
+    // when no call site needed a scalar comparison obligation. Its selected
+    // evaluation must finish before source-free publication can erase it.
+    let pending_contract_roots =
+        checked
+            .typed
+            .constant_recipes
+            .iter()
+            .filter_map(|(handle, recipe)| match recipe.position {
+                typed_trees::constant_recipes::RetainedConstantPosition::ContractExpression(
+                    root,
+                ) if checked.typed.closed_constant_recipe_value(handle).is_none() => Some(root),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+    if !pending_contract_roots.is_empty() {
+        // Private evaluation projects a demanded declaration roster while
+        // preserving backing handles. An unrelated retained recipe is not
+        // work owned by that projection; live source clauses remain demands.
+        let references = typed_trees::references::collect_program_references(&checked.typed);
+        if pending_contract_roots
+            .iter()
+            .any(|root| references.expressions.contains(root))
+        {
+            return unsupported(
+                "contract integer expressions require target closure before Terminal production",
+            );
+        }
+    }
+    // Erased clause roots can have no runtime geometry that would otherwise
+    // force closure. Their retained call conditions still need completed
+    // evidence; a direct/package producer cannot publish a shared judgment.
+    if checked
+        .facts
+        .constant_recipe_obligations
+        .iter()
+        .any(checked_trees::ConstantRecipeObligation::is_pending)
+    {
+        return unsupported(
+            "constant recipe obligations require target closure before Terminal production",
+        );
+    }
     // A shared source judgment may carry target-dependent proof conditions.
     // Only target closure consumes those obligations; direct/package callers
     // cannot publish conditional call evidence as unconditional Terminal code.

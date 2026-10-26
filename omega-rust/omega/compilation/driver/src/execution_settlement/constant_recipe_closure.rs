@@ -55,15 +55,12 @@ pub(super) fn close_constant_recipes(
         selected_provider_plan_facts,
         &layout_queries,
     )?;
-    ConstantRecipeObligation::discharge_all(
-        &shared.facts.constant_recipe_obligations,
-        &closed_typed,
-    )?;
     let mut closed_facts = shared.facts.clone();
     let mut proof_targets = vec![selected_target_profile];
     let predicate_rows = &shared.facts.constant_predicate_obligations;
     let range_rows = &shared.facts.integer_range_obligations;
-    if !predicate_rows.is_empty() || !range_rows.is_empty() {
+    let recipe_rows = &shared.facts.constant_recipe_obligations;
+    if !predicate_rows.is_empty() || !range_rows.is_empty() || !recipe_rows.is_empty() {
         for machine in typed.machines() {
             if let Some(name) = typed.machine_authored_target(machine) {
                 let target = target::TargetProfile::from_canonical_target_name(name)
@@ -76,15 +73,24 @@ pub(super) fn close_constant_recipes(
     }
     closed_facts.constant_predicate_obligations.clear();
     closed_facts.integer_range_obligations.clear();
+    closed_facts.constant_recipe_obligations.clear();
     let mut predicate_closed = vec![false; predicate_rows.len()];
     let mut range_closed = vec![false; range_rows.len()];
+    let mut recipe_closed = vec![false; recipe_rows.len()];
     let proof_owners: Vec<_> = predicate_rows
         .iter()
         .map(|row| row.caller())
         .chain(range_rows.iter().map(|row| row.owner()))
+        .chain(
+            recipe_rows
+                .iter()
+                .map(|row| row.owner())
+                .filter(|owner| owner.is_valid()),
+        )
         .collect();
     for target in proof_targets {
         if target != selected_target_profile
+            && !recipe_rows.iter().any(|row| !row.owner().is_valid())
             && !provider_planning::target_machines::target_has_proof_demand(
                 shared,
                 target,
@@ -119,7 +125,17 @@ pub(super) fn close_constant_recipes(
             .enumerate()
             .filter(|(_, obligation)| applications.contains(&obligation.owner()))
             .collect();
-        if predicate_applications.is_empty() && range_applications.is_empty() {
+        let recipe_applications: Vec<_> = recipe_rows
+            .iter()
+            .enumerate()
+            .filter(|(_, obligation)| {
+                !obligation.owner().is_valid() || applications.contains(&obligation.owner())
+            })
+            .collect();
+        if predicate_applications.is_empty()
+            && range_applications.is_empty()
+            && recipe_applications.is_empty()
+        {
             continue;
         }
         let proof_program = match &supplemental {
@@ -145,6 +161,18 @@ pub(super) fn close_constant_recipes(
                 .push(application);
             predicate_closed[position] = true;
         }
+        // Recipe comparisons belong to the caller application just like
+        // constant predicates and arithmetic snapshots. A nonselected tagged
+        // body's endpoint must close under its own provider capsule.
+        for (position, obligation) in recipe_applications {
+            let mut application = obligation.clone();
+            ConstantRecipeObligation::discharge_all(
+                std::slice::from_mut(&mut application),
+                program,
+            )?;
+            closed_facts.constant_recipe_obligations.push(application);
+            recipe_closed[position] = true;
+        }
         for (position, obligation) in range_applications {
             let mut application = obligation.clone();
             application
@@ -164,7 +192,10 @@ pub(super) fn close_constant_recipes(
                 .extend(proof_program.constant_recipe_closure.receipts);
         }
     }
-    if predicate_closed.contains(&false) || range_closed.contains(&false) {
+    if predicate_closed.contains(&false)
+        || range_closed.contains(&false)
+        || recipe_closed.contains(&false)
+    {
         return Err(vec![Diagnostic::error(
             "retained proof obligation has no target application",
         )]);

@@ -27,14 +27,17 @@ pub fn is_build_declaration_selection(
     })
 }
 
-/// Rejoin a designated product operand only after exact operation admission.
-/// Provider slots admit boundary requirements and operator families; service
-/// exclusions admit only a boundary trait, never its implementation.
-pub fn resolve_build_static_operand(
+/// Retain a designated Product description under its exact Build operation.
+/// The initial Build context deliberately has no Product declarations: source
+/// acquisition and successful Build completion precede that join. This checked
+/// intrinsic classifies the operand's request role, never selects a declaration
+/// or grants execution authority. The admitted executed request retains its path
+/// and source custody; Product selection resolves role, package and visibility
+/// after the deferred Product forest exists.
+pub fn describe_build_static_operand(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     argument_index: usize,
-    occurrence: source::SourceSpan,
 ) -> Result<AuthoredSelectionResolutionTarget, String> {
     if !is_build_declaration_selection(program, expression) {
         return Err("static operand does not belong to an authenticated Build operation".into());
@@ -68,7 +71,7 @@ pub fn resolve_build_static_operand(
             AuthoredDeclarationSelectionIntrinsic::WireCompatibilityFact(fact),
         ));
     }
-    let kind = match (operation, argument_index) {
+    let role = match (operation, argument_index) {
         (BuildOperation::ProviderSelection, 0)
         | (
             BuildOperation::ServiceExclusion
@@ -83,31 +86,14 @@ pub fn resolve_build_static_operand(
         (BuildOperation::RepresentationSelection, 1) => ProductOperandKind::Representation,
         _ => return Err("Build static operand has no declaration role at this position".into()),
     };
-    let selected = typed_trees::product_operand::resolve_product_operand(
-        program.typed_program(),
-        argument,
-        occurrence,
-        kind,
-    ).ok_or("Build declaration operand does not resolve to one visible product declaration of the required kind")?;
-    if matches!(
-        operation,
-        BuildOperation::ServiceExclusion | BuildOperation::ServiceAudit
-    ) && !program
-        .product_declarations()
-        .traits()
-        .iter()
-        .any(|definition| definition.symbol == selected && definition.is_boundary)
-    {
+    if !typed_trees::product_operand::is_declaration_operand(argument) {
         return Err(format!(
-            "Build service {} operand must name a boundary trait",
-            if operation == BuildOperation::ServiceAudit {
-                "audit"
-            } else {
-                "exclusion"
-            }
+            "Build {role:?} operand must describe one declaration path"
         ));
     }
-    Ok(AuthoredSelectionResolutionTarget::Declaration(selected))
+    Ok(AuthoredSelectionResolutionTarget::Intrinsic(
+        operation.intrinsic(),
+    ))
 }
 
 pub fn is_provider_selection_call(

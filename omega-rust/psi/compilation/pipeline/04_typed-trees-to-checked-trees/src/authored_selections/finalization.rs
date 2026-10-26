@@ -105,8 +105,8 @@ pub(crate) fn finalize_checked_authored_selections(
                     };
                     let argument = call.machine_arguments.get(argument_index);
                     if validation::compiler_operations::is_build_declaration_selection(program, expression) {
-                        let selected = validation::compiler_operations::resolve_build_static_operand(
-                            program, expression, argument_index, selection.source_span(),
+                        let selected = validation::compiler_operations::describe_build_static_operand(
+                            program, expression, argument_index,
                         ).map_err(|message| Diagnostic::error(message)
                             .with_source_span(selection.source_span()))?;
                         Some(selected)
