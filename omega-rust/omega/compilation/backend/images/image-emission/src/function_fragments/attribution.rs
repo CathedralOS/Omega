@@ -54,6 +54,7 @@ fn build_ordinal_index(
         } else {
             match operation {
                 abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
+                | AbstractOperation::InvokeNoNormal { psi_edge, .. }
                 | AbstractOperation::ExternalCompletion { psi_edge, .. }
                 | AbstractOperation::Crash { psi_edge, .. }
                 | AbstractOperation::ReturnStructural { psi_edge, .. }
@@ -107,6 +108,7 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
             } else {
                 match operation {
                     abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
+                    | AbstractOperation::InvokeNoNormal { psi_edge, .. }
                     | AbstractOperation::ExternalCompletion { psi_edge, .. }
                     | AbstractOperation::Crash { psi_edge, .. }
                     | AbstractOperation::ReturnStructural { psi_edge, .. }
