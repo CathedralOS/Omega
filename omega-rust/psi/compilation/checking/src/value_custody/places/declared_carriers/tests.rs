@@ -20,12 +20,10 @@ fn fixture() -> (TypedTrees, [SymbolHandle; 2], [TypeReferenceHandle; 3]) {
         ..Default::default()
     };
     let references = [parameters[0], parameters[1], cell].map(|symbol| {
+        let name = Identifier::from(program.symbols.name(symbol));
         program
             .type_reference_table
-            .insert(TypeReferenceNode::Named {
-                symbol,
-                name: Identifier::from(program.symbols.name(symbol)),
-            })
+            .insert(TypeReferenceNode::Named { symbol, name })
     });
     (program, parameters, references)
 }
