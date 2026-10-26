@@ -1,6 +1,9 @@
 //! Fixed register calls with independently allocated integer and IEEE input banks.
 
-use super::{aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_register_unit_call_keys};
+use super::{
+    aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_register_unit_call_keys,
+    aarch64_register_unit_call_keys,
+};
 use register_model::call_constraint_keys;
 use register_model::{
     RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
@@ -16,6 +19,17 @@ pub fn aarch64_darwin_mixed_unit_call_keys() -> Vec<RegisterConstraintKey> {
     call_constraint_keys(872..944)
 }
 
+/// Register-only mixed Unit call keys of the target's ABI, by argument
+/// count. Every consumer states its target once through this selector
+/// instead of re-spelling the AAPCS64/Darwin pair beside each use.
+pub fn aarch64_mixed_unit_call_keys(darwin: bool) -> Vec<RegisterConstraintKey> {
+    if darwin {
+        aarch64_darwin_mixed_unit_call_keys()
+    } else {
+        aarch64_aapcs64_mixed_unit_call_keys()
+    }
+}
+
 /// Integer aggregate results ordered by fragment count (1–2), then the mixed
 /// Unit-call input order: GPR count (0–8), IEEE register count (1–8).
 /// Existing integer-only aggregate key ordinals remain unchanged.
@@ -28,16 +42,9 @@ pub(super) fn append_constraints(
     constraints: &mut Vec<RegisterInstructionConstraint>,
     model: &ValidatedPhysicalRegisterModel,
 ) {
-    for (base_key, keys) in [
-        (
-            aarch64_aapcs64_register_unit_call_keys()[0],
-            aarch64_aapcs64_mixed_unit_call_keys(),
-        ),
-        (
-            aarch64_darwin_register_unit_call_keys()[0],
-            aarch64_darwin_mixed_unit_call_keys(),
-        ),
-    ] {
+    for darwin in [false, true] {
+        let base_key = aarch64_register_unit_call_keys(darwin)[0];
+        let keys = aarch64_mixed_unit_call_keys(darwin);
         let Some(base) = find_register_constraint(constraints, base_key).cloned() else {
             continue;
         };
@@ -72,11 +79,7 @@ pub(super) fn append_constraints(
         }
     }
     for darwin in [false, true] {
-        let unit_keys = if darwin {
-            aarch64_darwin_mixed_unit_call_keys()
-        } else {
-            aarch64_aapcs64_mixed_unit_call_keys()
-        };
+        let unit_keys = aarch64_mixed_unit_call_keys(darwin);
         for (ordinal, key) in aarch64_mixed_aggregate_call_keys(darwin)
             .into_iter()
             .enumerate()
