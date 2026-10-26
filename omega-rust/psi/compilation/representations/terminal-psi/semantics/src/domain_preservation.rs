@@ -207,6 +207,17 @@ pub fn domain_predicate_is_closed<'a>(
     predicate_dependencies(types, carrier, predicate).is_some()
 }
 
+/// A closed theory with no carrier observations contains no artifact-local
+/// field or value coordinates. Its proposition can therefore be compared across
+/// catalogs directly. This does not prove the proposition or issue membership.
+pub fn domain_predicate_observes_no_storage<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    carrier: StructuralTypeId,
+    predicate: &StructuralDomainPredicate,
+) -> bool {
+    predicate_dependencies(types, carrier, predicate).is_some_and(|paths| paths.is_empty())
+}
+
 fn storage_path<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     carrier: StructuralTypeId,

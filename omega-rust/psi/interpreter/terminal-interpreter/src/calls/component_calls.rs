@@ -61,8 +61,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 completion_receipts,
                 receiver,
                 binding.provider_program(),
-                selected.provider_boundary(),
-                selected.candidate(),
+                selected,
             )?;
             binding
                 .prepare(

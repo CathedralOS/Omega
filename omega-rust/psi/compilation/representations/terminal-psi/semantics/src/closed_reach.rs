@@ -78,7 +78,10 @@ pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(),
         if operations.len() != machine.operations().count() {
             return Err("closed reach owner operation identities are ambiguous");
         }
-        let declaration = machine.declaration.as_ref().and_then(|declaration| declaration.specialization.as_ref());
+        let declaration = machine
+            .declaration
+            .as_ref()
+            .and_then(|declaration| declaration.specialization.as_ref());
         let Some(application) = &machine.closed_reach_application else {
             if declaration.is_some() {
                 return Err("checked specialization has no retained application");
@@ -103,20 +106,29 @@ pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(),
         {
             return Err("closed reach application differs from its checked declaration commitment");
         }
-        match (declaration.and_then(|declaration| declaration.capture.as_ref()), &application.capture) {
+        match (
+            declaration.and_then(|declaration| declaration.capture.as_ref()),
+            &application.capture,
+        ) {
             (None, None) => {}
-            (Some(expected), Some(capture)) if expected.template_identity == capture.template_identity
-                && expected.template_commitment == capture.template_commitment
-                && expected.specialization_commitment == capture.specialization_commitment => {
-                    identity(expected.template_identity)?;
-                }
-            _ => return Err("closed reach capture differs from its independent checked declaration"),
+            (Some(expected), Some(capture))
+                if expected.template_identity == capture.template_identity
+                    && expected.template_commitment == capture.template_commitment
+                    && expected.specialization_commitment == capture.specialization_commitment =>
+            {
+                identity(expected.template_identity)?;
+            }
+            _ => {
+                return Err("closed reach capture differs from its independent checked declaration");
+            }
         }
         validate_telescope(&application.parameter_kinds, &application.telescope)?;
         if let Some(capture) = &application.capture {
             validate_telescope(&capture.parameter_kinds, &capture.telescope)?;
             identity(capture.template_identity)?;
-            if capture.template_commitment == [0; 32] || capture.specialization_commitment == [0; 32] {
+            if capture.template_commitment == [0; 32]
+                || capture.specialization_commitment == [0; 32]
+            {
                 return Err("closed reach capture lost its checked application commitment");
             }
         }
@@ -141,13 +153,20 @@ pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(),
                     {
                         return Err("closed reach machine binder lost its public contract");
                     }
-                    if binding.requirement_parameter_kinds.len() != binding.requirement_arguments.len()
-                        || binding.requirement_parameter_kinds.iter().any(|kind| *kind > 5)
-                        || (binding.nominal_requirement.is_none() && !binding.requirement_arguments.is_empty())
+                    if binding.requirement_parameter_kinds.len()
+                        != binding.requirement_arguments.len()
+                        || binding
+                            .requirement_parameter_kinds
+                            .iter()
+                            .any(|kind| *kind > 5)
+                        || (binding.nominal_requirement.is_none()
+                            && !binding.requirement_arguments.is_empty())
                     {
                         return Err("closed reach requirement lost its full declaration telescope");
                     }
-                    for argument in &binding.requirement_arguments { identity(*argument)?; }
+                    for argument in &binding.requirement_arguments {
+                        identity(*argument)?;
+                    }
                     row(&binding.upper_bound)?;
                     row(&binding.selected_reach)?;
                     if binding
@@ -192,8 +211,7 @@ pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(),
         }
         let mut union = application.fixed.iter().copied().collect::<BTreeSet<_>>();
         for dependency in &application.dependencies {
-            let Some(ClosedReachParameter::Machine(binding)) =
-                application.parameter(*dependency)
+            let Some(ClosedReachParameter::Machine(binding)) = application.parameter(*dependency)
             else {
                 return Err("closed reach dependency is outside its machine telescope");
             };
@@ -219,8 +237,7 @@ pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(),
             if operation.static_reach_binding != Some(call.binder) {
                 return Err("closed reach call differs from its operation binder marker");
             }
-            let Some(ClosedReachParameter::Machine(binding)) =
-                application.parameter(call.binder)
+            let Some(ClosedReachParameter::Machine(binding)) = application.parameter(call.binder)
             else {
                 return Err("closed reach call is outside its machine telescope");
             };

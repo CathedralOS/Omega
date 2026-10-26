@@ -59,10 +59,17 @@ pub fn structural_read_scalar_type<'a>(
                     Target::Bytes(carrier) => Some(carrier),
                     Target::Scalar(_) => return None,
                 };
-                if matches!(carrier, Some(
-                    ByteSequenceCarrier::BorrowedView { access: Some(StructuralAccess::WriteOnlyBorrow) }
-                    | ByteSequenceCarrier::BoundedView { access: Some(StructuralAccess::WriteOnlyBorrow), .. }
-                )) {
+                if matches!(
+                    carrier,
+                    Some(
+                        ByteSequenceCarrier::BorrowedView {
+                            access: Some(StructuralAccess::WriteOnlyBorrow)
+                        } | ByteSequenceCarrier::BoundedView {
+                            access: Some(StructuralAccess::WriteOnlyBorrow),
+                            ..
+                        }
+                    )
+                ) {
                     return None;
                 }
                 target = Target::Scalar(ScalarType::Integer(
