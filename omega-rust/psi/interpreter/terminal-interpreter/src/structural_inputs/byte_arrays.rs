@@ -131,10 +131,7 @@ impl TerminalExecution<'_> {
                 terminal_psi::nonlinear_multiplicity_pair_pattern!()
             ) || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
-                || self
-                    .live_claims
-                    .values()
-                    .any(|claim| claim.place == Some(parameter.place))
+                || crate::custody::place_is_claimed(&self.live_claims, parameter.place)
             {
                 return Err(malformed());
             }
@@ -474,10 +471,7 @@ impl TerminalExecution<'_> {
             parameter,
             self.program.structural_types().values(),
         ) || argument.access != parameter.access
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(argument.place))
+            || crate::custody::place_is_claimed(&self.live_claims, argument.place)
         {
             return Err(malformed());
         }

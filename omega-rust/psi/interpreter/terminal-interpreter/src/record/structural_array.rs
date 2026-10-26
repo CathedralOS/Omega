@@ -27,10 +27,7 @@ impl TerminalExecution<'_> {
         if u64::try_from(elements.len()).ok() != Some(*length)
             || !result.qualifications.is_empty()
             || self.live_affine_discard_at(result.place).is_some()
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(result.place))
+            || crate::custody::place_is_claimed(&self.live_claims, result.place)
         {
             return Err(malformed());
         }
