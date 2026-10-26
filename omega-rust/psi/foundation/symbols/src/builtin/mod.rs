@@ -732,62 +732,10 @@ impl BuiltinFunction {
     }
 
     /// Whether this builtin is one of the instruction-bearing asm
-    /// intrinsics. Membership reads [`Self::asm_intrinsics`], the one asm
-    /// roster, instead of restating its variants.
+    /// intrinsics. Membership reads [`Self::ALL`]'s own spellings: every asm
+    /// intrinsic is installed with the unnameable `asm#` prefix.
     pub fn is_asm_intrinsic(self) -> bool {
-        Self::asm_intrinsics().contains(&self)
-    }
-
-    pub fn asm_intrinsics() -> [Self; 47] {
-        [
-            Self::AsmHlt,
-            Self::AsmPortOut,
-            Self::AsmPortIn,
-            Self::AsmLoadFence,
-            Self::AsmStoreFence,
-            Self::AsmFullFence,
-            Self::AsmDisableInterrupts,
-            Self::AsmEnableInterrupts,
-            Self::AsmSnapshotFlags,
-            Self::AsmRestoreFlags,
-            Self::AsmReadMsr,
-            Self::AsmWriteMsr,
-            Self::AsmReadCr0,
-            Self::AsmReadCr2,
-            Self::AsmReadCr3,
-            Self::AsmReadCr4,
-            Self::AsmWriteCr0,
-            Self::AsmWriteCr3,
-            Self::AsmWriteCr4,
-            Self::AsmSerialize,
-            Self::AsmInstructionSyncBarrier,
-            Self::AsmSpinPause,
-            Self::AsmYieldHint,
-            Self::AsmWriteBackInvalidate,
-            Self::AsmInvalidate,
-            Self::AsmWriteBackNoInvalidate,
-            Self::AsmNop,
-            Self::AsmWaitForEvent,
-            Self::AsmWaitForInterrupt,
-            Self::AsmSendEvent,
-            Self::AsmSendEventLocal,
-            Self::AsmReadSctlrEl1,
-            Self::AsmReadTcrEl1,
-            Self::AsmReadTtbr0El1,
-            Self::AsmReadTtbr1El1,
-            Self::AsmReadMairEl1,
-            Self::AsmReadVbarEl1,
-            Self::AsmReadTpidrEl1,
-            Self::AsmReadEsrEl1,
-            Self::AsmReadFarEl1,
-            Self::AsmWriteSctlrEl1,
-            Self::AsmWriteTcrEl1,
-            Self::AsmWriteTtbr0El1,
-            Self::AsmWriteTtbr1El1,
-            Self::AsmWriteMairEl1,
-            Self::AsmWriteVbarEl1,
-            Self::AsmWriteTpidrEl1,
-        ]
+        self.name().starts_with("asm#")
     }
 }
 
@@ -1071,7 +1019,17 @@ mod builtin_ordinal_tests {
         // so source code cannot reference it -- only the parser's asm-block
         // desugar can. Every member is recognized as an asm intrinsic even
         // when its service-reach effect component is empty (as for fences).
-        for function in BuiltinFunction::asm_intrinsics() {
+        let roster: Vec<BuiltinFunction> = BuiltinFunction::ALL
+            .into_iter()
+            .filter(|(_, spelling)| spelling.starts_with("asm#"))
+            .map(|(function, _)| function)
+            .collect();
+        assert_eq!(
+            roster.len(),
+            47,
+            "the unnameable instruction roster is closed"
+        );
+        for function in roster {
             assert!(
                 function.name().contains('#'),
                 "{:?} must be unnameable from source",
@@ -1103,9 +1061,9 @@ mod builtin_ordinal_tests {
             BuiltinFunction::AsmDisableInterrupts.asm_intrinsic_service_name(),
             Some("MachineControl")
         );
-        // The two remaining explicit asm lists must stay in step: every
-        // intrinsic whose classification reaches a boundary service is a
-        // member of the instruction-bearing roster.
+        // The service classification must stay in step with the instruction
+        // roster: every intrinsic whose classification reaches a boundary
+        // service is installed unnameable.
         for (function, _) in BuiltinFunction::ALL {
             assert!(
                 function.asm_intrinsic_service_name().is_none() || function.is_asm_intrinsic(),
