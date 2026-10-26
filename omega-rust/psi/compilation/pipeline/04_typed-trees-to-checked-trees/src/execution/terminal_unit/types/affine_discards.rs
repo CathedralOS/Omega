@@ -44,7 +44,7 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
                 .iter()
                 .map(|source| source.symbol)
         })
-        .collect::<BTreeSet<_>>();
+        .collect::<Vec<_>>();
     let mut transferred_parameters = BTreeSet::new();
     let mut moved_parameter_paths = BTreeMap::<
         u32,
