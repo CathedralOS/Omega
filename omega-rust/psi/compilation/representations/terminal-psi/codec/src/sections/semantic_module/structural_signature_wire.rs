@@ -510,12 +510,7 @@ fn encode_retained_borrow_custody(
     writer.u32(custody.callable_identity.0);
     encode_retained_borrow_place(writer, &custody.source)?;
     encode_retained_borrow_place(writer, &custody.result)?;
-    writer.u8(match custody.access {
-        StructuralAccess::Owned => 1,
-        StructuralAccess::SharedBorrow => 2,
-        StructuralAccess::MutableBorrow => 3,
-        StructuralAccess::WriteOnlyBorrow => 4,
-    });
+    encode_structural_access(writer, custody.access);
     writer.u32(custody.callable_lifetime_parameter_count);
     writer.u32(custody.callable_lifetime_parameter_ordinal);
     writer.u32(custody.result_nominal_identity.0);
@@ -535,13 +530,7 @@ fn decode_retained_borrow_custody(
         callable_identity: TerminalIdentityIndex(reader.u32()?),
         source: decode_retained_borrow_place(reader)?,
         result: decode_retained_borrow_place(reader)?,
-        access: match reader.u8()? {
-            1 => StructuralAccess::Owned,
-            2 => StructuralAccess::SharedBorrow,
-            3 => StructuralAccess::MutableBorrow,
-            4 => StructuralAccess::WriteOnlyBorrow,
-            tag => return Err(CodecError::InvalidTag("StructuralAccess", tag)),
-        },
+        access: decode_structural_access(reader)?,
         callable_lifetime_parameter_count: reader.u32()?,
         callable_lifetime_parameter_ordinal: reader.u32()?,
         result_nominal_identity: TerminalIdentityIndex(reader.u32()?),
@@ -677,12 +666,28 @@ pub(crate) fn encode_structural_access(writer: &mut Writer, access: StructuralAc
 pub(crate) fn decode_structural_access(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralAccess, CodecError> {
-    match reader.u8()? {
+    decode_structural_access_tag(reader.u8()?)
+}
+
+fn decode_structural_access_tag(tag: u8) -> Result<StructuralAccess, CodecError> {
+    match tag {
         1 => Ok(StructuralAccess::Owned),
         2 => Ok(StructuralAccess::SharedBorrow),
         3 => Ok(StructuralAccess::MutableBorrow),
         4 => Ok(StructuralAccess::WriteOnlyBorrow),
         tag => Err(CodecError::InvalidTag("StructuralAccess", tag)),
+    }
+}
+
+/// Decode the optional access byte of a standalone view type: zero is the
+/// absent access a declared view slot authors; nonzero is exactly the table
+/// `decode_structural_access` states.
+pub(crate) fn decode_optional_structural_access(
+    reader: &mut Reader<'_>,
+) -> Result<Option<StructuralAccess>, CodecError> {
+    match reader.u8()? {
+        0 => Ok(None),
+        tag => Ok(Some(decode_structural_access_tag(tag)?)),
     }
 }
 
