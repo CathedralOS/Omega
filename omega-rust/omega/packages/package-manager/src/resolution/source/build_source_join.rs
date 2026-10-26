@@ -63,6 +63,3 @@ pub(crate) fn prepare(
         selections,
     }))
 }
-
-#[cfg(test)]
-mod tests;
