@@ -256,8 +256,12 @@ pub(super) fn ordering_consequences(
                 ) == Some(true)
                 {
                     consequences.push(super::PredicateOrderingConsequence {
-                        left: application.arguments[left_position],
-                        right: application.arguments[right_position],
+                        left: super::PredicateIntegerOperand::Argument(
+                            application.arguments[left_position],
+                        ),
+                        right: super::PredicateIntegerOperand::Argument(
+                            application.arguments[right_position],
+                        ),
                         operator,
                     });
                 }

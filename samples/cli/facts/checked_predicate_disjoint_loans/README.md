@@ -37,6 +37,16 @@ reject twin weakens only the same predicate body; a callee argument roster
 must consume the same established separation as local loan formation.
 These pairs are pinned as `_through_<place>_exclusive_call_{exit,rejected}`.
 
+The `unary_predicate/` production in each place fixes the first index to zero
+and carries `nonzero(second_index) == true`. The same existing checked interval
+explorer used by guard narrowing supplies its true-return lower bound; the
+shared relation owner publishes that bound with binary predicate relations.
+Its twin changes only this required predicate to `permits_zero`, whose body
+admits zero and therefore cannot justify the same two loans. These pairs pin
+`_through_<place>_unary_predicate_{exit,rejected}`. Necessary interval hulls
+never replace an authored public contract: exact envelope conversion retains
+its independent converse check.
+
 The pairs are pinned under `tests/omega/{pass,fail}/facts/` as
 `checked_predicate_disjoint_loans_through_<place>_{exit,rejected}`.
 All positives bind all four hosted `ProgramEntry` targets and declare exit 0.
@@ -73,7 +83,11 @@ All positives bind all four hosted `ProgramEntry` targets and declare exit 0.
   and [an overloaded comparison](controls/overloaded_comparison/invalid/main.omg)
   grant no missing separation. A [predicate requiring exclusive arguments](controls/borrow_formation/invalid/main.omg)
   cannot use its desired truth to form those borrow arguments or bypass
-  observation-free specification-call admission.
+  observation-free specification-call admission. The
+  [signed nonzero control](controls/signed_nonzero/main.omg) keeps both -1 and
+  +1 valid; [nonzero does not mean positive](controls/signed_nonzero_not_positive/invalid/main.omg).
+  A [disconnected implementation requirement](controls/disconnected_public_envelope/invalid/main.omg)
+  cannot stand for its convex hull in a public contract.
   Unsupported/effectful bodies and exhausted proof work supply no evidence.
 - **Psi 05–07:** admitted loans and stores use the existing Terminal Psi route;
   pure proof reasoning introduces no runtime authority or proof replay. Public

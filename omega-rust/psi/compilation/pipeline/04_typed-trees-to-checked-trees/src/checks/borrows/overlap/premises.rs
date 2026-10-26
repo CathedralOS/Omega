@@ -583,46 +583,37 @@ fn decompose_premise_expression(
         // formal atoms cannot become caller loan or storage identities.
         if !negated {
             for consequence in validation::predicate_ordering_consequences(program, expression) {
-                if !scope.has_builtin_meaning(program, consequence.left)
-                    || !scope.has_builtin_meaning(program, consequence.right)
-                {
+                let operand_bound = |operand| match operand {
+                    validation::PredicateIntegerOperand::Argument(expression) => scope
+                        .has_builtin_meaning(program, expression)
+                        .then(|| scope.bound(program, lookup, expression))
+                        .flatten(),
+                    validation::PredicateIntegerOperand::Integer(value) => {
+                        i64::try_from(value).ok().map(NormalizedBound::Integer)
+                    }
+                };
+                let (Some(left), Some(right)) = (
+                    operand_bound(consequence.left),
+                    operand_bound(consequence.right),
+                ) else {
                     continue;
-                }
+                };
                 use BorrowCompatibilityPremiseRelation as Relation;
                 let (relation, left, right) = match consequence.operator {
-                    BinaryOperator::Less => (
-                        Relation::StrictlyBefore,
-                        consequence.left,
-                        consequence.right,
-                    ),
-                    BinaryOperator::LessOrEqual => {
-                        (Relation::LessOrEqual, consequence.left, consequence.right)
-                    }
-                    BinaryOperator::Greater => (
-                        Relation::StrictlyBefore,
-                        consequence.right,
-                        consequence.left,
-                    ),
-                    BinaryOperator::GreaterOrEqual => {
-                        (Relation::LessOrEqual, consequence.right, consequence.left)
-                    }
-                    BinaryOperator::Equal => (Relation::Equal, consequence.left, consequence.right),
-                    BinaryOperator::NotEqual => {
-                        (Relation::NotEqual, consequence.left, consequence.right)
-                    }
+                    BinaryOperator::Less => (Relation::StrictlyBefore, left, right),
+                    BinaryOperator::LessOrEqual => (Relation::LessOrEqual, left, right),
+                    BinaryOperator::Greater => (Relation::StrictlyBefore, right, left),
+                    BinaryOperator::GreaterOrEqual => (Relation::LessOrEqual, right, left),
+                    BinaryOperator::Equal => (Relation::Equal, left, right),
+                    BinaryOperator::NotEqual => (Relation::NotEqual, left, right),
                     _ => continue,
                 };
-                if let (Some(left), Some(right)) = (
-                    scope.bound(program, lookup, left),
-                    scope.bound(program, lookup, right),
-                ) {
-                    premises.push(StatedOrderingPremise {
-                        relation,
-                        left,
-                        right,
-                        parameter_arguments: parameter_arguments.clone(),
-                    });
-                }
+                premises.push(StatedOrderingPremise {
+                    relation,
+                    left,
+                    right,
+                    parameter_arguments: parameter_arguments.clone(),
+                });
             }
         }
         return;

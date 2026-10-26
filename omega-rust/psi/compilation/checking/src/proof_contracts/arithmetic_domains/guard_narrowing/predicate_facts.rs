@@ -9,7 +9,7 @@
 
 use super::super::ordered_values::{Operand, Relation, RelationConstraint};
 use super::{ExpressionHandle, Interval, Machine, State, ValueEnvironment};
-use crate::proof_contracts::collection_predicates::{self, ArgumentKnowledge};
+use crate::proof_contracts::collection_predicates;
 use numerics::literals::IntegerLiteral;
 
 pub(super) fn narrow(
@@ -42,51 +42,20 @@ pub(super) fn narrow(
     {
         return false;
     }
-    let Some(callee) = program.machines().get(application.machine) else {
-        return false;
-    };
-    let Some(entry) = program.machine_states(callee).first() else {
-        return false;
-    };
-    let parameters = program.state_parameters(entry);
-    if parameters.len() != application.arguments.len() {
-        return false;
-    }
-    // Start from complete declared carriers. Contextual facts are not needed
-    // to discover consequences, and no convenient caller bound is assumed.
-    let Some(knowledge) = parameters
-        .iter()
-        .map(|parameter| {
-            collection_predicates::unknown_knowledge(program, parameter.type_reference)
-        })
-        .collect::<Option<Vec<_>>>()
+    let Some(consequences) = collection_predicates::interval_consequences(program, &application)
     else {
         return false;
     };
-    let Some(unfolding) = collection_predicates::unfold(program, application.machine, &knowledge)
-    else {
-        return false;
-    };
-    for (position, (argument, knowledge)) in
-        application.arguments.iter().zip(&knowledge).enumerate()
-    {
-        let extent = match knowledge {
-            ArgumentKnowledge::Integer(_) => false,
-            ArgumentKnowledge::CollectionExtent(_) => true,
-            _ => continue,
-        };
-        let Some(consequence) = unfolding.when_true(position) else {
-            continue;
-        };
-        let [values] = consequence.as_slice() else {
-            continue;
-        };
-        let Some((low, high)) = values.bounds() else {
-            continue;
-        };
-        let Some(mut subject) =
-            super::super::ordered_values::operand(program, machine, state, *argument, None)
-        else {
+    for consequence in consequences {
+        let extent = consequence.extent;
+        let (low, high) = (consequence.low, consequence.high);
+        let Some(mut subject) = super::super::ordered_values::operand(
+            program,
+            machine,
+            state,
+            consequence.argument,
+            None,
+        ) else {
             continue;
         };
         let path = subject

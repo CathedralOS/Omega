@@ -129,11 +129,16 @@ fn predicate_call(
     })
 }
 
-/// A relation proved on every successful return of one checked predicate.
-/// The operands are its exact caller actuals, never private formal identities.
+/// One exact caller actual or a checked mathematical integer bound.
+pub enum PredicateIntegerOperand {
+    Argument(ExpressionHandle),
+    Integer(i128),
+}
+
+/// A relation proved on every true return, retaining exact caller actuals.
 pub struct PredicateOrderingConsequence {
-    pub left: ExpressionHandle,
-    pub right: ExpressionHandle,
+    pub left: PredicateIntegerOperand,
+    pub right: PredicateIntegerOperand,
     pub operator: BinaryOperator,
 }
 
@@ -148,10 +153,29 @@ pub fn predicate_ordering_consequences(
     let Some(application) = predicate_call(program, call_expression) else {
         return Vec::new();
     };
-    implication::ordering_consequences(program, &application)
+    let mut consequences = implication::ordering_consequences(program, &application);
+    // Scalar hulls are necessary consequences, never equivalent replacements
+    // of the predicate. The exact public-envelope judgment below additionally
+    // checks its converse over the complete Cartesian product.
+    if let Some(intervals) = interval_consequences(program, &application) {
+        for interval in intervals.into_iter().filter(|row| !row.extent) {
+            for (bound, operator) in [
+                (interval.low, BinaryOperator::GreaterOrEqual),
+                (interval.high, BinaryOperator::LessOrEqual),
+            ] {
+                consequences.push(PredicateOrderingConsequence {
+                    left: PredicateIntegerOperand::Argument(interval.argument),
+                    right: PredicateIntegerOperand::Integer(bound),
+                    operator,
+                });
+            }
+        }
+    }
+    consequences
 }
 
-/// One formal observation in a checked exact interval description of a predicate.
+/// One interval observation of an exact actual argument. Consumers separately
+/// establish whether it is a consequence or a complete public envelope.
 /// Descriptor extents describe metadata only, never collection contents.
 #[derive(Debug, Clone)]
 pub struct PredicateInterval {
@@ -172,6 +196,32 @@ pub fn exact_predicate_intervals(
     expression: ExpressionHandle,
 ) -> Option<Vec<PredicateInterval>> {
     let application = predicate_application(program, owner, expression)?;
+    let rows = interval_consequences(program, &application)?;
+    if rows.len() != application.arguments.len() {
+        return None;
+    }
+    let narrowed = rows
+        .iter()
+        .map(|row| {
+            let hull = IntegerSet::range(row.low, row.high);
+            if row.extent {
+                ArgumentKnowledge::CollectionExtent(hull)
+            } else {
+                ArgumentKnowledge::Integer(hull)
+            }
+        })
+        .collect::<Vec<_>>();
+    (unfold(program, application.machine, &narrowed)?.decided() == Some(true)).then_some(rows)
+}
+
+/// One-way true-return bounds shared by guard narrowing and borrow relations.
+/// Complete declared carriers seed the existing explorer. Unsupported actual
+/// shapes contribute no row; an empty truth set grants no ambient contradiction.
+/// Consumers retain availability, source meaning and storage epochs separately.
+pub(crate) fn interval_consequences(
+    program: &dyn crate::CheckingInput,
+    application: &PredicateApplication<'_>,
+) -> Option<Vec<PredicateInterval>> {
     let entry = program
         .machine_states(&program.machines()[application.machine])
         .first()?;
@@ -184,27 +234,24 @@ pub fn exact_predicate_intervals(
         return None;
     }
     let unfolding = unfold(program, application.machine, &knowledge)?;
-    let mut narrowed = Vec::with_capacity(knowledge.len());
-    let mut rows = Vec::with_capacity(knowledge.len());
+    let mut rows = Vec::new();
     for (position, (argument, knowledge)) in
         application.arguments.iter().zip(&knowledge).enumerate()
     {
         let extent = match knowledge {
             ArgumentKnowledge::Integer(_) => false,
             ArgumentKnowledge::CollectionExtent(_) => true,
-            _ => return None,
+            _ => continue,
         };
-        let values = unfolding.when_true(position)?;
+        let Some(values) = unfolding.when_true(position) else {
+            continue;
+        };
         let [values] = values.as_slice() else {
-            return None;
+            continue;
         };
-        let (low, high) = values.bounds()?;
-        let hull = IntegerSet::range(low, high);
-        narrowed.push(if extent {
-            ArgumentKnowledge::CollectionExtent(hull)
-        } else {
-            ArgumentKnowledge::Integer(hull)
-        });
+        let Some((low, high)) = values.bounds() else {
+            continue;
+        };
         rows.push(PredicateInterval {
             argument: *argument,
             extent,
@@ -212,7 +259,7 @@ pub fn exact_predicate_intervals(
             high,
         });
     }
-    (unfold(program, application.machine, &narrowed)?.decided() == Some(true)).then_some(rows)
+    Some(rows)
 }
 
 /// One exploration of a predicate at fixed initial knowledge.
