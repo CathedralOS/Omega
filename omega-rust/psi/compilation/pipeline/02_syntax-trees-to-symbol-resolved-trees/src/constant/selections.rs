@@ -316,10 +316,12 @@ pub(crate) fn finalize_const_argument_selections(
                 .with_source_span(origin.reference));
             };
             *symbol = declaration.symbol;
-            *name = symbol_resolved_trees::name::DiagnosticName::from_str(
-                name.as_str(),
-                origin.reference,
-            );
+            if selection.exposure.is_some() {
+                *name = symbol_resolved_trees::name::DiagnosticName::from_str(
+                    name.as_str(),
+                    origin.reference,
+                );
+            }
         }
         if requires_nominal_slot && !matched {
             return Err(Diagnostic::error(
@@ -327,15 +329,16 @@ pub(crate) fn finalize_const_argument_selections(
             )
             .with_source_span(origin.reference));
         }
-        let selected = declaration.symbol;
-        program
-            .record_resolved_authored_declaration_selection(
-                origin.reference,
-                selection.exposure,
-                AuthoredDeclarationSelectionKind::StaticPathSegment,
-                selected,
-            )
-            .map_err(const_selection_record_diagnostic)?;
+        if let Some(exposure) = selection.exposure {
+            program
+                .record_resolved_authored_declaration_selection(
+                    origin.reference,
+                    exposure,
+                    AuthoredDeclarationSelectionKind::StaticPathSegment,
+                    declaration.symbol,
+                )
+                .map_err(const_selection_record_diagnostic)?;
+        }
     }
     Ok(())
 }
