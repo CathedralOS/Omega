@@ -29,12 +29,12 @@ fn retain_semantic_context(
     );
 }
 
-use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
 use crate::flow::guard_predicates::{expression_is_stable_predicate, guard_observations};
 use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
+use crate::flow::{FlowBuildContext, GuardObservation};
 use arena::{Handle, HandleSpan};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
@@ -97,15 +97,22 @@ pub(super) fn append_guard_context(
     // upper the sibling conjunct established. One call groups every
     // conjunct on the place into a single intersected row.
     let mut bound_expressions: Vec<ExpressionHandle> = Vec::new();
-    for (expression, value) in std::iter::once((expression, value)).chain(captured) {
+    let current = GuardObservation {
+        expression,
+        value,
+        statement_index,
+    };
+    for observation in std::iter::once(current).chain(captured) {
+        let GuardObservation {
+            expression, value, ..
+        } = observation;
         append_predicate_context(
             program,
             semantic,
             build,
             state_symbol,
             statement_index,
-            expression,
-            value,
+            observation,
             point,
             entry_writes,
             entry_unknown_write,
@@ -118,7 +125,7 @@ pub(super) fn append_guard_context(
                 semantic,
                 build,
                 state_symbol,
-                statement_index,
+                observation.statement_index,
                 expression,
                 point,
                 active_contexts,
@@ -577,20 +584,25 @@ pub(in crate::flow) fn append_predicate_context(
     build: &mut FlowBuildContext,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    expression: ExpressionHandle,
-    value: bool,
+    observation: GuardObservation,
     point: ProgramPoint,
     entry_writes: HandleSpan<checked_trees::FlowOperandReferent>,
     entry_unknown_write: bool,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
+    let GuardObservation {
+        expression,
+        value,
+        statement_index: observation_statement_index,
+    } = observation;
+
     append_entry_path_context(
         program,
         semantic,
         build,
         state_symbol,
-        statement_index,
+        observation_statement_index,
         expression,
         value,
         point,
@@ -603,7 +615,7 @@ pub(in crate::flow) fn append_predicate_context(
         program,
         build,
         state_symbol,
-        statement_index,
+        observation_statement_index,
         expression,
     );
     let repeatable = expression_is_stable_predicate(program, expression);
@@ -644,7 +656,7 @@ pub(in crate::flow) fn append_predicate_context(
                     program,
                     build,
                     state_symbol,
-                    statement_index,
+                    observation_statement_index,
                     observation,
                 ) else {
                     continue;
@@ -652,7 +664,7 @@ pub(in crate::flow) fn append_predicate_context(
                 let Some(predicate) = build.completed_guard_predicate_at(
                     program,
                     state_symbol,
-                    statement_index,
+                    observation_statement_index,
                     observation,
                     selected,
                     entry_writes,
@@ -713,7 +725,7 @@ pub(in crate::flow) fn append_predicate_context(
                 program,
                 build,
                 state_symbol,
-                statement_index,
+                observation_statement_index,
                 observation,
                 binary.left,
             ) else {
@@ -793,7 +805,7 @@ pub(in crate::flow) fn append_predicate_context(
             semantic,
             build,
             state_symbol,
-            statement_index,
+            observation_statement_index,
             expression,
             point,
             FactOrigin::TransitionGuard,
@@ -823,7 +835,7 @@ pub(in crate::flow) fn append_predicate_context(
     if let Some(predicate) = build.completed_guard_predicate_at(
         program,
         state_symbol,
-        statement_index,
+        observation_statement_index,
         expression,
         value,
         entry_writes,
@@ -845,7 +857,7 @@ pub(in crate::flow) fn append_predicate_context(
         semantic,
         build,
         state_symbol,
-        statement_index,
+        observation_statement_index,
         occurrences.as_slice(),
         &dependencies.places,
         FactPayload::BooleanValue { expression, value },
