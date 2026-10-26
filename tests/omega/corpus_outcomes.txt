@@ -404,6 +404,15 @@ fail/asm/backward_write_stale_ensures rejected 1449ms expected @a92f16431042
 	cannot prove asm `ensures` fact at block exit in Subject::change state `change` (statement 5): subject.ready
 fail/asm/borrow_read_after_backward_write rejected 1374ms expected @a92f16431042
 	statement 6 mutates `main.cell.value` while local borrow `borrowed` is still active (borrowed at statement 1; its last use is at statement 7)
+fail/asm/checked_asm_ambient_capture_written_rejected rejected 1233ms expected @059b241231ea
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 1): match output { AsmSavedOutput { value } => <saved subject #6:1>.value == seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 1): match output { AsmSavedOutput { value } => <saved subject #8:1>.value == seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 1): match output { AsmSavedOutput { value } => <saved subject #10:1>.value == seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 1): match output { AsmSavedOutput { value } => <saved subject #12:1>.value == seed }
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 2: match output { AsmSavedOutput { value } => <saved subject #5:1>.value == seed }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 2: match output { AsmSavedOutput { value } => <saved subject #7:1>.value == seed }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 2: match output { AsmSavedOutput { value } => <saved subject #9:1>.value == seed }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 2: match output { AsmSavedOutput { value } => <saved subject #11:1>.value == seed }
 fail/asm/checked_asm_compare_arm_link_register_view rejected 10ms expected @e06334c63dc4+wt
 	tests/omega/fail/asm/checked_asm_compare_arm_link_register_view/main.omg:1:50: unsupported AArch64 scratch register view `w30`: register aliases require shared-bit state modeling
 fail/asm/checked_asm_compare_arm_unencodable_immediate rejected 4ms expected @e06334c63dc4+wt
@@ -5331,6 +5340,123 @@ fail/facts/checked_asm_arm_load_through_parameter_rejected rejected 2ms expected
 	tests/omega/fail/facts/checked_asm_arm_load_through_parameter_rejected/main.omg:6:9: asm instruction `ldr` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
 fail/facts/checked_asm_arm_load_through_target_body_rejected rejected 2ms expected @a92f16431042
 	tests/omega/fail/facts/checked_asm_arm_load_through_target_body_rejected/main.omg:11:9: asm instruction `ldr` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
+fail/facts/checked_asm_compare_preserves_ambient_capture_through_call_result_rejected rejected 1237ms expected @059b241231ea
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #10:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #12:1>.value != seed }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #5:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #7:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #9:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #11:1>.value != seed }
+fail/facts/checked_asm_compare_preserves_ambient_capture_through_const_name_rejected rejected 1281ms expected @059b241231ea
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #10:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #12:1>.value != seed }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #5:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #7:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #9:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #11:1>.value != seed }
+fail/facts/checked_asm_compare_preserves_ambient_capture_through_field_rejected rejected 1205ms expected @059b241231ea
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #10:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #12:1>.value != seed }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #5:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #7:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #9:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #11:1>.value != seed }
+fail/facts/checked_asm_compare_preserves_ambient_capture_through_local_rejected rejected 1199ms expected @059b241231ea
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #10:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #12:1>.value != seed }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #5:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #7:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #9:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #11:1>.value != seed }
+fail/facts/checked_asm_compare_preserves_ambient_capture_through_match_join_rejected rejected 1229ms expected @059b241231ea
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #10:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #12:1>.value != seed }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #5:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #7:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #9:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #11:1>.value != seed }
+fail/facts/checked_asm_compare_preserves_ambient_capture_through_other_machine_rejected rejected 1254ms expected @059b241231ea
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #10:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #12:1>.value != seed }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #5:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #7:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #9:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #11:1>.value != seed }
+fail/facts/checked_asm_compare_preserves_ambient_capture_through_other_state_rejected rejected 1216ms expected @059b241231ea
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #10:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #12:1>.value != seed }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #5:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #7:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #9:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #11:1>.value != seed }
+fail/facts/checked_asm_compare_preserves_ambient_capture_through_parameter_rejected rejected 1255ms expected @059b241231ea
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #10:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #12:1>.value != seed }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #5:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #7:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #9:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #11:1>.value != seed }
+fail/facts/checked_asm_compare_preserves_ambient_capture_through_target_body_rejected rejected 1146ms expected @059b241231ea
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #10:1>.value != seed }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #12:1>.value != seed }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #5:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #7:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #9:1>.value != seed }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #11:1>.value != seed }
 fail/facts/checked_asm_compare_preserves_saved_subject_through_call_result_rejected rejected 2530ms expected @fef74f786001
 	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value == 38 }
 	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value == 38 }
@@ -23387,6 +23513,15 @@ pass/facts/checked_asm_arm_load_through_other_machine_exit checked 2833ms check-
 pass/facts/checked_asm_arm_load_through_other_state_exit checked 2927ms check-target:macos_arm64 @a92f16431042
 pass/facts/checked_asm_arm_load_through_parameter_exit checked 2813ms check-target:macos_arm64 @a92f16431042
 pass/facts/checked_asm_arm_load_through_target_body_exit checked 2818ms check-target:macos_arm64 @a92f16431042
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_call_result_exit checked 1657ms check-target:macos_arm64 @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_const_name_exit checked 1656ms check-target:macos_arm64 @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_field_exit checked 1622ms check-target:macos_arm64 @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_local_exit checked 1622ms check-target:macos_arm64 @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_match_join_exit checked 1807ms check-target:macos_arm64 @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_other_machine_exit checked 1802ms check-target:macos_arm64 @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_other_state_exit checked 1597ms check-target:macos_arm64 @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_parameter_exit checked 1591ms check-target:macos_arm64 @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_target_body_exit checked 1572ms check-target:macos_arm64 @059b241231ea
 pass/facts/checked_asm_compare_preserves_saved_subject_through_call_result_exit checked 2706ms check-target:macos_arm64 @fef74f786001
 pass/facts/checked_asm_compare_preserves_saved_subject_through_const_name_exit checked 2681ms check-target:macos_arm64 @fef74f786001
 pass/facts/checked_asm_compare_preserves_saved_subject_through_field_exit checked 2876ms check-target:macos_arm64 @fef74f786001

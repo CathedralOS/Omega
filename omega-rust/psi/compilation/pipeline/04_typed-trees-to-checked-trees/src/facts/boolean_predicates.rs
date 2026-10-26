@@ -395,6 +395,12 @@ pub(crate) fn bind_current_guard(
             statement_index,
             &place,
         )?;
+        // An empty structural path observes a primitive loan's referent, just
+        // as bind_parameters does for a published contract. Keep the same
+        // place and live storage cut; only the readable carrier is projected.
+        // In particular, a write-only loan cannot supply a current predicate.
+        let type_reference =
+            validation::field_domains::readable_type_reference(program, type_reference)?;
         if program.primitive_type_reference(type_reference) != operand.primitive_type() {
             return None;
         }
