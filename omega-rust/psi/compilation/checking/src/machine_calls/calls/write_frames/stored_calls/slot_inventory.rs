@@ -50,7 +50,11 @@ pub(in crate::machine_calls::calls::write_frames) fn provider_output_relation_re
             let Some(call) = program.expression_table.call_node(call_expression) else {
                 return true;
             };
-            if call.target_symbol != target {
+            // Flow topology may retain the exact public operator while the
+            // occurrence names its evidence child. Use the same resolved-call
+            // join as flow construction; a merely same-spelled target cannot
+            // donate another application's output contract.
+            if call.target_symbol != target && crate::call_target_symbol(program, call) != target {
                 return true;
             }
             let Some(signature) = program.requirement_call_signature(machine, call) else {
