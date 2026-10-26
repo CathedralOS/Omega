@@ -40,6 +40,16 @@ fn lexical_machine_scope_retains_header_without_executable_root() {
         symbol,
         ..crate::machine::Machine::default()
     });
+    assert_eq!(
+        program.machine_declaration_for_lexical_scope(symbol),
+        Some(program.tables.machines.get(retained))
+    );
+    program
+        .tables
+        .machines
+        .get_mut(duplicate)
+        .lifetime_parameters
+        .push(crate::name::Identifier::from("conflicting"));
     assert!(
         program
             .machine_declaration_for_lexical_scope(symbol)
@@ -59,6 +69,50 @@ fn lexical_machine_scope_retains_header_without_executable_root() {
     assert_eq!(
         program.machine_declaration_for_lexical_scope(other_generation),
         Some(program.tables.machines.get(retained))
+    );
+}
+
+#[test]
+fn lexical_machine_scope_distinguishes_span_relocation_from_conflicting_headers() {
+    let owner = SymbolHandle::from_parts(7, 1);
+    let unrelated = SymbolHandle::from_parts(8, 1);
+    let next_root = SymbolHandle::from_parts(9, 1);
+    let mut program = TypedTrees::default();
+    program.push_machine(crate::machine::Machine {
+        symbol: owner,
+        lifetime_parameters: vec![crate::name::Identifier::from("declared")],
+        ..crate::machine::Machine::default()
+    });
+    program.tables.machines.insert(crate::machine::Machine {
+        symbol: unrelated,
+        ..crate::machine::Machine::default()
+    });
+    program.push_machine(crate::machine::Machine {
+        symbol: next_root,
+        ..crate::machine::Machine::default()
+    });
+    assert_eq!(
+        program
+            .tables
+            .machines
+            .iter()
+            .filter(|(_, machine)| machine.symbol == owner)
+            .count(),
+        2
+    );
+    program.roots.machines = arena::HandleSpan::empty();
+    assert!(program.machine_by_symbol(owner).is_none());
+    let header = program
+        .machine_declaration_for_lexical_scope(owner)
+        .unwrap();
+    assert_eq!(header.lifetime_parameters[0].as_str(), "declared");
+    let mut conflicting = header.clone();
+    conflicting.lifetime_parameters.clear();
+    program.tables.machines.insert(conflicting);
+    assert!(
+        program
+            .machine_declaration_for_lexical_scope(owner)
+            .is_none()
     );
 }
 
