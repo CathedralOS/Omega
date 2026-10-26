@@ -483,7 +483,10 @@ impl StructuralJudge<'_> {
             return;
         };
         let Some(bounds) = crate::proof_contracts::arithmetic_domains::atomic_resident_interval(
-            program, machine, Some(state), load.place,
+            program,
+            machine,
+            Some(state),
+            load.place,
         ) else {
             return;
         };
@@ -493,7 +496,9 @@ impl StructuralJudge<'_> {
             return;
         };
         if !meaning.0.is_fixed_integer()
-            || !super::super::structural_terms::scalar_operand_is_observed(program, reference, value)
+            || !super::super::structural_terms::scalar_operand_is_observed(
+                program, reference, value,
+            )
         {
             return;
         }
@@ -507,9 +512,9 @@ impl StructuralJudge<'_> {
                 operator,
                 meaning: [meaning; 2],
                 left: Box::new(value.clone()),
-                right: Box::new(StructuralTerm::Integer(
-                    numerics::bignum::BigInt::from_i64(bound),
-                )),
+                right: Box::new(StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(
+                    bound,
+                ))),
             };
             self.intake_equation(predicate, super::value_predicates::boolean_term(true), 0);
         }
@@ -691,30 +696,50 @@ impl StructuralJudge<'_> {
                 {
                     StructuralTerm::Integer(literal.value_bignum()?)
                 } else {
-                    let symbol = match program.type_reference_table.type_reference(*argument) {
-                        TypeReferenceNode::Named { symbol, .. } => *symbol,
+                    match program.type_reference_table.type_reference(*argument) {
+                        TypeReferenceNode::Named { symbol, .. } => {
+                            if !symbol.is_valid()
+                                || program.symbols.get(*symbol).kind
+                                    != symbols::SymbolKind::TypeParameter
+                            {
+                                return None;
+                            }
+                            StructuralTerm::BoundValue(*symbol)
+                        }
                         TypeReferenceNode::ConstExpression(expression) => {
-                            program.expression_table.name_path_node(*expression)?.symbol
+                            if let Some(path) = program.expression_table.name_path_node(*expression)
+                            {
+                                if path.symbol.is_valid()
+                                    && program.symbols.get(path.symbol).kind
+                                        == symbols::SymbolKind::TypeParameter
+                                {
+                                    StructuralTerm::BoundValue(path.symbol)
+                                } else {
+                                    super::super::structural_terms::structural_term(
+                                        program,
+                                        None,
+                                        None,
+                                        *expression,
+                                        None,
+                                    )?
+                                }
+                            } else {
+                                super::super::structural_terms::structural_term(
+                                    program,
+                                    None,
+                                    None,
+                                    *expression,
+                                    None,
+                                )?
+                            }
                         }
                         _ => return None,
-                    };
-                    if !symbol.is_valid()
-                        || program.symbols.get(symbol).kind != symbols::SymbolKind::TypeParameter
-                    {
-                        return None;
                     }
-                    StructuralTerm::BoundValue(symbol)
                 };
                 Some((
                     StateParameter {
                         symbol: parameter.symbol,
-                        name: format!(
-                            "\0static_{}_{}",
-                            parameter.symbol.arena_index(),
-                            parameter.symbol.generation()
-                        )
-                        .as_str()
-                        .into(),
+                        name: parameter.name.clone(),
                         type_reference,
                         is_const: true,
                         ..Default::default()

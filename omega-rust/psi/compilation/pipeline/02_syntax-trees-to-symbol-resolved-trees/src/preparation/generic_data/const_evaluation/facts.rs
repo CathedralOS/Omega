@@ -1175,9 +1175,12 @@ fn evaluate_indexed_const_domain(
     }
     let mut parameter_values = HashMap::new();
     for (parameter, argument) in index_parameters.iter().zip(arguments.iter()) {
-        let TypeParameterKind::Const {
+        let (TypeParameterKind::Const {
             type_reference: parameter_type,
-        } = parameter.kind
+        }
+        | TypeParameterKind::Value {
+            type_reference: parameter_type,
+        }) = parameter.kind
         else {
             return Ok(None);
         };
@@ -1300,6 +1303,13 @@ fn evaluate_domain_index_argument(
                     return Ok(ConstScalarValue::from_canonical(&atom));
                 }
                 Some(ConstScalarSpelling::Integer(value)) => {
+                    if let Some(integer_type) = integer_type {
+                        validate_declared_integer(integer_type, value)?;
+                        return Ok(Some(ConstScalarValue::DeclaredInteger {
+                            value,
+                            integer_type,
+                        }));
+                    }
                     return Ok(Some(ConstScalarValue::Integer(value)));
                 }
                 Some(ConstScalarSpelling::Boolean(value)) => {
@@ -1311,19 +1321,19 @@ fn evaluate_domain_index_argument(
                 // Forwarding binds a declared value, not an anonymous integer.
                 // Retain the caller telescope until its carrier is checked;
                 // reducing to i128 first would let `u64` silently become `u8`.
-                let Some(syntax_trees::item::TypeParameter {
-                    kind: TypeParameterKind::Const { type_reference },
-                    ..
-                }) = argument_parameters
+                let Some(syntax_trees::item::TypeParameter { kind, .. }) = argument_parameters
                     .iter()
                     .find(|parameter| parameter.name.as_str(syntax) == name.as_str(syntax))
                 else {
                     return Ok(None);
                 };
-                let actual = crate::preparation::generic_data::syntax_type_identity(
-                    syntax,
-                    *type_reference,
-                )?;
+                let type_reference = match kind {
+                    TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference } => *type_reference,
+                    _ => return Ok(None),
+                };
+                let actual =
+                    crate::preparation::generic_data::syntax_type_identity(syntax, type_reference)?;
                 let required =
                     crate::preparation::generic_data::syntax_type_identity(syntax, parameter_type)?;
                 if actual != required {
