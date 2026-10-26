@@ -169,7 +169,6 @@ Other-host execution and the parent capability's remaining runtime/case
 construction, replacement and saved-observation acceptance remain open.
 
 The broader `tests/omega/pass/borrows/runtime_guard_descriptor_replacement_exit`
-control still refuses on both the frozen `ac9b6d8d9762` baseline and this repair:
-`exercise` statement 5 stores a borrowed value without a complete
-destination/backing relation. That remains a source-producer repair under the
-parent, rather than a passing observation or a change to this row's oracle.
+now runs unchanged in both engines. Its distinct guard-time replacement
+requirement is covered by the nine `guard_replacement/` productions in
+[descriptor replacement](../descriptor_replacement_order/README.md#guard-replacement-through-a-saved-case-subject).
