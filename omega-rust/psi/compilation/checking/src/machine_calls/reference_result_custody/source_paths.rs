@@ -137,6 +137,35 @@ pub fn reference_origin_path(
     }
 }
 
+/// A parameter origin uses the same typed path as every other source. Only
+/// the outer stored-reference formal can contribute an entry-access step:
+/// publication already presents that borrowed storage. Nested reference and
+/// view-descriptor crossings remain in the path and retain their geometry.
+/// The path producer must actually emit that first step; a bare parameter or
+/// a trailing window cannot invent one merely from its declared access.
+pub fn parameter_reference_origin_path(
+    program: &dyn crate::CheckingInput,
+    parameter: TypeReferenceHandle,
+    segments: &[facts::PlaceSegment],
+) -> Option<(
+    u32,
+    Vec<CheckedReferenceOriginProjection>,
+    TypeReferenceHandle,
+    ReferenceOriginExtent,
+)> {
+    let (path, endpoint, extent) = reference_origin_path(program, parameter, segments)?;
+    let entry_reference_hops = u32::from(
+        super::stored_loan_parts(program, parameter).is_some()
+            && matches!(
+                path.first(),
+                Some(CheckedReferenceOriginProjection::Exact(
+                    CheckedUnitStructuralPathSegment::Referent
+                ))
+            ),
+    );
+    Some((entry_reference_hops, path, endpoint, extent))
+}
+
 pub(super) fn structural_path(
     program: &dyn crate::CheckingInput,
     mut selected: TypeReferenceHandle,

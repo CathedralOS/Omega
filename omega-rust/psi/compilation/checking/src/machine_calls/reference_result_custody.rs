@@ -38,7 +38,7 @@ mod source_paths;
 pub use captured_returns::call_sources as call_return_sources;
 pub use captured_returns::returned_sources as captured_return_sources;
 pub use declared_returns::returned_sources as declared_return_sources;
-pub use source_paths::reference_origin_path;
+pub use source_paths::{parameter_reference_origin_path, reference_origin_path};
 
 // An owned formal has a compact type DAG but its returned-origin roster is
 // materialized by path. Bound that expansion before semantic classification or

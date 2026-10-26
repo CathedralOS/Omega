@@ -607,6 +607,7 @@ fn current_actual(
             place.projected.clone(),
             primitive,
             contexts,
+            fold_observed_values,
             bindings,
         );
     }

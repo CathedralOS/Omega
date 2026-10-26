@@ -875,7 +875,13 @@ impl RemainingCustody {
         variant: symbols::SymbolHandle,
         positive: bool,
     ) {
-        if !crate::flow::stable_case_subject(place)
+        let Some(machine) = program.machine_holding_state(state) else {
+            return;
+        };
+        let Some(state_definition) = program.state_in_machine(machine, state) else {
+            return;
+        };
+        if !crate::flow::stable_case_subject(program, machine, state_definition, statement, place)
             || !(0..=place.segments.len()).all(|length| {
                 validation::canonical_place_type_reference(
                     program,
