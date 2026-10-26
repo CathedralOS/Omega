@@ -1681,11 +1681,7 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     independently reviewed finite diagnostic; that original run remains red.
     The [Linear continuation](samples/cli/facts/opaque_closed_carrier_exchange/independent_linear/README.md)
     carries actual whole ownership claims through independent inputs and returns
-    across all nine places on all four targets. Restore their current Build
-    selection path across the deferred Product source/dependency join: the
-    unchanged baseline now refuses the first `select_representation` Data
-    operand before execution. Preserve the qualified source contracts and
-    exact representation/provider authority through that repair.
+    across all nine places on all four targets.
   - Complete installed-provider custody and native marshaling for protocol-owned
     backing, permitted snapshots and the remaining resident/view codecs.
     Finite embedded ordinary records now retain original borrowed backing
