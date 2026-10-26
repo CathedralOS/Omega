@@ -18,15 +18,14 @@ import sample_native_gate
 
 PLACES = ("local", "field", "parameter", "call_result", "match_join", "const_name",
           "other_state", "other_machine", "target_body")
-CONTROLS = ("shared_aliases", "resident_whole_move", "enclosing_allocation")
-POSITIVES = tuple(f"pass/facts/foreign_retained_shared_borrow_{place}"
-                  for place in PLACES + CONTROLS)
-NEGATIVES = tuple(f"fail/facts/foreign_retained_shared_borrow_{place}"
-                  for place in PLACES)
-FACT = ROOT / "samples/cli/facts/foreign_retained_shared_borrow"
+FACTS = (
+    ("foreign_retained_shared_borrow",
+     ("shared_aliases", "resident_whole_move", "enclosing_allocation"), ()),
+    ("foreign_retained_mutable_borrow", (), ("stale_completion_fact",)),
+)
 
 
-def samples(output, target, cli):
+def samples(output, target, cli, fact, controls):
     """Replay authored sources, never copy acceptance or generated products."""
     cli = Path(cli).resolve()
     profile = sample_native_gate.require_optimized(cli)
@@ -38,8 +37,8 @@ def samples(output, target, cli):
                   compiler=str(cli), compiler_sha256=digest, compiler_profile=profile,
                   target=target, observations=observations, passed=False)
     try:
-        for place in PLACES + CONTROLS:
-            authored = FACT / place if place in PLACES else FACT / "controls" / place
+        for place in PLACES + controls:
+            authored = fact / place if place in PLACES else fact / "controls" / place
             replay = output / "samples" / place
             replay.mkdir(parents=True, exist_ok=False)
             sources = {}
@@ -78,25 +77,33 @@ def samples(output, target, cli):
 def main():
     output = ROOT / "build/compiler-retained-foreign"
     output.mkdir(parents=True, exist_ok=True)
-    provider = output / "provider"
-    prepared = subprocess.run([sys.executable, str(FACT / "fixture/prepare.py"),
-                               "--output", str(provider)], cwd=ROOT,
-                              capture_output=True, text=True, timeout=180)
-    (output / "provider.stdout.json").write_text(prepared.stdout, encoding="utf-8")
-    (output / "provider.stderr.txt").write_text(prepared.stderr, encoding="utf-8")
-    if prepared.returncode:
-        raise ValueError(f"matching-host C fixture failed: {prepared.stderr}")
-    key = "PATH" if os.name == "nt" else "DYLD_LIBRARY_PATH" if sys.platform == "darwin" else "LD_LIBRARY_PATH"
-    os.environ[key] = str(provider) + (os.pathsep + os.environ[key] if os.environ.get(key) else "")
     os.environ["OMEGA_LIBRARY_ROOT"] = str(ROOT / "source/library")
-    status = compiler_pilot.run_suite("compiler-retained-foreign", POSITIVES, NEGATIVES)
-    if status:
-        return status
     name = "omega.exe" if os.name == "nt" else "omega"
     built = Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "target")) / "debug" / name
-    retained = output / name
-    shutil.copy2(built, retained)
-    samples(output, compiler_pilot.corpus_gate.host_target(), retained)
+    for fact_name, controls, reject_controls in FACTS:
+        fact = ROOT / "samples/cli/facts" / fact_name
+        cohort = output / fact_name
+        cohort.mkdir(parents=True, exist_ok=True)
+        provider = cohort / "provider"
+        prepared = subprocess.run([sys.executable, str(fact / "fixture/prepare.py"),
+                                   "--output", str(provider)], cwd=ROOT,
+                                  capture_output=True, text=True, timeout=180)
+        (cohort / "provider.stdout.json").write_text(prepared.stdout, encoding="utf-8")
+        (cohort / "provider.stderr.txt").write_text(prepared.stderr, encoding="utf-8")
+        if prepared.returncode:
+            raise ValueError(f"{fact_name}: matching-host C fixture failed: {prepared.stderr}")
+        key = ("PATH" if os.name == "nt" else "DYLD_LIBRARY_PATH"
+               if sys.platform == "darwin" else "LD_LIBRARY_PATH")
+        os.environ[key] = str(provider) + (os.pathsep + os.environ[key] if os.environ.get(key) else "")
+        positives = tuple(f"pass/facts/{fact_name}_{place}" for place in PLACES + controls)
+        negatives = tuple(f"fail/facts/{fact_name}_{place}" for place in PLACES + reject_controls)
+        status = compiler_pilot.run_suite("compiler-retained-foreign/" + fact_name,
+                                          positives, negatives)
+        if status:
+            return status
+        retained = cohort / name
+        shutil.copy2(built, retained)
+        samples(cohort, compiler_pilot.corpus_gate.host_target(), retained, fact, controls)
     unoffered_descriptor(output, compiler_pilot.corpus_gate.host_target(), retained)
     return 0
 
