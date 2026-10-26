@@ -20,6 +20,10 @@ pub struct CheckedCompileRequest {
     /// Mutually exclusive with a supplied package graph. No later live read may
     /// replace these bytes, including Product imports after Build returns.
     pub source_capture: Option<package_compilation::CapturedLocalSource>,
+    /// Package-owned acquisition correspondence. The application consumes this
+    /// after normal return; it grants no compiler or Build execution authority.
+    pub dependency_source_join:
+        Option<std::sync::Arc<dyn package_compilation::BuildDependencySourceJoin>>,
     /// Execution obligations move together and must precede all Build effects.
     pub build: BuildExecutionInputs,
     pub optimization_rollback: OptimizationRollback,
@@ -45,6 +49,7 @@ impl CheckedCompileRequest {
             target_name: target_name.map(str::to_owned),
             package_inputs: None,
             source_capture: None,
+            dependency_source_join: None,
             build: BuildExecutionInputs::default(),
             optimization_rollback: OptimizationRollback::default(),
             collect_timings: false,

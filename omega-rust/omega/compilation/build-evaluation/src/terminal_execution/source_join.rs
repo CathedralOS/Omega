@@ -5,15 +5,8 @@
 use super::ReturnedBuild;
 use build_declarations::{BuildDeclaration, BuildRequest, DependencyPurpose};
 use package_compilation::PackageCompilationInputs;
-use semantic_vocabulary::PackageKeyIdentity;
 
-/// One package-manager selection at an issued purpose-local request ordinal.
-/// Selections retain request order within each purpose.
-pub struct BuildDependencySelection {
-    pub purpose: DependencyPurpose,
-    pub request_ordinal: usize,
-    pub package: PackageKeyIdentity,
-}
+pub use package_compilation::BuildDependencySelection;
 
 impl ReturnedBuild {
     /// The host resolver supplies the sources it acquired for these actual

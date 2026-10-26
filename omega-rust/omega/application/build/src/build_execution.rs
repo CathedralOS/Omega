@@ -65,7 +65,30 @@ pub(crate) fn execute_package_build(
     compiler: &mut CompilationSession,
     request: CheckedCompileRequest,
 ) -> Result<PackageBuild, CompileFailure> {
-    execute_returned_build(compiler, request)?.complete(compiler)
+    let join = request.dependency_source_join.clone();
+    let inputs = request.package_inputs.clone();
+    let mut build = execute_returned_build(compiler, request)?;
+    if let Some(join) = join {
+        let inputs = inputs.as_ref().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "acquired Build source join has no package input custody",
+            )]
+        })?;
+        if let Some(returned) = build.returned.as_mut() {
+            let requests = returned
+                .requests()
+                .iter()
+                .map(|issued| issued.request())
+                .collect::<Vec<_>>();
+            let selections = join
+                .resolve_issued_requests(inputs, &requests)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            returned
+                .join_dependency_sources(inputs, &selections)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        }
+    }
+    build.complete(compiler)
 }
 
 /// Application work retained between normal return and the final source join.

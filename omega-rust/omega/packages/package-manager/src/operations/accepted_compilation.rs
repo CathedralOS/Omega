@@ -407,7 +407,11 @@ fn prepare_occurrences(
             .unwrap_or_else(|| {
                 build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
             });
+            let dependency_source_join =
+                crate::resolution::source::build_source_join::prepare(closure, &key, &inputs)
+                    .map_err(|reason| failure(&key, reason))?;
             let compile_request = CheckedCompileRequest {
+                dependency_source_join: Some(dependency_source_join),
                 package_inputs: Some(inputs),
                 build: package_compilation::BuildExecutionInputs {
                     profile: execution_profile,

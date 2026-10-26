@@ -132,28 +132,14 @@ impl ResolvedBuildSources {
             .iter()
             .find(|custody| custody.key().identity() == root)
             .ok_or("Build does not belong to this resolved source graph")?;
-        let requests =
-            crate::declarations::dependencies::read::DependencyProjections::from_executed_requests(
-                returned.requests().iter().map(|issued| issued.request()),
-            )?;
-        if &requests != custody.dependency_projections() {
-            return Err("Build source requests differ from the executed acquisition ledger".into());
-        }
-        let node = self
-            .closure
-            .graph()
-            .package(custody.key())
-            .ok_or("resolved source has no graph node")?;
-        let selections = node
-            .dependencies()
-            .iter()
-            .map(|dependency| build_evaluation::BuildDependencySelection {
-                purpose: dependency.purpose(),
-                request_ordinal: dependency.dependency_index(),
-                package: dependency.target().identity(),
-            })
-            .collect::<Vec<_>>();
         let inputs = self.compilation_inputs(root)?;
+        let join = super::build_source_join::prepare(&self.closure, custody.key(), &inputs)?;
+        let requests = returned
+            .requests()
+            .iter()
+            .map(|issued| issued.request())
+            .collect::<Vec<_>>();
+        let selections = join.resolve_issued_requests(&inputs, &requests)?;
         returned.join_dependency_sources(&inputs, &selections)?;
         Ok(inputs)
     }
