@@ -2,7 +2,6 @@
 
 crate::identity_newtype! { pub struct RegisterHomeIdentity(pub(crate) [u8; 32]); }
 
-use register_model::RegisterOperandAccess;
 use selected_instructions::VirtualFixedConstraintSite;
 
 use crate::RegisterHomePlan;
@@ -60,11 +59,7 @@ pub(crate) fn encode_fixed_constraint_site_identity(
             crate::codec_bytes::push_encoded(bytes, point.0.to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, operand.to_le_bytes());
-            bytes.push(match access {
-                RegisterOperandAccess::Use => 0,
-                RegisterOperandAccess::Def => 1,
-                RegisterOperandAccess::UseDef => 2,
-            });
+            bytes.push(access.access_tag());
         }
     }
 }
