@@ -87,6 +87,12 @@ pub fn validate_boundary_callable(
     match &declaration.specialization {
         Some(specialization) => {
             identity(module, specialization.template.identity())?;
+            if let Some(capture) = &specialization.capture {
+                identity(module, capture.template_identity)?;
+                if capture.template_commitment == [0; 32] || capture.specialization_commitment == [0; 32] {
+                    return Err("checked boundary capture has an empty commitment");
+                }
+            }
             if specialization.commitment == [0; 32] {
                 return Err("checked boundary specialization has an empty commitment");
             }

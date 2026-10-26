@@ -2,7 +2,7 @@
 //! The boundary coordinate describes demand, not an installed memory resource.
 
 use super::super::CodecError;
-use super::super::wire::{Reader, Writer, decode_counted};
+use super::super::wire::{Reader, Writer, decode_canonical, decode_counted};
 use terminal_psi::{
     TerminalIdentityIndex, TerminalPlacementLifecycleExecution,
     TerminalPlacementLifecycleOperation, TerminalPlacementLifecyclePlan, TerminalPlacementStorage,
@@ -25,15 +25,11 @@ pub fn encode_placement_lifecycle_catalog(
 pub fn decode_placement_lifecycle_catalog(
     bytes: &[u8],
 ) -> Result<Vec<TerminalPlacementLifecyclePlan>, CodecError> {
-    let mut reader = Reader::new(bytes);
-    let plans = decode_counted(&mut reader, decode)?;
-    if reader.remaining() != 0 {
-        return Err(CodecError::TrailingBytes(reader.remaining()));
-    }
-    if encode_placement_lifecycle_catalog(&plans)? != bytes {
-        return Err(CodecError::NonCanonicalEncoding);
-    }
-    Ok(plans)
+    decode_canonical(
+        bytes,
+        |reader| decode_counted(reader, decode),
+        |plans| encode_placement_lifecycle_catalog(plans),
+    )
 }
 
 pub(super) fn encode(

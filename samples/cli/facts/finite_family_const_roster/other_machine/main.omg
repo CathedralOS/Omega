@@ -1,0 +1,21 @@
+// A literal selection of a const-only finite-family method keeps its declaring roster and returns the selected row's value.
+// Expected exit: 0
+// Place: other_machine.
+trait Family {
+    machine row<const Width: u32>() -> u32 where Width == 16 || Width == 32;
+}
+Selected satisfies Family {
+    machine row<const Width: u32>() -> u32 where Width == 16 || Width == 32 { Width }
+}
+Other satisfies Family {
+    machine row<const Width: u32>() -> u32 where Width == 16 || Width == 32 { Width }
+}
+machine selected_width(selection: dyn Family) -> u32 { Family::row<16>(selection) }
+
+machine helper_forward(selected: dyn Family) -> u32 { selected_width(selected) }
+machine main() crashes Trap {
+    let observed: u32 = helper_forward(Selected as dyn Family);
+    transition observed == 16 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

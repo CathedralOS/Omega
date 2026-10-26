@@ -36,6 +36,7 @@ mod standard_input;
 
 use native_artifact::TerminalRuntimeHostProvisions;
 use semantic_vocabulary::{BoundaryMachineId, IntegerSign, ScalarType};
+use target::TargetProfile;
 use target_operations::{BoundaryRealization, BoundarySettlementRealization};
 use terminal_interpreter::{TerminalImportSignature, TerminalInstance, TerminalProgram};
 use terminal_psi::BoundaryCompletion;
@@ -108,6 +109,86 @@ pub(super) fn admit_exact_foreign_call(
         )
     })?;
     Ok(())
+}
+
+/// Whether this host actually supplies the selected target's runtime: another
+/// host's libc/CRT supply is never borrowed for an offer.
+fn host_supplies_target(target: TargetProfile) -> bool {
+    match target {
+        TargetProfile::LinuxX64 => cfg!(all(target_os = "linux", target_arch = "x86_64")),
+        TargetProfile::LinuxArm64 => cfg!(all(target_os = "linux", target_arch = "aarch64")),
+        TargetProfile::MacosArm64 => cfg!(all(target_os = "macos", target_arch = "aarch64")),
+        TargetProfile::MacosX64 => cfg!(all(target_os = "macos", target_arch = "x86_64")),
+        TargetProfile::WindowsX64 => cfg!(all(target_os = "windows", target_arch = "x86_64")),
+        _ => false,
+    }
+}
+
+/// Match one hosted C-runtime symbol against a binding's normalized locator.
+///
+/// How the platform spells an ordinary C symbol is target data, not operation
+/// data: `libc.so.6` at the profile's GLIBC version, the Mach-O load identity,
+/// or a provider DLL export. `darwin_install_names` carries the accepted
+/// load-identity spellings; `windows_library` names the DLL that exports
+/// `symbol` on Windows, or `None` for an operation this runtime does not
+/// supply there. One table owns this identity so no operation family
+/// restates it. The offer is refused — not errored — when this host supplies
+/// no runtime for the selected target.
+pub(super) fn matches_platform_c_symbol(
+    binding: &target_operations::NormalizedForeignCallBinding,
+    symbol: &[u8],
+    darwin_install_names: &[&[u8]],
+    windows_library: Option<&[u8]>,
+) -> Result<bool, TerminalRuntimeError> {
+    let Some((locator, _)) = binding.import() else {
+        return Ok(false);
+    };
+    let target = locator.target();
+    if !host_supplies_target(target) {
+        return Ok(false);
+    }
+    let matches = |candidate| {
+        target::normalize_foreign_locator(candidate, target)
+            .map(|offered| offered == *locator)
+            .map_err(|_| {
+                TerminalRuntimeError::InvalidProvision(
+                    "a hosted C symbol spelling is not a valid locator for its target",
+                )
+            })
+    };
+    match target {
+        TargetProfile::LinuxX64 | TargetProfile::LinuxArm64 => {
+            matches(target::ForeignLocatorCandidate::ElfVersioned {
+                object: b"libc.so.6".to_vec(),
+                symbol: symbol.to_vec(),
+                version: if target == TargetProfile::LinuxX64 {
+                    b"GLIBC_2.2.5".to_vec()
+                } else {
+                    b"GLIBC_2.17".to_vec()
+                },
+            })
+        }
+        TargetProfile::MacosArm64 | TargetProfile::MacosX64 => {
+            let darwin_symbol = [b"_".as_slice(), symbol].concat();
+            for install_name in darwin_install_names {
+                if matches(target::ForeignLocatorCandidate::MachODylibSymbol {
+                    install_name: install_name.to_vec(),
+                    symbol: darwin_symbol.clone(),
+                })? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
+        TargetProfile::WindowsX64 => match windows_library {
+            Some(library) => matches(target::ForeignLocatorCandidate::PeByName {
+                library: library.to_vec(),
+                export: symbol.to_vec(),
+            }),
+            None => Ok(false),
+        },
+        _ => Ok(false),
+    }
 }
 
 /// One explicitly supplied host capability root shared by the receiver and

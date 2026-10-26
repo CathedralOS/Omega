@@ -745,6 +745,7 @@ pub(super) fn lower(
                 event: abstract_operations::AbstractAtomicEvent::Fence {
                     ordering: *ordering,
                 },
+                resident_obligation: None,
                 reads_from: None,
                 modification_after: None,
             })

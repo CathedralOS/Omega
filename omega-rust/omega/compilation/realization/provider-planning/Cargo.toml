@@ -35,3 +35,7 @@ layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 numerics = { path = "../../../../psi/foundation/numerics" }
 source = { path = "../../../../psi/foundation/source" }
 symbols = { path = "../../../../psi/foundation/symbols" }
+
+[dev-dependencies]
+# The source guards delegate their scan to the shared audit crate.
+source-audit = { path = "../../../../psi/foundation/source-audit" }

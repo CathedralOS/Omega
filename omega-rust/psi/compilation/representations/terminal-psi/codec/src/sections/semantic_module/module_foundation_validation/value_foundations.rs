@@ -156,8 +156,9 @@ pub(super) fn validate_establish_scalar_case(
         if declaration.id != field.field
             || declaration.relevance.is_erased()
             || declaration.field_type.scalar_type().is_none()
-            || terminal_semantics::scalar_field_requires_evidence(&declaration.field_type)
-                != field.range_obligation.is_some()
+            || terminal_semantics::scalar_field_requires_initialization_evidence(
+                &declaration.field_type,
+            ) != field.range_obligation.is_some()
         {
             return malformed("scalar case establishment has an invalid field binding");
         }
@@ -440,7 +441,7 @@ fn validate_constructor_field(
             field_type,
         ) if field_type.scalar_type().is_some() => {
             if range_obligation.is_some()
-                != terminal_semantics::scalar_field_requires_evidence(field_type)
+                != terminal_semantics::scalar_field_requires_initialization_evidence(field_type)
             {
                 return malformed("constructor field range obligation differs");
             }

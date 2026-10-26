@@ -227,7 +227,7 @@ fn qualified_owned_cleanup_replays_transport_and_single_disposal() {
         .expect_err("unqualified mutable call must not retain opaque caller membership");
     assert_eq!(
         reason,
-        "ownership reconstruction: StructuralCallContractMismatch { machine: MachineId(1), block: BlockId(9), node: 0 }"
+        "ownership reconstruction: StructuralCallContractMismatch(OperationSite { machine: MachineId(1), block: BlockId(9), node: 0 })"
     );
     println!("mutating unqualified observer rejected: {reason}");
 

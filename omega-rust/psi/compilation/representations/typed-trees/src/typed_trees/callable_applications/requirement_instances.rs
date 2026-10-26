@@ -425,6 +425,7 @@ impl TypedTrees {
             declared.name.as_str(),
         );
         substitutions.symbols.push((template, instance));
+        substitutions.owned_signature = instance;
         let mut closed = substitutions.signature(self, &declared)?;
         // Closing removes executable generic arity, not the source contract
         // that admits static selections and callback destinations. Retain the

@@ -47,7 +47,7 @@ pub(crate) fn instantiate_dynamic_slots(program: &mut TypedTrees) -> Result<(), 
     for demand in demands {
         let interface_identity = program.normalized_type_identity(demand.selector_type);
         if program
-            .dynamic_slot(interface_identity, demand.requirement)
+            .dynamic_slot(interface_identity, demand.call_requirement)
             .is_none()
         {
             let slot = instantiate_slot(program, &demand, interface_identity)?;
@@ -55,6 +55,11 @@ pub(crate) fn instantiate_dynamic_slots(program: &mut TypedTrees) -> Result<(), 
         }
     }
     retarget_selector_calls(program);
+    let mut diagnostics = Vec::new();
+    validation::validate_prepared_inline_storage(program, &mut diagnostics);
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
     Ok(())
 }
 
@@ -69,7 +74,9 @@ fn instantiate_slot(
         )]);
     };
     let Some(signature) = program
-        .trait_machine_signature_by_symbol(definition, demand.requirement)
+        .closed_requirement_application(demand.call_requirement)
+        .map(|application| application.signature)
+        .or_else(|| program.trait_machine_signature_by_symbol(definition, demand.requirement))
         .cloned()
     else {
         return Err(vec![Diagnostic::error(
@@ -121,8 +128,8 @@ fn instantiate_slot(
     // requirement, so facts keyed by a callee formal never alias the generic
     // requirement's own formals across two selector applications.
     let symbol = program.symbols.insert_generated_root_from(
-        demand.requirement,
-        program.symbols.get(demand.requirement).kind,
+        demand.call_requirement,
+        program.symbols.get(demand.call_requirement).kind,
         &format!("{selector_display}::{}", signature.name),
     );
     let names = parameters
@@ -165,6 +172,7 @@ fn instantiate_slot(
         interface_identity,
         declaring_trait: demand.declaring_trait,
         requirement: demand.requirement,
+        call_requirement: demand.call_requirement,
         parameters,
         return_type,
     })
@@ -183,6 +191,12 @@ fn instantiate_requirement_type(
     mut reference: typed_trees::types::TypeReferenceHandle,
     demand: &validation::DynamicSlotDemand,
 ) -> Result<typed_trees::types::TypeReferenceHandle, &'static str> {
+    // A closed call signature already applied both its outer trait scopes
+    // and its local tuple. Its operands belong to that supplied scope and
+    // must not be substituted through the same telescope a second time.
+    if demand.call_requirement != demand.requirement {
+        return Ok(reference);
+    }
     let mut end = demand.type_substitutions.len();
     for start in demand.substitution_scope_starts.iter().rev() {
         reference = program
@@ -268,7 +282,7 @@ fn slot_for(
 ) -> Option<(SymbolHandle, Identifier)> {
     let demand = demand?;
     let identity = program.normalized_type_identity(demand.selector_type);
-    let slot = program.dynamic_slot(identity, demand.requirement)?;
+    let slot = program.dynamic_slot(identity, demand.call_requirement)?;
     Some((
         slot.symbol,
         Identifier::generated(program.symbols.name(slot.symbol).to_owned()),

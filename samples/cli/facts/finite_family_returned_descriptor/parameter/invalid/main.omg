@@ -1,0 +1,38 @@
+// A finite-family method on a borrowed record returns a descriptor of the original backing, and reading its first byte yields 11.
+// Expected exit: 0
+// Place: parameter.
+data Packet<'bytes> [copy] { bytes: &'bytes [u8]; }
+trait Windowing {
+    machine window<Width: u32>(source: &Packet) -> Packet
+    where Width == 16 || Width == 32;
+}
+Header satisfies Windowing {
+    machine window<Width: u32>(source: &Packet) -> Packet
+    where Width == 16 || Width == 32 {
+        let local: [u8; 3] = [11, 22, 33];
+        Packet { bytes: &local[..] }
+    }
+}
+machine dispatch(selected: dyn Windowing, source: &Packet, width: u32) -> Packet
+requires width == 16 || width == 32 {
+    Windowing::window<width>(selected, source)
+}
+machine check(packet: &Packet, width: u32) crashes Trap
+requires width == 16 || width == 32;
+{
+    let selected: dyn Windowing = Header as dyn Windowing;
+    let result: Packet = dispatch(selected, packet, width);
+    transition result.bytes.len == 3 { true -> read(result) false -> bad() }
+    state read(result: Packet) requires result.bytes.len == 3 {
+        transition result.bytes[0] == 11 { true -> done() false -> bad() }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine forward(packet: Packet) crashes Trap { check(&packet, 16); check(&packet, 32); }
+machine main() crashes Trap {
+    let backing: [u8; 3] = [11, 22, 33];
+    let packet: Packet = Packet { bytes: &backing[..] };
+    forward(packet);
+}

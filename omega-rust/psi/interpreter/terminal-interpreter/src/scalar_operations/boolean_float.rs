@@ -42,11 +42,10 @@ impl TerminalExecution<'_> {
         };
         let left = read_float(left)?;
         let right = read_float(right)?;
-        if left.format() != right.format()
-            || operation.result.expect_scalar().scalar_type != ScalarType::Boolean
-        {
+        if left.format() != right.format() {
             return Err(malformed());
         }
+        self.require_boolean_result(operation)?;
         self.store_scalar(
             operation,
             TerminalScalarValue::Boolean(ieee_float_compare(comparison, left, right)),
@@ -136,9 +135,7 @@ impl TerminalExecution<'_> {
         let OperationKind::BooleanConstant { value } = operation.kind else {
             unreachable!("dispatched execute_boolean_constant")
         };
-        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-            return Err(malformed());
-        }
+        self.require_boolean_result(operation)?;
         self.store_scalar(operation, TerminalScalarValue::Boolean(value))
     }
 
@@ -149,9 +146,7 @@ impl TerminalExecution<'_> {
         let OperationKind::BooleanNot { operand } = operation.kind else {
             unreachable!("dispatched execute_boolean_not")
         };
-        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-            return Err(malformed());
-        }
+        self.require_boolean_result(operation)?;
         let TerminalScalarValue::Boolean(value) = self.scalar_value(operand)? else {
             return Err(malformed());
         };
@@ -165,9 +160,7 @@ impl TerminalExecution<'_> {
         let OperationKind::BooleanEqual { left, right } = operation.kind else {
             unreachable!("dispatched execute_boolean_equal")
         };
-        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-            return Err(malformed());
-        }
+        self.require_boolean_result(operation)?;
         let TerminalScalarValue::Boolean(left) = self.scalar_value(left)? else {
             return Err(malformed());
         };

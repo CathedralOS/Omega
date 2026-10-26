@@ -73,6 +73,10 @@ pub(crate) struct Evaluation {
     pub(crate) qualification_coercions: Vec<terminal_psi::ScalarQualificationCoercion>,
     pub(crate) structural_types: std::sync::Arc<[StructuralTypeDeclaration]>,
     pub(crate) structural_value_owners: Vec<StructuralValueOwner>,
+    /// Named physical occurrences ended by an emitted whole-home disposition.
+    /// Historical local declarations alone cannot distinguish dead carriers
+    /// from a missing live frontier after a later selection.
+    pub(crate) retired_structural_homes: Vec<RetiredStructuralHome>,
     pub(crate) selection_cleanups: Vec<SelectionCleanup>,
     pub(crate) structural_locals:
         Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
@@ -169,11 +173,21 @@ pub(crate) struct StructuralValueOwner {
     pub(crate) value: terminal_psi::StructuralOperationResult,
 }
 
+/// Exact source occurrence removed by whole-home retirement. A later binding
+/// of the same source symbol establishes a different physical occurrence.
+#[derive(Clone)]
+pub(crate) struct RetiredStructuralHome {
+    pub(crate) symbol: symbols::SymbolHandle,
+    pub(crate) statement: u32,
+    pub(crate) place: PlaceId,
+}
+
 /// The source homes available before choosing a private predecessor. Ending a
 /// home while emitting one arm cannot remove its binding from a sibling arm.
 /// This is lexical lookup state; emitted ownership evidence remains on edges.
 pub(crate) struct AvailableHomes {
     owners: Vec<StructuralValueOwner>,
+    retired: Vec<RetiredStructuralHome>,
     locals: Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
     views: Vec<crate::expression_preparation::bindings::view_locals::ViewLocalBinding>,
 }
@@ -182,6 +196,7 @@ impl Evaluation {
     pub(crate) fn available_homes(&self) -> AvailableHomes {
         AvailableHomes {
             owners: self.structural_value_owners.clone(),
+            retired: self.retired_structural_homes.clone(),
             locals: self.structural_locals.clone(),
             views: self.view_locals.clone(),
         }
@@ -189,6 +204,7 @@ impl Evaluation {
 
     pub(crate) fn restore_available_homes(&mut self, homes: AvailableHomes) {
         self.structural_value_owners = homes.owners;
+        self.retired_structural_homes = homes.retired;
         self.structural_locals = homes.locals;
         self.view_locals = homes.views;
     }
@@ -486,6 +502,7 @@ impl Evaluation {
             qualification_coercions: self.qualification_coercions.clone(),
             structural_types: self.structural_types.clone(),
             structural_value_owners: self.structural_value_owners.clone(),
+            retired_structural_homes: self.retired_structural_homes.clone(),
             selection_cleanups: self.selection_cleanups.clone(),
             structural_locals: self.structural_locals.clone(),
             completed_operand_scope: self.completed_operand_scope.clone(),
@@ -522,6 +539,10 @@ impl Evaluation {
     /// Keep one affine owner for an emitted home. A later named binding claims
     /// the anonymous call row; two different locals on one place are refused.
     fn record_affine_home(&mut self, owner: StructuralValueOwner) -> Result<(), LoweringError> {
+        if owner.symbol.is_valid() {
+            self.retired_structural_homes
+                .retain(|retired| retired.symbol != owner.symbol);
+        }
         if let Some(existing) = self
             .structural_value_owners
             .iter_mut()
@@ -692,6 +713,23 @@ impl Evaluation {
     /// Remove a retired physical occurrence from current source and transport
     /// rosters. Historical declarations and shared type geometry stay intact.
     pub(crate) fn retire_structural_home(&mut self, place: PlaceId) {
+        for owner in self
+            .structural_value_owners
+            .iter()
+            .filter(|owner| owner.value.place == place && owner.symbol.is_valid())
+        {
+            if !self.retired_structural_homes.iter().any(|retired| {
+                retired.symbol == owner.symbol
+                    && retired.statement == owner.statement
+                    && retired.place == place
+            }) {
+                self.retired_structural_homes.push(RetiredStructuralHome {
+                    symbol: owner.symbol,
+                    statement: owner.statement,
+                    place,
+                });
+            }
+        }
         self.structural_value_owners
             .retain(|owner| owner.value.place != place);
         self.structural_locals
@@ -797,6 +835,7 @@ impl Evaluation {
             qualification_coercions: Vec::new(),
             structural_types: std::sync::Arc::from([]),
             structural_value_owners: Vec::new(),
+            retired_structural_homes: Vec::new(),
             selection_cleanups: Vec::new(),
             structural_locals: Vec::new(),
             completed_operand_scope: Vec::new(),

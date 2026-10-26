@@ -84,7 +84,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
         entry_name,
     } = split_machine_path(syntax_trees, path);
 
-    let ((states, bodyless), input) = body::parse_body::parse_body(
+    let ((states, bodyless, nested_machines), input) = body::parse_body::parse_body(
         syntax_trees,
         input,
         entry_name.clone(),
@@ -118,6 +118,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
     }
     Ok((
         Machine {
+            nested_machines,
             target_family_interface: false,
             name,
             generic_data_template: Default::default(),

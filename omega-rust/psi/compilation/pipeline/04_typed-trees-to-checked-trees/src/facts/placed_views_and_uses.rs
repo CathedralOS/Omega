@@ -123,6 +123,7 @@ pub(crate) fn build_nominal_machine_use_facts(
                 }
             },
             registration_operation: nominal_use.registration_operation,
+            registration_requirement_trait: nominal_use.registration_requirement_trait,
             static_machine_ordinal: nominal_use.static_machine_ordinal,
             selected_machine: nominal_use.selected_machine,
             selected_entry: nominal_use.selected_entry,

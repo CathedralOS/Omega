@@ -40,7 +40,7 @@ use proof_admission::{
 };
 
 use super::CodecError;
-use super::wire::{Reader, Writer, bounded_count, decode_counted};
+use super::wire::{Reader, Writer, bounded_count, decode_canonical, decode_counted};
 
 const MAGIC: &[u8; 8] = b"PSICORE\0";
 /// Format 3 adds the declaration signature and `Term::Constant`; format 2
@@ -128,74 +128,73 @@ pub fn encode_mathematical_certificate(
 }
 
 /// Decode one certificate, materializing its term table into a fresh arena.
+/// The canonical envelope (consume every byte; the decoded judgment must
+/// re-encode to the input) rejects unreachable nodes and alternate tables, so
+/// two byte strings never decode to the same certificate.
 pub fn decode_mathematical_certificate(
     bytes: &[u8],
 ) -> Result<DecodedMathematicalCertificate, CodecError> {
-    let mut reader = Reader::new(bytes);
-    if reader.take(MAGIC.len())? != MAGIC {
-        return Err(CodecError::InvalidMagic);
-    }
-    let format_marker = reader.u16()?;
-    if format_marker != FORMAT_MARKER {
-        return Err(CodecError::UnsupportedFormatMarker(format_marker));
-    }
-    let level_arity = reader.u32()?;
-    let node_count = bounded_count(&mut reader, 1)?;
-    let mut arena = TermArena::new();
-    let mut handles = Vec::with_capacity(node_count);
-    let mut depths = Vec::with_capacity(node_count);
-    for _ in 0..node_count {
-        let (term, depth) = decode_term(&mut reader, &handles, &depths)?;
-        if depth > MAX_MATHEMATICAL_TERM_DEPTH {
-            return Err(CodecError::MalformedMathematicalCertificate(
-                "mathematical term nesting too deep",
-            ));
-        }
-        depths.push(depth);
-        handles.push(arena.insert(term));
-    }
-    // A declaration occupies at least one byte on the wire, so a count
-    // beyond the remaining input cannot parse.
-    let signature_count = bounded_count(&mut reader, 1)?;
-    let mut signature = Vec::with_capacity(signature_count);
-    for _ in 0..signature_count {
-        let level_arity = reader.u32()?;
-        let ty = decode_root(&mut reader, &handles)?;
-        let body = if reader.boolean()? {
-            Some(decode_root(&mut reader, &handles)?)
-        } else {
-            None
-        };
-        signature.push(Declaration {
-            level_arity,
-            ty,
-            body,
-        });
-    }
-    let context_count = bounded_count(&mut reader, 1)?;
-    let mut context = Vec::with_capacity(context_count);
-    for _ in 0..context_count {
-        context.push(decode_root(&mut reader, &handles)?);
-    }
-    let term = decode_root(&mut reader, &handles)?;
-    let expected = decode_root(&mut reader, &handles)?;
-    if reader.remaining() != 0 {
-        return Err(CodecError::TrailingBytes(reader.remaining()));
-    }
-    let certificate = MathematicalCertificate {
-        signature,
-        level_arity,
-        context,
-        term,
-        expected,
-    };
-    // Canonicality: re-encoding the decoded judgment must reproduce the
-    // input exactly, so unreachable nodes and alternate tables cannot alias
-    // one certificate.
-    if encode_mathematical_certificate(&arena, &certificate)? != bytes {
-        return Err(CodecError::NonCanonicalEncoding);
-    }
-    Ok(DecodedMathematicalCertificate { arena, certificate })
+    decode_canonical(
+        bytes,
+        |reader| {
+            if reader.take(MAGIC.len())? != MAGIC {
+                return Err(CodecError::InvalidMagic);
+            }
+            let format_marker = reader.u16()?;
+            if format_marker != FORMAT_MARKER {
+                return Err(CodecError::UnsupportedFormatMarker(format_marker));
+            }
+            let level_arity = reader.u32()?;
+            let node_count = bounded_count(reader, 1)?;
+            let mut arena = TermArena::new();
+            let mut handles = Vec::with_capacity(node_count);
+            let mut depths = Vec::with_capacity(node_count);
+            for _ in 0..node_count {
+                let (term, depth) = decode_term(reader, &handles, &depths)?;
+                if depth > MAX_MATHEMATICAL_TERM_DEPTH {
+                    return Err(CodecError::MalformedMathematicalCertificate(
+                        "mathematical term nesting too deep",
+                    ));
+                }
+                depths.push(depth);
+                handles.push(arena.insert(term));
+            }
+            // A declaration occupies at least one byte on the wire, so a count
+            // beyond the remaining input cannot parse.
+            let signature_count = bounded_count(reader, 1)?;
+            let mut signature = Vec::with_capacity(signature_count);
+            for _ in 0..signature_count {
+                let level_arity = reader.u32()?;
+                let ty = decode_root(reader, &handles)?;
+                let body = if reader.boolean()? {
+                    Some(decode_root(reader, &handles)?)
+                } else {
+                    None
+                };
+                signature.push(Declaration {
+                    level_arity,
+                    ty,
+                    body,
+                });
+            }
+            let context_count = bounded_count(reader, 1)?;
+            let mut context = Vec::with_capacity(context_count);
+            for _ in 0..context_count {
+                context.push(decode_root(reader, &handles)?);
+            }
+            let term = decode_root(reader, &handles)?;
+            let expected = decode_root(reader, &handles)?;
+            let certificate = MathematicalCertificate {
+                signature,
+                level_arity,
+                context,
+                term,
+                expected,
+            };
+            Ok(DecodedMathematicalCertificate { arena, certificate })
+        },
+        |decoded| encode_mathematical_certificate(&decoded.arena, &decoded.certificate),
+    )
 }
 
 struct MathematicalTermWriter<'arena> {

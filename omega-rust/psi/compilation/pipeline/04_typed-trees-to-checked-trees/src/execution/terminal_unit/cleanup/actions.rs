@@ -220,9 +220,13 @@ pub(super) fn disposition_actions(
         match case_reachability(excluded)? {
             validation::CleanupCaseReachability::Inactive => continue,
             validation::CleanupCaseReachability::Selected => {}
-            // An uncertain earlier transfer needs its own selected custody
-            // join. A tag condition alone cannot establish that transfer.
-            validation::CleanupCaseReachability::Runtime => return None,
+            // A runtime tag cannot establish a transfer. The custody producer
+            // must additionally prove absence on every edge where it is active.
+            validation::CleanupCaseReachability::Runtime => {
+                if !case_evidence.definitely_transferred(excluded) {
+                    return None;
+                }
+            }
         }
         // The contextual row remembers earlier transfers under the original
         // owner. A selected residual ignores siblings outside its subtree;

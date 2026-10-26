@@ -423,7 +423,7 @@ pub(super) fn project_component(
                 // while a complete outer invocation is the arrival itself.
                 let target_node = program.statement_table.transition_target(transition.target);
                 let tail_arrival =
-                    crate::completing_transition_transfer(program, transition.target)
+                    crate::completing_transition_invocation(program, transition.target)
                         .map(|transfer| (transfer.target, transfer.arguments));
                 match tail_arrival {
                     Some((target_symbol, arguments)) => {

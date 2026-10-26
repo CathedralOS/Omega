@@ -1372,6 +1372,7 @@ impl TerminalExecution<'_> {
                         && (!matches!(
                             field.field_type,
                             terminal_psi::StructuralFieldType::Atomic(_)
+                                | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
                         ) || matches!(observation, ScalarStorageObservation::ExclusiveSnapshot))
                         && field.field_type.scalar_type() == Some(scalar_type)
                     {
@@ -1388,6 +1389,9 @@ impl TerminalExecution<'_> {
                                 || matches!(
                                     field.field_type,
                                     terminal_psi::StructuralFieldType::Atomic(_)
+                                        | terminal_psi::StructuralFieldType::AtomicBoundedInteger(
+                                            _
+                                        )
                                 )
                             {
                                 return Err(malformed());
@@ -1721,6 +1725,7 @@ impl TerminalExecution<'_> {
         if matches!(
             field.field_type,
             terminal_psi::StructuralFieldType::Atomic(_)
+                | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
         ) {
             return Err(malformed());
         }

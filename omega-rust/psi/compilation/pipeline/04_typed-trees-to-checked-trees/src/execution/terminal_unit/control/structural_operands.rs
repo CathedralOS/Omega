@@ -12,8 +12,8 @@ use super::super::{
 };
 use super::{
     CheckFacts, CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, MachineSupplyMode,
-    Multiplicity, SymbolHandle,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, Multiplicity,
+    SymbolHandle,
 };
 use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
 use crate::execution::terminal_unit::types::{
@@ -690,19 +690,13 @@ pub(in crate::execution::terminal_unit) fn result(
     }
     let call = program.expression_table.call_node(expression)?;
     let return_type = crate::values::nested_structural_call_return_type(program, caller, call)?;
-    let mut owners = program.machines().iter().filter_map(|owner| {
-        let [state] = program.machine_states(owner) else {
-            return None;
-        };
-        (state.symbol == call.target_symbol).then_some((owner, state))
-    });
+    // Use the same exact head/entry join as nested result discovery. A
+    // portable family interface owns its common signature, not a selected
+    // member body; a second state-only scan can lose that signature entirely.
     let binders =
-        if let Some((owner, _)) = owners.next() {
-            if owners.next().is_some() {
-                return None;
-            }
+        if let Some((owner, _)) = validation::find_machine_head(program, call.target_symbol) {
             if !owner.supply_mode.is_boundary_declaration() {
-                if owner.supply_mode != MachineSupplyMode::CheckedBody
+                if !(owner.supplies_checked_body() || owner.has_bodyless_signature())
                     || !machine_binders(program, owner).is_empty()
                 {
                     return None;

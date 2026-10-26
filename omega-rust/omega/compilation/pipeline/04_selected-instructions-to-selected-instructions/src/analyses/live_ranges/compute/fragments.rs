@@ -70,33 +70,95 @@ pub(super) fn register_fragments(
             let after_end = after
                 .checked_add(1)
                 .ok_or(LiveRangeError::PointOverflow { function })?;
-            for &register in &instruction.virtual_defs {
-                if let Some(&idx) = register_index.get(register.0 as usize)
-                    && idx != u32::MAX
-                {
-                    if open_end[idx as usize] == u32::MAX {
-                        open_end[idx as usize] = after_end;
+            if instruction.virtual_defs.is_empty() && instruction.virtual_uses.is_empty() {
+                let ops = liveness
+                    .operand_positions
+                    .span_or_empty(instruction.operands);
+                for (op_idx, op) in ops.iter().enumerate() {
+                    if !matches!(
+                        op.access,
+                        RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
+                    ) {
+                        continue;
                     }
-                    if !instruction.virtual_uses.contains(&register) {
-                        let slot = &mut fragments[idx as usize];
-                        if slot.last().map(|f| f.block) != Some(block.block) {
-                            touched_in_block.push((idx, slot.len() as u32));
+                    let register = op.virtual_register;
+                    if ops[..op_idx].iter().any(|prev| {
+                        prev.virtual_register == register
+                            && matches!(
+                                prev.access,
+                                RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
+                            )
+                    }) {
+                        continue;
+                    }
+                    if let Some(&idx) = register_index.get(register.0 as usize)
+                        && idx != u32::MAX
+                    {
+                        if open_end[idx as usize] == u32::MAX {
+                            open_end[idx as usize] = after_end;
                         }
-                        slot.push(LiveRangeFragment {
-                            block: block.block,
-                            start: LiveRangePoint(after),
-                            end: LiveRangePoint(open_end[idx as usize]),
-                        });
-                        open_end[idx as usize] = u32::MAX;
+                        let also_used = op.access == RegisterOperandAccess::UseDef
+                            || ops.iter().any(|other| {
+                                other.virtual_register == register
+                                    && matches!(
+                                        other.access,
+                                        RegisterOperandAccess::Use | RegisterOperandAccess::UseDef
+                                    )
+                            });
+                        if !also_used {
+                            let slot = &mut fragments[idx as usize];
+                            if slot.last().map(|f| f.block) != Some(block.block) {
+                                touched_in_block.push((idx, slot.len() as u32));
+                            }
+                            slot.push(LiveRangeFragment {
+                                block: block.block,
+                                start: LiveRangePoint(after),
+                                end: LiveRangePoint(open_end[idx as usize]),
+                            });
+                            open_end[idx as usize] = u32::MAX;
+                        }
                     }
                 }
-            }
-            for &register in &instruction.virtual_uses {
-                if let Some(&idx) = register_index.get(register.0 as usize)
-                    && idx != u32::MAX
-                    && open_end[idx as usize] == u32::MAX
-                {
-                    open_end[idx as usize] = after;
+                for op in ops {
+                    if matches!(
+                        op.access,
+                        RegisterOperandAccess::Use | RegisterOperandAccess::UseDef
+                    ) && let Some(&idx) = register_index.get(op.virtual_register.0 as usize)
+                        && idx != u32::MAX
+                        && open_end[idx as usize] == u32::MAX
+                    {
+                        open_end[idx as usize] = after;
+                    }
+                }
+            } else {
+                for &register in &instruction.virtual_defs {
+                    if let Some(&idx) = register_index.get(register.0 as usize)
+                        && idx != u32::MAX
+                    {
+                        if open_end[idx as usize] == u32::MAX {
+                            open_end[idx as usize] = after_end;
+                        }
+                        if !instruction.virtual_uses.contains(&register) {
+                            let slot = &mut fragments[idx as usize];
+                            if slot.last().map(|f| f.block) != Some(block.block) {
+                                touched_in_block.push((idx, slot.len() as u32));
+                            }
+                            slot.push(LiveRangeFragment {
+                                block: block.block,
+                                start: LiveRangePoint(after),
+                                end: LiveRangePoint(open_end[idx as usize]),
+                            });
+                            open_end[idx as usize] = u32::MAX;
+                        }
+                    }
+                }
+                for &register in &instruction.virtual_uses {
+                    if let Some(&idx) = register_index.get(register.0 as usize)
+                        && idx != u32::MAX
+                        && open_end[idx as usize] == u32::MAX
+                    {
+                        open_end[idx as usize] = after;
+                    }
                 }
             }
         }
@@ -212,8 +274,8 @@ pub(super) fn interference(rows: &[super::VirtualLiveRange]) -> Vec<super::Virtu
         .windows(2)
         .all(|pair| pair[0].virtual_register < pair[1].virtual_register);
     if rows_monotonic {
-        let mut buckets: Vec<Vec<VirtualRegisterId>> = vec![Vec::new(); rows.len()];
-        let mut total_pairs = 0usize;
+        let mut raw_pairs: Vec<(u32, VirtualRegisterId)> = Vec::with_capacity(rows.len() * 2);
+        let mut bucket_counts = vec![0u32; rows.len()];
         let mut active: Vec<(u32, u32, VirtualRegisterId)> = Vec::new();
         for fragments in by_block.values_mut() {
             fragments.sort_unstable_by_key(|&(start, _, row, _)| (start, row));
@@ -223,37 +285,60 @@ pub(super) fn interference(rows: &[super::VirtualLiveRange]) -> Vec<super::Virtu
                 for &(_, live_row, live_vreg) in &active {
                     if live_row != row {
                         let (lo_row, hi_vreg) = if live_row < row {
-                            (live_row as usize, vreg)
+                            (live_row, vreg)
                         } else {
-                            (row as usize, live_vreg)
+                            (row, live_vreg)
                         };
-                        buckets[lo_row].push(hi_vreg);
-                        total_pairs += 1;
+                        bucket_counts[lo_row as usize] += 1;
+                        raw_pairs.push((lo_row, hi_vreg));
                     }
                 }
                 active.push((end, row, vreg));
             }
         }
+        let total_pairs = raw_pairs.len();
+        let mut bucket_offsets = vec![0u32; rows.len() + 1];
+        for i in 0..rows.len() {
+            bucket_offsets[i + 1] = bucket_offsets[i] + bucket_counts[i];
+        }
+        let mut cursors = bucket_offsets.clone();
+        let mut flat_buckets = vec![VirtualRegisterId(0); total_pairs];
+        for (lo_row, hi_vreg) in raw_pairs {
+            let cursor = &mut cursors[lo_row as usize];
+            flat_buckets[*cursor as usize] = hi_vreg;
+            *cursor += 1;
+        }
         let max_vreg = rows.last().map_or(0, |r| r.virtual_register.0 as usize);
         let mut seen = vec![0u32; max_vreg + 1];
         let mut stamp = 0u32;
         let mut pairs = Vec::with_capacity(total_pairs);
-        for (lo_row, mut bucket) in buckets.into_iter().enumerate() {
-            if bucket.is_empty() {
+        for lo_row in 0..rows.len() {
+            let start = bucket_offsets[lo_row] as usize;
+            let end = bucket_offsets[lo_row + 1] as usize;
+            if start == end {
                 continue;
             }
-            if bucket.len() > 1 {
-                if bucket.len() <= 16 {
+            let bucket = &mut flat_buckets[start..end];
+            let mut valid_len = bucket.len();
+            if valid_len > 1 {
+                if valid_len <= 16 {
                     if bucket.windows(2).any(|w| w[0] >= w[1]) {
                         bucket.sort_unstable();
-                        bucket.dedup();
+                        let mut write_idx = 1usize;
+                        for read_idx in 1..valid_len {
+                            if bucket[read_idx] != bucket[write_idx - 1] {
+                                bucket[write_idx] = bucket[read_idx];
+                                write_idx += 1;
+                            }
+                        }
+                        valid_len = write_idx;
                     }
                 } else {
                     stamp += 1;
                     let mut write_idx = 0usize;
                     let mut monotonic = true;
                     let mut prev = 0u32;
-                    for idx in 0..bucket.len() {
+                    for idx in 0..valid_len {
                         let hi = bucket[idx];
                         let hi_idx = hi.0 as usize;
                         if seen[hi_idx] != stamp {
@@ -266,14 +351,14 @@ pub(super) fn interference(rows: &[super::VirtualLiveRange]) -> Vec<super::Virtu
                             write_idx += 1;
                         }
                     }
-                    bucket.truncate(write_idx);
+                    valid_len = write_idx;
                     if !monotonic {
-                        bucket.sort_unstable();
+                        bucket[..valid_len].sort_unstable();
                     }
                 }
             }
             let lower = rows[lo_row].virtual_register;
-            for higher in bucket {
+            for &higher in &bucket[..valid_len] {
                 pairs.push(super::VirtualInterference { lower, higher });
             }
         }

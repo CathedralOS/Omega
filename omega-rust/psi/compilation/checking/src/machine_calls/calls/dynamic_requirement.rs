@@ -25,6 +25,9 @@ pub(crate) struct DynamicSelectorCall<'program> {
     /// The selector operand's `dyn Trait<Args>` type.
     pub(crate) selector_type: TypeReferenceHandle,
     pub(crate) signature: &'program StateSignature,
+    /// The exact closed tuple owns operand/result types; the template above
+    /// still owns roster validation, even after its predicates fold.
+    pub(crate) closed_signature: Option<&'program StateSignature>,
     pub(crate) application: AppliedTraitScope<'program>,
 }
 
@@ -46,7 +49,15 @@ pub(crate) fn dynamic_selector_call<'program>(
     // names the requirement the call was checked against.
     let target = program
         .dynamic_slot_by_symbol(target)
-        .map_or(target, |slot| slot.requirement);
+        .map_or(target, |slot| slot.call_requirement);
+    // Static const applications may already name a closed requirement whose
+    // where facts have been evaluated. The declaring requirement still owns
+    // the dynamic roster; a specialized true/false predicate is not a family.
+    // Retain the exact outer application and rejoin it to the selector below.
+    let closed = program.closed_requirement_application(target);
+    let target = closed
+        .as_ref()
+        .map_or(target, |application| application.template);
     if !receiver.is_valid() || program.symbols.get(receiver).kind != symbols::SymbolKind::Trait {
         return Ok(None);
     }
@@ -121,6 +132,13 @@ pub(crate) fn dynamic_selector_call<'program>(
             declaring.name
         ));
     };
+    if let Some(closed) = closed.as_ref()
+        && !program.requirement_application_matches_scope(closed.signature.symbol, &application)
+    {
+        return Err(
+            "dynamic call's closed requirement belongs to a different trait application".to_owned(),
+        );
+    }
     if let Some(reason) = crate::declarations::traits::dynamic_requirement_ineligibility(
         program, declaring, signature,
     ) {
@@ -132,6 +150,7 @@ pub(crate) fn dynamic_selector_call<'program>(
     Ok(Some(DynamicSelectorCall {
         selector_type,
         signature,
+        closed_signature: closed.as_ref().map(|application| application.signature),
         application,
     }))
 }
@@ -153,7 +172,7 @@ pub(super) fn validate_dynamic_selector_arguments(
 ) {
     validate_family_tuple(program, call, machine_arguments, diagnostics);
     let requirement = crate::declarations::traits::GenericBoundRequirement {
-        signature: call.signature,
+        signature: call.closed_signature.unwrap_or(call.signature),
         application: call.application.clone(),
     };
     super::generic_requirement::validate_named_conformance_arguments(
@@ -229,10 +248,10 @@ fn validate_family_tuple(
                 )));
             }
         }
-        typed_trees::finite_family::FamilyProbe::NotFinite(_) => {
+        typed_trees::finite_family::FamilyProbe::NotFinite(reason) => {
             if !machine_arguments.is_empty() {
                 diagnostics.push(Diagnostic::error(format!(
-                    "dynamic requirement call `{declaring}::{requirement}` supplies static machine arguments, but the requirement declares no finite family"
+                    "dynamic requirement call `{declaring}::{requirement}` supplies static machine arguments, but the requirement declares no finite family: {reason}"
                 )));
             }
         }

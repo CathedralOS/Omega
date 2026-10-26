@@ -531,6 +531,15 @@ pub struct TableLocalData {
     pub relevance: language_core::BindingRelevance,
 }
 
+impl TableLocalData {
+    /// Normalized storage reservations expose no initializer value to proofs,
+    /// constant folding, alias capture, or generic expression-root traversal.
+    pub fn ordinary_value_initializer(&self) -> Option<crate::expression::ExpressionHandle> {
+        (self.role.has_ordinary_initializer() && self.initial_value.is_valid())
+            .then_some(self.initial_value)
+    }
+}
+
 impl Default for TableLocalData {
     fn default() -> Self {
         Self {

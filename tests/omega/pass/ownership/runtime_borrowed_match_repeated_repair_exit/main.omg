@@ -1,0 +1,43 @@
+// Expected exit: 0
+// A consuming recoverable result restores its exact borrowed place and preserves disjoint storage.
+use omega::language::core::drop;
+data Token [linear] { value: u64; }
+machine Token::drop(token: &mut Token) {}
+data Outcome { case Success(token: Token); case Failure(token: Token); }
+data Holder { token: Token; sibling: u64; }
+machine attempt(token: Token, succeed: bool, observed: u64) -> Outcome {
+    transition succeed {
+        true -> success(token)
+        _ -> Outcome::Failure { token: token }
+    }
+    state success(token: Token) -> Outcome {
+        let value: u64 = token.value;
+        drop(token);
+        Outcome::Success { token: Token { value: ((value as u64 in Wrapping) + 1) as u64 } }
+    }
+}
+machine recover(outcome: Outcome) -> Token {
+    transition outcome {
+        Outcome::Success { token } -> token
+        Outcome::Failure { token } -> token
+    }
+}
+machine observe(sibling: &mut u64) -> u64 { sibling = 19; sibling }
+machine repair(holder: &mut Holder, succeed: bool) {
+    let alias: &mut Token = &mut holder.token;
+    let first: Outcome = attempt(alias, succeed, observe(&mut holder.sibling));
+    alias = match first { Outcome::Success { token } -> token, Outcome::Failure { token } -> token };
+    let detached: Token = alias;
+    let second: Outcome = attempt(detached, succeed, observe(&mut holder.sibling));
+    holder.token = match second { Outcome::Success { token } -> token, Outcome::Failure { token } -> token };
+}
+machine main() crashes Trap {
+    let mut holder: Holder = Holder { token: Token { value: 42 }, sibling: 7 };
+    repair(&mut holder, false);
+    repair(&mut holder, true);
+    let correct: bool = holder.token.value == 44 && holder.sibling == 19;
+    drop(holder.token);
+    transition correct { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

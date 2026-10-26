@@ -358,6 +358,7 @@ pub(super) fn adapt(
                     path,
                     field,
                     event,
+                    ..
                 } if event.modifies_resident() => {
                     payload_writes.push(payload_query(*place, path, Some(*field)));
                 }

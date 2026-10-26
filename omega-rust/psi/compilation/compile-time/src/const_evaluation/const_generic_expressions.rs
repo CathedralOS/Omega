@@ -188,9 +188,9 @@ pub(crate) fn evaluate(
         }
     }
 
-    // As in const-generic call evaluation, temporary arguments let the ordinary
-    // frontend type the selected expression before any real instance is created.
-    // Original expressions and their authored names remain unchanged in the probe.
+    // Normalize only the demanded private probes. Unready surrounding indices
+    // retain their authored values and pending custody; a provisional zero
+    // must never become an input to an unrelated structural equation.
     let mut probe = syntax.clone();
     crate::syntax_probes::defer_pending_const_qualifications(
         &mut probe,
@@ -199,16 +199,12 @@ pub(crate) fn evaluate(
             .map(|(argument, _, _)| *argument)
             .collect::<Vec<_>>(),
     );
-    for (argument, destination, _) in &arguments {
-        let placeholder = match syntax.type_references.type_reference(*destination) {
-            TypeReferenceNode::Named(name) if name.as_str(&syntax) == "bool" => "false",
-            _ => "0",
-        };
-        probe.type_references.replace_type_reference(
-            *argument,
-            TypeReferenceNode::Named(Identifier::generated(placeholder)),
-        );
+    for (argument, _, _) in &arguments {
+        probe
+            .type_references
+            .retain_pending_const_argument_uses(*argument);
     }
+    let declaration_frontier = probe.root_item_handles().len();
     let owners = pending
         .iter()
         .enumerate()
@@ -216,15 +212,22 @@ pub(crate) fn evaluate(
             append_probe(&mut probe, ordinal, *expression, *destination)
         })
         .collect::<Vec<_>>();
-    let probe =
-        crate::syntax_probes::normalize_generic_data(probe, sources.clone(), bindings, None)?;
-    let frontier = syntax_trees_to_symbol_resolved_trees::resolve_deferred(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: probe,
-            sources,
-            top_level_bindings: bindings.to_vec(),
-        },
+    let declarations = probe.root_item_handles()[declaration_frontier..].to_vec();
+    let probe = crate::syntax_probes::normalize_initializer_probe_data(
+        probe,
+        sources.clone(),
+        bindings,
+        None,
+        &declarations,
     )?;
+    let frontier =
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_initializer_probe(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: probe,
+                sources,
+                top_level_bindings: bindings.to_vec(),
+            },
+        )?;
     let owner_symbols = owners
         .iter()
         .map(|owner| owner.resolve(frontier.trees()))
@@ -446,6 +449,7 @@ pub(super) fn append_named_probe(
     });
     let state = syntax.items.append_state_handle(state);
     syntax.push_root_item(Item::Machine(Machine {
+        nested_machines: Vec::new(),
         name: name.clone(),
         generic_data_template: Default::default(),
         default_body_trait: Default::default(),

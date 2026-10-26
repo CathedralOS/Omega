@@ -741,6 +741,11 @@ pub(super) fn clone_single_specialized_machine(
                 normalized_template_identity: normalized_template_identity.clone(),
                 accepted_template_commitment: accepted_template_commitment.clone(),
                 states,
+                parameters: source.unwrap_or(program).machine_type_parameters(&source_machine)
+                    .iter().map(|parameter| parameter.symbol)
+                    .chain(source_machine.conformance_bounds.iter().map(|bound| bound.binder))
+                    .map(|parameter| (parameter, remapped_symbol(parameter, &symbol_map)))
+                    .collect(),
             },
         );
     }

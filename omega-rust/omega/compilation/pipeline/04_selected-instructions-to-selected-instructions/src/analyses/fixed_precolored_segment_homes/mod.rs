@@ -83,42 +83,15 @@ pub struct FixedPrecoloredSegmentHomeValidationReceipt {
 }
 
 impl FixedPrecoloredSegmentHomeValidationReceipt {
-    pub const fn identity(self) -> FixedPrecoloredSegmentHomePlanIdentity {
-        self.identity
-    }
-    pub const fn split_requirements(self) -> FixedPrecoloredSplitRequirementPlanIdentity {
-        self.split_requirements
-    }
-    pub const fn fixed_intervals(self) -> FixedPrecoloredIntervalPlanIdentity {
-        self.fixed_intervals
-    }
-    pub const fn ranges(self) -> LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn legality(self) -> AllocationLegalityIdentity {
-        self.legality
-    }
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
-    pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
-        self.optimization_unit
-    }
-    pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
-        self.fuel_schedule
-    }
-    pub const fn target(self) -> NativeTarget {
-        self.target
-    }
-    pub const fn policy(self) -> FixedPrecoloredSegmentHomePolicy {
-        self.policy
-    }
-    pub const fn usage(self) -> OptimizationWorkUsage {
-        self.usage
-    }
+    receipt_accessor_rows!(FixedPrecoloredSegmentHomeValidationReceipt {
+        identity: FixedPrecoloredSegmentHomePlanIdentity,
+        split_requirements: FixedPrecoloredSplitRequirementPlanIdentity,
+        fixed_intervals: FixedPrecoloredIntervalPlanIdentity,
+        target: NativeTarget,
+        policy: FixedPrecoloredSegmentHomePolicy,
+        usage: OptimizationWorkUsage,
+    });
+    shared_analysis_identity_accessors!(pub);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -131,9 +104,9 @@ impl ValidatedFixedPrecoloredSegmentHomes {
     pub const fn plan(&self) -> &FixedPrecoloredSegmentHomePlan {
         &self.plan
     }
-    pub const fn receipt(&self) -> FixedPrecoloredSegmentHomeValidationReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(ref ValidatedFixedPrecoloredSegmentHomes {
+        receipt: FixedPrecoloredSegmentHomeValidationReceipt,
+    });
 }
 
 fn affinity_edges(

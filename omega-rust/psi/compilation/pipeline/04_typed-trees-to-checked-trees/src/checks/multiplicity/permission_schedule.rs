@@ -263,53 +263,7 @@ pub(super) fn select_cleanup_cases<'program>(
         ) else {
             continue;
         };
-        let Some(reference) =
-            validation::canonical_place_type_reference(program, state.symbol, statement, &place)
-        else {
-            continue;
-        };
-        if !crate::flow::stable_case_subject(&place) {
-            continue;
-        }
-        // Canonical paths may implicitly traverse a reference, but they do
-        // not name an owned referent home. No prefix may supply cleanup
-        // authority by peeling that reference shell.
-        if !(0..=place.segments.len()).all(|length| {
-            validation::canonical_place_type_reference(
-                program,
-                state.symbol,
-                statement,
-                &validation::CanonicalPlace {
-                    root: place.root,
-                    segments: place.segments[..length].to_vec(),
-                },
-            )
-            .is_some_and(|reference| validation::reference_shell(program, reference).is_none())
-        }) {
-            continue;
-        }
-        let Some(data) = program.closed_data_definition(reference) else {
-            continue;
-        };
-        let variants = program
-            .data_members(data)
-            .iter()
-            .filter_map(|member| match member {
-                typed_trees::data::DataMember::Variant(row) => Some(row.symbol),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        if !variants.contains(&variant) {
-            continue;
-        }
-        for excluded in variants
-            .into_iter()
-            .filter(|candidate| (*candidate == variant) != positive)
-        {
-            let mut path = place.segments.clone();
-            path.push(facts::PlaceSegment::Case { variant: excluded });
-            remaining.exclude_absent_case(place.root, &path);
-        }
+        remaining.select_owned_case(program, state.symbol, statement, &place, variant, positive);
     }
 }
 

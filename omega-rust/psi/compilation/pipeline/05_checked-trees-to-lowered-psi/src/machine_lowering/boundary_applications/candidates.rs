@@ -38,6 +38,7 @@ pub(super) fn retain(
             .specialization
             .map(|(template, commitment)| {
                 Ok::<_, &'static str>(CheckedMachineSpecialization {
+                    capture: super::super::declarations::capture_identity(identities, checked, candidate.machine)?,
                     template: nominal(identities, template)?,
                     template_callable: identities.intern(
                         &checked

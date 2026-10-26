@@ -1,0 +1,5 @@
+data Cell where value <= 100 { value: AtomicU32; }
+data Held where observed <= 99 { observed: u32; }
+machine observe(cell: &Cell) {
+ let held: Held = Held { observed: cell.value.load(Receive) };
+}

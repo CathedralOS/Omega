@@ -1,7 +1,7 @@
 //! Obligation-free total-scalar translation across join parameters.
 
 use optimization_core::{OptimizationRuleContract, OptimizationSafetyClass};
-use optimization_unit::{NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate};
+use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 use super::expression_keys::total_scalar_expression;
 use crate::rules::global_value_numbering::phi_translated_contract;
@@ -25,36 +25,13 @@ fn propose(
         unit,
         analyses,
         |unit, function, effects, value_types| {
-            let mut leaders = Vec::new();
-            let mut redundants = Vec::new();
-            for block in &function.blocks {
-                for (index, node) in block.nodes.iter().enumerate() {
-                    let node_index =
-                        u32::try_from(index).expect("optimization node index fits u32");
-                    let Some((key, operation, result, scalar_type)) =
-                        total_scalar_expression(&node.operation, value_types)
-                    else {
-                        continue;
-                    };
-                    if !super::exact_pure_scalar_effect(
-                        unit,
-                        effects,
-                        function.machine,
-                        block.id,
-                        node_index,
-                    ) {
-                        continue;
-                    }
-                    let location = NodeLocation {
-                        machine: function.machine,
-                        block: block.id,
-                        node: node_index,
-                    };
-                    leaders.push((key, location, operation, result, scalar_type));
-                    redundants.push((key, location, operation, result, scalar_type, ()));
-                }
-            }
-            (leaders, redundants)
+            super::collect_scalar_rows(
+                unit,
+                function,
+                effects,
+                |operation| total_scalar_expression(operation, value_types),
+                |operation| total_scalar_expression(operation, value_types).map(|row| (row, ())),
+            )
         },
         |key, parameters| key.references_any(parameters),
         |key, translation| key.translate(translation),

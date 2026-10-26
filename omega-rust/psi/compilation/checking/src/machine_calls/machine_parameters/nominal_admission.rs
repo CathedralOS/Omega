@@ -13,6 +13,38 @@ pub(super) struct AdmittedNominalSelection {
     pub(super) canonical_requirement_overload: String,
 }
 
+/// Evidence binders live beside Type/Const bindings in the same retained
+/// application. Their nominal operands are simultaneous substitutions, never
+/// inference variables reconstructed from a selected provider's body.
+fn retain_conformance_operands<'a>(
+    program: &'a dyn crate::CheckingInput,
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    operands: &mut Vec<(
+        SymbolHandle,
+        typed_trees::type_identity::IndexIdentityArgument<'a>,
+    )>,
+) {
+    if !application.is_valid() {
+        return;
+    }
+    for binding in program
+        .expression_table
+        .static_machine_application_bindings(application)
+    {
+        if let typed_trees::static_applications::StaticMachineBindingValue::Conformance(argument) =
+            &binding.value
+            && !operands
+                .iter()
+                .any(|(parameter, _)| *parameter == binding.parameter)
+        {
+            operands.push((
+                binding.parameter,
+                typed_trees::type_identity::IndexIdentityArgument::StaticArgument(argument),
+            ));
+        }
+    }
+}
+
 pub(super) fn validate_nominal_machine_selection(
     program: &dyn crate::CheckingInput,
     index: &MachineStateIndex,
@@ -55,7 +87,7 @@ pub(super) fn validate_nominal_machine_selection(
         .filter(|handle| handle.is_valid())
         .or_else(|| applied.as_ref().map(|view| view.provider));
     let provider_operands = provider_application.map(|provider| {
-        program
+        let mut operands = program
             .expression_table
             .static_machine_application_bindings(provider)
             .iter()
@@ -74,7 +106,9 @@ pub(super) fn validate_nominal_machine_selection(
                 }
                 _ => None,
             })
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+        retain_conformance_operands(program, provider, &mut operands);
+        operands
     });
     let mut operand_mismatch = None::<String>;
     let mut arguments_match = |actual: &[typed_trees::types::TypeReferenceHandle],
@@ -87,11 +121,17 @@ pub(super) fn validate_nominal_machine_selection(
             // Inference may fill only missing caller Type slots. It is followed
             // by exact region-aware equality; carrier equality grants no
             // nominal authority over a differently declared region.
+            let Some(definition) = program.trait_definition_by_symbol(*required_trait) else { return false; };
+            let trait_parameters = program.trait_type_parameters(definition);
+            if trait_parameters.len() != actual.len() { return false; }
             if provider_application.is_none()
                 && !actual
                     .iter()
                     .zip(required_arguments)
-                    .all(|(actual, required)| {
+                    .zip(trait_parameters)
+                    .all(|((actual, required), slot)| {
+                        if !matches!(slot.kind, typed_trees::data::TypeParameterKind::Type)
+                            && !slot.kind.is_const_or_value() { return true; }
                         required_type_matches_exact(
                             program,
                             *actual,
@@ -107,7 +147,7 @@ pub(super) fn validate_nominal_machine_selection(
                 AppliedTypeIdentityScope, IndexIdentityArgument, applied_index_identity,
                 applied_type_identity,
             };
-            let operands = bindings
+            let mut operands = bindings
                 .iter()
                 .map(|binding| {
                     let value = if program
@@ -121,6 +161,7 @@ pub(super) fn validate_nominal_machine_selection(
                     (binding.symbol, value)
                 })
                 .collect::<Vec<_>>();
+            retain_conformance_operands(program, application, &mut operands);
             let lifetimes = if application.is_valid() {
                 program
                     .expression_table
@@ -269,7 +310,7 @@ pub(super) fn validate_nominal_machine_selection(
                 .expect("applied provider operands"),
             lifetimes: &provider_lifetimes,
         };
-        let caller_operands = applied
+        let mut caller_operands = applied
             .caller_operands
             .iter()
             .map(|operand| {
@@ -284,6 +325,7 @@ pub(super) fn validate_nominal_machine_selection(
                 (operand.parameter, argument)
             })
             .collect::<Vec<_>>();
+        retain_conformance_operands(program, application, &mut caller_operands);
         let caller_scope = AppliedTypeIdentityScope {
             declaration: program.symbols.get(parameter.symbol).parent,
             arguments: &caller_operands,

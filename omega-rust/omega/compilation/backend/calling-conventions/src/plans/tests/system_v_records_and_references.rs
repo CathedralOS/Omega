@@ -15,24 +15,9 @@ fn system_v_memory_class_uses_stack_values_and_a_hidden_result_pointer() {
     assert_eq!(
         plan.parameters[0].locations,
         vec![
-            ValueLocation::Stack {
-                stack_byte_offset: 0,
-                value_byte_offset: 0,
-                byte_size: 8,
-                alignment: 8,
-            },
-            ValueLocation::Stack {
-                stack_byte_offset: 8,
-                value_byte_offset: 8,
-                byte_size: 8,
-                alignment: 8,
-            },
-            ValueLocation::Stack {
-                stack_byte_offset: 16,
-                value_byte_offset: 16,
-                byte_size: 8,
-                alignment: 8,
-            },
+            ValueLocation::stack(0, 0, 8, 8),
+            ValueLocation::stack(8, 8, 8, 8),
+            ValueLocation::stack(16, 16, 8, 8),
         ]
     );
     assert!(matches!(
@@ -69,18 +54,8 @@ fn system_v_two_f64_record_uses_sse_fragments_or_whole_stack_rollback() {
     assert_eq!(
         plan.parameters[8].locations,
         vec![
-            ValueLocation::Stack {
-                stack_byte_offset: 0,
-                value_byte_offset: 0,
-                byte_size: 8,
-                alignment: 8,
-            },
-            ValueLocation::Stack {
-                stack_byte_offset: 8,
-                value_byte_offset: 8,
-                byte_size: 8,
-                alignment: 8,
-            },
+            ValueLocation::stack(0, 0, 8, 8),
+            ValueLocation::stack(8, 8, 8, 8),
         ]
     );
     assert!(matches!(
@@ -111,16 +86,8 @@ fn system_v_three_f32_record_packs_into_two_sse_eightbytes() {
     .expect("SysV three-f32 record plan");
 
     let expected = vec![
-        ValueLocation::Register {
-            register: MachineRegister::X86Xmm(0),
-            value_byte_offset: 0,
-            byte_size: 8,
-        },
-        ValueLocation::Register {
-            register: MachineRegister::X86Xmm(1),
-            value_byte_offset: 8,
-            byte_size: 4,
-        },
+        ValueLocation::register(MachineRegister::X86Xmm(0), 0, 8),
+        ValueLocation::register(MachineRegister::X86Xmm(1), 8, 4),
     ];
     assert_eq!(plan.parameters[0].locations, expected);
     assert_eq!(plan.result.expect("packed SSE result").locations, expected);
@@ -152,31 +119,15 @@ fn system_v_mixed_record_uses_independent_register_banks() {
     assert_eq!(
         plan.parameters[0].locations,
         vec![
-            ValueLocation::Register {
-                register: MachineRegister::X86Rdi,
-                value_byte_offset: 0,
-                byte_size: 8,
-            },
-            ValueLocation::Register {
-                register: MachineRegister::X86Xmm(0),
-                value_byte_offset: 8,
-                byte_size: 8,
-            },
+            ValueLocation::register(MachineRegister::X86Rdi, 0, 8),
+            ValueLocation::register(MachineRegister::X86Xmm(0), 8, 8),
         ]
     );
     assert_eq!(
         plan.result.expect("mixed result").locations,
         vec![
-            ValueLocation::Register {
-                register: MachineRegister::X86Xmm(0),
-                value_byte_offset: 0,
-                byte_size: 8,
-            },
-            ValueLocation::Register {
-                register: MachineRegister::X86Rax,
-                value_byte_offset: 8,
-                byte_size: 8,
-            },
+            ValueLocation::register(MachineRegister::X86Xmm(0), 0, 8),
+            ValueLocation::register(MachineRegister::X86Rax, 8, 8),
         ]
     );
 }
@@ -287,12 +238,12 @@ fn borrowed_references_retain_original_storage_pointers_without_copies() {
         .expect("borrowed-reference plan");
         assert_eq!(
             plan.parameters[0].locations,
-            vec![ValueLocation::Indirect {
-                pointer: IndirectPointerLocation::Register(register),
-                copy_stack_byte_offset: None,
-                byte_size: 16,
-                alignment: 8,
-            }]
+            vec![ValueLocation::indirect(
+                IndirectPointerLocation::Register(register),
+                None,
+                16,
+                8
+            )]
         );
         validate_call_plan(
             &plan,
@@ -390,15 +341,15 @@ fn borrowed_reference_stack_pointer_is_not_a_referent_copy() {
     .expect("stacked borrowed-reference plan");
     assert_eq!(
         plan.parameters[6].locations,
-        vec![ValueLocation::Indirect {
-            pointer: IndirectPointerLocation::Stack {
+        vec![ValueLocation::indirect(
+            IndirectPointerLocation::Stack {
                 stack_byte_offset: 0,
                 alignment: 8,
             },
-            copy_stack_byte_offset: None,
-            byte_size: 16,
-            alignment: 8,
-        }]
+            None,
+            16,
+            8
+        )]
     );
 }
 

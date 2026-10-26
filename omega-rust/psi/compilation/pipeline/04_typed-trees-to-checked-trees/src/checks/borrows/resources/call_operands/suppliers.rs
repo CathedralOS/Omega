@@ -77,6 +77,25 @@ pub(super) fn collect(
         selected.is_some_and(|selected| {
             !selected.is_empty()
                 && selected.into_iter().all(|selected| {
+                    // An opaque inline leaf can preserve its completed value
+                    // occurrence without disclosing an exact descriptor supplier.
+                    // Rejoin that occurrence's already-checked returned loan;
+                    // recursively selecting the same subtree would only cycle.
+                    if selected.capture == source && selected.projection == projection {
+                        return collect_formed_projection(
+                            program,
+                            facts,
+                            state,
+                            call,
+                            owner_operand,
+                            operand,
+                            capture,
+                            projection,
+                            path,
+                            output_access,
+                            output,
+                        );
+                    }
                     collect(
                         program,
                         facts,
@@ -212,4 +231,88 @@ pub(super) fn collect(
         output.truncate(before);
     }
     resolved
+}
+
+/// Retain the existing loan of one completed result leaf. Public backing
+/// regions are deliberately absent from this lookup: they cannot identify a
+/// supplier or create permission. Destination storage prefixes do not identify
+/// the formation leaf either, so the checker records that relative path once.
+#[allow(clippy::too_many_arguments)]
+fn collect_formed_projection(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: Handle<FlowCallFact>,
+    owner_operand: Handle<FlowOperandFact>,
+    operand: Handle<FlowOperandFact>,
+    capture: &FlowOperandFact,
+    projection: &[facts::PlaceSegment],
+    path: &[BorrowLoanOwnerSegment],
+    output_access: &checked_trees::BorrowAccessKind,
+    output: &mut Vec<ResourceDraft>,
+) -> bool {
+    if capture.state_symbol != state.state_symbol
+        || !capture.expression.is_valid()
+        || projection.iter().any(|segment| {
+            !matches!(
+                segment,
+                facts::PlaceSegment::Field { .. }
+                    | facts::PlaceSegment::Case { .. }
+                    | facts::PlaceSegment::FixedIndex { .. }
+            )
+        })
+    {
+        return false;
+    }
+    let Some(declared) = validation::expression_type_reference_in_state(
+        program,
+        capture.state_symbol,
+        capture.statement_index,
+        capture.expression,
+    ) else {
+        return false;
+    };
+    if !validation::storage_origin_types_match(program, declared, capture.type_reference) {
+        return false;
+    }
+    let Some((_, borrow_state)) = facts
+        .borrow
+        .first_state_borrow(state.machine_symbol, state.state_symbol)
+    else {
+        return false;
+    };
+    let before = output.len();
+    for (loan, row) in facts.borrow.state_loans(borrow_state) {
+        let Some(formed) = row.formation_owner_path else {
+            continue;
+        };
+        if row.formation_expression != capture.expression
+            || row.statement_index != capture.statement_index
+            || row.kind.direct_reborrow_effect(output_access).is_none()
+            || crate::borrow::owner_place_segments(
+                facts.borrow.owner_segments.span_or_empty(formed),
+            ) != projection
+        {
+            continue;
+        }
+        output.push(ResourceDraft {
+            resource: CheckedCallBorrowLoanResource {
+                machine_symbol: state.machine_symbol,
+                state_symbol: state.state_symbol,
+                call,
+                owner_operand,
+                operand,
+                source: CheckedCallBorrowLoanSource::StoredLoan { loan },
+                access: output_access.clone(),
+                parent_lifetime: CheckedDirectBorrowParentLifetime {
+                    machine_symbol: state.machine_symbol,
+                    state_symbol: state.state_symbol,
+                    root: row.root,
+                },
+                ..Default::default()
+            },
+            path: path.to_vec(),
+        });
+    }
+    output.len() > before
 }

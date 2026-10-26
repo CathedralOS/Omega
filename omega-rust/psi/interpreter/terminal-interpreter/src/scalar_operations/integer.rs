@@ -107,9 +107,7 @@ impl TerminalExecution<'_> {
         let OperationKind::IntegerEqual { left, right } = operation.kind else {
             unreachable!("dispatched execute_integer_equal")
         };
-        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-            return Err(malformed());
-        }
+        self.require_boolean_result(operation)?;
         let (left_type, left) = self.integer_operand(left)?;
         let (right_type, right) = self.integer_operand(right)?;
         let ordering = left_type
@@ -126,9 +124,7 @@ impl TerminalExecution<'_> {
         else {
             unreachable!("dispatched execute_integer_less_than")
         };
-        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-            return Err(malformed());
-        }
+        self.require_boolean_result(operation)?;
         let (left_type, left_value) = self.integer_operand(left)?;
         let (right_type, right_value) = self.integer_operand(right)?;
         let ordering = left_type
@@ -365,6 +361,19 @@ impl TerminalExecution<'_> {
         execute_saturating_integer_add : SaturatingIntegerAdd => saturating_add ;
         execute_saturating_integer_subtract : SaturatingIntegerSubtract => saturating_sub ;
         execute_saturating_integer_multiply : SaturatingIntegerMultiply => saturating_mul ;
+    }
+
+    /// Prove the operation's declared Boolean result slot. Every operation
+    /// that stores a Boolean asks this first: a scalar result declared at
+    /// another type is malformed private runtime state, never a coercion.
+    pub(crate) fn require_boolean_result(
+        &self,
+        operation: &terminal_psi::Operation,
+    ) -> Result<(), TerminalInterpretError> {
+        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
+            return Err(malformed());
+        }
+        Ok(())
     }
 
     /// Store a scalar result and advance: every scalar execution epilogue.

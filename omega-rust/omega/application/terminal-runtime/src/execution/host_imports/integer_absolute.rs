@@ -7,7 +7,6 @@ use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Path, IntegerSign, IntegerType, IntegerValue, ScalarType,
     StructuralTypeId,
 };
-use target::{ForeignLocatorCandidate, TargetProfile};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalBoundaryStorageBuffer, TerminalEffect,
@@ -30,7 +29,15 @@ impl IntegerAbsoluteImport {
         binding: &NormalizedForeignCallBinding,
         application: Option<&BoundaryCallingApplication>,
     ) -> Result<Option<Self>, TerminalRuntimeError> {
-        if !matches_locator(binding)? {
+        if !super::matches_platform_c_symbol(
+            binding,
+            b"abs",
+            &[
+                b"/usr/lib/libSystem.B.dylib".as_slice(),
+                b"libSystem.B.dylib".as_slice(),
+            ],
+            Some(b"msvcrt.dll"),
+        )? {
             return Ok(None);
         }
         let invalid = TerminalRuntimeError::InvalidProvision;
@@ -110,69 +117,6 @@ impl IntegerAbsoluteImport {
         super::admit_exact_foreign_call(&signature, declaration, binding, &native)?;
         Ok(Some(Self { signature, payload }))
     }
-}
-
-fn matches_locator(binding: &NormalizedForeignCallBinding) -> Result<bool, TerminalRuntimeError> {
-    let Some((locator, _)) = binding.import() else {
-        return Ok(false);
-    };
-    let target = locator.target();
-    let candidates = match target {
-        TargetProfile::LinuxX64 | TargetProfile::LinuxArm64 if cfg!(target_os = "linux") => {
-            let host_arch = if target == TargetProfile::LinuxX64 {
-                cfg!(target_arch = "x86_64")
-            } else {
-                cfg!(target_arch = "aarch64")
-            };
-            if !host_arch {
-                return Ok(false);
-            }
-            vec![ForeignLocatorCandidate::ElfVersioned {
-                object: b"libc.so.6".to_vec(),
-                symbol: b"abs".to_vec(),
-                version: if target == TargetProfile::LinuxX64 {
-                    b"GLIBC_2.2.5".to_vec()
-                } else {
-                    b"GLIBC_2.17".to_vec()
-                },
-            }]
-        }
-        TargetProfile::MacosArm64 | TargetProfile::MacosX64 if cfg!(target_os = "macos") => {
-            let host_arch = if target == TargetProfile::MacosArm64 {
-                cfg!(target_arch = "aarch64")
-            } else {
-                cfg!(target_arch = "x86_64")
-            };
-            if !host_arch {
-                return Ok(false);
-            }
-            [
-                b"/usr/lib/libSystem.B.dylib".as_slice(),
-                b"libSystem.B.dylib".as_slice(),
-            ]
-            .into_iter()
-            .map(|library| ForeignLocatorCandidate::MachODylibSymbol {
-                install_name: library.to_vec(),
-                symbol: b"_abs".to_vec(),
-            })
-            .collect()
-        }
-        TargetProfile::WindowsX64 if cfg!(all(target_os = "windows", target_arch = "x86_64")) => {
-            vec![ForeignLocatorCandidate::PeByName {
-                library: b"msvcrt.dll".to_vec(),
-                export: b"abs".to_vec(),
-            }]
-        }
-        _ => return Ok(false),
-    };
-    for candidate in candidates {
-        let expected = target::normalize_foreign_locator(candidate, target)
-            .map_err(|_| TerminalRuntimeError::InvalidProvision("abs host locator is invalid"))?;
-        if expected == *locator {
-            return Ok(true);
-        }
-    }
-    Ok(false)
 }
 
 import_signature_via_clone!(IntegerAbsoluteImport);

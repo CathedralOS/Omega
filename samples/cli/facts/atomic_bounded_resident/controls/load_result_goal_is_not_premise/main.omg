@@ -1,0 +1,4 @@
+data Cell where value <= 101 { value: AtomicU32; }
+machine observe(cell: &Cell) -> u32
+ensures result <= 100
+{ cell.value.load(Receive) }

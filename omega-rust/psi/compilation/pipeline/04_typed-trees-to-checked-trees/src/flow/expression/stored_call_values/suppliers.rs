@@ -185,39 +185,43 @@ impl Execution<'_, '_, '_> {
                     if *image {
                         continue;
                     }
-                    let selected = self
-                        .context
-                        .control
-                        .operand_referents
-                        .span_or_empty(source.referents)
-                        .iter()
-                        .map(|referent| {
-                            crate::flow::operand_values::project_captured_view_place(
-                                CanonicalPlace {
-                                    root: referent.root,
-                                    segments: self
-                                        .context
-                                        .control
-                                        .operand_referent_segments
-                                        .span_or_empty(referent.segments)
-                                        .to_vec(),
-                                },
-                                projection,
-                            )
-                        })
-                        .collect::<Option<Vec<_>>>();
+                    // A slot retained by the call can be a projection of a
+                    // completed aggregate. Its descriptor child owns the
+                    // addresses; the containing capture need have none. Select
+                    // the exact completed leaves using their recorded epochs,
+                    // just as lifetime-profile extraction above does.
+                    let capture = self.context.control.operands.insert(*source);
+                    let selected = crate::flow::operand_values::reference_captures_at_path(
+                        self.program,
+                        &self.context.control,
+                        capture,
+                        projection,
+                        self.storage_snapshot,
+                    )
+                    .and_then(|stored| stored.captures());
                     let Some(selected) = selected else {
                         complete = false;
                         break;
                     };
-                    if selected.is_empty() {
-                        complete = false;
-                        break;
-                    }
-                    for place in selected {
-                        if !places.contains(&place) {
-                            places.push(place);
+                    for descriptor in selected {
+                        if !descriptor.projection.is_empty() {
+                            complete = false;
+                            break;
                         }
+                        let descriptor = self.context.control.operands.get(descriptor.capture);
+                        let addresses = self.captured_referent_places(descriptor.referents);
+                        if addresses.is_empty() {
+                            complete = false;
+                            break;
+                        }
+                        for place in addresses {
+                            if !places.contains(&place) {
+                                places.push(place);
+                            }
+                        }
+                    }
+                    if !complete {
+                        break;
                     }
                 }
             }

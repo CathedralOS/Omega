@@ -85,14 +85,12 @@ pub struct CopyRemovalReceipt {
 }
 
 impl CopyRemovalReceipt {
+    receipt_accessor_rows!(ref CopyRemovalReceipt {
     /// The function the copy was removed from.
-    pub const fn function_index(&self) -> usize {
-        self.function_index
-    }
+        function_index: usize,
     /// The removed `CopyI64` instruction's source-side identity.
-    pub const fn copy(&self) -> SelectedInstructionId {
-        self.copy
-    }
+        copy: SelectedInstructionId,
+    });
     /// The durable transformation identity the post-allocation manifest
     /// ledger records: the receipt's exact fields under the copy-removal
     /// domain separator.

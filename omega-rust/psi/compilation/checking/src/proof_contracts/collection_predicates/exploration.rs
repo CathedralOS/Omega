@@ -376,6 +376,7 @@ fn visit(
             // read into an immutable local; it binds like an argument.
             StatementNode::LocalData(local)
                 if !local.is_mutable
+                    && local.ordinary_value_initializer().is_some()
                     && local.relevance == language_core::BindingRelevance::Relevant =>
             {
                 match argument_binding(

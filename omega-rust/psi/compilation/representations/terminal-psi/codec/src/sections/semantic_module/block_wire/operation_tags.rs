@@ -265,3 +265,6 @@ pub(super) const ESTABLISH_ACTIVATION_CLAIM: u8 = 127;
 pub(super) const RELEASE_ACTIVATION_CLAIM: u8 = 128;
 pub(super) const SPLIT_ACTIVATION_CLAIM: u8 = 129;
 pub(super) const MERGE_ACTIVATION_CLAIM: u8 = 130;
+
+/// Atomic event with its distinct resident establishment obligation.
+pub(super) const RESTRICTED_ATOMIC_ACCESS: u8 = 131;

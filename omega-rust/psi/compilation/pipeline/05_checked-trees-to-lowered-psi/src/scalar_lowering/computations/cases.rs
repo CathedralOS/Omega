@@ -212,7 +212,9 @@ pub(crate) fn reserve(
         field_bindings.push(ReservedField {
             field: declaration.id,
             scalar_type,
-            bounded: terminal_semantics::scalar_field_requires_evidence(&declaration.field_type),
+            bounded: terminal_semantics::scalar_field_requires_initialization_evidence(
+                &declaration.field_type,
+            ),
         });
     }
     let multiplicity = terminal_multiplicity(checked.type_multiplicity(source.type_reference));

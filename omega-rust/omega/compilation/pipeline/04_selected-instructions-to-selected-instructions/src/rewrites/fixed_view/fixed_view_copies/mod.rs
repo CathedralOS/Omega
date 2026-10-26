@@ -78,9 +78,9 @@ impl StagedOptimizedFixedViewCopies {
     pub const fn copies(&self) -> &ValidatedFixedViewCopies {
         &self.copies
     }
-    pub const fn custody(&self) -> StagedOptimizedFixedViewCopyCustodyReceipt {
-        self.custody
-    }
+    receipt_accessor_rows!(ref StagedOptimizedFixedViewCopies {
+        custody: StagedOptimizedFixedViewCopyCustodyReceipt,
+    });
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,49 +105,25 @@ pub struct StagedOptimizedFixedViewCopyCustodyReceipt {
 impl StagedOptimizedFixedViewCopyCustodyReceipt {
     target_operations_to_selected_instructions::staging_custody_core_accessors!();
 
-    pub const fn allocator_availability(self) -> register_homes::AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
-    pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
-    pub const fn source_liveness(self) -> selected_instructions::LivenessIdentity {
-        self.source_liveness
-    }
-    pub const fn source_ranges(self) -> selected_instructions::LiveRangeIdentity {
-        self.source_ranges
-    }
-    pub const fn source_legality(self) -> register_homes::AllocationLegalityIdentity {
-        self.source_legality
-    }
-    pub const fn fixed_intervals(self) -> register_homes::FixedPrecoloredIntervalPlanIdentity {
-        self.fixed_intervals
-    }
+    receipt_accessor_rows!(StagedOptimizedFixedViewCopyCustodyReceipt {
+        allocator_availability: register_homes::AllocatorAvailabilityIdentity,
+        source_selected: SelectedInstructionPlanIdentity,
+        source_liveness: selected_instructions::LivenessIdentity,
+        source_ranges: selected_instructions::LiveRangeIdentity,
+        source_legality: register_homes::AllocationLegalityIdentity,
+        transformed_selected: SelectedInstructionPlanIdentity,
+        fixed_intervals: register_homes::FixedPrecoloredIntervalPlanIdentity,
+        segment_homes: register_homes::FixedPrecoloredSegmentHomePlanIdentity,
+        transformation: FixedViewCopyIdentity,
+        policy: FixedViewCopyPolicy,
+        usage: OptimizationWorkUsage,
+        function_count: usize,
+        copy_count: usize,
+    });
     pub const fn split_requirements(
         self,
     ) -> register_homes::FixedPrecoloredSplitRequirementPlanIdentity {
         self.split_requirements
-    }
-    pub const fn segment_homes(self) -> register_homes::FixedPrecoloredSegmentHomePlanIdentity {
-        self.segment_homes
-    }
-    pub const fn transformation(self) -> FixedViewCopyIdentity {
-        self.transformation
-    }
-    pub const fn transformed_selected(self) -> SelectedInstructionPlanIdentity {
-        self.transformed_selected
-    }
-    pub const fn policy(self) -> FixedViewCopyPolicy {
-        self.policy
-    }
-    pub const fn usage(self) -> OptimizationWorkUsage {
-        self.usage
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn copy_count(self) -> usize {
-        self.copy_count
     }
 }
 

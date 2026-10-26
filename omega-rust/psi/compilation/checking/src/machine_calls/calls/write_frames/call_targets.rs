@@ -36,12 +36,24 @@ pub(super) fn call_argument_types(
             .map(|parameter| parameter.type_reference)
             .collect();
     }
-    // The selected operator owns its operand telescope too. Capturing a
-    // scalar actual without this declaration type loses its detached-value
-    // identity before operation-completion effects are classified. This query
-    // supplies types only; origin capture and the signature ceiling still
-    // reject unknown origins or unresolved writable generic parameters.
-    if let Some(operator) = program.operator_definition_by_symbol(target_symbol) {
+    let explicit_operator_roster = match site {
+        super::caller_aliases::CallerWriteSite::Expression(expression) => program
+            .expression_table
+            .call_node(expression)
+            .is_some_and(|call| program.call_has_no_runtime_receiver_for_target(call)),
+        super::caller_aliases::CallerWriteSite::Call(call) => {
+            typed_trees::operator::selected_named_statement_call_has_no_runtime_receiver(
+                program, call,
+            )
+        }
+        _ => false,
+    };
+    if explicit_operator_roster
+        && let Some(operator) = program.operator_definition_by_symbol(target_symbol)
+    {
+        // Only the authenticated explicit operand roster supplies these types.
+        // A runtime receiver has its own origin lane and cannot shift argument
+        // zero onto self. Writable generic formals remain independently checked.
         return program
             .operator_parameters(operator)
             .iter()

@@ -320,10 +320,20 @@ pub(crate) fn validate_applied_trait_signature(
         return;
     }
     let mut required_generic_types = trait_type_parameters.to_vec();
+    // Value and const parameters may occur as named index arguments in a
+    // dependent result too. Their positional bindings above must participate
+    // in matching just as type binders do; declaration-local symbols differ.
     required_generic_types.extend(
         requirement_type_parameters
             .iter()
-            .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+            .filter(|parameter| {
+                matches!(
+                    parameter.kind,
+                    TypeParameterKind::Type
+                        | TypeParameterKind::Const { .. }
+                        | TypeParameterKind::Value { .. }
+                )
+            })
             .cloned(),
     );
     let applied_generic_types = applied_type_parameters
@@ -686,6 +696,21 @@ pub(crate) fn type_references_match_for_trait_bindings(
         return actual.is_valid() == required.is_valid();
     }
 
+    // Ordinary formal values can index dependent recipes just as local
+    // generic binders do. Their positional correspondence was established by
+    // the signature owner above; read that exact symbol binding before the
+    // separate generic-type inference path. No spelling or carrier equality
+    // may identify two independently declared value subjects.
+    if let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(required)
+        && symbol.is_valid()
+        && let Some(binding) = bindings
+            .iter()
+            .find(|binding| binding.parameter_symbol == *symbol)
+        && binding_matches_actual(program, binding, actual, bindings)
+    {
+        return true;
+    }
     if let Some(parameter) = required_trait_type_parameter(program, required, trait_type_parameters)
     {
         if let Some(binding) = bindings.iter().find(|binding| {
