@@ -1775,8 +1775,8 @@ fail/build/calling_policy_missing_target_member rejected 9834ms expected @a92f16
 	boundary trait `LocalEntry` cannot evaluate Calling<Policy>: calling policy realization `TargetPolicy::plan` has no body for target `linux_x86_64`
 fail/build/calling_policy_unproved_helper rejected 6162ms expected @a92f16431042
 	cannot prove requires contract for call bounded from LocalPolicy::plan: signature.parameter_count <= 1 (needs fact `value <= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `plan`
-fail/build/captured_named_input_missing_slot rejected 520ms expected published:none @a92f16431042
-	build-time evaluation of `build` failed: named build input `absent` is not assigned to this activation
+fail/build/captured_named_input_missing_slot rejected 122ms expected published:none @4076567f6da1
+	Terminal Build failed: named build input `absent` is not assigned to this activation at OperationId(26) in MachineId(6)/BlockId(17) at Some(OperationId(26))
 fail/build/captured_source_write_grant_refused rejected 147ms expected published:none @acc76df3c390
 	Terminal Build failed: required output `admitted.txt` of `build` failed: captured source write grant denied at OperationId(59) in MachineId(11)/BlockId(55) at Some(OperationId(59))
 fail/build/component_assumption_malformed rejected 930ms expected @a92f16431042
