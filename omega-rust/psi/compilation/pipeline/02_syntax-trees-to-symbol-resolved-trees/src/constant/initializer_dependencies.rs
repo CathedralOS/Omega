@@ -806,6 +806,34 @@ impl<'program> Collector<'program> {
         if !self.dependencies.calls.contains(&selection) {
             self.dependencies.calls.push(selection);
         }
+        // Invocation syntax retains a terminal call's machine coordinate.
+        // Its declaration selection names the exact callable entry, as do
+        // expression calls and authored transition-call classification. Body
+        // demand may still visit a deferred declaration with no entry yet;
+        // only the closed source-custody roster owes that entry identity.
+        let target = if symbol.kind == SymbolKind::Machine && self.deferred_machines.is_none() {
+            let mut owners = self
+                .program
+                .machines
+                .iter()
+                .filter(|owner| owner.symbol == machine);
+            let owner = owners
+                .next()
+                .ok_or("constant callable selection lost its machine")?;
+            if owners.next().is_some() {
+                return Err("constant callable selection has ambiguous machine identity".into());
+            }
+            let states = self.program.machine_state_handles(owner.states);
+            if states.len() != owner.states.len() {
+                return Err("constant callable selection has stale machine states".into());
+            }
+            let entry = states
+                .first()
+                .ok_or("constant callable selection has no entry state")?;
+            self.program.machine_state(*entry).symbol
+        } else {
+            target
+        };
         let dependency = AuthoredCallDependency {
             reference,
             declaration,
