@@ -137,6 +137,7 @@ pub(crate) fn build_boundary_machine(
         scalar_parameters,
         result,
         domain_requirements: domain_requirements.structural,
+        normal_qualifications: domain_requirements.normal,
         scalar_domain_requirements: domain_requirements.scalar,
         scalar_ensures: validation::derive_scalar_boundary_guarantees(
             program, facts, machine, contract,
@@ -551,6 +552,7 @@ pub(crate) fn build_static_boundary_requirements(
                 scalar_parameters,
                 result,
                 domain_requirements: domain_requirements.structural,
+                normal_qualifications: domain_requirements.normal,
                 scalar_domain_requirements: domain_requirements.scalar,
                 scalar_ensures,
                 scalar_requires,
@@ -653,6 +655,7 @@ fn build_boundary_operator(
         scalar_parameters,
         result,
         domain_requirements: domain_requirements.structural,
+        normal_qualifications: domain_requirements.normal,
         scalar_domain_requirements: domain_requirements.scalar,
         scalar_ensures: Vec::new(),
         scalar_requires,

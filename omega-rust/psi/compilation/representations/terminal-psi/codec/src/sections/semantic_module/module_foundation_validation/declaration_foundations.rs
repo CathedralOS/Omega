@@ -114,6 +114,22 @@ pub(super) fn validate_boundary_machine(
             return malformed("boundary requirement domain has the wrong carrier type");
         }
     }
+    for guarantee in &boundary.normal_qualifications {
+        let Some(parameter) = boundary
+            .structural_parameters
+            .get(guarantee.argument_index as usize)
+        else {
+            return malformed("boundary normal guarantee has unknown parameter");
+        };
+        let Some(domain) = module.structural_domain(guarantee.domain) else {
+            return malformed("boundary normal guarantee has unknown domain");
+        };
+        if parameter.access != terminal_psi::StructuralAccess::MutableBorrow
+            || domain.carrier != parameter.structural_type
+        {
+            return malformed("boundary normal guarantee changes mutable carrier");
+        }
+    }
     require_known_services(module, &boundary.published_service_ceiling)?;
     require_known_services(module, &boundary.fixed_service_reach)?;
     validate_boundary_scalar_rows(boundary)?;

@@ -87,6 +87,7 @@ pub(super) fn admit_exact_foreign_call(
         ));
     }
     if !declaration.requires.is_empty()
+        || !declaration.normal_qualifications.is_empty()
         || !declaration.scalar_requires.is_empty()
         || !declaration.scalar_ensures.is_empty()
         || !declaration.content_guarantees.is_empty()

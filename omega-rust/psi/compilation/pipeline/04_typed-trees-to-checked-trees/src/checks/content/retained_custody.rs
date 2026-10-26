@@ -252,7 +252,7 @@ fn lifetime_bound_borrow_custody(
     };
     if content_result_domain_count != 1 {
         return Err(BorrowCustodyFailure::Directed(format!(
-            "the bounded shared-loan rung requires exactly one content-bearing result domain, but `{label}` has {content_result_domain_count}",
+            "the bounded retained-loan rung requires exactly one content-bearing result domain, but `{label}` has {content_result_domain_count}",
         )));
     }
     let Some(callable_lifetime_parameter_ordinal) = callable_lifetime_parameters
@@ -271,7 +271,7 @@ fn lifetime_bound_borrow_custody(
             .collect::<Vec<_>>()
             .join(", ");
         return Err(BorrowCustodyFailure::Directed(format!(
-            "the result lifetime has ambiguous compatible borrowed inputs {names}; exactly one whole direct shared source is required",
+            "the result lifetime has ambiguous compatible borrowed inputs {names}; exactly one whole direct source is required",
         )));
     }
     let source = &borrowed_sources[0];
@@ -284,9 +284,9 @@ fn lifetime_bound_borrow_custody(
             source.parameter.name,
         )));
     };
-    if access != ReferenceAccess::Shared {
+    if !matches!(access, ReferenceAccess::Shared | ReferenceAccess::Mutable) {
         return Err(BorrowCustodyFailure::Directed(format!(
-            "borrowed parameter `{}` uses {access:?} access; retained lifetime-bound custody currently admits shared access only",
+            "borrowed parameter `{}` uses {access:?} access; retained lifetime-bound custody requires readable shared or mutable access",
             source.parameter.name,
         )));
     }

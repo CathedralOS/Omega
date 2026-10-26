@@ -425,6 +425,7 @@ pub(crate) fn capture(
     array_loan: Option<&crate::element_views::ElementView>,
     access: StructuralAccess,
     leaves: &[StorageLeaf],
+    normal_qualifications: &[semantic_vocabulary::StructuralDomainId],
 ) -> Result<(Vec<TerminalBoundaryStorageValue>, Vec<PinnedScalar>), TerminalInterpretError> {
     let mut values = Vec::new();
     let mut endpoints = Vec::new();
@@ -446,7 +447,11 @@ pub(crate) fn capture(
                 // qualifications remain on the consumed argument; a read cannot
                 // weaken that owner or manufacture another qualified value.
                 if access == StructuralAccess::MutableBorrow {
-                    execution.validate_scalar_loan_qualifications(&storage)?;
+                    execution.validate_scalar_loan_restoration(
+                        &storage,
+                        &crate::values::StructuralRuntimePlace::from(referent),
+                        normal_qualifications,
+                    )?;
                 }
                 let value = execution.read_primitive_storage(
                     source,

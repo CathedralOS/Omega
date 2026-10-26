@@ -84,9 +84,9 @@ pub struct AllocationOutput<'program> {
 }
 
 impl<'program> AllocationOutput<'program> {
-    pub const fn program(&self) -> register_homes::AllocatedProgramRef<'program> {
-        self.program
-    }
+    receipt_accessor_rows!(ref AllocationOutput {
+        program: register_homes::AllocatedProgramRef<'program>,
+    });
 
     /// The selected program's borrow remains tied to the retained input, not this view.
     pub fn selected_plan(&self) -> &'program selected_instructions::SelectedInstructionPlan {
@@ -110,28 +110,22 @@ impl<'program> AllocationOutput<'program> {
         self.target_input
     }
 
+    receipt_accessor_rows!(ref AllocationOutput {
     /// Exact retained build policy admitted with the allocation.
-    pub const fn selections(&self) -> &'program OptimizationSelections {
-        self.selections
-    }
+        selections: &'program OptimizationSelections,
+    });
     pub const fn budget_per_pass(&self) -> OptimizationWorkBudget {
         self.budget
     }
-    pub const fn selected(&self) -> &SelectedProgramRef<'_> {
-        &self.selected
-    }
-    pub const fn liveness(&self) -> &'program ValidatedLiveness {
-        self.liveness
-    }
-    pub const fn ranges(&self) -> &'program ValidatedLiveRanges {
-        self.ranges
-    }
-    pub const fn legality(&self) -> &'program ValidatedAllocationLegality {
-        self.legality
-    }
-    pub const fn homes(&self) -> &'program ValidatedRegisterHomes {
-        self.homes
-    }
+    receipt_accessor_rows!(borrow AllocationOutput {
+        selected: &SelectedProgramRef<'_>,
+    });
+    receipt_accessor_rows!(ref AllocationOutput {
+        liveness: &'program ValidatedLiveness,
+        ranges: &'program ValidatedLiveRanges,
+        legality: &'program ValidatedAllocationLegality,
+        homes: &'program ValidatedRegisterHomes,
+    });
     pub const fn post_allocation_manifest(
         &self,
     ) -> &'program ValidatedPostAllocationOptimizationManifest {
@@ -140,9 +134,9 @@ impl<'program> AllocationOutput<'program> {
     pub const fn register_environment(&self) -> &'program ValidatedTargetRegisterEnvironment {
         self.environment
     }
-    pub const fn evidence(&self) -> &AllocationEvidence {
-        &self.evidence
-    }
+    receipt_accessor_rows!(borrow AllocationOutput {
+        evidence: &AllocationEvidence,
+    });
 }
 
 /// Evidence roles remain distinct; they do not choose the downstream program

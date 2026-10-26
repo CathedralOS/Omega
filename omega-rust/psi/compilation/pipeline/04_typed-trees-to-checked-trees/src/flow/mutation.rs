@@ -142,7 +142,7 @@ pub(in crate::flow) fn call_mutation_writes(
     // (mutation/ceiling.rs); only an unrepresentable ceiling stays unknown and
     // retires every live fact. `call_write_places` already applies that
     // fallback for this namespace, so no second copy stands here.
-    call_write_places(
+    let mut writes = call_write_places(
         program,
         caller_machine_symbol,
         caller_state_symbol,
@@ -152,7 +152,25 @@ pub(in crate::flow) fn call_mutation_writes(
         WritePlaceNamespace::Storage,
         call_frames,
         None,
-    )
+    )?;
+    // Normal completion of the carrier closes its retained debt even when a
+    // checked helper's visible frame mentions only the token. Neither a pure
+    // token move nor the nominal layout proves unchanged opaque backing.
+    for region in ceiling::retained_loan_write_regions(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow,
+        borrow_call,
+    )? {
+        if !writes.iter().any(|write| write.region == region) {
+            writes.push(CallMutationWrite {
+                region,
+                source: None,
+            });
+        }
+    }
+    Some(writes)
 }
 
 /// The access route retains the local loan owner; storage rebasing must not
