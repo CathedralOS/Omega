@@ -19,6 +19,7 @@ use semantic_vocabulary::BlockId;
 use crate::analyses::block_dominates;
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use crate::rules::control_flow_cleanup::block_merge_substitutions::merge_substitutions;
+use crate::rules::control_flow_cleanup::descriptor_telescope_free;
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_is_identity;
 use crate::rules::control_flow_cleanup::{provenance_realized_at, record_node_provenance};
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
@@ -60,11 +61,7 @@ impl PsiOptimizationRule for NonAdjacentBlockMergeRule {
         let mut candidates = Vec::new();
         for function in &unit.functions {
             // Descriptor telescopes require structural substitution, outside this scalar rewrite.
-            if function
-                .blocks
-                .iter()
-                .any(|block| !block.structural_parameters.is_empty())
-            {
+            if !descriptor_telescope_free(function) {
                 continue;
             }
             let machine_dominators = dominators

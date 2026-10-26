@@ -116,6 +116,15 @@ pub(super) fn record_node_provenance<'node>(
     Some(())
 }
 
+/// A scalar CFG rewrite applies only where no block declares descriptor
+/// telescoping parameters: structural substitution is outside these rules.
+pub(super) fn descriptor_telescope_free(function: &PsiOptimizationFunction) -> bool {
+    function
+        .blocks
+        .iter()
+        .all(|block| block.structural_parameters.is_empty())
+}
+
 /// One block's node scan against the running effect ledger: a node whose
 /// declared input or output no longer matches the expected ordinal marks its
 /// block affected and stamps realized provenance at the node site. Shared by
