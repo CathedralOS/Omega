@@ -283,6 +283,21 @@ fn cleanup_rows(
             }
             row.actions.extend(actions);
         } else {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE normal-cleanup-unmatched machine={machine:?} state={:?} disposition={disposition:?} exits={:?} outgoing={:?}",
+                    state.symbol,
+                    rows.iter().take(8).map(|row| row.exit).collect::<Vec<_>>(),
+                    facts
+                        .flow
+                        .control
+                        .outgoing
+                        .span_or_empty(flow_state.outgoing)
+                        .iter()
+                        .take(8)
+                        .collect::<Vec<_>>(),
+                );
+            }
             return Err("normal cleanup disposition has no matching exit");
         }
     }
