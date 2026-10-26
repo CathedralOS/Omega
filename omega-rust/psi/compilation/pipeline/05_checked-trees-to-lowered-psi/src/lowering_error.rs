@@ -57,6 +57,11 @@ pub enum LoweringError {
         gap: Option<Diagnostic>,
     },
     Unsupported(&'static str),
+    MissingScalarParameterQualification {
+        state: String,
+        source_position: u32,
+        prepared_positions: Vec<u32>,
+    },
     MissingSelectionFrontier {
         machine: String,
         state: String,
