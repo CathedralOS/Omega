@@ -36,8 +36,8 @@ reject twin is pinned as
 | Another target body | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 
 `omega run --both <place>/main.omg` reports Terminal Psi and native exit 0.
-Each twin drops only the right operand's `<= 50` obligation and refuses with
-`cannot prove requires contract for call apply`.
+Each twin omits the right operand bound and rejects at its receiving `apply`
+call, or at the independent nested `step` boundary.
 
 ## Requirements and evidence
 
