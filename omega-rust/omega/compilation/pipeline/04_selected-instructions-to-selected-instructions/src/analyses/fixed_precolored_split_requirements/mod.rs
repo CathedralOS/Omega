@@ -48,22 +48,14 @@ pub struct FixedPrecoloredSplitRequirementValidationReceipt {
 }
 
 impl FixedPrecoloredSplitRequirementValidationReceipt {
-    pub const fn identity(self) -> FixedPrecoloredSplitRequirementPlanIdentity {
-        self.identity
-    }
-    pub const fn fixed_intervals(self) -> FixedPrecoloredIntervalPlanIdentity {
-        self.fixed_intervals
-    }
+    receipt_accessor_rows!(FixedPrecoloredSplitRequirementValidationReceipt {
+        identity: FixedPrecoloredSplitRequirementPlanIdentity,
+        fixed_intervals: FixedPrecoloredIntervalPlanIdentity,
+        target: NativeTarget,
+        policy: FixedPrecoloredSplitRequirementPolicy,
+        usage: OptimizationWorkUsage,
+    });
     shared_analysis_identity_accessors!(pub);
-    pub const fn target(self) -> NativeTarget {
-        self.target
-    }
-    pub const fn policy(self) -> FixedPrecoloredSplitRequirementPolicy {
-        self.policy
-    }
-    pub const fn usage(self) -> OptimizationWorkUsage {
-        self.usage
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -76,9 +68,9 @@ impl ValidatedFixedPrecoloredSplitRequirements {
     pub const fn plan(&self) -> &FixedPrecoloredSplitRequirementPlan {
         &self.plan
     }
-    pub const fn receipt(&self) -> FixedPrecoloredSplitRequirementValidationReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(ref ValidatedFixedPrecoloredSplitRequirements {
+        receipt: FixedPrecoloredSplitRequirementValidationReceipt,
+    });
 }
 
 /// Sort key for a virtual fixed-constraint site — the total order both the

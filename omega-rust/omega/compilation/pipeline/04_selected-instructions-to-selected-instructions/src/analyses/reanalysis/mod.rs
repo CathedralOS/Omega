@@ -76,9 +76,9 @@ impl StagedOptimizedSelectedReanalysis {
     }
 
     validated_analysis_accessors!();
-    pub const fn custody(&self) -> StagedOptimizedSelectedReanalysisCustodyReceipt {
-        self.custody
-    }
+    receipt_accessor_rows!(ref StagedOptimizedSelectedReanalysis {
+        custody: StagedOptimizedSelectedReanalysisCustodyReceipt,
+    });
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -91,15 +91,11 @@ pub struct StagedOptimizedSelectedReanalysisCustodyReceipt {
 }
 
 impl StagedOptimizedSelectedReanalysisCustodyReceipt {
-    pub const fn source(self) -> StagedOptimizedFixedViewCopyCustodyReceipt {
-        self.source
-    }
     receipt_accessor_rows!(StagedOptimizedSelectedReanalysisCustodyReceipt {
+        source: StagedOptimizedFixedViewCopyCustodyReceipt,
         transformed_liveness: selected_instructions::LivenessIdentity,
         transformed_ranges: selected_instructions::LiveRangeIdentity,
         transformed_legality: register_homes::AllocationLegalityIdentity,
-    });
-    receipt_accessor_rows!(StagedOptimizedSelectedReanalysisCustodyReceipt {
         allocator_availability: register_homes::AllocatorAvailabilityIdentity,
     });
 }

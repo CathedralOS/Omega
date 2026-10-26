@@ -82,9 +82,9 @@ impl StagedOptimizedLiveRanges {
         &self.ranges
     }
 
-    pub const fn custody(&self) -> StagedOptimizedLiveRangeCustodyReceipt {
-        self.custody
-    }
+    receipt_accessor_rows!(ref StagedOptimizedLiveRanges {
+        custody: StagedOptimizedLiveRangeCustodyReceipt,
+    });
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -98,15 +98,9 @@ pub struct StagedOptimizedLiveRangeCustodyReceipt {
 impl StagedOptimizedLiveRangeCustodyReceipt {
     target_operations_to_selected_instructions::staging_custody_core_accessors!();
 
-    pub const fn selected(self) -> SelectedInstructionPlanIdentity {
-        self.selected
-    }
-
-    pub const fn liveness(self) -> selected_instructions::LivenessIdentity {
-        self.liveness
-    }
-
     receipt_accessor_rows!(StagedOptimizedLiveRangeCustodyReceipt {
+        selected: SelectedInstructionPlanIdentity,
+        liveness: selected_instructions::LivenessIdentity,
         ranges: LiveRangeIdentity,
     });
 }

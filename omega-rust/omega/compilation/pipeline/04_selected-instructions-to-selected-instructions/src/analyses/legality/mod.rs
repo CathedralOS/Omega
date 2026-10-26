@@ -114,9 +114,9 @@ impl StagedOptimizedAllocationLegality {
     pub const fn allocator_availability(&self) -> &ValidatedAllocatorAvailability {
         &self.availability
     }
-    pub const fn custody(&self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
-        self.custody
-    }
+    receipt_accessor_rows!(ref StagedOptimizedAllocationLegality {
+        custody: StagedOptimizedAllocationLegalityCustodyReceipt,
+    });
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -136,13 +136,9 @@ impl StagedOptimizedAllocationLegalityCustodyReceipt {
         allocator_availability: AllocatorAvailabilityIdentity,
         ranges: selected_instructions::LiveRangeIdentity,
         legality: AllocationLegalityIdentity,
+        selected: SelectedInstructionPlanIdentity,
+        liveness: selected_instructions::LivenessIdentity,
     });
-    pub const fn selected(self) -> SelectedInstructionPlanIdentity {
-        self.selected
-    }
-    pub const fn liveness(self) -> selected_instructions::LivenessIdentity {
-        self.liveness
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

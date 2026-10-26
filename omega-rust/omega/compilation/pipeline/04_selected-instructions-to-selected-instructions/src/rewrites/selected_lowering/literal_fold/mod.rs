@@ -765,37 +765,21 @@ pub struct LiteralFoldValidationReceipt {
 }
 
 impl LiteralFoldValidationReceipt {
-    pub const fn identity(self) -> LiteralFoldIdentity {
-        self.identity
-    }
     receipt_accessor_rows!(LiteralFoldValidationReceipt {
+        identity: LiteralFoldIdentity,
+        spill_choices: SpillChoiceIdentity,
+        recovery_classifications: RecoveryClassificationIdentity,
+        /// The validated machine-effect catalog identity the fold's producer and
+        /// independent replay both bound.
+        machine_effect_catalog: MachineEffectCatalogIdentity,
+        policy: LiteralFoldPolicy,
+        usage: OptimizationWorkUsage,
+        function_count: usize,
+        applied_count: usize,
         source_selected: SelectedInstructionPlanIdentity,
         transformed_selected: SelectedInstructionPlanIdentity,
     });
-    pub const fn spill_choices(self) -> SpillChoiceIdentity {
-        self.spill_choices
-    }
-    pub const fn recovery_classifications(self) -> RecoveryClassificationIdentity {
-        self.recovery_classifications
-    }
     shared_analysis_identity_accessors!(pub);
-    /// The validated machine-effect catalog identity the fold's producer and
-    /// independent replay both bound.
-    pub const fn machine_effect_catalog(self) -> MachineEffectCatalogIdentity {
-        self.machine_effect_catalog
-    }
-    pub const fn policy(self) -> LiteralFoldPolicy {
-        self.policy
-    }
-    pub const fn usage(self) -> OptimizationWorkUsage {
-        self.usage
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn applied_count(self) -> usize {
-        self.applied_count
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -817,9 +801,9 @@ impl ValidatedLiteralFold {
     pub fn transformed(&self) -> &SelectedInstructionPlan {
         &self.transformed
     }
-    pub const fn receipt(&self) -> LiteralFoldValidationReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(ref ValidatedLiteralFold {
+        receipt: LiteralFoldValidationReceipt,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

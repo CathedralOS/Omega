@@ -78,9 +78,9 @@ impl StagedOptimizedFixedViewCopies {
     pub const fn copies(&self) -> &ValidatedFixedViewCopies {
         &self.copies
     }
-    pub const fn custody(&self) -> StagedOptimizedFixedViewCopyCustodyReceipt {
-        self.custody
-    }
+    receipt_accessor_rows!(ref StagedOptimizedFixedViewCopies {
+        custody: StagedOptimizedFixedViewCopyCustodyReceipt,
+    });
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -107,39 +107,23 @@ impl StagedOptimizedFixedViewCopyCustodyReceipt {
 
     receipt_accessor_rows!(StagedOptimizedFixedViewCopyCustodyReceipt {
         allocator_availability: register_homes::AllocatorAvailabilityIdentity,
-    });
-    receipt_accessor_rows!(StagedOptimizedFixedViewCopyCustodyReceipt {
         source_selected: SelectedInstructionPlanIdentity,
         source_liveness: selected_instructions::LivenessIdentity,
         source_ranges: selected_instructions::LiveRangeIdentity,
         source_legality: register_homes::AllocationLegalityIdentity,
         transformed_selected: SelectedInstructionPlanIdentity,
+        fixed_intervals: register_homes::FixedPrecoloredIntervalPlanIdentity,
+        segment_homes: register_homes::FixedPrecoloredSegmentHomePlanIdentity,
+        transformation: FixedViewCopyIdentity,
+        policy: FixedViewCopyPolicy,
+        usage: OptimizationWorkUsage,
+        function_count: usize,
+        copy_count: usize,
     });
-    pub const fn fixed_intervals(self) -> register_homes::FixedPrecoloredIntervalPlanIdentity {
-        self.fixed_intervals
-    }
     pub const fn split_requirements(
         self,
     ) -> register_homes::FixedPrecoloredSplitRequirementPlanIdentity {
         self.split_requirements
-    }
-    pub const fn segment_homes(self) -> register_homes::FixedPrecoloredSegmentHomePlanIdentity {
-        self.segment_homes
-    }
-    pub const fn transformation(self) -> FixedViewCopyIdentity {
-        self.transformation
-    }
-    pub const fn policy(self) -> FixedViewCopyPolicy {
-        self.policy
-    }
-    pub const fn usage(self) -> OptimizationWorkUsage {
-        self.usage
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn copy_count(self) -> usize {
-        self.copy_count
     }
 }
 

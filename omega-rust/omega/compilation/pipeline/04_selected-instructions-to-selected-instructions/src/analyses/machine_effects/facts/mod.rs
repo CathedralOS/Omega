@@ -54,18 +54,12 @@ pub struct PreAllocationMachineEffectReceipt {
 }
 
 impl PreAllocationMachineEffectReceipt {
-    pub const fn identity(self) -> PreAllocationMachineEffectIdentity {
-        self.identity
-    }
-    pub const fn selected(self) -> SelectedInstructionPlanIdentity {
-        self.selected
-    }
     receipt_accessor_rows!(PreAllocationMachineEffectReceipt {
+        identity: PreAllocationMachineEffectIdentity,
+        selected: SelectedInstructionPlanIdentity,
+        machine_effect_catalog: MachineEffectCatalogIdentity,
         register_environment: TargetRegisterEnvironmentIdentity,
     });
-    pub const fn machine_effect_catalog(self) -> MachineEffectCatalogIdentity {
-        self.machine_effect_catalog
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,9 +78,9 @@ impl ValidatedPreAllocationMachineEffects {
         Arc::clone(&self.plan)
     }
 
-    pub const fn receipt(&self) -> PreAllocationMachineEffectReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(ref ValidatedPreAllocationMachineEffects {
+        receipt: PreAllocationMachineEffectReceipt,
+    });
 
     fn new(
         plan: PreAllocationMachineEffectPlan,

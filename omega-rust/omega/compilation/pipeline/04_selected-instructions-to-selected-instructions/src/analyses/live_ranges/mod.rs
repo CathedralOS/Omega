@@ -69,25 +69,15 @@ pub struct LiveRangeValidationReceipt {
 }
 
 impl LiveRangeValidationReceipt {
-    pub const fn identity(self) -> LiveRangeIdentity {
-        self.identity
-    }
-    pub const fn selected(self) -> SelectedInstructionPlanIdentity {
-        self.selected
-    }
-    pub const fn liveness(self) -> LivenessIdentity {
-        self.liveness
-    }
     receipt_accessor_rows!(LiveRangeValidationReceipt {
+        identity: LiveRangeIdentity,
+        selected: SelectedInstructionPlanIdentity,
+        liveness: LivenessIdentity,
+        virtual_register_count: usize,
+        virtual_fragment_count: usize,
         optimization_unit: OptimizationUnitIdentity,
         fuel_schedule: FuelScheduleIdentity,
     });
-    pub const fn virtual_register_count(self) -> usize {
-        self.virtual_register_count
-    }
-    pub const fn virtual_fragment_count(self) -> usize {
-        self.virtual_fragment_count
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -105,9 +95,9 @@ impl ValidatedLiveRanges {
     pub fn plan(&self) -> &LiveRangePlan {
         &self.plan
     }
-    pub const fn receipt(&self) -> LiveRangeValidationReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(ref ValidatedLiveRanges {
+        receipt: LiveRangeValidationReceipt,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
