@@ -431,7 +431,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                         &mut shapes,
                         state,
                     )
-                    .ok_or((state.state, "normal-exit cleanup"))?;
+                    .map_err(|reason| (state.state, reason))?;
                     Ok((temporary, normal))
                 })
                 .collect::<Result<Vec<_>, _>>()

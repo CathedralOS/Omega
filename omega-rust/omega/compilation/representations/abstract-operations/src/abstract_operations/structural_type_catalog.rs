@@ -46,6 +46,24 @@ static EMPTY_QUOTIENTS: terminal_psi::TerminalQuotientCatalog =
         adaptations: Vec::new(),
     };
 impl StructuralTypeCatalog {
+    /// Fast allocation-sharing check across all retained catalog slices.
+    pub fn ptr_eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+            && Arc::ptr_eq(&self.1, &other.1)
+            && Arc::ptr_eq(&self.2, &other.2)
+            && Arc::ptr_eq(&self.3, &other.3)
+            && match (&self.4, &other.4) {
+                (None, None) => true,
+                (Some(left), Some(right)) => Arc::ptr_eq(left, right),
+                _ => false,
+            }
+            && match (&self.5, &other.5) {
+                (None, None) => true,
+                (Some(left), Some(right)) => Arc::ptr_eq(left, right),
+                _ => false,
+            }
+    }
+
     /// Whole-value encoding and extraction retain the same normalized geometry
     /// as field views, including fields with no exposed accessor. Share this
     /// immutable catalog across native functions instead of rediscovering a

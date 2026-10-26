@@ -48,16 +48,22 @@ impl Captures<'_> {
                 path,
                 actual.storage_snapshot,
             ) else {
-                // The selector authenticates this exact unchanged input cut.
-                // A newer store or unavailable alternative cannot reach here.
-                if actual.state_symbol != state.symbol {
+                // The selector proved an unchanged incoming descriptor at the
+                // original consumer cut. Whole-value copies can reach that
+                // descriptor through local homes: retain its defining input
+                // identity, rather than asking the last local to be a formal.
+                // Resolve this identity only after the storage query above;
+                // moving that query to the producer's older snapshot would
+                // incorrectly rewind writes through stored references.
+                let incoming = self.completed_operand_source(actual)?;
+                if incoming.state_symbol != state.symbol {
                     return None;
                 }
                 let mut place = crate::canonical_place_from_expression_in_state(
                     self.program,
                     state.symbol,
-                    actual.statement_index,
-                    actual.expression,
+                    incoming.statement_index,
+                    incoming.expression,
                 )?;
                 let root = place.root.as_symbol()?;
                 if !self.ingress_present(state, root)? {

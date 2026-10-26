@@ -15,14 +15,18 @@ mod storage_instructions;
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
 use semantic_vocabulary::IntegerValue;
-pub(super) fn project(
+pub(super) fn project<'a, 'g>(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
-    native: &TargetOperationPlan,
-    plan: &AbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
+    native: &'a TargetOperationPlan,
+    plan: &'a AbstractOperationPlan,
+    unit: &'a PsiOptimizationUnit,
     targeted: &target_operations::TargetUnitOperation,
-) -> Result<LegalizedScalarInstruction, LegalizationError> {
+    call_descriptor_origins: &mut scalar_graph_input::byte_views::CallDescriptorOrigins<'a, 'g>,
+) -> Result<LegalizedScalarInstruction, LegalizationError>
+where
+    'a: 'g,
+{
     let (operation, result) = scalar_graph_input::instruction(node).ok_or(Error::custody())?;
     // Installed and ordinary calls already share the target producer's call
     // row. Preserve that origin directly instead of manufacturing a replacement
@@ -31,7 +35,14 @@ pub(super) fn project(
         targeted,
         target_operations::TargetUnitOperation::Call { .. }
     ) {
-        call_instructions::project_call(optimized, unit, targeted, native, plan)?
+        call_instructions::project_call(
+            optimized,
+            unit,
+            targeted,
+            native,
+            plan,
+            call_descriptor_origins,
+        )?
     } else if let target_operations::TargetUnitOperation::PlacementLifecycle {
         boundary,
         operands,

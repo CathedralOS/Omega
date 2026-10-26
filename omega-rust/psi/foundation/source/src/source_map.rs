@@ -220,10 +220,10 @@ impl SourceMap {
         )
     }
 
-    /// Install the completed default-build owner's metadata before resolution.
+    /// Install the completed anonymous owner's metadata before Product resolution.
     /// Supplied package identities and toolchain declarations remain exact.
     /// Source IDs, bytes and checked-context instances are never coalesced.
-    pub fn bind_default_anonymous_owner(
+    pub fn bind_anonymous_owner(
         &mut self,
         root: &std::path::Path,
         identity: PackageKeyIdentity,

@@ -37,11 +37,7 @@ impl TerminalExecution<'_> {
         }
         let (destination_field, capacity) =
             self.resolve_structural_byte_sequence_field(*destination, path, *field, true)?;
-        if self
-            .live_claims
-            .values()
-            .any(|claim| claim.place == Some(*source))
-        {
+        if crate::custody::place_is_claimed(&self.live_claims, *source) {
             return Err(malformed());
         }
         let TerminalScalarValue::Integer {
@@ -241,11 +237,7 @@ impl TerminalExecution<'_> {
             .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
-        if self
-            .live_claims
-            .values()
-            .any(|claim| claim.place == Some(root))
-        {
+        if crate::custody::place_is_claimed(&self.live_claims, root) {
             return Err(malformed());
         }
         let (access, parameter_root) = if let Some(parameter) = machine.structural_parameter(root) {

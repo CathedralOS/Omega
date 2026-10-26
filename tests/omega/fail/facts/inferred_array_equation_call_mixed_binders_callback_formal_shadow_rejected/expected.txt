@@ -1,0 +1,1 @@
+cannot replace non-type binder `Callback` with a global declaration

@@ -246,7 +246,35 @@ impl From<FuelMeterError> for TerminalInterpretError {
 
 impl std::fmt::Display for TerminalInterpretError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
+        match self {
+            Self::ExecutionSite {
+                machine,
+                block,
+                operation,
+                cause,
+            } => {
+                write!(
+                    formatter,
+                    "{cause} in {machine:?}/{block:?} at {operation:?}"
+                )
+            }
+            Self::StructuralReplacement {
+                operation,
+                phase,
+                cause,
+            } => {
+                write!(formatter, "{cause} during {phase} at {operation:?}")
+            }
+            Self::EffectRejected {
+                operation,
+                rejection,
+            } => {
+                write!(formatter, "{} at {operation:?}", rejection.reason)
+            }
+            Self::Fuel(reason) => reason.fmt(formatter),
+            Self::Storage(reason) => reason.fmt(formatter),
+            other => write!(formatter, "{other:?}"),
+        }
     }
 }
 

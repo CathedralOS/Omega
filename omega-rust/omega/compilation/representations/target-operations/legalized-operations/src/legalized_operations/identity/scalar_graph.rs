@@ -9,7 +9,11 @@ use crate::legalized_operations::{
 };
 use crate::{SaturatingCarrier, SaturatingOperation};
 use optimization_unit::encode_value_definition_site_identity;
-pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
+pub(super) fn encode(
+    bytes: &mut Vec<u8>,
+    function: &LegalizedScalarFunction,
+    cached_catalog: &mut Option<(abstract_operations::StructuralTypeCatalog, Vec<u8>)>,
+) {
     crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());
     optimization_core::encode_option_u64(bytes, function.attachment.map(|value| value.get()));
     optimization_core::encode_option_u64(
@@ -32,7 +36,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
     match &function.structural {
         Some(signature) => {
             bytes.push(1);
-            super::plan::encode_structural_contract(bytes, signature);
+            super::plan::encode_structural_contract(bytes, signature, cached_catalog);
         }
         None => bytes.push(0),
     }

@@ -172,6 +172,10 @@ pub struct CheckedUnitStructuralFieldPlan {
     pub identity: CheckedMemberIdentity,
     pub relevance: BindingRelevance,
     pub field_type: CheckedUnitStructuralFieldType,
+    /// Standalone geometry retained by an inline byte field. Borrowed fields
+    /// dispose this descriptor, never the backing it references. Zero means
+    /// this field has no inline byte carrier.
+    pub byte_sequence_type_identity: TypeIdentityId,
     pub storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
     /// The carrier types this field's qualifications are registered against
     /// when its inline field plan names no structural type: a refined scalar
@@ -187,6 +191,7 @@ impl PartialEq for CheckedUnitStructuralFieldPlan {
             && self.identity == other.identity
             && self.relevance == other.relevance
             && self.field_type == other.field_type
+            && self.byte_sequence_type_identity == other.byte_sequence_type_identity
             && self.storage == other.storage
             && self.qualification_carriers == other.qualification_carriers
     }
@@ -196,12 +201,33 @@ impl Eq for CheckedUnitStructuralFieldPlan {}
 
 impl CheckedUnitStructuralFieldPlan {
     /// Every structural type a catalog must keep alongside this field's
-    /// owner: the field's own structural type and its qualification carriers.
+    /// owner: its structural or inline byte type and qualification carriers.
     pub fn retained_type_identities(&self) -> impl Iterator<Item = TypeIdentityId> + '_ {
         self.field_type
             .structural_type_identity()
             .into_iter()
+            .chain(
+                self.byte_sequence_type_identity
+                    .is_valid()
+                    .then_some(self.byte_sequence_type_identity),
+            )
             .chain(self.qualification_carriers.iter().copied())
+    }
+
+    /// A field with its own disposal region. Inline scalars and owned bytes
+    /// need no child action (zero); borrowed bytes retain descriptor custody.
+    pub fn cleanup_type_identity(&self) -> TypeIdentityId {
+        match &self.field_type {
+            CheckedUnitStructuralFieldType::Structural { type_identity } => *type_identity,
+            field
+                if field
+                    .byte_sequence_carrier()
+                    .is_some_and(|carrier| carrier.is_borrowed()) =>
+            {
+                self.byte_sequence_type_identity
+            }
+            _ => TypeIdentityId::default(),
+        }
     }
 }
 
@@ -589,10 +615,12 @@ pub fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape)
 /// are partial-affine leaves — a partially moved value reconstructs the
 /// untouched complement from these without executable cleanup.
 pub fn is_partial_affine_field_type(field_type: &CheckedUnitStructuralFieldType) -> bool {
+    if let CheckedUnitStructuralFieldType::Structural { type_identity } = field_type {
+        return type_identity.is_valid();
+    }
     matches!(
         field_type,
-        CheckedUnitStructuralFieldType::Structural { .. }
-            | CheckedUnitStructuralFieldType::BoundedInteger(_)
+        CheckedUnitStructuralFieldType::BoundedInteger(_)
             | CheckedUnitStructuralFieldType::RefinedScalar { .. }
             | CheckedUnitStructuralFieldType::ByteSequence(
                 CheckedByteSequenceCarrier::BoundedOwned { .. }
@@ -641,6 +669,7 @@ mod field_identity_tests {
             identity: CheckedMemberIdentity::of_spelling("operations"),
             relevance: BindingRelevance::Relevant,
             field_type: CheckedUnitStructuralFieldType::Scalar(PrimitiveType::Selector),
+            byte_sequence_type_identity: TypeIdentityId::default(),
             storage: None,
             qualification_carriers: Vec::new(),
         };

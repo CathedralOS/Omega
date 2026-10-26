@@ -1,7 +1,8 @@
-//! Canonical ownership for a completed default-build source invocation.
+//! Canonical ownership for an anonymous source invocation after its Build join.
 //!
-//! A default Build has no dependency requests. Its empty edge roster is
-//! committed explicitly, alongside the complete captured namespace and exact
+//! The current standalone route completes only an empty dependency roster;
+//! authored Builds requesting dependencies are refused before this operation.
+//! That roster is committed alongside the complete captured namespace and exact
 //! applicable core declarations. Supplied package owners bypass this operation.
 //! The anonymous record uses a different digest domain from named lineage;
 //! PackageKeyIdentity carries the resulting opaque commitment through the
@@ -12,6 +13,56 @@
 use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
 use source::{CapturedSourceNode, CapturedSourceTree};
+use std::sync::Arc;
+
+/// Captured inputs retained while an anonymous Build executes privately.
+/// This is not a declaration owner. Completion follows the dependency join;
+/// the current standalone route admits no outstanding dependency requests.
+#[derive(Clone)]
+pub struct AnonymousSourceCapture {
+    pub(crate) root: std::path::PathBuf,
+    pub(crate) capture: Arc<CapturedSourceTree>,
+    pub(crate) filesystem: source::SourceFileSystem,
+    pub(crate) semantic_dependencies: Vec<[u8; 32]>,
+    pub(crate) sources: Arc<source::SourceMap>,
+}
+
+impl AnonymousSourceCapture {
+    pub fn root(&self) -> &std::path::Path {
+        &self.root
+    }
+
+    /// The same captured namespace used by source assembly, including exact
+    /// link resolution. A later Build snapshot must not reopen the live root.
+    pub fn filesystem(&self) -> &source::SourceFileSystem {
+        &self.filesystem
+    }
+
+    /// Derive Build's inventory in its own commitment domain, sharing acquired
+    /// file bytes. This does not assign a package or declaration owner.
+    pub fn build_input(&self) -> Result<build_output::CapturedBuildSourceInput, String> {
+        crate::source_snapshot::retained_source_input(&self.capture)
+    }
+
+    pub fn sources(&self) -> &Arc<source::SourceMap> {
+        &self.sources
+    }
+
+    /// Complete the empty dependency join before Product resolution. Supplied
+    /// package owners are retained, and no typed declaration is rewritten.
+    /// The source map comes from this capture, not a caller-supplied replacement.
+    pub fn complete_without_dependencies(
+        self,
+    ) -> Result<Arc<source::SourceMap>, Vec<diagnostics::Diagnostic>> {
+        let identity = derive(&self.capture, self.semantic_dependencies)
+            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
+        let mut sources = Arc::unwrap_or_clone(self.sources);
+        sources
+            .bind_anonymous_owner(&self.root, identity)
+            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
+        Ok(Arc::new(sources))
+    }
+}
 
 fn field(digest: &mut Sha256, bytes: &[u8]) {
     digest.update((bytes.len() as u64).to_le_bytes());
@@ -212,9 +263,7 @@ mod tests {
             None,
             source::SourceOrigin::Toolchain,
         );
-        sources
-            .bind_default_anonymous_owner(&root, identity)
-            .unwrap();
+        sources.bind_anonymous_owner(&root, identity).unwrap();
         assert_eq!(
             sources.get(source::SourceId(0)).unwrap().package_identity,
             Some(identity)
@@ -236,9 +285,7 @@ mod tests {
             sources.get(source::SourceId(1)).unwrap().dependency_scope
         );
         let before = sources.clone();
-        sources
-            .bind_default_anonymous_owner(&root, supplied)
-            .unwrap();
+        sources.bind_anonymous_owner(&root, supplied).unwrap();
         assert_eq!(sources, before, "a supplied owner is never rebound");
     }
 
@@ -262,9 +309,7 @@ mod tests {
             source::SourceOrigin::User,
         );
         let before = sources.clone();
-        let error = sources
-            .bind_default_anonymous_owner(&root, owner)
-            .unwrap_err();
+        let error = sources.bind_anonymous_owner(&root, owner).unwrap_err();
         assert!(error.contains("no supplied owner outside the anonymous capture"));
         assert_eq!(sources, before);
     }

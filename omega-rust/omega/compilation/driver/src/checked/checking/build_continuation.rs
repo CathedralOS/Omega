@@ -15,43 +15,46 @@ use package_compilation::PackageCompilationInputs;
 use std::path::Path;
 use std::sync::Arc;
 
+pub(super) struct BuildSourceInvocation {
+    frontier: TypedCompilationFrontier,
+    evaluation: build_evaluation::PreparedBuildEvaluation,
+    package_inputs: Option<PackageCompilationInputs>,
+    selected_target_profile: Option<target::TargetProfile>,
+    build_execution_profile: Option<target::TargetProfile>,
+    timings: CompileTimings,
+    started: std::time::Instant,
+}
+
 /// Consume a prepared typed program. Source preparation owns any reuse;
 /// declaration authority and Build effects are admitted for this activation.
-pub(crate) fn evaluate_build_and_continue(
+pub(super) fn prepare_build_invocation(
     root_path: &Path,
     child: CheckedExecutionRequest<'_>,
     frontier: TypedCompilationFrontier,
-    timings: &mut CompileTimings,
+    mut timings: CompileTimings,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
-) -> Result<(BuiltTypedProgram, BuildSourceCustody), CompileFailure> {
+) -> Result<BuildSourceInvocation, CompileFailure> {
+    let started = std::time::Instant::now();
     let CheckedExecutionRequest {
-        selected_target_profile: _,
-        build_execution_profile,
+        selected_target_profile,
         package_inputs,
-        build_dir,
-        filesystem_sponsor,
-        evaluation_sponsor,
-        build_snapshot,
+        build,
         optimization_rollback: _,
-        restricted_build_grants,
         permit_unsettled_fused_service_fields: _,
         settled_check_reuse,
     } = child;
+    let build_execution_profile = build.profile;
     let TypedCompilationFrontier {
         mut source,
+        anonymous_source,
+        product_sources,
         build_source_id,
         source_file_count,
         generated_source_custody,
         base_sources,
-        application,
     } = frontier;
     let build_input = source.build_input();
-    let build_evaluation::EvaluatedBuild {
-        configuration: computed_build_config,
-        restricted_build_requests,
-        base_source_consumption_commitment,
-        retained_check: retained_build_check,
-    } = build_evaluation::evaluate_build(
+    let evaluation = build_evaluation::prepare_build_evaluation(
         build_evaluation::BuildEvaluationRequest {
             pure_build_compilation,
             root_path,
@@ -60,16 +63,10 @@ pub(crate) fn evaluate_build_and_continue(
             build_source_id,
             sources: &base_sources,
             package_inputs,
+            anonymous_source: anonymous_source.as_ref(),
             generated_source_custody: &generated_source_custody,
-            execution_profile: build_execution_profile,
-            build_directory: build_dir,
-            filesystem_sponsor,
-            evaluation_sponsor,
-            snapshot: build_snapshot.as_ref(),
-            restricted_build_grants,
-            artifact_only: application
-                .as_ref()
-                .is_some_and(|application| application.artifact_only),
+            execution: build,
+            artifact_only: false,
             prior_checks: settled_check_reuse
                 .prior
                 .build
@@ -79,8 +76,181 @@ pub(crate) fn evaluate_build_and_continue(
                 .collect(),
             retain_check: settled_check_reuse.retain,
         },
-        timings,
+        &mut timings,
     )?;
+    Ok(BuildSourceInvocation {
+        frontier: TypedCompilationFrontier {
+            source,
+            anonymous_source,
+            product_sources,
+            build_source_id,
+            source_file_count,
+            generated_source_custody,
+            base_sources,
+        },
+        evaluation,
+        package_inputs: package_inputs.cloned(),
+        selected_target_profile,
+        build_execution_profile,
+        timings,
+        started,
+    })
+}
+
+impl BuildSourceInvocation {
+    pub(super) fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
+        self.evaluation.execution()
+    }
+
+    pub(super) fn complete(
+        self,
+        returned: Option<build_evaluation::ReturnedBuild>,
+        joined_inputs: Option<&PackageCompilationInputs>,
+        product_target: Option<target::TargetProfile>,
+        reuse: &compilation_products::SettledCheckReuse,
+        catalogue: &mut source::SourceCatalogue,
+    ) -> Result<compilation_products::PreparedBuild, CompileFailure> {
+        let Self {
+            frontier,
+            evaluation,
+            package_inputs,
+            selected_target_profile,
+            build_execution_profile,
+            mut timings,
+            started,
+        } = self;
+        if let (Some(original), Some(joined)) = (package_inputs.as_ref(), joined_inputs)
+            && original != joined
+        {
+            return Err(vec![Diagnostic::error(
+                "Build completion cannot replace its original package inputs",
+            )]
+            .into());
+        }
+        let initially_unbound = package_inputs.is_none();
+        let selected_target_profile = if initially_unbound {
+            product_target.or(selected_target_profile)
+        } else {
+            selected_target_profile
+        };
+        let package_inputs = joined_inputs.or(package_inputs.as_ref());
+        if initially_unbound && let Some(inputs) = package_inputs {
+            inputs.validate_execution_context(selected_target_profile, build_execution_profile)?;
+        }
+        let initial_sources = frontier.base_sources.clone();
+        if let Some(returned) = &returned {
+            returned
+                .validate_source_join(package_inputs, initially_unbound)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        }
+        let evaluated = evaluation.complete(returned).map_err(|failure| {
+            super::attribute_failure(failure, &initial_sources, package_inputs)
+        })?;
+        if initially_unbound && let Some(inputs) = package_inputs {
+            if frontier.product_sources.is_none() {
+                return Err(vec![Diagnostic::error(
+                    "unbound package completion requires a deferred Product context",
+                )]
+                .into());
+            }
+            let declaration = evaluated.configuration.project_declaration.as_ref();
+            let name = match declaration {
+                Some(build_declarations::BuildDeclaration::Package(package)) => {
+                    Some(package.name.as_str())
+                }
+                Some(build_declarations::BuildDeclaration::Application(application)) => {
+                    Some(application.name.as_str())
+                }
+                _ => None,
+            };
+            if name.is_none()
+                || name != inputs.package_name(inputs.root())
+                || declaration.map(build_declarations::BuildDeclaration::kind)
+                    != Some(inputs.root_role())
+            {
+                return Err(vec![Diagnostic::error(
+                    "joined package identity does not match the executed Build declaration",
+                )]
+                .into());
+            }
+        }
+        let completed = complete_build_source(
+            frontier,
+            evaluated,
+            package_inputs,
+            build_execution_profile,
+            &mut timings,
+            reuse,
+            catalogue,
+        )
+        .map_err(|failure| super::attribute_failure(failure, &initial_sources, package_inputs))?;
+        timings.add_completed(
+            artifacts::compile_timings::BUILD_AND_CHECKED_CONTINUATION,
+            started.elapsed().as_micros(),
+        );
+        Ok(compilation_products::PreparedBuild {
+            built: completed.0,
+            build_sources: completed.1,
+            timings,
+        })
+    }
+}
+
+fn complete_build_source(
+    frontier: TypedCompilationFrontier,
+    evaluated: build_evaluation::EvaluatedBuild,
+    package_inputs: Option<&PackageCompilationInputs>,
+    build_execution_profile: Option<target::TargetProfile>,
+    timings: &mut CompileTimings,
+    reuse: &compilation_products::SettledCheckReuse,
+    catalogue: &mut source::SourceCatalogue,
+) -> Result<(BuiltTypedProgram, BuildSourceCustody), CompileFailure> {
+    let TypedCompilationFrontier {
+        mut source,
+        anonymous_source: _,
+        product_sources,
+        build_source_id: _,
+        mut source_file_count,
+        mut generated_source_custody,
+        mut base_sources,
+    } = frontier;
+    let build_evaluation::EvaluatedBuild {
+        configuration: mut computed_build_config,
+        restricted_build_requests,
+        base_source_consumption_commitment,
+        retained_check: retained_build_check,
+    } = evaluated;
+    if let Some(pending) = product_sources {
+        // Successful Build return currently implies its dependency requests
+        // have all joined (the executor refuses any unresolved request). Final
+        // ownership precedes Product typing; never retag the private judgment.
+        let (count, syntax) = pending.assemble(package_inputs, timings, catalogue)?;
+        let diagnostic_sources = syntax.sources.clone();
+        let product = lower_typed_frontier(
+            count,
+            syntax,
+            build_execution_profile,
+            package_inputs,
+            reuse,
+            timings,
+        )
+        .map_err(|mut diagnostics| {
+            super::attribute_diagnostics(&mut diagnostics, &diagnostic_sources, package_inputs);
+            diagnostics
+        })?;
+        // The retained parsed input preserves declaration source coordinates.
+        // No display name, allocation order or old typed handle selects a body
+        // in this distinct Product context.
+        let selected = match computed_build_config.selected_build_machine_symbol {
+            Some(selected) => Some(product.source.rejoin_machine(&source, selected)?),
+            None => None,
+        };
+        source = product.source;
+        base_sources = product.base_sources;
+        source_file_count = product.source_file_count;
+        generated_source_custody = product.generated_source_custody;
+        Arc::make_mut(&mut computed_build_config).selected_build_machine_symbol = selected;
+    }
     let sources = BuildSourceCustody {
         source_file_count,
         build_execution_profile,
@@ -88,7 +258,12 @@ pub(crate) fn evaluate_build_and_continue(
         base_source_consumption_commitment,
     };
     let admission = BuildAdmission {
-        application,
+        application: match &computed_build_config.project_declaration {
+            Some(build_declarations::BuildDeclaration::Application(application)) => {
+                Some(application.clone())
+            }
+            _ => None,
+        },
         selected_build_machine_identity: computed_build_config
             .selected_machine_identity(source.typed())?,
         restricted_build_requests,
@@ -113,9 +288,13 @@ pub(super) fn lower_typed_frontier(
     previous: &compilation_products::SettledCheckReuse,
     timings: &mut CompileTimings,
 ) -> Result<TypedCompilationFrontier, Vec<Diagnostic>> {
+    if syntax.product_sources.is_none()
+        && let Some(ownership) = syntax.anonymous_owner.take()
+    {
+        syntax.sources = ownership.complete_without_dependencies()?;
+    }
     let generated_source_custody = std::mem::take(&mut syntax.generated_source_custody);
     let base_sources = syntax.sources.clone();
-    let application = syntax.application.take();
     // Only build helpers select an execution target here. Product families
     // retain a canonical frontend shared by every requested product target.
     let build_scope_sources = std::mem::take(&mut syntax.build_scope_sources);
@@ -138,7 +317,7 @@ pub(super) fn lower_typed_frontier(
         &build_scope_sources,
     );
     let build_source_id = syntax.build_source_id;
-    let source = psi_compiler::SourceCompilationRequest {
+    let request = psi_compiler::SourceCompilationRequest {
         syntax: syntax.syntax_trees,
         source_items: syntax.source_items,
         sources: syntax.sources,
@@ -156,15 +335,16 @@ pub(super) fn lower_typed_frontier(
         pending_sources: previous.pending_sources.clone(),
         root_package: package_inputs.map(PackageCompilationInputs::root),
         build_helper_identity: execution.identity().as_str(),
-    }
-    .prepare(&mut terminal_production::PsiStageTimings::new(timings))?;
+    };
+    let source = request.prepare(&mut terminal_production::PsiStageTimings::new(timings))?;
     Ok(TypedCompilationFrontier {
         source,
+        anonymous_source: syntax.anonymous_owner,
+        product_sources: syntax.product_sources,
         build_source_id,
         source_file_count,
         generated_source_custody,
         base_sources,
-        application,
     })
 }
 

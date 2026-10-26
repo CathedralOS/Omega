@@ -6,6 +6,8 @@ mod cleanup_resume;
 mod extent_view;
 #[path = "terminal_mutable_boundary.rs"]
 mod mutable_boundary;
+#[path = "terminal_project_requests.rs"]
+mod project_requests;
 #[path = "terminal_resident_storage.rs"]
 mod resident_storage;
 #[path = "terminal_result_custody.rs"]
@@ -20,9 +22,11 @@ mod terminal_provision;
 pub(super) fn observe_portable(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     bindings: &psi_compiler::TerminalBuildBindings,
+    requests: &psi_compiler::TerminalBuildRequests,
     words: &[&str],
 ) -> Result<(), String> {
     match words {
+        ["project-requests"] => project_requests::observe(artifact, requests),
         ["result-custody", cells, bytes, oracle @ ..] => {
             result_custody::observe(artifact, cells, bytes, oracle)
         }
@@ -33,7 +37,7 @@ pub(super) fn observe_portable(
         ["cleanup-resume"] => cleanup_resume::observe(artifact),
         ["mutable-boundary"] => mutable_boundary::observe(artifact),
         ["build-bindings", slots, entry, identifier] => {
-            build_bindings::observe(artifact, bindings, slots, entry, identifier)
+            build_bindings::observe(artifact, bindings, requests, slots, entry, identifier)
         }
         ["external-extent-view"] => extent_view::observe(artifact, false),
         ["external-extent-view-write"] => extent_view::observe(artifact, true),

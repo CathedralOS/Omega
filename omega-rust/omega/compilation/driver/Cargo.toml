@@ -53,6 +53,8 @@ terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-a
 optimization-core = { path = "../../foundation/optimization-core" }
 
 [dev-dependencies]
+package-manager = { path = "../../packages/package-manager" }
+package-source = { path = "../../packages/source-acquisition" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 bounded-process = { path = "../../foundation/bounded-process" }
 phase-profile = { path = "../../../psi/foundation/phase-profile" }

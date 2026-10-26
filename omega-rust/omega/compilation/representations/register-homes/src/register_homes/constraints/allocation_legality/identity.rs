@@ -67,9 +67,5 @@ pub fn allocation_legality_function_digest(function: &FunctionAllocationLegality
 }
 
 fn length(bytes: &mut Vec<u8>, value: usize) {
-    bytes.extend_from_slice(
-        &u64::try_from(value)
-            .expect("allocation-legality identity length fits u64")
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::length(bytes, value, "allocation-legality identity");
 }

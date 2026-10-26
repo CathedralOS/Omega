@@ -120,7 +120,7 @@ impl TerminalExecution<'_> {
     }
 
     /// Record the affine debt a fresh affine result owes the live frontier.
-    fn track_affine_result(&mut self, result: &terminal_psi::StructuralOperationResult) {
+    pub(crate) fn track_affine_result(&mut self, result: &terminal_psi::StructuralOperationResult) {
         if result.multiplicity == StructuralMultiplicity::Affine {
             self.live_affine_frontier.insert(StructuralAffineDiscard {
                 place: result.place,
@@ -395,10 +395,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn result_place_in_use(&self, place: semantic_vocabulary::PlaceId) -> bool {
         self.structural_values.contains_key(&place)
             || self.scalar_array_values.contains_key(&place)
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(place))
+            || crate::custody::place_is_claimed(&self.live_claims, place)
     }
 
     pub(crate) fn execute_establish_zeroed_structural(

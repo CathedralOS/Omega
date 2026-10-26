@@ -15,6 +15,22 @@ use numerics::float_semantics_catalog::{
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::PrimitiveType;
 
+impl StructuralJudgment {
+    /// Truth composition only. Each operand is judged by its own authenticated
+    /// meaning and observation environment before it reaches this table.
+    pub(super) fn connective(operator: BinaryOperator, left: Self, right: Self) -> Self {
+        match (operator, left, right) {
+            (BinaryOperator::And, Self::Proven, Self::Proven)
+            | (BinaryOperator::Or, Self::Proven, _)
+            | (BinaryOperator::Or, _, Self::Proven) => Self::Proven,
+            (BinaryOperator::And, Self::Refuted, _)
+            | (BinaryOperator::And, _, Self::Refuted)
+            | (BinaryOperator::Or, Self::Refuted, Self::Refuted) => Self::Refuted,
+            _ => Self::Unknown,
+        }
+    }
+}
+
 impl StructuralJudge<'_> {
     /// An observed Boolean equality against a literal determines the other
     /// operand. This is the inverse of Boolean folding, not an equality law
@@ -82,14 +98,10 @@ impl StructuralJudge<'_> {
     ) -> StructuralJudgment {
         let left_judgment = self.judge(self.program, left);
         let right_judgment = self.judge(self.program, right);
-        match (&left_judgment, &right_judgment) {
-            (StructuralJudgment::Proven, _) | (_, StructuralJudgment::Proven) => {
-                return StructuralJudgment::Proven;
-            }
-            (StructuralJudgment::Refuted, StructuralJudgment::Refuted) => {
-                return StructuralJudgment::Refuted;
-            }
-            _ => {}
+        let composed =
+            StructuralJudgment::connective(BinaryOperator::Or, left_judgment, right_judgment);
+        if !matches!(composed, StructuralJudgment::Unknown) {
+            return composed;
         }
         let Some(left_term) = self.declaration_term(left) else {
             return StructuralJudgment::Unknown;

@@ -7,7 +7,7 @@
 
 use artifacts::compile_timings::CompileTimings;
 use psi_compiler::{
-    ProducedTerminalArtifact, TerminalApplicationCustody, TerminalProductionCustody,
+    ProducedTerminalProgram, TerminalApplicationCustody, TerminalProductionCustody,
     TerminalProductionRequest,
 };
 
@@ -26,7 +26,7 @@ pub fn produce_terminal_artifact(
     request: TerminalProductionRequest<'_>,
     applications: &[TerminalApplicationCustody<'_>],
     timings: &mut CompileTimings,
-) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
+) -> Result<ProducedTerminalProgram, TerminalArtifactProductionError> {
     artifacts::compile_timings::counters::record_terminal_production();
     request.produce(
         TerminalProductionCustody { applications },

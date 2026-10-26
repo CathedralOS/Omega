@@ -866,8 +866,8 @@ fn interpret_checked_fixture(
         let snapshot = fixture_build_snapshot(&prepared.root_path)?;
         let mut request = CheckedCompileRequest::new(&prepared.root_path, Some(target));
         request.package_inputs = prepared.package_inputs.take();
-        request.build_snapshot = snapshot;
-        request.build_dir = Some(build_dir.clone());
+        request.build.snapshot = snapshot;
+        request.build.directory = Some(build_dir.clone());
         if let Some(rollback) = rollback {
             request.optimization_rollback = rollback.clone();
         }
@@ -920,6 +920,16 @@ fn interpret_checked_fixture(
                 })
         })
         .collect();
+    // The same owner supplies the x86 flags environment for this check leg:
+    // when `target` is an x86 target the host's captured image is the modeled
+    // state `pushfq` observes and `popfq` restores, matching the environment
+    // Terminal execution receives.
+    let x86_flags = if terminal_psi::RegisterTargetApplicability::X86_64.accepts_target_name(target)
+    {
+        runtime_abi::capture_host_x86_flags()
+    } else {
+        None
+    };
     let outcome = checked_interpreter::interpret_entry(
         &checked.execution().program,
         checked_interpreter::BuildMachineEntry::Symbol(entry.machine_symbol()),
@@ -928,6 +938,7 @@ fn interpret_checked_fixture(
             boundary_adapters: &checked.execution().dispatch.boundary_adapters,
             float_comparisons: &checked.execution().dispatch.float_comparisons,
             machine_bodies: &machine_bodies,
+            x86_flags,
             ..checked_interpreter::InterpretOptions::default()
         },
     );
@@ -1476,12 +1487,12 @@ fn check_fail_fixture(
     let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
     let mut request = CheckedCompileRequest::new(&prepared.root_path, target_name.as_deref());
     request.package_inputs = prepared.package_inputs.take();
-    request.build_snapshot = build_snapshot;
+    request.build.snapshot = build_snapshot;
     // A fail fixture's build machine may still reach the build filesystem
     // before the rule it is pinned on refuses, and the staging a compilation
     // defaults to is beside its root source, which is the sealed snapshot
     // here. Name the same private directory every other leg uses.
-    request.build_dir = Some(build_dir.clone());
+    request.build.directory = Some(build_dir.clone());
     let unaccepted_output = root_path
         .parent()
         .map(|directory| directory.join("unaccepted_build_output.txt"))
@@ -1513,14 +1524,14 @@ fn check_fail_fixture(
                     "fixture Build output has no account root",
                 )]
             })?;
-            request.filesystem_sponsor = Some(
+            request.build.filesystem_sponsor = Some(
                 build_time_evaluation::BuildMachineFilesystemSponsor::new(account_root)
                     .map_err(|error| vec![diagnostics::Diagnostic::error(error.to_string())])?,
             );
             // This control stops before execution. Pin its semantic request
             // profile so the shared check golden does not record the host's
             // otherwise different request meaning; no foreign Build runs.
-            request.build_execution_profile = Some(target::TargetProfile::MacosArm64);
+            request.build.profile = Some(target::TargetProfile::MacosArm64);
             outputs
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
@@ -1560,9 +1571,17 @@ fn check_fail_fixture(
                 u64::MAX,
             )
             .expect("positive authored fuel and resource ceilings");
-            request.evaluation_sponsor = Some(build_time_evaluation::BuildEvaluationSponsor::new(
-                evaluation_limits,
-            ));
+            request.build.evaluation_sponsor = Some(
+                build_time_evaluation::BuildEvaluationSponsor::new_with_measurement(
+                    evaluation_limits,
+                    evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
+                        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                        storage_schedule:
+                            evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
+                    },
+                )
+                .map_err(|error| vec![diagnostics::Diagnostic::error(error.to_string())])?,
+            );
             fs::create_dir_all(build_dir.parent().expect("fixture staging has a parent"))
                 .map_err(|error| vec![diagnostics::Diagnostic::error(error.to_string())])?;
             let sponsor = build_time_evaluation::BuildMachineFilesystemSponsor::create_private(
@@ -1612,16 +1631,16 @@ fn check_fail_fixture(
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
                 Err(error) => return Err(vec![diagnostics::Diagnostic::error(error.to_string())]),
             }
-            request.build_dir = Some(output_root);
-            request.filesystem_sponsor = Some(sponsor);
-            request.build_snapshot.get_or_insert_with(|| {
+            request.build.directory = Some(output_root);
+            request.build.filesystem_sponsor = Some(sponsor);
+            request.build.snapshot.get_or_insert_with(|| {
                 package_compilation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
             });
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(vec![diagnostics::Diagnostic::error(error.to_string())]),
     }
-    let reuse_session = absent_outputs.is_empty() && request.evaluation_sponsor.is_none();
+    let reuse_session = absent_outputs.is_empty() && request.build.evaluation_sponsor.is_none();
     let package_mode = target_name.is_some() && request.package_inputs.is_some();
     let mut request = Some(request);
     let package_occurrences = if package_mode {

@@ -9,6 +9,11 @@
 pub(crate) use optimization::codec_bytes;
 
 mod canonical_artifact;
+mod execution_code;
+pub use execution_code::{
+    InvocationTerminalCode, TerminalExecutionIdentity, TerminalExecutionView,
+    TerminalProgramProduct, TerminalPublication,
+};
 mod codec_error;
 mod indexed_theorem_roots;
 mod mathematical_proof_actual;

@@ -110,9 +110,21 @@ fn validate_every_crash_qualified_use_has_a_site(
             .iter()
             .any(|contract| matches!(contract.kind, SignatureContractKind::Crashes { .. }))
     };
+    let source_machine_set: std::collections::HashSet<_> =
+        source_machines.iter().copied().collect();
+    let operator_site_set: std::collections::HashSet<_> = sites
+        .iter()
+        .filter(|site| site.operator_use.is_valid())
+        .map(|site| site.operator_use)
+        .collect();
+    let named_site_set: std::collections::HashSet<_> = sites
+        .iter()
+        .filter(|site| site.named_use.is_valid())
+        .map(|site| site.named_use)
+        .collect();
     let in_closure = |origin: &CheckedValueOrigin| {
         matches!(origin, CheckedValueOrigin::StateStatement { machine_symbol, .. }
-            if source_machines.contains(machine_symbol))
+            if source_machine_set.contains(machine_symbol))
     };
     for (handle, operator_use) in operators.uses.iter() {
         if !in_closure(&operator_use.origin)
@@ -122,7 +134,7 @@ fn validate_every_crash_qualified_use_has_a_site(
         {
             continue;
         }
-        if !sites.iter().any(|site| site.operator_use == handle) {
+        if !operator_site_set.contains(&handle) {
             return unsupported(
                 "selected operator crash invocation has no checked crash site to lower",
             );
@@ -135,7 +147,7 @@ fn validate_every_crash_qualified_use_has_a_site(
         {
             continue;
         }
-        if !sites.iter().any(|site| site.named_use == handle) {
+        if !named_site_set.contains(&handle) {
             return unsupported(
                 "named operator crash invocation has no checked crash site to lower",
             );

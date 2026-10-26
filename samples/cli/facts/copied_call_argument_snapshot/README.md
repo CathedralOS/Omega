@@ -205,10 +205,18 @@ returned length metadata without citing the recursive guarantee being checked.
 Completed owned bindings retain inline descriptor cells across disjoint writes,
 while typed projections hide old pointee contents. Local copies follow retained
 completed values; contextual window operands supply their captured carrier for
-selected builtin indexing. These relations grant no new access authority.
+selected builtin indexing. An unchanged incoming descriptor retains its defining
+formal identity through those whole-value links. That identity is resolved only
+after the descriptor's consumer-cut storage query, preserving current reads
+through stored references and refusals for unavailable captures. These relations
+grant no new access authority.
 The changed-input, swapped-field and shortened-window controls under
 `tests/omega/fail/contracts/cyclic_descriptor_result_*` must refuse the helper's
 own length guarantee. Ranking and recursive premise checks remain independent.
+The changed-input and swapped-field controls currently check on the frozen
+`f145bb89c720` baseline and the incoming-origin repair producer. Enforcing those
+recursive guarantees remains open under the parent capability; the origin
+repair does not establish that proof acceptance.
 
 
 ## Public local dispatch results

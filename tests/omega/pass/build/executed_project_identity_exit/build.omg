@@ -1,0 +1,21 @@
+use naming;
+
+machine build(builder: &mut Build) {
+    transition naming::enabled() {
+        true -> declare_project(builder)
+        false -> unselected(builder)
+    }
+}
+
+machine declare_project(builder: &mut Build) {
+    Build::application(builder, naming::project_name());
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}
+
+machine unselected(builder: &mut Build) {
+    Build::application(builder, "wrong_branch");
+    Build::depend_as(builder, "missing", Source::Path { location: "never_acquired" });
+}

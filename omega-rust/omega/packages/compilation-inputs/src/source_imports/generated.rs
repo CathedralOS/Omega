@@ -185,6 +185,7 @@ impl<'source> DependencyGeneratedSource<'source> {
 /// any generated unit. Physical collisions and same-scope duplicates reject.
 pub(crate) fn admit_dependency_generated_sources(
     package_inputs: &crate::PackageCompilationInputs,
+    source_scope: source::DependencyScope,
 ) -> Result<Vec<DependencyGeneratedSource<'_>>, Vec<Diagnostic>> {
     let filesystem = package_inputs.source_filesystem();
     // A virtual path can name different bytes in the two checked scopes.
@@ -196,6 +197,9 @@ pub(crate) fn admit_dependency_generated_sources(
             build_declarations::DependencyPurpose::Product => source::DependencyScope::Product,
             build_declarations::DependencyPurpose::Build => source::DependencyScope::Build,
         };
+        if source_scope == source::DependencyScope::Build && scope != source_scope {
+            continue;
+        }
         let package_root = package_inputs
             .package_root(bundle.package())
             .expect("validated generated-source bundle retains its package root");

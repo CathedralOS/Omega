@@ -18,7 +18,7 @@ pub(crate) fn check_product_source(
 ) -> Result<CheckedProductSource, Vec<Diagnostic>> {
     let PreparedProductSource {
         source,
-        computed_build_config,
+        mut computed_build_config,
         admission,
         build_sources,
         mut timings,
@@ -26,6 +26,16 @@ pub(crate) fn check_product_source(
     } = source;
     let program = source.into_check_input();
     let typed = program.typed();
+    // Build records lexical Product choices before that source is typed. Resolve
+    // them against the completed Product owner carried into this check, never
+    // the invocation-private Build program or an extracted unpaired typed tree.
+    let bindings = provider_planning::program_entry::collect_root_bindings(
+        typed,
+        &computed_build_config.root_binding_requests,
+    )?;
+    Arc::make_mut(&mut computed_build_config)
+        .config
+        .root_bindings = bindings;
     let build = &computed_build_config.config;
     let representations = representation_planning::rederive_opaque_representation_selections(
         &typed,

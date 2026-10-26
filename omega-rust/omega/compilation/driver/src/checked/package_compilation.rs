@@ -32,7 +32,45 @@ pub struct PackageBuild {
     source: PreparedPackageBuild,
 }
 
+/// An admitted Build with opaque pending Product source. It owns its code and
+/// grants independently of the compiler session, so dependency work can proceed
+/// while the caller keeps this invocation suspended.
+pub struct PackageBuildInvocation {
+    source: super::checking::PreparedPackageInvocation,
+}
+
+impl PackageBuildInvocation {
+    /// Join the final Product target and package custody after Build declares
+    /// its identity. Completion compares the original acquired capture and
+    /// executed role; a context admitted before Build remains fixed.
+    pub fn join_product_context(
+        &mut self,
+        target: target::TargetProfile,
+        inputs: package_compilation::PackageCompilationInputs,
+    ) -> Result<(), CompileFailure> {
+        self.source.join_product_context(target, inputs)
+    }
+
+    pub fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
+        self.source.execution()
+    }
+}
+
 impl PackageBuild {
+    /// Reuse this completed activation for an admitted product target with
+    /// equal source and semantic inputs. The completed observations are shared;
+    /// permissions remain on each requested product.
+    pub fn select_target(
+        &self,
+        target: target::TargetProfile,
+        inputs: package_compilation::PackageCompilationInputs,
+    ) -> Result<Self, CompileFailure> {
+        self.source
+            .select_target(target, inputs)
+            .map(|source| Self { source })
+            .map_err(CompileFailure::from)
+    }
+
     pub fn package_inputs(&self) -> &package_compilation::PackageCompilationInputs {
         self.source.package_inputs()
     }
@@ -73,14 +111,29 @@ pub struct PreparedPackageProduct {
 }
 
 impl CompilationSession {
-    /// Execute one admitted occurrence's Build, retaining opaque Product work.
-    /// The caller may join its generated output into dependent Build requests.
-    pub fn prepare_package_build(
+    /// Admit an occurrence without executing Build or loading Product imports.
+    /// An acquired unbound capture needs no provisional package identity. Its
+    /// final package custody must join before completion prepares Product.
+    pub fn begin_package_build(
         &mut self,
         request: CheckedCompileRequest,
+    ) -> Result<PackageBuildInvocation, CompileFailure> {
+        super::run_on_compile_thread(|| {
+            self.begin_build(request)
+                .map(|source| PackageBuildInvocation { source })
+        })
+    }
+
+    /// Rejoin the exact returned activation, then prepare its Product context.
+    /// Outstanding dependency requests still refuse until coordinator settlement
+    /// supplies their admitted custody; this does not silently accept a partial join.
+    pub fn complete_package_build(
+        &mut self,
+        invocation: PackageBuildInvocation,
+        returned: Option<build_evaluation::ReturnedBuild>,
     ) -> Result<PackageBuild, CompileFailure> {
         super::run_on_compile_thread(|| {
-            self.prepare_build(request)
+            self.complete_build(invocation.source, returned)
                 .map(|source| PackageBuild { source })
         })
     }

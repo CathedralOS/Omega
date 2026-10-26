@@ -156,7 +156,7 @@ pub(crate) fn lower_declarations(
                 exact_toolchain_sources,
                 plan.machine,
             )
-            .map_err(LoweringError::Unsupported)?
+            .map_err(LoweringError::InvalidDeclarationIdentity)?
             .map(|source| {
                 Ok::<_, LoweringError>(terminal_psi::CheckedBoundaryCallable {
                     source,

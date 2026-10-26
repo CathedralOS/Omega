@@ -4,10 +4,7 @@
 //! walks shared by graph construction and closure recovery.
 
 use super::construction::is_snake_case;
-use super::{
-    BuildDependencyOccurrence, PackageCompilationInputs, PackageCompilationSourceRecord,
-    PackageDependencyBinding,
-};
+use super::{PackageCompilationInputs, PackageCompilationSourceRecord, PackageDependencyBinding};
 use crate::BuildDeclarationKind;
 use build_declarations::DependencyPurpose;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -112,19 +109,25 @@ impl PackageDependencyClosure {
 }
 
 impl PackageCompilationInputs {
-    /// Whether this reconciled graph contains the exact dependency
-    /// occurrence — requester, purpose, alias, and target all naming one
-    /// edge. Inputs keyed to a coordinate that is not an occurrence reject
-    /// at binding rather than attaching to the nearest edge.
-    pub(crate) fn has_dependency_occurrence(&self, occurrence: &BuildDependencyOccurrence) -> bool {
-        let Some(record) = self.source.packages.get(&occurrence.requester) else {
-            return false;
-        };
-        let edges = match occurrence.purpose {
-            DependencyPurpose::Product => &record.dependencies,
-            DependencyPurpose::Build => &record.build_dependencies,
-        };
-        edges.get(&occurrence.alias) == Some(&occurrence.target)
+    /// Direct aliases in one root execution scope. Build aliases never fall
+    /// back to Product aliases, including during the final request join.
+    pub fn direct_dependencies(
+        &self,
+        purpose: DependencyPurpose,
+    ) -> impl Iterator<Item = (&str, PackageKeyIdentity)> {
+        self.source
+            .packages
+            .get(&self.source.root)
+            .into_iter()
+            .flat_map(move |root| {
+                let dependencies = match purpose {
+                    DependencyPurpose::Product => &root.dependencies,
+                    DependencyPurpose::Build => &root.build_dependencies,
+                };
+                dependencies
+                    .iter()
+                    .map(|(alias, target)| (alias.as_str(), *target))
+            })
     }
 
     /// Product-scope edges only. Build-purpose edges are compilation-local
@@ -208,7 +211,7 @@ impl PackageCompilationInputs {
     /// Scopes never fall back to each other: a miss here does not license
     /// probing the other scope.
     #[doc(hidden)]
-    pub(crate) fn dependency_target_for_purpose(
+    pub fn dependency_target_for_purpose(
         &self,
         requester: PackageKeyIdentity,
         purpose: DependencyPurpose,

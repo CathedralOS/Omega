@@ -11,7 +11,6 @@ use terminal_psi::BoundaryMachineDeclaration;
 use terminal_psi::BoundaryMachineResult;
 use terminal_psi::CrashCause;
 use terminal_psi::OperationResult;
-use terminal_psi::StructuralAffineDiscard;
 use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::StructuralTypeShape;
@@ -266,13 +265,7 @@ impl TerminalExecution<'_> {
                     crate::structural_storage::HostStructuralPayload::Opaque(value.opaque_identity),
                 )?;
                 self.structural_values.insert(declaration.place, value)?;
-                if declaration.multiplicity == StructuralMultiplicity::Affine {
-                    self.live_affine_frontier.insert(StructuralAffineDiscard {
-                        place: declaration.place,
-                        path: Vec::new(),
-                        structural_type: declaration.structural_type,
-                    });
-                }
+                self.track_affine_result(declaration);
             }
             _ => return Err(malformed()),
         }

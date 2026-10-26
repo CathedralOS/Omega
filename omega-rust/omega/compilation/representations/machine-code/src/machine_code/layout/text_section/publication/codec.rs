@@ -8,7 +8,7 @@ use optimization_core::{
 };
 use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
-use target::{Architecture, NativeTarget, ObjectFormat};
+use target::{NativeTarget, TargetWireIdentityError};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use crate::{
@@ -244,29 +244,16 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
 fn decode_target(
     cursor: &mut Cursor<'_>,
 ) -> Result<NativeTarget, FunctionFragmentTextSectionManifestDecodeError> {
-    let architecture = match cursor.byte()? {
-        1 => Architecture::Aarch64,
-        2 => Architecture::X86_64,
-        tag => {
-            return Err(FunctionFragmentTextSectionManifestDecodeError::UnknownArchitecture(tag));
+    let encoded = cursor.array::<18>()?;
+    NativeTarget::from_wire_identity_bytes(&encoded).map_err(|error| match error {
+        TargetWireIdentityError::UnknownArchitecture(tag) => {
+            FunctionFragmentTextSectionManifestDecodeError::UnknownArchitecture(tag)
         }
-    };
-    let object_format = match cursor.byte()? {
-        1 => ObjectFormat::Elf,
-        2 => ObjectFormat::MachO,
-        3 => ObjectFormat::Coff,
-        tag => {
-            return Err(FunctionFragmentTextSectionManifestDecodeError::UnknownObjectFormat(tag));
+        TargetWireIdentityError::UnknownObjectFormat(tag) => {
+            FunctionFragmentTextSectionManifestDecodeError::UnknownObjectFormat(tag)
         }
-    };
-    let pointer_size = usize::try_from(cursor.u64()?)
-        .map_err(|_| FunctionFragmentTextSectionManifestDecodeError::TargetLayoutOverflow)?;
-    let pointer_alignment = usize::try_from(cursor.u64()?)
-        .map_err(|_| FunctionFragmentTextSectionManifestDecodeError::TargetLayoutOverflow)?;
-    Ok(NativeTarget {
-        architecture,
-        object_format,
-        pointer_size,
-        pointer_alignment,
+        TargetWireIdentityError::LayoutOverflow => {
+            FunctionFragmentTextSectionManifestDecodeError::TargetLayoutOverflow
+        }
     })
 }

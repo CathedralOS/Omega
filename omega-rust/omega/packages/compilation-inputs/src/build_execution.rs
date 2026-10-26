@@ -12,6 +12,7 @@ mod build_admission;
 pub mod build_record_codec;
 pub mod build_value;
 mod completed_outputs;
+mod execution_inputs;
 mod filesystem_scope;
 mod observation_identity;
 mod observation_projection;
@@ -22,7 +23,9 @@ mod snapshot_request;
 
 pub use build_admission::{SelectedBuildMachine, admit_build_machine, select_build_machine};
 pub use completed_outputs::RetainedBuildOutputs;
+pub use execution_inputs::BuildExecutionInputs;
 pub use filesystem_scope::preparation::prepare_filesystem_scope;
+pub use filesystem_scope::runtime::{BuildFilesystemEffects, BuildFilesystemRuntime};
 pub use filesystem_scope::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
 };
@@ -34,8 +37,9 @@ pub use restricted_requests::{
 };
 pub use snapshot_request::{BuildSnapshotCapture, BuildSnapshotRequest};
 
-use checked_interpreter::{BuildOutputObligation, BuildOutputReceipt, EvaluationObservations};
+use checked_interpreter::EvaluationObservations;
 use diagnostics::Diagnostic;
+use filesystem_authority::{BuildOutputObligation, BuildOutputReceipt};
 
 /// Interpreter observations whose output obligations have not yet settled.
 /// Only successful settlement publishes a durable observation summary.
@@ -48,9 +52,68 @@ pub struct CapturedBuildObservations<'scope> {
     output_obligations: Vec<BuildOutputObligation>,
     output_receipts: Vec<BuildOutputReceipt>,
     build_log: Vec<u8>,
+    filesystem_storage: Vec<evaluation_accounting::EvaluationStorageLease>,
+    filesystem_effects_retained: bool,
 }
 
 impl<'scope> CapturedBuildObservations<'scope> {
+    /// Consume observations issued by this activation's filesystem runtime.
+    /// The collector still checks actual sealed files at normal return.
+    pub fn retain_filesystem_effects(
+        &mut self,
+        effects: BuildFilesystemEffects,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if effects.scope != *self.scope {
+            return Err(vec![Diagnostic::error(
+                "Build filesystem effects belong to another admitted scope",
+            )]);
+        }
+        if self.filesystem_effects_retained {
+            return Err(vec![Diagnostic::error(
+                "Build filesystem effects were retained more than once",
+            )]);
+        }
+        self.filesystem_host_observed = !effects.attempts.is_empty();
+        self.filesystem_operation_attempts = effects.attempts;
+        self.included_source_handoffs = effects.included;
+        self.output_obligations = effects.obligations;
+        self.output_receipts = effects.receipts;
+        self.filesystem_storage = effects.storage;
+        self.filesystem_effects_retained = true;
+        Ok(())
+    }
+    /// Begin an activation's host observation collector before execution.
+    /// Admitted scope is input custody, not evidence that an operation ran.
+    /// Each installed host adapter must contribute its actual observations;
+    /// successful settlement still inspects staged output and obligations.
+    pub fn new(scope: &'scope BuildMachineFilesystemScope) -> Self {
+        Self {
+            scope,
+            filesystem_host_observed: false,
+            filesystem_operation_schema_version:
+                filesystem_authority::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
+            filesystem_operation_attempts: Vec::new(),
+            included_source_handoffs: Vec::new(),
+            output_obligations: Vec::new(),
+            output_receipts: Vec::new(),
+            build_log: Vec::new(),
+            filesystem_storage: Vec::new(),
+            filesystem_effects_retained: false,
+        }
+    }
+
+    /// Transfer the one activation log after normal return. No host effect is
+    /// repeated and no second payload copy is needed for settlement.
+    pub fn retain_build_log(&mut self, log: Vec<u8>) -> Result<(), Vec<Diagnostic>> {
+        if !self.build_log.is_empty() {
+            return Err(vec![Diagnostic::error(
+                "Build log was retained more than once",
+            )]);
+        }
+        self.build_log = log;
+        Ok(())
+    }
+
     /// Rejoin interpreter root identities and generated-source handoffs to
     /// this activation's admitted filesystem custody.
     pub fn capture(
@@ -78,6 +141,8 @@ impl<'scope> CapturedBuildObservations<'scope> {
             output_obligations: observations.build_output_obligations().to_vec(),
             output_receipts: observations.build_output_receipts().to_vec(),
             build_log: observations.build_log().to_vec(),
+            filesystem_storage: Vec::new(),
+            filesystem_effects_retained: true,
         })
     }
 

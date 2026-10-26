@@ -410,7 +410,8 @@ impl<'artifact> TerminalProgram<'artifact> {
     /// Execute retained compiler output without serialization, decoding or
     /// copying its immutable tables. The artifact must outlive every program
     /// handle, instance and suspended execution derived from this borrow.
-    pub fn borrow(artifact: terminal_codec::TerminalArtifactView<'artifact>) -> Self {
+    pub fn borrow(artifact: impl Into<terminal_codec::TerminalExecutionView<'artifact>>) -> Self {
+        let artifact = artifact.into();
         Self::from_admitted(AdmittedTerminalProgram {
             identity: artifact.identity(),
             catalogs: std::sync::Arc::new(Cow::Borrowed(artifact.module())),

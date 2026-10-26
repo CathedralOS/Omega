@@ -1251,6 +1251,17 @@ impl OperationFrame<'_, '_> {
                                 );
                             }
                             *access = None;
+                            // Stored shared views add the descriptor's copy
+                            // permission as well as its access. The canonical
+                            // ingress catalog deliberately owns neither bit.
+                            // Undo both exact producer transformations before
+                            // comparing the complete declarations.
+                            if !canonical.copyable {
+                                return unsupported(
+                                    "shared view rebind lost its descriptor copy permission",
+                                );
+                            }
+                            canonical.copyable = false;
                             canonical.id = ingress.id;
                             canonical.identity = ingress.identity;
                             if canonical != *ingress {

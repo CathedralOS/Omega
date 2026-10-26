@@ -45,7 +45,7 @@ pub(crate) fn review_resolved_packages(
     candidate: CandidateReview<'_, '_>,
     session: &mut PackageBuildSession,
     source_bindings: &mut PackageSourceBindings,
-    execute: PackageReviewExecutor,
+    execute: &mut PackageReviewExecutor<'_>,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
     session.require_open()?;
     review_candidate(candidate, session, source_bindings, execute).map(|compiled| compiled.reviews)
@@ -57,7 +57,7 @@ fn review_candidate(
     candidate: CandidateReview<'_, '_>,
     session: &mut PackageBuildSession,
     source_bindings: &mut PackageSourceBindings,
-    execute: PackageReviewExecutor,
+    execute: &mut PackageReviewExecutor<'_>,
 ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
     let CandidateReview {
         target_closure,
@@ -172,7 +172,7 @@ fn review_pass(
     discovery: TargetEntryDiscovery,
     prior: Option<&RetainedPackageReviews>,
     source_bindings: &mut PackageSourceBindings,
-    execute: PackageReviewExecutor,
+    execute: &mut PackageReviewExecutor<'_>,
 ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     let execution_profile = target::TargetProfile::host_if_supported();

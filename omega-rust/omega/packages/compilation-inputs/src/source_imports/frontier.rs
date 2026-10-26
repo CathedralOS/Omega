@@ -42,8 +42,14 @@ impl SourceStorage {
     pub fn prepare(
         root_path: &Path,
         package_inputs: Option<&crate::PackageCompilationInputs>,
+        source_capture: Option<&crate::CapturedLocalSource>,
         catalogue: &mut source::SourceCatalogue,
     ) -> Result<Self, Vec<Diagnostic>> {
+        if package_inputs.is_some() && source_capture.is_some() {
+            return Err(vec![Diagnostic::error(
+                "source preparation cannot combine an unbound capture with a supplied package graph",
+            )]);
+        }
         match package_inputs {
             Some(package_inputs) => {
                 package_inputs.validate_for_compilation(root_path, &super::bundled_core_root()?)?;
@@ -84,16 +90,24 @@ impl SourceStorage {
                 };
                 // The content owner and every compiler source read must see
                 // the same complete snapshot, including negative observations.
-                let captured = package_source::local::operations::capture_local_source_input(
-                    &root_package,
-                    package_source::LocalSourceLimits::default(),
-                )
-                .map_err(|error| {
-                    vec![Diagnostic::error(format!(
-                        "cannot capture anonymous source: {error}"
-                    ))]
-                })?;
+                let captured = match source_capture {
+                    Some(captured) => captured.clone(),
+                    None => package_source::local::operations::capture_local_source_input(
+                        &root_package,
+                        package_source::LocalSourceLimits::default(),
+                    )
+                    .map_err(|error| {
+                        vec![Diagnostic::error(format!(
+                            "cannot capture anonymous source: {error}"
+                        ))]
+                    })?,
+                };
                 let root = captured.canonical_live_root().to_path_buf();
+                if source_capture.is_some() && !root_path.starts_with(&root) {
+                    return Err(vec![Diagnostic::error(
+                        "compilation root is outside its acquired source capture",
+                    )]);
+                }
                 let mut storage =
                     SourceStorage::for_compilation(root.clone(), super::bundled_omega_root()?);
                 storage
@@ -136,19 +150,58 @@ impl SourceStorage {
         }
     }
 
-    /// A missing Build has no activation or dependency requests: its default
-    /// configuration's empty join is already complete. Seal before Product
-    /// resolution, so derived domain/callable keys are minted with final owners
-    /// rather than rewriting interned semantic identities after typing.
-    pub(crate) fn seal_default_anonymous_owner(
+    /// Establish ownership on a separate parsed Product prefix, never on the
+    /// checked Build program. The original complete capture must survive the join.
+    pub(crate) fn join_package_inputs(
+        &mut self,
+        inputs: &crate::PackageCompilationInputs,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let refuse = |reason| vec![Diagnostic::error(reason)];
+        let capture = self
+            .anonymous_capture
+            .as_ref()
+            .ok_or_else(|| refuse("source join requires an unbound Build capture".to_owned()))?;
+        inputs
+            .validate_unbound_source_join(&self.default_package_root, capture)
+            .map_err(refuse)?;
+        let mut filesystem = inputs.source_filesystem().clone();
+        if let Some((root, tree)) = &self.anonymous_core_capture
+            && *root != self.default_package_root
+        {
+            filesystem
+                .add_capture(root.clone(), tree.clone())
+                .map_err(|error| {
+                    refuse(format!(
+                        "cannot retain Build core capture at Product join: {error}"
+                    ))
+                })?;
+        }
+        self.sources
+            .bind_anonymous_owner(&self.default_package_root, inputs.root())
+            .map_err(|reason| refuse(reason.to_owned()))?;
+        self.filesystem = filesystem;
+        self.default_package_identity = Some(inputs.root());
+        for (identity, root) in inputs.packages() {
+            self.register_reconciled_package_root(root.to_path_buf(), identity);
+        }
+        self.sources
+            .retain_product_dependency_scope(inputs.dependencies());
+        self.anonymous_capture = None;
+        self.anonymous_core_capture = None;
+        Ok(())
+    }
+
+    /// Retain the captured inputs without assigning a declaration owner while
+    /// an authored Build can still request dependencies.
+    pub(crate) fn retain_anonymous_owner(
         &mut self,
         generated: &[(source::SourceId, build_output::PackageGeneratedSource)],
-    ) -> Result<(), Vec<Diagnostic>> {
+    ) -> Result<Option<crate::AnonymousSourceCapture>, Vec<Diagnostic>> {
         if self.default_package_identity.is_some() {
-            return Ok(());
+            return Ok(None);
         }
         let Some(capture) = &self.anonymous_capture else {
-            return Ok(());
+            return Ok(None);
         };
         // SourceFile preserves the caller's diagnostic spelling, including
         // relative paths. Resolve containment through this invocation's captured
@@ -192,17 +245,15 @@ impl SourceStorage {
                 .selected_files()
                 .filter(|file| file.package_root != *core_root),
         )?;
-        let identity = crate::anonymous_owner::derive(
-            capture,
-            std::iter::once(core_identity)
-                .chain(contracts.into_iter().map(|(_, identity)| identity)),
-        )
-        .map_err(|message| vec![Diagnostic::error(message)])?;
-        self.sources
-            .bind_default_anonymous_owner(&self.default_package_root, identity)
-            .map_err(|message| vec![Diagnostic::error(message)])?;
-        self.default_package_identity = Some(identity);
-        Ok(())
+        Ok(Some(crate::AnonymousSourceCapture {
+            root: self.default_package_root.clone(),
+            capture: capture.clone(),
+            filesystem: self.filesystem.clone(),
+            semantic_dependencies: std::iter::once(core_identity)
+                .chain(contracts.into_iter().map(|(_, identity)| identity))
+                .collect(),
+            sources: std::sync::Arc::new(std::mem::take(&mut self.sources)),
+        }))
     }
 
     pub(crate) fn for_compilation(default_package_root: PathBuf, toolchain_root: PathBuf) -> Self {

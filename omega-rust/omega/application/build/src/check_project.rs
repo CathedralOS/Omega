@@ -3,8 +3,7 @@
 use compiler::CompileReport;
 use diagnostics::Diagnostic;
 use package_manager::operations::{
-    PrepareLocalProjectError, PreparedLocalProject, ProjectCompilationAdmissionRequest,
-    ProjectCompilationError,
+    PrepareLocalProjectError, PreparedLocalProject, ProjectCompilationError,
 };
 use package_manager::review::CompileResolvedPackageReviewsError;
 use std::fmt;
@@ -118,16 +117,18 @@ pub fn inspect_prepared_local_project(
     build_dir: &Path,
     target_profile: TargetProfile,
     machine: &str,
-) -> Result<compiler::ProducedTerminalArtifact, ProjectInspectionError> {
-    let outcome = crate::project_compilation::compile(ProjectCompilationAdmissionRequest {
-        prepared,
-        build_directory: build_dir,
-        target_profiles: &[target_profile],
-        snapshot: None,
-        verify: true,
-        timings: false,
-        product: compiler::CompilationProduct::Inspection(machine.to_owned()),
-    })
+) -> Result<compiler::ProducedTerminalProgram, ProjectInspectionError> {
+    let outcome = crate::project_compilation::compile(
+        crate::project_compilation::ProjectCompilationRequest {
+            prepared,
+            build_directory: build_dir,
+            target_profiles: &[target_profile],
+            snapshot: None,
+            verify: true,
+            timings: false,
+            product: compiler::CompilationProduct::Inspection(machine.to_owned()),
+        },
+    )
     .pop()
     .ok_or(ProjectInspectionError::MissingTarget)?;
     outcome
@@ -184,7 +185,7 @@ pub fn check_prepared_local_project_for_targets(
         build_snapshot,
         timings,
     } = request;
-    crate::project_compilation::compile(ProjectCompilationAdmissionRequest {
+    crate::project_compilation::compile(crate::project_compilation::ProjectCompilationRequest {
         prepared,
         build_directory: &build_dir,
         target_profiles: &target_profiles,

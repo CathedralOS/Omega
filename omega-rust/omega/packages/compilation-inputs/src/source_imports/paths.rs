@@ -26,7 +26,7 @@ pub(super) fn resolve_source_path(
     });
     for relative_candidate in source_import_candidates(&relative_path) {
         let candidate = path.join(relative_candidate);
-        if filesystem.exists(&candidate) {
+        if filesystem.is_file(&candidate) {
             return Ok(candidate);
         }
     }
@@ -63,7 +63,7 @@ pub(super) fn resolve_reconciled_relative_import(
     let candidate = source_import_candidates(relative_path)
         .into_iter()
         .map(|candidate| expected_root.join(candidate))
-        .find(|candidate| filesystem.exists(candidate))
+        .find(|candidate| filesystem.is_file(candidate))
         .unwrap_or_else(|| {
             source_path_candidates(&path)
                 .into_iter()
@@ -130,6 +130,11 @@ pub(super) fn normalize_path(
 }
 
 pub(super) fn source_path_candidates(base_path: &Path) -> Vec<PathBuf> {
+    // An alias-only import selects the package's Product root. An empty
+    // relative path must not nominate the source directory itself as a file.
+    if base_path.as_os_str().is_empty() {
+        return vec![PathBuf::from("main.omg"), PathBuf::from("mod.omg")];
+    }
     let mut file_omg = base_path.to_path_buf();
     file_omg.set_extension("omg");
 

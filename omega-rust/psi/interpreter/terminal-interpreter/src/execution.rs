@@ -35,7 +35,7 @@ use crate::values::{
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, PlaceId,
-    ValueId,
+    StructuralTypeId, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelMeter;
@@ -827,6 +827,22 @@ impl<'artifact> TerminalExecution<'artifact> {
         self.live_affine_frontier
             .iter()
             .find(|entry| entry.place == place)
+    }
+
+    /// A fresh structural destination for `structural_type`, staged at `cursor`.
+    /// Publication commits the cursor with the payload this value belongs to,
+    /// so a refusal between staging and publication consumes no identity and
+    /// leaves no half-minted placeholder behind.
+    pub(crate) fn mint_staged(
+        &self,
+        cursor: &mut Option<u64>,
+        structural_type: StructuralTypeId,
+    ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+        Ok(TerminalStructuralValue::minted(
+            self.local_structural_identities.allocate_staged(cursor)?,
+            structural_type,
+            Vec::new(),
+        ))
     }
 
     /// Drive this execution's loop with no component roster: the raw lane.

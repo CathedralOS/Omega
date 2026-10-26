@@ -84,7 +84,7 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
 impl LegalizedStructuralContract {
     pub fn canonical_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        super::plan::encode_structural_contract(&mut bytes, self);
+        super::plan::encode_structural_contract(&mut bytes, self, &mut None);
         bytes
     }
 }

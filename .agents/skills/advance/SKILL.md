@@ -17,10 +17,10 @@ validation, board rules, and publication.
 
 ## Choose the capability and its next witness
 
-Record the start time, starting checkout, and branch. Fetch main and inspect
-status and recent lane commits. If the starting checkout is clean and on main,
-fast-forward it with `git merge --ff-only origin/main` before reading its boards.
-Otherwise preserve it and read from an isolated worktree based on fetched main.
+Record the start time, starting checkout, and base. Fetch main (`git fetch origin main`)
+and inspect recent lane commits. Never fast-forward, pull, or modify the starting checkout;
+preserve it intact as a stable reference. Create and work exclusively in an isolated worktree
+based on fetched `origin/main`.
 
 Apply the selection order in [AGENTS.md](../../../AGENTS.md#the-sample-loop):
 known main regressions, explicit user scope, the existing capability continuation,
@@ -324,10 +324,12 @@ authored.
 
 ## Implement and validate
 
+Never edit files, switch branches, or build in the primary repository checkout.
 Use an isolated worktree under `<repository>/.agents/worktree/<short-name>`
-created from the fetched `origin/main`, not from the starting checkout's HEAD
-or local `main`: a checkout that could not fast-forward leaves local `main`
-behind. Record that initial base once; do not refresh it merely as main moves.
+created in detached HEAD mode directly from the fetched `origin/main`:
+`git worktree add --detach .agents/worktree/<short-name> origin/main`.
+Local branches are banned: do not create local named branches.
+Record that initial base once; do not refresh it merely as main moves.
 A continuation retains its existing worktree base. Keep its name short; if a
 generated Windows path fails, measure the actual path before relocating work or
 changing compiler architecture.
@@ -491,11 +493,12 @@ and keep the work marked unfinished while continuing feasible engineering.
 Invoking advance authorizes committing and publishing the change through
 [the landing protocol](../../../tools/landing.md).
 
-Validate the submitted change, push its owned branch, open/reuse a PR, and use
+Validate the submitted change, push HEAD directly to origin (`git push origin HEAD:refs/heads/work/<name>`), open/reuse a PR, and use
 the native merge queue under the linked protocol. Put actual agent/model
 provenance in the PR body when known. Do not invent unknown metadata. Release
-local build slots before waiting. No local publication lease or exact-SHA
-landing receipt remains; main movement alone does not restart author review.
+local build slots before waiting. Never chase main with gates, rebases, or rebuilds:
+GitHub Actions CI does the integration build and checks in the merge queue. No local publication
+lease or exact-SHA landing receipt remains; main movement alone does not restart author review.
 
 Focused acceptance on the submitted source plus required GitHub integration CI
 and verified publication establishes the landed repair. Postlanding verification
@@ -521,14 +524,15 @@ and GitHub CI. Fetching main to verify published ancestry is read-only observati
 it does not require moving the starting checkout or building that revision.
 Preserve the starting checkout and any dirty or unpublished work.
 
-Then remove the worktree and local branch this invocation created. From the
-starting checkout, confirm the worktree is clean (including untracked files)
-and its HEAD equals the merged PR's source head, verify the PR's published
-commit is an ancestor of fetched `origin/main`, stop any processes
-running there, run `git worktree remove <path>`, then delete the verified-landed
-local branch (squash publication may require `git branch -D`). Pre-existing worktrees, the starting checkout, and anything dirty
-or unpublished stay; report a retained worktree and the reason. Verify the path
-is absent from `git worktree list` and the branch is gone.
+Retain the worktree as a warm build workbench for subsequent tasks rather than
+tearing it down. To reuse it: reset its detached HEAD to the new `origin/main`
+(`git checkout --detach origin/main`) and clean scratch files (`git clean -fd`),
+keeping the pre-compiled `target/` cache warm. If teardown is explicitly requested
+or disk must be reclaimed: confirm the worktree is clean, verify the PR's published
+commit is an ancestor of fetched `origin/main`, stop any running processes, and
+run `git worktree remove <path>`. Because work was done in detached HEAD, no local
+branch exists to delete. Pre-existing worktrees, the starting checkout, and anything
+dirty or unpublished stay.
 
 ## When acceptance is not complete
 

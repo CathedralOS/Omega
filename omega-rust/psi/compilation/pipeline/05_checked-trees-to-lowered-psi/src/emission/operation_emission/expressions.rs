@@ -1078,10 +1078,11 @@ pub(crate) fn emit_direct_expression(
                 .checked_add(1)
                 .expect("generated value identity advances after a binary operation");
             let operation = operations.allocate();
-            if *formation_decided
-                && kind.formation_is_checker_decided()
-                && let Some(obligation) = kind.formation_obligation(operation)
-            {
+            // The settled policy catalog is the one roster of which kinds
+            // record a formation decision: `formation_obligation` yields an
+            // identity exactly for the rows whose bridge states formation
+            // conditions, so no second kind list can disagree with it.
+            if *formation_decided && let Some(obligation) = kind.formation_obligation(operation) {
                 operations.source_checked_obligations.push(obligation);
             }
             operations.push(Operation {

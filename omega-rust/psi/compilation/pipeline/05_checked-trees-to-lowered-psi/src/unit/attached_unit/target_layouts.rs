@@ -174,7 +174,7 @@ pub(super) fn lower(
                     exact_toolchain_sources,
                     plan.policy_plan_machine_symbol,
                 )
-                .map_err(LoweringError::Unsupported)?;
+                .map_err(LoweringError::InvalidDeclarationIdentity)?;
                 let expected = contexts
                     .iter()
                     .map(|target| {

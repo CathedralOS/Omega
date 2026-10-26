@@ -4,7 +4,6 @@ use crate::resolution::source::{
     resolve_external_local_source_in_lane, resolve_selected_git_source_at_revision_in_lanes,
     resolve_selected_git_source_from_pin_in_lanes, resolve_workspace_member_source_in_lane,
 };
-use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::storage::RetainedStorageLane;
 use package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
 use package_source::{
@@ -93,14 +92,9 @@ impl<'a> GitAcquisitionCache<'a> {
             .map(|(_, pin)| pin);
         let SourceCacheLane::Retained(git_lane) = git_cache;
         let SourceCacheLane::Retained(member_lane) = member_cache;
-        let recorded = self
-            .options
-            .pins
-            .as_ref()
-            .map(|policy| policy.resolution(request.acquisition()))
-            .transpose()?
-            .flatten();
-        let resolved = if let Some(expected) = recorded {
+        let recorded = self.options.recorded(request.acquisition())?;
+        let resolved = if let Some(recorded) = recorded {
+            let expected = recorded.resolution;
             let package_source::ImmutableSourceResolution::Git { commit, tree, .. } = expected
             else {
                 return Err(pin_error(
@@ -108,21 +102,12 @@ impl<'a> GitAcquisitionCache<'a> {
                     "recorded resolution is not Git",
                 ));
             };
-            let acquisition = if self.options.offline {
-                GitExactRevisionAcquisition::Offline
-            } else {
-                self.options
-                    .pins
-                    .as_ref()
-                    .expect("recorded pin has a policy")
-                    .acquisition()
-            };
             let resolved = resolve_selected_git_source_at_revision_in_lanes(
                 self.resolver,
                 request,
                 commit,
                 tree,
-                acquisition,
+                recorded.acquisition,
                 git_lane,
                 member_lane,
                 limits,
@@ -135,11 +120,6 @@ impl<'a> GitAcquisitionCache<'a> {
                 ));
             }
             Ok(resolved)
-        } else if self.options.offline {
-            return Err(pin_error(
-                request.acquisition(),
-                "offline resolution forbids new or refreshed Git selection; an unchanged recorded pin is required",
-            ));
         } else {
             resolve_selected_git_source_from_pin_in_lanes(
                 self.resolver,

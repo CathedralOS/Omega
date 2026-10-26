@@ -87,7 +87,7 @@ impl ReconciledPackageImportRequest {
     ) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
         if !source_import_candidates(&self.relative_path)
             .into_iter()
-            .any(|candidate| filesystem.exists(&self.expected_root.join(candidate)))
+            .any(|candidate| filesystem.is_file(&self.expected_root.join(candidate)))
         {
             return Ok(None);
         }
@@ -126,7 +126,7 @@ impl ReconciledPackageImportRequest {
         let physical = relative_candidates
             .into_iter()
             .map(|candidate| self.expected_root.join(candidate))
-            .find(|candidate| filesystem.exists(candidate));
+            .find(|candidate| filesystem.is_file(candidate));
         let resolved = match (generated, physical) {
             (Some(generated), Some(physical)) => {
                 return Err(vec![Diagnostic::error(format!(
