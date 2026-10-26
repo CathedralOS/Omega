@@ -87,7 +87,7 @@ pub(crate) fn operand_source(
             let mut matching = results.iter().filter(|(binding, root)| {
                 *root == facts::PlaceRoot::Expression(*expression)
                     && operations.iter().any(|operation| {
-                        operation.statement_structural_result_binding() == Some(binding)
+                        operation.structural_result_binding() == Some(binding)
                     })
             });
             let (result, _) = matching.next()?;
