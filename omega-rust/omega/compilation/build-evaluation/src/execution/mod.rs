@@ -103,13 +103,21 @@ impl PreparedBuildExecution {
         })
     }
 
+    pub(crate) fn validate_return(
+        &self,
+        returned: &crate::ReturnedBuild,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if !self.host_issued || returned.identity != self.produced.view().custody_identity() {
+            return Err(self.refuse("Build completion belongs to another invocation"));
+        }
+        Ok(())
+    }
+
     pub(crate) fn complete(
         self,
         completed: crate::ReturnedBuild,
     ) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
-        if !self.host_issued || completed.identity != self.produced.view().custody_identity() {
-            return Err(self.refuse("Build completion belongs to another invocation"));
-        }
+        self.validate_return(&completed)?;
         let declaration = &completed.declaration;
         // A graph is not settlement by itself. The retained return must carry
         // the exact join of its issued requests and acquired selections.

@@ -55,6 +55,7 @@ fn main() {
     completed_build_target_fanout();
     settled_build_product_contexts();
     settled_default_build_contexts();
+    production_project_discovery();
     interleaved_build_invocations();
     terminal_build_filesystem();
     anonymous_generator_source_scope();
@@ -260,6 +261,7 @@ fn source_discovery_root_inputs() {
         &mut session,
         omega_build::ProjectSourceRequest {
             preparation: preparation(),
+            collect_timings: false,
             execution_profile: profile,
             snapshot: None,
         },
@@ -285,6 +287,7 @@ fn source_discovery_root_inputs() {
         &mut session,
         omega_build::ProjectSourceRequest {
             preparation: preparation(),
+            collect_timings: false,
             execution_profile: profile,
             snapshot: Some(snapshot(vec![b"named.txt".to_vec()])),
         },
@@ -323,6 +326,7 @@ fn source_discovery_root_inputs() {
         &mut session,
         omega_build::ProjectSourceRequest {
             preparation: preparation(),
+            collect_timings: false,
             execution_profile: profile,
             snapshot: Some(snapshot(vec![
                 b"named.txt".to_vec(),
@@ -615,6 +619,7 @@ fn anonymous_generator_source_scope() {
         &mut session,
         omega_build::ProjectSourceRequest {
             preparation,
+            collect_timings: false,
             execution_profile: profile,
             snapshot: None,
         },
@@ -1163,6 +1168,7 @@ fn application_source_resolution(project: &str, private_call: bool) {
         &mut session,
         omega_build::ProjectSourceRequest {
             preparation,
+            collect_timings: false,
             execution_profile: profile,
             snapshot: None,
         },
@@ -1334,6 +1340,9 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
                     package_manager::resolution::source::BuildSourceAcquisition::Reused(next) => {
                         resolution = next;
                         continue;
+                    }
+                    package_manager::resolution::source::BuildSourceAcquisition::Workspace(_) => {
+                        panic!("local source fixture unexpectedly requested a workspace catalog")
                     }
                 };
                 let capture = acquired.source_capture().clone();
@@ -1573,6 +1582,7 @@ fn project_session_lifecycle() {
         &mut session,
         omega_build::ProjectSourceRequest {
             preparation: preparation(),
+            collect_timings: false,
             execution_profile: profile,
             snapshot: None,
         },
@@ -1599,6 +1609,7 @@ fn project_session_lifecycle() {
         &mut session,
         omega_build::ProjectSourceRequest {
             preparation: preparation(),
+            collect_timings: false,
             execution_profile: profile,
             snapshot: None,
         },
@@ -1645,6 +1656,7 @@ fn completed_build_target_fanout() {
         &mut session,
         omega_build::ProjectSourceRequest {
             preparation,
+            collect_timings: false,
             execution_profile: host,
             snapshot: None,
         },
@@ -1775,6 +1787,7 @@ fn settled_build_product_contexts() {
         &mut session,
         omega_build::ProjectSourceRequest {
             preparation,
+            collect_timings: false,
             execution_profile: host,
             snapshot: None,
         },
@@ -1795,6 +1808,30 @@ fn settled_build_product_contexts() {
     let mut settled = root
         .settle(session.compiler(), host, inputs.clone())
         .unwrap();
+    let contract = package_compilation::build_execution::BuildExecutionContract {
+        profile: Some(host),
+        snapshot: Some(package_compilation::BuildSnapshotRequest::new(
+            std::iter::empty(),
+        )),
+    };
+    settled.require_execution_contract(&contract).unwrap();
+    let late_output = package_compilation::build_execution::BuildExecutionContract {
+        snapshot: Some(package_compilation::BuildSnapshotRequest::new([
+            b"late.txt".to_vec(),
+        ])),
+        ..contract
+    };
+    assert!(
+        settled
+            .require_execution_contract(&late_output)
+            .err()
+            .unwrap()
+            .into_diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic
+                .message
+                .contains("different Build execution inputs or output obligations"))
+    );
     assert_eq!(counters::product_source_completion_count(), completions);
     let fuel = sponsor.consumed_fuel_units();
     for name in ["main.omg", "build.omg"] {
@@ -1820,12 +1857,12 @@ fn settled_build_product_contexts() {
     assert_eq!(reviewed.source_inputs(), accepted.source_inputs());
     let review = session
         .compiler()
-        .prepare_package_product(&mut settled, host, reviewed)
+        .prepare_package_product(&mut settled, host, reviewed, Default::default())
         .unwrap();
     session.compiler().check_package_build(review).unwrap();
     let product = session
         .compiler()
-        .prepare_package_product(&mut settled, host, accepted)
+        .prepare_package_product(&mut settled, host, accepted, Default::default())
         .unwrap();
     execute_joined_product(
         session.compiler(),
@@ -1835,7 +1872,7 @@ fn settled_build_product_contexts() {
     .unwrap();
     let unaccepted = session
         .compiler()
-        .prepare_package_product(&mut settled, host, inputs.clone())
+        .prepare_package_product(&mut settled, host, inputs.clone(), Default::default())
         .unwrap();
     let failure = session
         .compiler()
@@ -1862,7 +1899,7 @@ fn settled_build_product_contexts() {
         .unwrap();
     let failure = session
         .compiler()
-        .prepare_package_product(&mut settled, host, foreign)
+        .prepare_package_product(&mut settled, host, foreign, Default::default())
         .err()
         .expect("a new Product context cannot replace executed request custody");
     assert!(failure.into_diagnostics().iter().any(|diagnostic| {
@@ -1931,13 +1968,94 @@ fn settled_default_build_contexts() {
     ] {
         let selected = inputs.clone().with_compilation_purpose(purpose).unwrap();
         let product = session
-            .prepare_package_product(&mut settled, host, selected)
+            .prepare_package_product(&mut settled, host, selected, Default::default())
             .unwrap();
         session.check_package_build(product).unwrap();
     }
     assert_eq!(counters::build_execution_count(), before);
     println!(
         "settled_default_build_reprepares_distinct_purposes_from_retained_parsing_without_live_source"
+    );
+}
+
+fn production_project_discovery() {
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "production-source-discovery",
+        false,
+    )
+    .unwrap();
+    let fixture = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/build/executed_project_identity_exit");
+    let project = temporary.path().join("project");
+    std::fs::create_dir(&project).unwrap();
+    for name in ["main.omg", "build.omg", "naming.omg", "result.omg"] {
+        std::fs::copy(fixture.join(name), project.join(name)).unwrap();
+    }
+    let host = target::TargetProfile::host_if_supported().unwrap();
+    let targets = target::ExplicitTargetSet::from_caller_names([
+        host.target_name(),
+        "windows_x86_64",
+        "linux_x86_64",
+        "uefi_x86_64",
+    ])
+    .unwrap();
+    let before = counters::build_execution_count();
+    let completions = counters::product_source_completion_count();
+    let request = omega_build::BuildRequest {
+        root_path: project.join("main.omg"),
+        build_directory: Some(temporary.path().join("output")),
+        targets: omega_build::BuildTargets::Batch(targets.clone()),
+        product: omega_build::ProjectProduct::Native {
+            destination: omega_build::NativeDestination::Retained,
+            private_entry_ram: Vec::new(),
+        },
+        timings: true,
+        offline: true,
+        verify: false,
+        require_package_project: true,
+        optimization_rollback: Default::default(),
+        build_snapshot: None,
+    };
+    let outcomes = omega_build::build(request.clone()).unwrap();
+    assert_eq!(outcomes.len(), targets.profiles().len());
+    for outcome in outcomes {
+        if outcome.target.target_name() == "uefi_x86_64" {
+            assert!(
+                outcome
+                    .result
+                    .err()
+                    .unwrap()
+                    .to_string()
+                    .contains("no bound required root slot")
+            );
+            continue;
+        }
+        let report = outcome.result.unwrap().into_report().unwrap().report;
+        if outcome.target == host {
+            execute_report(report, &temporary.path().join("native"));
+        } else {
+            assert!(report.retained_native_artifact().is_some());
+        }
+    }
+    assert_eq!(counters::build_execution_count(), before + 1);
+    assert_eq!(counters::product_source_completion_count(), completions + 1);
+    let mut missing_output = request;
+    missing_output.targets = omega_build::BuildTargets::Single(host);
+    missing_output.product = omega_build::ProjectProduct::Check;
+    missing_output.build_snapshot = Some(package_compilation::BuildSnapshotRequest::new([
+        b"missing.txt".to_vec(),
+    ]));
+    let outcomes = omega_build::build(missing_output).unwrap();
+    assert!(outcomes.into_iter().all(|outcome| {
+        outcome
+            .result
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("required build output")
+    }));
+    println!(
+        "production_discovery_one_build_one_product_source_multiple_targets_native_terminal_exit0_isolated_target_and_required_output_refusals"
     );
 }
 

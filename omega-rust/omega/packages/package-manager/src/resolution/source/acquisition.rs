@@ -24,6 +24,7 @@ pub struct BuildSourceAcquisitions<'operation> {
     options: GitResolutionOptions<'operation>,
     root_request: PackageRootSourceRequest,
     git_sources: Vec<(GitSourceRequest, ResolvedGitSource)>,
+    pub(super) workspaces: Vec<super::workspace_acquisition::ExecutedWorkspace>,
 }
 
 impl<'operation> BuildSourceAcquisitions<'operation> {
@@ -37,6 +38,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             options,
             root_request,
             git_sources: Vec::new(),
+            workspaces: Vec::new(),
         }
     }
 
@@ -52,25 +54,27 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
                 .fail("source acquisition policy belongs to another project request")
                 .to_string());
         }
-        let selected = match pending.request.source() {
+        let (selected, selection) = match pending.request.source() {
             DependencySourceRequest::Path { location, .. } => {
                 let location = location.clone();
-                return pending.acquire_local_source(&location);
+                return if matches!(
+                    pending.request.requester().key().source_lineage(),
+                    SourceLineage::ExternalLocal(_)
+                ) {
+                    pending.acquire_local_source(&location)
+                } else {
+                    self.acquire_workspace_path(pending, &location)
+                };
             }
             DependencySourceRequest::Git {
                 repository,
                 revision,
                 selection,
                 ..
-            } => {
-                if !matches!(selection, PackageSelection::Root) {
-                    return Err(pending
-                        .request
-                        .fail("executed named Git selection requires workspace Build acquisition")
-                        .to_string());
-                }
-                GitSourceRequest::new(repository.clone(), Some(revision.clone()))
-            }
+            } => (
+                GitSourceRequest::new(repository.clone(), Some(revision.clone())),
+                selection.clone(),
+            ),
         };
         let selected = match selected {
             Ok(selected) => selected,
@@ -81,7 +85,16 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             Ok(source) => source,
             Err(error) => return Err(pending.request.fail(error).to_string()),
         };
-        if let Some(custody) = pending.request.acquired_source(source.lineage()).cloned() {
+        if let PackageSelection::Named(package) = selection {
+            let request =
+                GitPackageSourceRequest::new(selected, PackageSelection::Named(package.clone()));
+            return self.acquire_workspace_member(pending, source, request, &package);
+        }
+        if let Some(custody) = pending
+            .request
+            .acquired_source(source.lineage(), &super::PackageSourceNavigation::Root)
+            .cloned()
+        {
             let resolution = ImmutableSourceResolution::git(
                 package_source::GitCommitId::parse_hex(source.commit())
                     .map_err(|error| error.to_string())?,
@@ -202,7 +215,11 @@ impl PendingBuildSource {
             Ok(lineage) => package_source::SourceLineage::ExternalLocal(lineage),
             Err(error) => return Err(self.request.fail(error).to_string()),
         };
-        if let Some(custody) = self.request.acquired_source(&selected_lineage).cloned() {
+        if let Some(custody) = self
+            .request
+            .acquired_source(&selected_lineage, &super::PackageSourceNavigation::Root)
+            .cloned()
+        {
             let step = self
                 .request
                 .complete::<String>(custody)
@@ -228,12 +245,15 @@ impl PendingBuildSource {
 
 /// Acquired bytes and authenticated lineage, without a parsed declaration or
 /// provisional package key. Both transports establish the same owner at return.
+#[derive(Clone)]
 pub struct AcquiredBuildSource {
     pub(super) capture: CapturedLocalSource,
     pub(super) lineage: SourceLineage,
     pub(super) limits: LocalSourceLimits,
-    resolution: ImmutableSourceResolution,
-    root_request: PackageRootSourceRequest,
+    pub(super) resolution: ImmutableSourceResolution,
+    pub(super) root_request: PackageRootSourceRequest,
+    pub(super) navigation: super::PackageSourceNavigation,
+    pub(super) selection: super::PackageSourceSelectionEvidence,
 }
 
 #[derive(Debug)]
@@ -288,6 +308,8 @@ impl AcquiredBuildSource {
             limits,
             resolution,
             root_request,
+            navigation: super::PackageSourceNavigation::Root,
+            selection: super::PackageSourceSelectionEvidence::Root,
         })
     }
 
@@ -324,6 +346,8 @@ impl AcquiredBuildSource {
             limits: source.source_limits(),
             resolution,
             root_request: PackageRootSourceRequest::Git(request),
+            navigation: super::PackageSourceNavigation::Root,
+            selection: super::PackageSourceSelectionEvidence::Root,
         })
     }
 
@@ -350,6 +374,13 @@ impl AcquiredBuildSource {
                 return Err("a workspace declaration does not name a Product source owner".into());
             }
         };
+        if let super::PackageSourceSelectionEvidence::GitWorkspace(evidence) = &self.selection {
+            if name != evidence.plan().selected_member().package_name() {
+                return Err(
+                    "returned Build name differs from its executed workspace selection".into(),
+                );
+            }
+        }
         let requests =
             crate::declarations::dependencies::read::DependencyProjections::from_executed_requests(
                 returned.requests().iter().map(|issued| issued.request()),
@@ -360,8 +391,8 @@ impl AcquiredBuildSource {
             self.resolution.clone(),
             super::PackageSourceMaterialization::from_local(self.capture.normalized()),
             self.capture.canonical_live_root().to_path_buf(),
-            super::PackageSourceNavigation::Root,
-            super::PackageSourceSelectionEvidence::Root,
+            self.navigation.clone(),
+            self.selection.clone(),
             self.limits,
             requests,
         )

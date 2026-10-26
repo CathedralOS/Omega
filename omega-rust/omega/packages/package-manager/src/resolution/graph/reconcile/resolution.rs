@@ -109,7 +109,13 @@ struct SourceClosureTraversal {
     // Acquisition identity exists before the Build-produced package name.
     // Executed-source adapters reuse their invocation's first capture; graph
     // reconciliation still validates every alias, role, edge and cycle.
-    acquired: BTreeMap<package_source::SourceLineage, PackageSourceCustody>,
+    acquired: BTreeMap<
+        (
+            package_source::SourceLineage,
+            crate::resolution::source::PackageSourceNavigation,
+        ),
+        PackageSourceCustody,
+    >,
     observed: BTreeMap<PackageKey, Vec<ObservedCustody>>,
     dependencies: BTreeMap<PackageKey, Vec<ResolvedDependency>>,
     depths: BTreeMap<PackageKey, usize>,
@@ -155,7 +161,10 @@ pub(crate) fn begin_source_closure<E>(
     let root_key = root.key().clone();
     let root_role = root.role();
     let accepted = BTreeMap::from([(root_key.clone(), root.clone())]);
-    let acquired = BTreeMap::from([(root_key.source_lineage().clone(), root.clone())]);
+    let acquired = BTreeMap::from([(
+        (root_key.source_lineage().clone(), root.navigation().clone()),
+        root.clone(),
+    )]);
     let observed = BTreeMap::from([(
         root_key.clone(),
         vec![ObservedCustody {
@@ -187,8 +196,12 @@ impl PendingSourceResolution {
     pub(crate) fn acquired_source(
         &self,
         lineage: &package_source::SourceLineage,
+        navigation: &crate::resolution::source::PackageSourceNavigation,
     ) -> Option<&PackageSourceCustody> {
-        self.owner.traversal.acquired.get(lineage)
+        self.owner
+            .traversal
+            .acquired
+            .get(&(lineage.clone(), navigation.clone()))
     }
 
     pub(crate) const fn purpose(&self) -> DependencyPurpose {
@@ -234,7 +247,10 @@ impl PendingSourceResolution {
         self.owner
             .traversal
             .acquired
-            .entry(dependency.key().source_lineage().clone())
+            .entry((
+                dependency.key().source_lineage().clone(),
+                dependency.navigation().clone(),
+            ))
             .or_insert_with(|| dependency.clone());
         self.owner.selected.push(SelectedDependency {
             purpose: self.purpose,

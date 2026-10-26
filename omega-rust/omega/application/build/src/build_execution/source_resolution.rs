@@ -23,6 +23,25 @@ pub enum ProjectSourceResolutionError {
     Resources(package_manager::review::CompileResolvedPackageReviewsError),
 }
 
+impl std::fmt::Display for ProjectSourceResolutionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Preparation(error) => error.fmt(formatter),
+            Self::Compilation(CompileFailure::Diagnostics(diagnostics)) => {
+                diagnostics::write_bounded_diagnostics(formatter, diagnostics)
+            }
+            Self::Compilation(CompileFailure::BuildConsentRequired(requests)) => write!(
+                formatter,
+                "restricted Build execution requires explicit consent before effects; pending requests: {requests:?}"
+            ),
+            Self::Source(reason) => formatter.write_str(reason),
+            Self::Resources(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for ProjectSourceResolutionError {}
+
 /// Inputs known before the anonymous root executes. Product targets and
 /// accepted package bindings join after its declaration; input inventory and
 /// required outputs cannot wait until then. This snapshot belongs only to the
@@ -31,6 +50,7 @@ pub struct ProjectSourceRequest {
     pub preparation: LocalProjectPreparation,
     pub execution_profile: TargetProfile,
     pub snapshot: Option<build_evaluation::BuildSnapshotRequest>,
+    pub collect_timings: bool,
 }
 
 /// Source acquisition and returned Build work share one lifetime. The roster
@@ -39,6 +59,7 @@ pub struct ProjectSourceRequest {
 pub struct ResolvedProjectBuilds {
     pub prepared: PreparedLocalProject,
     pub builds: Vec<ResolvedPackageBuild>,
+    pub execution_profile: TargetProfile,
 }
 
 /// A Build whose complete request ledger has joined its acquired source graph.
@@ -47,6 +68,11 @@ pub struct ResolvedProjectBuilds {
 pub struct ResolvedPackageBuild {
     build: ReturnedPackageBuild,
     inputs: PackageCompilationInputs,
+}
+
+struct CatalogMemberBuild {
+    capture: package_compilation::CapturedLocalSource,
+    build: ReturnedPackageBuild,
 }
 
 impl ResolvedPackageBuild {
@@ -100,6 +126,7 @@ pub fn resolve_project_sources(
         preparation,
         execution_profile,
         snapshot,
+        collect_timings,
     } = request;
 
     let mut acquisitions = preparation.source_acquisitions().map_err(Preparation)?;
@@ -112,32 +139,64 @@ pub fn resolve_project_sources(
             execution_profile,
         )
         .map_err(Resources)?;
-    request.build.snapshot = snapshot;
+    if snapshot.is_some() {
+        request.build.snapshot = snapshot;
+    }
+    request.collect_timings = collect_timings;
     let root = execute_returned_build(&mut session.compiler, request).map_err(Compilation)?;
     let declared = acquired
         .declare_build(normal_return(&root)?)
         .map_err(Source)?;
     let root_identity = declared.identity();
     let mut pending = vec![(root_identity, root)];
+    let mut catalog_builds: Vec<CatalogMemberBuild> = Vec::new();
     let mut resolution = declared.resolve().map_err(Source)?;
-    let resolved = loop {
+    let resolved = 'sources: loop {
         match resolution {
             ExecutedSourceResolution::Complete(resolved) => break resolved,
             ExecutedSourceResolution::Request(request) => {
-                let acquired = match acquisitions.acquire(request).map_err(Source)? {
-                    BuildSourceAcquisition::Execute(acquired) => acquired,
-                    BuildSourceAcquisition::Reused(next) => {
-                        resolution = next;
-                        continue;
+                let mut acquisition = acquisitions.acquire(request).map_err(Source)?;
+                let acquired = loop {
+                    match acquisition {
+                        BuildSourceAcquisition::Execute(acquired) => break acquired,
+                        BuildSourceAcquisition::Reused(next) => {
+                            resolution = next;
+                            continue 'sources;
+                        }
+                        BuildSourceAcquisition::Workspace(workspace) => {
+                            let (members, declarations, builds) = execute_workspace_catalog(
+                                session,
+                                workspace,
+                                execution_profile,
+                                collect_timings,
+                            )?;
+                            catalog_builds.extend(builds);
+                            acquisition = acquisitions
+                                .complete_workspace(members, declarations)
+                                .map_err(Source)?;
+                        }
                     }
                 };
                 let capture = acquired.source_capture();
-                let request = session
-                    .packages
-                    .source_build_request(capture, &acquired.entry_path(), execution_profile)
-                    .map_err(Resources)?;
-                let build =
-                    execute_returned_build(&mut session.compiler, request).map_err(Compilation)?;
+                let build = match catalog_builds
+                    .iter()
+                    .position(|build| &build.capture == capture)
+                {
+                    Some(position) => catalog_builds.swap_remove(position).build,
+                    None => {
+                        let mut request = session
+                            .packages
+                            .source_build_request(
+                                capture,
+                                &acquired.entry_path(),
+                                execution_profile,
+                            )
+                            .map_err(Resources)?;
+                        request.collect_timings = collect_timings;
+                        execute_returned_build(&mut session.compiler, request)
+                            .map_err(Compilation)?
+                    }
+                };
                 let (identity, next) = acquired.complete(normal_return(&build)?).map_err(Source)?;
                 pending.push((identity, build));
                 resolution = next;
@@ -158,7 +217,66 @@ pub fn resolve_project_sources(
     let prepared = preparation
         .complete_source_resolution(resolved)
         .map_err(Preparation)?;
-    Ok(ResolvedProjectBuilds { prepared, builds })
+    Ok(ResolvedProjectBuilds {
+        prepared,
+        builds,
+        execution_profile,
+    })
+}
+
+/// Root catalog obligations settle before membership is used. Members run only
+/// far enough to observe their actual normal-return names; selected members keep
+/// those same activations for dependency settlement and Product preparation.
+fn execute_workspace_catalog(
+    session: &mut BuildSession,
+    workspace: package_manager::resolution::source::AcquiredWorkspaceBuild,
+    profile: TargetProfile,
+    collect_timings: bool,
+) -> Result<
+    (
+        package_manager::resolution::source::AcquiredWorkspaceMembers,
+        Vec<compiler::SourceBuildDeclaration>,
+        Vec<CatalogMemberBuild>,
+    ),
+    ProjectSourceResolutionError,
+> {
+    use ProjectSourceResolutionError::{Compilation, Resources, Source};
+    let mut request = session
+        .packages
+        .source_build_request(workspace.source_capture(), &workspace.entry_path(), profile)
+        .map_err(Resources)?;
+    request.collect_timings = collect_timings;
+    let ReturnedPackageBuild {
+        invocation,
+        returned,
+    } = execute_returned_build(&mut session.compiler, request).map_err(Compilation)?;
+    let returned =
+        returned.ok_or_else(|| Source("workspace catalog has no executed declaration".into()))?;
+    let root = session
+        .compiler
+        .settle_source_catalog(invocation, returned)
+        .map_err(Compilation)?;
+    let members = workspace.members(root).map_err(Source)?;
+    let mut declarations = Vec::new();
+    let mut builds = Vec::new();
+    for (capture, entry) in members.source_entries() {
+        let mut request = session
+            .packages
+            .source_build_request(capture, &entry, profile)
+            .map_err(Resources)?;
+        request.collect_timings = collect_timings;
+        let build = execute_returned_build(&mut session.compiler, request).map_err(Compilation)?;
+        let declaration = build
+            .invocation
+            .observe_declaration(normal_return(&build)?)
+            .map_err(Compilation)?;
+        declarations.push(declaration);
+        builds.push(CatalogMemberBuild {
+            capture: capture.clone(),
+            build,
+        });
+    }
+    Ok((members, declarations, builds))
 }
 
 fn normal_return(

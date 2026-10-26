@@ -141,7 +141,8 @@ fn build_entrance_shows_the_ordered_project_lifecycle() {
     let mut source = include_str!("build.rs");
     for operation in [
         "build_directory::admit_outputs(",
-        "prepare_local_project_for_targets(",
+        "begin_local_project_preparation(",
+        "crate::resolve_project_sources(",
         "products::compile(",
         "publication::publish_products(",
     ] {
@@ -219,7 +220,11 @@ fn application_schedules_dependencies_without_opening_source_continuations() {
     let execution = include_str!("build_execution.rs");
     assert!(execution.contains("while !frontiers.is_empty()"));
     assert!(execution.contains("join_generated_sources(occurrence, &frontier.products)"));
-    assert!(execution.contains("execute_package_build(compiler, occurrence)"));
+    assert!(execution.contains("occurrence.prepare(compiler, completed)"));
+    assert!(
+        execution.contains("Self::Execute(request) => execute_package_build(compiler, request)")
+    );
+    assert!(execution.contains("source.require_execution_contract(&request.execution)?"));
     assert!(execution.contains("compiler.begin_package_build(request)"));
     assert!(execution.contains("activation.advance(1024)"));
     assert!(execution.contains("compiler.complete_package_build(invocation, returned)"));
