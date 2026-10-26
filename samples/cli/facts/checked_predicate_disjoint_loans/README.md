@@ -56,7 +56,10 @@ not authorize stored-reference traversal or mutable observation replay. Caller
 establishment uses a complete equivalent scalar formula and the existing
 source-ordered captured operands; a necessary relation alone cannot establish
 the predicate. These pairs are pinned as
-`_through_<place>_record_predicate_{exit,rejected}`. Execution qualification of
+`_through_<place>_record_predicate_{exit,rejected}`. The
+[record exclusive-call control](controls/record_exclusive_call/main.omg) and
+[weakened twin](controls/record_exclusive_call/invalid/main.omg) also consume
+that relation in two simultaneously formed `write_pair` arguments. Execution qualification of
 this production is tracked separately from the earlier scalar observations.
 
 The pairs are pinned under `tests/omega/{pass,fail}/facts/` as
