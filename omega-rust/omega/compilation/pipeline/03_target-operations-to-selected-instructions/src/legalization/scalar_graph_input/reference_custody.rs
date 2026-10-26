@@ -271,10 +271,37 @@ impl Custody {
 
     pub(in crate::legalization) fn set_position(
         &mut self,
+        function: &PsiOptimizationFunction,
+        types: &[StructuralTypeDeclaration],
         block: BlockId,
         node_index: usize,
     ) -> Result<(), LegalizationError> {
         self.reference_position = Some((block, u32::try_from(node_index).map_err(|_| invalid())?));
+        // Entry types catalogue mutually exclusive payloads, not simultaneous
+        // live loans. Remove only unchanged parameter rows whose case is
+        // independently proved impossible here. Unknown membership and all
+        // established/replaced occurrences retain their custody obligations.
+        let inactive = self
+            .leaves
+            .iter()
+            .filter_map(|(location, leaf)| {
+                (matches!(leaf.contract, CarrierContract::Parameter(_))
+                    && leaf.identity == OccurrenceIdentity::parameter(location)
+                    && descriptor_backing::path_is_impossible(
+                        function,
+                        self,
+                        types,
+                        location.0,
+                        &location.1,
+                    ))
+                .then_some(location.clone())
+            })
+            .collect::<Vec<_>>();
+        for location in inactive {
+            self.leaves.remove(&location);
+        }
+        self.prune_retired();
+        self.validate_occurrences()?;
         Ok(())
     }
 
@@ -3268,7 +3295,7 @@ pub(in crate::legalization) fn block_entry_states(
         let block = &blocks[position];
         let mut custody = entries.get(&block.id).cloned().ok_or_else(|| invalid())?;
         for (node_index, node) in blocks[position].nodes.iter().enumerate() {
-            custody.set_position(block.id, node_index)?;
+            custody.set_position(function, types, block.id, node_index)?;
             if matches!(
                 node.operation,
                 abstract_operations::return_or_return_unit_pattern!(..)

@@ -61,14 +61,18 @@ pub(super) fn prepare(
 ) -> Result<Observations, LegalizationError> {
     let types = &plan.structural_types[..];
     if !function
-        .blocks
+        .structural_parameters
         .iter()
-        .flat_map(|block| &block.nodes)
-        .any(|node| {
-            node.operation
-                .structural_result()
-                .is_some_and(|(_, result)| contains_reference(types, result.structural_type))
-        })
+        .any(|parameter| contains_reference(types, parameter.structural_type))
+        && !function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .any(|node| {
+                node.operation
+                    .structural_result()
+                    .is_some_and(|(_, result)| contains_reference(types, result.structural_type))
+            })
     {
         return Ok(Observations::default());
     }
@@ -103,11 +107,40 @@ pub(super) fn prepare(
         return Ok(observations);
     };
     let current = descriptor_machine(&graph, function.machine).ok_or_else(|| invalid())?;
+    // Ingress catalogues include every case, even in functions that never
+    // construct a descriptor. Branch exits still need exact membership when
+    // no operation reads the inactive payload.
+    let ingress_slots = function
+        .structural_parameters
+        .iter()
+        .flat_map(|parameter| {
+            descriptor_slot_inventory(types, parameter.place, parameter.structural_type)
+                .map(|inventory| inventory.slots)
+                .unwrap_or_default()
+        })
+        .filter(|slot| {
+            slot.path.iter().any(|segment| {
+                matches!(
+                    segment,
+                    terminal_semantics::descriptor_lifetimes::DescriptorPathSegment::Case(_)
+                )
+            })
+        })
+        .collect::<Vec<_>>();
     let mut analysis = DescriptorAnalysis::new(types, &graph);
     observations.flow = analysis.flow_feasibility(function.machine);
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
             let position = (block.id, u32::try_from(node_index).map_err(|_| invalid())?);
+            for slot in &ingress_slots {
+                capture_case_feasibility(
+                    &mut observations,
+                    &mut analysis,
+                    function.machine,
+                    position,
+                    slot,
+                );
+            }
             for (ordinal, edge) in node.successors.iter().enumerate() {
                 if observations
                     .edges

@@ -195,8 +195,9 @@ pub(super) fn bind(
 /// A borrowed arrival carries authority from its exact captured occurrences,
 /// not from equal storage geometry. Every possible incoming source must grant
 /// this access through the same parent; missing predecessors stay unknown.
-/// This exempts only that parent from ordinary backing interference, never a
-/// descendant or a separate loan, and does not discharge lifetime debts.
+/// The granting chain may contain live or retired intermediate descriptors.
+/// This exempts its exact ancestors from ordinary backing interference, never
+/// a descendant or a separate loan, and does not discharge lifetime debts.
 pub(super) fn lends_from(
     custody: &Custody,
     place: PlaceId,
@@ -210,9 +211,41 @@ pub(super) fn lends_from(
         .is_some_and(|sources| {
             !sources.is_empty()
                 && sources.iter().all(|source| {
-                    requested.admits(source.access) && source.parents.contains(parent)
+                    requested.admits(source.access)
+                        && source
+                            .parents
+                            .iter()
+                            .any(|grant| granting_ancestor(custody, grant, parent))
                 })
         })
+}
+
+/// Follow each retained immediate link; equal backing is never lineage.
+/// Retired occurrences contribute ancestry, not renewed access to storage.
+fn granting_ancestor(
+    custody: &Custody,
+    grant: &OccurrenceIdentity,
+    ancestor: &OccurrenceIdentity,
+) -> bool {
+    let mut pending = vec![grant];
+    let mut visited = BTreeSet::new();
+    while let Some(identity) = pending.pop() {
+        if identity == ancestor {
+            return true;
+        }
+        if !visited.insert(identity) {
+            continue;
+        }
+        let leaf = custody
+            .leaves
+            .values()
+            .find(|leaf| leaf.identity == *identity)
+            .or_else(|| custody.retired.get(identity).map(|retired| &retired.leaf));
+        if let Some(leaf) = leaf {
+            pending.extend(&leaf.parents);
+        }
+    }
+    false
 }
 
 pub(super) fn obligations(custody: &Custody) -> impl Iterator<Item = &OccurrenceIdentity> {
