@@ -235,32 +235,6 @@ pub(in crate::execution) fn build_call_operation(
         });
     }
 
-    if let validation::CallSite::Expression { expression, .. } = &call_site
-        && let Some((definition, signature)) =
-            validation::compiler_operations::provider_selection_protocol(program, *expression)
-    {
-        return super::trait_boundary_call::build(
-            program,
-            facts,
-            machine,
-            state,
-            caller_parameters,
-            call,
-            expected_call_result.as_ref(),
-            caller_structural_results,
-            caller_operations,
-            trace,
-            coordinate,
-            &call_site,
-            source_site,
-            super::trait_boundary_call::BoundaryRequirement::BuildProviderSelection {
-                definition,
-                signature,
-            },
-            None,
-        );
-    }
-
     let selected_realization =
         exact_external_leaf_boundary_requirement(program, call.target_symbol);
     let requirement = match boundary_requirement(program, call.target_symbol) {

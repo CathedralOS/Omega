@@ -9,8 +9,6 @@
 //! sequence, source preparation or execution engine here.
 
 mod build_bindings;
-mod build_provider_selections;
-pub use build_provider_selections::{TerminalBuildProviderCall, TerminalBuildProviderSelections};
 mod build_filesystem;
 mod build_protocol;
 mod build_requests;

@@ -90,33 +90,3 @@ pub struct ExecutedRootBinding {
     pub slot: String,
     pub implementation: RootBindingSelection,
 }
-
-/// Evaluated composition belongs to the executed request, never a source
-/// expression recognizer. Omission explicitly means fused composition.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ProviderCompositionMode {
-    #[default]
-    Fused,
-    Independent,
-}
-
-/// A closed declaration path under its own authored lexical/package scope.
-/// It is inert description data until Product's scoped declaration resolver
-/// establishes the required role. It carries no old source-arena handles.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProductDeclarationOperand {
-    pub path: Vec<String>,
-    pub source_span: source::SourceSpan,
-}
-
-/// An operation observed on the original Build activation. The producer
-/// records the whole actual request so later consumers never reconstruct an
-/// executed helper specialization from source text or backing expressions.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExecutedProductProviderSelection {
-    pub source_span: source::SourceSpan,
-    pub selecting_machine: source::SourceSpan,
-    pub subject: ProductDeclarationOperand,
-    pub provider: ProductDeclarationOperand,
-    pub composition_mode: ProviderCompositionMode,
-}

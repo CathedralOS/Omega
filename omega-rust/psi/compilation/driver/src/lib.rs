@@ -41,9 +41,8 @@ pub use psi_terminal_production::{
     PsiCompilationStage, RetainedCallableSignature, TerminalApplicationCustody,
     TerminalArtifactProductionError, TerminalBuildBindingCall, TerminalBuildBindingOperation,
     TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildFilesystemCall,
-    TerminalBuildFilesystemOperation, TerminalBuildProviderCall, TerminalBuildProviderSelections,
-    TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
-    TerminalCompositionAdmission, TerminalMachineSelection, TerminalProductionCustody,
-    TerminalProductionRequest, TerminalProgramRoots, UnmeasuredProduction,
-    retained_callable_signature,
+    TerminalBuildFilesystemOperation, TerminalBuildRequestCall, TerminalBuildRequestOperation,
+    TerminalBuildRequests, TerminalCompositionAdmission, TerminalMachineSelection,
+    TerminalProductionCustody, TerminalProductionRequest, TerminalProgramRoots,
+    UnmeasuredProduction, retained_callable_signature,
 };

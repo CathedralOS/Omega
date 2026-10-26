@@ -316,8 +316,6 @@ fn complete_build_source(
         generated_source_custody = product.generated_source_custody;
         Arc::make_mut(&mut computed_build_config).selected_build_machine_symbol = selected;
     }
-    validation::compiler_operations::complete_build_product_operands(source.build_input().typed)
-        .map_err(|diagnostic| vec![diagnostic])?;
     let sources = BuildSourceCustody {
         source_file_count,
         build_execution_profile,
@@ -470,14 +468,6 @@ pub(super) fn complete_product_frontend(
     Arc::make_mut(&mut computed_build_config)
         .config
         .root_bindings = bindings;
-    let selections =
-        build_time_evaluation::provider_declarations::collect_terminal_provider_selections(
-            &prepared.typed,
-            &computed_build_config.provider_selection_requests,
-        )?;
-    Arc::make_mut(&mut computed_build_config)
-        .config
-        .provider_selections = selections;
     Ok((
         prepared.typed,
         prepared.pending_pre_checks,

@@ -43,8 +43,6 @@ pub struct ReturnedBuild {
     pub(crate) settings: EvaluatedBuildSettings,
     pub(crate) optimization_report: optimization_core::OptimizationReportRequest,
     pub(crate) root_bindings: Vec<ExecutedRootBinding>,
-    pub(crate) provider_selections:
-        Vec<language_semantics::declaration_selection::ExecutedProductProviderSelection>,
     pub(crate) log: crate::terminal_requests::BuildLog,
     pub(crate) filesystem: Option<package_compilation::build_execution::BuildFilesystemEffects>,
 }
@@ -72,7 +70,6 @@ pub struct TerminalBuildHost<'code> {
     original: TerminalStructuralValue,
     requests: TerminalBuildRequestHost<'code>,
     bindings: TerminalBuildBindingHost<'code>,
-    providers: crate::terminal_provider_selections::TerminalBuildProviderHost<'code>,
     filesystem: crate::terminal_filesystem::TerminalBuildFilesystemHost<'code>,
     started: bool,
     value_admission: BuildValueAdmission,
@@ -104,11 +101,6 @@ impl<'code> TerminalBuildHost<'code> {
             original.clone(),
             Some(account),
         )?;
-        let providers = crate::terminal_provider_selections::TerminalBuildProviderHost::new(
-            artifact,
-            produced.build_provider_selections(),
-            original.clone(),
-        )?;
         let bindings =
             TerminalBuildBindingHost::new(artifact, produced.build_bindings(), original.clone())?;
         let filesystem = crate::terminal_filesystem::TerminalBuildFilesystemHost::new(
@@ -124,7 +116,6 @@ impl<'code> TerminalBuildHost<'code> {
             original,
             requests,
             bindings,
-            providers,
             filesystem,
             started: false,
             value_admission: machine.value_admission,
@@ -162,11 +153,6 @@ impl<'code> TerminalBuildHost<'code> {
             .build_bindings()
             .calls_for(artifact)
             .ok_or("Build bindings lost their artifact custody")?;
-        let provider_calls = self
-            .produced
-            .build_provider_selections()
-            .calls_for(artifact)
-            .ok_or("Build provider descriptions lost their artifact custody")?;
         let filesystem_calls = self
             .produced
             .build_filesystem()
@@ -186,10 +172,6 @@ impl<'code> TerminalBuildHost<'code> {
             } else if binding_calls.iter().any(|call| call.boundary == boundary) {
                 instance
                     .bind_import(boundary, self.bindings.adapter(declaration.into()))
-                    .map_err(describe)?;
-            } else if provider_calls.iter().any(|call| call.boundary == boundary) {
-                instance
-                    .bind_import(boundary, self.providers.adapter(declaration.into()))
                     .map_err(describe)?;
             } else if filesystem_calls
                 .iter()
@@ -294,7 +276,6 @@ impl TerminalBuildActivation<'_, '_> {
             settings,
             optimization_report,
             root_bindings: self.host.bindings.take_executed()?,
-            provider_selections: self.host.providers.take_executed()?,
             log: self.host.requests.take_log()?,
             filesystem: self.host.filesystem.take_effects()?,
         })

@@ -91,12 +91,6 @@ public data ProductEntryRef [copy] {
 // Calling this requirement directly supplies no selection or host authority.
 // These are compiler host operations, not a user-selected service binding.
 // Their activation-local ticket is interpreted only at admitted call sites.
-// Inert provider operands remain in a source-issued companion; only the
-// admitted original Build activation may execute these ordinary imports.
-public boundary trait BuildProviderSelectionOperations {
-    machine select_provider(builder: &Build) reaches;
-    machine select_provider_mode(builder: &Build, mode: CompositionMode) reaches;
-}
 public boundary trait BuildBindingOperations {
     machine prepare(builder: &Build) -> u64 reaches;
     machine bind(activation: u64) reaches;

@@ -3,9 +3,8 @@ use symbols::SymbolHandle;
 
 mod product;
 pub use product::{
-    DescribedProductEntry, DescribedProductProvider, DescribedProductSchema,
-    ExecutedProductProviderSelection, ExecutedRootBinding, ProductDeclarationOperand,
-    ProviderCompositionMode, RootBindingOperand, RootBindingRequest, RootBindingSelection,
+    DescribedProductEntry, DescribedProductProvider, DescribedProductSchema, ExecutedRootBinding,
+    RootBindingOperand, RootBindingRequest, RootBindingSelection,
 };
 
 /// Whether an authored declaration selection contributes only to an

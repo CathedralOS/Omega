@@ -2,7 +2,17 @@ use super::ProviderPlanningContext;
 use checked_trees::typed_trees::TypedTrees;
 use symbols::SymbolHandle;
 
-pub use language_semantics::declaration_selection::ProviderCompositionMode as CompositionMode;
+/// Whether one build-owned provider edge is fused into its consumer or kept
+/// as an independently selected component boundary.
+///
+/// Omission at the source surface is deliberately [`Self::Fused`]. Provider
+/// declarations never infer or widen this mode for themselves.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CompositionMode {
+    #[default]
+    Fused,
+    Independent,
+}
 
 /// One exact declaration identity participating in a provider selection.
 #[derive(Debug, Clone, PartialEq, Eq)]

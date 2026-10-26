@@ -564,7 +564,7 @@ fn collect<'a>(
         return Some(());
     }
     let arguments = validation::call_site_argument_expressions(program, &site);
-    let parameters = site.execution_parameters(program, machine.symbol)?;
+    let parameters = validation::call_target_parameters(program, call.target_symbol)?;
     let parameters = parameters.iter().enumerate().collect::<Vec<_>>();
     if parameters.len() != arguments.len() {
         return None;

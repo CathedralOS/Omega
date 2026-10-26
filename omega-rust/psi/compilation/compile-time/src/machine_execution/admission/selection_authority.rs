@@ -362,10 +362,8 @@ fn expression_occurrence_violation(
             };
             // Product references are operands of one exact Build operation,
             // not host generic arguments. Keep every authored occurrence, but
-            // retain the exact checked description role without consulting a
-            // Product forest that does not exist until Build returns. This
-            // authorizes an inert executed request, never the declaration;
-            // the deferred Product join checks its lexical/package authority.
+            // establish its lexical product authority without consulting the
+            // caller's Build-import namespace or executing the declaration.
             if validation::compiler_operations::is_build_declaration_selection(input, expression) {
                 use typed_trees::AuthoredDeclarationSelectionKind as Kind;
                 if selection.kind() == Kind::Call {
@@ -374,23 +372,12 @@ fn expression_occurrence_violation(
                 if matches!(selection.kind(), Kind::StaticArgument | Kind::Conformance)
                     && let Some(argument_index) = selection.top_level_static_argument_position()
                 {
-                    let expected = if matches!(
-                        selection.target(),
-                        typed_trees::AuthoredDeclarationSelectionTarget::Resolved(_)
-                    ) {
-                        validation::compiler_operations::resolve_build_static_operand(
-                            input,
-                            expression,
-                            argument_index,
-                            selection.source_span(),
-                        )
-                    } else {
-                        validation::compiler_operations::describe_build_static_operand(
-                            input,
-                            expression,
-                            argument_index,
-                        )
-                    };
+                    let expected = validation::compiler_operations::resolve_build_static_operand(
+                        input,
+                        expression,
+                        argument_index,
+                        selection.source_span(),
+                    );
                     let expected = match expected {
                         Ok(expected) => expected,
                         Err(message) => return Some(located(message)),

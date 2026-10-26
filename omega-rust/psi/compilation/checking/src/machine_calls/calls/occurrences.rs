@@ -55,23 +55,6 @@ impl<'program> CallSite<'program> {
         super::topology::call_target_parameters(program, self.target_symbol(program))
     }
 
-    /// Operand scheduling uses the executable presentation of a checked
-    /// compiler operation. This does not change its source callable, static
-    /// descriptors, mutable Build obligation, or captured actuals.
-    pub fn execution_parameters(
-        &self,
-        program: &'program dyn crate::CheckingInput,
-        lexical_owner: SymbolHandle,
-    ) -> Option<&'program [typed_trees::signature::StateParameter]> {
-        if let Self::Expression { expression, .. } = self
-            && let Some((_, signature)) =
-                crate::compiler_operations::provider_selection_protocol(program, *expression)
-        {
-            return Some(program.state_signature_parameters(signature));
-        }
-        self.parameters(program, lexical_owner)
-    }
-
     /// Resolved executable destination shared by topology and exact-occurrence
     /// admission. Boundary operator calls retain their operator identity.
     pub fn target_symbol(&self, program: &dyn crate::CheckingInput) -> SymbolHandle {
