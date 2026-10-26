@@ -25,127 +25,73 @@ impl LoweredIntegerComparisonKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum LoweredIntegerBinaryKind {
-    BitwiseAnd,
-    BitwiseOr,
-    BitwiseXor,
-    WrappingShiftLeft,
-    WrappingShiftRight,
-    ExactShiftLeft,
-    ExactShiftRight,
-    ExactAdd,
-    ExactSubtract,
-    ExactMultiply,
-    ExactDivide,
-    ExactRemainder,
-    WrappingDivide,
-    WrappingRemainder,
-    SaturatingDivide,
-    SaturatingRemainder,
-    WrappingAdd,
-    SaturatingAdd,
-    WrappingSubtract,
-    SaturatingSubtract,
-    WrappingMultiply,
-    SaturatingMultiply,
-    TrappingAdd,
-    TrappingSubtract,
-    TrappingMultiply,
-    TrappingDivide,
-    TrappingRemainder,
-    TrappingShiftLeft,
-    TrappingShiftRight,
+/// The lowered integer binary vocabulary and each kind's settled policy row
+/// are one table. A lowered kind exists because one policy row selected it,
+/// so the variant and its `(primitive, policy)` binding are written together
+/// and the accessor is generated from those same rows; the vocabulary and its
+/// catalog can no longer drift apart. The Trapping rows still keep their own
+/// operation identities below.
+macro_rules! lowered_integer_binary_kinds {
+    ($($variant:ident => $binding:expr),* $(,)?) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub(crate) enum LoweredIntegerBinaryKind {
+            $($variant,)*
+        }
+
+        impl LoweredIntegerBinaryKind {
+            pub(crate) const fn integer_policy_binding(
+                self,
+            ) -> Option<(IntegerPolicyPrimitive, ArithmeticDomain)> {
+                match self {
+                    $(Self::$variant => $binding,)*
+                }
+            }
+        }
+    };
+}
+
+lowered_integer_binary_kinds! {
+    BitwiseAnd => None,
+    BitwiseOr => None,
+    BitwiseXor => None,
+    WrappingShiftLeft => Some((IntegerPolicyPrimitive::ShiftLeft, ArithmeticDomain::Wrapping)),
+    WrappingShiftRight => Some((IntegerPolicyPrimitive::ShiftRight, ArithmeticDomain::Wrapping)),
+    ExactShiftLeft => Some((IntegerPolicyPrimitive::ShiftLeft, ArithmeticDomain::Exact)),
+    ExactShiftRight => Some((IntegerPolicyPrimitive::ShiftRight, ArithmeticDomain::Exact)),
+    ExactAdd => Some((IntegerPolicyPrimitive::Add, ArithmeticDomain::Exact)),
+    ExactSubtract => Some((IntegerPolicyPrimitive::Subtract, ArithmeticDomain::Exact)),
+    ExactMultiply => Some((IntegerPolicyPrimitive::Multiply, ArithmeticDomain::Exact)),
+    ExactDivide => Some((IntegerPolicyPrimitive::Divide, ArithmeticDomain::Exact)),
+    ExactRemainder => Some((IntegerPolicyPrimitive::Remainder, ArithmeticDomain::Exact)),
+    WrappingDivide => Some((IntegerPolicyPrimitive::Divide, ArithmeticDomain::Wrapping)),
+    WrappingRemainder => Some((IntegerPolicyPrimitive::Remainder, ArithmeticDomain::Wrapping)),
+    SaturatingDivide => Some((IntegerPolicyPrimitive::Divide, ArithmeticDomain::Saturating)),
+    SaturatingRemainder => Some((
+        IntegerPolicyPrimitive::Remainder,
+        ArithmeticDomain::Saturating,
+    )),
+    WrappingAdd => Some((IntegerPolicyPrimitive::Add, ArithmeticDomain::Wrapping)),
+    SaturatingAdd => Some((IntegerPolicyPrimitive::Add, ArithmeticDomain::Saturating)),
+    WrappingSubtract => Some((IntegerPolicyPrimitive::Subtract, ArithmeticDomain::Wrapping)),
+    SaturatingSubtract => Some((
+        IntegerPolicyPrimitive::Subtract,
+        ArithmeticDomain::Saturating,
+    )),
+    WrappingMultiply => Some((IntegerPolicyPrimitive::Multiply, ArithmeticDomain::Wrapping)),
+    SaturatingMultiply => Some((
+        IntegerPolicyPrimitive::Multiply,
+        ArithmeticDomain::Saturating,
+    )),
+    TrappingAdd => Some((IntegerPolicyPrimitive::Add, ArithmeticDomain::Trapping)),
+    TrappingSubtract => Some((IntegerPolicyPrimitive::Subtract, ArithmeticDomain::Trapping)),
+    TrappingMultiply => Some((IntegerPolicyPrimitive::Multiply, ArithmeticDomain::Trapping)),
+    TrappingDivide => Some((IntegerPolicyPrimitive::Divide, ArithmeticDomain::Trapping)),
+    TrappingRemainder => Some((IntegerPolicyPrimitive::Remainder, ArithmeticDomain::Trapping)),
+    TrappingShiftLeft => Some((IntegerPolicyPrimitive::ShiftLeft, ArithmeticDomain::Trapping)),
+    TrappingShiftRight => Some((IntegerPolicyPrimitive::ShiftRight, ArithmeticDomain::Trapping)),
 }
 
 impl LoweredIntegerBinaryKind {
-    pub(crate) const fn integer_policy_binding(
-        self,
-    ) -> Option<(IntegerPolicyPrimitive, ArithmeticDomain)> {
-        match self {
-            Self::WrappingShiftLeft => Some((
-                IntegerPolicyPrimitive::ShiftLeft,
-                ArithmeticDomain::Wrapping,
-            )),
-            Self::WrappingShiftRight => Some((
-                IntegerPolicyPrimitive::ShiftRight,
-                ArithmeticDomain::Wrapping,
-            )),
-            Self::ExactShiftLeft => {
-                Some((IntegerPolicyPrimitive::ShiftLeft, ArithmeticDomain::Exact))
-            }
-            Self::ExactShiftRight => {
-                Some((IntegerPolicyPrimitive::ShiftRight, ArithmeticDomain::Exact))
-            }
-            Self::ExactAdd => Some((IntegerPolicyPrimitive::Add, ArithmeticDomain::Exact)),
-            Self::ExactSubtract => {
-                Some((IntegerPolicyPrimitive::Subtract, ArithmeticDomain::Exact))
-            }
-            Self::ExactMultiply => {
-                Some((IntegerPolicyPrimitive::Multiply, ArithmeticDomain::Exact))
-            }
-            Self::ExactDivide => Some((IntegerPolicyPrimitive::Divide, ArithmeticDomain::Exact)),
-            Self::WrappingDivide => {
-                Some((IntegerPolicyPrimitive::Divide, ArithmeticDomain::Wrapping))
-            }
-            Self::SaturatingDivide => {
-                Some((IntegerPolicyPrimitive::Divide, ArithmeticDomain::Saturating))
-            }
-            Self::ExactRemainder => {
-                Some((IntegerPolicyPrimitive::Remainder, ArithmeticDomain::Exact))
-            }
-            Self::WrappingRemainder => Some((
-                IntegerPolicyPrimitive::Remainder,
-                ArithmeticDomain::Wrapping,
-            )),
-            Self::SaturatingRemainder => Some((
-                IntegerPolicyPrimitive::Remainder,
-                ArithmeticDomain::Saturating,
-            )),
-            Self::WrappingAdd => Some((IntegerPolicyPrimitive::Add, ArithmeticDomain::Wrapping)),
-            Self::SaturatingAdd => {
-                Some((IntegerPolicyPrimitive::Add, ArithmeticDomain::Saturating))
-            }
-            Self::WrappingSubtract => {
-                Some((IntegerPolicyPrimitive::Subtract, ArithmeticDomain::Wrapping))
-            }
-            Self::SaturatingSubtract => Some((
-                IntegerPolicyPrimitive::Subtract,
-                ArithmeticDomain::Saturating,
-            )),
-            Self::WrappingMultiply => {
-                Some((IntegerPolicyPrimitive::Multiply, ArithmeticDomain::Wrapping))
-            }
-            Self::SaturatingMultiply => Some((
-                IntegerPolicyPrimitive::Multiply,
-                ArithmeticDomain::Saturating,
-            )),
-            Self::TrappingAdd => Some((IntegerPolicyPrimitive::Add, ArithmeticDomain::Trapping)),
-            Self::TrappingSubtract => {
-                Some((IntegerPolicyPrimitive::Subtract, ArithmeticDomain::Trapping))
-            }
-            Self::TrappingMultiply => {
-                Some((IntegerPolicyPrimitive::Multiply, ArithmeticDomain::Trapping))
-            }
-            Self::TrappingDivide => {
-                Some((IntegerPolicyPrimitive::Divide, ArithmeticDomain::Trapping))
-            }
-            Self::TrappingRemainder => Some((
-                IntegerPolicyPrimitive::Remainder,
-                ArithmeticDomain::Trapping,
-            )),
-            Self::TrappingShiftLeft => Some((
-                IntegerPolicyPrimitive::ShiftLeft,
-                ArithmeticDomain::Trapping,
-            )),
-            Self::TrappingShiftRight => Some((
-                IntegerPolicyPrimitive::ShiftRight,
-                ArithmeticDomain::Trapping,
-            )),
-            Self::BitwiseAnd | Self::BitwiseOr | Self::BitwiseXor => None,
-        }
-    }
-
     /// The kinds whose formation checking records as a decision: division
     /// and remainder definedness under every policy, and Exact sum,
     /// difference and product representability; Exact shift formation includes
