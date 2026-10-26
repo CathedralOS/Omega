@@ -366,6 +366,7 @@ fn validate<'program>(
             stored_integer_writes.extend(struct_literals::validate_struct_literal_fields(
                 program,
                 &mut diagnostics,
+                &mut arithmetic_decisions.integer_range_obligations,
             ));
         });
         // Record patterns in LET (owner spec 2026-07-18): the exhaustiveness
