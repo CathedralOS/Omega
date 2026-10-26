@@ -5,7 +5,9 @@
 //! artifact; only the original activation may turn its calls into receipts.
 
 use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::ProviderCompositionMode;
+use language_semantics::declaration_selection::{
+    ProductDeclarationOperand, ProviderCompositionMode,
+};
 use semantic_vocabulary::{BoundaryMachineId, OperationId, StructuralCaseId};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -14,6 +16,8 @@ pub struct TerminalBuildProviderCall {
     pub boundary: BoundaryMachineId,
     pub source_span: source::SourceSpan,
     pub selecting_machine: source::SourceSpan,
+    pub subject: ProductDeclarationOperand,
+    pub provider: ProductDeclarationOperand,
     pub mode_cases: Vec<(StructuralCaseId, ProviderCompositionMode)>,
 }
 
@@ -64,6 +68,28 @@ pub(super) fn capture(
                 "Build provider selection lost its ordinary emitted call",
             ));
         };
+        let call = checked
+            .expression_table
+            .call_node(expression)
+            .ok_or_else(|| Diagnostic::error("Build provider selection lost its source call"))?;
+        let operands = call.machine_arguments.iter().enumerate().map(|(position, argument)| {
+            if !typed_trees::product_operand::is_declaration_operand(argument)
+                || (argument.symbol.is_valid() && matches!(checked.symbols.get(argument.symbol).kind,
+                    symbols::SymbolKind::TypeParameter | symbols::SymbolKind::ConformanceParameter | symbols::SymbolKind::MachineParameter)) {
+                return Err(Diagnostic::error("provider selection requires closed declaration descriptors with retained operand origin"));
+            }
+            let occurrences = checked.expression_table.authored_selection_occurrences(expression)
+                .filter_map(|id| checked.authored_declaration_selections().get(id))
+                .filter(|selection| selection.top_level_static_argument_position() == Some(position))
+                .collect::<Vec<_>>();
+            let [selected] = occurrences.as_slice() else { return Err(Diagnostic::error("provider operand has no exact authored lexical origin")); };
+            Ok(ProductDeclarationOperand { path: argument.path.iter().map(|part| part.as_str().to_owned()).collect(), source_span: selected.source_span() })
+        }).collect::<Result<Vec<_>, Diagnostic>>()?;
+        let [subject, provider] = operands.as_slice() else {
+            return Err(Diagnostic::error(
+                "provider selection lost its two declaration operands",
+            ));
+        };
         let boundary = crate::build_bindings::emitted_boundary(lowered, operation)?;
         let declaration = lowered
             .semantic_module
@@ -80,7 +106,7 @@ pub(super) fn capture(
             })?;
         let selecting_machine = checked
             .symbols
-            .symbol_source_span(machine.symbol)
+            .symbol_provenance_source_span(machine.symbol)
             .ok_or_else(|| {
                 Diagnostic::error("Build provider selection has no authored machine coordinate")
             })?;
@@ -182,6 +208,8 @@ pub(super) fn capture(
             boundary,
             source_span: authored.source_span(),
             selecting_machine,
+            subject: subject.clone(),
+            provider: provider.clone(),
             mode_cases,
         });
     }

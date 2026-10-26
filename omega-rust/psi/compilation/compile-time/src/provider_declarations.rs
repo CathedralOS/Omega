@@ -102,6 +102,7 @@ fn harvest_provider_selections(
                             machine: machine.symbol,
                             composition_case: None,
                             evaluated_composition: None,
+                            operand_origins: None,
                             product_operands: false,
                         });
                     }
@@ -117,6 +118,7 @@ fn harvest_provider_selections(
                         machine: machine.symbol,
                         composition_case: None,
                         evaluated_composition: None,
+                        operand_origins: None,
                         product_operands: false,
                     });
                 }
@@ -135,6 +137,7 @@ struct ProviderSelectionCall<'a> {
     machine: SymbolHandle,
     composition_case: Option<SymbolHandle>,
     evaluated_composition: Option<CompositionMode>,
+    operand_origins: Option<[source::SourceSpan; 2]>,
     product_operands: bool,
 }
 
@@ -172,6 +175,7 @@ pub fn collect_executed_provider_selections(
                         machine: row.machine,
                         composition_case: Some(row.composition_case),
                         evaluated_composition: None,
+                            operand_origins: None,
                         product_operands: true,
                     })
                 }
@@ -200,8 +204,11 @@ pub fn collect_terminal_provider_selections(
     typed: &TypedTrees,
     executed: &[language_semantics::declaration_selection::ExecutedProductProviderSelection],
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
-    let mut requests = Vec::new();
+    let mut prepared = Vec::new();
     for row in executed {
+        // Ownership attribution rejoins the authored declaration, not a
+        // generated helper instance. Its executed request already contains
+        // every operand; no dormant or copied expression can reconstruct it.
         let machines = typed
             .machines()
             .iter()
@@ -211,32 +218,37 @@ pub fn collect_terminal_provider_selections(
             .collect::<Vec<_>>();
         let [machine] = machines.as_slice() else {
             return Err(vec![Diagnostic::error(
-                "executed provider selection did not rejoin its exact authored machine",
+                "executed provider selection did not rejoin its authored declaration owner",
             )]);
         };
-        let calls = typed.expression_table.iter_expressions().filter_map(|(expression, node)| {
-            let typed_trees::expression::ExpressionNode::Call(call) = node else { return None; };
-            (validation::compiler_operations::build_operation(typed, expression)
-                == Some(language_semantics::declaration_selection::BuildOperation::ProviderSelection)
-                && provider_selection_expression_source_span(typed, expression) == row.source_span)
-                .then_some(call)
-        }).collect::<Vec<_>>();
-        let [call] = calls.as_slice() else {
-            return Err(vec![Diagnostic::error(
-                "executed provider selection did not rejoin its exact authored call",
-            )]);
-        };
-        requests.push(ProviderSelectionCall {
+        let argument =
+            |operand: &language_semantics::declaration_selection::ProductDeclarationOperand| {
+                typed_trees::expression::StaticMachineArgument {
+                    path: operand
+                        .path
+                        .iter()
+                        .map(typed_trees::name::Identifier::generated)
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
+                    ..Default::default()
+                }
+            };
+        let arguments = [argument(&row.subject), argument(&row.provider)];
+        prepared.push((row, machine.symbol, arguments));
+    }
+    let requests = prepared
+        .iter()
+        .map(|(row, machine, arguments)| ProviderSelectionCall {
             target: "select_provider",
-            arguments: &call.machine_arguments,
-            value_arguments: typed.expression_table.expression_handles(call.arguments),
+            arguments,
+            value_arguments: &[],
             source_span: row.source_span,
-            machine: machine.symbol,
+            machine: *machine,
             composition_case: None,
             evaluated_composition: Some(row.composition_mode),
+            operand_origins: Some([row.subject.source_span, row.provider.source_span]),
             product_operands: true,
         });
-    }
     collect_provider_selections(
         ProviderPlanningContext::new(
             typed.product_declarations(),
@@ -282,6 +294,7 @@ fn collect_provider_selections<'a>(
             machine,
             composition_case,
             evaluated_composition,
+            operand_origins,
             product_operands,
         } = request;
         if target != "select_provider" {
@@ -301,7 +314,8 @@ fn collect_provider_selections<'a>(
                     checked_trees::typed_trees::product_operand::resolve_product_operand(
                         typed,
                         argument,
-                        source_span,
+                        operand_origins
+                            .map_or(source_span, |origins| origins[usize::from(is_provider)]),
                         if is_provider {
                             typed_trees::product_operand::ProductOperandKind::Provider
                         } else {

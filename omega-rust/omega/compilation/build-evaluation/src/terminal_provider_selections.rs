@@ -156,6 +156,8 @@ impl TerminalEffectHandler for ProviderAdapter<'_, '_> {
         rows.push(ExecutedProductProviderSelection {
             source_span: call.source_span,
             selecting_machine: call.selecting_machine,
+            subject: call.subject.clone(),
+            provider: call.provider.clone(),
             composition_mode,
         });
         Ok(TerminalEffectResult::Unit)
