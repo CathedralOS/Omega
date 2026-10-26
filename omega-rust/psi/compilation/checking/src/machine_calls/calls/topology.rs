@@ -3,7 +3,8 @@
 use symbols::SymbolHandle;
 
 /// Conservative normal-completion reachability over admitted state control.
-/// Explicit crash edges and closed nonreturning cycles supply no return.
+/// Explicit crash edges, authenticated external completions and closed
+/// nonreturning cycles supply no return.
 /// Unknown bodies and unclassified value evaluation remain potentially normal;
 /// missing custody/origin evidence is never evidence of nonreturning control.
 pub fn normal_completion_possible(
@@ -24,6 +25,20 @@ pub fn normal_completion_possible(
         if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
             || !machine.body_is_present
         {
+            // A bodyless entry may itself carry an authenticated completion
+            // declaration. Other interfaces and realizations stay unknown;
+            // checked adapters still owe their own control-flow evidence.
+            if program
+                .machine_states(machine)
+                .first()
+                .is_some_and(|entry| entry.symbol == state.symbol)
+                && matches!(
+                    completion_target(program, machine.symbol),
+                    CompletionTarget::External
+                )
+            {
+                continue;
+            }
             return Some(true);
         }
         let statements = program.statement_table.statements(state.statement_nodes);
@@ -40,22 +55,38 @@ pub fn normal_completion_possible(
         for (position, index) in order.iter().copied().enumerate() {
             let statement = statements.get(index)?;
             match statement {
-                StatementNode::Expression(expression) if position + 1 == order.len() => {
-                    if let Some(destination) = expression_completion_target(program, *expression) {
-                        pending.push(destination.symbol);
-                        all_paths_depart = true;
-                    } else {
-                        return Some(true);
+                StatementNode::Expression(expression) => {
+                    match expression_completion_target(program, *expression) {
+                        CompletionTarget::External => {
+                            // This exact admitted invocation ends the remaining
+                            // sequential path before any dead suffix executes.
+                            all_paths_depart = true;
+                            break;
+                        }
+                        CompletionTarget::Body(destination) if position + 1 == order.len() => {
+                            pending.push(destination.symbol);
+                            all_paths_depart = true;
+                        }
+                        CompletionTarget::Unknown if position + 1 == order.len() => {
+                            return Some(true);
+                        }
+                        _ => {}
                     }
                 }
-                StatementNode::Call(call) if position + 1 == order.len() => {
-                    if let Some(destination) = call_target_state(program, call.target_symbol) {
+                StatementNode::Call(call) => match completion_target(program, call.target_symbol) {
+                    CompletionTarget::External => {
+                        all_paths_depart = true;
+                        break;
+                    }
+                    CompletionTarget::Body(destination) if position + 1 == order.len() => {
                         pending.push(destination.symbol);
                         all_paths_depart = true;
-                    } else {
+                    }
+                    CompletionTarget::Unknown if position + 1 == order.len() => {
                         return Some(true);
                     }
-                }
+                    _ => {}
+                },
                 StatementNode::Transition(transition) => {
                     all_paths_depart |= transition.guard == TransitionGuardNode::Always
                         || transition.continuation.is_valid();
@@ -68,19 +99,21 @@ pub fn normal_completion_possible(
                     for target in transition.targets() {
                         match program.statement_table.transition_target(target) {
                             TransitionTargetNode::Named { path, .. } => {
-                                let Some(destination) = call_target_state(program, path.symbol)
-                                else {
-                                    return Some(true);
-                                };
-                                pending.push(destination.symbol);
+                                match completion_target(program, path.symbol) {
+                                    CompletionTarget::External => {}
+                                    CompletionTarget::Body(destination) => {
+                                        pending.push(destination.symbol)
+                                    }
+                                    CompletionTarget::Unknown => return Some(true),
+                                }
                             }
                             TransitionTargetNode::Value(expression) => {
-                                if let Some(destination) =
-                                    expression_completion_target(program, *expression)
-                                {
-                                    pending.push(destination.symbol);
-                                } else {
-                                    return Some(true);
+                                match expression_completion_target(program, *expression) {
+                                    CompletionTarget::External => {}
+                                    CompletionTarget::Body(destination) => {
+                                        pending.push(destination.symbol)
+                                    }
+                                    CompletionTarget::Unknown => return Some(true),
                                 }
                             }
                             TransitionTargetNode::Terminal => {
@@ -110,21 +143,45 @@ pub fn expression_normal_completion_possible(
     program: &dyn crate::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<bool> {
-    expression_completion_target(program, expression).map_or(Some(true), |target| {
-        normal_completion_possible(program, target)
-    })
+    match expression_completion_target(program, expression) {
+        CompletionTarget::External => Some(false),
+        CompletionTarget::Body(target) => normal_completion_possible(program, target),
+        CompletionTarget::Unknown => Some(true),
+    }
+}
+
+/// Completion is declaration-owned, not inferred from a reach ceiling or a
+/// selected provider. Unknown declarations remain potentially returning.
+enum CompletionTarget<'program> {
+    External,
+    Body(&'program typed_trees::state::State),
+    Unknown,
+}
+
+fn completion_target(
+    program: &dyn crate::CheckingInput,
+    target: SymbolHandle,
+) -> CompletionTarget<'_> {
+    if matches!(
+        crate::boundary_requirement_completion(program, target),
+        semantic_vocabulary::BoundaryCompletion::External(_)
+    ) {
+        CompletionTarget::External
+    } else {
+        call_target_state(program, target).map_or(CompletionTarget::Unknown, CompletionTarget::Body)
+    }
 }
 
 fn expression_completion_target(
     program: &dyn crate::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
-) -> Option<&typed_trees::state::State> {
+) -> CompletionTarget<'_> {
     let typed_trees::expression::ExpressionNode::Call(call) =
         program.expression_table.expression(expression)
     else {
-        return None;
+        return CompletionTarget::Unknown;
     };
-    call_target_state(program, call.target_symbol)
+    completion_target(program, call.target_symbol)
 }
 
 pub fn find_state_in_machine(

@@ -320,6 +320,11 @@ impl StateGraphEmission<'_, '_> {
             sequence.require_closed()?;
         }
         let terminator = match completion {
+            // A suspended invocation has no normal arrival or source-owner
+            // death. Its ordinary entry retains the caller's live remainder.
+            PreparedArmCompletion::Edge(terminator @ Terminator::InvokeNoNormal { .. }) => {
+                terminator
+            }
             PreparedArmCompletion::Edge(
                 terminator @ (Terminator::Crash { .. } | Terminator::ExternalCompletion { .. }),
             ) => terminator,
