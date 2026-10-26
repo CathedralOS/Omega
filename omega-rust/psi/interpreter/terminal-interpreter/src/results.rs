@@ -123,8 +123,22 @@ pub(crate) fn meter_status(
 pub enum TerminalExecutionStatus {
     Complete(TerminalExecutionResult),
     SponsorExhausted(FuelExhaustion),
+    /// The checked call retains its operands and loans; no completion or
+    /// writeback has occurred. Readiness is independent of scheduling fuel.
+    AwaitingEffect(TerminalEffectWait),
     Crashed(TerminalCrash),
     ExternalCompletion(TerminalExternalCompletion),
+}
+
+/// Exact code-local wait site. The caller retains the owning instance; a site
+/// is an observation, not authority to install a provider or complete a call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalEffectWait {
+    pub program: terminal_psi::TerminalPsiIdentity,
+    pub machine: MachineId,
+    pub block: BlockId,
+    pub operation: OperationId,
+    pub boundary: BoundaryMachineId,
 }
 
 /// Domain-ending abandonment, not a normal value or discharge receipt.

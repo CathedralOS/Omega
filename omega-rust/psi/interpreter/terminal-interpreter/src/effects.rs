@@ -75,6 +75,18 @@ pub enum TerminalEffect {
 /// Injected semantic effect sink used by the oracle and tests. Native provider
 /// selection and hardware realization remain outside the Psi interpreter.
 pub trait TerminalEffectHandler {
+    /// Poll readiness without invoking the operation or changing lent storage.
+    /// A false answer parks only a checked suspending call. The interpreter
+    /// retains its prepared arguments and polls this same invocation on resume;
+    /// `handle_effect_with_buffers` runs exactly once after readiness succeeds.
+    /// Scheduling work here must be idempotent for this retained effect.
+    fn poll_effect_readiness(
+        &mut self,
+        _effect: &TerminalEffect,
+    ) -> Result<bool, TerminalEffectRejection> {
+        Ok(true)
+    }
+
     /// Whether borrowed storage must lend its actual original homes to this
     /// host binding. Ordinary semantic buffer adapters keep staged restoration.
     fn requires_original_storage(&self, _boundary: BoundaryMachineId) -> bool {
