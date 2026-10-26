@@ -57,10 +57,22 @@ impl<'program> Evaluator<'program> {
         arguments: &[ExpressionHandle],
         frame: &mut Frame,
     ) -> EvalResult<Value> {
+        self.run_selected_realization(dispatch.realization_state, arguments, frame)
+    }
+
+    /// Run one selected realization entry state. Static conformance dispatch
+    /// and receiver-carried adapter rows both settle to this same execution:
+    /// the exact provider body the checker recorded on the call.
+    pub(in crate::interpreter::evaluator) fn run_selected_realization(
+        &mut self,
+        realization_state: SymbolHandle,
+        arguments: &[ExpressionHandle],
+        frame: &mut Frame,
+    ) -> EvalResult<Value> {
         let (machine, state) = self
-            .resolve_entry_state_symbol(dispatch.realization_state)
+            .resolve_entry_state_symbol(realization_state)
             .ok_or_else(|| {
-                Halt::Trap("selected boundary adapter lost its exact entry state".into())
+                Halt::Trap("selected realization lost its exact entry state".into())
             })?;
         // Providers receive exactly the requirement's authored arguments.
         // Checking rejects any satisfier parameter its requirement lacks, so

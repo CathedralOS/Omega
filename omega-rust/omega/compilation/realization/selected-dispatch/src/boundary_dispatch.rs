@@ -462,7 +462,7 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
         .map_err(|error| vec![error])?;
     }
     let mut dispatch = Vec::new();
-    for receiver in boundary_fields {
+    for receiver in &boundary_fields {
         for adapter in adapters
             .iter()
             .filter(|adapter| receiver.supplies_adapter(typed, adapter))
@@ -474,6 +474,34 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
                 family_tuple: adapter.family_tuple.clone(),
             });
         }
+    }
+    // A `reaches`-bound call names the requirement's declaring trait
+    // application as its receiver — `Service`, or its applied form such as
+    // `Parent<u64>` — and carries no boundary field, so field-keyed emission
+    // above can never claim its selected adapter. The settled row is still
+    // the exact realization record; emit it keyed by that same declaring
+    // trait, with the requirement normalized to its family template exactly
+    // as call-side lookup reduces a closed application before comparing.
+    for adapter in adapters.iter().filter(|adapter| {
+        !boundary_fields
+            .iter()
+            .any(|receiver| receiver.supplies_adapter(typed, adapter))
+    }) {
+        let application = typed.closed_requirement_application(adapter.requirement_symbol);
+        let receiver = application
+            .map(|application| application.declaring_trait)
+            .filter(|trait_symbol| trait_symbol.is_valid())
+            .unwrap_or(adapter.receiver_trait);
+        let requirement = application
+            .map_or(adapter.requirement_symbol, |application| {
+                application.template
+            });
+        dispatch.push(checked_trees::CheckedBoundaryAdapterDispatch {
+            receiver,
+            requirement,
+            realization_state: adapter.symbol,
+            family_tuple: adapter.family_tuple.clone(),
+        });
     }
     Ok(dispatch)
 }
