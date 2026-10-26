@@ -14,7 +14,7 @@ use selected_instructions::{
     PressureRematerializationIdentity, RedundantCompareIdentity, RedundantExtensionIdentity,
     SelectedInstructionPlanIdentity, StoredLoadForwardingIdentity,
 };
-use target::{Architecture, NativeTarget, ObjectFormat};
+use target::{NativeTarget, TargetWireIdentityError};
 
 use crate::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RegisterHomeIdentity};
 
@@ -322,54 +322,23 @@ fn statistics_values(statistics: PostAllocationStatistics) -> [u64; 5] {
 }
 
 fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
-    bytes.push(match target.architecture {
-        Architecture::Aarch64 => 1,
-        Architecture::X86_64 => 2,
-    });
-    bytes.push(match target.object_format {
-        ObjectFormat::Elf => 1,
-        ObjectFormat::MachO => 2,
-        ObjectFormat::Coff => 3,
-    });
-    bytes.extend_from_slice(
-        &u64::try_from(target.pointer_size)
-            .expect("target pointer size fits u64")
-            .to_le_bytes(),
-    );
-    bytes.extend_from_slice(
-        &u64::try_from(target.pointer_alignment)
-            .expect("target pointer alignment fits u64")
-            .to_le_bytes(),
-    );
+    bytes.extend_from_slice(&target.wire_identity_bytes());
 }
 
 fn decode_target(
     cursor: &mut Cursor<'_>,
 ) -> Result<NativeTarget, PostAllocationOptimizationManifestDecodeError> {
-    let architecture = match cursor.byte()? {
-        1 => Architecture::Aarch64,
-        2 => Architecture::X86_64,
-        tag => {
-            return Err(PostAllocationOptimizationManifestDecodeError::UnknownArchitecture(tag));
+    let encoded = cursor.array::<18>()?;
+    NativeTarget::from_wire_identity_bytes(&encoded).map_err(|error| match error {
+        TargetWireIdentityError::UnknownArchitecture(tag) => {
+            PostAllocationOptimizationManifestDecodeError::UnknownArchitecture(tag)
         }
-    };
-    let object_format = match cursor.byte()? {
-        1 => ObjectFormat::Elf,
-        2 => ObjectFormat::MachO,
-        3 => ObjectFormat::Coff,
-        tag => {
-            return Err(PostAllocationOptimizationManifestDecodeError::UnknownObjectFormat(tag));
+        TargetWireIdentityError::UnknownObjectFormat(tag) => {
+            PostAllocationOptimizationManifestDecodeError::UnknownObjectFormat(tag)
         }
-    };
-    let pointer_size = usize::try_from(cursor.u64()?)
-        .map_err(|_| PostAllocationOptimizationManifestDecodeError::TargetLayoutOverflow)?;
-    let pointer_alignment = usize::try_from(cursor.u64()?)
-        .map_err(|_| PostAllocationOptimizationManifestDecodeError::TargetLayoutOverflow)?;
-    Ok(NativeTarget {
-        architecture,
-        object_format,
-        pointer_size,
-        pointer_alignment,
+        TargetWireIdentityError::LayoutOverflow => {
+            PostAllocationOptimizationManifestDecodeError::TargetLayoutOverflow
+        }
     })
 }
 
