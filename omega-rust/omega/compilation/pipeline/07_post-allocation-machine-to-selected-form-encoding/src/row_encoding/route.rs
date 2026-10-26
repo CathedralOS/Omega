@@ -145,9 +145,7 @@ pub(super) fn route_of(kind: SelectedInstructionKind) -> RowRoute {
             operation: AddressOperationFamily::HostedWriteByteI32,
             channel: HostedChannel::WriteByteI32,
         },
-        Kind::CallScalar { .. } | Kind::CallUnit { .. } | Kind::CallAggregate { .. } => {
-            RowRoute::InternalCallTemplate
-        }
+        selected_instructions::selected_call_pattern!(..) => RowRoute::InternalCallTemplate,
         Kind::NormalizedForeignCall { .. } => RowRoute::NormalizedForeignCallTemplate,
         Kind::ImageAddress { .. } => RowRoute::ByteLiteralAddress,
         Kind::ConditionalBranchNonZero
