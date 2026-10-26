@@ -115,27 +115,19 @@ impl StagedOptimizedActiveResidentRematerialization {
             .selected_stage()
             .optimized_target_owner()
     }
-    pub const fn rematerialization(&self) -> &ValidatedPressureRematerialization {
-        &self.rematerialization
-    }
-    pub const fn liveness(&self) -> &ValidatedLiveness {
-        &self.liveness
-    }
-    pub const fn ranges(&self) -> &ValidatedLiveRanges {
-        &self.ranges
-    }
-    pub const fn legality(&self) -> &ValidatedAllocationLegality {
-        &self.legality
-    }
-    pub const fn homes(&self) -> &ValidatedRegisterHomes {
-        &self.homes
-    }
+    receipt_accessor_rows!(borrow StagedOptimizedActiveResidentRematerialization {
+        rematerialization: &ValidatedPressureRematerialization,
+        liveness: &ValidatedLiveness,
+        ranges: &ValidatedLiveRanges,
+        legality: &ValidatedAllocationLegality,
+        homes: &ValidatedRegisterHomes,
+    });
     pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
         &self.manifest
     }
-    pub const fn custody(&self) -> StagedOptimizedActiveResidentRematerializationCustodyReceipt {
-        self.custody
-    }
+    receipt_accessor_rows!(ref StagedOptimizedActiveResidentRematerialization {
+        custody: StagedOptimizedActiveResidentRematerializationCustodyReceipt,
+    });
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -165,74 +157,32 @@ pub struct StagedOptimizedActiveResidentRematerializationCustodyReceipt {
 }
 
 impl StagedOptimizedActiveResidentRematerializationCustodyReceipt {
-    pub const fn source(self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
-        self.source
-    }
-    pub const fn choices(self) -> SpillChoiceIdentity {
-        self.choices
-    }
-    pub const fn choice_policy(self) -> SpillChoicePolicy {
-        self.choice_policy
-    }
-    pub const fn choice_usage(self) -> optimization_core::OptimizationWorkUsage {
-        self.choice_usage
-    }
-    pub const fn classifications(self) -> RecoveryClassificationIdentity {
-        self.classifications
-    }
-    pub const fn classification_policy(self) -> RecoveryClassificationPolicy {
-        self.classification_policy
-    }
-    pub const fn classification_usage(self) -> optimization_core::OptimizationWorkUsage {
-        self.classification_usage
-    }
-    pub const fn rematerialization(self) -> PressureRematerializationIdentity {
-        self.rematerialization
-    }
-    pub const fn rematerialization_policy(self) -> PressureRematerializationPolicy {
-        self.rematerialization_policy
-    }
-    pub const fn rematerialization_usage(self) -> optimization_core::OptimizationWorkUsage {
-        self.rematerialization_usage
-    }
-    pub const fn budget(self) -> OptimizationWorkBudget {
-        self.budget
-    }
-    pub const fn transformed_selected(
-        self,
-    ) -> selected_instructions::SelectedInstructionPlanIdentity {
-        self.transformed_selected
-    }
-    pub const fn liveness(self) -> LivenessIdentity {
-        self.liveness
-    }
-    pub const fn ranges(self) -> LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn legality(self) -> AllocationLegalityIdentity {
-        self.legality
-    }
-    pub const fn homes(self) -> crate::RegisterHomeIdentity {
-        self.homes
-    }
-    pub const fn manifest(self) -> optimization_core::PostAllocationOptimizationManifestIdentity {
-        self.manifest
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn virtual_register_count(self) -> usize {
-        self.virtual_register_count
-    }
-    pub const fn applied_count(self) -> usize {
-        self.applied_count
-    }
-    pub const fn rewritten_use_count(self) -> usize {
-        self.rewritten_use_count
-    }
-    pub const fn assignment_count(self) -> usize {
-        self.assignment_count
-    }
+    receipt_accessor_rows!(
+        StagedOptimizedActiveResidentRematerializationCustodyReceipt {
+            source: StagedOptimizedAllocationLegalityCustodyReceipt,
+            choices: SpillChoiceIdentity,
+            choice_policy: SpillChoicePolicy,
+            choice_usage: optimization_core::OptimizationWorkUsage,
+            classifications: RecoveryClassificationIdentity,
+            classification_policy: RecoveryClassificationPolicy,
+            classification_usage: optimization_core::OptimizationWorkUsage,
+            rematerialization: PressureRematerializationIdentity,
+            rematerialization_policy: PressureRematerializationPolicy,
+            rematerialization_usage: optimization_core::OptimizationWorkUsage,
+            budget: OptimizationWorkBudget,
+            transformed_selected: selected_instructions::SelectedInstructionPlanIdentity,
+            liveness: LivenessIdentity,
+            ranges: LiveRangeIdentity,
+            legality: AllocationLegalityIdentity,
+            homes: crate::RegisterHomeIdentity,
+            manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
+            function_count: usize,
+            virtual_register_count: usize,
+            applied_count: usize,
+            rewritten_use_count: usize,
+            assignment_count: usize,
+        }
+    );
 }
 
 /// The recorded sweep once its applied rewrite and rebuilt facts are proven
@@ -253,26 +203,16 @@ pub(crate) struct StagedOptimizedActiveResidentRematerializationPressure {
 }
 
 impl StagedOptimizedActiveResidentRematerializationPressure {
-    pub const fn source(&self) -> &StagedOptimizedAllocationLegality {
-        &self.source
-    }
-    pub const fn rematerialization(&self) -> &ValidatedPressureRematerialization {
-        &self.rematerialization
-    }
-    pub const fn liveness(&self) -> &ValidatedLiveness {
-        &self.liveness
-    }
-    pub const fn ranges(&self) -> &ValidatedLiveRanges {
-        &self.ranges
-    }
-    pub const fn legality(&self) -> &ValidatedAllocationLegality {
-        &self.legality
-    }
-    pub const fn custody(
-        &self,
-    ) -> StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
-        self.custody
-    }
+    receipt_accessor_rows!(borrow StagedOptimizedActiveResidentRematerializationPressure {
+        source: &StagedOptimizedAllocationLegality,
+        rematerialization: &ValidatedPressureRematerialization,
+        liveness: &ValidatedLiveness,
+        ranges: &ValidatedLiveRanges,
+        legality: &ValidatedAllocationLegality,
+    });
+    receipt_accessor_rows!(ref StagedOptimizedActiveResidentRematerializationPressure {
+        custody: StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt,
+    });
 }
 
 /// Custody receipt for the proven rematerialization prefix: every identity
@@ -302,12 +242,12 @@ pub(crate) struct StagedOptimizedActiveResidentRematerializationPressureCustodyR
 }
 
 impl StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
-    pub const fn source(self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
-        self.source
-    }
-    pub const fn rematerialization(self) -> PressureRematerializationIdentity {
-        self.rematerialization
-    }
+    receipt_accessor_rows!(
+        StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
+            source: StagedOptimizedAllocationLegalityCustodyReceipt,
+            rematerialization: PressureRematerializationIdentity,
+        }
+    );
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

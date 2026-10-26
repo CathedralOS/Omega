@@ -62,48 +62,22 @@ pub struct AllocatedCalleeSavedRequirementReceipt {
 }
 
 impl AllocatedCalleeSavedRequirementReceipt {
-    pub const fn identity(self) -> AllocatedCalleeSavedRequirementIdentity {
-        self.identity
-    }
-    pub const fn selected(self) -> SelectedInstructionPlanIdentity {
-        self.selected
-    }
-    pub const fn homes(self) -> RegisterHomeIdentity {
-        self.homes
-    }
-    pub const fn post_allocation_manifest(self) -> PostAllocationOptimizationManifestIdentity {
-        self.post_allocation_manifest
-    }
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-    pub const fn physical_register_model(self) -> PhysicalRegisterModelIdentity {
-        self.physical_register_model
-    }
-    pub const fn target(self) -> NativeTarget {
-        self.target
-    }
-    pub const fn abi(self) -> FrameAbiPreservationConvention {
-        self.abi
-    }
-    pub const fn policy(self) -> AllocatedCalleeSavedRequirementPolicy {
-        self.policy
-    }
-    pub const fn usage(self) -> OptimizationWorkUsage {
-        self.usage
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn modified_function_count(self) -> usize {
-        self.modified_function_count
-    }
-    pub const fn modified_unit_count(self) -> usize {
-        self.modified_unit_count
-    }
-    pub const fn witness_count(self) -> usize {
-        self.witness_count
-    }
+    receipt_accessor_rows!(AllocatedCalleeSavedRequirementReceipt {
+        identity: AllocatedCalleeSavedRequirementIdentity,
+        selected: SelectedInstructionPlanIdentity,
+        homes: RegisterHomeIdentity,
+        post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
+        register_environment: TargetRegisterEnvironmentIdentity,
+        physical_register_model: PhysicalRegisterModelIdentity,
+        target: NativeTarget,
+        abi: FrameAbiPreservationConvention,
+        policy: AllocatedCalleeSavedRequirementPolicy,
+        usage: OptimizationWorkUsage,
+        function_count: usize,
+        modified_function_count: usize,
+        modified_unit_count: usize,
+        witness_count: usize,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -113,10 +87,10 @@ pub struct ValidatedAllocatedCalleeSavedRequirements {
 }
 
 impl ValidatedAllocatedCalleeSavedRequirements {
-    pub const fn plan(&self) -> &AllocatedCalleeSavedRequirementPlan {
-        &self.plan
-    }
-    pub const fn receipt(&self) -> AllocatedCalleeSavedRequirementReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(borrow ValidatedAllocatedCalleeSavedRequirements {
+        plan: &AllocatedCalleeSavedRequirementPlan,
+    });
+    receipt_accessor_rows!(ref ValidatedAllocatedCalleeSavedRequirements {
+        receipt: AllocatedCalleeSavedRequirementReceipt,
+    });
 }
