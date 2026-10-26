@@ -26,13 +26,21 @@ pub fn normal_completion_possible(
         {
             return Some(true);
         }
-        let statements = typed_trees::statement::reachable_state_statements(
-            program.statement_table.statements(state.statement_nodes),
-        );
+        let statements = program.statement_table.statements(state.statement_nodes);
+        // Lexical order is not execution order when checked assembly transfers
+        // across instruction windows. Reuse the admitted control owner; an
+        // unmodeled/cyclic order cannot prove absence of normal completion.
+        let Ok(Some(order)) = program
+            .statement_table
+            .finite_execution_order(state.statement_nodes)
+        else {
+            return Some(true);
+        };
         let mut all_paths_depart = false;
-        for (position, statement) in statements.iter().enumerate() {
+        for (position, index) in order.iter().copied().enumerate() {
+            let statement = statements.get(index)?;
             match statement {
-                StatementNode::Expression(expression) if position + 1 == statements.len() => {
+                StatementNode::Expression(expression) if position + 1 == order.len() => {
                     if let Some(destination) = expression_completion_target(program, *expression) {
                         pending.push(destination.symbol);
                         all_paths_depart = true;
@@ -40,7 +48,7 @@ pub fn normal_completion_possible(
                         return Some(true);
                     }
                 }
-                StatementNode::Call(call) if position + 1 == statements.len() => {
+                StatementNode::Call(call) if position + 1 == order.len() => {
                     if let Some(destination) = call_target_state(program, call.target_symbol) {
                         pending.push(destination.symbol);
                         all_paths_depart = true;
