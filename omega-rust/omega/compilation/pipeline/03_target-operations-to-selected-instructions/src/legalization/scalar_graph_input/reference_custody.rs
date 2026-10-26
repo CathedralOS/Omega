@@ -1108,20 +1108,21 @@ fn backing_storage_access_conflicts(
             else {
                 return true;
             };
-            let Some(path) = origin.exact_path() else {
-                return true;
-            };
             // A within-region origin may address any byte under its storage
             // root. Widen to that whole root, retaining its exact identity:
             // uncertainty inside one allocation does not alias every other
-            // activation-local allocation. Unknown bases still refuse above.
+            // activation-local allocation. It intentionally has no exact path
+            // usable for a descriptor load. Unknown bases still refuse above.
             let path = if origin.extent == semantic_vocabulary::ReferenceOriginExtent::Projected {
-                path.as_slice()
+                let Some(path) = origin.exact_path() else {
+                    return true;
+                };
+                path
             } else {
-                &[]
+                Vec::new()
             };
             custody.borrowed_sources.contains_key(&place)
-                || backing_intersects_storage(function, custody, types, backing, place, path)
+                || backing_intersects_storage(function, custody, types, backing, place, &path)
         });
     }
     backing_intersects_storage(function, custody, types, backing, place, path)
