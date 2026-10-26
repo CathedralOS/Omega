@@ -1303,6 +1303,10 @@ fail/borrows/generic_result_keeps_lifetime_source rejected 2077ms expected @a92f
 	machine `invalid` returns a view borrowing input `second`, which is not permitted by the declared result lifetime relation
 fail/borrows/generic_result_retains_lifetime_candidates rejected 1894ms expected @a92f16431042
 	statement 3 mutates `second` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/borrows/guard_observation_not_retired_during_guard rejected 2173ms expected @77280c85fdb2
+	state `mutate` receives `cell` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 borrows `cell` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 mutates `cell.value` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrows/guard_subject_alias_held_through_call rejected 1895ms expected @a92f16431042
 	state `clear_and_read` receives `frames` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
 	state `clear_and_read` receives `frames` while local borrow `saved` is still active
@@ -5409,34 +5413,34 @@ fail/facts/case_payload_layout_geometry_unproved_parameter rejected 2834ms expec
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]
 fail/facts/case_payload_layout_geometry_unproved_target_body rejected 2343ms expected @a92f16431042
 	machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]
-fail/facts/case_payload_stored_loan_through_call_result_rejected rejected 2403ms expected @a92f16431042
+fail/facts/case_payload_stored_loan_through_call_result_rejected rejected 2195ms expected @77280c85fdb2
 	state `consume` receives `backing` as both mutable and read-only
-fail/facts/case_payload_stored_loan_through_const_name_rejected rejected 2463ms expected @a92f16431042
-	state `consume` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+fail/facts/case_payload_stored_loan_through_const_name_rejected rejected 2172ms expected @77280c85fdb2
 	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
-fail/facts/case_payload_stored_loan_through_field_rejected rejected 2465ms expected @a92f16431042
-	state `consume` receives `backing` while local borrow `envelope` is still active (borrowed at statement 2; its last use is at statement 3)
+	statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+fail/facts/case_payload_stored_loan_through_field_rejected rejected 2259ms expected @77280c85fdb2
 	state `store_code` receives `backing` while local borrow `envelope` is still active (borrowed at statement 2; its last use is at statement 3)
-fail/facts/case_payload_stored_loan_through_local_rejected rejected 2444ms expected @a92f16431042
-	state `consume` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+	statement 3 borrows `backing` while local borrow `envelope` is still active (borrowed at statement 2; its last use is at statement 3)
+fail/facts/case_payload_stored_loan_through_local_rejected rejected 2174ms expected @77280c85fdb2
 	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
-fail/facts/case_payload_stored_loan_through_match_join_rejected rejected 2464ms expected @a92f16431042
-	state `consume` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
-	state `consume` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+	statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+fail/facts/case_payload_stored_loan_through_match_join_rejected rejected 2152ms expected @77280c85fdb2
 	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
 	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
-fail/facts/case_payload_stored_loan_through_other_machine_rejected rejected 2464ms expected @a92f16431042
-	state `consume` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+	statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+	statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+fail/facts/case_payload_stored_loan_through_other_machine_rejected rejected 2217ms expected @77280c85fdb2
 	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
-fail/facts/case_payload_stored_loan_through_other_state_rejected rejected 2462ms expected @a92f16431042
-	state `consume` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+	statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+fail/facts/case_payload_stored_loan_through_other_state_rejected rejected 2176ms expected @77280c85fdb2
 	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
-fail/facts/case_payload_stored_loan_through_parameter_rejected rejected 2414ms expected @a92f16431042
-	state `through_parameter` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+	statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+fail/facts/case_payload_stored_loan_through_parameter_rejected rejected 2165ms expected @77280c85fdb2
 	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
-fail/facts/case_payload_stored_loan_through_target_body_rejected rejected 2252ms expected @a92f16431042
-	state `consume` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+	statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+fail/facts/case_payload_stored_loan_through_target_body_rejected rejected 2195ms expected @77280c85fdb2
 	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+	statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
 fail/facts/case_payload_transport_through_call_result_rejected rejected 2237ms expected @a92f16431042
 	cannot prove ensures contract for exit from eval at statement 3: result <= 60
 fail/facts/case_payload_transport_through_const_name_rejected rejected 2211ms expected @a92f16431042
