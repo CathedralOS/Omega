@@ -248,7 +248,6 @@ pub(super) fn lower_call(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    super::references::commit_argument_moves(live, &moved);
     let result = land_result(
         contract,
         &call,
@@ -259,6 +258,7 @@ pub(super) fn lower_call(
         types,
         live,
     )?;
+    super::references::commit_argument_moves(live, &moved);
     super::references::commit_stored_effects(live, stored);
     operations.push(TargetUnitOperation::Call {
         origin: target_operations::NativeCallOrigin::Authored,
@@ -293,7 +293,7 @@ pub(super) fn lower_call(
 /// Land the result through the tail of its kind. Unit defines nothing. A
 /// scalar result retains its home among the dominating scalar sources. A
 /// structural result establishes its declared reference leaves against the
-/// committed argument moves and its durable value or reference-payload home.
+/// pre-call argument metadata and its durable value or reference-payload home.
 #[allow(clippy::too_many_arguments)]
 fn land_result(
     contract: CallContract,
