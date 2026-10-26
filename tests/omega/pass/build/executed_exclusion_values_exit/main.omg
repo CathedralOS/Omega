@@ -1,0 +1,5 @@
+// Expected exit: 0
+// Build selects only the normal entry; unused code may retain a Trap.
+machine normal() {}
+machine trapping() crashes Trap { crash Trap; }
+boundary trait UnusedService { machine operation() reaches; }

@@ -362,8 +362,8 @@ defines the complete product bar.
     normal-return oracles for `calls/runtime_guarded_reference_return_crash` and
     `pass/calls/runtime_guarded_reference_return_before_crash_exit` on Linux
     ARM64, macOS ARM64, and Windows x86-64.
-  - Complete remaining runtime/case aggregate construction, replacement, and
-    inner-loan capture or escape through opaque incoming referents.
+  - Complete remaining runtime/case aggregate construction and replacement
+    through opaque incoming referents.
   - Complete remaining case/generic/reference saved-observation and
     single-evaluation pattern destructuring compositions.
   Acceptance: a composed caller tolerates renamed/reordered states and inserted
@@ -896,23 +896,20 @@ narrows realization only.
   `omega-rust/psi/compilation/driver/`,
   `omega-rust/omega/compilation/native-production/`, and workspace architecture
   gates (`tools/check_native_boundary.py` and `cargo metadata` guards).
-  - Cut over production CLI discovery to consume retained Builds across review
-    and target occurrences rather than the static graph.
-  - Cut over production admission scheduling to issue `BuildExecutionInputs`
-    before Build without dropping them when converting occurrence requests to
-    post-return Product work, and unify ordinary one-shot compiler execution
-    loops with the shared session.
   - Implement pre-execution dependency input assignment and shared-node conflict
     checks at dependency activation admission without inheriting the root's
     slots (keeping required-output path byte results refused).
-  - Complete accepted-lock round-trip qualification, named workspace and
-    Git-relative Path acquisition, provider readiness/resumption, and demanded
+  - Complete accepted-lock round-trip qualification, provider readiness/resumption,
+    and demanded
     Product-description queries while replacing static Build projection.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in
     `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega
     `00–09` and emission once per requested target without
-    checked-tree/lowered-Psi sidecars.
+    checked-tree/lowered-Psi sidecars. The default `package_batch_sources`
+    measurement currently observes three source completions for two distinct
+    source cohorts; restore its existing two-completion oracle while preserving
+    each occurrence's Build receipts and exact Product admission.
   - Enforce via `cargo metadata` and source guards that Psi never depends on
     Omega, Omega pipeline/realization never depends on source/typed/checked Psi
     or interpreters, numbered stages are called only inside the Psi/Omega
@@ -1282,7 +1279,7 @@ decision (`SourceChecked`) into stage 05 and stage 00.
 
 - **BORROW-PROOF-CONVERGENCE.** Complete borrow-disjointness establishment in
   stage 04 `checks/borrows/` under [loans](wiki/spec/terminal-psi/loans.md)
-  across remaining callee/domain predicates, runtime projections, and
+  across remaining structured callee/domain predicates, runtime projections, and
   same-statement/theorem establishment beyond
   `samples/cli/facts/computed_subslice_extent`, using exact call substitution
   and the shared contract/range readers.
@@ -1327,11 +1324,7 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     `omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs::opaque_representation_movement`
     to provider call-frame transport and backend emission for remaining
     qualified and view-backed opaque inputs with exact composition-edge drift
-    rejection, and restore the Build selection path across the deferred Product
-    source/dependency join for `select_representation` Data operands in
-    `samples/cli/facts/opaque_closed_carrier_exchange` (including
-    [independent_copy](samples/cli/facts/opaque_closed_carrier_exchange/independent_copy/README.md)
-    and [independent_linear](samples/cli/facts/opaque_closed_carrier_exchange/independent_linear/README.md)).
+    rejection.
   - **FOREIGN-RETAINED-ARGUMENT-BACKING:** complete installed-provider custody
     and native marshaling for protocol-owned backing, permitted snapshots, and
     remaining resident/view codecs (arrays, tagged/dynamic carriers,
@@ -1394,7 +1387,8 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   across the full admitted entry/call closure, native artifact custody,
   installation, and replacement (`Psi 04–07` and `Omega 00–09`). Reuse
   `omega-rust/omega/compilation/backend/plans/provider-evidence/src/provider_evidence/executable_scopes/behavior_exclusions.rs`,
-  `omega-rust/omega/compilation/realization/trust-model/src/behavior_exclusions/selections.rs`,
+  `omega-rust/omega/compilation/driver/src/checked/checking/product_selections/exclusions.rs`,
+  `omega-rust/omega/compilation/driver/src/terminal/behavior_exclusions.rs`,
   `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal.rs`,
   `omega-rust/omega/compilation/native-production/src/realization.rs`,
   and `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/native_artifact.rs`.
@@ -1620,8 +1614,10 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     and `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/evidence.rs`
     to static callable/evidence arguments, generic dispatch, calls in abstract
     signatures, domain/default predicates, receiver/projection terms, and
-    citation/induction guarantees, and preserve callable selection through
-    constant evaluation (`const DIRECT: bool = apply<witness>(true)`).
+    citation/induction guarantees. The `abstract_signature_call` constant
+    production now preserves selected-call custody through the nine-place row,
+    statement and terminal calls, and calls inside the supplied body; broader
+    formation acceptance remains open.
   - Extend `OpenIndexOperationSelection` in
     `omega-rust/psi/compilation/checking/src/value_custody/type_references/open_index_expressions.rs`
     with distributivity and zero/one law evidence surviving

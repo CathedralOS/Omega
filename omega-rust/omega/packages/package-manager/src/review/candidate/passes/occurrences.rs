@@ -5,8 +5,8 @@
 //! own target, generated sources, bindings and review. The same source-roster
 //! contract drives production, lock comparison and independent reconstruction.
 
-use crate::build_session::{PackageBuildSession, dependency_first_package_order};
-use compilation_products::{CheckedCompileRequest, CompileFailure};
+use crate::build_session::dependency_first_package_order;
+use compilation_products::CompileFailure;
 
 use super::super::semantic_bindings::projection_error;
 use super::super::{
@@ -169,7 +169,6 @@ struct ReviewPackage<'pass> {
 /// a compiler into package-owned resource accounting.
 pub type PackageReviewExecutor<'execution> = dyn for<'pass> FnMut(
         PackageReviewPass<'pass>,
-        &mut PackageBuildSession,
         &mut PackageSourceBindings,
     ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError>
     + 'execution;
@@ -372,7 +371,6 @@ impl<'pass> PackageReviewRound<'pass> {
     pub fn admit_occurrence<'occurrence>(
         &mut self,
         occurrence: PackageReviewOccurrence<'occurrence>,
-        session: &mut PackageBuildSession,
     ) -> Result<Option<PackageReviewWork<'occurrence>>, CompileResolvedPackageReviewsError>
     where
         'pass: 'occurrence,
@@ -381,22 +379,16 @@ impl<'pass> PackageReviewRound<'pass> {
         if self.carry_prior_compile(&occurrence, &inputs, &assembled)? {
             return Ok(None);
         }
-        let request = CheckedCompileRequest {
-            package_inputs: Some(inputs),
-            build: package_compilation::BuildExecutionInputs {
+        let request = PackageReviewRequest {
+            inputs,
+            execution: package_compilation::build_execution::BuildExecutionContract {
                 profile: self.execution_profile,
-                filesystem_sponsor: Some(session.filesystem_sponsor().clone()),
-                evaluation_sponsor: Some(session.evaluation_sponsor().clone()),
                 snapshot: Some(assembled.build_snapshot.clone()),
-                ..Default::default()
             },
-            collect_timings: self.source_bindings.collect_timings,
             permit_unsettled_fused_service_fields: self.discovery
                 == TargetEntryDiscovery::Dependencies,
-            ..CheckedCompileRequest::new(
-                &assembled.entry,
-                Some(occurrence.checked_target.target_name()),
-            )
+            entry: assembled.entry.clone(),
+            target: occurrence.checked_target,
         };
         Ok(Some(PackageReviewWork {
             request,
@@ -1050,9 +1042,19 @@ impl<'pass> PackageReviewRound<'pass> {
 /// Whole-occurrence work admitted by package policy, with its completion
 /// context retained alongside the compiler request.
 pub struct PackageReviewWork<'occurrence> {
-    pub request: CheckedCompileRequest,
+    pub request: PackageReviewRequest,
     pub completion: PackageReviewCompletion<'occurrence>,
     pub maximum_policy_canonical_bytes: usize,
+}
+
+/// An admitted Product judgment and the execution obligations it consumes.
+/// No resource grant is issued here: retained Builds must satisfy the contract.
+pub struct PackageReviewRequest {
+    pub inputs: PackageCompilationInputs,
+    pub execution: package_compilation::build_execution::BuildExecutionContract,
+    pub target: target::TargetProfile,
+    pub entry: std::path::PathBuf,
+    pub permit_unsettled_fused_service_fields: bool,
 }
 
 pub struct PackageReviewCompletion<'occurrence> {
@@ -1063,19 +1065,6 @@ pub struct PackageReviewCompletion<'occurrence> {
 }
 
 impl PackageReviewCompletion<'_> {
-    /// Reserve staging only when Build will really execute. A resumed opaque
-    /// continuation keeps its original staging and charges no second grant.
-    pub fn reserve_build_directory(
-        &self,
-        session: &mut PackageBuildSession,
-    ) -> Result<std::path::PathBuf, CompileResolvedPackageReviewsError> {
-        session.create_occurrence_directory(
-            self.occurrence.key,
-            self.occurrence.custody.resolution(),
-            self.occurrence.purpose,
-        )
-    }
-
     pub fn compilation_failure(
         &self,
         failure: CompileFailure,

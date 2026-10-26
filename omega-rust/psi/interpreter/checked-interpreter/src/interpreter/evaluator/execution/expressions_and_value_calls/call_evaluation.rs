@@ -14,7 +14,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         call: &typed_trees::expression::TableCallExpression,
         frame: &mut Frame,
     ) -> EvalResult<Value> {
-        if let Some(value) = self.try_root_binding_call(call, frame)? {
+        if let Some(value) = self.try_source_selection_call(call, frame)? {
             return Ok(value);
         }
         if call.native_code_layout.is_some() {

@@ -9,8 +9,9 @@ requires wrapper.bundle.windows[0].len == 1
     wrapper.bundle.windows[0].len == 1 && wrapper.bundle.windows[0][0] == 19
 }
 data Container<'bundle, 'storage> { wrapper: Wrapper<'bundle, 'storage>; }
+// The unchanged nested reference keeps its caller's live descriptor facts;
+// a redundant result-length postcondition is not needed for identity transport.
 machine relay<'bundle, 'storage>(container: Container<'bundle, 'storage>) -> Container<'bundle, 'storage>
-ensures result.wrapper.bundle.windows[0].len == container.wrapper.bundle.windows[0].len
 { container }
 machine main() crashes Trap {
     let mut backing: [u8; 1] = [19];

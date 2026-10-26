@@ -19,8 +19,6 @@ use crate::declarations::dependencies::read::{
 };
 use crate::declarations::{AliasName, PackageKey};
 use crate::resolution::source::PackageSourceCustody;
-pub(crate) use resolution::resolve_package_source_closure_with_indexed_limits;
-pub(crate) use resolution::resolve_package_source_closure_with_limits;
 pub(crate) use resolution::{PendingSourceResolution, SourceClosureStep, begin_source_closure};
 use std::fmt;
 

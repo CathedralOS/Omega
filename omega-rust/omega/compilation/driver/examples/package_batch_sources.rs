@@ -2,6 +2,8 @@
 //! This uses the established repository fixture acceptance, not a package audit.
 //! Its setup compiles each source under that policy: whole totals include those
 //! sessions as well as the submitted batch, rather than claiming zero-cost setup.
+//! `--component-review` measures lazy description publication from opaque review
+//! custody separately; the default batch keeps its own source-sharing oracle.
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
@@ -41,6 +43,10 @@ fn main() {
         Some("linux_x86_64"),
     )
     .expect("first source custody");
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--component-review")) {
+        measure_component_review(&first);
+        return;
+    }
     let second = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
         &root.join("tests/omega/pass/optimizer/rollback_to_no_selection_empty_entry/main.omg"),
         Some("linux_x86_64"),
@@ -172,5 +178,60 @@ fn main() {
     assert!(
         !std::ptr::eq(artifacts[0], artifacts[1]),
         "different source continuations remain distinct"
+    );
+}
+
+fn measure_component_review(first: &fixture_package_inputs::ReviewedFixtureCompilation) {
+    // A lazy review demand uses the same product sequence without acquiring,
+    // executing or checking its source again. Description publication is not
+    // a memo: two explicit demands produce the same bytes independently.
+    let mut session = CompilationSession::default();
+    let mut request = CheckedCompileRequest::new(&first.root_path, Some("linux_x86_64"));
+    request.package_inputs = first.package_inputs.clone();
+    request.build.profile = target::TargetProfile::host_if_supported();
+    request.build.snapshot = package_compilation::BuildSnapshotRequest::automatic_package_inventory(
+        request.package_inputs.as_ref(),
+    );
+    let occurrences = fixture_package_inputs::fixture_occurrences(first, request)
+        .expect("review dependency-first plan");
+    let build = omega_build::prepare_package(&mut session, occurrences)
+        .unwrap_or_else(|error| panic!("{:?}", error.failure.into_diagnostics()));
+    let review = session
+        .review_package_build(build, usize::MAX)
+        .expect("review product");
+    let before = (
+        counters::build_execution_count(),
+        counters::settled_check_totals().0,
+        counters::product_source_completion_count(),
+        counters::terminal_production_count(),
+    );
+    let first_description = review
+        .source
+        .publish_component()
+        .expect("first lazy component");
+    let second_description = review
+        .source
+        .publish_component()
+        .expect("second lazy component");
+    assert_eq!(
+        first_description, second_description,
+        "same reviewed component bytes and identity"
+    );
+    assert_eq!(
+        first_description.package(),
+        review.evidence.policy.package()
+    );
+    assert_eq!(
+        (
+            counters::build_execution_count() - before.0,
+            counters::settled_check_totals().0 - before.1,
+            counters::product_source_completion_count() - before.2,
+            counters::terminal_production_count() - before.3,
+        ),
+        (0, 0, 0, 2),
+        "lazy component requests reuse checked custody without Build/source/check replay",
+    );
+    println!(
+        "lazy_component_publications=2 equal_descriptions=true builds=0 checks=0 source_completions=0"
     );
 }

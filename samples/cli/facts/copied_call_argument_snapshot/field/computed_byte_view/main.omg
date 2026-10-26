@@ -14,7 +14,7 @@ machine retain_callback<'storage, machine Callback>(selected: View<'storage>) ->
 where machine Callback<'invocation>(operand: View<'invocation>) -> View<'invocation>
 ensures result.bytes.len == operand.bytes.len, result.sibling.len == operand.sibling.len;
 ensures result.bytes.len == selected.bytes.len, result.sibling.len == selected.sibling.len
-{ Callback(selected) }
+{ transition { _ -> Callback(selected) } }
 trait Composing {
     machine compose<'storage>(bytes: &'storage [u8], sibling: &'storage [u8]) -> View<'storage>
     ensures result.bytes.len == bytes.len, result.sibling.len == sibling.len;

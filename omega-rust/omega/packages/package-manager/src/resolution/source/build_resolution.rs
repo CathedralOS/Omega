@@ -69,6 +69,7 @@ pub struct PendingBuildSource {
 pub enum BuildSourceAcquisition {
     Execute(AcquiredBuildDependency),
     Reused(ExecutedSourceResolution),
+    Workspace(super::AcquiredWorkspaceBuild),
 }
 
 pub struct AcquiredBuildDependency {

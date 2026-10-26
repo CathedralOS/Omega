@@ -7,7 +7,9 @@
 //! remain inert until the product owner resolves and admits them.
 
 use language_semantics::declaration_selection::{
-    ExecutedRootBinding, RootBindingOperand, RootBindingRequest, RootBindingSelection,
+    BuildOperation, BuildSelectionRequest, CompositionMode, ExecutedBuildSelection,
+    ExecutedProductSelection, ExecutedRootBinding, ProductDeclarationRequest, RootBindingOperand,
+    RootBindingSelection,
 };
 use psi_compiler::{
     TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
@@ -24,18 +26,19 @@ use terminal_interpreter::{
 /// sharing explicit without granting either adapter mutable aliasing.
 pub struct TerminalBuildBindingHost<'context> {
     calls: &'context [TerminalBuildBindingCall],
+    declarations: &'context [std::sync::Arc<ProductDeclarationRequest>],
     original: TerminalStructuralValue,
     state: Mutex<BindingState>,
 }
 
 #[derive(Default)]
 struct BindingState {
-    pending: Vec<Option<RootBindingRequest>>,
-    executed: Vec<ExecutedRootBinding>,
+    pending: Vec<Option<BuildSelectionRequest>>,
+    executed: Vec<ExecutedBuildSelection>,
 }
 
 impl BindingState {
-    fn take_executed(&mut self) -> Result<Vec<ExecutedRootBinding>, String> {
+    fn take_executed(&mut self) -> Result<Vec<ExecutedBuildSelection>, String> {
         if self.pending.iter().any(Option::is_some) {
             return Err("Build binding activation ended with an uncommitted request".to_owned());
         }
@@ -52,11 +55,19 @@ impl<'context> TerminalBuildBindingHost<'context> {
         let calls = bindings
             .calls_for(artifact)
             .ok_or_else(|| "Build bindings belong to another Terminal artifact".to_owned())?;
+        let declarations = bindings.declarations_for(artifact).ok_or_else(|| {
+            "Build declaration formation belongs to another Terminal artifact".to_owned()
+        })?;
         Ok(Self {
             calls,
+            declarations,
             original,
             state: Mutex::new(BindingState::default()),
         })
+    }
+
+    pub(crate) fn declared(&self) -> &[std::sync::Arc<ProductDeclarationRequest>] {
+        self.declarations
     }
 
     pub fn adapter(
@@ -69,7 +80,7 @@ impl<'context> TerminalBuildBindingHost<'context> {
         }
     }
 
-    pub fn into_executed(self) -> Result<Vec<ExecutedRootBinding>, String> {
+    pub fn into_executed(self) -> Result<Vec<ExecutedBuildSelection>, String> {
         self.state
             .into_inner()
             .map_err(|_| "Build binding activation lock was poisoned".to_owned())?
@@ -78,7 +89,7 @@ impl<'context> TerminalBuildBindingHost<'context> {
 
     /// Retire committed selections after the sole activation has returned.
     /// The activation owner prevents a second execution with these adapters.
-    pub(crate) fn take_executed(&self) -> Result<Vec<ExecutedRootBinding>, String> {
+    pub(crate) fn take_executed(&self) -> Result<Vec<ExecutedBuildSelection>, String> {
         self.state
             .lock()
             .map_err(|_| "Build binding activation lock was poisoned".to_owned())?
@@ -131,70 +142,137 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
             .state
             .lock()
             .map_err(|_| refuse("Build binding activation lock was poisoned"))?;
-        match call.action {
-            TerminalBuildBindingOperation::Prepare => {
-                if !arguments.is_empty()
-                    || structural_arguments.as_slice() != std::slice::from_ref(&self.host.original)
-                {
-                    return Err(refuse(
-                        "root binding requires the original compiler-issued Build receiver",
-                    ));
-                }
-                let ticket = u64::try_from(state.pending.len())
-                    .map_err(|_| refuse("Build binding ticket storage is exhausted"))?;
-                state
-                    .pending
-                    .try_reserve(1)
-                    .map_err(|_| refuse("cannot retain Build binding request"))?;
-                state.pending.push(Some(call.request.clone()));
-                Ok(TerminalEffectResult::Scalar(TerminalScalarValue::Integer {
-                    scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).map_err(|error| {
-                        TerminalEffectRejection::new(format!(
-                            "invalid Build ticket scalar type: {error:?}"
-                        ))
-                    })?,
-                    value: IntegerValue::Unsigned(u128::from(ticket)),
-                }))
+        if call.action == TerminalBuildBindingOperation::Prepare {
+            if !arguments.is_empty()
+                || structural_arguments.as_slice() != std::slice::from_ref(&self.host.original)
+            {
+                return Err(refuse(
+                    "root binding requires the original compiler-issued Build receiver",
+                ));
             }
-            TerminalBuildBindingOperation::Bind => {
-                let [
-                    TerminalScalarValue::Integer {
-                        value: IntegerValue::Unsigned(ticket),
-                        ..
-                    },
-                ] = arguments.as_slice()
-                else {
-                    return Err(refuse("root binding has no activation ticket"));
-                };
-                let ticket = usize::try_from(*ticket)
-                    .map_err(|_| refuse("root binding ticket is outside its activation"))?;
-                if state.pending.get(ticket).and_then(Option::as_ref) != Some(&call.request) {
-                    return Err(refuse(
-                        "root binding ticket was consumed or belongs to another request",
-                    ));
-                }
-                let RootBindingOperand::AuthoredPath(path) = &call.request.implementation else {
+            let ticket = u64::try_from(state.pending.len())
+                .map_err(|_| refuse("Build binding ticket storage is exhausted"))?;
+            state
+                .pending
+                .try_reserve(1)
+                .map_err(|_| refuse("cannot retain Build binding request"))?;
+            state.pending.push(Some(call.request.clone()));
+            return Ok(TerminalEffectResult::Scalar(TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).map_err(|error| {
+                    TerminalEffectRejection::new(format!(
+                        "invalid Build ticket scalar type: {error:?}"
+                    ))
+                })?,
+                value: IntegerValue::Unsigned(u128::from(ticket)),
+            }));
+        }
+
+        // Every commit consumes one exact preparation. Decoding the selected
+        // value differs; authentication, retirement and publication do not.
+        let Some((
+            TerminalScalarValue::Integer {
+                value: IntegerValue::Unsigned(ticket),
+                ..
+            },
+            values,
+        )) = arguments.split_first()
+        else {
+            return Err(refuse("Build selection has no activation ticket"));
+        };
+        if !structural_arguments.is_empty() {
+            return Err(refuse("Build selection has unexpected structural operands"));
+        }
+        let ticket = usize::try_from(*ticket)
+            .map_err(|_| refuse("Build selection ticket is outside its activation"))?;
+        if state.pending.get(ticket).and_then(Option::as_ref) != Some(&call.request) {
+            return Err(refuse(
+                "Build selection ticket was consumed or belongs to another request",
+            ));
+        }
+        let selection = match (&call.request, call.action, values) {
+            (BuildSelectionRequest::Entry(binding), TerminalBuildBindingOperation::Bind, []) => {
+                let RootBindingOperand::AuthoredPath(path) = &binding.implementation else {
                     return Err(refuse(
                         "Terminal Build descriptions require an issued product-query value",
                     ));
                 };
-                if !structural_arguments.is_empty() {
-                    return Err(refuse(
-                        "authored root binding has unexpected structural operands",
-                    ));
-                }
-                state
-                    .executed
-                    .try_reserve(1)
-                    .map_err(|_| refuse("cannot retain executed Build binding"))?;
-                state.pending[ticket] = None;
-                state.executed.push(ExecutedRootBinding {
-                    source_span: call.request.source_span,
-                    slot: call.request.slot.clone(),
+                ExecutedBuildSelection::Entry(ExecutedRootBinding {
+                    source_span: binding.source_span,
+                    slot: binding.slot.clone(),
                     implementation: RootBindingSelection::AuthoredPath(path.clone()),
-                });
-                Ok(TerminalEffectResult::Unit)
+                })
             }
-        }
+            (BuildSelectionRequest::Declaration(request), action, values) => {
+                let independent = match (action, values) {
+                    (TerminalBuildBindingOperation::Select, []) => None,
+                    (
+                        TerminalBuildBindingOperation::SelectMode,
+                        [TerminalScalarValue::Boolean(value)],
+                    ) => Some(*value),
+                    _ => {
+                        return Err(refuse(
+                            "Product selection disagrees with its evaluated operands",
+                        ));
+                    }
+                };
+                let composition = match request.operation {
+                    BuildOperation::ProviderSelection => Some(if independent.unwrap_or(false) {
+                        CompositionMode::Independent
+                    } else {
+                        CompositionMode::Fused
+                    }),
+                    BuildOperation::RepresentationSelection | BuildOperation::ServiceExclusion
+                        if independent.is_none() =>
+                    {
+                        None
+                    }
+                    _ => {
+                        return Err(refuse(
+                            "Product selection operation disagrees with its runtime operands",
+                        ));
+                    }
+                };
+                ExecutedBuildSelection::Declaration(ExecutedProductSelection {
+                    request: request.clone(),
+                    selecting_machine: call.selecting_machine,
+                    composition,
+                })
+            }
+            (
+                BuildSelectionRequest::Exclusion(request),
+                TerminalBuildBindingOperation::Exclude,
+                [
+                    TerminalScalarValue::Integer {
+                        value: IntegerValue::Unsigned(code),
+                        ..
+                    },
+                ],
+            ) => {
+                let code = u64::try_from(*code)
+                    .map_err(|_| refuse("behavior exclusion code is outside its vocabulary"))?;
+                if code >= request.vocabulary.cases().len() as u64 {
+                    return Err(refuse("behavior exclusion code is outside its vocabulary"));
+                }
+                ExecutedBuildSelection::Exclusion(
+                    language_semantics::declaration_selection::ExecutedEnumExclusion {
+                        request: request.clone(),
+                        code,
+                        selecting_machine: call.selecting_machine,
+                    },
+                )
+            }
+            _ => {
+                return Err(refuse(
+                    "Build selection commit disagrees with its source-issued request",
+                ));
+            }
+        };
+        state
+            .executed
+            .try_reserve(1)
+            .map_err(|_| refuse("cannot retain executed Build selection"))?;
+        state.pending[ticket] = None;
+        state.executed.push(selection);
+        Ok(TerminalEffectResult::Unit)
     }
 }

@@ -44,6 +44,11 @@ pub(crate) fn prepare_checked_build(
     // repeat their evaluation under unrelated provider selections. Projection
     // selects work and later the executable judgment; it is not a copyback API.
     let projection = validation::execution_projection::project_build_program(typed, entry)?;
+    // Source cannot manufacture the activation. Check that formation duty
+    // before ordinary access checking can report only the counterfeit place's
+    // incidental borrow error; runtime admission still rechecks the prepared
+    // program before issuing the original value.
+    build_time_evaluation::admit_toolchain_build_activation(&projection)?;
     let mut pending = Vec::new();
     for continuation in pre_checks.iter() {
         let continuation = continuation.project(typed, &projection)?;

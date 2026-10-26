@@ -30,6 +30,10 @@ impl GitWorkspaceSelectionDeclarations {
 pub(crate) struct GitWorkspaceSelectionEvidence {
     plan: GitWorkspaceSelectionPlan,
     declarations: GitWorkspaceSelectionDeclarations,
+    executed: Option<(
+        compiler::SourceBuildDeclaration,
+        Vec<compiler::SourceBuildDeclaration>,
+    )>,
 }
 
 impl GitWorkspaceSelectionEvidence {
@@ -37,7 +41,44 @@ impl GitWorkspaceSelectionEvidence {
         plan: GitWorkspaceSelectionPlan,
         declarations: GitWorkspaceSelectionDeclarations,
     ) -> Self {
-        Self { plan, declarations }
+        Self {
+            plan,
+            declarations,
+            executed: None,
+        }
+    }
+
+    pub(crate) fn from_executed(
+        selected: &build_declarations::ProjectName,
+        root: compiler::SourceBuildDeclaration,
+        members: Vec<compiler::SourceBuildDeclaration>,
+    ) -> Result<Self, String> {
+        let plan = super::executed_selection_plan(selected, &root, &members)?;
+        let root_bytes = root
+            .source_capture()
+            .tree()
+            .read_to_string(std::path::Path::new("build.omg"))
+            .map_err(|error| error.to_string())?
+            .as_bytes()
+            .to_vec();
+        let declarations = plan
+            .members()
+            .iter()
+            .zip(&members)
+            .map(|(member, observed)| {
+                let bytes = observed
+                    .source_capture()
+                    .tree()
+                    .read_to_string(std::path::Path::new("build.omg"))
+                    .map_err(|error| error.to_string())?;
+                Ok((member.member_path().clone(), bytes.as_bytes().to_vec()))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        Ok(Self {
+            plan,
+            declarations: GitWorkspaceSelectionDeclarations::new(root_bytes, declarations),
+            executed: Some((root, members)),
+        })
     }
 
     pub const fn plan(&self) -> &GitWorkspaceSelectionPlan {
@@ -49,6 +90,21 @@ impl GitWorkspaceSelectionEvidence {
     }
 
     pub fn revalidate(&self) -> Result<(), PackageSourceSelectionEvidenceError> {
+        if let Some((root, members)) = &self.executed {
+            let replayed = super::executed_selection_plan(
+                self.plan().selected_member().package_name(),
+                root,
+                members,
+            )
+            .map_err(PackageSourceSelectionEvidenceError::Executed)?;
+            return if replayed == self.plan {
+                Ok(())
+            } else {
+                Err(PackageSourceSelectionEvidenceError::Selection(
+                    super::GitWorkspaceSelectionError::DeclarationEvidenceChanged,
+                ))
+            };
+        }
         let root_build = self.declarations().root();
         let mut total_bytes = account_declaration_bytes(0, root_build)
             .map_err(PackageSourceSelectionEvidenceError::Selection)?;

@@ -4,14 +4,16 @@
 //! The shared artifact retains every Build root independently of the requested
 //! targets. Signatures, exclusion judgments and native proposals stay per use.
 
+use super::behavior_exclusions::TerminalBehaviorExclusions;
 use crate::checked::CheckedCompilation;
 use crate::execution_settlement::SelectedProviderCustody;
+use crate::observations::PsiStageTimings;
 use crate::terminal::native_proposal;
 use artifacts::compile_timings::{CompileTimings, StageMeta};
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
+use psi_compiler::{TerminalApplicationCustody, TerminalProductionCustody};
 use std::sync::Arc;
-use terminal_production::{TerminalApplicationCustody, produce_terminal_artifact};
 
 const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
     "terminal-production",
@@ -177,7 +179,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
             .iter()
             .map(|&request_index| {
                 let view = &requests[request_index].view;
-                terminal_production::TerminalBehaviorExclusions::new(
+                TerminalBehaviorExclusions::new(
                     view.build.config.behavior_exclusions.as_slice(),
                     view.plan_facts,
                     entries[request_index]
@@ -199,9 +201,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
                         .ok()
                         .map(|entry| entry.signature_identity),
                     entry_machine: entries[request_index].as_ref().ok().map(|entry| {
-                        terminal_production::TerminalMachineSelection::Symbol(
-                            entry.selected_machine,
-                        )
+                        psi_compiler::TerminalMachineSelection::Symbol(entry.selected_machine)
                     }),
                     admission: policy
                         .as_ref()
@@ -279,24 +279,26 @@ pub(crate) fn produce_retained_terminal_artifacts(
                                     .is_some_and(|machine| machine.target_family_interface)
                         })
                         .map_or(default, |family| family.canonical);
-                    produce_terminal_artifact(
-                        terminal_production::TerminalProductionRequest {
-                            publication: terminal_codec::TerminalPublication::Portable,
-                            checked: checked_program,
-                            exact_toolchain_sources: first.view.sources.exact_toolchain_sources(),
-                            machine: terminal_production::TerminalMachineSelection::Symbol(default),
-                            roots: terminal_production::TerminalProgramRoots {
-                                machines: &machines,
-                                boundaries: &boundary_roots,
-                            },
-                            optimization_selections: first
-                                .selections
-                                .project_psi()
-                                .selections()
-                                .clone(),
+                    psi_compiler::TerminalProductionRequest {
+                        publication: terminal_codec::TerminalPublication::Portable,
+                        checked: checked_program,
+                        exact_toolchain_sources: first.view.sources.exact_toolchain_sources(),
+                        machine: psi_compiler::TerminalMachineSelection::Symbol(default),
+                        roots: psi_compiler::TerminalProgramRoots {
+                            machines: &machines,
+                            boundaries: &boundary_roots,
                         },
-                        &applications,
-                        &mut timings,
+                        optimization_selections: first
+                            .selections
+                            .project_psi()
+                            .selections()
+                            .clone(),
+                    }
+                    .produce(
+                        TerminalProductionCustody {
+                            applications: &applications,
+                        },
+                        &mut PsiStageTimings::new(&mut timings),
                     )
                     .map_err(|error| error.diagnostics())
                 })

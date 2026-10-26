@@ -184,6 +184,149 @@ pub(super) fn proves(
     proved
 }
 
+/// The same consequence judgment used by helper theorems, projected onto
+/// integer argument pairs. Start with complete carrier domains: a convenient
+/// caller bound, the callee's desired ensures, or an unproved goal never seeds
+/// the proof. The caller separately establishes availability and actual identity.
+pub(super) fn ordering_consequences(
+    program: &dyn crate::CheckingInput,
+    application: &super::PredicateApplication<'_>,
+) -> Vec<super::PredicateOrderingConsequence> {
+    ordering_relations(program, application, RelationMeaning::Necessary)
+}
+
+pub(super) fn exact_ordering(
+    program: &dyn crate::CheckingInput,
+    application: &super::PredicateApplication<'_>,
+) -> Option<super::PredicateOrderingConsequence> {
+    ordering_relations(program, application, RelationMeaning::Equivalent)
+        .into_iter()
+        .next()
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RelationMeaning {
+    Necessary,
+    Equivalent,
+}
+
+fn ordering_relations(
+    program: &dyn crate::CheckingInput,
+    application: &super::PredicateApplication<'_>,
+    meaning: RelationMeaning,
+) -> Vec<super::PredicateOrderingConsequence> {
+    let machine = &program.machines()[application.machine];
+    let Some(entry) = program.machine_states(machine).first() else {
+        return Vec::new();
+    };
+    let parameters = program.state_parameters(entry);
+    if parameters.len() != application.arguments.len()
+        || parameters
+            .iter()
+            .filter(|parameter| {
+                program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_some_and(|primitive| primitive.is_fixed_integer())
+            })
+            .count()
+            < 2
+    {
+        return Vec::new();
+    }
+    let mut proof = Implication {
+        program,
+        context: machine,
+        remaining: WORK_BUDGET,
+        next_identity: 0,
+        lemmas: Vec::new(),
+        updates: Vec::new(),
+        antecedents: Vec::new(),
+    };
+    let mut path = Path::default();
+    let Some(arguments) = parameters
+        .iter()
+        .map(|parameter| proof.parameter(parameter.type_reference, &mut path))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return Vec::new();
+    };
+    let mut consequences = Vec::new();
+    for (left_position, left) in arguments.iter().enumerate() {
+        let Value::Integer { value: left, .. } = left else {
+            continue;
+        };
+        for (right_position, right) in arguments.iter().enumerate().skip(left_position + 1) {
+            let Value::Integer { value: right, .. } = right else {
+                continue;
+            };
+            for operator in [
+                BinaryOperator::NotEqual,
+                BinaryOperator::Equal,
+                BinaryOperator::Less,
+                BinaryOperator::LessOrEqual,
+                BinaryOperator::Greater,
+                BinaryOperator::GreaterOrEqual,
+            ] {
+                let goal = Boolean::Comparison(compare(operator, left.clone(), right.clone()));
+                // These full-carrier unknowns already are the lemma's formal
+                // frame. Ordinary call activation would freshen them again,
+                // disconnecting the requested relation from the body values.
+                if proof.spend().is_none() {
+                    return consequences;
+                }
+                if proof.generalized_activation(
+                    application.machine,
+                    0,
+                    arguments.clone(),
+                    path.clone(),
+                    &goal,
+                    Judgment::Consequence,
+                    0,
+                ) == Some(true)
+                {
+                    if meaning == RelationMeaning::Equivalent {
+                        // Public replacement requires the converse on the same
+                        // complete formal carriers, independently of P being
+                        // true. A necessary relation alone may omit requirements.
+                        let Some(Some(converse_path)) = proof.assume(path.clone(), &goal, true)
+                        else {
+                            continue;
+                        };
+                        if proof.generalized_activation(
+                            application.machine,
+                            0,
+                            arguments.clone(),
+                            converse_path,
+                            &Boolean::Constant(true),
+                            Judgment::RequiredResult,
+                            0,
+                        ) != Some(true)
+                        {
+                            continue;
+                        }
+                    }
+                    consequences.push(super::PredicateOrderingConsequence {
+                        left: super::PredicateIntegerOperand::Argument(
+                            application.arguments[left_position],
+                        ),
+                        right: super::PredicateIntegerOperand::Argument(
+                            application.arguments[right_position],
+                        ),
+                        operator,
+                    });
+                    if meaning == RelationMeaning::Equivalent {
+                        return consequences;
+                    }
+                }
+                if proof.remaining == 0 {
+                    return consequences;
+                }
+            }
+        }
+    }
+    consequences
+}
+
 /// Steps one theorem judgment may spend across its activations, reads,
 /// assumptions, expression evaluations and statement visits before it
 /// stands down.
@@ -1191,12 +1334,7 @@ impl Implication<'_> {
         let owner = self.program.machines().get(machine)?;
         let target = self.program.machine_states(owner).get(state)?;
         let parameters = self.program.state_parameters(target);
-        if parameters.len() != arguments.len()
-            || parameters.iter().any(|parameter| {
-                parameter.is_mutable
-                    || value_shape(self.program, parameter.type_reference).is_none()
-            })
-        {
+        if !admitted_activation_parameters(self.program, parameters, arguments.len()) {
             return None;
         }
         let mut recurrent = false;
@@ -1211,6 +1349,14 @@ impl Implication<'_> {
             }
             recurrent = true;
             let replacements = substitutions(self.program, &lemma.arguments, &arguments)?;
+            // The induction hypothesis concludes the instantiated goal. A
+            // decrease alone cannot prove the old goal when that conclusion
+            // mentions a changed formal (P(a - 1, b) need not imply a != b).
+            // Existing observation goals stay outside generalized rank names;
+            // direct relation queries additionally require this exact check.
+            if substitute_boolean(&lemma.goal, &replacements) != *goal {
+                continue;
+            }
             if !lemma
                 .premises
                 .iter()
@@ -1249,19 +1395,7 @@ impl Implication<'_> {
             return None;
         }
         // Keep a dependent transfer inside its enclosing induction scope.
-        let dependent = arguments.iter().any(|argument| {
-            let Value::Integer { value, .. } = argument else {
-                return false;
-            };
-            self.lemmas.iter().any(|lemma| {
-                lemma.arguments.iter().any(|formal| {
-                    let Value::Integer { value: formal, .. } = formal else {
-                        return false;
-                    };
-                    contains(value, formal)
-                })
-            })
-        });
+        let dependent = self.depends_on_enclosing_activation(&arguments);
         let mut generalized = parameters
             .iter()
             .zip(&arguments)
@@ -1361,12 +1495,52 @@ impl Implication<'_> {
             }
             path.comparisons.extend(formal_bounds);
         }
+        self.generalized_activation(machine, state, generalized, path, goal, judgment, depth)
+    }
+
+    fn depends_on_enclosing_activation(&self, arguments: &[Value]) -> bool {
+        arguments.iter().any(|argument| {
+            let Value::Integer { value, .. } = argument else {
+                return false;
+            };
+            self.lemmas.iter().any(|lemma| {
+                lemma.arguments.iter().any(|formal| {
+                    let Value::Integer { value: formal, .. } = formal else {
+                        return false;
+                    };
+                    contains(value, formal)
+                })
+            })
+        })
+    }
+
+    /// Check one already-generalized formal frame. Call activation prepares
+    /// it by freshening caller values; a generic relation query constructs its
+    /// full-carrier formals directly. Both enter the same contract, all-return
+    /// and well-founded induction judgment without changing goal identities.
+    fn generalized_activation(
+        &mut self,
+        machine: usize,
+        state: usize,
+        arguments: Vec<Value>,
+        path: Path,
+        goal: &Boolean,
+        judgment: Judgment,
+        depth: usize,
+    ) -> Option<bool> {
+        let owner = self.program.machines().get(machine)?;
+        let target = self.program.machine_states(owner).get(state)?;
+        let parameters = self.program.state_parameters(target);
+        if !admitted_activation_parameters(self.program, parameters, arguments.len()) {
+            return None;
+        }
+        let dependent = self.depends_on_enclosing_activation(&arguments);
         let frame = Frame {
             machine,
             state,
             bindings: parameters
                 .iter()
-                .zip(&generalized)
+                .zip(&arguments)
                 .map(|(parameter, value)| (parameter.symbol, value.clone()))
                 .collect(),
         };
@@ -1396,7 +1570,7 @@ impl Implication<'_> {
         let mut result = true;
         for path in paths {
             if !dependent {
-                let measures = generalized
+                let measures = arguments
                     .iter()
                     .enumerate()
                     .filter(|(_, value)| matches!(value, Value::Integer { .. }))
@@ -1410,7 +1584,7 @@ impl Implication<'_> {
                 self.lemmas.push(Lemma {
                     machine,
                     state,
-                    arguments: generalized.clone(),
+                    arguments: arguments.clone(),
                     premises: path.comparisons.clone(),
                     premise_clauses: path.clauses.clone(),
                     measures,
@@ -1601,6 +1775,20 @@ impl Implication<'_> {
     }
 }
 
+/// One admission policy for caller-derived and directly generalized frames.
+/// readable_shape adapts an already admitted read; it must not silently admit
+/// mutable-reference proof formals when a relation query constructs its frame.
+fn admitted_activation_parameters(
+    program: &dyn crate::CheckingInput,
+    parameters: &[typed_trees::signature::StateParameter],
+    argument_count: usize,
+) -> bool {
+    parameters.len() == argument_count
+        && parameters.iter().all(|parameter| {
+            !parameter.is_mutable && value_shape(program, parameter.type_reference).is_some()
+        })
+}
+
 fn number(value: i128) -> Integer {
     Integer::Integer(BigInt::from_i128(value))
 }
@@ -1663,6 +1851,50 @@ fn substitute(value: &Integer, replacements: &[(Integer, Integer)]) -> Integer {
             right: Box::new(substitute(right, replacements)),
         },
         _ => value.clone(),
+    }
+}
+
+fn substitute_value(value: &Value, replacements: &[(Integer, Integer)]) -> Value {
+    match value {
+        Value::Integer { value, carrier } => Value::Integer {
+            value: substitute(value, replacements),
+            carrier: *carrier,
+        },
+        Value::Collection {
+            identity,
+            length,
+            element,
+        } => Value::Collection {
+            identity: *identity,
+            length: substitute(length, replacements),
+            element: *element,
+        },
+        Value::Boolean(value) => Value::Boolean(substitute_boolean(value, replacements)),
+    }
+}
+
+fn substitute_boolean(value: &Boolean, replacements: &[(Integer, Integer)]) -> Boolean {
+    match value {
+        Boolean::Constant(value) => Boolean::Constant(*value),
+        Boolean::Comparison(comparison) => {
+            Boolean::Comparison(substitute_comparison(comparison, replacements))
+        }
+        Boolean::And(left, right) => Boolean::And(
+            Box::new(substitute_boolean(left, replacements)),
+            Box::new(substitute_boolean(right, replacements)),
+        ),
+        Boolean::Or(left, right) => Boolean::Or(
+            Box::new(substitute_boolean(left, replacements)),
+            Box::new(substitute_boolean(right, replacements)),
+        ),
+        Boolean::Not(value) => Boolean::Not(Box::new(substitute_boolean(value, replacements))),
+        Boolean::Call { machine, arguments } => Boolean::Call {
+            machine: *machine,
+            arguments: arguments
+                .iter()
+                .map(|argument| substitute_value(argument, replacements))
+                .collect(),
+        },
     }
 }
 

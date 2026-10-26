@@ -98,7 +98,8 @@ pub use proof_contracts::arithmetic_domains::{
     selected_scalar_interval,
 };
 pub use proof_contracts::collection_predicates::{
-    exact_predicate_intervals, length_member, premises_prove_expression,
+    PredicateIntegerOperand, exact_predicate_intervals, exact_predicate_ordering, length_member,
+    predicate_ordering_consequences, premises_prove_expression,
 };
 pub use proof_contracts::contract_entailment::call_projection_identity::{
     captured_call_argument_index_matches, captured_call_index_value,
@@ -273,7 +274,8 @@ pub use crate::value_custody::content_projections::build_content_projection_plan
 
 pub use crate::declarations::symbols::TopLevelSymbols;
 pub use crate::value_custody::cleanup::{
-    data_requires_nominal_drop, type_graph_requires_nominal_drop,
+    data_requires_nominal_drop, has_no_owned_cleanup_obligations,
+    has_plain_contents_without_nominal_cleanup, type_graph_requires_nominal_drop,
 };
 pub use crate::value_custody::data::{data_requires_establishment, type_requires_establishment};
 pub use crate::value_custody::type_references::{

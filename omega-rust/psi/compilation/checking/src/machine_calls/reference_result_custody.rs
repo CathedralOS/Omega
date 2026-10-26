@@ -1790,17 +1790,17 @@ fn active_record_loans(
 fn reference_record_call_sources<'program>(
     program: &'program dyn crate::CheckingInput,
     facts: &CheckFacts,
-    call: &typed_trees::expression::TableCallExpression,
+    target: SymbolHandle,
 ) -> Option<(
     &'program [typed_trees::signature::StateParameter],
     Vec<checked_trees::CheckedReturnedReferencePlan>,
 )> {
-    let return_type = crate::call_target_return_type(program, call.target_symbol)?;
-    let parameters = crate::call_target_parameters(program, call.target_symbol)?;
+    let return_type = crate::call_target_return_type(program, target)?;
+    let parameters = crate::call_target_parameters(program, target)?;
     if !is_reference_record(program, return_type) {
         return None;
     }
-    let sources = captured_returns::call_sources(program, facts, call.target_symbol)?;
+    let sources = captured_returns::call_sources(program, facts, target)?;
     Some((parameters, sources))
 }
 
@@ -1813,28 +1813,16 @@ pub fn transient_call_record_loans(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
-    statement_index: u32,
-    expression: typed_trees::expression::ExpressionHandle,
+    call: &checked_trees::FlowCallFact,
     arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     residual_paths: &[Vec<checked_trees::CheckedUnitStructuralPathSegment>],
 ) -> bool {
-    let Some(call) = program.expression_table.call_node(expression) else {
+    let Ok(occurrence) = call_reception::retained_call(facts, machine, state.symbol, call) else {
         return false;
     };
-    let Some((parameters, sources)) = reference_record_call_sources(program, facts, call) else {
-        return false;
-    };
-    let Some(flow) = state_flow(facts, machine, state.symbol) else {
-        return false;
-    };
-    let Some(calls) = facts.flow.control.calls.span(flow.calls) else {
-        return false;
-    };
-    let Some(occurrence) = calls.iter().find(|occurrence| {
-        occurrence.authored_expression == expression
-            && occurrence.statement_index == statement_index as usize
-            && occurrence.target_symbol == call.target_symbol
-    }) else {
+    let Some((parameters, sources)) =
+        reference_record_call_sources(program, facts, occurrence.target_symbol)
+    else {
         return false;
     };
     let Some(paths) = captured_returns::call_result_paths(program, facts, occurrence) else {

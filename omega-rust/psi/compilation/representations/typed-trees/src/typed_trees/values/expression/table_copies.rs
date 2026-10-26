@@ -660,11 +660,11 @@ impl ExpressionTable {
             ExpressionNode::Call(call) => {
                 let receiver = self.copy_optional_subtree(source, call.receiver, retain, copies);
                 let arguments = self.copy_expression_span(source, call.arguments, retain, copies);
-                let root_binding = source
+                let build_selection = source
                     .table(self)
-                    .root_binding_request(call.root_binding)
+                    .build_selection_request(call.build_selection)
                     .cloned()
-                    .map(|request| self.insert_root_binding_request(request))
+                    .map(|request| self.insert_build_selection_request(request))
                     .unwrap_or_default();
                 let (authored_machine_application, static_requirement_dispatch) = self
                     .copy_call_static_applications(
@@ -686,7 +686,7 @@ impl ExpressionTable {
                     private_layout_operation: call.private_layout_operation,
                     layout_query: call.layout_query,
                     native_code_layout: call.native_code_layout,
-                    root_binding,
+                    build_selection,
                     arguments,
                     evidence_arguments: call.evidence_arguments,
                     operational_acknowledgement: call.operational_acknowledgement,

@@ -2,13 +2,8 @@ mod recovery;
 pub(crate) use recovery::recover_cached_external_local_source;
 
 use super::projection::project_package_build;
-use super::{
-    AcquiredBuildSource, BuildSourceAcquisitionError, ResolvePackageSourceError,
-    ResolvedPackageSource, SourceRootRole,
-};
-use crate::declarations::PackageKey;
+use super::{ResolvePackageSourceError, ResolvedPackageSource, SourceRootRole};
 use package_source::local::operations::resolve_local_source_snapshot_in_lane;
-use package_source::local::staging::StagedLocalSnapshot;
 use package_source::storage::RetainedStorageLane;
 use package_source::{
     ExternalLocalLineage, ExternalSourceContext, ImmutableSourceResolution, SourceContentDigest,
@@ -30,78 +25,6 @@ pub(crate) fn external_local_dependency_root(
     } else {
         requester_root.join(authored)
     })
-}
-
-/// Ordinary local compilation owns a closed in-memory capture. Transaction
-/// candidates and foreign review continue to request persisted custody below.
-pub(crate) fn capture_external_local_project_source(
-    root: &Path,
-    limits: LocalSourceLimits,
-    context: ExternalSourceContext,
-) -> Result<super::PackageSourceCustody, ResolvePackageSourceError> {
-    let AcquiredBuildSource {
-        capture: captured,
-        lineage,
-        limits,
-        ..
-    } = AcquiredBuildSource::capture_local(root, limits, context).map_err(|error| match error {
-        BuildSourceAcquisitionError::Source(error) => ResolvePackageSourceError::Source(error),
-        BuildSourceAcquisitionError::Identity(error) => ResolvePackageSourceError::Identity(error),
-    })?;
-    let declaration = super::projection::project_captured_package_build(
-        captured.canonical_live_root(),
-        captured.tree(),
-        SourceRootRole::Project,
-    )?;
-    Ok(super::PackageSourceCustody::from_resolved_parts(
-        PackageKey::new(declaration.name, lineage),
-        declaration.role,
-        ImmutableSourceResolution::external_local(SourceContentDigest::derive(
-            captured.normalized().content_identity.as_bytes(),
-        )),
-        super::PackageSourceMaterialization::from_local(captured.normalized()),
-        captured.canonical_live_root().to_path_buf(),
-        super::PackageSourceNavigation::Root,
-        super::PackageSourceSelectionEvidence::Root,
-        limits,
-        declaration.dependencies,
-    )
-    .with_captured_source(std::sync::Arc::clone(captured.tree())))
-}
-
-/// Bind a proposed project tree to its original live path and consuming context.
-/// The caller retains the stage for later transaction checks and publication.
-pub(crate) fn bind_staged_external_local_project_source(
-    stage: &StagedLocalSnapshot,
-    limits: LocalSourceLimits,
-    source_context: ExternalSourceContext,
-) -> Result<ResolvedPackageSource<&StagedLocalSnapshot>, ResolvePackageSourceError> {
-    // Binding reads nothing. The stage's snapshot was hashed when it was
-    // published, in this same invocation, and the live tree it came from was
-    // read once to produce it. The live-edit comparison belongs to the
-    // operations that then write the project's declaration files.
-    let limits = limits.compiler_bounded();
-    let content = SourceContentDigest::derive(stage.normalized().content_identity.as_bytes());
-    let result = (|| {
-        let lineage = SourceLineage::ExternalLocal(ExternalLocalLineage::canonicalize(
-            stage.canonical_live_root(),
-            source_context,
-        )?);
-        let declaration = project_package_build(stage.snapshot_root(), SourceRootRole::Project)?;
-        Ok(ResolvedPackageSource::from_resolved_parts(
-            PackageKey::new(declaration.name, lineage),
-            declaration.role,
-            ImmutableSourceResolution::external_local(content),
-            super::PackageSourceMaterialization::from_local(stage.normalized()),
-            stage.snapshot_root().to_path_buf(),
-            super::PackageSourceNavigation::Root,
-            super::PackageSourceSelectionEvidence::Root,
-            limits,
-            declaration.dependencies,
-            stage,
-        ))
-    })();
-    result
 }
 
 /// Resolve one declared external-local source in a retained lane.

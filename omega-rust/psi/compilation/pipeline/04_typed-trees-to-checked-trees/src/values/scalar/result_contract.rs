@@ -744,6 +744,24 @@ impl ContractPredicates<'_, '_> {
         expression: ExpressionHandle,
         depth: usize,
     ) -> Option<CheckedBooleanExpression> {
+        if let Some(relation) =
+            validation::exact_predicate_ordering(self.program, self.owner, expression)
+        {
+            let remaining = self.remaining.get().checked_sub(1)?;
+            self.remaining.set(remaining);
+            let (
+                validation::PredicateIntegerOperand::Argument(left),
+                validation::PredicateIntegerOperand::Argument(right),
+            ) = (relation.left, relation.right)
+            else {
+                return None;
+            };
+            return construct_integer_comparison(
+                relation.operator,
+                self.numeric_term(left, depth + 1)?.0,
+                self.numeric_term(right, depth + 1)?.0,
+            );
+        }
         let rows = validation::exact_predicate_intervals(self.program, self.owner, expression)?;
         let remaining = self.remaining.get().checked_sub(rows.len())?;
         self.remaining.set(remaining);
