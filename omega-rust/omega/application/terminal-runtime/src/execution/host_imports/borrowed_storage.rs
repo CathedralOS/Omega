@@ -12,6 +12,7 @@ use super::scalar_codec::{decode, encode};
 
 use geometry::{NativeCell, NativeCellKind};
 use runtime_abi::NativeBorrowedStorageLayout;
+use semantic_vocabulary::ScalarType;
 
 use terminal_interpreter::{
     TerminalBoundaryStorageBuffer, TerminalBoundaryStorageValue, TerminalEffectRejection,
