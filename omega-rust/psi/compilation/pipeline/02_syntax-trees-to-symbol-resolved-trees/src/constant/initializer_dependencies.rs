@@ -717,6 +717,21 @@ impl<'program> Collector<'program> {
 
     fn call(&mut self, target: SymbolHandle, reference: SourceSpan) -> Result<(), String> {
         let symbol = self.program.symbols.get(target);
+        let trait_requirement = symbol.kind == SymbolKind::State
+            && self.program.traits.iter().any(|definition| {
+                definition.symbol == symbol.parent
+                    && self
+                        .program
+                        .trait_machine_signatures(definition.machines)
+                        .iter()
+                        .any(|requirement| requirement.symbol == target)
+            });
+        if trait_requirement {
+            // A requirement is an exact source dependency, not executable
+            // code. Its selected provider and contract formation settle later.
+            self.dependencies.pending_target_observation = true;
+            return self.record_logical_call(target, reference);
+        }
         let bound_requirement = symbol.kind == SymbolKind::State
             && symbol.parent.is_valid()
             && self.program.symbols.get(symbol.parent).kind == SymbolKind::ConformanceParameter
