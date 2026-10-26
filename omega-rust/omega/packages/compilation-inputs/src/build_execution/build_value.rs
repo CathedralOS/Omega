@@ -8,7 +8,7 @@ mod optimization;
 mod vocabulary;
 
 pub use configuration::EvaluatedBuildSettings;
-pub(super) use vocabulary::{build_reaches_filesystem_facet, is_build_machine};
+pub(super) use vocabulary::is_build_machine;
 
 use super::BuildMachineFilesystemScope;
 use build_time_evaluation::BuildTimeValue;

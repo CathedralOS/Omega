@@ -44,6 +44,7 @@ pub struct ReturnedBuild {
     pub(crate) optimization_report: optimization_core::OptimizationReportRequest,
     pub(crate) root_bindings: Vec<ExecutedRootBinding>,
     pub(crate) log: crate::terminal_requests::BuildLog,
+    pub(crate) filesystem: Option<package_compilation::build_execution::BuildFilesystemEffects>,
 }
 
 impl ReturnedBuild {
@@ -69,6 +70,7 @@ pub struct TerminalBuildHost<'code> {
     original: TerminalStructuralValue,
     requests: TerminalBuildRequestHost<'code>,
     bindings: TerminalBuildBindingHost<'code>,
+    filesystem: crate::terminal_filesystem::TerminalBuildFilesystemHost<'code>,
     started: bool,
     value_admission: BuildValueAdmission,
     initial: &'code BuildTimeValue,
@@ -79,6 +81,7 @@ impl<'code> TerminalBuildHost<'code> {
         produced: &'code ProducedTerminalProgram,
         account: &'code EvaluationInvocationAccount,
         machine: &'code package_compilation::build_execution::SelectedBuildMachine,
+        filesystem_scope: &'code package_compilation::BuildMachineFilesystemScope,
     ) -> Result<Self, String> {
         let artifact = produced.view();
         let program = TerminalProgram::borrow(artifact);
@@ -100,12 +103,20 @@ impl<'code> TerminalBuildHost<'code> {
         )?;
         let bindings =
             TerminalBuildBindingHost::new(artifact, produced.build_bindings(), original.clone())?;
+        let filesystem = crate::terminal_filesystem::TerminalBuildFilesystemHost::new(
+            produced,
+            &original,
+            account,
+            filesystem_scope,
+            &machine.name,
+        )?;
         Ok(Self {
             produced,
             account,
             original,
             requests,
             bindings,
+            filesystem,
             started: false,
             value_admission: machine.value_admission,
             initial: &machine.initial_build,
@@ -142,6 +153,11 @@ impl<'code> TerminalBuildHost<'code> {
             .build_bindings()
             .calls_for(artifact)
             .ok_or("Build bindings lost their artifact custody")?;
+        let filesystem_calls = self
+            .produced
+            .build_filesystem()
+            .calls_for(artifact)
+            .ok_or("Build filesystem calls lost their artifact custody")?;
         for boundary in instance.unbound_imports().collect::<Vec<_>>() {
             let declaration = artifact
                 .module()
@@ -156,6 +172,13 @@ impl<'code> TerminalBuildHost<'code> {
             } else if binding_calls.iter().any(|call| call.boundary == boundary) {
                 instance
                     .bind_import(boundary, self.bindings.adapter(declaration.into()))
+                    .map_err(describe)?;
+            } else if filesystem_calls
+                .iter()
+                .any(|call| call.boundary == boundary)
+            {
+                instance
+                    .bind_import(boundary, self.filesystem.adapter(declaration.into()))
                     .map_err(describe)?;
             } else {
                 return Err(format!(
@@ -254,6 +277,7 @@ impl TerminalBuildActivation<'_, '_> {
             optimization_report,
             root_bindings: self.host.bindings.take_executed()?,
             log: self.host.requests.take_log()?,
+            filesystem: self.host.filesystem.take_effects()?,
         })
     }
 }

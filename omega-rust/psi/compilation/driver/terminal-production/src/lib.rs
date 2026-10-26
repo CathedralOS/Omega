@@ -9,6 +9,8 @@
 //! sequence, source preparation or execution engine here.
 
 mod build_bindings;
+mod build_filesystem;
+mod build_protocol;
 mod build_requests;
 mod composition_admission;
 mod custody;
@@ -17,6 +19,9 @@ mod terminal_production;
 
 pub use build_bindings::{
     TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
+};
+pub use build_filesystem::{
+    TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
 };
 pub use build_requests::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,

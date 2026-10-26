@@ -68,7 +68,7 @@ impl<'context> TerminalBuildRequestHost<'context> {
             .calls_for(artifact)
             .ok_or("Build requests belong to another Terminal artifact")?;
         let original_log = if calls.iter().any(|call| call.action == Operation::LogLine) {
-            Some(log_facet(artifact, &original)?)
+            Some(build_facet(artifact, &original, "log")?)
         } else {
             None
         };
@@ -108,9 +108,10 @@ impl<'context> TerminalBuildRequestHost<'context> {
 
 /// The admitted entry is the compiler's Build shape. Project the exact catalog
 /// field into its original backing; a same-typed guest value is not that facet.
-fn log_facet(
+pub(crate) fn build_facet(
     artifact: terminal_codec::TerminalExecutionView<'_>,
     original: &TerminalStructuralValue,
+    name: &str,
 ) -> Result<TerminalStructuralValue, String> {
     let module = artifact.module();
     let declaration = module
@@ -123,13 +124,15 @@ fn log_facet(
     };
     let mut selected = fields
         .iter()
-        .filter(|field| module.identities.text(field.identity) == Some("log"));
-    let field = selected.next().ok_or("Build receiver has no log facet")?;
+        .filter(|field| module.identities.text(field.identity) == Some(name));
+    let field = selected
+        .next()
+        .ok_or_else(|| format!("Build receiver has no {name} facet"))?;
     if selected.next().is_some() {
-        return Err("Build receiver has multiple log facets".into());
+        return Err(format!("Build receiver has multiple {name} facets"));
     }
     let terminal_psi::StructuralFieldType::Structural(structural_type) = field.field_type else {
-        return Err("Build log facet is not structural".into());
+        return Err(format!("Build {name} facet is not structural"));
     };
     let mut log =
         TerminalStructuralValue::minted(original.opaque_identity, structural_type, Vec::new());

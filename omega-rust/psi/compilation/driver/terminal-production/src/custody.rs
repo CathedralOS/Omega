@@ -22,11 +22,15 @@ pub struct ProducedTerminalProgram {
     pub(super) program: terminal_codec::TerminalProgramProduct,
     pub(super) build_bindings: crate::TerminalBuildBindings,
     pub(super) build_requests: crate::TerminalBuildRequests,
+    pub(super) build_filesystem: crate::TerminalBuildFilesystem,
     pub(super) applications:
         Vec<Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>>,
 }
 
 impl ProducedTerminalProgram {
+    pub const fn build_filesystem(&self) -> &crate::TerminalBuildFilesystem {
+        &self.build_filesystem
+    }
     pub const fn build_requests(&self) -> &crate::TerminalBuildRequests {
         &self.build_requests
     }

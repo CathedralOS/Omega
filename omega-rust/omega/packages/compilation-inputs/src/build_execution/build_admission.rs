@@ -5,7 +5,7 @@
 //! authority, and filesystem grants come only from the captured package scope.
 
 use super::BuildMachineFilesystemScope;
-use super::build_value::{BuildValueAdmission, build_reaches_filesystem_facet, is_build_machine};
+use super::build_value::{BuildValueAdmission, is_build_machine};
 use build_time_evaluation::{
     BuildMachineExecutionMode, BuildMachineFilesystemMetadataLayout, BuildTimeValue,
     PreparedBuildMachineEntry, PreparedBuildMachineProgram,
@@ -55,7 +55,6 @@ pub fn select_build_machine(
 pub fn admit_build_machine(
     prepared: &PreparedBuildMachineProgram,
     machine_symbol: SymbolHandle,
-    operational_plan: &flow_effects::OperationalPlan,
     service_reach_plan: &flow_effects::ServiceReachInferencePlan,
     filesystem_scope: &BuildMachineFilesystemScope,
 ) -> Result<SelectedBuildMachine, Vec<Diagnostic>> {
@@ -98,6 +97,10 @@ pub fn admit_build_machine(
                     language_semantics::build_requests::is_project_request_protocol(
                         &typed.symbols,
                         definition.symbol,
+                    ) || language_semantics::build_requests::is_build_protocol(
+                        &typed.symbols,
+                        definition.symbol,
+                        "BuildFilesystemOperations",
                     )
                 })
         })
@@ -124,8 +127,20 @@ pub fn admit_build_machine(
             transitive_names.join(", "),
         ))]);
     }
-    let filesystem_reachable =
-        build_reaches_filesystem_facet(typed, operational_plan, machine.symbol);
+    // Reach follows the exact toolchain protocol through ordinary call edges.
+    // Helper spelling and unresolved calls cannot provision filesystem authority.
+    let filesystem_reachable = transitive.iter().any(|service| {
+        typed
+            .service_reaches
+            .definition(*service)
+            .is_some_and(|definition| {
+                language_semantics::build_requests::is_build_protocol(
+                    &typed.symbols,
+                    definition.symbol,
+                    "BuildFilesystemOperations",
+                )
+            })
+    });
 
     let zero_build = value_admission.initial_value(typed, machine, filesystem_scope);
 

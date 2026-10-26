@@ -23,6 +23,7 @@ mod snapshot_request;
 pub use build_admission::{SelectedBuildMachine, admit_build_machine, select_build_machine};
 pub use completed_outputs::RetainedBuildOutputs;
 pub use filesystem_scope::preparation::prepare_filesystem_scope;
+pub use filesystem_scope::runtime::{BuildFilesystemEffects, BuildFilesystemRuntime};
 pub use filesystem_scope::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
 };
@@ -34,8 +35,9 @@ pub use restricted_requests::{
 };
 pub use snapshot_request::{BuildSnapshotCapture, BuildSnapshotRequest};
 
-use checked_interpreter::{BuildOutputObligation, BuildOutputReceipt, EvaluationObservations};
+use checked_interpreter::EvaluationObservations;
 use diagnostics::Diagnostic;
+use filesystem_authority::{BuildOutputObligation, BuildOutputReceipt};
 
 /// Interpreter observations whose output obligations have not yet settled.
 /// Only successful settlement publishes a durable observation summary.
@@ -48,9 +50,36 @@ pub struct CapturedBuildObservations<'scope> {
     output_obligations: Vec<BuildOutputObligation>,
     output_receipts: Vec<BuildOutputReceipt>,
     build_log: Vec<u8>,
+    filesystem_storage: Vec<evaluation_accounting::EvaluationStorageLease>,
+    filesystem_effects_retained: bool,
 }
 
 impl<'scope> CapturedBuildObservations<'scope> {
+    /// Consume observations issued by this activation's filesystem runtime.
+    /// The collector still checks actual sealed files at normal return.
+    pub fn retain_filesystem_effects(
+        &mut self,
+        effects: BuildFilesystemEffects,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if effects.scope != *self.scope {
+            return Err(vec![Diagnostic::error(
+                "Build filesystem effects belong to another admitted scope",
+            )]);
+        }
+        if self.filesystem_effects_retained {
+            return Err(vec![Diagnostic::error(
+                "Build filesystem effects were retained more than once",
+            )]);
+        }
+        self.filesystem_host_observed = !effects.attempts.is_empty();
+        self.filesystem_operation_attempts = effects.attempts;
+        self.included_source_handoffs = effects.included;
+        self.output_obligations = effects.obligations;
+        self.output_receipts = effects.receipts;
+        self.filesystem_storage = effects.storage;
+        self.filesystem_effects_retained = true;
+        Ok(())
+    }
     /// Begin an activation's host observation collector before execution.
     /// Admitted scope is input custody, not evidence that an operation ran.
     /// Each installed host adapter must contribute its actual observations;
@@ -66,6 +95,8 @@ impl<'scope> CapturedBuildObservations<'scope> {
             output_obligations: Vec::new(),
             output_receipts: Vec::new(),
             build_log: Vec::new(),
+            filesystem_storage: Vec::new(),
+            filesystem_effects_retained: false,
         }
     }
 
@@ -108,6 +139,8 @@ impl<'scope> CapturedBuildObservations<'scope> {
             output_obligations: observations.build_output_obligations().to_vec(),
             output_receipts: observations.build_output_receipts().to_vec(),
             build_log: observations.build_log().to_vec(),
+            filesystem_storage: Vec::new(),
+            filesystem_effects_retained: true,
         })
     }
 

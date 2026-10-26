@@ -30,13 +30,6 @@ impl PreparedBuildExecution {
                 machine.name
             ))]
         };
-        // Unconnected filesystem adapters cannot execute the legacy prelude's
-        // placeholder bodies and then claim that the activation observed no I/O.
-        if machine.filesystem_reachable {
-            return Err(refuse(
-                "Terminal Build filesystem operations are not installed".into(),
-            ));
-        }
         let checked = prepared
             .checked_trees()
             .ok_or_else(|| refuse("Build has no admitted source judgment".into()))?;
@@ -96,14 +89,18 @@ impl PreparedBuildExecution {
             return Err(self.refuse("Build invocation already issued its execution host"));
         }
         self.host_issued = true;
-        crate::TerminalBuildHost::new(&self.produced, &self.account, &self.machine).map_err(
-            |reason| {
-                vec![Diagnostic::error(format!(
-                    "Terminal Build `{}` failed: {reason}",
-                    self.machine.name
-                ))]
-            },
+        crate::TerminalBuildHost::new(
+            &self.produced,
+            &self.account,
+            &self.machine,
+            &self.filesystem_scope,
         )
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "Terminal Build `{}` failed: {reason}",
+                self.machine.name
+            ))]
+        })
     }
 
     pub(crate) fn complete(
@@ -128,12 +125,17 @@ impl PreparedBuildExecution {
                 "dependency requests require coordinator settlement before Product compilation",
             ));
         }
-        if matches!(declaration, build_declarations::BuildDeclaration::Application(application) if application.artifact_only)
-        {
-            return Err(self.refuse("artifact-only Build requires completed output custody"));
+        let artifact_only = matches!(declaration, build_declarations::BuildDeclaration::Application(application) if application.artifact_only);
+        if artifact_only && !completed.root_bindings.is_empty() {
+            return Err(
+                self.refuse("artifact-only Build cannot select executable entries or providers")
+            );
         }
         let mut observations =
             package_compilation::CapturedBuildObservations::new(&self.filesystem_scope);
+        if let Some(filesystem) = completed.filesystem {
+            observations.retain_filesystem_effects(filesystem)?;
+        }
         observations.retain_build_log(
             completed
                 .log
@@ -142,6 +144,10 @@ impl PreparedBuildExecution {
         )?;
         let observation_summary =
             observations.settle(self.machine.filesystem_reachable, &self.machine.name)?;
+        if artifact_only && observation_summary.required_output_settlements().is_empty() {
+            return Err(self.refuse("artifact-only Build requires at least one completed output"));
+        }
+        let generated_sources = observation_summary.select_generated_sources(&self.machine.name)?;
         let config = BuildConfig {
             settings: completed.settings,
             ..Default::default()
@@ -159,7 +165,7 @@ impl PreparedBuildExecution {
             evaluation_usage: Some(usage),
             observation_summary: Some(observation_summary),
             selected_build_machine_symbol: Some(self.machine.symbol),
-            generated_sources: Vec::new(),
+            generated_sources,
         })
     }
 

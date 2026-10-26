@@ -8,7 +8,16 @@ pub fn is_project_request_protocol(
     symbols: &symbols::SymbolTable,
     declaration: symbols::SymbolHandle,
 ) -> bool {
-    if !declaration.is_valid() || symbols.name(declaration) != "BuildRequestOperations" {
+    is_build_protocol(symbols, declaration, "BuildRequestOperations")
+}
+
+/// Locate protocol vocabulary only in the retained toolchain Build prelude.
+pub fn is_build_protocol(
+    symbols: &symbols::SymbolTable,
+    declaration: symbols::SymbolHandle,
+    name: &str,
+) -> bool {
+    if !declaration.is_valid() || symbols.name(declaration) != name {
         return false;
     }
     symbols

@@ -87,7 +87,6 @@ pub(crate) fn admit_build_program(
     let machine = admit_build_machine(
         &prepared,
         machine_symbol,
-        &operational_plan,
         &service_reach_plan,
         filesystem_scope,
     )?;

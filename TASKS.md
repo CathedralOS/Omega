@@ -1150,7 +1150,15 @@ narrows realization only.
   then selects and executes the host product. Pre-admitted targets remain fixed.
   Before wiring retained scheduling, separate execution-time snapshots, outputs,
   sponsors and grants from post-return Product work; none may be dropped from
-  an old occurrence request. Terminal filesystem adapters are still uninstalled.
+  an old occurrence request. Terminal Build now executes captured Source reads,
+  private Output writes/sealing, required-output completion and generated-source
+  handoff through source-issued ordinary boundary calls. The generator SDK
+  retains exact bytes and six I/O observations across fuel pauses; forged facets,
+  unsealed outputs and pre-effect budget exhaustion refuse. Filesystem vocabulary
+  and output records no longer belong to the checked-tree interpreter, and
+  filesystem reach follows the exact protocol rather than helper-name guesses.
+  Anonymous source discovery still needs its captured inventory joined to this
+  execution scope; required-output path byte results remain explicitly refused.
   Ordinary one-shot compiler calls still own their execution loop.
   Extend pinned Git/workspace acquisition and preserve
   review/lock/offline recovery while replacing static Build projection,

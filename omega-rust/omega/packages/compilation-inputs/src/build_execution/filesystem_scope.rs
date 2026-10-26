@@ -1,6 +1,7 @@
 //! Scoped Source/Output authority, staging custody, and sponsored host access.
 
 pub mod preparation;
+pub mod runtime;
 
 use super::observations::{
     BuildActivation, BuildCapturedSourceInventory, BuildNamedInputInventory,

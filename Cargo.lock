@@ -184,6 +184,7 @@ dependencies = [
  "diagnostics",
  "effects",
  "evaluation-accounting",
+ "filesystem-authority",
  "language-core",
  "language-semantics",
  "layout-plans",

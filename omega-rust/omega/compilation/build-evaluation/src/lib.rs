@@ -86,6 +86,7 @@ mod completed_pure_build;
 mod execution;
 pub mod terminal_bindings;
 mod terminal_execution;
+mod terminal_filesystem;
 pub mod terminal_requests;
 pub mod terminal_settings;
 

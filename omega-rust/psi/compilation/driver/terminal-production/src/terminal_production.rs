@@ -147,6 +147,8 @@ impl<'a> TerminalProductionRequest<'a> {
             .map_err(TerminalArtifactProductionError::BuildContext)?;
         let request_calls = crate::build_requests::capture(checked, optimized.lowered())
             .map_err(TerminalArtifactProductionError::BuildContext)?;
+        let filesystem_calls = crate::build_filesystem::capture(checked, optimized.lowered())
+            .map_err(TerminalArtifactProductionError::BuildContext)?;
         let program = observer
             .record_result(PsiCompilationStage::Publication, || {
                 lowered_psi_to_terminal_psi::finalize_terminal_program(optimized, self.publication)
@@ -169,10 +171,13 @@ impl<'a> TerminalProductionRequest<'a> {
             .collect();
         let build_bindings = crate::TerminalBuildBindings::new(program.view(), binding_calls);
         let build_requests = crate::TerminalBuildRequests::new(program.view(), request_calls);
+        let build_filesystem =
+            crate::TerminalBuildFilesystem::new(program.view(), filesystem_calls);
         Ok(ProducedTerminalProgram {
             program,
             build_bindings,
             build_requests,
+            build_filesystem,
             applications,
         })
     }

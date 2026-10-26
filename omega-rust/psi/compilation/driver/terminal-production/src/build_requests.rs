@@ -53,19 +53,10 @@ pub(super) fn capture(
     checked: &checked_trees::CheckedTrees,
     lowered: &lowered_psi::LoweredPsi,
 ) -> Result<Vec<TerminalBuildRequestCall>, diagnostics::Diagnostic> {
-    let mut declarations = Vec::new();
-    for definition in checked.traits() {
-        if !definition.is_boundary
-            || !language_semantics::build_requests::is_project_request_protocol(
-                &checked.symbols,
-                definition.symbol,
-            )
-        {
-            continue;
-        }
-        for signature in checked.trait_machine_signatures(definition) {
+    let calls =
+        crate::build_protocol::capture(checked, lowered, "BuildRequestOperations", |name| {
             use TerminalBuildRequestOperation as Request;
-            let action = match signature.name.as_str() {
+            Some(match name {
                 "package" => Request::Package,
                 "application" => Request::Application,
                 "member" => Request::Member,
@@ -73,49 +64,15 @@ pub(super) fn capture(
                 "depend_path" => Request::PathDependency,
                 "depend_git" => Request::GitDependency,
                 "write_log" => Request::LogLine,
-                _ => {
-                    return Err(diagnostics::Diagnostic::error(
-                        "unknown toolchain Build request operation",
-                    ));
-                }
-            };
-            declarations.push((signature.symbol, action));
-        }
-    }
-    let mut calls = Vec::new();
-    for occurrence in &lowered.source_call_occurrences {
-        use checked_trees::NominalMachineUseSite as Site;
-        let target = match occurrence.source_site {
-            Some(Site::Statement(statement)) => {
-                match checked.statement_table.statement(statement) {
-                    typed_trees::statement::StatementNode::Call(call) => call.target_symbol,
-                    _ => continue,
-                }
-            }
-            Some(Site::Expression(expression)) => {
-                match checked.expression_table.expression(expression) {
-                    typed_trees::expression::ExpressionNode::Call(call) => call.target_symbol,
-                    _ => continue,
-                }
-            }
-            None => continue,
-        };
-        let Some((_, action)) = declarations.iter().find(|(symbol, _)| *symbol == target) else {
-            continue;
-        };
-        let semantic_vocabulary::BoundaryInvocationSite::Operation(operation) =
-            occurrence.terminal_site
-        else {
-            return Err(diagnostics::Diagnostic::error(
-                "Build request lost its ordinary boundary operation",
-            ));
-        };
-        let boundary = crate::build_bindings::emitted_boundary(lowered, operation)?;
-        calls.push(TerminalBuildRequestCall {
+                _ => return None,
+            })
+        })?;
+    Ok(calls
+        .into_iter()
+        .map(|(operation, boundary, action)| TerminalBuildRequestCall {
             operation,
             boundary,
-            action: *action,
-        });
-    }
-    Ok(calls)
+            action,
+        })
+        .collect())
 }
