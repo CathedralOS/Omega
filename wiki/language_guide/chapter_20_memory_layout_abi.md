@@ -595,20 +595,24 @@ let words: &mut [u16] = &mut storage.bytes as &mut [u16];
 ```
 
 These require compatible representations, not just equal byte counts. Shared
-views may forget facts; mutable views need equivalence in both directions so
-writes cannot invalidate the source when the loan ends. Recasting performs no
-validation or executable conversion.
+views may forget facts; immediately established mutable views need equivalence in
+both directions. An exclusive cast may instead open an establishment window as
+described below. Source validity and custody must still hold at handback.
+Recasting itself performs no validation or executable conversion.
 
 For example, `bool` has representations `{0,1}`. A shared unconstrained byte view
-forgets a fact. A mutable unconstrained byte view would permit writing `2`, so
-it rejects. Raw bytes cannot establish Boolean validity merely by receiving a type.
+forgets a fact. An unrestricted mutable byte view would permit writing `2`, so
+it cannot be admitted as an immediately established two-way view. A window cannot
+return such bytes as a `bool` without proving restored Boolean validity. Raw bytes
+cannot establish Boolean validity merely by receiving a type.
 
 Recasts must also preserve access authority. Atomic operations can mutate through
 a shared reference, so `&u32` to `&Atomic<u32>` cannot manufacture permission to
 write. The reverse cannot turn concurrent atomic storage into an ordinary stable
 read: non-atomic observation requires exclusion over the actual backing.
 With genuine exclusive access, ordinary/atomic recasts remain eligible when
-layout, two-way validity, and outstanding obligations permit them. Casting
+layout, established validity or the deferred-establishment rules, and outstanding
+obligations permit them. Casting
 through bytes does not bypass these checks.
 
 The same rule applies to domain `read by` / `written by` policies. Omitting the
@@ -631,6 +635,36 @@ field denied by the access plan. Recast a detached ordinary snapshot, or request
 another placement through the underlying qualified extent. See the
 [recast judgment](../spec/layouts/recasts.md) and
 [implementation limits](../../omega-rust/psi/compilation/checking/recasts.md).
+
+### Initializing a stricter shape in byte backing
+
+An exclusive cast may name a target-shaped place before its content is established.
+For example, an IPC header might require `version == 1` and `used <= capacity`.
+Zeroed backing fails the first predicate. The permitted sequence is:
+
+```text
+exclusive, aligned backing of sufficient size
+    -> cast to Header storage: establishment pending
+    -> initialize version, capacity and used with valid values
+    -> prove the complete Header domain through its authorized routes
+    -> ordinary typed use, then publish under the IPC custody protocol
+```
+
+This uses ordinary `as`, not a new initialization keyword. The pending place is
+not a valid `Header`: you cannot pass it to an ordinary header-taking machine or
+read its fields using unproved representation/domain facts. Invalid enum tags and
+reference bits cannot be read first and validated afterward. Geometry and exclusive
+access must be proved before the cast, not repaired inside the window.
+
+No unrestricted byte alias remains usable beside the pending typed view. Failed
+initial establishment creates no whole header and invokes no whole-header cleanup,
+but any initialized resource fields and original source obligations must be settled
+before returning the backing. Restricted domain minting and atomic/access policies
+still apply. Existing `Placed` view-to-view prohibitions are unchanged.
+
+See [deferred establishment](../spec/layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts)
+and [invariant windows](chapter_11_invariant_windows.md). This is accepted semantics,
+not a claim that the current compiler executes the complete initialization path.
 
 ## Endianness
 

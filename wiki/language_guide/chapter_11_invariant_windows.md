@@ -49,8 +49,9 @@ A consumption point is a use that may rely on the value's domain:
 - A boundary/capability-carrying call, even when it does not name the place.
 
 The checker must close the relevant windows there. If it cannot, the diagnostic
-names both the opening write and the consuming use. Machine arrivals prove their
-own contracts; a backedge cannot reuse entry facts invalidated by its writes.
+names both the opening write or storage cast and the consuming use. Machine
+arrivals prove their own contracts; a backedge cannot reuse entry facts invalidated
+by its writes.
 
 ## Failure Does Not Cancel A Window
 
@@ -94,6 +95,23 @@ After establishment, later mutation may open a window, but every consumption
 closes it. No observer sees the established value fall back to invalid storage.
 [Default domains](../spec/language/dependent_values.md#default-domains-and-zero-initialization)
 owns gating and containment.
+
+## Storage Casts Can Open Initial Establishment
+
+An exclusive `as` storage cast may open a window before the target is a valid
+value. This is useful for constructing a constrained boundary-data header in
+fresh backing. The cast establishes neither the domain nor authority: alignment,
+extent, write permission and exclusive custody must already hold. Initialize or
+validate the contents before ordinary typed use; target-shaped storage is not
+permission to read invalid enum tags or references.
+
+The cast's pending-view formation is allowed, but later consumption fences remain.
+No shared reader, valid-value call, return or IPC publication can observe the
+unfinished target. Ending the loan owes the original source's validity/custody.
+Abandoned initialization owes cleanup of any established resource-bearing fields,
+not a destructor for a whole value that never existed. See the
+[recast rules](../spec/layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts)
+and [byte-backed header example](chapter_20_memory_layout_abi.md#initializing-a-stricter-shape-in-byte-backing).
 
 ## Construction Windows Do Not Cross Terminal Transfers
 
