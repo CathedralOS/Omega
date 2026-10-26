@@ -660,6 +660,58 @@ pub(super) fn rebase_contexts(
                     );
                 }
             }
+            // A result predicate need not spell the input whose exact value
+            // is returned. Retain every available immutable scalar origin,
+            // independently of names mentioned in this guarantee. Missing
+            // optional correspondences grant nothing and do not create new
+            // obligations for unrelated parameters; demanded roots above keep
+            // their existing explicit missing-origin rows.
+            if !assumptions
+                && matches!(fact.payload, FactPayload::ContractBooleanExpression { .. })
+                && let Some(contract) = contract
+            {
+                for (original, current) in &origins {
+                    let Some(parameter) = program
+                        .state_parameter_by_symbol(entry, *original)
+                        .filter(|parameter| immutable_value(program, parameter))
+                    else {
+                        continue;
+                    };
+                    let Some(primitive) =
+                        program.primitive_type_reference(parameter.type_reference)
+                    else {
+                        continue;
+                    };
+                    if !current.is_valid()
+                        || !program
+                            .state_parameter_by_symbol(state, *current)
+                            .is_some_and(|parameter| {
+                                immutable_value(program, parameter)
+                                    && program.primitive_type_reference(parameter.type_reference)
+                                        == Some(primitive)
+                            })
+                        || build
+                            .control
+                            .exit_parameter_origins
+                            .span_or_empty(parameter_origins)
+                            .iter()
+                            .any(|origin| {
+                                origin.contract == contract && origin.entry_parameter == *original
+                            })
+                    {
+                        continue;
+                    }
+                    build.control.exit_parameter_origins.append_to_span(
+                        &mut parameter_origins,
+                        checked_trees::FlowExitParameterOrigin {
+                            contract,
+                            entry_parameter: *original,
+                            state_parameter: *current,
+                            retained_referent_type: Default::default(),
+                        },
+                    );
+                }
+            }
             let fact = semantic.append_fact(fact);
             semantic.append_ref(&mut refs, fact);
         }
