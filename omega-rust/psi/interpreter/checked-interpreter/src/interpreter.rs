@@ -32,6 +32,11 @@ pub struct InterpretOptions<'bindings> {
     /// A call bound to a target family resolves to the selected member's
     /// checked body through these, never to a body the interpreter invents.
     pub machine_bodies: &'bindings [SelectedBuildTimeMachineBody],
+    /// The realization owner's supplied x86 processor flags image, captured
+    /// from the executing host. `pushfq` observes this environment and `popfq`
+    /// restores its arithmetic bits; both decline without it rather than
+    /// fabricating an image.
+    pub x86_flags: Option<u64>,
     /// Exact externally selected wait requirements, served only by virtual time.
     pub virtual_clock_bindings: Vec<crate::VirtualClockBinding>,
     pub filesystem: FilesystemAccess,
@@ -713,6 +718,13 @@ fn interpret_on_current_thread(
         return evaluator.error_outcome(message);
     }
     evaluator.selected_build_time_machine_bodies = options.machine_bodies;
+    evaluator.x86_flags = match options.x86_flags {
+        Some(image) => match language_core::inline_assembly::X86FlagsEnvironment::new(image) {
+            Ok(environment) => Some(environment),
+            Err(error) => return evaluator.error_outcome(error.to_string()),
+        },
+        None => None,
+    };
     if checked
         .facts
         .operators

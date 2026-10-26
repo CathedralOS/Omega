@@ -268,10 +268,33 @@ impl<'program> Evaluator<'program> {
         // steps too.
         // Port I/O (`asm#port_out`) has real device effects the interpreter
         // cannot reproduce and stays unsupported.
-        if call.target.as_str() == "asm#popfq"
-            || language_core::inline_assembly::AsmFenceKind::from_intrinsic_name(
-                call.target.as_str(),
-            )
+        // POPFQ restores arithmetic flag bits into the supplied environment;
+        // without one the restore has no honest meaning.
+        if call.target.as_str() == "asm#popfq" {
+            let arguments = self
+                .program
+                .statement_table
+                .expression_handles(call.arguments);
+            let [image] = arguments else {
+                return Err(Halt::Unsupported(
+                    "popfq requires one image operand".to_owned(),
+                ));
+            };
+            let value = self.eval_expression(*image, frame)?;
+            let Value::Int(image) = value else {
+                return Err(Halt::Trap(
+                    "popfq image operand did not evaluate to an integer".to_owned(),
+                ));
+            };
+            let Some(environment) = self.x86_flags.as_mut() else {
+                return Err(Halt::Unsupported(
+                    "popfq requires an explicitly supplied target flags environment in Terminal execution".to_owned(),
+                ));
+            };
+            environment.restore_arithmetic_bits(image as u64);
+            return Ok(Value::Unit);
+        }
+        if language_core::inline_assembly::AsmFenceKind::from_intrinsic_name(call.target.as_str())
             .is_some()
             || language_core::inline_assembly::AsmInterruptControlKind::from_intrinsic_name(
                 call.target.as_str(),
