@@ -1,6 +1,6 @@
 //! Independent path-qualified empty-block replay mechanics.
 use crate::candidates::accept_region_rewrite;
-use crate::candidates::control_flow_cleanup::patched_jump_bindings;
+use crate::candidates::control_flow_cleanup::{patched_jump_bindings, require_scalar_bindings};
 use crate::candidates::rewrite_accounting::substitutions::rewrite_successor_operation;
 use crate::candidates::rewrite_accounting::threading::{
     reconstruct_linear_thread_bindings, reconstruct_linear_thread_ownership_is_identity,
@@ -27,14 +27,7 @@ pub(super) fn validate(
     let function = input
         .function(patch.empty.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    // These rewrites substitute scalar bindings only.
-    if function
-        .blocks
-        .iter()
-        .any(|block| !block.structural_parameters.is_empty())
-    {
-        return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
-    }
+    require_scalar_bindings(function)?;
 
     if function.entry == patch.empty.block {
         return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);

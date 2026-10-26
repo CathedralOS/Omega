@@ -1,6 +1,6 @@
 //! Independent shared terminal-jump fusion replay mechanics.
 use crate::candidates::accept_region_rewrite;
-use crate::candidates::control_flow_cleanup::patched_jump_bindings;
+use crate::candidates::control_flow_cleanup::{patched_jump_bindings, require_scalar_bindings};
 use crate::candidates::rewrite_accounting::adjacent_merge::reconstruct_adjacent_merge_ownership_is_identity;
 use crate::candidates::rewrite_accounting::rewrite_scalar_substitutions;
 use crate::candidates::rewrite_accounting::terminal_fusion::reconstruct_shared_terminal_fusion_accounting;
@@ -28,14 +28,7 @@ pub(super) fn validate(
     let function = input
         .function(patch.predecessor.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    // These rewrites substitute scalar bindings only.
-    if function
-        .blocks
-        .iter()
-        .any(|block| !block.structural_parameters.is_empty())
-    {
-        return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
-    }
+    require_scalar_bindings(function)?;
 
     let predecessor = function
         .block(patch.predecessor.block)

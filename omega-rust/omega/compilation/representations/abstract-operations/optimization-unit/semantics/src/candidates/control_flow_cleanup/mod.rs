@@ -2,7 +2,7 @@
 
 use crate::OptimizationUnitValidationError;
 use abstract_operations::{AbstractOperation as O, ValueBinding};
-use optimization_unit::OptimizationNode;
+use optimization_unit::{OptimizationNode, PsiOptimizationFunction};
 use semantic_vocabulary::{BlockId, EdgeId};
 
 mod block_merging;
@@ -45,4 +45,20 @@ pub(super) fn patched_jump_bindings<'node>(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     Ok(bindings)
+}
+
+/// These rewrite families substitute scalar bindings only: a function whose
+/// blocks declare structural parameters is outside all of them, so its
+/// candidate can never be replayed as one.
+pub(super) fn require_scalar_bindings(
+    function: &PsiOptimizationFunction,
+) -> Result<(), OptimizationUnitValidationError> {
+    if function
+        .blocks
+        .iter()
+        .any(|block| !block.structural_parameters.is_empty())
+    {
+        return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
+    }
+    Ok(())
 }

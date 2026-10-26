@@ -1,5 +1,5 @@
 //! Independent non-adjacent block-merge replay mechanics.
-use crate::candidates::control_flow_cleanup::patched_jump_bindings;
+use crate::candidates::control_flow_cleanup::{patched_jump_bindings, require_scalar_bindings};
 use crate::candidates::global_value_numbering::{
     independent_reachable_dominators, independently_replacement_dominates_uses,
 };
@@ -26,14 +26,7 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let function = candidate_function(input, patch.predecessor.machine)?;
-    // These rewrites substitute scalar bindings only.
-    if function
-        .blocks
-        .iter()
-        .any(|block| !block.structural_parameters.is_empty())
-    {
-        return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
-    }
+    require_scalar_bindings(function)?;
 
     let predecessor_position = function
         .block_index(patch.predecessor.block)
