@@ -1,7 +1,7 @@
 // An AArch64 ldr destination, place reads the typed place, and the following Omega use reads that recorded value.
 // Expected exit: 0.
 const SLOT: u64 = 0;
-machine main() crashes Trap {
+linux_arm64 machine main() crashes Trap {
     let values: [u32; 2] = [37, 9];
     let mut loaded: u32 = 0;
     asm {
@@ -11,6 +11,48 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+macos_arm64 machine main() crashes Trap {
+    let values: [u32; 2] = [37, 9];
+    let mut loaded: u32 = 0;
+    asm {
+        ldr loaded, values[SLOT]
+    }
+    transition loaded == 37 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+windows_x86_64 machine main() crashes Trap {
+    let values: [u32; 2] = [37, 9];
+    let mut loaded: u32 = 0;
+    asm {
+        mov loaded, values[SLOT]
+    }
+    transition loaded == 37 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+linux_x86_64 machine main() crashes Trap {
+    let values: [u32; 2] = [37, 9];
+    let mut loaded: u32 = 0;
+    asm {
+        mov loaded, values[SLOT]
+    }
+    transition loaded == 37 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
