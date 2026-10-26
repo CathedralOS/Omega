@@ -39,6 +39,44 @@ struct Scope<'a> {
 }
 
 impl Scope<'_> {
+    fn expression_is_const(&self, expr: ExpressionHandle) -> bool {
+        let is_const_symbol = |symbol: SymbolHandle| {
+            !symbol.is_valid()
+                || self.program.const_declaration_by_symbol(symbol).is_some()
+                || self
+                    .program
+                    .machine_type_parameters(self.machine)
+                    .iter()
+                    .any(|p| p.symbol == symbol && matches!(p.kind, TypeParameterKind::Const { .. }))
+        };
+        match self.program.expression_table.expression(expr) {
+            ExpressionNode::Integer(_)
+            | ExpressionNode::Boolean(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::ZeroValue(_) => true,
+            ExpressionNode::Name(name) => is_const_symbol(name.symbol),
+            ExpressionNode::Unary(u) => self.expression_is_const(u.operand),
+            ExpressionNode::Binary(b) => {
+                self.expression_is_const(b.left) && self.expression_is_const(b.right)
+            }
+            ExpressionNode::Cast(c) => self.expression_is_const(c.value),
+            ExpressionNode::Call(call) => {
+                call.machine_arguments.iter().all(|arg| {
+                    (!arg.symbol.is_valid() || is_const_symbol(arg.symbol))
+                        && (arg.const_literal.is_some()
+                            || !arg.type_reference.is_valid()
+                            || self
+                                .program
+                                .type_reference_table
+                                .anonymous_numeric_literal_value(arg.type_reference)
+                                .is_some())
+                })
+            }
+            _ => false,
+        }
+    }
+
     fn static_index(
         &self,
         argument: TypeReferenceHandle,
@@ -56,6 +94,17 @@ impl Scope<'_> {
         match table.type_reference(argument) {
             TypeReferenceNode::Named { symbol, .. } => {
                 if !is_const_symbol(*symbol) {
+                    return None;
+                }
+                typed_trees::type_identity::applied_index_identity(
+                    self.program,
+                    typed_trees::type_identity::IndexIdentityArgument::TypeReference(argument),
+                    self.machine.symbol,
+                    &[],
+                )
+            }
+            TypeReferenceNode::ConstExpression(expression) => {
+                if !self.expression_is_const(*expression) {
                     return None;
                 }
                 typed_trees::type_identity::applied_index_identity(
@@ -507,7 +556,9 @@ impl Scope<'_> {
                             if let (Some(left), Some(right)) =
                                 (self.static_index(*left), self.static_index(*right))
                             {
-                                return left == right;
+                                if left == right {
+                                    return true;
+                                }
                             }
                             // Parameter types retain their arrival subjects. A
                             // forwarded reference can prove the exact scalar
@@ -658,23 +709,7 @@ impl Scope<'_> {
             )
             .is_some_and(|actual| actual == required)
         });
-        let expression_equal = typed_trees::type_identity::applied_index_identity(
-            self.program,
-            typed_trees::type_identity::IndexIdentityArgument::TypeReference(argument),
-            self.machine.symbol,
-            &[],
-        )
-        .is_some_and(|required| {
-            typed_trees::type_identity::applied_index_identity(
-                self.program,
-                typed_trees::type_identity::IndexIdentityArgument::Expression(value),
-                self.machine.symbol,
-                &[],
-            )
-            .is_some_and(|actual| actual == required)
-        });
         let equal = static_equal
-            || expression_equal
             || self.values(self.statement).is_some_and(|values| {
                 let Some(required) = self.index(argument, application) else {
                     return false;
