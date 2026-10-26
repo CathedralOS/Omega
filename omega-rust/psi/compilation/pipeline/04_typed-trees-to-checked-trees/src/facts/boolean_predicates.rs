@@ -400,6 +400,11 @@ pub(crate) fn bind_current_expression(
             return Some(());
         }
         let (place, type_reference) = observe(operand)?;
+        // The completed observation keeps its exact place and live storage cut.
+        // An empty structural path may read a primitive loan's referent, as
+        // parameter-contract binding does; write-only loans remain absent.
+        let type_reference =
+            validation::field_domains::readable_type_reference(program, type_reference)?;
         if program.primitive_type_reference(type_reference) != operand.primitive_type() {
             return None;
         }

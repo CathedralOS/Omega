@@ -2200,6 +2200,15 @@ pass/facts/checked_asm_arm_load_through_other_machine_exit built 2239ms exit:0 i
 pass/facts/checked_asm_arm_load_through_other_state_exit built 2233ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/checked_asm_arm_load_through_parameter_exit built 2222ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/checked_asm_arm_load_through_target_body_exit built 2220ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_call_result_exit built 1594ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_const_name_exit built 1593ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_field_exit built 1511ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_local_exit built 1511ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_match_join_exit built 1587ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_other_machine_exit built 1575ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_other_state_exit built 1596ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_parameter_exit built 1584ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_target_body_exit built 1400ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
 pass/facts/checked_asm_countdown_through_call_result_exit built 1851ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/checked_asm_countdown_through_const_name_exit built 2333ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/checked_asm_countdown_through_field_exit built 2321ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
