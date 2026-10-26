@@ -174,6 +174,9 @@ fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
     let constraint = keys
         .for_semantic(semantic)
         .or_else(|| {
+            if semantic == MachineSemanticKind::InvokeNoNormal {
+                return keys.invoke_no_normal.first().copied();
+            }
             if semantic == MachineSemanticKind::CallAggregate {
                 return keys.call_aggregate.first().copied();
             }
