@@ -13,7 +13,7 @@ linux_arm64 machine choose(branch: bool) crashes Trap {
         false -> bad()
     }
     machine done() {}
-    machine bad() { crash Trap; }
+    machine bad() crashes Trap { crash Trap; }
 }
 
 macos_arm64 machine choose(branch: bool) crashes Trap {
@@ -29,7 +29,7 @@ macos_arm64 machine choose(branch: bool) crashes Trap {
         false -> bad()
     }
     machine done() {}
-    machine bad() { crash Trap; }
+    machine bad() crashes Trap { crash Trap; }
 }
 
 windows_x86_64 machine choose(branch: bool) crashes Trap {
@@ -45,7 +45,7 @@ windows_x86_64 machine choose(branch: bool) crashes Trap {
         false -> bad()
     }
     machine done() {}
-    machine bad() { crash Trap; }
+    machine bad() crashes Trap { crash Trap; }
 }
 
 linux_x86_64 machine choose(branch: bool) crashes Trap {
@@ -61,7 +61,7 @@ linux_x86_64 machine choose(branch: bool) crashes Trap {
         false -> bad()
     }
     machine done() {}
-    machine bad() { crash Trap; }
+    machine bad() crashes Trap { crash Trap; }
 }
 machine main() crashes Trap {
     choose(true);

@@ -10,7 +10,7 @@ linux_arm64 machine read_place(source: u32) crashes Trap {
         false -> bad()
     }
     machine done() {}
-    machine bad() { crash Trap; }
+    machine bad() crashes Trap { crash Trap; }
 }
 
 macos_arm64 machine read_place(source: u32) crashes Trap {
@@ -23,7 +23,7 @@ macos_arm64 machine read_place(source: u32) crashes Trap {
         false -> bad()
     }
     machine done() {}
-    machine bad() { crash Trap; }
+    machine bad() crashes Trap { crash Trap; }
 }
 
 windows_x86_64 machine read_place(source: u32) crashes Trap {
@@ -36,7 +36,7 @@ windows_x86_64 machine read_place(source: u32) crashes Trap {
         false -> bad()
     }
     machine done() {}
-    machine bad() { crash Trap; }
+    machine bad() crashes Trap { crash Trap; }
 }
 
 linux_x86_64 machine read_place(source: u32) crashes Trap {
@@ -49,7 +49,7 @@ linux_x86_64 machine read_place(source: u32) crashes Trap {
         false -> bad()
     }
     machine done() {}
-    machine bad() { crash Trap; }
+    machine bad() crashes Trap { crash Trap; }
 }
 machine main() crashes Trap {
     read_place(37);

@@ -14,7 +14,7 @@ linux_arm64 machine main() crashes Trap {
         false -> bad()
     }
     machine done() {}
-    machine bad() { crash Trap; }
+    machine bad() crashes Trap { crash Trap; }
 }
 
 macos_arm64 machine main() crashes Trap {
@@ -28,7 +28,7 @@ macos_arm64 machine main() crashes Trap {
         false -> bad()
     }
     machine done() {}
-    machine bad() { crash Trap; }
+    machine bad() crashes Trap { crash Trap; }
 }
 
 windows_x86_64 machine main() crashes Trap {
@@ -42,7 +42,7 @@ windows_x86_64 machine main() crashes Trap {
         false -> bad()
     }
     machine done() {}
-    machine bad() { crash Trap; }
+    machine bad() crashes Trap { crash Trap; }
 }
 
 linux_x86_64 machine main() crashes Trap {
@@ -56,5 +56,5 @@ linux_x86_64 machine main() crashes Trap {
         false -> bad()
     }
     machine done() {}
-    machine bad() { crash Trap; }
+    machine bad() crashes Trap { crash Trap; }
 }
