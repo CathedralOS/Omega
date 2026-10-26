@@ -319,6 +319,9 @@ A scalar-read projection is a tag followed by its payload: `1` selects a field
 id, `2` a fixed `u64` index, `3` a case id, and `4` a recursively encoded scalar
 index term. Tag `5` is `Referent`, has no payload, and crosses one readable
 first-class reference; it does not select inline storage in the carrier.
+Tag `6` is `Extent`, has no payload, and ends the path by observing the
+selected readable byte/element descriptor's current `u64` count. A scalar or
+fixed-array leaf cannot supply a live descriptor extent.
 The path is nonempty. Dynamic indices keep their own fixed-integer
 carriers, excluding addresses; they do not become static geometry. The exact
 root declaration and each selected member or element determine the leaf type.

@@ -66,6 +66,8 @@ pub use captures::{
 };
 pub use descriptor_suppliers::descriptor_suppliers;
 pub use reference_captures::reference_captures_at_path;
+mod descriptor_extents;
+pub use descriptor_extents::descriptor_extent;
 
 mod predecessors;
 pub use predecessors::{

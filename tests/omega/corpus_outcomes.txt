@@ -4797,6 +4797,43 @@ fail/facts/borrowed_content_partition_through_parameter_rejected rejected 3213ms
 fail/facts/borrowed_content_partition_through_target_body_rejected rejected 3173ms expected @a92f16431042
 	cannot prove requires contract for call carve from exercise: 32 == strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_holder_extent_through_call_result_rejected rejected 1143ms expected @cf1ad27d8642+wt
+	cannot prove requires contract for call observe from main: selected.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: selected.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_holder_extent_through_const_name_rejected rejected 993ms expected @cf1ad27d8642+wt
+	cannot prove requires contract for call observe from main: shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_holder_extent_through_field_rejected rejected 994ms expected @cf1ad27d8642+wt
+	cannot prove requires contract for call observe from main: envelope.shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: envelope.shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_holder_extent_through_local_rejected rejected 1210ms expected @cf1ad27d8642+wt
+	cannot prove requires contract for call observe from main: shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_holder_extent_through_match_join_rejected rejected 1057ms expected @cf1ad27d8642+wt
+	cannot prove requires contract for call observe from main: selected.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: selected.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_holder_extent_through_other_machine_rejected rejected 1096ms expected @cf1ad27d8642+wt
+	cannot prove requires contract for call transport from main: shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_holder_extent_through_other_state_rejected rejected 1118ms expected @cf1ad27d8642+wt
+	cannot prove requires contract for call inspect from main: shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_holder_extent_through_parameter_rejected rejected 1059ms expected @cf1ad27d8642+wt
+	cannot prove requires contract for call observe from main: shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_holder_extent_through_target_body_rejected rejected 877ms expected @cf1ad27d8642+wt
+	cannot prove requires contract for call observe from main: shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_holder_selected_stale_extent_rejected rejected 880ms expected @cf1ad27d8642+wt
+	cannot prove requires contract for call observe from main: selected.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_holder_stale_extent_rejected rejected 992ms expected @cf1ad27d8642+wt
+	cannot prove requires contract for call observe from main: shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_holder_unknown_extent_rejected rejected 973ms expected @cf1ad27d8642+wt
+	cannot prove requires contract for call observe from forward: shelf.windows[0].len == 1 (needs fact `shelf.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/borrowed_projection_cleanup_through_call_result_prerequisite rejected 1480ms expected @a92f16431042
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
 fail/facts/borrowed_projection_cleanup_through_const_name_prerequisite rejected 2060ms expected @a92f16431042
@@ -23125,6 +23162,17 @@ pass/facts/borrowed_content_partition_through_other_machine_exit checked 9514ms 
 pass/facts/borrowed_content_partition_through_other_state_exit checked 4063ms check-target:macos_arm64 @a92f16431042
 pass/facts/borrowed_content_partition_through_parameter_exit checked 3564ms check-target:macos_arm64 @a92f16431042
 pass/facts/borrowed_content_partition_through_target_body_exit checked 5043ms check-target:macos_arm64 @a92f16431042
+pass/facts/borrowed_holder_extent_through_call_result_exit checked 2101ms check-target:macos_arm64 @cf1ad27d8642+wt
+pass/facts/borrowed_holder_extent_through_const_name_exit checked 2315ms check-target:macos_arm64 @cf1ad27d8642+wt
+pass/facts/borrowed_holder_extent_through_field_exit checked 2020ms check-target:macos_arm64 @cf1ad27d8642+wt
+pass/facts/borrowed_holder_extent_through_local_exit checked 1574ms check-target:macos_arm64 @cf1ad27d8642+wt
+pass/facts/borrowed_holder_extent_through_match_join_exit checked 1404ms check-target:macos_arm64 @cf1ad27d8642+wt
+pass/facts/borrowed_holder_extent_through_other_machine_exit checked 1216ms check-target:macos_arm64 @cf1ad27d8642+wt
+pass/facts/borrowed_holder_extent_through_other_state_exit checked 2078ms check-target:macos_arm64 @cf1ad27d8642+wt
+pass/facts/borrowed_holder_extent_through_parameter_exit checked 2060ms check-target:macos_arm64 @cf1ad27d8642+wt
+pass/facts/borrowed_holder_extent_through_target_body_exit checked 1964ms check-target:macos_arm64 @cf1ad27d8642+wt
+pass/facts/borrowed_holder_selected_replacement_exit checked 1566ms check-target:macos_arm64 @cf1ad27d8642+wt
+pass/facts/borrowed_holder_shared_exit checked 1273ms check-target:macos_arm64 @cf1ad27d8642+wt
 pass/facts/borrowed_projection_cleanup_through_call_result_exit checked 3598ms check-target:macos_arm64 @a92f16431042
 pass/facts/borrowed_projection_cleanup_through_const_name_exit checked 3980ms check-target:macos_arm64 @a92f16431042
 pass/facts/borrowed_projection_cleanup_through_field_exit checked 4478ms check-target:macos_arm64 @a92f16431042

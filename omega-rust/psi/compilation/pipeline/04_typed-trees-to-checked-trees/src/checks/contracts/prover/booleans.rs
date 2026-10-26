@@ -81,6 +81,7 @@ pub(super) fn semantic_context_proves_boolean_expression(
 pub(super) fn semantic_context_proves_instantiated_boolean_expression(
     program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
+    call_flow: &checked_trees::FlowCallFact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     context: &facts::FactContext,
     contexts: &[facts::FactContextHandle],
@@ -95,6 +96,7 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
     if direct_context_proves_instantiated_boolean_expression(
         program,
         facts,
+        call_flow,
         call_frames,
         context,
         contexts,
@@ -113,6 +115,7 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
             semantic_context_proves_instantiated_boolean_expression(
                 program,
                 facts,
+                call_flow,
                 call_frames,
                 context,
                 contexts,
@@ -130,6 +133,7 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
                     semantic_context_proves_instantiated_boolean_expression(
                         program,
                         facts,
+                        call_flow,
                         call_frames,
                         context,
                         contexts,
@@ -147,6 +151,7 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
                     semantic_context_proves_instantiated_boolean_expression(
                         program,
                         facts,
+                        call_flow,
                         call_frames,
                         context,
                         contexts,

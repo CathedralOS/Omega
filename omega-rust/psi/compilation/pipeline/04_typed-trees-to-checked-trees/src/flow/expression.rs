@@ -497,6 +497,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 ExpressionHandle::invalid()
             }
         };
+        call.invocation_storage = self.storage_snapshot;
         let stores = self.capture_call_stores(borrowed_call, inputs.arguments);
         let physical = writes.as_deref().map(|writes| {
             writes

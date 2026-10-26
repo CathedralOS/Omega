@@ -52,6 +52,7 @@ pub(crate) fn encode_scalar_term(
             for projection in path {
                 match projection {
                     ScalarReadProjection::Referent => writer.u8(5),
+                    ScalarReadProjection::Extent => writer.u8(6),
                     ScalarReadProjection::Static(CanonicalStructuralPathSegment::Field(field)) => {
                         writer.u8(1);
                         writer.id(*field);
@@ -501,6 +502,7 @@ pub(crate) fn decode_scalar_term(
                         depth + 1,
                     )?)),
                     5 => ScalarReadProjection::Referent,
+                    6 => ScalarReadProjection::Extent,
                     tag => return Err(CodecError::InvalidTag("ScalarReadProjection", tag)),
                 })
             })?;
