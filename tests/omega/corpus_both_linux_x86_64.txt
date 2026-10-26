@@ -2209,16 +2209,16 @@ pass/facts/checked_asm_compare_preserves_ambient_capture_through_other_machine_e
 pass/facts/checked_asm_compare_preserves_ambient_capture_through_other_state_exit built 1596ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
 pass/facts/checked_asm_compare_preserves_ambient_capture_through_parameter_exit built 1584ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
 pass/facts/checked_asm_compare_preserves_ambient_capture_through_target_body_exit built 1400ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
-pass/facts/checked_asm_countdown_through_call_result_exit built 1851ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/checked_asm_countdown_through_const_name_exit built 2333ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/checked_asm_countdown_through_field_exit built 2321ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/checked_asm_countdown_through_call_result_exit built 1295ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @02dd96eebdad
+pass/facts/checked_asm_countdown_through_const_name_exit built 1295ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @02dd96eebdad
+pass/facts/checked_asm_countdown_through_field_exit built 1210ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @02dd96eebdad
 pass/asm/checked_countdown_literal_exit built 4024ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/checked_asm_countdown_through_local_exit built 2316ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/checked_asm_countdown_through_match_join_exit built 2335ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/checked_asm_countdown_through_other_machine_exit built 2332ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/checked_asm_countdown_through_other_state_exit built 2318ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/checked_asm_countdown_through_parameter_exit built 2315ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/checked_asm_countdown_through_target_body_exit built 2317ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/checked_asm_countdown_through_local_exit built 1210ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @02dd96eebdad
+pass/facts/checked_asm_countdown_through_match_join_exit built 1242ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @02dd96eebdad
+pass/facts/checked_asm_countdown_through_other_machine_exit built 1229ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @02dd96eebdad
+pass/facts/checked_asm_countdown_through_other_state_exit built 1267ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @02dd96eebdad
+pass/facts/checked_asm_countdown_through_parameter_exit built 1255ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @02dd96eebdad
+pass/facts/checked_asm_countdown_through_target_body_exit built 1124ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @02dd96eebdad
 pass/asm/scratch_exact_register_flag_clobbers_exit built 2288ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/asm/scratch_latest_zero_flag_exit built 2098ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/asm/scratch_subtract_modular_underflow_exit built 3863ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

@@ -363,6 +363,20 @@ fail/arrays/qualified_array_literal_rejects_element_policy_conversion rejected 1
 	store in array literal element of type `u32` implicitly converts `u32 in Saturating` to `u32 in Wrapping` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Wrapping`)
 fail/arrays/window_copy_preserves_inherited_element_policy rejected 1427ms expected @a92f16431042
 	array window replacement source must preserve the complete destination element type, including its qualifications
+fail/asm/arm_subs_invented_clobber rejected 1ms expected @02dd96eebdad
+	tests/omega/fail/asm/arm_subs_invented_clobber/main.omg:1:96: asm where `clobbers` must exactly match the realized instruction contract: not clobbered `x2`
+fail/asm/arm_subs_literal_left rejected 1ms expected @02dd96eebdad
+	tests/omega/fail/asm/arm_subs_literal_left/main.omg:1:36: subs requires a modeled 32-bit register left input
+fail/asm/arm_subs_missing_flags_clobber rejected 1ms expected @02dd96eebdad
+	tests/omega/fail/asm/arm_subs_missing_flags_clobber/main.omg:1:86: asm where `clobbers` must exactly match the realized instruction contract: missing `nzcv`
+fail/asm/arm_subs_mixed_registers rejected 1ms expected @02dd96eebdad
+	tests/omega/fail/asm/arm_subs_mixed_registers/main.omg:1:47: assembly instruction and register operands require incompatible targets
+fail/asm/arm_subs_unencodable_immediate rejected 1ms expected @02dd96eebdad
+	tests/omega/fail/asm/arm_subs_unencodable_immediate/main.omg:1:47: subs requires a modeled 32-bit register or a fitting unsigned 32-bit immediate source
+fail/asm/arm_subs_uninitialized_left rejected 151ms expected @02dd96eebdad
+	assembly label `asm#entry` reads uninitialized scratch register/flag value
+fail/asm/arm_subs_wide_alias rejected 1ms expected @02dd96eebdad
+	tests/omega/fail/asm/arm_subs_wide_alias/main.omg:1:47: subs requires a modeled 32-bit register destination
 fail/asm/atomic_completion_unestablished_claim rejected 3323ms expected @a92f16431042
 	cannot prove requires contract for call confirm from invalid: envelope in Envelope::Pending in state `entry`
 fail/asm/atomic_completion_wrong_invocation rejected 3667ms expected @a92f16431042
@@ -5619,26 +5633,150 @@ fail/facts/checked_asm_compare_preserves_through_target_body_rejected rejected 2
 	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/checked_asm_countdown_through_call_result_rejected rejected 1597ms expected @a92f16431042
-	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_countdown_through_const_name_rejected rejected 3079ms expected @a92f16431042
-	cannot prove requires contract for call done from main$assembly$portable$4$entry: ((asm#scratch#2#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#2#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_countdown_through_field_rejected rejected 3068ms expected @a92f16431042
-	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#3#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#3#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_countdown_through_local_rejected rejected 1639ms expected @a92f16431042
-	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#2#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#2#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_countdown_through_match_join_rejected rejected 1636ms expected @a92f16431042
-	cannot prove requires contract for call done from countdown$assembly$portable$5$entry: ((asm#scratch#32#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#32#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_countdown_through_other_machine_rejected rejected 2382ms expected @a92f16431042
-	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: ((asm#scratch#13#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#13#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_countdown_through_other_state_rejected rejected 1943ms expected @a92f16431042
-	cannot prove requires contract for call done from main$assembly$portable$4$next: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_countdown_through_parameter_rejected rejected 1678ms expected @a92f16431042
-	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_countdown_through_target_body_rejected rejected 1423ms expected @a92f16431042
+fail/facts/checked_asm_countdown_through_call_result_rejected rejected 876ms expected @02dd96eebdad
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_arm64$5$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_arm64$5$entry state `done` (statement 1): output == 0
 	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#47#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#47#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#87#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#87#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$linux_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#42#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#42#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$windows_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#77#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#77#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$macos_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$linux_arm64$5$entry: asm#scratch#112#w1$version$1 == 1 (needs fact `asm#scratch#112#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
+fail/facts/checked_asm_countdown_through_const_name_rejected rejected 907ms expected @02dd96eebdad
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_arm64$5$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_arm64$5$entry state `done` (statement 1): output == 0
+	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$linux_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#42#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#42#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$windows_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#77#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#77#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$macos_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$linux_arm64$5$entry: asm#scratch#112#w1$version$1 == 1 (needs fact `asm#scratch#112#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
+fail/facts/checked_asm_countdown_through_field_rejected rejected 895ms expected @02dd96eebdad
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_arm64$5$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_arm64$5$entry state `done` (statement 1): output == 0
+	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$linux_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#42#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#42#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$windows_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#77#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#77#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$macos_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$linux_arm64$5$entry: asm#scratch#112#w1$version$1 == 1 (needs fact `asm#scratch#112#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
+fail/facts/checked_asm_countdown_through_local_rejected rejected 918ms expected @02dd96eebdad
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_arm64$5$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_arm64$5$entry state `done` (statement 1): output == 0
+	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$linux_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#42#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#42#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$windows_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#77#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#77#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$macos_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$linux_arm64$5$entry: asm#scratch#112#w1$version$1 == 1 (needs fact `asm#scratch#112#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
+fail/facts/checked_asm_countdown_through_match_join_rejected rejected 908ms expected @02dd96eebdad
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_arm64$5$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_arm64$5$entry state `done` (statement 1): output == 0
+	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$linux_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#42#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#42#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$windows_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#77#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#77#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$macos_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$linux_arm64$5$entry: asm#scratch#112#w1$version$1 == 1 (needs fact `asm#scratch#112#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
+fail/facts/checked_asm_countdown_through_other_machine_rejected rejected 876ms expected @02dd96eebdad
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_arm64$5$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_arm64$5$entry state `done` (statement 1): output == 0
+	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$linux_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#42#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#42#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$windows_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#77#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#77#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$macos_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$linux_arm64$5$entry: asm#scratch#112#w1$version$1 == 1 (needs fact `asm#scratch#112#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
+fail/facts/checked_asm_countdown_through_other_state_rejected rejected 879ms expected @02dd96eebdad
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_arm64$5$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_arm64$5$entry state `done` (statement 1): output == 0
+	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$linux_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#42#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#42#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$windows_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#77#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#77#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$macos_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$linux_arm64$5$entry: asm#scratch#112#w1$version$1 == 1 (needs fact `asm#scratch#112#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
+fail/facts/checked_asm_countdown_through_parameter_rejected rejected 902ms expected @02dd96eebdad
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_arm64$5$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_arm64$5$entry state `done` (statement 1): output == 0
+	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$linux_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#42#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#42#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$windows_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#77#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#77#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$macos_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$linux_arm64$5$entry: asm#scratch#112#w1$version$1 == 1 (needs fact `asm#scratch#112#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
+fail/facts/checked_asm_countdown_through_target_body_rejected rejected 883ms expected @02dd96eebdad
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_arm64$5$entry state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_arm64$5$entry state `done` (statement 1): output == 0
+	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$linux_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#42#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#42#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$windows_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#77#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#77#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$macos_x86_64$4$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$linux_arm64$5$entry: asm#scratch#112#w1$version$1 == 1 (needs fact `asm#scratch#112#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
+	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
 fail/facts/checked_asm_flag_restore_through_call_result_rejected rejected 559ms expected @a92f16431042
 	asm instruction `popfq` operand `saved flags` requires target register `rflags` constraint `u64`; integer literal `0` is outside that operand class
 fail/facts/checked_asm_flag_restore_through_const_name_rejected rejected 569ms expected @a92f16431042
@@ -23540,15 +23678,15 @@ pass/facts/checked_asm_compare_preserves_through_other_machine_exit checked 3298
 pass/facts/checked_asm_compare_preserves_through_other_state_exit checked 6687ms check-target:macos_arm64 @e06334c63dc4+wt
 pass/facts/checked_asm_compare_preserves_through_parameter_exit checked 5561ms check-target:macos_arm64 @e06334c63dc4+wt
 pass/facts/checked_asm_compare_preserves_through_target_body_exit checked 6041ms check-target:macos_arm64 @e06334c63dc4+wt
-pass/facts/checked_asm_countdown_through_call_result_exit checked 2817ms check-target:linux_x86_64 @a92f16431042
-pass/facts/checked_asm_countdown_through_const_name_exit checked 2782ms check-target:linux_x86_64 @a92f16431042
-pass/facts/checked_asm_countdown_through_field_exit checked 2857ms check-target:linux_x86_64 @a92f16431042
-pass/facts/checked_asm_countdown_through_local_exit checked 2836ms check-target:linux_x86_64 @a92f16431042
-pass/facts/checked_asm_countdown_through_match_join_exit checked 2857ms check-target:linux_x86_64 @a92f16431042
-pass/facts/checked_asm_countdown_through_other_machine_exit checked 2932ms check-target:linux_x86_64 @a92f16431042
-pass/facts/checked_asm_countdown_through_other_state_exit checked 2974ms check-target:linux_x86_64 @a92f16431042
-pass/facts/checked_asm_countdown_through_parameter_exit checked 2954ms check-target:linux_x86_64 @a92f16431042
-pass/facts/checked_asm_countdown_through_target_body_exit checked 2988ms check-target:linux_x86_64 @a92f16431042
+pass/facts/checked_asm_countdown_through_call_result_exit checked 1275ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
+pass/facts/checked_asm_countdown_through_const_name_exit checked 1274ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
+pass/facts/checked_asm_countdown_through_field_exit checked 1199ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
+pass/facts/checked_asm_countdown_through_local_exit checked 1199ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
+pass/facts/checked_asm_countdown_through_match_join_exit checked 1199ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
+pass/facts/checked_asm_countdown_through_other_machine_exit checked 1199ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
+pass/facts/checked_asm_countdown_through_other_state_exit checked 1239ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
+pass/facts/checked_asm_countdown_through_parameter_exit checked 1239ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
+pass/facts/checked_asm_countdown_through_target_body_exit checked 1212ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
 pass/facts/checked_asm_flag_restore_through_call_result_exit checked 2969ms check-target:linux_x86_64 @a92f16431042
 pass/facts/checked_asm_flag_restore_through_const_name_exit checked 2926ms check-target:linux_x86_64 @a92f16431042
 pass/facts/checked_asm_flag_restore_through_field_exit checked 2951ms check-target:linux_x86_64 @a92f16431042
