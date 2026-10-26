@@ -41,11 +41,12 @@ pub(crate) fn normalize_const_argument_carriers(
         let decoded = value.decode_encoding().ok_or_else(|| {
             Diagnostic::error("selected constant has malformed canonical value encoding")
         })?;
+        // Arrays already carry their complete structural element/extent
+        // identity. Keep their declaration reference until ordinary dependent
+        // substitution validates it; only nominal atoms need this publication.
         if !matches!(
             decoded,
-            DecodedCanonicalConstValue::Array { .. }
-                | DecodedCanonicalConstValue::Record { .. }
-                | DecodedCanonicalConstValue::Variant { .. }
+            DecodedCanonicalConstValue::Record { .. } | DecodedCanonicalConstValue::Variant { .. }
         ) {
             continue;
         }
