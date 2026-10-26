@@ -18141,6 +18141,8 @@ fail/ownership/computed_window_selector_requires_builtin_meaning rejected 3381ms
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `misplaced`, state `entry` (statement 2): `tokens[index]` must hold a value again before this state's exits consume the borrow
 fail/ownership/conditional_scalar_return_preserves_live_claim rejected 2790ms expected @a92f16431042
 	linear value `token` reaches scope exit without being consumed or transferred
+fail/ownership/conditional_stored_reference_source_reuse rejected 423ms expected @cdf526d5302d+wt
+	cannot use `incoming.code` in machine `select` state `entry` (statement 4) after `incoming` was transferred or consumed at statement 3: it holds no value; read what is needed before the transfer or assign a whole value to `incoming` first
 fail/ownership/copy_linear_conflict rejected 4ms expected @a92f16431042
 	tests/omega/fail/ownership/copy_linear_conflict/main.omg:3:30: type properties `[copy]` and `[linear]` are mutually exclusive; `copy` was already declared
 fail/ownership/cyclic_arrival_restores_consumed_field rejected 3408ms expected @a92f16431042
@@ -22855,7 +22857,7 @@ pass/expressions/runtime_owned_match_multiple_projected_claims_exit checked 4339
 pass/expressions/runtime_owned_match_parameter_claim_replacement_exit checked 4344ms check-target:macos_arm64 @a92f16431042
 pass/expressions/runtime_owned_match_pattern_claim_replacement_exit checked 5194ms check-target:macos_arm64 @a92f16431042
 pass/expressions/runtime_owned_match_pattern_replacement_exit checked 3683ms check-target:macos_arm64 @a92f16431042
-pass/expressions/runtime_owned_match_skipped_pattern_residual_cleanup_exit checked 3549ms check-target:macos_arm64 @a92f16431042
+pass/expressions/runtime_owned_match_skipped_pattern_residual_cleanup_exit checked 821ms check-target:macos_arm64 @cdf526d5302d+wt
 pass/expressions/runtime_temporary_record_field_call_exit checked 3293ms check-target:macos_arm64 @a92f16431042
 pass/expressions/runtime_widened_comparison_exit checked 8545ms check-target:macos_arm64 @a92f16431042
 pass/expressions/scalar_match_boundary_composition_exit checked 14073ms check-target:macos_arm64 @a92f16431042
