@@ -377,8 +377,17 @@ impl<'program> Engine<'program> {
         &mut self,
         selection: crate::proof_contracts::arithmetic_domains::DispatchSelection,
     ) {
-        let operands =
-            [selection.subject, selection.pattern].map(|operand| self.source_result_type(operand));
+        use crate::proof_contracts::arithmetic_domains::DispatchCondition;
+        let (subject, pattern) = match selection.condition {
+            DispatchCondition::Equality { subject, pattern } => (subject, pattern),
+            DispatchCondition::Predicate(condition) => {
+                let mut comparisons = Vec::new();
+                self.collect_condition_comparisons(condition, selection.matched, &mut comparisons);
+                self.install_hypotheses(comparisons);
+                return;
+            }
+        };
+        let operands = [subject, pattern].map(|operand| self.source_result_type(operand));
         if !typed_trees::operator::has_builtin_spelled_expression_meaning(
             self.program,
             self.source_owner,
@@ -389,18 +398,14 @@ impl<'program> Engine<'program> {
             return;
         }
         let mut comparisons = Vec::new();
-        if let ExpressionNode::Boolean(value) =
-            self.program.expression_table.expression(selection.pattern)
-        {
+        if let ExpressionNode::Boolean(value) = self.program.expression_table.expression(pattern) {
             self.collect_condition_comparisons(
-                selection.subject,
+                subject,
                 selection.matched == *value,
                 &mut comparisons,
             );
-        } else if let (Some(left), Some(right)) = (
-            self.normalize(selection.subject),
-            self.normalize(selection.pattern),
-        ) {
+        } else if let (Some(left), Some(right)) = (self.normalize(subject), self.normalize(pattern))
+        {
             comparisons.push((
                 if selection.matched {
                     BinaryOperator::Equal

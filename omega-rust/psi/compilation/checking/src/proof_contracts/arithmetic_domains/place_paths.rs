@@ -35,6 +35,15 @@ pub(crate) fn place_path(
     expression: ExpressionHandle,
 ) -> Option<String> {
     match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(saved) => {
+            program.saved_value_source(saved)?;
+            Some(capture_path(
+                program
+                    .expression_table
+                    .value_capture(saved.capture)
+                    .value_anchor,
+            ))
+        }
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             if members.is_empty() {
@@ -48,4 +57,11 @@ pub(crate) fn place_path(
         }
         _ => None,
     }
+}
+
+/// A value capture is an occurrence, independently of its source's spelling
+/// and later storage versions. The private prefix cannot name an authored
+/// declaration in this display-path environment.
+pub(super) fn capture_path(anchor: ExpressionHandle) -> String {
+    format!("\0capture:{anchor:?}")
 }

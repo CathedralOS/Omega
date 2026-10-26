@@ -583,6 +583,14 @@ pub fn has_builtin_anonymous_operands(
                             | symbols::SymbolKind::State
                             | symbols::SymbolKind::Operator
                     ),
+                    // Executable membership expands a declaration's predicates
+                    // while retaining which domain was selected. That nominal
+                    // provenance does not select the expanded arithmetic's
+                    // operator; its own retained occurrences still govern it.
+                    Target::Resolved(resolved) if selection.kind() == Kind::DomainMembership => {
+                        program.symbols.get(resolved.selected_symbol()).kind
+                            == symbols::SymbolKind::Domain
+                    }
                     Target::Intrinsic(Intrinsic::BuiltinOperator)
                     | Target::LateBound(LateBinding::CheckedOperator) => true,
                     // A compile-time value declaration retains only

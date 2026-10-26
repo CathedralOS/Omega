@@ -102,6 +102,7 @@ pub(super) struct FlowBuildContext<'plans> {
     pub(super) scalar_expressions: &'plans checked_trees::CheckedScalarExpressionPlans,
     pub(super) operators: &'plans checked_trees::CheckedOperatorFacts,
     pub(super) exact_integer_casts: &'plans [validation::ExactIntegerCastFact],
+    pub(super) expression_intervals: &'plans [validation::ExpressionInterval],
     pub(super) call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
     /// Immutable constructor/row receipts, never a closed-world roster of
     /// possible incoming selectors. Only a completed value can select a row.
@@ -281,6 +282,7 @@ impl<'plans> FlowBuildContext<'plans> {
         scalar_expressions: &'plans checked_trees::CheckedScalarExpressionPlans,
         operators: &'plans checked_trees::CheckedOperatorFacts,
         exact_integer_casts: &'plans [validation::ExactIntegerCastFact],
+        expression_intervals: &'plans [validation::ExpressionInterval],
         call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
         state_mutation_summary_cache: &'plans StateMutationSummaryCache,
     ) -> Self {
@@ -305,6 +307,7 @@ impl<'plans> FlowBuildContext<'plans> {
             scalar_expressions,
             operators,
             exact_integer_casts,
+            expression_intervals,
             call_frames,
             dynamic_conformances: crate::facts::build_dynamic_conformance_facts(program).ok(),
             state_value_inputs: Vec::new(),
@@ -933,6 +936,7 @@ mod tests {
                 &semantic,
                 &plans,
                 &operators,
+                &[],
                 &[],
                 None,
                 &mutation,

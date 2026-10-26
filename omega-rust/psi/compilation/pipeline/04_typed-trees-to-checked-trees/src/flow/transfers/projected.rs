@@ -167,6 +167,7 @@ pub(super) fn append_copied_field_predicates(
             statement_index,
             &source_value,
             &target_value,
+            None,
         ) {
             continue;
         }

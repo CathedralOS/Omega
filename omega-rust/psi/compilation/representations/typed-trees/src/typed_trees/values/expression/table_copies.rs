@@ -227,6 +227,15 @@ impl ExpressionTable {
         }
         visited.push(root);
 
+        let mut tests = self.executable_domain_tests(root).to_vec();
+        for test in &mut tests {
+            self.remap_symbols_in_inner(test.subject, symbols, visited);
+            test.domain = remapped(test.domain, symbols);
+        }
+        if !tests.is_empty() {
+            self.replace_executable_domain_tests(root, tests);
+        }
+
         if self.index_expression_authority(root).is_some() {
             let authority = self.index_expression_authority_mut(root);
             if let Some(operation) = &mut authority.operation {
@@ -473,6 +482,7 @@ impl ExpressionTable {
         let origin = source.table(self);
         let source_span = origin.source_span(expression);
         let authority = origin.index_expression_authority(expression).cloned();
+        let domain_tests = origin.executable_domain_tests(expression).to_vec();
         let query_carrier = matches!(origin.expression(expression), ExpressionNode::Call(call)
             if call.native_code_layout.is_some() || call.layout_query.is_some())
         .then(|| origin.constructed_value_type_reference(expression));
@@ -701,6 +711,19 @@ impl ExpressionTable {
             *self.index_expression_authority_mut(copied) = authority;
         }
         copies.expressions.push((expression, copied));
+        // Register the copied root first: a predicate such as `bool::True`
+        // may be its own tested subject. That semantic back-edge must retain
+        // the same occurrence instead of recursively cloning it.
+        for test in domain_tests {
+            let subject = self.copy_subtree_with_occurrences(source, test.subject, retain, copies);
+            self.retain_executable_domain_test(
+                copied,
+                super::ExecutableDomainTest {
+                    subject,
+                    domain: test.domain,
+                },
+            );
+        }
         // A call owns aliases among its children. Their copied parent only
         // exists after the children, so close that exact source back-edge now.
         for (original, capture) in &copies.subjects {

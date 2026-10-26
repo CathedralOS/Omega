@@ -45,7 +45,7 @@ mod cast_ranges;
 mod dispatch_environments;
 pub(crate) use dispatch_environments::dispatch_arm_environments;
 pub(in crate::proof_contracts) use dispatch_environments::{
-    DispatchSelection, dispatch_arm_contexts,
+    DispatchCondition, DispatchSelection, dispatch_arm_contexts,
 };
 mod cited_element_bounds;
 mod copied_values;

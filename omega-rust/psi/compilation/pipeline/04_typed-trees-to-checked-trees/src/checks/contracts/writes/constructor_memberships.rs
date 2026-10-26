@@ -74,7 +74,7 @@ impl<'facts> ConstructorMemberships<'facts> {
         domains
     }
 
-    fn at(
+    pub(super) fn at(
         &self,
         state: SymbolHandle,
         statement: usize,
@@ -162,6 +162,15 @@ impl ConstructionWalk<'_, '_> {
                 semantic_domain,
                 contexts,
             ) || vacuous
+                || live_bounds_satisfy_domain(
+                    program,
+                    facts,
+                    state,
+                    statement_index,
+                    value,
+                    constraint,
+                    contexts,
+                )
                 || (predicate_only
                     && capture.is_some()
                     && (value_satisfies_domain_instance_predicates_in_contexts(
@@ -220,4 +229,47 @@ impl ConstructionWalk<'_, '_> {
         )));
         }
     }
+}
+
+/// A range proves membership only when it describes the entire selected
+/// predicate domain. Necessary numeric consequences alone are insufficient;
+/// routed domains and unrecognized conjuncts decline the exact-domain query.
+#[allow(clippy::too_many_arguments)]
+fn live_bounds_satisfy_domain(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &checked_trees::FlowStateFact,
+    statement: usize,
+    value: ExpressionHandle,
+    constraint: &typed_trees::types::DomainConstraint,
+    contexts: &[facts::FactContextHandle],
+) -> bool {
+    let Some(domain) = program.domain_definition(constraint.symbol) else {
+        return false;
+    };
+    let Some(carrier) = program.primitive_type_reference(domain.target_type) else {
+        return false;
+    };
+    let Some((minimum, maximum)) =
+        validation::exact_declared_domain_carrier_interval(program, carrier, constraint)
+    else {
+        return false;
+    };
+    let Some(subject) = validation::canonical_place_from_expression_in_state(
+        program,
+        state.state_symbol,
+        statement,
+        value,
+    ) else {
+        return false;
+    };
+    crate::values::integer_bounds_at_place(
+        program,
+        &facts.semantic,
+        contexts
+            .iter()
+            .map(|context| facts.semantic.contexts.get(*context)),
+        &subject,
+    )
+    .is_some_and(|bounds| minimum <= bounds.minimum && bounds.maximum <= maximum)
 }
