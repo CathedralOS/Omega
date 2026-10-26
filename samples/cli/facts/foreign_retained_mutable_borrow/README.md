@@ -70,11 +70,28 @@ retained cohorts on the hosted Windows/Linux jobs.
 
 ## Verification and remaining scope
 
-Qualification is in progress. The fixed author base is `29f58e13cc0`.
-The optimized producer `f8d4d2c2c65e` passes the nine places and twins on macOS
-ARM64; candidate `355494c10ca` additionally passes both retained corpus cohorts,
-all public CLI samples and the auxiliary controls on that host. Hosted candidate
-`355494c10ca` is being qualified by runs `40271548919` and `40271551351`.
+The fixed author base is `29f58e13cc0`. The optimized producer
+`f8d4d2c2c65e` and corpus producer at `355494c10ca` establish the macOS ARM64
+observations. The three other hosted targets execute candidate `355494c10ca`
+in runs [40271548919](https://github.com/CathedralOS/Omega/actions/runs/40271548919)
+and [40271551351](https://github.com/CathedralOS/Omega/actions/runs/40271551351).
+All four retained cohorts pass: each host has 23 positive native/Terminal
+corpus executions, the same 23 public CLI executions, 22 intended source
+rejections, two C self-tests and 18 deliberate native traps. The explicit
+uncovered-root qualification refusal also passes on every host. The macOS
+operator invokes the corpus entry in process so another protected Python
+launcher cannot discard its installed `DYLD_LIBRARY_PATH`.
+
+The original Windows job remains failed because the subsequent existing
+`opaque_independent_linear_through_match_join_exit` native process timed out
+under its unchanged 20-second deadline; Terminal exited 0 and the other 35
+native cases succeeded. That is separate from the successful retained cohorts.
+One bounded unchanged-source followup is in progress; no environmental cause
+or success for the original failed observation is inferred. The codec suite
+has 40 passing tests and one existing artifact-dependent ignored test after
+repairing its specialization fixture's missing retained application. That
+fixture also failed on current main `d359fd2ba3a`; its issuer-drift rejection
+remains intact. Qualification and final review remain in progress.
 
 This establishes direct retained mutable loans for the exercised fixed-record
 ABI, with explicit normal preservation. Transfer of owned backing into a foreign
