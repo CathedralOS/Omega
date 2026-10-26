@@ -228,6 +228,9 @@ pub struct BoundaryMachineDeclaration {
     /// Admission consumes qualifications already carried by the arguments;
     /// these rows are not proof propositions.
     pub requires: Vec<StructuralDomainRequirement>,
+    /// Source-guaranteed memberships at exact mutable parameter roots on
+    /// normal return. These preserve existing memberships, not issuer authority.
+    pub normal_qualifications: Vec<StructuralDomainRequirement>,
     /// Exact carried scalar memberships, separate from numeric propositions.
     /// Indices name packed scalar arguments; rows never add runtime ABI words.
     pub scalar_domain_requirements: Vec<ScalarDomainRequirement>,

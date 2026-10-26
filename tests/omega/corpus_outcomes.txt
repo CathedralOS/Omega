@@ -7198,6 +7198,35 @@ fail/facts/foreign_indirect_float_record_result_through_parameter_rejected rejec
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/foreign_indirect_float_record_result_through_target_body_rejected rejected 984ms expected @4c1bfc01217a+wt
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_retained_mutable_borrow_call_result rejected 1658ms expected @355494c10ca8
+	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_retained_mutable_borrow_const_name rejected 1052ms expected @355494c10ca8
+	statement 4 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_retained_mutable_borrow_field rejected 1086ms expected @355494c10ca8
+	statement 6 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/facts/foreign_retained_mutable_borrow_local rejected 1341ms expected @355494c10ca8
+	statement 4 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_retained_mutable_borrow_match_join rejected 1739ms expected @355494c10ca8
+	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_retained_mutable_borrow_mixed_issuers_live rejected 1700ms expected @355494c10ca8
+	statement 13 reads `mutable_buffer.value` while local borrow `mutable_routed` is still active (borrowed at statement 12; its last use is at statement 17)
+fail/facts/foreign_retained_mutable_borrow_other_machine rejected 2033ms expected @355494c10ca8
+	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_retained_mutable_borrow_other_registration_live rejected 1696ms expected @355494c10ca8
+	statement 13 reads `first.value` while local borrow `routed_first` is still active (borrowed at statement 7; its last use is at statement 14)
+fail/facts/foreign_retained_mutable_borrow_other_state rejected 1587ms expected @355494c10ca8
+	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_retained_mutable_borrow_overlapping_registration rejected 1331ms expected @355494c10ca8
+	state `register` receives `buffer` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8)
+	statement 6 creates local borrow `forbidden` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8)
+	statement 6 mutates `buffer` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8)
+fail/facts/foreign_retained_mutable_borrow_parameter rejected 1303ms expected @355494c10ca8
+	statement 4 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_retained_mutable_borrow_stale_completion_fact rejected 1126ms expected @355494c10ca8
+	cannot prove requires contract for call require41 from Main::main: value == 41 (needs fact `value == 41` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+fail/facts/foreign_retained_mutable_borrow_target_body rejected 792ms expected @355494c10ca8
+	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/facts/foreign_retained_shared_borrow_call_result rejected 2753ms expected @a92f16431042
 	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/facts/foreign_retained_shared_borrow_const_name rejected 1876ms expected @a92f16431042
@@ -24067,6 +24096,17 @@ pass/facts/foreign_indirect_float_record_result_through_other_machine_exit check
 pass/facts/foreign_indirect_float_record_result_through_other_state_exit checked 1996ms check-target:macos_arm64 @4c1bfc01217a+wt
 pass/facts/foreign_indirect_float_record_result_through_parameter_exit checked 1999ms check-target:macos_arm64 @4c1bfc01217a+wt
 pass/facts/foreign_indirect_float_record_result_through_target_body_exit checked 2018ms check-target:macos_arm64 @4c1bfc01217a+wt
+pass/facts/foreign_retained_mutable_borrow_call_result checked 1968ms check-target:macos_arm64 @355494c10ca8
+pass/facts/foreign_retained_mutable_borrow_const_name checked 1620ms check-target:macos_arm64 @355494c10ca8
+pass/facts/foreign_retained_mutable_borrow_field checked 1624ms check-target:macos_arm64 @355494c10ca8
+pass/facts/foreign_retained_mutable_borrow_local checked 1620ms check-target:macos_arm64 @355494c10ca8
+pass/facts/foreign_retained_mutable_borrow_match_join checked 1626ms check-target:macos_arm64 @355494c10ca8
+pass/facts/foreign_retained_mutable_borrow_mixed_issuers checked 2133ms check-target:macos_arm64 @355494c10ca8
+pass/facts/foreign_retained_mutable_borrow_other_machine checked 2010ms check-target:macos_arm64 @355494c10ca8
+pass/facts/foreign_retained_mutable_borrow_other_state checked 1969ms check-target:macos_arm64 @355494c10ca8
+pass/facts/foreign_retained_mutable_borrow_parameter checked 1962ms check-target:macos_arm64 @355494c10ca8
+pass/facts/foreign_retained_mutable_borrow_reverse_completion checked 1979ms check-target:macos_arm64 @355494c10ca8
+pass/facts/foreign_retained_mutable_borrow_target_body checked 1427ms check-target:macos_arm64 @355494c10ca8
 pass/facts/foreign_retained_shared_borrow_call_result checked 4991ms check-target:macos_arm64 @a92f16431042
 pass/facts/foreign_retained_shared_borrow_const_name checked 4826ms check-target:macos_arm64 @a92f16431042
 pass/facts/foreign_retained_shared_borrow_field checked 4676ms check-target:macos_arm64 @a92f16431042

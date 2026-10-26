@@ -578,6 +578,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             &boundary_declaration.structural_parameters,
             structural_arguments,
             handler.storage_arguments(boundary),
+            &boundary_declaration.normal_qualifications,
         )?;
         bind_active_structural_arguments(
             &boundary_declaration.structural_parameters,

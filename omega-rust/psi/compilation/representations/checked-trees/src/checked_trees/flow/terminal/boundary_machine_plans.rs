@@ -127,6 +127,9 @@ pub struct CheckedBoundaryMachinePlan {
     /// Canonical `(argument_index, domain)` order derived from exact normalized
     /// membership facts in the boundary contract.
     pub domain_requirements: Vec<CheckedUnitStructuralDomainRequirementPlan>,
+    /// Exact whole mutable-parameter memberships guaranteed on normal return.
+    /// Entry requirements never imply this preservation contract.
+    pub normal_qualifications: Vec<CheckedUnitStructuralDomainRequirementPlan>,
     /// Exact scalar-lane memberships, ordered by argument and domain. Numeric
     /// predicates cannot replace these identities or establish their routes.
     pub scalar_domain_requirements: Vec<CheckedBoundaryScalarDomainRequirementPlan>,

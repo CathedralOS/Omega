@@ -130,7 +130,9 @@ pub(super) fn check_statement_borrows<'p>(
                     bound_lookup,
                 );
                 if compatibility.non_interfering
-                    || carried_authority(loan, active_loan_handle, active_loan, &compatibility)
+                    || supplier_preserves_loan(
+                        &facts.borrow, loan, active_loan_handle, active_loan, &compatibility,
+                    )
                     // Copies retain the actual supplier's ancestors, including
                     // an exclusive parent above a shared child. No ancestry is
                     // inferred from the copied pointer's backing geometry.
@@ -764,12 +766,29 @@ pub(super) fn source_exiting_without_local_loan_carriers<'program>(
 /// replayed captured places. It creates no authority: the forming loan
 /// was itself produced by rebasing through the named source, and the pair's
 /// compatibility certificate still retains the honest spatial conclusion.
-pub(super) fn carried_authority(
+pub(super) fn supplier_preserves_loan(
+    borrow: &checked_trees::BorrowFacts,
     forming_loan: &checked_trees::BorrowLoanFact,
     active_loan_handle: arena::Handle<checked_trees::BorrowLoanFact>,
     active_loan: &checked_trees::BorrowLoanFact,
     compatibility: &checked_trees::CapturedPlaceCompatibility,
 ) -> bool {
+    // Moving a lifetime-only carrier transports the same exclusive debt; it
+    // does not form another reference or lend spatial access. Only its exact
+    // recorded supplier can be exempt, with unchanged backing and access.
+    if forming_loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency {
+        return active_loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency
+            && forming_loan.kind == active_loan.kind
+            && forming_loan.source_owner_symbol == active_loan.owner_symbol
+            && matches!(
+                compatibility.containment,
+                checked_trees::CapturedPlaceContainment::Same
+            )
+            && borrow
+                .loan_suppliers
+                .span(forming_loan.supplying_loans)
+                .is_some_and(|suppliers| suppliers.contains(&active_loan_handle));
+    }
     if !active_loan.kind.is_exclusive()
         || active_loan
             .kind

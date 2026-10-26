@@ -100,6 +100,14 @@ pub(crate) fn encode_boundary_machine(
         writer.id(requirement.domain);
     }
     writer.len(
+        "boundary normal parameter qualifications",
+        declaration.normal_qualifications.len(),
+    )?;
+    for guarantee in &declaration.normal_qualifications {
+        writer.u32(guarantee.argument_index);
+        writer.id(guarantee.domain);
+    }
+    writer.len(
         "boundary scalar domain requirements",
         declaration.scalar_domain_requirements.len(),
     )?;
@@ -316,6 +324,12 @@ pub(crate) fn decode_boundary_machine(
         structural_parameters: decode_structural_parameters(reader)?,
         result: decode_call_result(reader)?,
         requires: decode_counted(reader, |reader| {
+            Ok(StructuralDomainRequirement {
+                argument_index: reader.u32()?,
+                domain: reader.id("StructuralDomainId")?,
+            })
+        })?,
+        normal_qualifications: decode_counted(reader, |reader| {
             Ok(StructuralDomainRequirement {
                 argument_index: reader.u32()?,
                 domain: reader.id("StructuralDomainId")?,

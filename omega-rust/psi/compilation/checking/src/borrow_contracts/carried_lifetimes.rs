@@ -723,6 +723,10 @@ fn collect_type(
             }
             // A checked retained nominal carrier constrains its source lifetime
             // without containing a pointer. A phantom lifetime alone does not.
+            // The shared placeholder below describes no spatial permission:
+            // exact producer contracts supply access, and caller transport keeps
+            // each actual debt's access instead of attenuating it to this slot.
+            // One nominal carrier may have both shared and mutable issuers.
             if template.frontier != LifetimeFrontier::WriteOnlyAuthority
                 && let Some(custody) = program
                     .retained_borrow_custodies()
