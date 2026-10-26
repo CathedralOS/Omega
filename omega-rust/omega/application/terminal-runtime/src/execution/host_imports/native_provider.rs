@@ -83,6 +83,14 @@ impl NativeImport {
         if locator.target().native_target() != target::NativeTarget::host() {
             return Ok(None);
         }
+        // Modeled descriptor operations own their explicit input/output
+        // capability supply. An exact recognized but unoffered operation
+        // must not fall through to this worker's private null streams.
+        if runtime_abi::descriptor_import_identity(locator).is_some() {
+            return Err(missing(
+                "descriptor operation requires its explicit modeled I/O capability".into(),
+            ));
+        }
         if declaration
             .fixed_service_reach
             .iter()

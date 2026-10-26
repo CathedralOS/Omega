@@ -207,6 +207,7 @@ impl TerminalExecution<'_> {
         custody.rows(&self.structural_primitive_storage, root)?;
         custody.rows(&self.structural_cases, root)?;
         custody.rows(&self.structural_host_atoms, root)?;
+        custody.rows(&self.original_storage_roots, root)?;
         custody.rows(&self.provider_storage.completed_profiles, root)?;
         custody.rows(&self.structural_byte_storage, root)?;
         custody.rows(&self.structural_byte_sequence_fields, root)?;

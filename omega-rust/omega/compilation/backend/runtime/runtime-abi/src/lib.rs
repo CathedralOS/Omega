@@ -26,7 +26,8 @@ pub use borrowed_storage::{
     NativeStorageCaseTag, NativeStorageRepetition,
 };
 pub use descriptor_io::{
-    DescriptorAbi, DescriptorOperation, descriptor_import, descriptor_system_call,
+    DescriptorAbi, DescriptorOperation, descriptor_import, descriptor_import_identity,
+    descriptor_system_call,
 };
 pub use integer_division::{HostIntegerDivision, host_integer_division};
 pub use network_address::HostInternetAddress;
