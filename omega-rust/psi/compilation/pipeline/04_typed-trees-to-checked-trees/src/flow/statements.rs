@@ -55,7 +55,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
     for statement_index in execution_order.indices().iter().copied() {
         let statement = &program.statement_table.statements(state.statement_nodes)[statement_index];
         let statement_calls = &borrow_calls[call_ranges[statement_index].clone()];
-        let operand_capture_start = build.control.operands.len();
+        let operand_capture_start = build.control.operands.frontier();
         append_proof_output_ensures(
             proof,
             semantic,
@@ -220,11 +220,16 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             let loan_handle = borrow_state.loans.handle_at(loan_index as u32);
 
             let formation_value = {
+                let captures_span = super::reference_spans::appended_span_since(
+                    &build.control.operands,
+                    operand_capture_start,
+                );
                 let mut captures = build
                     .control
                     .operands
+                    .span_or_empty(captures_span)
                     .iter()
-                    .skip(operand_capture_start)
+                    .enumerate()
                     .filter(|(_, operand)| {
                         operand.expression == loan.formation_expression
                             && operand.state_symbol == state.symbol
@@ -232,7 +237,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                     });
                 let first = captures
                     .next()
-                    .map(|(handle, _)| handle)
+                    .map(|(offset, _)| captures_span.handle_at(offset as u32))
                     .unwrap_or_default();
                 if captures.next().is_none() {
                     first

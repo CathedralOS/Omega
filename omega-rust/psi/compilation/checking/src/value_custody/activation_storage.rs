@@ -29,13 +29,13 @@ pub struct ActivationStorageContract {
 
 fn sealed(program: &dyn crate::CheckingInput, symbol: SymbolHandle, identity: &str) -> bool {
     program
-        .normalized_hermetic_symbol_identity(symbol)
-        .ok()
-        .as_deref()
-        == Some(identity)
+        .symbol_toolchain_relative_path(symbol)
+        .is_some_and(|path| path == std::path::Path::new(ACTIVATION_CORE_SOURCE))
         && program
-            .symbol_toolchain_relative_path(symbol)
-            .is_some_and(|path| path == std::path::Path::new(ACTIVATION_CORE_SOURCE))
+            .normalized_hermetic_symbol_identity(symbol)
+            .ok()
+            .as_deref()
+            == Some(identity)
 }
 
 fn plain_data<'a>(
@@ -101,6 +101,9 @@ pub fn exact_toolchain_activation_storage_contract(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Option<ActivationStorageContract> {
+    if machine.body_is_present || machine.supply_mode != MachineSupplyMode::Boundary {
+        return None;
+    }
     let operation = if sealed_machine(program, machine, "toolchain::Activation::try_claim") {
         ActivationStorageOperation::Establish
     } else if sealed_machine(program, machine, "toolchain::ActivationClaim::bytes") {
@@ -543,6 +546,9 @@ pub fn activation_claim_byte_carrier(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
+    if !sealed(program, symbol, "toolchain::ActivationClaim") {
+        return None;
+    }
     program.machines().iter().find_map(|machine| {
         let contract = exact_toolchain_activation_storage_contract(program, machine)?;
         (contract.claim == symbol).then_some(contract.byte_type)

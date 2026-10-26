@@ -268,9 +268,11 @@ fn sweep<'plans>(
     }
 }
 
-/// Roster positions grouped by a call into another machine. The callee's entry
-/// reads the caller's selected-case and scalar actuals, so the two machines
-/// share one value-input fixed point. Groups keep roster order, inside and
+/// Roster positions grouped by an invocation that writes another machine's
+/// `state_value_inputs`: a call to a non-entry state of another machine, or an
+/// extracted lexical region and its origin machine. Ordinary machine-entry
+/// calls check the callee under its declared premises and do not couple the
+/// two machines' value-input fixed points. Groups keep roster order, inside and
 /// across groups, so adopted pages publish in that order.
 fn machine_groups(
     program: &dyn ::validation::CheckingInput,
@@ -293,45 +295,33 @@ fn machine_groups(
         }
     }
     let mut owner = (0..machines.len()).collect::<Vec<_>>();
+    for (position, machine) in machines.iter().enumerate() {
+        if let Some(origin) = machine.lexical_region_origin
+            && let Some(origin_position) = program.machine_position_by_symbol(origin.machine)
+            && origin_position != position
+        {
+            let (left, right) = (root(&mut owner, position), root(&mut owner, origin_position));
+            owner[left.max(right)] = left.min(right);
+        }
+    }
     for (_, row) in borrow.states.iter() {
         let Some(caller) = program.machine_position_by_symbol(row.machine_symbol) else {
             continue;
         };
         for call in borrow.calls.span_or_empty(row.calls) {
-            let Some(callee) = state_locations
-                .get(&call.target_symbol)
-                .map(|(machine, _)| *machine)
-                .or_else(|| program.machine_position_by_symbol(call.target_symbol))
-            else {
+            let Some(&(callee, state_position)) = state_locations.get(&call.target_symbol) else {
                 continue;
             };
-            // Entry calls carry selected-case and scalar actuals. A target
-            // family schedules every authored body with the caller, because
-            // each body is checked against those actuals.
-            let mut callees = vec![callee];
-            let machine_symbol = machines[callee].symbol;
-            if let Some(family) = program.target_machine_families.iter().find(|family| {
-                family.canonical == machine_symbol
-                    || family
-                        .members
-                        .iter()
-                        .any(|member| member.machine == machine_symbol)
-            }) {
-                for member in std::iter::once(family.canonical)
-                    .chain(family.members.iter().map(|member| member.machine))
-                {
-                    if let Some(position) = program.machine_position_by_symbol(member) {
-                        if !callees.contains(&position) {
-                            callees.push(position);
-                        }
-                    }
-                }
+            let callee_machine = &machines[callee];
+            if callee_machine.lexical_region_origin.is_none()
+                && super::state_values::entry_state_index(program, callee_machine)
+                    == Some(state_position)
+            {
+                continue;
             }
-            for callee in callees {
-                if callee != caller {
-                    let (left, right) = (root(&mut owner, caller), root(&mut owner, callee));
-                    owner[left.max(right)] = left.min(right);
-                }
+            if callee != caller {
+                let (left, right) = (root(&mut owner, caller), root(&mut owner, callee));
+                owner[left.max(right)] = left.min(right);
             }
         }
     }
