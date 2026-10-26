@@ -35,6 +35,15 @@ pub struct NativeHomeId {
     ordinal: u64,
 }
 
+/// Value transport and pointee geometry are separate joins. A foreign C
+/// pointer has an ordinary one-word integer ABI class; its original referent
+/// extent comes from the host's admitted semantic declaration and layout.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeParameterStorage {
+    Value,
+    OriginalReference { byte_size: usize, alignment: usize },
+}
+
 pub enum NativeArgument<'a> {
     Value(&'a [u8]),
     Borrowed { home: NativeHomeId, offset: usize },
@@ -160,25 +169,29 @@ impl NativeProviderProcess {
     pub fn install(
         &mut self,
         adapter: &NativeForeignAdapterImage,
+        storage: &[NativeParameterStorage],
     ) -> Result<NativeAdapterId, NativeProviderError> {
         if adapter.bridge().request().target != target::NativeTarget::host() {
             return Err(invalid("native frame product targets another host").into());
         }
         let plan = &adapter.bridge().request().foreign.plan().call;
+        if storage.len() != plan.parameters.len() {
+            return Err(invalid("native parameter storage has an incomplete telescope").into());
+        }
         let mut packet = Packet::new(1);
         packet.number(self.adapters);
         packet.text(adapter.export())?;
         packet.bytes(adapter.container().contents())?;
         packet.bytes(&Sha256::digest(adapter.container().contents()))?;
         packet.number(plan.parameters.len() as u64);
-        for parameter in &plan.parameters {
-            geometry(parameter.shape)?.write(&mut packet);
+        for (parameter, storage) in plan.parameters.iter().zip(storage) {
+            geometry(parameter.shape, *storage)?.write(&mut packet);
         }
         match &plan.result {
             None => packet.byte(0),
             Some(result) => {
                 packet.byte(1);
-                geometry(result.shape)?.write(&mut packet);
+                geometry(result.shape, NativeParameterStorage::Value)?.write(&mut packet);
             }
         }
         self.exchange(packet)?;
@@ -403,20 +416,38 @@ impl Drop for NativeProviderProcess {
     }
 }
 
-fn geometry(shape: ValueShape) -> io::Result<Geometry> {
-    match shape.class {
-        ValueClass::BorrowedReference => Ok(Geometry {
-            extent: 8,
-            alignment: 8,
-            referent: Some((shape.byte_size as usize, usize::from(shape.alignment))),
-        }),
-        ValueClass::BorrowedScalarReference => Err(invalid(
-            "native scalar descriptors require their exact admitted scalar backing codec",
+fn geometry(shape: ValueShape, storage: NativeParameterStorage) -> io::Result<Geometry> {
+    match storage {
+        NativeParameterStorage::OriginalReference {
+            byte_size,
+            alignment,
+        } if byte_size != 0
+            && alignment.is_power_of_two()
+            && (shape == ValueShape::integer(8, 8)
+                || (shape.class == ValueClass::BorrowedReference
+                    && shape.byte_size as usize == byte_size
+                    && usize::from(shape.alignment) == alignment)) =>
+        {
+            Ok(Geometry {
+                extent: 8,
+                alignment: 8,
+                referent: Some((byte_size, alignment)),
+            })
+        }
+        NativeParameterStorage::Value
+            if !matches!(
+                shape.class,
+                ValueClass::BorrowedReference | ValueClass::BorrowedScalarReference
+            ) =>
+        {
+            Ok(Geometry {
+                extent: shape.byte_size as usize,
+                alignment: usize::from(shape.alignment),
+                referent: None,
+            })
+        }
+        _ => Err(invalid(
+            "native parameter storage disagrees with its exact physical value transport",
         )),
-        _ => Ok(Geometry {
-            extent: shape.byte_size as usize,
-            alignment: usize::from(shape.alignment),
-            referent: None,
-        }),
     }
 }

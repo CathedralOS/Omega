@@ -2442,6 +2442,7 @@ dependencies = [
  "backend-plan",
  "calling-conventions",
  "native-artifact",
+ "native-provider-runtime",
  "numerics",
  "runtime-abi",
  "semantic-vocabulary",

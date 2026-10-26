@@ -107,6 +107,13 @@ pub struct TerminalExecution<'artifact> {
         RuntimeRows<PlaceId, crate::reference::AggregateBacking>,
     /// A reference carrier owns this descriptor, never the referent's backing.
     /// Carrier identities survive structural call/return moves across frames.
+    /// Original physical-allocation association of a complete owned subtree.
+    /// Only constructor custody transfer relocates this seal; copies and
+    /// projected pieces cannot infer a new whole allocation from resident bits.
+    pub(crate) original_storage_roots: RuntimeRows<
+        StructuralRuntimePlace,
+        crate::effects::original_storage::TerminalOriginalStorageRoot,
+    >,
     pub(crate) reference_referents:
         RuntimeRows<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
     /// Mutable primitive contents live outside call frames. Machine-local
@@ -536,6 +543,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             borrowed_entry_storage,
             structural_values,
             aggregate_argument_backings: RuntimeRows::new(account.as_ref()),
+            original_storage_roots: RuntimeRows::new(account.as_ref()),
             reference_referents: RuntimeRows::new(account.as_ref()),
             structural_element_view_fields: RuntimeRows::new(account.as_ref()),
             structural_byte_descriptors: RuntimeRows::new(account.as_ref()),

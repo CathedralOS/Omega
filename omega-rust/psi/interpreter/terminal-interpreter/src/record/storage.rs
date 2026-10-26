@@ -251,6 +251,10 @@ impl<'execution> ConstructorValue<'execution> {
 }
 
 pub(crate) struct ConstructorStorage {
+    original_roots: RuntimeRows<
+        StructuralRuntimePlace,
+        crate::effects::original_storage::TerminalOriginalStorageRoot,
+    >,
     completed_profiles: RuntimeRows<
         StructuralRuntimePlace,
         crate::provider_storage::profiles::CompletedResourceProfile,
@@ -336,6 +340,7 @@ impl ConstructorStorage {
         custody: &mut crate::result_custody::ResultCustody<'storage>,
     ) -> Result<(), TerminalInterpretError> {
         for count in [
+            self.original_roots.len(),
             self.completed_profiles.len(),
             self.provider_descriptors.len(),
             self.activation_descriptors.len(),
@@ -382,6 +387,7 @@ impl ConstructorStorage {
         account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
     ) -> Self {
         Self {
+            original_roots: RuntimeRows::new(account),
             completed_profiles: RuntimeRows::new(account),
             provider_descriptors: RuntimeRows::new(account),
             activation_descriptors: RuntimeRows::new(account),
@@ -431,6 +437,9 @@ impl ConstructorStorage {
                 path,
             })
         };
+        for (home, root) in &original.original_roots {
+            self.original_roots.insert(relocate(home)?, *root)?;
+        }
         for (home, binding) in &original.provider_descriptors {
             if !execution.provider_storage.binding_is_live(*binding) {
                 return Err(
@@ -936,6 +945,16 @@ impl ConstructorStorage {
             })
         };
         if transfers_custody {
+            // Relocate an existing complete allocation association. Scalar Rc
+            // equality cannot prove this whole-subtree custody transfer: a
+            // disjoint projected move can leave other loans on its old parent.
+            for (home, original) in
+                crate::structural_storage::cells(&execution.original_storage_roots, source)
+            {
+                if let Some(target) = relocate(home) {
+                    self.original_roots.insert(target, *original)?;
+                }
+            }
             for (home, profile) in crate::structural_storage::cells(
                 &execution.provider_storage.completed_profiles,
                 source,
@@ -1086,20 +1105,46 @@ impl ConstructorStorage {
         execution: &TerminalExecution<'_>,
         root: &StructuralRuntimePlace,
     ) -> Result<(), TerminalInterpretError> {
+        self.preserve_original_roots(execution, root)?;
         self.prepare_resident_writes(execution, root)?.commit(self)
     }
 
     pub(crate) fn prepare_replacement(
-        self,
+        mut self,
         execution: &TerminalExecution<'_>,
         root: StructuralRuntimePlace,
     ) -> Result<PreparedConstructorReplacement, TerminalInterpretError> {
+        self.preserve_original_roots(execution, &root)?;
         let residents = self.prepare_resident_writes(execution, &root)?;
         Ok(PreparedConstructorReplacement {
             root,
             storage: self,
             residents,
         })
+    }
+
+    fn preserve_original_roots(
+        &mut self,
+        execution: &TerminalExecution<'_>,
+        root: &StructuralRuntimePlace,
+    ) -> Result<(), TerminalInterpretError> {
+        for (home, original) in
+            crate::structural_storage::cells(&execution.original_storage_roots, root)
+        {
+            if self
+                .original_roots
+                .get(home)
+                .is_some_and(|incoming| incoming != original)
+            {
+                return Err(TerminalInterpretError::ResidentStorage(
+                    crate::TerminalEffectRejection::new(
+                        "replacement cannot substitute another original allocation",
+                    ),
+                ));
+            }
+            self.original_roots.insert(home.clone(), *original)?;
+        }
+        Ok(())
     }
 
     fn prepare_resident_writes(
@@ -1143,6 +1188,9 @@ impl ConstructorStorage {
         &self,
         execution: &TerminalExecution<'_>,
     ) -> Result<(), TerminalInterpretError> {
+        execution
+            .original_storage_roots
+            .validate_append(&self.original_roots)?;
         execution
             .provider_storage
             .descriptors
@@ -1188,6 +1236,9 @@ impl ConstructorStorage {
         execution: &mut TerminalExecution<'_>,
     ) -> Result<(), TerminalInterpretError> {
         self.validate_publication(execution)?;
+        execution
+            .original_storage_roots
+            .append(&mut self.original_roots)?;
         execution
             .structural_scalar_fields
             .append(&mut self.scalars)?;

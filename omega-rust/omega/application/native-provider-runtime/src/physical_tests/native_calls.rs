@@ -142,7 +142,11 @@ fn real_provider_retains_original_mapped_roots_and_faults_without_replay() {
             [index as u8 + 1; 32],
         )
         .unwrap();
-        installed.push(process.install(&product).unwrap());
+        installed.push(
+            process
+                .install(&product, &parameter_storage(&product))
+                .unwrap(),
+        );
         products.push(product);
     }
     let original = process.create_home(8, 8).unwrap();
@@ -266,9 +270,15 @@ fn real_provider_retains_original_mapped_roots_and_faults_without_replay() {
         command.env("PATH", std::env::join_paths(paths).unwrap());
     }
     let mut fresh = NativeProviderProcess::launch(command, TIMEOUT).unwrap();
-    let acquire = fresh.install(&products[0]).unwrap();
-    let release = fresh.install(&products[3]).unwrap();
-    let retain_until_exit = fresh.install(&products[4]).unwrap();
+    let acquire = fresh
+        .install(&products[0], &parameter_storage(&products[0]))
+        .unwrap();
+    let release = fresh
+        .install(&products[3], &parameter_storage(&products[3]))
+        .unwrap();
+    let retain_until_exit = fresh
+        .install(&products[4], &parameter_storage(&products[4]))
+        .unwrap();
     let home = fresh.create_home(8, 8).unwrap();
     assert_ne!(home, original);
     assert!(fresh.call(installed[0], &[]).is_err());
@@ -287,4 +297,28 @@ fn real_provider_retains_original_mapped_roots_and_faults_without_replay() {
     fresh.close().unwrap();
     assert_eq!(std::fs::read(exit_witness).unwrap(), 91_u64.to_le_bytes());
     std::fs::remove_dir_all(directory).unwrap();
+}
+
+fn parameter_storage(
+    product: &native_artifact::NativeForeignAdapterImage,
+) -> Vec<crate::NativeParameterStorage> {
+    product
+        .bridge()
+        .request()
+        .foreign
+        .plan()
+        .call
+        .parameters
+        .iter()
+        .map(|parameter| {
+            if parameter.shape.class == calling_conventions::ValueClass::BorrowedReference {
+                crate::NativeParameterStorage::OriginalReference {
+                    byte_size: parameter.shape.byte_size as usize,
+                    alignment: usize::from(parameter.shape.alignment),
+                }
+            } else {
+                crate::NativeParameterStorage::Value
+            }
+        })
+        .collect()
 }

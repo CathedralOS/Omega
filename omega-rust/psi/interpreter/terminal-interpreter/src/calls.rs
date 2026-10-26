@@ -596,6 +596,9 @@ impl<'artifact> TerminalExecution<'artifact> {
             completion_receipts,
             &boundary_declaration.structural_parameters,
         )?;
+        boundary_arguments
+            .storage_inputs
+            .prepare_original_storage(self, handler, boundary)?;
         // Complete ordinary storage/custody checking above before presenting
         // exact admitted abstract payloads to the host. Borrowed arguments keep
         // their original storage/descriptor route; an atom grants no loan.

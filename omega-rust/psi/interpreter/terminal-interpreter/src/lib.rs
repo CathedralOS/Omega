@@ -82,6 +82,10 @@ pub use capabilities::{
     TerminalExecutionRequirements, TerminalExternalCompletionDemand, TerminalUnsupportedCapability,
 };
 pub use effects::byte_buffers::TerminalBoundaryByteBuffer;
+pub use effects::original_storage::{
+    TerminalOriginalScalarBackings, TerminalOriginalScalarValue, TerminalOriginalStorageLoan,
+    TerminalOriginalStorageRequest, TerminalOriginalStorageRoot,
+};
 pub use effects::results::TerminalEffectResult;
 pub use effects::scalar_loans::TerminalBoundaryScalarBuffer;
 pub use effects::storage_inputs::{

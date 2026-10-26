@@ -46,12 +46,17 @@ RETENTION_EXPORT uint64_t retention_complete(uint64_t pending, uint64_t *observe
     return (slot->capacity_generation << 2) | (pending & 3);
 }
 RETENTION_EXPORT void retention_release(uint64_t capacity) { lookup(capacity, CAPACITY)->state = VACANT; }
+RETENTION_EXPORT uint64_t retention_same(const uint64_t *first, const uint64_t *second) {
+    if (first == NULL || second == NULL) invalid();
+    return first == second && *first == *second ? 0 : 1;
+}
 #ifdef RETENTION_FIXTURE_TEST
 #include <assert.h>
 int main(void) {
     uint64_t a = retention_acquire(), b = retention_acquire();
     assert(a != b);
     uint64_t x = 37, y = 91, observed = 0;
+    assert(retention_same(&x, &x) == 0 && retention_same(&x, &y) == 1);
     uint64_t first = retention_register(a, &x), second = retention_register(b, &y);
     assert(retention_complete(first, &observed) == a && observed == 37);
     assert(retention_complete(second, &observed) == b && observed == 91);

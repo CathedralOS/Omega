@@ -333,6 +333,21 @@ fn local_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTyp
 }
 
 impl TerminalExecution<'_> {
+    /// Native completion already changed these original bytes. Commit only
+    /// their ordinary provenance invalidation; replaying a staged snapshot
+    /// would overwrite the provider's actual result.
+    pub(crate) fn record_original_scalar_write(
+        &mut self,
+        storage: &PrimitiveStorage,
+    ) -> Result<(), TerminalInterpretError> {
+        let changed = match &storage.endpoint {
+            PrimitiveStorageEndpoint::Scalar(home) => home,
+            PrimitiveStorageEndpoint::ScalarField(field) => &field.parent,
+            _ => return Err(malformed()),
+        };
+        self.invalidate_stored_provenance(changed);
+        Ok(())
+    }
     /// Prepare the same original endpoint for ordinary calls and host staging.
     /// In particular, a local array's scalar payload stays in its owner's
     /// activation; its observation descriptor never creates another scalar row.
