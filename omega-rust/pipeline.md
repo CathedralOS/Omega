@@ -270,7 +270,9 @@ and Product-preparation sequence without forking a nonexistent sibling. An
 already prepared `PackageBuild::select_target` remains restricted to equal source
 and semantic inputs; it selects realization, not a new Product judgment.
 
-Ordinary CLI build/check/run/inspection now uses this lifecycle. Package recovery
+Ordinary CLI and SDK build/check/run/inspection use this lifecycle; SDK callers
+submit `BuildRequest` rather than preparing a second, statically projected graph.
+Package recovery
 begins before acquisition; one application session executes actual declarations
 and selected dependency requests, retains their source captures and settles each
 Build. Package-owned Product admission preserves source/compiler/lock checks and

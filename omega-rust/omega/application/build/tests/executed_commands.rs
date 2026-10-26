@@ -3,7 +3,10 @@
 //! the execution counter measures the complete invocation.
 
 use artifacts::compile_timings::counters;
-use omega_build::{BuildSession, execute_package_command, inspect_packages};
+use omega_build::{
+    BuildRequest, BuildSession, BuildTargets, NativeDestination, ProjectProduct, build,
+    execute_package_command, inspect_packages,
+};
 use package_manager::operations::{PackageInspectionOptions, PackageInspectionOutcome};
 use package_manager::{
     PackageCommand, PackageCommandKind, PackageCommandOptions, PackageCommandStatus,
@@ -125,6 +128,62 @@ fn audit(project: &Path, executions: Option<u64>) -> PackageInspectionOutcome {
     )
 }
 
+fn compile_accepted_project(project: &Path, executions: u64) {
+    let targets =
+        target::ExplicitTargetSet::from_caller_names(["linux_x86_64", "macos_arm64"]).unwrap();
+    let expected_targets = targets.profiles().to_vec();
+    for product in [
+        ProjectProduct::Check,
+        ProjectProduct::Native {
+            destination: NativeDestination::Retained,
+            private_entry_ram: Vec::new(),
+        },
+    ] {
+        let check_only = matches!(product, ProjectProduct::Check);
+        let before = counters::build_execution_count();
+        let outcomes = build(BuildRequest {
+            root_path: project.join("main.omg"),
+            build_directory: Some(project.join("build/sdk")),
+            targets: BuildTargets::Batch(targets.clone()),
+            product,
+            timings: false,
+            offline: true,
+            verify: false,
+            require_package_project: true,
+            optimization_rollback: Default::default(),
+            build_snapshot: None,
+        })
+        .unwrap();
+        assert_eq!(counters::build_execution_count() - before, executions);
+        assert_eq!(
+            outcomes
+                .iter()
+                .map(|outcome| outcome.target)
+                .collect::<Vec<_>>(),
+            expected_targets
+        );
+        let reports: Vec<_> = outcomes
+            .into_iter()
+            .map(|outcome| outcome.result.unwrap().into_report().unwrap().report)
+            .collect();
+        if !check_only {
+            let first = reports[0]
+                .retained_native_artifact()
+                .unwrap()
+                .psi_artifact();
+            for report in &reports[1..] {
+                assert!(
+                    std::ptr::eq(
+                        first,
+                        report.retained_native_artifact().unwrap().psi_artifact()
+                    ),
+                    "SDK target products must share their Terminal artifact"
+                );
+            }
+        }
+    }
+}
+
 fn audit_with_options(
     options: PackageInspectionOptions,
     executions: Option<u64>,
@@ -188,6 +247,7 @@ fn dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished() 
         1,
     );
     assert_eq!(std::fs::read(project.join("build.omg")).unwrap(), source);
+    compile_accepted_project(&project, 1);
     let accepted = audit(&project, Some(1));
     assert!(
         accepted.complete && !accepted.requires_decision,
@@ -226,6 +286,7 @@ fn dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished() 
         2,
     );
     let lock = std::fs::read(project.join("omega.lock")).unwrap();
+    compile_accepted_project(&project, 2);
     let source = std::fs::read_to_string(project.join("build.omg")).unwrap();
     let accepted = audit(&project, Some(2));
     assert!(
