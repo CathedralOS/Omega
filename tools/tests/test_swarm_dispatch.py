@@ -218,8 +218,42 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(armed['gap'], record['gap'])
         self.assertEqual((self.a / 'unpublished-progress').read_text(), 'keep this session branch')
         self.assertEqual(self.probe_row(), before)
-        self.call(self.a, 'reserve', '--packet', self.root / 'attempt.json', '--attempt',
-                  self.root / 'stale-attempt.json', '--owner', 'parent', expected=1)
+        next_assignment = self.call(self.a, 'reserve', '--packet', self.root / 'attempt.json', '--attempt',
+                                   self.root / 'next-attempt.json', '--owner', 'parent')
+        self.assertEqual(next_assignment['phase'], 'reserved')
+        self.assertEqual(next_assignment['candidate']['item'], 'samples/cli/facts/second')
+        self.assertEqual(next_assignment['session']['session_id'], 'codex:two')
+        self.assertEqual(next_assignment['base'], self.base)
+
+    def test_selection_keeps_its_validated_base_when_main_advances(self):
+        packet = self.packet()
+        (self.b / 'new-main-file').write_text('main advanced during qualification')
+        kit.git(self, self.b, 'add', '.')
+        kit.git(self, self.b, 'commit', '-m', 'advance main during qualification')
+        kit.git(self, self.b, 'push', 'origin', 'main')
+        current_main = kit.git(self, self.b, 'rev-parse', 'HEAD')
+        _, record = self.reserve(packet=packet)
+        self.assertEqual(record['phase'], 'reserved')
+        self.assertEqual(record['base'], self.base)
+        self.assertEqual(record['selection_main'], current_main)
+        self.assertEqual(record['candidate'], packet['candidates'][0])
+
+    def test_selection_refuses_main_that_loses_its_base(self):
+        unrelated_main = kit.git_input(self, self.a, 'commit-tree', self.base + '^{tree}',
+                                       input_text='unrelated selection history\n')
+        with mock.patch.object(self.module, 'main_base', return_value=unrelated_main):
+            with self.assertRaisesRegex(self.module.RecoveryError, 'no longer descends'):
+                self.module.reserve(self.a, self.packet(), self.root / 'lost-base.json', 'parent')
+        self.assertEqual(self.registry()['claims'], [])
+
+    def test_selection_requires_an_exact_recorded_commit(self):
+        packet = self.packet()
+        packet['base'] = 'main'
+        packet_path = self.root / 'symbolic-base.json'
+        self.binding(packet_path, packet)
+        self.call(self.a, 'reserve', '--packet', packet_path, '--attempt',
+                  self.root / 'symbolic-base-attempt.json', '--owner', 'parent', expected=1)
+        self.assertEqual(self.registry()['claims'], [])
 
     def test_reserved_dispatch_refuses_main_that_loses_its_base(self):
         attempt, record = self.reserve()

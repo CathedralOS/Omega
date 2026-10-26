@@ -34,7 +34,12 @@ recorded identity for reconciliation rather than allocating a replacement.
    python3 tools/swarm/dispatch.py --repository CHECKOUT reserve --packet PACKET --attempt build/swarm/WAVE/ATTEMPT.json --owner "coordinator / slot"
    ```
 
-   The tool fetches main, checks its exact SHA and Git object fingerprints, skips
+   The tool fetches main successfully and verifies that the reviewed fixed base
+   remains in its history. The isolated checkout must still be at that exact
+   base; Git object fingerprints and failed observations bind the selected
+   source and producer there. `selection_main` records the newer fetched head
+   separately. Descendant publication during qualification does not require a
+   new producer or relabel an old observation. The tool skips
    rows with no remaining measured gap, and tries candidates in supplied priority
    order. CAS collisions recheck outcome and session ownership in the common
    registry. Exit 0 with `phase: reserved` is required; `no_work` is not permission
@@ -48,7 +53,8 @@ recorded identity for reconciliation rather than allocating a replacement.
    from `base`. Ordinary descendant publication does not change the selected
    source, producer, or historical evidence and requires no rebuild or recapture.
    A lost base, changed evidence, unavailable session, or conflicting owner still
-   refuses the send. Initial reservation still requires fresh fetched-main review.
+   refuses the send. Initial selection still starts from a successfully fetched
+   main commit; later publication does not replace that recorded base.
    The fresh row must name the same reserved session and be observed after reservation;
    running or unavailable sessions refuse admission. Then use the discovered supported runtime or existing durable cloud adapter to
    send exactly once to the selected session ID, or create only when authorized.

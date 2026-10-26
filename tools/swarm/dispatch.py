@@ -164,14 +164,17 @@ def claim_call(repository, *arguments, record_new_ticket=None):
 
 
 def reserve(repository, packet, attempt, owner, allow_create=False):
-    base = main_base(repository)
-    require(packet['base'] == base, 'main changed; refresh selection review before reservation')
+    selection_main = main_base(repository)
+    base = qualification.revision(repository, packet['base'])
+    require(not git(repository, 'rev-list', '--max-count=1', base, '--not', selection_main),
+            'fetched main no longer descends from the selection base; reconcile before reservation')
     require(git(repository, 'rev-parse', 'HEAD') == base, 'select from isolated fetched-main checkout')
     sessions = session_options(packet)
     if allow_create:
         sessions.append(dict(action='create', cache_continuity=False))
     require(sessions, 'no available completed session; inspect runtime or explicitly authorize creation')
-    record = dict(base=base, ticket=None, owner=owner, phase='selecting', tries=[])
+    record = dict(base=base, selection_main=selection_main, ticket=None, owner=owner,
+                  phase='selecting', tries=[])
     atomic_json(attempt, record)
     for row in packet['candidates']:
         gap = unfinished(repository, base, row)
