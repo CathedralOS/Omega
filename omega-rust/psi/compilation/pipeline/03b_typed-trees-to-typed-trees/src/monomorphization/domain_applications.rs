@@ -72,14 +72,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
                 } = parameter.kind
                 {
                     match program.type_reference_table.type_reference(*argument) {
-                        TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid() => {
-                            validation::validate_closed_const_argument(
-                                program,
-                                domain.name.as_str(),
-                                parameter,
-                                *argument,
-                            )?;
-                        }
+                        TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid() => {}
                         TypeReferenceNode::ConstExpression(expression)
                             if lexical_owner.is_valid() && is_closed(program, carrier) =>
                         {
