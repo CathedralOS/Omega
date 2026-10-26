@@ -367,39 +367,94 @@ impl PreparedConflicts {
         } else {
             Vec::new()
         };
-        for left in &model.views {
-            let left_idx = usize::from(left.id.0);
-            if !used_views[left_idx] {
-                continue;
-            }
-            let row_base = left_idx * view_count;
-            let mut count = 0u16;
-            for right in &model.views {
-                let right_idx = usize::from(right.id.0);
-                if !used_views[right_idx] {
+        let can_use_unit_masks = model.views.iter().all(|v| {
+            v.units
+                .iter()
+                .chain(&v.write_units)
+                .all(|u| usize::from(u.0) < 64)
+        });
+        if can_use_unit_masks {
+            let mut view_masks = vec![(0u64, 0u64, 0u64); view_count];
+            let mut active_indices = Vec::with_capacity(view_count);
+            for view in &model.views {
+                let idx = usize::from(view.id.0);
+                if !used_views[idx] {
                     continue;
                 }
-                let pair = DomainPair {
-                    interferes: left.footprints_overlap(right),
-                    left_defines: definition_overwrites_use(left, right),
-                    right_defines: definition_overwrites_use(right, left),
-                };
-                let mask = pair.to_mask();
-                if mask != 0 {
-                    physical_matrix[row_base + right_idx] = mask;
-                    count += 1;
-                    if view_count <= 64 {
-                        let bit = 1u64 << left_idx;
-                        let right_masks = &mut conflict_masks[right_idx];
-                        for pm in 1..8u8 {
-                            if (mask & pm) != 0 {
-                                right_masks[pm as usize] |= bit;
+                let mut u_mask = 0u64;
+                for &u in &view.units {
+                    u_mask |= 1u64 << u.0;
+                }
+                let mut w_mask = 0u64;
+                for &u in &view.write_units {
+                    w_mask |= 1u64 << u.0;
+                }
+                view_masks[idx] = (u_mask, w_mask, u_mask | w_mask);
+                active_indices.push(idx);
+            }
+            for &left_idx in &active_indices {
+                let (left_u, left_w, left_all) = view_masks[left_idx];
+                let row_base = left_idx * view_count;
+                let mut count = 0u16;
+                for &right_idx in &active_indices {
+                    let (right_u, right_w, right_all) = view_masks[right_idx];
+                    let pair = DomainPair {
+                        interferes: (left_all & right_all) != 0,
+                        left_defines: (left_w & right_u) != 0,
+                        right_defines: (right_w & left_u) != 0,
+                    };
+                    let mask = pair.to_mask();
+                    if mask != 0 {
+                        physical_matrix[row_base + right_idx] = mask;
+                        count += 1;
+                        if view_count <= 64 {
+                            let bit = 1u64 << left_idx;
+                            let right_masks = &mut conflict_masks[right_idx];
+                            for pm in 1..8u8 {
+                                if (mask & pm) != 0 {
+                                    right_masks[pm as usize] |= bit;
+                                }
                             }
                         }
                     }
                 }
+                physical_counts[left_idx] = count;
             }
-            physical_counts[left_idx] = count;
+        } else {
+            for left in &model.views {
+                let left_idx = usize::from(left.id.0);
+                if !used_views[left_idx] {
+                    continue;
+                }
+                let row_base = left_idx * view_count;
+                let mut count = 0u16;
+                for right in &model.views {
+                    let right_idx = usize::from(right.id.0);
+                    if !used_views[right_idx] {
+                        continue;
+                    }
+                    let pair = DomainPair {
+                        interferes: left.footprints_overlap(right),
+                        left_defines: definition_overwrites_use(left, right),
+                        right_defines: definition_overwrites_use(right, left),
+                    };
+                    let mask = pair.to_mask();
+                    if mask != 0 {
+                        physical_matrix[row_base + right_idx] = mask;
+                        count += 1;
+                        if view_count <= 64 {
+                            let bit = 1u64 << left_idx;
+                            let right_masks = &mut conflict_masks[right_idx];
+                            for pm in 1..8u8 {
+                                if (mask & pm) != 0 {
+                                    right_masks[pm as usize] |= bit;
+                                }
+                            }
+                        }
+                    }
+                }
+                physical_counts[left_idx] = count;
+            }
         }
         let mut max_any_physical_conflicts = 0usize;
         let mut first_used_count = None::<usize>;
