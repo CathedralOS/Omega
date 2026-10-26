@@ -44,8 +44,8 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console {
     let bounded: u64 = take_bounded(7);
     transition bounded == 7 {
-        true -> (good(main))
-        false -> (bad(main))
+        true -> { good(main); }
+        false -> { bad(main); }
     }
 
     machine good(main: &mut Main) reaches Console {

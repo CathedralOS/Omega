@@ -251,7 +251,10 @@ fn expression_selection_violation(
             .is_some()
     }) {
         return Some(SelectionViolation {
-            message: "build-time binary operator requires exact authored selection before evaluation; the evaluator cannot execute it as a builtin operator".to_owned(),
+            message: format!(
+                "build-time binary operator requires exact authored selection before evaluation; the evaluator cannot execute it as a builtin operator (machine `{}`, state `{}`, expression {expression:?})",
+                machine.name, state.name
+            ),
             source_span: Some(program.expression_table.source_span(expression)),
         });
     }

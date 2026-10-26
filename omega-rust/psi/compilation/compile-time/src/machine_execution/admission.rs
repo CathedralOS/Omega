@@ -330,6 +330,31 @@ impl BuildTimeAdmissionPlan {
         closure
     }
 
+    /// Extend a demanded source roster with the same exact execution edges
+    /// admission will inspect, including source-selected trait realizations.
+    /// This query grants no checking, invocation or effect authority.
+    pub(crate) fn append_execution_dependencies(
+        &self,
+        program: &TypedTrees,
+        execution: &mut Vec<SymbolHandle>,
+    ) {
+        let mut position = 0;
+        while let Some(&machine) = execution.get(position) {
+            position += 1;
+            for edge in self
+                .call_edges
+                .iter()
+                .filter(|edge| edge.source_machine_symbol == machine)
+            {
+                if let Some(target) = edge.target_machine(program) {
+                    if !execution.contains(&target) {
+                        execution.push(target);
+                    }
+                }
+            }
+        }
+    }
+
     pub fn with_selected_operators(
         mut self,
         program: &TypedTrees,
@@ -434,12 +459,7 @@ impl BuildTimeAdmissionPlan {
         machine: &Machine,
         custody: BuildTimeInvocationCustody,
     ) -> Result<(), BuildTimeAdmissionRejection> {
-        self.require_floor(
-            BuildTimeProgram::Typed(program),
-            machine,
-            Some(custody),
-            false,
-        )
+        self.require_checked_invocation_floor(program, machine, custody, false)
     }
 
     /// Common floor for one concrete invocation whose own checked probe
@@ -455,11 +475,29 @@ impl BuildTimeAdmissionPlan {
         machine: &Machine,
         custody: BuildTimeInvocationCustody,
     ) -> Result<(), BuildTimeAdmissionRejection> {
-        self.require_floor(
-            BuildTimeProgram::Typed(program),
-            machine,
+        self.require_checked_invocation_floor(program, machine, custody, true)
+    }
+
+    fn require_checked_invocation_floor(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        custody: BuildTimeInvocationCustody,
+        discharge_authored_requires: bool,
+    ) -> Result<(), BuildTimeAdmissionRejection> {
+        let checked = concrete_invocation::checked_demanded_closure(program, machine.symbol)?;
+        let execution = checked.typed.as_ref();
+        let root = execution
+            .machine_by_symbol(machine.symbol)
+            .ok_or_else(|| "checked invocation lost its exact declaration".to_owned())?;
+        let admission = Self::infer(execution, self.selection_authority.clone())
+            .with_selected_operators(execution, &self.selected_operators)?
+            .with_selected_machine_bodies(execution, &self.selected_machine_bodies)?;
+        admission.require_floor(
+            BuildTimeProgram::Checked(&checked),
+            root,
             Some(custody),
-            true,
+            discharge_authored_requires,
         )
     }
 
