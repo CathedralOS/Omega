@@ -134,6 +134,7 @@ pub(in crate::execution::terminal_unit) fn base_type_identity(
         program.type_reference_table.type_reference(storage),
         TypeReferenceNode::Named { .. }
             | TypeReferenceNode::Generic { .. }
+            | TypeReferenceNode::DynamicTrait { .. }
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::FixedArray {
                 length: typed_trees::types::FixedArrayLength::Literal(_),

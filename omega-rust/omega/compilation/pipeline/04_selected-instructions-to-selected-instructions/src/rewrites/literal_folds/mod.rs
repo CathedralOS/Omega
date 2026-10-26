@@ -183,53 +183,25 @@ pub struct StagedSelectedLoweringOptimizationCustodyReceipt {
 }
 
 impl StagedSelectedLoweringOptimizationCustodyReceipt {
-    pub const fn identity(&self) -> SelectedLoweringOptimizationCompletionIdentity {
-        self.identity
-    }
-    pub const fn source(&self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
-        self.source
-    }
-    pub const fn selections(&self) -> OptimizationSelectionIdentity {
-        self.selections
-    }
-    pub const fn selected_lowering_selections(&self) -> OptimizationSelectionIdentity {
-        self.selected_lowering_selections
-    }
-    pub const fn budget(&self) -> OptimizationWorkBudget {
-        self.budget
-    }
-    pub const fn usage(&self) -> OptimizationWorkUsage {
-        self.usage
-    }
-    pub const fn iteration_bound(&self) -> usize {
-        self.iteration_bound
-    }
-    pub const fn action_count(&self) -> usize {
-        self.action_count
-    }
-    pub const fn initial_virtual_register_count(&self) -> usize {
-        self.initial_virtual_register_count
-    }
+    receipt_accessor_rows!(ref StagedSelectedLoweringOptimizationCustodyReceipt {
+        identity: SelectedLoweringOptimizationCompletionIdentity,
+        source: StagedOptimizedAllocationLegalityCustodyReceipt,
+        selections: OptimizationSelectionIdentity,
+        selected_lowering_selections: OptimizationSelectionIdentity,
+        budget: OptimizationWorkBudget,
+        usage: OptimizationWorkUsage,
+        iteration_bound: usize,
+        action_count: usize,
+        initial_virtual_register_count: usize,
+        attempt: StagedOptimizedLiteralFoldAttemptReceipt,
+        final_selected: SelectedInstructionPlanIdentity,
+        final_liveness: selected_instructions::LivenessIdentity,
+        final_ranges: selected_instructions::LiveRangeIdentity,
+        final_legality: register_homes::AllocationLegalityIdentity,
+        final_virtual_register_count: usize,
+    });
     pub fn iterations(&self) -> &[StagedOptimizedLiteralFoldIterationReceipt] {
         &self.iterations
-    }
-    pub const fn attempt(&self) -> StagedOptimizedLiteralFoldAttemptReceipt {
-        self.attempt
-    }
-    pub const fn final_selected(&self) -> SelectedInstructionPlanIdentity {
-        self.final_selected
-    }
-    pub const fn final_liveness(&self) -> selected_instructions::LivenessIdentity {
-        self.final_liveness
-    }
-    pub const fn final_ranges(&self) -> selected_instructions::LiveRangeIdentity {
-        self.final_ranges
-    }
-    pub const fn final_legality(&self) -> register_homes::AllocationLegalityIdentity {
-        self.final_legality
-    }
-    pub const fn final_virtual_register_count(&self) -> usize {
-        self.final_virtual_register_count
     }
 }
 
@@ -252,48 +224,22 @@ pub struct StagedOptimizedLiteralFoldAttemptReceipt {
 }
 
 impl StagedOptimizedLiteralFoldAttemptReceipt {
-    pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
-    pub const fn source_ranges(self) -> selected_instructions::LiveRangeIdentity {
-        self.source_ranges
-    }
-    pub const fn source_legality(self) -> register_homes::AllocationLegalityIdentity {
-        self.source_legality
-    }
-    pub const fn choices(self) -> register_homes::SpillChoiceIdentity {
-        self.choices
-    }
-    pub const fn choice_policy(self) -> SpillChoicePolicy {
-        self.choice_policy
-    }
-    pub const fn choice_usage(self) -> OptimizationWorkUsage {
-        self.choice_usage
-    }
-    pub const fn recovery(self) -> register_homes::RecoveryClassificationIdentity {
-        self.recovery
-    }
-    pub const fn recovery_policy(self) -> RecoveryClassificationPolicy {
-        self.recovery_policy
-    }
-    pub const fn recovery_usage(self) -> OptimizationWorkUsage {
-        self.recovery_usage
-    }
-    pub const fn fold(self) -> LiteralFoldIdentity {
-        self.fold
-    }
-    pub const fn fold_policy(self) -> LiteralFoldPolicy {
-        self.fold_policy
-    }
-    pub const fn fold_usage(self) -> OptimizationWorkUsage {
-        self.fold_usage
-    }
-    pub const fn applied_count(self) -> usize {
-        self.applied_count
-    }
-    pub const fn transformed_selected(self) -> SelectedInstructionPlanIdentity {
-        self.transformed_selected
-    }
+    receipt_accessor_rows!(StagedOptimizedLiteralFoldAttemptReceipt {
+        source_selected: SelectedInstructionPlanIdentity,
+        source_ranges: selected_instructions::LiveRangeIdentity,
+        source_legality: register_homes::AllocationLegalityIdentity,
+        transformed_selected: SelectedInstructionPlanIdentity,
+        choices: register_homes::SpillChoiceIdentity,
+        choice_policy: SpillChoicePolicy,
+        choice_usage: OptimizationWorkUsage,
+        recovery: register_homes::RecoveryClassificationIdentity,
+        recovery_policy: RecoveryClassificationPolicy,
+        recovery_usage: OptimizationWorkUsage,
+        fold: LiteralFoldIdentity,
+        fold_policy: LiteralFoldPolicy,
+        fold_usage: OptimizationWorkUsage,
+        applied_count: usize,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -310,32 +256,20 @@ pub struct StagedOptimizedLiteralFoldCustodyReceipt {
 }
 
 impl StagedOptimizedLiteralFoldCustodyReceipt {
-    pub const fn source(&self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
-        self.source
-    }
+    receipt_accessor_rows!(ref StagedOptimizedLiteralFoldCustodyReceipt {
+            source: StagedOptimizedAllocationLegalityCustodyReceipt,
+            final_virtual_register_count: usize,
+            final_entry_transition_count: usize,
+            final_selected: SelectedInstructionPlanIdentity,
+            final_liveness: selected_instructions::LivenessIdentity,
+            final_ranges: selected_instructions::LiveRangeIdentity,
+            final_legality: register_homes::AllocationLegalityIdentity,
+    });
     pub fn iterations(&self) -> &[StagedOptimizedLiteralFoldIterationReceipt] {
         &self.iterations
     }
     pub fn transformations(&self) -> &[LiteralFoldIdentity] {
         &self.transformations
-    }
-    pub const fn final_selected(&self) -> SelectedInstructionPlanIdentity {
-        self.final_selected
-    }
-    pub const fn final_liveness(&self) -> selected_instructions::LivenessIdentity {
-        self.final_liveness
-    }
-    pub const fn final_ranges(&self) -> selected_instructions::LiveRangeIdentity {
-        self.final_ranges
-    }
-    pub const fn final_legality(&self) -> register_homes::AllocationLegalityIdentity {
-        self.final_legality
-    }
-    pub const fn final_virtual_register_count(&self) -> usize {
-        self.final_virtual_register_count
-    }
-    pub const fn final_entry_transition_count(&self) -> usize {
-        self.final_entry_transition_count
     }
 }
 
@@ -360,54 +294,24 @@ pub struct StagedOptimizedLiteralFoldIterationReceipt {
 }
 
 impl StagedOptimizedLiteralFoldIterationReceipt {
-    pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
-    pub const fn source_ranges(self) -> selected_instructions::LiveRangeIdentity {
-        self.source_ranges
-    }
-    pub const fn source_legality(self) -> register_homes::AllocationLegalityIdentity {
-        self.source_legality
-    }
-    pub const fn choices(self) -> register_homes::SpillChoiceIdentity {
-        self.choices
-    }
-    pub const fn choice_policy(self) -> SpillChoicePolicy {
-        self.choice_policy
-    }
-    pub const fn choice_usage(self) -> OptimizationWorkUsage {
-        self.choice_usage
-    }
-    pub const fn recovery(self) -> register_homes::RecoveryClassificationIdentity {
-        self.recovery
-    }
-    pub const fn recovery_policy(self) -> RecoveryClassificationPolicy {
-        self.recovery_policy
-    }
-    pub const fn recovery_usage(self) -> OptimizationWorkUsage {
-        self.recovery_usage
-    }
-    pub const fn fold(self) -> LiteralFoldIdentity {
-        self.fold
-    }
-    pub const fn fold_policy(self) -> LiteralFoldPolicy {
-        self.fold_policy
-    }
-    pub const fn fold_usage(self) -> OptimizationWorkUsage {
-        self.fold_usage
-    }
-    pub const fn transformed_selected(self) -> SelectedInstructionPlanIdentity {
-        self.transformed_selected
-    }
-    pub const fn fresh_liveness(self) -> selected_instructions::LivenessIdentity {
-        self.fresh_liveness
-    }
-    pub const fn fresh_ranges(self) -> selected_instructions::LiveRangeIdentity {
-        self.fresh_ranges
-    }
-    pub const fn fresh_legality(self) -> register_homes::AllocationLegalityIdentity {
-        self.fresh_legality
-    }
+    receipt_accessor_rows!(StagedOptimizedLiteralFoldIterationReceipt {
+        source_selected: SelectedInstructionPlanIdentity,
+        source_ranges: selected_instructions::LiveRangeIdentity,
+        source_legality: register_homes::AllocationLegalityIdentity,
+        transformed_selected: SelectedInstructionPlanIdentity,
+        fresh_liveness: selected_instructions::LivenessIdentity,
+        fresh_ranges: selected_instructions::LiveRangeIdentity,
+        fresh_legality: register_homes::AllocationLegalityIdentity,
+        choices: register_homes::SpillChoiceIdentity,
+        choice_policy: SpillChoicePolicy,
+        choice_usage: OptimizationWorkUsage,
+        recovery: register_homes::RecoveryClassificationIdentity,
+        recovery_policy: RecoveryClassificationPolicy,
+        recovery_usage: OptimizationWorkUsage,
+        fold: LiteralFoldIdentity,
+        fold_policy: LiteralFoldPolicy,
+        fold_usage: OptimizationWorkUsage,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

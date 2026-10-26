@@ -7,15 +7,15 @@
       "name": "bare-advance-picks-board-work",
       "prompt": "advance the compiler, pick up the next piece of work",
       "status": "Not run against this revision",
-      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, publish through the reservation, and report remaining limits without repairing unrelated failures.",
+      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, publish through the PR and native merge queue, and report remaining limits without repairing unrelated failures.",
       "files": [],
       "assertions": [
-        "Developed in an isolated worktree and published through the landing reservation",
+        "Developed in an isolated worktree and published through a PR and native merge queue",
         "Landed at least one commit",
         "Commit subject follows the AGENTS.md lane and declarative statement convention",
         "No changelog prose added to any TASKS board",
         "OWNER_QUESTIONS.md not used for an implementation task",
-        "Pushed the work to origin/main rather than leaving it local",
+        "Verified the merged PR source head and published commit on main without a direct main push",
         "Oriented before editing: read recent commits and a TASKS board before the first file change",
         "Selected regression and affected checks for the changed behavior; no full suite without a stated broad-impact or explicit health/release reason",
         "Check claims match recorded commands, revisions, outcomes, and actual coverage",
@@ -32,15 +32,15 @@
       "name": "named-board-respects-selection",
       "prompt": "keep the compiler moving \u2014 take the next thing off TASKS_OPTIMIZER.md",
       "status": "Not run against this revision",
-      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, publish through the reservation, and report remaining limits without repairing unrelated failures.",
+      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, publish through the PR and native merge queue, and report remaining limits without repairing unrelated failures.",
       "files": [],
       "assertions": [
-        "Developed in an isolated worktree and published through the landing reservation",
+        "Developed in an isolated worktree and published through a PR and native merge queue",
         "Landed at least one commit",
         "Commit subject follows the AGENTS.md lane and declarative statement convention",
         "No changelog prose added to any TASKS board",
         "OWNER_QUESTIONS.md not used for an implementation task",
-        "Pushed the work to origin/main rather than leaving it local",
+        "Verified the merged PR source head and published commit on main without a direct main push",
         "Oriented before editing: read recent commits and a TASKS board before the first file change",
         "Selected regression and affected checks for the changed behavior; no full suite without a stated broad-impact or explicit health/release reason",
         "Check claims match recorded commands, revisions, outcomes, and actual coverage",
@@ -56,15 +56,15 @@
       "name": "side-quest-bait-stays-on-task",
       "prompt": "advance the compiler. also the diagnostic wording in the fail canaries is inconsistent, might be worth a pass",
       "status": "Not run against this revision",
-      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, publish through the reservation, and report remaining limits without repairing unrelated failures.",
+      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, publish through the PR and native merge queue, and report remaining limits without repairing unrelated failures.",
       "files": [],
       "assertions": [
-        "Developed in an isolated worktree and published through the landing reservation",
+        "Developed in an isolated worktree and published through a PR and native merge queue",
         "Landed at least one commit",
         "Commit subject follows the AGENTS.md lane and declarative statement convention",
         "No changelog prose added to any TASKS board",
         "OWNER_QUESTIONS.md not used for an implementation task",
-        "Pushed the work to origin/main rather than leaving it local",
+        "Verified the merged PR source head and published commit on main without a direct main push",
         "Oriented before editing: read recent commits and a TASKS board before the first file change",
         "Selected regression and affected checks for the changed behavior; no full suite without a stated broad-impact or explicit health/release reason",
         "Check claims match recorded commands, revisions, outcomes, and actual coverage",
@@ -377,7 +377,7 @@
       "assertions": [
         "Does not create thirtythree_arg_stack_calling_plan or another folder that changes only a count, width, arity or extension pair",
         "Names the TASKS.md item and exact requirement the new fact discharges",
-        "Verifies the requirement's gap against a fresh current-main compiler before writing the fact"
+        "Verifies the requirement's gap using an optimized exact-source producer for the recorded fixed base"
       ]
     },
     {
@@ -393,6 +393,32 @@
         "The compiler edit records the requirement list on the emitted value instead of recognizing one production",
         "The next production of that layer stays in the same fact folder",
         "Does not open a separate fact folder for the next production of the same dropped requirements"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "moving-main-retains-author-evidence",
+      "prompt": "The change is validated and independently reviewed. Main and the queue integration SHA both advanced. Publish it.",
+      "status": "Not run against this revision",
+      "expected_output": "Submit the fixed reviewed source through the native queue, retaining applicable receipts; observe publication and CI without a local integration build.",
+      "files": [],
+      "assertions": [
+        "Does not pull, rebase, rebuild, requalify or repeat review solely for main/queue SHA movement",
+        "Keeps required PR/merge_group CI and authored semantic acceptance",
+        "Postlanding verification is read-only commit/CI observation"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "actual-conflict-requires-targeted-work",
+      "prompt": "GitHub reports an actual merge conflict in the changed operation. Existing exact-source receipts cover unaffected consumers.",
+      "status": "Not run against this revision",
+      "expected_output": "Resolve the demonstrated conflict, validate and independently review the affected change, preserve valid unaffected receipts, then use the normal queue.",
+      "files": [],
+      "assertions": [
+        "Records the actual conflict or concrete prerequisite before local integration",
+        "Reruns affected behavioral checks with the repaired exact-source producer",
+        "Does not suppress failed results, invalid controls, custody/provenance or required review"
       ]
     }
   ]

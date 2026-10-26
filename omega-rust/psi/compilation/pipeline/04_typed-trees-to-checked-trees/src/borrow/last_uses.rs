@@ -127,6 +127,9 @@ pub(super) fn update_state_loan_last_uses(
         }
     }
 
+    // Root descriptors and contained leaves obey the same storage lifetime.
+    // Only a later formation can borrow this occurrence: an older saved alias
+    // must not extend a replacement subsequently installed at the same name.
     // A live alias observes its captured carrier even when later source uses
     // spell only the alias. Propagate that lifetime through stored leaves;
     // nested aliases can extend one another, so iterate to the finite maximum
@@ -134,11 +137,15 @@ pub(super) fn update_state_loan_last_uses(
     loop {
         let mut changed = false;
         for carrier in loan_trackers {
-            if !loans.is_valid(carrier.handle) || carrier.owner_path.is_empty() {
+            if !loans.is_valid(carrier.handle) {
                 continue;
             }
             for alias in loan_trackers {
                 if !loans.is_valid(alias.handle)
+                    || !order.precedes(
+                        loans.get(carrier.handle).statement_index,
+                        loans.get(alias.handle).statement_index,
+                    )
                     || alias.place.root != carrier.storage_owner
                     || !owner_path_overlaps_place_segments(
                         program,

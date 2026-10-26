@@ -64,6 +64,12 @@ pub(crate) fn dynamic_selector_call<'program>(
     let Some(selector_type) = selector_type(program, machine, state, selector) else {
         return Ok(None);
     };
+    // Ordinary trait-qualified calls also have typed first operands. Only a
+    // declared dynamic selector needs a supplying selector application; data
+    // custody and boundary calls retain their own argument-checking route.
+    if crate::declarations::traits::dynamic_selector_application(program, selector_type).is_none() {
+        return Ok(None);
+    }
     let (source_selector, enclosing_applications) = if matches!(
         program.expression_table.expression(selector),
         ExpressionNode::Cast(_)

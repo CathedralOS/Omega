@@ -21,6 +21,22 @@ pub struct RuntimeRankComponents {
 }
 
 impl RuntimeRankComponents {
+    /// Tail eligibility is an execution obligation; it supplies no ranking or
+    /// eventual-return evidence. Proof-only recurrence remains separately owned.
+    pub fn require_tail_component(
+        &self,
+        program: &dyn crate::CheckingInput,
+        component: &[usize],
+    ) -> Result<(), &'static str> {
+        let proof_only = crate::proof_only_classification(program);
+        if component
+            .iter()
+            .any(|position| proof_only.is_proof_machine(program, &program.machines()[*position]))
+        {
+            return Err("runtime and proof-only machines cannot share a recursive component");
+        }
+        runtime_ranking::require_tail_component(program, component)
+    }
     pub fn requires_arrival_witness(&self, machine_position: usize) -> bool {
         self.components
             .iter()
@@ -114,8 +130,8 @@ pub fn retain_runtime_rank_component(
         Err(reason) => (
             None,
             format!(
-                "machine call cycle: `{names}` -- {reason}; runtime calls must be tail, \
-                 and every complete cycle must decrease the shared `terminates by ...` ranking"
+                "machine call cycle: `{names}` -- {reason}; runtime calls must be tail; \
+                 a termination promise additionally requires strict descent on every complete cycle"
             ),
         ),
     };

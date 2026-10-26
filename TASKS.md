@@ -402,10 +402,8 @@ defines the complete product bar.
     reference-valued locals from every admitted producer keep their loan
     identity, backing, and access through reads, calls, and explicit state
     transfers with no implicit backing copies. Qualify the remaining routes on
-    Linux x86-64 and Windows x86-64, carry
-    `samples/cli/facts/scalar_tag_field_loan` through remaining matching hosts,
-    and run `samples/cli/systems/descriptor_walk/main.omg` through
-    `omega run --both` (exit 50 in both engines after local package review).
+    Linux x86-64 and Windows x86-64, and carry
+    `samples/cli/facts/scalar_tag_field_loan` through remaining matching hosts.
     Keep the local symbol as the loan subject and compose its captured
     projection at use; shared loans cannot gain mutation authority by widening
     the exclusive `receiver_aliases` match.
@@ -426,9 +424,9 @@ defines the complete product bar.
     `samples/cli/facts/descriptor_replacement_order`, and
     `samples/cli/facts/stored_exclusive_byte_view` across all nine places, plus
     the `pass/ownership/linear_*` and `fail/ownership/linear_*` controls.
-  - **Saved observations, arithmetic, and patterns:** finish pinning the three
-    remaining float fixture pairs for `samples/cli/facts/exclusive_observation_exposure`
-    and complete remaining case/generic/reference composition, preserving
+  - **Saved observations, arithmetic, and patterns:** preserve the pinned float
+    fixture pairs for `samples/cli/facts/exclusive_observation_exposure` and
+    complete remaining case/generic/reference composition, preserving
     `samples/cli/facts/saved_observation_snapshot`,
     `samples/cli/facts/narrowed_integer_write`, and single-evaluation pattern
     destructuring (`pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit`,
@@ -1340,6 +1338,29 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   overlapping partition, and unauthorized exit controls reject.
 
 ## P2 - Materialization and placed access
+
+- **DEFERRED-RECAST-ESTABLISHMENT.** Implement the ratified
+  [exclusive storage-cast window](wiki/spec/layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts)
+  through checking, Terminal Psi and native execution. Reuse exact place/version,
+  loan, invariant-window and partial-initialization custody; do not add a header,
+  IPC or source-shape-specific cast exception. Source: the existing recast owner
+  and [implementation note](omega-rust/psi/compilation/checking/recasts.md).
+  - Prove geometry/access/exclusion before the cast; track pending target facts,
+    occupied source obligations and source handback separately. Promote only after
+    complete authorized establishment; preserve strict shared/placed-view rules.
+  - Establish a restrictive boundary-data shape in exclusive byte backing, use it,
+    and safely return/reuse backing. Cover checked validation and initialized-field
+    reasoning without reading invalid tags/references or assuming whole-domain facts.
+  - Reject premature typed use/call/publication, bad geometry, surviving aliases,
+    stale facts, unauthorized minting/access and widened atomic authority. Exercise
+    failed initial establishment with partial linear fields and occupied-source
+    restoration; no whole-value destructor, silent rollback or lost resource.
+
+  Acceptance: same establishment fact across the nine places under
+  `samples/cli/facts`, matching `tests/omega/{pass,fail}/facts` controls and actual
+  `omega run --both` agreement. Pending views cannot cross valid-value interfaces;
+  only established results travel. No implementation completion is claimed by the
+  documentation ratification.
 
 - **PLAN-LAID-VIEWS.** Complete externally established placed-view entry
   lending, subordinate placed-input reborrowing, and retirement end to end (`Psi

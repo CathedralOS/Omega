@@ -19,7 +19,7 @@ positive row because its published termination cannot cover the selected call.
 The candidate additionally exposed a state-arrival retention refusal for distinct
 caller-owned referents. Comparing every alternative's local retention plan lets
 the selected descriptor cross without choosing a referent from static origins;
-all parent permissions remain checked. Distinct local owned homes still refuse.
+all parent permissions remain checked. The original row did not establish distinct local owned-home retention; the owned-arrival production below exercises that remaining mechanism.
 
 Measured on the saved Omega cloud Linux x86_64 host: all nine programs execute
 with native exit 0 and Terminal exit 0; all nine missing-subject twins reject
@@ -68,7 +68,7 @@ Applicable requirements and evidence:
 - Instruction/register/frame realization: native execution checks both selected
   identities and the once-per-invocation counter after nested calls/state
   transfer. Existing locally owned state-loan and escape controls are compared
-  separately; distinct owned alternative homes remain unsupported.
+  separately; the owned-arrival production below also tests distinct local homes.
 - Encoding/publication: the emitted Linux x86_64 ELF images actually execute and
   agree with Terminal. Other hosted builds are declared, with no other-host
   execution claim. Broader encoding/ABI/backend acceptance remains on its board.
@@ -78,3 +78,68 @@ Pinned reject twins: [local](local/invalid/main.omg),
 [call result](call_result/invalid/main.omg), [match join](match_join/invalid/main.omg),
 [const name](const_name/invalid/main.omg), [state arrival](other_state/invalid/main.omg),
 [nested machine](other_machine/invalid/main.omg), [target body](target_body/invalid/main.omg).
+
+## Owned backing and additional descriptor boundaries
+
+The `TERMINATION-RANKING-CHECKS` / TPR6 continuation is in
+[`owned_arrivals/`](owned_arrivals/local/main.omg). It keeps the same fact,
+identities 37/43, two selected calls, and authored exit 0. The first production
+copies both qualified tokens into separate local owned homes before the selected
+reference crosses an arrival. Its nine places are `local`, `field`, `parameter`,
+`call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, and
+`target_body`. Each has a linked `invalid/main.omg` that removes only the right
+input's `Fair` requirement. The pass/fail fixtures are
+`tests/omega/{pass,fail}/facts/progress_selector_owned_arrival_through_*`.
+
+The [`nested` production](owned_arrivals/nested/local/main.omg) transports the
+same array of references through an owned envelope and two explicit descriptor
+loads before copying it into each of those nine places. It includes the same
+missing-origin twins and is pinned as
+`tests/omega/{pass,fail}/facts/progress_selector_nested_arrival_through_*`.
+The call-result place passes that copied array through a checked helper; its
+result preserves both independently captured leaf suppliers.
+
+Supplemental [`affine`](owned_arrivals/affine/main.omg),
+[`owned parameter`](owned_arrivals/owned_parameter/main.omg),
+[`direct nested arrival`](owned_arrivals/reference_boundary/main.omg), and
+[`nested reborrow`](owned_arrivals/reference_reborrow/main.omg),
+[`borrowed ingress reborrow`](owned_arrivals/borrowed_reborrow/main.omg), and
+[`owned input replacement`](owned_arrivals/owned_input_replacement/main.omg) programs test
+cleanup retention and descriptor identity. Their missing-origin twins are beside
+each program. The [`frozen ingress`](owned_arrivals/frozen_ingress/main.omg),
+[`repeated rebinding`](owned_arrivals/repeated_rebind/main.omg),
+[`replacement helper`](owned_arrivals/replacement_helper/main.omg), and
+[`mixed ingress`](owned_arrivals/mixed_ingress/main.omg) controls retain captured
+bindings and every local supplier independently. Rebinding a formal retires its
+new descriptor at its receiving event; the old copied pointer stays unchanged.
+A local descriptor borrowed by another reference remains protected from replacement.
+Both productions also reject replaced slots and stale contents
+under their `controls/` directories. These are real progress-premise refusals;
+a runtime equality guard does not re-establish qualification.
+
+The baseline at `717593f593c656f865c7a322fd2874b4bd168afc` refuses the frozen
+owned-home positive with `state loan: distinct backing alternatives`. The
+continuation retains every possible owned backing as a separate checked lifetime
+dependency. No selected descriptor chooses one static home or gains permission
+to relocate or dispose of a backing. Checked whole-home dispositions, formation
+order and availability still govern cleanup. Owned inputs and local results
+retain the same occurrence-level parent relation. Direct borrows of descriptor
+storage retain their physical owner independently of ultimate logical loans;
+borrowed ingress remains caller-owned. Public target-family signatures share their authored
+entry requirements with composed bodies without exporting arrival-derived facts.
+Reference shapes retain the exact
+stored referent identity; ordinary formation stops at the authored referee.
+The common selected-operand path retains captured selector computations and all
+physical loads. Aggregate copies transfer the exact selected descriptor leaves,
+not the containing pointer's loan. Returned-descriptor presence validates the
+physical path and resolves each load against its immutable storage cut.
+
+These programs exercise establishment by accepted boundary results, exact
+identity and live-content invalidation, composition through every place,
+independent loan/custody checks, checked-to-Terminal lowering, pointer/aggregate
+layout and calls, cleanup/frame retention, and Linux x86_64 native/Terminal
+execution agreement. Every positive binds all four hosted targets; other-host
+execution is unverified. Generic/dispatched helpers, arbitrary recursive
+arrival shapes, additional access modes and broader ranking/cyclic-execution
+acceptance remain on the parent task. This finite-selector continuation does
+not close all of TPR6 or `TERMINATION-RANKING-CHECKS`.

@@ -447,7 +447,7 @@ fn plan_inner(
         // A recast's backing is a separate catalog root from its logical
         // reference type. Enroll the actual projected endpoint even when no
         // signature otherwise names it (for example a byte inside an array).
-        shapes.add_type(capture.backing_type, binders, &[])?;
+        shapes.add_stored_type(capture.backing_type, binders, &[])?;
         let result = CheckedUnitStructuralResultBindingPlan {
             statement_index,
             binding_ordinal: u32::try_from(*structural_count).ok()?,

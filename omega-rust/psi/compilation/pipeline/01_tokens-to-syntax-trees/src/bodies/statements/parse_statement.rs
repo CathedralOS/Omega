@@ -235,7 +235,9 @@ fn parse_statement_handle<'tokens, 'source>(
         );
     }
 
-    if input.at_punctuation(PunctuationKind::RightBrace) {
+    if input.at_punctuation(PunctuationKind::RightBrace)
+        || crate::declarations::parse_declaration::starts_machine_declaration(input)
+    {
         return Ok((
             syntax_trees
                 .statements

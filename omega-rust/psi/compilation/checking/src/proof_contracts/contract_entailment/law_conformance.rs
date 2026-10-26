@@ -177,9 +177,18 @@ pub(crate) fn check_law_conformance(
         let Some(binary) = program.expression_table.binary_node(*law_conjunct) else {
             continue;
         };
+        // Contract fields and builtin measures belong to their declaration's
+        // exact parameter telescope. Without that scope a projection becomes
+        // opaque display text, which cannot establish public correspondence.
+        // This reads declarations only; the provider still proves its own
+        // ensures independently before the matched law can be consumed.
+        let requirement_scope = Some((
+            requirement.symbol,
+            program.state_signature_parameters(requirement),
+        ));
         let (Some(law_left), Some(law_right)) = (
-            structural_term(program, None, None, binary.left, None),
-            structural_term(program, None, None, binary.right, None),
+            structural_term(program, None, requirement_scope, binary.left, None),
+            structural_term(program, None, requirement_scope, binary.right, None),
         ) else {
             continue; // out-of-language law conjunct: nothing to enforce yet
         };
@@ -187,8 +196,8 @@ pub(crate) fn check_law_conformance(
         // may have several legitimate realizations (including target bodies);
         // their existence cannot make an unrelated equation ambiguous.
         let mut required_slots = Vec::new();
-        rewrite_slot_applications(&law_left, &slot_names, &[], &mut required_slots);
-        rewrite_slot_applications(&law_right, &slot_names, &[], &mut required_slots);
+        rewrite_slot_applications(program, &law_left, &slot_names, &[], &mut required_slots);
+        rewrite_slot_applications(program, &law_right, &slot_names, &[], &mut required_slots);
         let slot_bindings = carrier_slot_bindings(
             program,
             trait_definition,
@@ -200,10 +209,20 @@ pub(crate) fn check_law_conformance(
 
         // Resolve the law's op-slot applications to the carrier's machines.
         let mut missing_slots: Vec<String> = Vec::new();
-        let law_left =
-            rewrite_slot_applications(&law_left, &slot_names, &slot_bindings, &mut missing_slots);
-        let law_right =
-            rewrite_slot_applications(&law_right, &slot_names, &slot_bindings, &mut missing_slots);
+        let law_left = rewrite_slot_applications(
+            program,
+            &law_left,
+            &slot_names,
+            &slot_bindings,
+            &mut missing_slots,
+        );
+        let law_right = rewrite_slot_applications(
+            program,
+            &law_right,
+            &slot_names,
+            &slot_bindings,
+            &mut missing_slots,
+        );
         // N4 identity-law bridging: nullary CONSTANT applications
         // (`zero()`, `one()`) normalize to their constructor bodies, so
         // `add(a, zero())` and the proof's `add(a, Nat::Zero)` are one
@@ -234,9 +253,10 @@ pub(crate) fn check_law_conformance(
             let Some(proven_binary) = program.expression_table.binary_node(*proven) else {
                 return None;
             };
+            let provider_scope = Some((machine.symbol, program.state_parameters(entry_state)));
             let (Some(proven_left), Some(proven_right)) = (
-                structural_term(program, None, None, proven_binary.left, None),
-                structural_term(program, None, None, proven_binary.right, None),
+                structural_term(program, None, provider_scope, proven_binary.left, None),
+                structural_term(program, None, provider_scope, proven_binary.right, None),
             ) else {
                 return None;
             };

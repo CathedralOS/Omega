@@ -116,14 +116,12 @@ pub struct DeadCompareReceipt {
 }
 
 impl DeadCompareReceipt {
+    receipt_accessor_rows!(ref DeadCompareReceipt {
     /// The transformed function index that carried the removed compare.
-    pub const fn function_index(&self) -> usize {
-        self.function_index
-    }
+        function_index: usize,
     /// The removed compare instruction.
-    pub const fn compare(&self) -> SelectedInstructionId {
-        self.compare
-    }
+        compare: SelectedInstructionId,
+    });
     /// The durable transformation identity the post-allocation manifest
     /// ledger records: the receipt's exact fields under the dead-compare
     /// domain separator.

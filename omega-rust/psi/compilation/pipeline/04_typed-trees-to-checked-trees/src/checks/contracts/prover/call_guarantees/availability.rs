@@ -196,6 +196,7 @@ pub(in crate::checks) fn available<'program>(
             || !stable_predicate_inputs(program, facts, caller, &supplied, expression)
             || !capture_preserved(
                 program,
+                &facts.operators,
                 &facts.borrow,
                 caller_machine,
                 &supplied,

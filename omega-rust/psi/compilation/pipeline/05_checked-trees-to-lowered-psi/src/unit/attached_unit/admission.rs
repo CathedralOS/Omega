@@ -35,42 +35,12 @@ impl<'a> AdmittedBody<'a> {
     }
 }
 
-/// Qualification preparation reads every emitted state's declaration owner,
-/// including members fused beneath a different call-catalog dispatch head.
-/// This retains authored qualification sets; it grants no new memberships.
-pub(super) fn source_machines(bodies: &[AdmittedBody<'_>]) -> Vec<SymbolHandle> {
-    let mut machines = Vec::new();
-    for body in bodies {
-        match body {
-            AdmittedBody::Ordinary(plan) => {
-                if !machines.contains(&plan.machine) {
-                    machines.push(plan.machine);
-                }
-            }
-            AdmittedBody::Composed { body, .. } => {
-                for machine in body.source_machines() {
-                    if !machines.contains(&machine) {
-                        machines.push(machine);
-                    }
-                }
-            }
-        }
-    }
-    machines
-}
-
 pub(super) fn admit<'a>(
     checked: &'a CheckedTrees,
     plans: UnitPlans<'a>,
     closure: &[SymbolHandle],
     boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, BoundaryIdentity)>,
 ) -> Result<Vec<AdmittedBody<'a>>, LoweringError> {
-    // Every body's computation roots use the same exact boundary roster; the
-    // body's return shape must not decide whether a nested application can
-    // resolve its declaration.
-    for source in closure {
-        retain_nested_boundary_applications(checked, plans, *source, boundaries)?;
-    }
     let mut bodies = Vec::with_capacity(closure.len());
     for source in closure {
         let admitted = match UnitBody::find(plans, *source)? {
@@ -107,45 +77,6 @@ pub(super) fn retain_call_boundaries<'a, 'o>(
         {
             retain_unit_boundary(checked, plans, boundaries, call.target.machine)?;
         }
-    }
-    Ok(())
-}
-
-/// A boundary application nested under another operand is a computation
-/// node, not a statement operation, so the operation scan never names its
-/// target. Register each such target in the closure's boundary roster with the
-/// same exact target, contract, result and reach checks a statement call gets;
-/// emission then resolves the lowered declaration by that target.
-fn retain_nested_boundary_applications<'a>(
-    checked: &'a CheckedTrees,
-    plans: UnitPlans<'a>,
-    machine: SymbolHandle,
-    boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, BoundaryIdentity)>,
-) -> Result<(), LoweringError> {
-    let computations = &checked.facts.values.scalar_computations;
-    let roots = computations
-        .roots
-        .iter()
-        .filter(|(_, root)| root.machine == machine)
-        .map(|(_, root)| root.root)
-        .collect::<Vec<_>>();
-    if roots.is_empty() {
-        return Ok(());
-    }
-    for node in crate::expression_preparation::computation_graph::reachable_nodes(checked, &roots)?
-    {
-        let checked_trees::CheckedScalarComputationKind::Call {
-            callee:
-                checked_trees::CheckedScalarCallee::Boundary {
-                    machine: target_machine,
-                    ..
-                },
-            ..
-        } = computations.nodes.get(node).kind
-        else {
-            continue;
-        };
-        retain_unit_boundary(checked, plans, boundaries, target_machine)?;
     }
     Ok(())
 }

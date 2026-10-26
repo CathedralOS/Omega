@@ -332,17 +332,29 @@ pub(crate) fn bind_current_guard(
     {
         return None;
     }
-    let Scalar::Boolean(mut expression) = crate::values::lower_unit_scalar_argument(
+    let mut expression = crate::values::lower_unit_scalar_argument(
         program,
         operators,
         state,
         statement_index,
         expression,
         PrimitiveType::Bool,
-    )?
-    else {
-        return None;
-    };
+    )
+    .and_then(|value| match value {
+        Scalar::Boolean(value) => Some(value),
+        _ => None,
+    })
+    .or_else(|| {
+        crate::values::lower_current_state_predicate(
+            program,
+            operators,
+            machine,
+            state,
+            statement_index,
+            expression,
+        )
+        .map(Box::new)
+    })?;
     let symbols = crate::values::unit_scalar_binding_symbols(program, state, statement_index)?;
     let mut bindings = Vec::new();
     map_observations(&mut expression, &mut |operand| {

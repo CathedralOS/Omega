@@ -158,9 +158,13 @@ impl<'program> TopLevelSymbols<'program> {
                     previous
                         .iter()
                         .filter(|previous| {
-                            !program
-                                .symbols
-                                .source_scopes_separate(previous.symbol, machine.symbol)
+                            let previous_origin = program.symbols.authored_origin(previous.symbol);
+                            let current_origin = program.symbols.authored_origin(machine.symbol);
+                            program.symbols.get(previous_origin).parent
+                                == program.symbols.get(current_origin).parent
+                                && !program
+                                    .symbols
+                                    .source_scopes_separate(previous.symbol, machine.symbol)
                         })
                         .collect::<Vec<_>>()
                 })

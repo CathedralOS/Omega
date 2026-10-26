@@ -236,9 +236,7 @@ impl SelectedCleanup {
                 else {
                     return Err(unsupported(program, event, message));
                 };
-                let spelling = super::borrowed_windows::place_spelling(
-                    program, machine, state, event.root, &path,
-                );
+                let spelling = super::borrowed_windows::place_spelling(program, event.root, &path);
                 let reason = if reserved {
                     format!(
                         "cannot use `{spelling}`: this selected region was transferred or has not been established"
