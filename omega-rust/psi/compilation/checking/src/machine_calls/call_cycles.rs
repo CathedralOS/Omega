@@ -1,5 +1,6 @@
-//! Runtime machine call cycles require a shared well-founded ranking under
-//! the single runtime_ranking component judgment. Admission covers every
+//! Runtime machine call cycles require terminal transfers at every internal
+//! occurrence. A termination promise additionally requires a shared well-founded
+//! ranking under the runtime_ranking component judgment. Admission covers every
 //! exact call in the entire strongly connected component; a DFS cycle subset
 //! cannot supply admission for an unsafe cross-edge or parallel call site.
 //! Proof-only machines are a separate stratum: they emit no frames and may

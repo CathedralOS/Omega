@@ -71,7 +71,7 @@ fn trait_parameter_slots(
 pub(crate) fn assign_nominal_machine_requirement_arguments(
     program: &mut SymbolResolvedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    use super::super::scope::{ConformanceTypeScopes, declaration_type_scope};
+    use super::super::scope::{DeclarationTypeScopes, declaration_type_scope};
     use symbol_resolved_trees::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
     struct ArgumentScope {
         trait_definition: SymbolHandle,
@@ -113,7 +113,7 @@ pub(crate) fn assign_nominal_machine_requirement_arguments(
             }
         }
     }
-    let captures = ConformanceTypeScopes::of(program)?;
+    let captures = DeclarationTypeScopes::of(program)?;
     let mut scopes = Vec::new();
     for machine in program.machines.iter() {
         let attached = program

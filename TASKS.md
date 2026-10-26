@@ -402,10 +402,8 @@ defines the complete product bar.
     reference-valued locals from every admitted producer keep their loan
     identity, backing, and access through reads, calls, and explicit state
     transfers with no implicit backing copies. Qualify the remaining routes on
-    Linux x86-64 and Windows x86-64, carry
-    `samples/cli/facts/scalar_tag_field_loan` through remaining matching hosts,
-    and run `samples/cli/systems/descriptor_walk/main.omg` through
-    `omega run --both` (exit 50 in both engines after local package review).
+    Linux x86-64 and Windows x86-64, and carry
+    `samples/cli/facts/scalar_tag_field_loan` through remaining matching hosts.
     Keep the local symbol as the loan subject and compose its captured
     projection at use; shared loans cannot gain mutation authority by widening
     the exclusive `receiver_aliases` match.

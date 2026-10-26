@@ -796,6 +796,10 @@ fn interpret_fixture(
     if checked_interpreter_leg() {
         return interpret_checked_fixture(root_path, fixture_dir, build_dir, &target, rollback);
     }
+    let fuel_allowance = match terminal_execution::fuel_allowance(fixture_dir) {
+        Ok(allowance) => allowance,
+        Err(error) => return terminal_execution::Observation::failure(error),
+    };
     let leg = match produce_terminal_semantic(root_path, build_dir, Some(target.clone()), rollback)
     {
         Ok(leg) => leg,
@@ -818,7 +822,7 @@ fn interpret_fixture(
         None,
         Some(&target),
         fixture_dir,
-        1_000_000,
+        fuel_allowance,
         input,
     )
 }
@@ -982,6 +986,10 @@ fn observe_retained_terminal(
     fixture_dir: &Path,
     roots: &[&compilation_products::TerminalRuntimeProvisions],
 ) -> terminal_execution::Observation {
+    let fuel_allowance = match terminal_execution::fuel_allowance(fixture_dir) {
+        Ok(allowance) => allowance,
+        Err(error) => return terminal_execution::Observation::failure(error),
+    };
     let mut observation = if interpreter_leg() && !checked_interpreter_leg() {
         match fixture_input(fixture_dir) {
             Ok(input) => terminal_execution::interpret(
@@ -989,7 +997,7 @@ fn observe_retained_terminal(
                 provisions,
                 target,
                 fixture_dir,
-                1_000_000,
+                fuel_allowance,
                 input,
             ),
             Err(error) => terminal_execution::Observation::failure(error),
@@ -1003,7 +1011,7 @@ fn observe_retained_terminal(
             proposals,
             roots,
             fixture_dir,
-            1_000_000,
+            fuel_allowance,
         );
         observation.facts.extend(installations.facts);
         observation.diagnostics.extend(installations.diagnostics);

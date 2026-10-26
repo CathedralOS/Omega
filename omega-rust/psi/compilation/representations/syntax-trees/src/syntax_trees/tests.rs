@@ -1055,7 +1055,7 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
     });
     let state = file.items.append_state_handle(state);
     file.push_root_item(Item::Machine(Machine {
-        nested_machines: Vec::new(),
+        nested_machines: HandleSpan::empty(),
         name: Identifier::generated("main"),
         generic_data_template: Default::default(),
         default_body_trait: Default::default(),

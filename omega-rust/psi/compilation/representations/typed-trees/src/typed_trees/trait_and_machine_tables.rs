@@ -279,6 +279,18 @@ impl TypedTrees {
         // visible during formation, not fresh binders of each invocation.
         let mut enclosing = self.declaration_scope_parent(machine.symbol);
         while enclosing.is_valid() {
+            if let Some(declaration) = self.machine_by_symbol(enclosing) {
+                for parameter in self.machine_type_parameters(declaration) {
+                    if !type_parameters.iter().any(|existing| same_type_parameter(existing, parameter)) {
+                        type_parameters.push(parameter.clone());
+                    }
+                }
+                for parameter in &declaration.lifetime_parameters {
+                    if !lifetime_parameters.contains(parameter) {
+                        lifetime_parameters.push(parameter.clone());
+                    }
+                }
+            }
             if let Some(conformance) = self.conformance_by_symbol(enclosing) {
                 for parameter in self.conformance_type_parameters(conformance) {
                     if !type_parameters

@@ -455,6 +455,23 @@ fail/asm/checked_asm_compare_wrong_target rejected 428ms expected @e06334c63dc4+
 	assembly catalog target requirement conflicts with the authored target body
 fail/asm/checked_asm_compare_x86_uninitialized_register rejected 515ms expected @e06334c63dc4+wt
 	assembly label `asm#entry` reads uninitialized scratch register/flag value
+fail/asm/checked_asm_nested_implicit_runtime_capture rejected 522ms expected @cbee4617745b+wt
+	machine `received` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+fail/asm/checked_asm_nested_unproved_arrival rejected 1173ms expected @cbee4617745b+wt
+	cannot prove requires contract for call received from left: 36 == 37 (needs fact `value == 37` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/asm/checked_asm_saved_nested_field_wrong rejected 1332ms expected @cbee4617745b+wt
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { Envelope { inner } => match <saved subject #11:1>.inner { Holder { value } => <saved subject #12:1>.value == 38 } }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { Envelope { inner } => match <saved subject #15:1>.inner { Holder { value } => <saved subject #16:1>.value == 38 } }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { Envelope { inner } => match <saved subject #19:1>.inner { Holder { value } => <saved subject #20:1>.value == 38 } }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { Envelope { inner } => match <saved subject #23:1>.inner { Holder { value } => <saved subject #24:1>.value == 38 } }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { Envelope { inner } => match <saved subject #9:1>.inner { Holder { value } => <saved subject #10:1>.value == 38 } }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { Envelope { inner } => match <saved subject #13:1>.inner { Holder { value } => <saved subject #14:1>.value == 38 } }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { Envelope { inner } => match <saved subject #17:1>.inner { Holder { value } => <saved subject #18:1>.value == 38 } }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { Envelope { inner } => match <saved subject #21:1>.inner { Holder { value } => <saved subject #22:1>.value == 38 } }
 fail/asm/cyclic_label rejected 326ms expected @a92f16431042
 	cyclic assembly label control in `Main::main` state `main` requires checked loop invariants; this control domain is not yet implemented
 fail/asm/duplicate_label rejected 15ms expected @a92f16431042
@@ -1381,6 +1398,8 @@ fail/borrows/projected_fixed_array_shared_source_mutable_local rejected 656ms ex
 	machine `violate` state `entry` local `requested` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/projected_identity_result_retains_operand_extent rejected 2716ms expected @a92f16431042
 	statement 3 mutates `envelope.cells.second.value` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/borrows/projected_record_region_exceeds_backing rejected 551ms expected @cbee4617745b+wt
+	machine `walk` state `entry`: the recast target needs 16 bytes at offset 32, but the region holds 47 -- the view would read past the buffer
 fail/borrows/provider_reference_state_alias_live_child rejected 4892ms expected @a92f16431042
 	state `mutate` receives `reference` while local borrow `child` is still active
 fail/borrows/qualified_byte_element_mutable_call_rejected rejected 2219ms expected @a92f16431042
@@ -2148,6 +2167,10 @@ fail/calls/nested_call_argument_constraints_unproven rejected 3384ms expected @a
 	machine `nested` state `entry` value call to `admit` violates required fact `value >= 0.0 && value <= 0.5`: the instantiated fact is structurally false (`40.0 >= 0.0 && 40.0 <= 0.5`)
 fail/calls/nested_call_footprint_retires_second_argument rejected 2465ms expected @a92f16431042
 	cannot prove requires contract for call bounded from main: cells.second <= 8 (needs fact `value <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `write`
+fail/calls/nested_machine_private_descendant rejected 475ms expected @cbee4617745b+wt
+	qualified call `hidden` has no resolved callable declaration
+fail/calls/nested_machine_runtime_capture rejected 443ms expected @cbee4617745b+wt
+	machine `read` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/calls/nested_range_call_out_of_bounds rejected 2130ms expected @a92f16431042
 	cannot prove subslice range end bound `..4` is within slice length 3
 fail/calls/non_unit_compound_expression_requires_use rejected 509ms expected @a92f16431042
@@ -2883,6 +2906,8 @@ fail/control_flow/implicit_entry_parameter_capture rejected 598ms expected @a92f
 	machine `inspect` state `finish` uses `input`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/control_flow/linear_result_repeated_successor_arguments rejected 2670ms expected @a92f16431042
 	cannot use `receipt` in machine `main` state `entry` (statement 1) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
+fail/control_flow/nested_machine_statement_after_declarations rejected 13ms expected @cbee4617745b+wt
+	tests/omega/fail/control_flow/nested_machine_statement_after_declarations/main.omg:1:38: executable statements cannot follow nested machine declarations
 fail/control_flow/projected_float_payload_after_guard_mutation rejected 21039ms expected @a92f16431042
 	machine `read` state `entry` statement 1: cannot prove selected case for payload access
 fail/control_flow/projected_float_payload_after_negated_guard_mutation rejected 20938ms expected @a92f16431042
@@ -5264,6 +5289,123 @@ fail/facts/checked_asm_arm_load_through_parameter_rejected rejected 2ms expected
 	tests/omega/fail/facts/checked_asm_arm_load_through_parameter_rejected/main.omg:6:9: asm instruction `ldr` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
 fail/facts/checked_asm_arm_load_through_target_body_rejected rejected 2ms expected @a92f16431042
 	tests/omega/fail/facts/checked_asm_arm_load_through_target_body_rejected/main.omg:11:9: asm instruction `ldr` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
+fail/facts/checked_asm_compare_preserves_saved_subject_through_call_result_rejected rejected 1238ms expected @cbee4617745b+wt
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #10:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #12:1>.value == 38 }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #5:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #7:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #9:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #11:1>.value == 38 }
+fail/facts/checked_asm_compare_preserves_saved_subject_through_const_name_rejected rejected 1310ms expected @cbee4617745b+wt
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #10:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #12:1>.value == 38 }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #5:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #7:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #9:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #11:1>.value == 38 }
+fail/facts/checked_asm_compare_preserves_saved_subject_through_field_rejected rejected 1259ms expected @cbee4617745b+wt
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #10:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #12:1>.value == 38 }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #5:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #7:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #9:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #11:1>.value == 38 }
+fail/facts/checked_asm_compare_preserves_saved_subject_through_local_rejected rejected 1760ms expected @cbee4617745b+wt
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #10:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #12:1>.value == 38 }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #5:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #7:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #9:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #11:1>.value == 38 }
+fail/facts/checked_asm_compare_preserves_saved_subject_through_match_join_rejected rejected 1139ms expected @cbee4617745b+wt
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #10:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #12:1>.value == 38 }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #5:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #7:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #9:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #11:1>.value == 38 }
+fail/facts/checked_asm_compare_preserves_saved_subject_through_other_machine_rejected rejected 1435ms expected @cbee4617745b+wt
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #10:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #12:1>.value == 38 }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #5:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #7:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #9:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #11:1>.value == 38 }
+fail/facts/checked_asm_compare_preserves_saved_subject_through_other_state_rejected rejected 1147ms expected @cbee4617745b+wt
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #10:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #12:1>.value == 38 }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #5:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #7:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #9:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #11:1>.value == 38 }
+fail/facts/checked_asm_compare_preserves_saved_subject_through_parameter_rejected rejected 1487ms expected @cbee4617745b+wt
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #10:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #12:1>.value == 38 }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #5:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #7:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #9:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #11:1>.value == 38 }
+fail/facts/checked_asm_compare_preserves_saved_subject_through_target_body_rejected rejected 1248ms expected @cbee4617745b+wt
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #6:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #8:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #10:1>.value == 38 }
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 0): match output { AsmSavedOutput { value } => <saved subject #12:1>.value == 38 }
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #5:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #7:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #9:1>.value == 38 }
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { AsmSavedOutput { value } => <saved subject #11:1>.value == 38 }
 fail/facts/checked_asm_compare_preserves_through_call_result_rejected rejected 2361ms expected @e06334c63dc4+wt
 	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -19981,6 +20123,9 @@ fail/termination/native_layout_family_unpromised rejected 2935ms expected @a92f1
 	cannot prove published termination for machine `checked_caller`: its checked body reaches an operation without a usable termination guarantee
 fail/termination/nested_field_without_predicate_cannot_bound_result rejected 1851ms expected @a92f16431042
 	cannot prove ensures contract for exit from Engine::observe at statement 0: result <= 8
+fail/termination/productive_cycle_claims_unproved_termination rejected 1285ms expected @cbee4617745b+wt
+	terminating machine first contains a recursive cycle but carries no ranking witness -- spell one with `terminates by <subjects> [-> View];` (decision 23)
+	machine call cycle: `first`, `second` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/progress_selector_owned_snapshot_rejected rejected 2507ms expected @a92f16431042
 	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
 fail/termination/progress_selector_reference_snapshot_rejected rejected 1868ms expected @a92f16431042
@@ -20060,6 +20205,8 @@ fail/termination/retired_block_form rejected 5ms expected @a92f16431042
 	tests/omega/fail/termination/retired_block_form/main.omg:4:12: the `terminates { decreases ...; }` block form is retired (decision 23): spell the ranking witness as `terminates by <subjects> [-> View] [in <range>];`, or bare `terminates;` for the guarantee alone
 fail/termination/retired_standalone_decreases rejected 5ms expected @a92f16431042
 	tests/omega/fail/termination/retired_standalone_decreases/main.omg:4:1: a standalone `decreases` clause is retired (decision 23): attach the ranking witness to the guarantee as `terminates by <subjects> [-> View] [in <range>];`
+fail/termination/runtime_non_tail_call_cycle rejected 1103ms expected @cbee4617745b+wt
+	machine call cycle: `first`, `second` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/runtime_non_tail_joint_machine_cycle rejected 1561ms unexpected @a92f16431042
 	machine call cycle: `Main::left`, `Main::right` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/runtime_recursive_argument_occurrence rejected 1576ms expected @a92f16431042
@@ -20697,6 +20844,7 @@ pass/asm/atomic_release_disposition_returned_view_exit checked 3020ms check-targ
 pass/asm/atomic_release_disposition_state_exit checked 2902ms check-target:linux_x86_64 @a92f16431042
 pass/asm/checked_asm_compare_flag_snapshot_exit checked 2749ms check-target:linux_x86_64 @e06334c63dc4+wt
 pass/asm/checked_asm_compare_one_block_exit checked 3915ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/asm/checked_asm_saved_nested_match_exit checked 2614ms check-target:macos_arm64 @cbee4617745b+wt
 pass/asm/checked_countdown_literal_exit checked 2852ms check-target:linux_x86_64 @a92f16431042
 pass/asm/checked_label_borrow_last_use_exit checked 3113ms check-target:macos_arm64 @a92f16431042
 pass/asm/checked_label_call_result_exit checked 2855ms check-target:macos_arm64 @a92f16431042
@@ -21048,6 +21196,7 @@ pass/borrows/runtime_private_copied_descriptor_replacement_exit checked 2371ms c
 pass/borrows/runtime_projected_call_loan_custody_exit checked 2304ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_projected_fixed_byte_array_local_exit rejected 1622ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
+pass/borrows/runtime_projected_record_region_loop_exit checked 1715ms check-target:macos_arm64 @cbee4617745b+wt
 pass/borrows/runtime_projected_reference_call_return_exit checked 2123ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_projected_reference_partition_exit checked 2504ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_projected_view_observations_exit checked 2407ms check-target:macos_arm64 @a92f16431042
@@ -21487,10 +21636,12 @@ pass/calls/runtime_mutable_local_external_scalar_call_exit checked 6685ms check-
 pass/calls/runtime_mutable_local_parameter_write_exit checked 6486ms check-target:macos_arm64 @a92f16431042
 pass/calls/runtime_mutable_owned_computation_arguments_exit checked 2348ms check-target:macos_arm64 @a92f16431042
 pass/calls/runtime_mutual_unit_borrowed_continuation_exit checked 6540ms check-target:macos_arm64 @a92f16431042
+pass/calls/runtime_nested_borrowed_tail_cycle_exit checked 1701ms check-target:macos_arm64 @cbee4617745b+wt
 pass/calls/runtime_nested_case_argument_exit checked 6478ms check-target:macos_arm64 @a92f16431042
 pass/calls/runtime_nested_case_subject_operand_order_exit checked 2326ms check-target:macos_arm64 @a92f16431042
 pass/calls/runtime_nested_completed_operands_then_shared_borrow_exit checked 2062ms check-target:macos_arm64 @a92f16431042
 pass/calls/runtime_nested_constructor_child_snapshots_exit checked 2290ms check-target:macos_arm64 @a92f16431042
+pass/calls/runtime_nested_continuation_exit checked 1804ms check-target:macos_arm64 @cbee4617745b+wt
 pass/calls/runtime_nested_local_field_store_exit checked 6180ms check-target:macos_arm64 @a92f16431042
 pass/calls/runtime_nested_receiver_guard_exit checked 6600ms check-target:macos_arm64 @a92f16431042
 pass/calls/runtime_nested_value_call_guard_exit checked 18009ms check-target:macos_arm64 @a92f16431042
@@ -23061,6 +23212,15 @@ pass/facts/checked_asm_arm_load_through_other_machine_exit checked 2833ms check-
 pass/facts/checked_asm_arm_load_through_other_state_exit checked 2927ms check-target:macos_arm64 @a92f16431042
 pass/facts/checked_asm_arm_load_through_parameter_exit checked 2813ms check-target:macos_arm64 @a92f16431042
 pass/facts/checked_asm_arm_load_through_target_body_exit checked 2818ms check-target:macos_arm64 @a92f16431042
+pass/facts/checked_asm_compare_preserves_saved_subject_through_call_result_exit checked 1819ms check-target:macos_arm64 @cbee4617745b+wt
+pass/facts/checked_asm_compare_preserves_saved_subject_through_const_name_exit checked 2536ms check-target:macos_arm64 @cbee4617745b+wt
+pass/facts/checked_asm_compare_preserves_saved_subject_through_field_exit checked 2681ms check-target:macos_arm64 @cbee4617745b+wt
+pass/facts/checked_asm_compare_preserves_saved_subject_through_local_exit checked 1316ms check-target:macos_arm64 @cbee4617745b+wt
+pass/facts/checked_asm_compare_preserves_saved_subject_through_match_join_exit checked 1818ms check-target:macos_arm64 @cbee4617745b+wt
+pass/facts/checked_asm_compare_preserves_saved_subject_through_other_machine_exit checked 1885ms check-target:macos_arm64 @cbee4617745b+wt
+pass/facts/checked_asm_compare_preserves_saved_subject_through_other_state_exit checked 1469ms check-target:macos_arm64 @cbee4617745b+wt
+pass/facts/checked_asm_compare_preserves_saved_subject_through_parameter_exit checked 1877ms check-target:macos_arm64 @cbee4617745b+wt
+pass/facts/checked_asm_compare_preserves_saved_subject_through_target_body_exit checked 1746ms check-target:macos_arm64 @cbee4617745b+wt
 pass/facts/checked_asm_compare_preserves_through_call_result_exit checked 3354ms check-target:macos_arm64 @e06334c63dc4+wt
 pass/facts/checked_asm_compare_preserves_through_const_name_exit checked 2801ms check-target:macos_arm64 @e06334c63dc4+wt
 pass/facts/checked_asm_compare_preserves_through_field_exit checked 3349ms check-target:macos_arm64 @e06334c63dc4+wt
@@ -27803,8 +27963,8 @@ pass/generics/const_index_boolean_predicate_composition_exit checked 2170ms chec
 pass/generics/const_index_gated_default_domain_exit checked 2154ms check-target:linux_x86_64 @a92f16431042
 pass/generics/const_index_nested_default_domain_exit checked 1982ms check-target:linux_x86_64 @a92f16431042
 pass/generics/contextual_static_machine_applications_exit checked 1927ms check-target:macos_arm64 @a92f16431042
-pass/generics/contextual_static_machine_captured_operand_return_exit checked 2724ms check-target:macos_arm64 @a92f16431042
-pass/generics/contextual_static_machine_captured_operand_scope_exit checked 2470ms check-target:macos_arm64 @a92f16431042
+pass/generics/contextual_static_machine_captured_operand_return_exit checked 1509ms check-target:macos_arm64 @cbee4617745b+wt
+pass/generics/contextual_static_machine_captured_operand_scope_exit checked 1678ms check-target:macos_arm64 @cbee4617745b+wt
 pass/generics/contextual_static_machine_conformance_application_exit checked 2035ms check-target:macos_arm64 @a92f16431042
 pass/generics/contextual_static_machine_const_scopes_exit checked 2167ms check-target:macos_arm64 @a92f16431042
 pass/generics/contextual_static_machine_elided_result_region_exit checked 2138ms check-target:macos_arm64 @a92f16431042
@@ -29601,7 +29761,7 @@ pass/termination/rank_arrival_same_carrier_fields_exit incomplete 2123ms check-t
 	`walk` has no executable body: this compiler does not lower its declaration of it yet (state graph: natural ranks)
 pass/termination/rank_arrival_unobserved_array_extent_compile rejected 1744ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
-pass/termination/rank_endpoint_borrows_recovery checked 5658ms check-target:macos_arm64 @a92f16431042
+pass/termination/rank_endpoint_borrows_recovery checked 6005ms check-target:macos_arm64 @cbee4617745b+wt
 pass/termination/rank_range_call_component checked 2045ms check-target:macos_arm64 @a92f16431042
 pass/termination/rank_range_call_declared_step_copy checked 1371ms @a92f16431042
 pass/termination/rank_range_declared_step_copies checked 1388ms @a92f16431042
