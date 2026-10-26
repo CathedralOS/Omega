@@ -1151,8 +1151,17 @@ fn storage_access_conflicts_beneath_argument(
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
     argument: &StructuralArgument,
-) -> bool {
-    custody
+) -> Result<bool, LegalizationError> {
+    // A borrowed arrival names an already captured permission, rather than a
+    // fresh access to every external address its imprecise geometry may alias.
+    // Its exact grant and descendants still govern access. Unrelated pointer
+    // origins are not proof of a duplicate permission (as in call arguments).
+    let captured = custody
+        .borrowed_sources
+        .contains_key(&argument.place)
+        .then(|| normalized_source(function, custody, types, argument))
+        .transpose()?;
+    Ok(custody
         .leaves
         .iter()
         .any(|((leaf_place, leaf_path), reference)| {
@@ -1166,9 +1175,12 @@ fn storage_access_conflicts_beneath_argument(
                 && reference.backing.iter().all(|backing| {
                     matches!(backing, descriptor_backing::Backing::Source(Root::Place(_)))
                 });
-            !own_key
-                && !owned_alias
-                && leaf_storage_access_conflicts(
+            if own_key || owned_alias {
+                return false;
+            }
+            if let Some((root, parents)) = &captured {
+                // Lifetime anchors remain independent of delegated access.
+                if lifetime_storage_access_conflicts(
                     function,
                     custody,
                     types,
@@ -1176,8 +1188,46 @@ fn storage_access_conflicts_beneath_argument(
                     argument.place,
                     &argument.path,
                     argument.access,
-                )
-        })
+                ) {
+                    return true;
+                }
+                if borrowed_arrivals::lends_from(
+                    custody,
+                    argument.place,
+                    &reference.identity,
+                    argument.access,
+                ) || shared_source_compatible(
+                    function,
+                    custody,
+                    types,
+                    leaf_place,
+                    leaf_path,
+                    argument.access,
+                ) {
+                    return false;
+                }
+                if parents.iter().any(|parent| {
+                    custody.descends_from(reference, parent)
+                        || custody.lifetime_access_conflicts(reference, parent, argument.access)
+                }) {
+                    return true;
+                }
+                return reference.backing.iter().any(|backing| {
+                    descriptor_backing::matches_return(std::slice::from_ref(backing), &|backing| {
+                        roots_definitely_overlap(backing, root)
+                    })
+                });
+            }
+            leaf_storage_access_conflicts(
+                function,
+                custody,
+                types,
+                reference,
+                argument.place,
+                &argument.path,
+                argument.access,
+            )
+        }))
 }
 
 /// Interference is a property of retained backing, not the path spelling used
@@ -1519,7 +1569,7 @@ fn call_arguments(
         // arrival alias of the same storage (a state's own data parameter,
         // which names the place this access path resolves to). A genuinely
         // distinct overlapping leaf still refuses here.
-        if storage_access_conflicts_beneath_argument(function, custody, types, argument) {
+        if storage_access_conflicts_beneath_argument(function, custody, types, argument)? {
             return Err(invalid());
         }
         let (root, _) = normalized_source(function, custody, types, argument)?;
