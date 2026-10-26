@@ -223,7 +223,10 @@ impl ExitScalars<'_, '_> {
             })
             .filter(|(_, call)| call.authored_expression == expression);
         let (state, call) = occurrences.next()?;
-        if occurrences.next().is_some() || call.target_symbol != authored.target_symbol {
+        let authored_target = validation::call_target_symbol(self.program, authored);
+        let entered_target = validation::call_target_state(self.program, authored_target)
+            .map_or(authored_target, |state| state.symbol);
+        if occurrences.next().is_some() || call.target_symbol != entered_target {
             return None;
         }
         let Some(validation::CallSite::Expression {
@@ -239,7 +242,7 @@ impl ExitScalars<'_, '_> {
         else {
             return None;
         };
-        if actual != expression || selected.target_symbol != call.target_symbol {
+        if actual != expression || !std::ptr::eq(selected, authored) {
             return None;
         }
         // Authenticating a completed call does not make its declaration's
