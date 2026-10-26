@@ -154,17 +154,13 @@ pub struct CopiedCallOperandReceipt {
 }
 
 impl CopiedCallOperandReceipt {
-    pub const fn function_index(&self) -> usize {
-        self.function_index
-    }
-    pub const fn producer(&self) -> SelectedInstructionId {
-        self.producer
-    }
+    receipt_accessor_rows!(ref CopiedCallOperandReceipt {
+        function_index: usize,
+        producer: SelectedInstructionId,
     /// The instruction the reroute rewrote — the retained call record —
     /// for the custody trail's instruction identity.
-    pub const fn call(&self) -> SelectedInstructionId {
-        self.call
-    }
+        call: SelectedInstructionId,
+    });
     /// The durable transformation identity the post-allocation manifest
     /// ledger records: the receipt's exact fields under the
     /// copied-call-operand domain separator.

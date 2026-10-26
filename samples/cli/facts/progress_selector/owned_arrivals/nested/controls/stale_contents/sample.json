@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee"
+  ]
+}

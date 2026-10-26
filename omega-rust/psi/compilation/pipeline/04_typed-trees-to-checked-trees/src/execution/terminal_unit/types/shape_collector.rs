@@ -404,7 +404,7 @@ impl<'program> ShapeCollector<'program> {
         // shape is distinct from the pointer carrier recorded above; stored
         // reference fields do not recursively demand their targets' storage.
         let shell = validation::reference_shell(self.program, reference)?;
-        self.add_type(shell.referee, binders, &[])?;
+        self.add_stored_type(shell.referee, binders, &[])?;
         Some(identity)
     }
 
@@ -423,8 +423,12 @@ impl<'program> ShapeCollector<'program> {
         // Storage demands collect that referent independently; classifying it
         // as a named view here would reject fixed-array backing during cleanup.
         let referee = shell.referee;
-        let referent_identity =
-            validation::structural_type_identity(self.program, referee, binders, substitutions);
+        let referent_identity = validation::stored_structural_type_identity(
+            self.program,
+            referee,
+            binders,
+            substitutions,
+        );
         self.add_reference_shape(
             reference,
             binders,
@@ -550,18 +554,10 @@ impl<'program> ShapeCollector<'program> {
             return Some(identity);
         }
         if validation::stores_reference_shape(self.program, reference, substitutions) {
-            structural_access_for_type_reference(self.program, reference)?;
             let shell = validation::reference_shell(self.program, reference)?;
-            let referee = substituted_formal_type(self.program, shell.referee, substitutions);
-            if matches!(
-                self.program.type_reference_table.type_reference(referee),
-                TypeReferenceNode::Reference { .. }
-            ) {
-                // Nested reference shells must not collapse after substitution.
-                // Referent domains belong to occurrence-relative Referent
-                // qualification rows, not the descriptor's type or root.
-                return None;
-            }
+            // The pointed-to carrier retains its full stored identity, including
+            // another reference shell. Its load and occurrence qualifications
+            // remain explicit; a pointer to it never inlines its pointee.
             return self.add_view_type_for_substitutions(
                 reference,
                 binders,
@@ -1563,6 +1559,7 @@ fn authored_field_storage(
         field_type,
         CheckedUnitStructuralFieldType::Scalar(_)
             | CheckedUnitStructuralFieldType::Atomic(_)
+            | CheckedUnitStructuralFieldType::AtomicBoundedInteger(_)
             | CheckedUnitStructuralFieldType::BoundedInteger(_)
             | CheckedUnitStructuralFieldType::RefinedScalar { .. }
     );

@@ -539,49 +539,61 @@ pub fn terminal_mechanism_identity_bytes(identity: TerminalMechanismIdentity) ->
     }
 }
 
-pub const fn primitive_float_operation_tag(operation: CompilerPrimitiveFloatBinaryOperation) -> u8 {
-    match operation {
-        CompilerPrimitiveFloatBinaryOperation::Add => 0,
-        CompilerPrimitiveFloatBinaryOperation::Subtract => 1,
-        CompilerPrimitiveFloatBinaryOperation::Multiply => 2,
-        CompilerPrimitiveFloatBinaryOperation::Divide => 3,
-        CompilerPrimitiveFloatBinaryOperation::Equal => 4,
-        CompilerPrimitiveFloatBinaryOperation::NotEqual => 5,
-        CompilerPrimitiveFloatBinaryOperation::Less => 6,
-        CompilerPrimitiveFloatBinaryOperation::LessOrEqual => 7,
-        CompilerPrimitiveFloatBinaryOperation::Greater => 8,
-        CompilerPrimitiveFloatBinaryOperation::GreaterOrEqual => 9,
-    }
-}
+/// Mints a closed compiler vocabulary from one table.
+///
+/// Each of these vocabularies exists in several spellings at once: the `enum`,
+/// its `ALL` roster, the authored spelling of every variant and the tag its
+/// encoded form uses. The rows in each invocation are the one place those are
+/// written; the enum, its canonical-order roster and its tags are generated
+/// from them, so a tag can no longer drift from the declaration it belongs to.
+macro_rules! tagged_vocabulary {
+    // Vocabulary whose tag callers read through its own method.
+    ($documentation:literal, $name:ident, $tag_method:ident { $($variant:ident = $tag:literal),+ $(,)? }) => {
+        #[doc = $documentation]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub enum $name {
+            $($variant,)+
+        }
 
-/// Wire tag for a primitive integer-comparison operation — the six-row
-/// encoding every authority table and its checker spells identically.
-pub const fn primitive_integer_comparison_operation_tag(
-    operation: CompilerPrimitiveIntegerComparisonOperation,
-) -> u8 {
-    match operation {
-        CompilerPrimitiveIntegerComparisonOperation::Equal => 0,
-        CompilerPrimitiveIntegerComparisonOperation::NotEqual => 1,
-        CompilerPrimitiveIntegerComparisonOperation::Less => 2,
-        CompilerPrimitiveIntegerComparisonOperation::LessOrEqual => 3,
-        CompilerPrimitiveIntegerComparisonOperation::Greater => 4,
-        CompilerPrimitiveIntegerComparisonOperation::GreaterOrEqual => 5,
-    }
-}
+        impl $name {
+            /// Every variant, in canonical (declaration) order.
+            pub const ALL: [Self; [$(Self::$variant),+].len()] = [$(Self::$variant),+];
 
-pub const fn numeric_type_tag(numeric_type: CompilerNumericType) -> u8 {
-    match numeric_type {
-        CompilerNumericType::I8 => 0,
-        CompilerNumericType::I16 => 1,
-        CompilerNumericType::I32 => 2,
-        CompilerNumericType::I64 => 3,
-        CompilerNumericType::U8 => 4,
-        CompilerNumericType::U16 => 5,
-        CompilerNumericType::U32 => 6,
-        CompilerNumericType::U64 => 7,
-        CompilerNumericType::F32 => 8,
-        CompilerNumericType::F64 => 9,
-    }
+            /// This variant's canonical tag.
+            pub const fn $tag_method(self) -> u8 {
+                match self {
+                    $(Self::$variant => $tag,)+
+                }
+            }
+        }
+    };
+    // Vocabulary whose tag is published as the free function of the same table.
+    ($documentation:literal, $tag_documentation:literal, $name:ident, $tag_fn:ident { $($variant:ident => $spelling:literal = $tag:literal),+ $(,)? }) => {
+        #[doc = $documentation]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub enum $name {
+            $($variant,)+
+        }
+
+        impl $name {
+            /// Every variant, in canonical (declaration) order.
+            pub const ALL: [Self; [$(Self::$variant),+].len()] = [$(Self::$variant),+];
+
+            /// The authored spelling of this variant.
+            pub const fn name(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $spelling,)+
+                }
+            }
+        }
+
+        #[doc = $tag_documentation]
+        pub const fn $tag_fn(value: $name) -> u8 {
+            match value {
+                $($name::$variant => $tag,)+
+            }
+        }
+    };
 }
 
 const fn float_format_tag(format: numerics::literals::FloatFormat) -> u8 {
@@ -600,154 +612,86 @@ const fn arithmetic_domain_tag(domain: numerics::arithmetic::ArithmeticDomain) -
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum CompilerNumericType {
-    I8,
-    I16,
-    I32,
-    I64,
-    U8,
-    U16,
-    U32,
-    U64,
-    F32,
-    F64,
-}
+tagged_vocabulary!(
+    "Closed numeric vocabulary: declaration order is the canonical encoded order.",
+    "Canonical tag of a numeric type.",
+    CompilerNumericType,
+    numeric_type_tag
+    {
+        I8 => "i8" = 0,
+        I16 => "i16" = 1,
+        I32 => "i32" = 2,
+        I64 => "i64" = 3,
+        U8 => "u8" = 4,
+        U16 => "u16" = 5,
+        U32 => "u32" = 6,
+        U64 => "u64" = 7,
+        F32 => "f32" = 8,
+        F64 => "f64" = 9,
+    }
+);
 
 impl CompilerNumericType {
-    pub const ALL: [Self; 10] = [
-        Self::I8,
-        Self::I16,
-        Self::I32,
-        Self::I64,
-        Self::U8,
-        Self::U16,
-        Self::U32,
-        Self::U64,
-        Self::F32,
-        Self::F64,
-    ];
-
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::I8 => "i8",
-            Self::I16 => "i16",
-            Self::I32 => "i32",
-            Self::I64 => "i64",
-            Self::U8 => "u8",
-            Self::U16 => "u16",
-            Self::U32 => "u32",
-            Self::U64 => "u64",
-            Self::F32 => "f32",
-            Self::F64 => "f64",
-        }
-    }
-
     pub const fn is_float(self) -> bool {
         matches!(self, Self::F32 | Self::F64)
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum CompilerPrimitiveFloatBinaryOperation {
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-    Equal,
-    NotEqual,
-    Less,
-    LessOrEqual,
-    Greater,
-    GreaterOrEqual,
-}
-
-impl CompilerPrimitiveFloatBinaryOperation {
-    pub const ALL: [Self; 10] = [
-        Self::Add,
-        Self::Subtract,
-        Self::Multiply,
-        Self::Divide,
-        Self::Equal,
-        Self::NotEqual,
-        Self::Less,
-        Self::LessOrEqual,
-        Self::Greater,
-        Self::GreaterOrEqual,
-    ];
-
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::Add => "add",
-            Self::Subtract => "subtract",
-            Self::Multiply => "multiply",
-            Self::Divide => "divide",
-            Self::Equal => "equal",
-            Self::NotEqual => "not_equal",
-            Self::Less => "less",
-            Self::LessOrEqual => "less_or_equal",
-            Self::Greater => "greater",
-            Self::GreaterOrEqual => "greater_or_equal",
-        }
+tagged_vocabulary!(
+    "Closed primitive-float binary operation vocabulary: declaration order is the canonical encoded order.",
+    "Canonical tag of a primitive float binary operation.",
+    CompilerPrimitiveFloatBinaryOperation,
+    primitive_float_operation_tag
+    {
+        Add => "add" = 0,
+        Subtract => "subtract" = 1,
+        Multiply => "multiply" = 2,
+        Divide => "divide" = 3,
+        Equal => "equal" = 4,
+        NotEqual => "not_equal" = 5,
+        Less => "less" = 6,
+        LessOrEqual => "less_or_equal" = 7,
+        Greater => "greater" = 8,
+        GreaterOrEqual => "greater_or_equal" = 9,
     }
-}
+);
 
-/// The authored integer comparison spellings, before any emission mapping.
-/// `>`/`>=`/`!=` keep their authored identity here even though Terminal
-/// emission normalizes them onto the swapped/negated three-operation roster;
-/// the recorded emitted shape is what the proposal replays, while this value
-/// is what the selected provider plan commits to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum CompilerPrimitiveIntegerComparisonOperation {
-    Equal,
-    NotEqual,
-    Less,
-    LessOrEqual,
-    Greater,
-    GreaterOrEqual,
-}
-
-impl CompilerPrimitiveIntegerComparisonOperation {
-    pub const ALL: [Self; 6] = [
-        Self::Equal,
-        Self::NotEqual,
-        Self::Less,
-        Self::LessOrEqual,
-        Self::Greater,
-        Self::GreaterOrEqual,
-    ];
-
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::Equal => "equal",
-            Self::NotEqual => "not_equal",
-            Self::Less => "less",
-            Self::LessOrEqual => "less_or_equal",
-            Self::Greater => "greater",
-            Self::GreaterOrEqual => "greater_or_equal",
-        }
+tagged_vocabulary!(
+    "The authored integer comparison spellings, before any emission mapping. `>`/`>=`/`!=` keep their authored identity here even though Terminal emission normalizes them onto the swapped/negated three-operation roster; the recorded emitted shape is what the proposal replays, while this value is what the selected provider plan commits to.",
+    "Wire tag for a primitive integer-comparison operation — the six-row encoding every authority table and its checker spells identically.",
+    CompilerPrimitiveIntegerComparisonOperation,
+    primitive_integer_comparison_operation_tag
+    {
+        Equal => "equal" = 0,
+        NotEqual => "not_equal" = 1,
+        Less => "less" = 2,
+        LessOrEqual => "less_or_equal" = 3,
+        Greater => "greater" = 4,
+        GreaterOrEqual => "greater_or_equal" = 5,
     }
-}
+);
 
-/// D45's closed physical terminal-authority vocabulary. Declaration order is
-/// the canonical encoded order; additions require a target-policy migration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum TerminalAuthorityClass {
-    FilesystemContentRead,
-    FilesystemContentWrite,
-    FilesystemMetadataQuery,
-    DirectoryEnumeration,
-    FilesystemNamespaceMutation,
-    FilesystemMetadataMutation,
-    ProcessOutput,
-    ProcessTermination,
-    MachineControl,
-    PortIo,
-    InterruptControl,
-    InterruptEntry,
-    RootMemoryAccess,
-    ProcessInput,
-}
+tagged_vocabulary!(
+    "D45's closed physical terminal-authority vocabulary. Declaration order is the canonical encoded order; additions require a target-policy migration.",
+    TerminalAuthorityClass,
+    canonical_tag
+    {
+        FilesystemContentRead = 0,
+        FilesystemContentWrite = 1,
+        FilesystemMetadataQuery = 2,
+        DirectoryEnumeration = 3,
+        FilesystemNamespaceMutation = 4,
+        FilesystemMetadataMutation = 5,
+        ProcessOutput = 6,
+        ProcessTermination = 7,
+        MachineControl = 8,
+        PortIo = 9,
+        InterruptControl = 10,
+        InterruptEntry = 11,
+        RootMemoryAccess = 12,
+        ProcessInput = 13,
+    }
+);
 
 /// Portable filesystem authority facets accepted by D45 service policy.
 ///
@@ -789,44 +733,6 @@ impl PortableFilesystemAuthorityFacet {
 impl From<PortableFilesystemAuthorityFacet> for TerminalAuthorityClass {
     fn from(facet: PortableFilesystemAuthorityFacet) -> Self {
         facet.terminal_authority_class()
-    }
-}
-
-impl TerminalAuthorityClass {
-    pub const ALL: [Self; 14] = [
-        Self::FilesystemContentRead,
-        Self::FilesystemContentWrite,
-        Self::FilesystemMetadataQuery,
-        Self::DirectoryEnumeration,
-        Self::FilesystemNamespaceMutation,
-        Self::FilesystemMetadataMutation,
-        Self::ProcessOutput,
-        Self::ProcessTermination,
-        Self::MachineControl,
-        Self::PortIo,
-        Self::InterruptControl,
-        Self::InterruptEntry,
-        Self::RootMemoryAccess,
-        Self::ProcessInput,
-    ];
-
-    pub const fn canonical_tag(self) -> u8 {
-        match self {
-            Self::FilesystemContentRead => 0,
-            Self::FilesystemContentWrite => 1,
-            Self::FilesystemMetadataQuery => 2,
-            Self::DirectoryEnumeration => 3,
-            Self::FilesystemNamespaceMutation => 4,
-            Self::FilesystemMetadataMutation => 5,
-            Self::ProcessOutput => 6,
-            Self::ProcessTermination => 7,
-            Self::MachineControl => 8,
-            Self::PortIo => 9,
-            Self::InterruptControl => 10,
-            Self::InterruptEntry => 11,
-            Self::RootMemoryAccess => 12,
-            Self::ProcessInput => 13,
-        }
     }
 }
 

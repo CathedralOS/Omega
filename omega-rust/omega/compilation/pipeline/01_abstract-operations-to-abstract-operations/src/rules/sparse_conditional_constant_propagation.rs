@@ -42,21 +42,6 @@ macro_rules! constant_fold_rules {
     )*};
 }
 
-/// A `ProvenanceRewrite` whose candidate realizes its input node in place:
-/// both sites name the same location and the node's provenance and fuel
-/// carry over. `location` must be `Copy` — every family already names it
-/// twice.
-macro_rules! realized_node_provenance {
-    ($location:expr, $node:expr) => {
-        $crate::rules::control_flow_cleanup::provenance_realized_at(
-            PsiRealizationSite::Node($location),
-            PsiRealizationSite::Node($location),
-            &$node.provenance,
-            &$node.fuel,
-        )
-    };
-}
-
 pub(crate) mod boolean_constants;
 pub(crate) mod integer_binary_constants;
 pub(crate) mod integer_binary_shapes;
@@ -99,12 +84,13 @@ use optimization_core::{
 };
 use optimization_unit::{
     IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, PsiOptimizationUnit,
-    PsiRealizationSite, PsiRewriteCandidate,
+    PsiRewriteCandidate,
 };
 use semantic_vocabulary::{BlockId, IntegerType, IntegerValue, MachineId, OperationId, ValueId};
 
 use crate::rules::SCCP_PASS_NAME;
 use crate::rules::catalog::BuiltInRuleRegistration;
+use crate::rules::control_flow_cleanup::node_realized_provenance;
 use crate::{
     AnalysisProduct, RuleAnalysisView, RuleProposalError, ScalarConstantAnalysis,
     ScalarConstantValue,
@@ -214,7 +200,7 @@ pub(super) fn propose_integer_constant_folds(
                         contract,
                         vec![block.id],
                         Vec::new(),
-                        vec![realized_node_provenance!(location, node)],
+                        vec![node_realized_provenance(location, node)],
                         row.witness,
                         -1,
                         IntegerConstantRewrite {

@@ -22,7 +22,8 @@ machine main() -> u32 {
     let mut wide: AtomicU64;
     let mut flag: AtomicBool;
     counter.store(10, GlobalOrder);
-    let observed: u32 in Wrapping = counter.load(GlobalOrder);
+    let observed_atomic_observed: u32 = counter.load(GlobalOrder);
+    let observed: u32 in Wrapping = observed_atomic_observed as u32 in Wrapping;
     let prior: u32 in Wrapping = counter.fetch_add(5, ReceivePublish);
     let displaced: u32 in Wrapping = counter.swap(20, GlobalOrder);
     let cas_prior: u32 in Wrapping = counter.compare_exchange(20, 30, GlobalOrder, Receive);
@@ -31,7 +32,8 @@ machine main() -> u32 {
     // GlobalOrder load/store, ReceivePublish fetch and swap, and a
     // GlobalOrder read-only failure beneath GlobalOrder success.
     wide.store(7, GlobalOrder);
-    let wide_observed: u64 in Wrapping = wide.load(GlobalOrder);
+    let wide_observed_atomic_observed: u64 = wide.load(GlobalOrder);
+    let wide_observed: u64 in Wrapping = wide_observed_atomic_observed as u64 in Wrapping;
     let wide_prior: u64 in Wrapping = wide.fetch_sub(3, ReceivePublish);
     let wide_displaced: u64 in Wrapping = wide.swap(20, ReceivePublish);
     let wide_cas: u64 in Wrapping = wide.compare_exchange(20, 30, GlobalOrder, GlobalOrder);
@@ -46,7 +48,8 @@ machine main() -> u32 {
     // ordered before a Receive observation, ReceivePublish swap, and
     // compare-exchange success/failure beneath ReceivePublish and NoOrdering.
     counter.store(77, Publish);
-    let received: u32 in Wrapping = counter.load(Receive);
+    let received_atomic_observed: u32 = counter.load(Receive);
+    let received: u32 in Wrapping = received_atomic_observed as u32 in Wrapping;
     let republished: u32 in Wrapping = counter.swap(55, ReceivePublish);
     let cas_relaxed_failure: u32 in Wrapping =
         counter.compare_exchange(55, 1, ReceivePublish, NoOrdering);

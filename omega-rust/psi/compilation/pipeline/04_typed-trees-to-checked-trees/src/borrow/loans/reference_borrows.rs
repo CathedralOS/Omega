@@ -61,6 +61,7 @@ pub(super) fn reference_local_borrow_loans(
         && reference_borrow_access_kind(program, contract.return_type_reference(program)).is_some()
     {
         return vec![StatementBorrowLoan {
+            formation_owner_path: None,
             incoming_origin: Some(checked_trees::IncomingReferenceIdentity {
                 machine_symbol,
                 state_symbol: state.symbol,
@@ -224,10 +225,19 @@ pub(super) fn reference_local_borrow_loans(
                 .expression(local_data.initial_value),
             checked_trees::expression::ExpressionNode::Call(_)
         );
-    let rebased = rebase_borrow_places_through_local_loans(program, place, loan_trackers);
+    let rebased = rebase_reference_formation_places(
+        program,
+        state.symbol,
+        statement_index,
+        local_data.initial_value,
+        local_data.type_reference,
+        place,
+        loan_trackers,
+    );
     rebased
         .iter()
         .map(|source| StatementBorrowLoan {
+            formation_owner_path: None,
             incoming_origin: None,
             formation_expression: local_data.initial_value,
             owner_symbol: local_data.symbol,

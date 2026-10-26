@@ -17,6 +17,7 @@ pub use machine_code::target_frame_protocol_encoding_identity;
 pub(crate) use validation::validate_target_frame_protocol_encoding;
 
 use crate::frame_layout::{TargetFrameLayoutIdentity, ValidatedTargetFrameLayout};
+use codec::FrameProtocolCodec;
 pub use machine_code::{
     FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding,
     TargetFrameProtocolEncodingIdentity, TargetFrameProtocolEncodingPlan,
@@ -32,6 +33,68 @@ pub(crate) fn stage_target_frame_protocol_encoding(
 ) -> Result<ValidatedTargetFrameProtocolEncoding, TargetFrameProtocolEncodingError> {
     let plan = compute::derive(frame, environment, policy)?;
     validate_target_frame_protocol_encoding(frame, environment, plan)
+}
+
+/// The packed protocol of one validated frame function under its declared
+/// codec: the codec's save list runs in reverse roster order so its epilogue
+/// restores in roster order — a saved link register first, then preservation
+/// slots in descending frame offset. Protocol production and independent
+/// replay derive their expected bytes through this one projection; the replay
+/// still checks the submitted spans against the result.
+fn encode_frame_function(
+    codec: FrameProtocolCodec,
+    environment: &ValidatedTargetRegisterEnvironment,
+    function: &machine_code::FunctionTargetFrameLayout,
+    committed_bytes: u64,
+) -> Result<(Vec<u8>, Vec<u8>), TargetFrameProtocolEncodingError> {
+    Ok(match codec {
+        FrameProtocolCodec::X86_64 => {
+            let slots = function
+                .unwind
+                .restores
+                .iter()
+                .rev()
+                .map(|restore| isa_x86_64::X86_64FrameSlot {
+                    view: restore.view,
+                    offset_bytes: restore.frame_offset_bytes,
+                    size_bytes: restore.size_bytes,
+                })
+                .collect::<Vec<_>>();
+            isa_x86_64::encode_system_v_amd64_frame_protocol(
+                environment.physical(),
+                committed_bytes,
+                isa_x86_64::X86_64StackProbe {
+                    interval_bytes: function.stack_probe.interval_bytes,
+                    touches: function.stack_probe.touches,
+                },
+                &slots,
+            )
+            .map_err(TargetFrameProtocolEncodingError::X86)?
+        }
+        FrameProtocolCodec::Aarch64 => {
+            let slots = function
+                .unwind
+                .restores
+                .iter()
+                .rev()
+                .map(|restore| isa_aarch64::Aarch64FrameSlot {
+                    view: restore.view,
+                    offset_bytes: restore.frame_offset_bytes,
+                    size_bytes: restore.size_bytes,
+                })
+                .collect::<Vec<_>>();
+            isa_aarch64::encode_aapcs64_frame_protocol(
+                environment.physical(),
+                committed_bytes,
+                isa_aarch64::Aarch64StackProbe {
+                    interval_bytes: function.stack_probe.interval_bytes,
+                    touches: function.stack_probe.touches,
+                },
+                &slots,
+            )
+            .map_err(TargetFrameProtocolEncodingError::Aarch64)?
+        }
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

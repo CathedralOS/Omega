@@ -214,7 +214,7 @@ pub(super) fn assign_top_level_symbols(
         program.roots.machines,
         SymbolKind::Machine,
         declaration,
-        true
+        !declaration.lexical_parent.is_valid()
     );
     bind_cohort!(
         program.roots.propositions,

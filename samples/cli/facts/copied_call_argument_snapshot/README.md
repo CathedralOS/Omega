@@ -491,6 +491,143 @@ lowering, provider settlement, layout and calling plans, register/frame realizat
 and final image emission. These are macOS ARM64 observations. Windows execution
 is owner-deferred; Linux execution is unverified.
 
+## Public provider field post-state captures
+
+A copied first argument equal to 7 stays 7 when the second argument overwrites its former home with 9.
+
+Parent: **STATE-LOCAL-VALUE-FRONTIER**, computed calls and state transfers.
+The `provider_field_poststate` production first invokes the public `Installing`
+requirement to put 7 into an explicit `Scalar.value` destination. Its completed
+post-state then supplies `snapshot`'s dependent `Counted<7>` result, before the
+last operand overwrites that same scalar field with 9. The provider's renamed
+`destination` and `incoming` parameters must retain the requirement's exact
+positional correspondence. The snapshot toggles a counter; both its once-only
+effect and the later write are observed by the exit-0 oracle.
+
+All nine `<place>/provider_field_poststate/main.omg` programs carry this fact,
+including the four hosted `ProgramEntry` bindings. Their `invalid/main.omg`
+twins change only the provider's replacement argument from 7 to 6; the receiving
+`Counted<7>` obligation and consumer remain unchanged. Byte-identical pins are
+`tests/omega/{pass,fail}/facts/provider_field_poststate_through_<place>_*`.
+
+The fresh optimized baseline at `717593f593c656f865c7a322fd2874b4bd168afc`
+rejects the provider's independently proved projected post-state equation.
+Declaration-scoped law terms now retain their typed fields and builtin measures;
+selected operation slots replace their result carrier together with their target.
+Every guarantee binds the provider's complete parameter roster by position,
+rather than permitting an unrelated permutation. Readonly and proof-only inputs
+can still have asymmetric entry premises; neither classification removes those
+assumptions or licenses a different actual subject. Dynamic selectors have no
+hidden data frontier, and their namespace qualification supplies no implicit
+receiver. Explicit data operands still owe their full write and loan checks.
+
+Linux x86-64 observations with the optimized candidate producer
+`1323377e5bf8cc474d1e40d218aa9d06f74834873fcafc32e325e9c16e4c3326`
+(SHA-256) establish nine native exit-0 and nine Terminal exit-0 runs; all nine
+twins reject at the captured runtime-index equality. The preserved run records
+live in the owning checkpoint's `build/slot5/field-row-8/`. The raw scalar reduction
+at `local/provider_scalar_poststate` also changes from baseline refusal to exit 0
+in both engines. Other hosted execution remains unverified. Earlier candidate 6 observations are
+historical only: its readonly/proof-only parameter permutation hole was found
+after that run. Candidate 8 rejects both new asymmetric-premise controls and
+preserves the nine-place outcomes. The focused 29-fixture source run has no lost
+success or wrong-reason rejection; the two new reject rows were subsequently recorded
+at the preserved published base with the same frozen runner. The 14-fixture both-engine run has no behavioral
+change or oracle failure; two timing differences remain against its stored
+baseline.
+
+Establishment comes from the provider's own checked ensures, not a caller guard.
+Identity is the completed scalar observation; later mutation changes its former
+home, not the owned `Counted` value. Composition carries that same indexed value
+through each receiving place into `seven` and exact subtraction. False-input
+twins preserve the index obligation. Both engines exercise ordinary checked
+lowering, structural construction, call/return layout and ABI placement,
+register/frame realization, instruction encoding and Linux image execution;
+these observations do not establish unexecuted target behavior.
+
+The parent remains open. The nine
+`<place>/provider_post_write_indexed_byte_view` probes retain the larger
+public-mutator descriptor composition. Their original copied-backing refusal
+and subsequent native descriptor replay failure are preserved in the owning
+evidence checkpoint. The completed selected resource relation below repairs
+that path without deriving pointer geometry from lifetime dependencies. The earlier returned-window endpoint
+control already executes with exit 0 in both engines on the preserved baseline;
+it is retained evidence, not a new repair.
+
+
+### Public descriptor extent after an earlier operand
+
+The same copied-first-argument fact also crosses all nine
+`<place>/provider_extent_poststate` programs. A public installer changes
+`View.bytes` from a one-byte window to a seven-byte window; its independently
+proved public ensures publishes `slot.bytes.len == replacement.len`. The next
+operand copies that length into an owned dependent `Counted<7>`, before the
+last operand overwrites the former descriptor home with a nine-byte static
+view. The counter toggles once and the ordinary consumer subtracts exactly 7.
+The invalid twins change only the installed window to `[..6]`.
+
+The invocation entry occurs after operand completion. Reference-subject
+preservation now uses the operation's write frame for entry-to-return effects;
+the proof observer still orders earlier operand writes and retires stale
+storage observations. Whole-expression frames remain with consumers that have
+not evaluated operands. Unknown operation frames still withhold preservation.
+This adds no pointer equality or backing authority from a length equation.
+
+The optimized producer
+`8b9806ec346fe629cb120ea55a387093d8259892a76e156204c8167b2f5477ad`
+(SHA-256) passes all nine preparations, native/Terminal exit-0 observations,
+and input-only rejecting twins for both this extent row and the scalar-field
+row. Raw evidence lives in `build/slot5/{extent-row-11,field-row-11}/` in the
+owning checkpoint. Source/build pins are byte-identical under
+`tests/omega/{pass,fail}/facts/provider_extent_poststate_through_<place>_*`.
+Four hosted bindings are authored; execution evidence here is Linux x86-64.
+
+The reduced extent control first rejected on candidate 8, then ran exit 0 in
+both engines on candidate 11; it was promoted without changing its local
+`main.omg` bytes. The larger reference-bearing `provider_post_write_indexed_byte_view`
+program remains frozen. Its completed backing relation is a separate repair
+from this scalar extent proof; see the observations below.
+
+
+Golden recording used a separate checkout of the same preserved published
+base `717593f593c656f865c7a322fd2874b4bd168afc`, restored to byte-identical
+candidate sources. The frozen optimized corpus runner recorded only twenty
+new source rows and nine new both-engine extent rows, with no wrong-reason
+reject or oracle failure. Their inspectable stamp is `717593f593c6+wt`;
+recording did not rebase the working branch, fetch main, rebuild a producer,
+or change other golden rows. Raw records and restoration hashes are retained
+in `build/slot5/record-{source,both}-corpus-11.*` and `recording-tree.json`.
+
+
+### Completed public selected descriptor storage
+
+The frozen `provider_post_write_indexed_byte_view` production copies the whole
+reference-bearing `View` after a public installer completes, then mutates its
+former home. The selected installer's ordinary stored-reference effects retain
+all changed slots and preserve its untouched incoming sibling. Immutable image
+origins remain images; mixed image/local arrivals retain every dependency and
+cannot advertise a partial local referent set. The public result contract and
+dynamic invocation remain public. Private scalar equations, returned-result
+claims, unrelated implementation rosters, and unknown selections supply no
+resource evidence.
+
+The Terminal and optimized-operation adapters reconstruct the selected table
+independently from their current typed operations. Complete same-selection SSA
+arrivals retain identity. Stored observations additionally require an actual
+raw writer at the exact destination and an unchanged storage version on every
+incoming path; arithmetic equality and call postconditions cannot manufacture
+a selector identity. Unknown, differing and cyclic selections withhold it.
+
+Producer `3b196efe2ecc3511b89e4ccf0dab9aa84136e4d5d5500d6e8e87869921dc4f0d`
+(SHA-256, candidate 17) prepares and runs all nine frozen positives with native
+and Terminal exit 0. All nine twins still reject their intentionally false
+runtime index. Raw observations are `build/slot5/descriptor-row-17/`.
+Source/build pins copy these exact programs into
+`tests/omega/{pass,fail}/facts/provider_descriptor_poststate_through_<place>_*`.
+These are Linux x86-64 observations; four authored target bindings do not
+constitute execution on the other hosts. Copied and projected selector controls
+remain under repair and review; this does not close the whole TASKS item.
+
 ## Ranked dependent descriptor returns
 
 The selected value of a copied first argument remains 7 when the second argument
@@ -534,3 +671,71 @@ ordinary full write-frame query remains unchanged. The four hosted entries remai
 present. Linux and Windows execution are unverified here; Windows native
 validation remains owner-deferred. Opaque/provider-backed and remaining cyclic
 result compositions stay open on the parent task.
+
+## Window indices retain completed endpoint operands
+
+The selected value of a copied first argument remains 7 when the second argument
+replaces its former descriptor home with a view of 9.
+
+`<place>/captured_window_indices/main.omg` produces `Counted<end - start>` through
+both a direct call and a public `Counting` call. The start operand completes as 2;
+the later end operand resets its former home to 0 and returns 9. The returned
+window retains extent 7, which `receive_inferred`, `seven` and exact subtraction
+consume before the former descriptor home is replaced. The endpoint reset and
+once-only counters remain runtime oracles. Each twin changes only the end
+producer's result to 8 and rejects the unchanged `Count == 7` obligation.
+
+Fresh main `a61700a1889` rejects all nine positives while preparing their runtime
+index descriptor. Executable recipes now copy their expression graphs and retain
+selected operation meaning. Callable type formation consumes its exact incoming
+requirements through the ordinary integer judgment; a requirement cannot form
+its own partial operand. Symbolic windows retain body-derived enclosing regions
+through the same typed source-path query as custody replay. These regions prove
+neither descriptor equality nor permission ancestry. Authenticated image scope
+and declared lifetime debts remain separate obligations.
+
+The nine positive and negative places are pinned as
+`tests/omega/{pass,fail}/facts/copied_captured_window_index_argument_snapshot_through_*`.
+The `dependent_window_*` controls reject missing order, self-forming requirements,
+wrong window extent, mismatched parameter indices and writes to retained backing.
+Their positive counterparts exercise an unrelated write, an image-backed sibling
+and a dependent parameter application. `runtime_dependent_window_byte_payload_exit`
+also reads byte 49 through the returned `Counted` value, checking the nonzero
+window offset independently of its extent. Native/Terminal observations are macOS
+ARM64 exit 0; other-host execution remains unverified. General opaque/provider
+result composition and the parent capability remain open.
+
+### Forwarded dependent results and static callable contracts
+
+The same nine `captured_window_indices` places now pass their direct producer
+through an explicitly contracted static callback. The completed start operand,
+later endpoint reset, result extent 7, subsequent descriptor replacement and
+extent-6 reject twins remain unchanged. The existing public producer is still
+exercised. Pins retain the same nine fact names.
+
+Baseline `2e70a865669` refuses all nine positives while forming generated result
+locals. Local type recipes now consume the current write-invalidated value
+environment. Their incoming machine contract is not replayed after mutation.
+Call-result types apply the exact occurrence-selected parameter telescope;
+static callable recipes no longer retain foreign formal subjects. Callable
+shape checks use positional formal correspondence for dependent expressions,
+including renamed parameters. Conservative call frames preserve established
+immutable scalar snapshots through the same observation query already used for
+private descriptor metadata. Mutable subjects retain ordinary invalidation.
+These operations supply neither spatial geometry nor access authority.
+
+`controls/dependent_callback_window` also reads byte 49 at the returned window's
+nonzero offset. `dependent_forwarded_window` exercises ordinary forwarding,
+and `dependent_renamed_callback_window` changes the callback's formal names.
+`dependent_local_valid_order` forms a local index from its current written value;
+its `dependent_local_written_order` twin changes only that write to break the
+ordering. `dependent_callback_missing_order` and `dependent_callback_wrong_result`
+reject missing public premises and a different result index. Corresponding pins
+live under `tests/omega/{pass,fail}/{borrows,generics}`.
+
+Acceptance requires all nine positive places and their pins to agree between
+native and Terminal execution, their nine reject twins to refuse `Count == 7`,
+and these composition and invalidation controls to retain their authored
+outcomes. Observations are recorded against the actual producer and host in the
+qualification record. Other-host execution and the broader parent acceptance,
+including opaque/provider result composition, remain open.

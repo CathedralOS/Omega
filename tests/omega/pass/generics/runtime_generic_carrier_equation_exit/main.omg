@@ -21,5 +21,6 @@ machine Main::main(main: &mut Main) reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
+    entry_storage.box.value = 0 as u64 in Tagged<8>;
     Main::main(&mut entry_storage);
 }

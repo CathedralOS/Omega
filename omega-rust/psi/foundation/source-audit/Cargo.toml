@@ -1,0 +1,11 @@
+[package]
+name = "source-audit"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "source_audit"
+path = "src/lib.rs"
+
+[dependencies]

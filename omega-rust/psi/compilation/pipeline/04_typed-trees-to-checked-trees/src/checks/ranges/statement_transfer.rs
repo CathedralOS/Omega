@@ -217,6 +217,10 @@ pub(super) fn transfer_statement_facts<'program>(
             sink.visit_expression(facts, *expression);
         }
         StatementNode::LocalData(local) => {
+            if local.role == language_core::LocalBindingRole::AtomicObservedResult {
+                facts.define_local(local.symbol, local.name.to_string(), None, None);
+                return;
+            }
             sink.visit_expression(facts, local.initial_value);
             let mut length = fixed_array_type_length(program, local.type_reference).or_else(|| {
                 expression_indexable_length(program, machine, state, facts, local.initial_value)

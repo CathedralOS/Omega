@@ -185,44 +185,55 @@ impl Execution<'_, '_, '_> {
                     if *image {
                         continue;
                     }
-                    let selected = self
-                        .context
-                        .control
-                        .operand_referents
-                        .span_or_empty(source.referents)
-                        .iter()
-                        .map(|referent| {
-                            crate::flow::operand_values::project_captured_view_place(
-                                CanonicalPlace {
-                                    root: referent.root,
-                                    segments: self
-                                        .context
-                                        .control
-                                        .operand_referent_segments
-                                        .span_or_empty(referent.segments)
-                                        .to_vec(),
-                                },
-                                projection,
-                            )
-                        })
-                        .collect::<Option<Vec<_>>>();
+                    // A slot retained by the call can be a projection of a
+                    // completed aggregate. Its descriptor child owns the
+                    // addresses; the containing capture need have none. Select
+                    // the exact completed leaves using their recorded epochs,
+                    // just as lifetime-profile extraction above does.
+                    let capture = self.context.control.operands.insert(*source);
+                    let selected = crate::flow::operand_values::reference_captures_at_path(
+                        self.program,
+                        &self.context.control,
+                        capture,
+                        projection,
+                        self.storage_snapshot,
+                    )
+                    .and_then(|stored| stored.captures());
                     let Some(selected) = selected else {
                         complete = false;
                         break;
                     };
-                    if selected.is_empty() {
-                        complete = false;
-                        break;
-                    }
-                    for place in selected {
-                        if !places.contains(&place) {
-                            places.push(place);
+                    for descriptor in selected {
+                        if !descriptor.projection.is_empty() {
+                            complete = false;
+                            break;
                         }
+                        let descriptor = self.context.control.operands.get(descriptor.capture);
+                        let addresses = self.captured_referent_places(descriptor.referents);
+                        if addresses.is_empty() {
+                            complete = false;
+                            break;
+                        }
+                        for place in addresses {
+                            if !places.contains(&place) {
+                                places.push(place);
+                            }
+                        }
+                    }
+                    if !complete {
+                        break;
                     }
                 }
             }
             if !complete {
                 continue;
+            }
+            // Local alternatives do not describe the unknown address of an
+            // image alternative. Retain every supplier and lifetime debt while
+            // withholding that incomplete joined descriptor geometry.
+            if source_images.iter().any(|image| *image) && source_images.iter().any(|image| !*image)
+            {
+                places.clear();
             }
             let mut roots = Vec::new();
             for profile in profiles {
@@ -252,7 +263,8 @@ impl Execution<'_, '_, '_> {
                 .get_mut(retention)
                 .immutable_image = dependencies.is_empty()
                 && source_images.iter().all(|image| *image)
-                && (effect.has_static_values || !sources.is_empty());
+                && ((effect.has_static_values && sources.is_empty() && !effect.retains_incoming)
+                    || !sources.is_empty());
             // Retain the actual supplying evaluations independently of the
             // sanitized post-call address. Resource consumers must not recover
             // a permission from the destination slot's older loan generation.

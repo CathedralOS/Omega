@@ -12,6 +12,22 @@ mod component_claim_resume;
 
 pub(super) const TARGET_ORACLE: &str = "expected_terminal_targets.txt";
 
+/// Long executable witnesses may author a larger sponsor allowance without
+/// changing their program or weakening exhaustion into a successful outcome.
+pub(super) fn fuel_allowance(fixture_dir: &std::path::Path) -> Result<u64, String> {
+    let name = "terminal_fuel_allowance.txt";
+    match std::fs::read_to_string(fixture_dir.join(name)) {
+        Ok(text) => text
+            .trim()
+            .parse::<u64>()
+            .ok()
+            .filter(|value| *value > 0)
+            .ok_or_else(|| format!("{name}: expected one positive u64 allowance")),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(1_000_000),
+        Err(error) => Err(format!("cannot read {name}: {error}")),
+    }
+}
+
 #[derive(Clone, Copy)]
 enum ExpectedTargetOutcome {
     Exit(i32),

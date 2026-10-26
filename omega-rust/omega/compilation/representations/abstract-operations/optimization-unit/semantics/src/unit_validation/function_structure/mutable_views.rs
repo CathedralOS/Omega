@@ -5,7 +5,7 @@
 //! depend on the evolving arrival sets; rediscovering them for every destination
 //! in every round made validation scan the whole graph quadratically. Keeping
 //! edge occurrences (not predecessor sets) also preserves parallel-edge loans.
-use crate::OptimizationUnitValidationError;
+use crate::{OperationSite, OptimizationUnitValidationError};
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
@@ -329,11 +329,11 @@ pub(super) fn validate(
     for block in &function.blocks {
         let mut available = arrivals[&block.id].clone();
         for (position, node) in block.nodes.iter().enumerate() {
-            let invalid = |place| OptimizationUnitValidationError::StructuralPlaceNotAvailable {
-                machine: function.machine,
-                block: block.id,
-                node: position as u32,
-                place,
+            let invalid = |place| {
+                OptimizationUnitValidationError::StructuralPlaceNotAvailable(
+                    OperationSite::new(function.machine, block.id, position as u32),
+                    place,
+                )
             };
             // Availability is per name. Each operation's contract separately
             // checks argument access and path overlap; repeated shared reads

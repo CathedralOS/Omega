@@ -434,6 +434,39 @@ impl<'program> StructuralJudge<'program> {
             &mut NormalObservation::None,
             NormalValueDemand::Location,
         )?;
+        if let Some(event) = crate::value_custody::atomic_operations::atomic_assignment_carrier(
+            self.program,
+            assignment,
+        ) {
+            // An atomic event evaluates its authored operands, never the
+            // synthetic resident-update expression. Its write retires storage
+            // observations but establishes no stable ordinary-store equation.
+            let frame = self
+                .frame_resolver()?
+                .assignment_write_frame(scope.0, statement);
+            let mut paths = destinations;
+            for operand in event.operands {
+                let mut next = Vec::new();
+                for path in paths {
+                    next.extend(path.judge.evaluate_normal_paths(
+                        operand,
+                        environment,
+                        scope,
+                        0,
+                        &mut NormalObservation::None,
+                        NormalValueDemand::Value,
+                    )?);
+                }
+                paths = next;
+            }
+            for path in &mut paths {
+                path.judge
+                    .observe_storage_effects(scope.1, frame.complete_paths())?;
+            }
+            // Statement assignment consumers discard the last operand value;
+            // an observed prior is owned separately by the event result carrier.
+            return Some(paths);
+        }
         let mut paths = Vec::new();
         for destination in destinations {
             let captured = destination
@@ -1433,6 +1466,13 @@ impl<'program> StructuralJudge<'program> {
         self.intake_current_storage_fields(scope.0, scope.1, expression, &value);
         if let StructuralTerm::CapturedValue { result_type, .. } = &value {
             self.intake_admitted_scalar_bounds(*result_type, &value);
+            self.intake_atomic_observation_bounds(
+                scope.0,
+                scope.1,
+                expression,
+                *result_type,
+                &value,
+            );
         }
         if let ExpressionNode::String(bytes) = self.program.expression_table.expression(expression)
             && let StructuralTerm::CapturedValue { result_type, .. } = &value
@@ -1836,6 +1876,10 @@ impl<'program> StructuralJudge<'program> {
             } else {
                 value.clone()
             };
+            // A checked call restores the declared referent invariant at its
+            // normal boundary. Attach those predicates to these fresh returned
+            // contents, independently of the retired pre-call observation.
+            self.intake_admitted_value_predicates(subject.type_reference, value.clone());
             bindings.push((subject.parameter, observed));
             post_storage.push((coordinate, value));
         }

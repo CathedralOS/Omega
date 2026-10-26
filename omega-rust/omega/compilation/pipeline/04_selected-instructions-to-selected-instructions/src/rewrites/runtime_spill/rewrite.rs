@@ -188,6 +188,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                         virtual_registers.extend(registers);
                         instructions.extend(sequence);
                     }
+                    let mut window_has_interior = true;
                     let active_window = if has_settlements || block.instructions.is_empty() {
                         if block.instructions.is_empty() {
                             None
@@ -198,7 +199,11 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                         let mut window = admitted
                             .function
                             .blocks
-                            .block_register_instruction_span(block_index, register);
+                            .block_register_instruction_span_detail(block_index, register)
+                            .map(|(s, e, interior)| {
+                                window_has_interior = interior;
+                                (s, e)
+                            });
                         for definition in &admitted.definitions {
                             if definition.block_index != block_index {
                                 continue;
@@ -214,8 +219,16 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                                     .instruction_index_in_block(block_index, anchor)
                             {
                                 window = Some(match window {
-                                    Some((s, e)) => (s.min(idx), e.max(idx)),
-                                    None => (idx, idx),
+                                    Some((s, e)) => {
+                                        if idx != s && idx != e {
+                                            window_has_interior = true;
+                                        }
+                                        (s.min(idx), e.max(idx))
+                                    }
+                                    None => {
+                                        window_has_interior = false;
+                                        (idx, idx)
+                                    }
                                 });
                             }
                         }
@@ -230,121 +243,170 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                         if active_start > 0 {
                             instructions.extend_from_slice(&block.instructions[..active_start]);
                         }
-                        for (offset, original) in block.instructions[active_start..=active_end]
-                            .iter()
-                            .enumerate()
-                        {
-                            let instruction_index = active_start + offset;
-                            if has_settlements {
-                                boundaries.push(
-                                    u32::try_from(instructions.len())
-                                        .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
-                                );
-                            }
-                            let mut rewritten = original.clone();
-                            // Uses and `UseDef` operands both read the victim and move to a
-                            // reload register; a `UseDef` additionally writes that register
-                            // back, which the instruction's following store then reads. A
-                            // plain `Def` keeps the victim register so its own store reads
-                            // the post-write value — possibly bound to a tied use's reload
-                            // home, which is the read-modify-write idiom's point.
-                            for operand in &mut rewritten.operands {
-                                if operand.virtual_register != register
-                                    || admitted
-                                        .retained_uses
-                                        .contains(&(original.id, operand.operand))
-                                    || !matches!(
-                                        operand.access,
-                                        RegisterOperandAccess::Use
-                                            | RegisterOperandAccess::UseDef
-                                    )
-                                {
-                                    continue;
+                        let has_retained_uses = !admitted.retained_uses.is_empty();
+                        let block_dedicated_ties = &admitted.dedicated_tie_uses[block_index];
+                        let has_dedicated_ties = !block_dedicated_ties.is_empty();
+                        let block_span_closes = &admitted.span_closes[block_index];
+                        let has_span_closes = !block_span_closes.is_empty();
+                        let has_after_defs = admitted.definitions.iter().any(|definition| {
+                            definition.block_index == block_index
+                                && !matches!(definition.position, super::StoragePosition::BlockStart)
+                        });
+                        let mut rewrite_instruction =
+                            |instruction_index: usize,
+                             original: &selected_instructions::SelectedInstruction,
+                             open_reload: &mut Option<VirtualRegisterId>,
+                             virtual_registers: &mut Vec<VirtualRegister>,
+                             instructions: &mut Vec<selected_instructions::SelectedInstruction>,
+                             next_instruction: &mut u32,
+                             next_register: &mut u32|
+                             -> Result<(), RuntimeSpillError> {
+                                if has_settlements {
+                                    boundaries.push(
+                                        u32::try_from(instructions.len())
+                                            .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
+                                    );
                                 }
-                                // A use admission recorded beside an early-clobber tied write
-                                // takes a pair of its own: the write's tied home must be a
-                                // register the instruction's unpinned co-readers never share.
-                                let dedicated = admitted.dedicated_tie_uses[block_index]
-                                    .contains(&(instruction_index, operand.operand));
-                                let reloaded = reload_for_use(
-                                    &admitted,
-                                    admitted
-                                        .assignment
-                                        .load_slot(block_index, instruction_index),
-                                    register,
-                                    shared && operand.fixed_view.is_none() && !dedicated,
+                                let mut rewritten = original.clone();
+                                for operand in &mut rewritten.operands {
+                                    if operand.virtual_register != register
+                                        || (has_retained_uses
+                                            && admitted
+                                                .retained_uses
+                                                .contains(&(original.id, operand.operand)))
+                                        || !matches!(
+                                            operand.access,
+                                            RegisterOperandAccess::Use
+                                                | RegisterOperandAccess::UseDef
+                                        )
+                                    {
+                                        continue;
+                                    }
+                                    let dedicated = has_dedicated_ties
+                                        && block_dedicated_ties
+                                            .contains(&(instruction_index, operand.operand));
+                                    let reloaded = reload_for_use(
+                                        &admitted,
+                                        admitted
+                                            .assignment
+                                            .load_slot(block_index, instruction_index),
+                                        register,
+                                        shared && operand.fixed_view.is_none() && !dedicated,
+                                        open_reload,
+                                        virtual_registers,
+                                        instructions,
+                                        next_instruction,
+                                        next_register,
+                                    )?;
+                                    use_reloads.entry(rewritten.id).or_insert(reloaded);
+                                    operand.virtual_register = reloaded;
+                                }
+                                if has_settlements {
+                                    instruction_positions.push(
+                                        u32::try_from(instructions.len())
+                                            .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
+                                    );
+                                }
+                                instructions.push(rewritten);
+                                if has_span_closes
+                                    && open_reload.is_some()
+                                    && block_span_closes.contains(&instruction_index)
+                                {
+                                    *open_reload = None;
+                                }
+                                if has_after_defs {
+                                    for (definition_index, definition) in
+                                        admitted
+                                            .definitions
+                                            .iter()
+                                            .enumerate()
+                                            .filter(|(_, definition)| {
+                                                definition.block_index == block_index
+                                                    && match definition.position {
+                                                        super::StoragePosition::AfterInstruction(
+                                                            anchor,
+                                                        )
+                                                        | super::StoragePosition::AfterUseDef {
+                                                            instruction: anchor,
+                                                            ..
+                                                        } => anchor == original.id,
+                                                        super::StoragePosition::BlockStart => false,
+                                                    }
+                                            })
+                                    {
+                                        let stored = match definition.position {
+                                            super::StoragePosition::AfterUseDef {
+                                                operand, ..
+                                            } => instructions
+                                                .last()
+                                                .and_then(|emitted| emitted.operand(operand))
+                                                .map(|operand| operand.virtual_register)
+                                                .ok_or(RuntimeSpillError::SourceMismatch)?,
+                                            _ => definition.register,
+                                        };
+                                        let store = admission::store(
+                                            &admitted,
+                                            admitted.assignment.store_slot(definition_index),
+                                            stored,
+                                            next_instruction,
+                                            next_register,
+                                        )?;
+                                        let (registers, sequence) = store.into_streams();
+                                        virtual_registers.extend(registers);
+                                        instructions.extend(sequence);
+                                    }
+                                }
+                                Ok(())
+                            };
+                        if !has_settlements && !window_has_interior {
+                            rewrite_instruction(
+                                active_start,
+                                &block.instructions[active_start],
+                                &mut open_reload,
+                                virtual_registers,
+                                &mut instructions,
+                                &mut next_instruction,
+                                &mut next_register,
+                            )?;
+                            if active_end > active_start {
+                                if active_start + 1 < active_end {
+                                    instructions.extend_from_slice(
+                                        &block.instructions[active_start + 1..active_end],
+                                    );
+                                    if has_span_closes
+                                        && open_reload.is_some()
+                                        && block_span_closes
+                                            .range((active_start + 1)..active_end)
+                                            .next()
+                                            .is_some()
+                                    {
+                                        open_reload = None;
+                                    }
+                                }
+                                rewrite_instruction(
+                                    active_end,
+                                    &block.instructions[active_end],
                                     &mut open_reload,
                                     virtual_registers,
                                     &mut instructions,
                                     &mut next_instruction,
                                     &mut next_register,
                                 )?;
-                                use_reloads.entry(rewritten.id).or_insert(reloaded);
-                                operand.virtual_register = reloaded;
                             }
-                            if has_settlements {
-                                instruction_positions.push(
-                                    u32::try_from(instructions.len())
-                                        .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
-                                );
-                            }
-                            instructions.push(rewritten);
-                            // A clobber or implicit definition may write any unit, including
-                            // the one hosting the still-open reload, and a redefinition makes
-                            // the held value stale, so the shared interval ends at each
-                            // admitted span-closing instruction and the next flexible use
-                            // opens a fresh pair — unless admission proved a surviving view
-                            // lets the produced interval cross a unit-writing instruction to
-                            // its home.
-                            if open_reload.is_some()
-                                && admitted.span_closes[block_index].contains(&instruction_index)
+                        } else {
+                            for (offset, original) in block.instructions[active_start..=active_end]
+                                .iter()
+                                .enumerate()
                             {
-                                open_reload = None;
-                            }
-                            for (definition_index, definition) in
-                                admitted
-                                    .definitions
-                                    .iter()
-                                    .enumerate()
-                                    .filter(|(_, definition)| {
-                                        definition.block_index == block_index
-                                            && match definition.position {
-                                                super::StoragePosition::AfterInstruction(
-                                                    anchor,
-                                                )
-                                                | super::StoragePosition::AfterUseDef {
-                                                    instruction: anchor,
-                                                    ..
-                                                } => anchor == original.id,
-                                                super::StoragePosition::BlockStart => false,
-                                            }
-                                    })
-                            {
-                                // A `UseDef` write left the new value in the register its
-                                // operand was redirected to — the emitted instruction's
-                                // operand names it; the victim register itself was never
-                                // written. Every other definition stores the recorded
-                                // register directly.
-                                let stored = match definition.position {
-                                    super::StoragePosition::AfterUseDef { operand, .. } => {
-                                        instructions
-                                            .last()
-                                            .and_then(|emitted| emitted.operand(operand))
-                                            .map(|operand| operand.virtual_register)
-                                            .ok_or(RuntimeSpillError::SourceMismatch)?
-                                    }
-                                    _ => definition.register,
-                                };
-                                let store = admission::store(
-                                    &admitted,
-                                    admitted.assignment.store_slot(definition_index),
-                                    stored,
+                                rewrite_instruction(
+                                    active_start + offset,
+                                    original,
+                                    &mut open_reload,
+                                    virtual_registers,
+                                    &mut instructions,
                                     &mut next_instruction,
                                     &mut next_register,
                                 )?;
-                                let (registers, sequence) = store.into_streams();
-                                virtual_registers.extend(registers);
-                                instructions.extend(sequence);
                             }
                         }
                         if active_end + 1 < block.instructions.len() {
@@ -354,6 +416,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                     } else if !block.instructions.is_empty() {
                         instructions.extend_from_slice(&block.instructions);
                     }
+                    let pre_terminator_len = instructions.len();
                     // Terminator operand uses reload after the last block instruction.
                     // Their pairs occupy the end-of-block gap, so the closing boundary and
                     // instruction positions are pushed only after they are appended.
@@ -553,11 +616,21 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                                 .ok_or(RuntimeSpillError::SourceMismatch)?;
                         }
                     }
+                    let unchanged_suffix = if instructions.len() == pre_terminator_len {
+                        active_window
+                            .map_or(block.instructions.len(), |(_, end)| {
+                                block.instructions.len() - (end + 1)
+                            })
+                            .min(block.instructions.len() - unchanged_prefix)
+                    } else {
+                        0
+                    };
                     blocks.replace_block_contents(
                         block_index,
                         instructions,
                         terminator,
                         unchanged_prefix,
+                        unchanged_suffix,
                     );
                 }
                 Ok(())

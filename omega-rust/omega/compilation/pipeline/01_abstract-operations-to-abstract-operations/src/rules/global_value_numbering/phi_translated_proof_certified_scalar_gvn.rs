@@ -1,7 +1,7 @@
 //! Proof-certified total-scalar translation across join parameters.
 
 use optimization_core::{OptimizationRuleContract, OptimizationSafetyClass};
-use optimization_unit::{NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate};
+use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 use super::expression_keys::proof_certified_scalar_expression;
 use crate::rules::accepted_obligations::accepted_obligation_fact;
@@ -26,48 +26,21 @@ fn propose(
         unit,
         analyses,
         |unit, function, effects, _| {
-            let mut leaders = Vec::new();
-            let mut redundants = Vec::new();
-            for block in &function.blocks {
-                for (index, node) in block.nodes.iter().enumerate() {
-                    let node_index =
-                        u32::try_from(index).expect("optimization node index fits u32");
-                    let Some((key, operation, result, scalar_type)) =
-                        proof_certified_scalar_expression(&node.operation)
-                    else {
-                        continue;
-                    };
-                    let Some(obligation_fact) =
-                        accepted_obligation_fact(unit, function.machine, operation).ok()
-                    else {
-                        continue;
-                    };
-                    if !super::exact_pure_scalar_effect(
-                        unit,
-                        effects,
-                        function.machine,
-                        block.id,
-                        node_index,
-                    ) {
-                        continue;
-                    }
-                    let location = NodeLocation {
-                        machine: function.machine,
-                        block: block.id,
-                        node: node_index,
-                    };
-                    leaders.push((key, location, operation, result, scalar_type));
-                    redundants.push((
-                        key,
-                        location,
-                        operation,
-                        result,
-                        scalar_type,
-                        obligation_fact,
-                    ));
-                }
-            }
-            (leaders, redundants)
+            super::collect_scalar_rows(
+                unit,
+                function,
+                effects,
+                |operation| {
+                    let row = proof_certified_scalar_expression(operation)?;
+                    accepted_obligation_fact(unit, function.machine, row.1).ok()?;
+                    Some(row)
+                },
+                |operation| {
+                    let row = proof_certified_scalar_expression(operation)?;
+                    let fact = accepted_obligation_fact(unit, function.machine, row.1).ok()?;
+                    Some((row, fact))
+                },
+            )
         },
         |key, parameters| key.references_any(parameters),
         |key, translation| Some(key.translate(translation)),

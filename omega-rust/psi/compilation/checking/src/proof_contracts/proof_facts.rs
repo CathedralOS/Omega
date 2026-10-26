@@ -17,7 +17,7 @@ pub(crate) enum ProofFactOwner<'program> {
     DataDefaultDomain(&'program str),
     Domain(&'program str),
     MachineContract {
-        machine: &'program str,
+        machine: &'program typed_trees::machine::Machine,
         kind: &'static str,
     },
     StatementContract {
@@ -261,7 +261,7 @@ impl fmt::Display for ProofFactOwner<'_> {
             Self::DataDefaultDomain(data) => write!(formatter, "data `{data}` default domain"),
             Self::Domain(domain) => write!(formatter, "domain `{domain}`"),
             Self::MachineContract { machine, kind } => {
-                write!(formatter, "machine `{machine}` {kind} contract")
+                write!(formatter, "machine `{}` {kind} contract", machine.name)
             }
             Self::StatementContract {
                 machine,
@@ -338,7 +338,7 @@ pub(crate) fn validate_proof_facts(
         match fact {
             ProofFact::Expression(expression) => {
                 super::contextual_identity::validate(program, *expression, &owner, diagnostics);
-                if !is_boolean_fact_expression(program, *expression) {
+                if !is_boolean_owned_fact_expression(program, *expression, owner) {
                     diagnostics.push(Diagnostic::error(format!(
                         "{owner} proof fact `{}` is not boolean-shaped",
                         program.expression_table.display_name(*expression)
@@ -576,7 +576,7 @@ fn proof_argument_declared_type(
 
 fn proof_fact_machine_name(owner: ProofFactOwner<'_>) -> Option<&str> {
     match owner {
-        ProofFactOwner::MachineContract { machine, .. } => Some(machine),
+        ProofFactOwner::MachineContract { machine, .. } => Some(machine.name.as_str()),
         ProofFactOwner::StatementContract { machine, .. } => Some(machine.name.as_str()),
         ProofFactOwner::StateSignatureContract {
             owner: StateSignatureOwner::Machine(machine),
@@ -677,6 +677,57 @@ fn is_boolean_domain_fact_expression(
     }
 }
 
+/// A logical match keeps the exact declaration/current frame for its result
+/// carrier. Context-free spelling cannot classify an integer match as Boolean.
+fn is_boolean_owned_fact_expression(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    owner: ProofFactOwner<'_>,
+) -> bool {
+    if !matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Match(_)
+    ) {
+        return is_boolean_fact_expression(program, expression);
+    }
+    match owner {
+        ProofFactOwner::MachineContract { machine, .. } => {
+            let Some(state) = program.machine_states(machine).first() else {
+                return false;
+            };
+            boolean_record_match_shape(program, expression, |expression| {
+                crate::parameter_expression_result_type_reference(
+                    program,
+                    machine.symbol,
+                    program.state_parameters(state),
+                    expression,
+                )
+            })
+        }
+        ProofFactOwner::StatementContract { machine, state, .. } => {
+            boolean_record_match_shape(program, expression, |expression| {
+                crate::expression_result_type_reference(program, machine, state, expression)
+            })
+        }
+        _ => false,
+    }
+}
+
+fn boolean_record_match_shape(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    type_of: impl Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
+) -> bool {
+    let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    type_of(expression).and_then(|reference| program.primitive_type_reference(reference))
+        == Some(typed_trees::types::PrimitiveType::Bool)
+        && type_of(dispatch.subject).is_some_and(|subject_type| {
+            crate::logical_record_match_capture(program, expression, subject_type).is_some()
+        })
+}
+
 fn is_boolean_fact_expression(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
@@ -735,6 +786,14 @@ pub(crate) fn is_boolean_asm_fact_expression(
     expression: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(_) => {
+            let Some(state) = state.or_else(|| program.machine_states(machine).first()) else {
+                return false;
+            };
+            boolean_record_match_shape(program, expression, |expression| {
+                crate::expression_result_type_reference(program, machine, state, expression)
+            })
+        }
         ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             crate::value_custody::places::declared_place_type_raw(
                 program, machine, state, expression,

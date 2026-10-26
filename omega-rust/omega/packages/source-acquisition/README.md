@@ -55,6 +55,16 @@ Package declarations, graph reconciliation, review, and admission remain
 manager responsibilities. `SourceRelativePath` is lexical source navigation,
 not an authored workspace-member declaration.
 
+New local snapshot publications use an origin-bound address derived from the
+strong content digest retained by package locks. `local/snapshot/address.rs`
+owns that address and its lock name. Historical recovery selects this candidate
+directly, then verifies its metadata, exact tree, origin and retained custody.
+Only an absent direct entry permits the bounded legacy raw-tree-key search.
+A malformed direct entry remains an error even if a legacy copy exists.
+Recovery returns historical source custody, never a fresh live observation.
+The source content identity and snapshot payload format remain unchanged;
+new publication addresses and live-observation records have distinct versions.
+
 `source_resolver::SourceResolver` is the session entrance. Its constructors first
 retain the private root, capture host Git outside package-controlled roots, then
 create and verify the acquisition lanes. The session retains one optional Git
@@ -70,8 +80,9 @@ These are deliberate public seams; cache machinery, native process assembly,
 object verification, and publication internals remain private.
 
 `local::operations::recover_cached_local_source_in_lane` finds historical bytes
-for a caller-known canonical local origin and accepted content digest. It scans
-bounded existing metadata, then verifies the matching snapshot under its entry
+for a caller-known canonical local origin and accepted content digest. It first
+selects the origin/content-addressed publication; only its absence enters the
+bounded legacy metadata search. It verifies the selected snapshot under its entry
 lock. The origin is not opened; the result is historical source, not an
 observation that the live source still matches. Missing snapshots return no
 source, invalid matching trees reject, and neither creates an archive, index,

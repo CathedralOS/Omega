@@ -16,23 +16,12 @@ use std::collections::HashSet;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMatchExpression};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
-/// Permit a call only when its caller supplies an exact no-write judgment.
-/// Operators and atomic evaluation retain their conservative boundary; this
-/// callback does not authorize unknown executable node families.
-pub fn inert_value_tree_with_calls(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    mut allow_call: impl FnMut(ExpressionHandle) -> bool,
-) -> bool {
-    inert_value_tree_with_operations(program, expression, &mut allow_call, |_| false)
-}
-
-/// Extend the inert-tree judgment only with exact selected operation receipts.
-/// The callback owns operation meaning; every child still passes this traversal.
+/// Leaves and structural construction are inert only when every embedded
+/// operation has the caller's exact meaning/effect judgment. In particular,
+/// call-free operator syntax is not evidence of an intrinsic operation.
 pub fn inert_value_tree_with_operations(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
-    mut allow_call: impl FnMut(ExpressionHandle) -> bool,
     mut allow_operation: impl FnMut(ExpressionHandle) -> bool,
 ) -> bool {
     if !expression.is_valid() {
@@ -41,18 +30,6 @@ pub fn inert_value_tree_with_operations(
     let mut expressions = Vec::new();
     collect_expression_tree(program, expression, &mut expressions);
     expressions.iter().all(|expression| {
-        if matches!(
-            program.expression_table.expression(*expression),
-            ExpressionNode::Call(_)
-        ) {
-            return allow_call(*expression);
-        }
-        if matches!(
-            program.expression_table.expression(*expression),
-            ExpressionNode::Binary(_)
-        ) {
-            return allow_operation(*expression);
-        }
         matches!(
             program.expression_table.expression(*expression),
             ExpressionNode::Name(_)
@@ -65,7 +42,7 @@ pub fn inert_value_tree_with_operations(
                 | ExpressionNode::Borrow(_)
                 | ExpressionNode::Member(_)
                 | ExpressionNode::Match(_)
-        )
+        ) || allow_operation(*expression)
     })
 }
 

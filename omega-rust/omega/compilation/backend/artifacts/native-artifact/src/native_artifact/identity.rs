@@ -4,7 +4,7 @@ use super::{
     NativeArtifactIdentity, NativePhysicalEvidenceScope, NativeProviderExecution,
     NativeSelectedProviderPlan,
 };
-use crate::physical::{canonical_usize, hash_bytes};
+use crate::physical::{canonical_usize, hash_bytes, hash_call_site_owner};
 use effects::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
 
 // v10 commits closed Import coordinates independently of unchanged Terminal bytes.
@@ -251,26 +251,7 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
     digest.raw(&canonical_usize(calls.len()));
     for call in calls {
         digest.raw(&call.machine.get().to_le_bytes());
-        match call.owner {
-            target_operations::CallSiteOwner::Operation(operation) => {
-                digest.raw(&[1]);
-                digest.raw(&operation.get().to_le_bytes());
-                digest.raw(&0_u32.to_le_bytes());
-            }
-            target_operations::CallSiteOwner::ExternalCompletion(edge) => {
-                digest.raw(&[3]);
-                digest.raw(&edge.get().to_le_bytes());
-                digest.raw(&0_u32.to_le_bytes());
-            }
-            target_operations::CallSiteOwner::CleanupAction {
-                edge,
-                action_ordinal,
-            } => {
-                digest.raw(&[2]);
-                digest.raw(&edge.get().to_le_bytes());
-                digest.raw(&action_ordinal.to_le_bytes());
-            }
-        }
+        hash_call_site_owner(&mut digest, &call.owner);
         digest.raw(&canonical_usize(call.text_offset));
         digest.raw(&call.caller_live_bytes.to_le_bytes());
         match call.x86_floating_control {

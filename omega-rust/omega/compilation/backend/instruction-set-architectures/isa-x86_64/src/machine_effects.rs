@@ -140,52 +140,26 @@ pub fn x86_64_machine_effect_catalog(
                         constraints,
                     ));
                 }
-                Ok(
-                    if matches!(
-                        semantic,
-                        MachineSemanticKind::PlacedScalarAccess(_)
-                            | MachineSemanticKind::Load8
-                            | MachineSemanticKind::LoadPacked3
-                            | MachineSemanticKind::LoadPacked5
-                            | MachineSemanticKind::LoadPacked6
-                            | MachineSemanticKind::LoadPacked7
-                            | MachineSemanticKind::StorePacked
-                            | MachineSemanticKind::Load16
-                            | MachineSemanticKind::Load32
-                            | MachineSemanticKind::Load64
-                            | MachineSemanticKind::Store
-                            | MachineSemanticKind::AddressOffset
-                            | MachineSemanticKind::Load8Indexed
-                            | MachineSemanticKind::CopyBytes
-                            | MachineSemanticKind::ZeroBytes
-                            | MachineSemanticKind::ScanByteSequence
-                            | MachineSemanticKind::LoadEncodedScalar
-                            | MachineSemanticKind::StoreEncodedScalar
-                            | MachineSemanticKind::CompareByteSequences
-                            | MachineSemanticKind::Store64
-                            | MachineSemanticKind::FrameAddress
-                            | MachineSemanticKind::CallUnit
-                    ) {
-                        memory::declaration(semantic, constraint, constraints)
-                    } else if matches!(
-                        semantic,
-                        MachineSemanticKind::CallScalar | MachineSemanticKind::CallAggregate
-                    ) {
-                        scalar_call_declaration(semantic, constraint, constraints)
-                    } else if matches!(
-                        semantic,
-                        MachineSemanticKind::ReturnAggregate | MachineSemanticKind::ReturnScalar
-                    ) {
-                        let mut returned =
-                            declaration(MachineSemanticKind::ReturnScalar, &selected_keys);
-                        returned.semantic = semantic;
-                        returned.constraint = constraint;
-                        returned.alternatives[0].key.family = semantic.into();
-                        returned
-                    } else {
-                        declaration(semantic, &selected_keys)
-                    },
-                )
+                Ok(if matches!(semantic, memory::declared_semantics!()) {
+                    memory::declaration(semantic, constraint, constraints)
+                } else if matches!(
+                    semantic,
+                    MachineSemanticKind::CallScalar | MachineSemanticKind::CallAggregate
+                ) {
+                    scalar_call_declaration(semantic, constraint, constraints)
+                } else if matches!(
+                    semantic,
+                    MachineSemanticKind::ReturnAggregate | MachineSemanticKind::ReturnScalar
+                ) {
+                    let mut returned =
+                        declaration(MachineSemanticKind::ReturnScalar, &selected_keys);
+                    returned.semantic = semantic;
+                    returned.constraint = constraint;
+                    returned.alternatives[0].key.family = semantic.into();
+                    returned
+                } else {
+                    declaration(semantic, &selected_keys)
+                })
             })
             .collect::<Result<Vec<_>, _>>()?,
     })
@@ -760,36 +734,19 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::ReturnAggregate
         | MachineSemanticKind::Jump
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
+        // The family macro restates the memory module's whole arm set; the
+        // placement form is matched by its own arm above.
+        #[allow(unreachable_patterns)]
         MachineSemanticKind::CallScalar
         | MachineSemanticKind::CallAggregate
         | MachineSemanticKind::NormalizedForeignCall
-        | MachineSemanticKind::Load8
-        | MachineSemanticKind::Load16
-        | MachineSemanticKind::LoadPacked3
-        | MachineSemanticKind::LoadPacked5
-        | MachineSemanticKind::LoadPacked6
-        | MachineSemanticKind::LoadPacked7
-        | MachineSemanticKind::StorePacked
-        | MachineSemanticKind::Load32
-        | MachineSemanticKind::Load64
-        | MachineSemanticKind::Store
-        | MachineSemanticKind::AddressOffset
-        | MachineSemanticKind::Load8Indexed
-        | MachineSemanticKind::CopyBytes
-        | MachineSemanticKind::ZeroBytes
-        | MachineSemanticKind::ScanByteSequence
-        | MachineSemanticKind::LoadEncodedScalar
-        | MachineSemanticKind::StoreEncodedScalar
-        | MachineSemanticKind::CompareByteSequences
-        | MachineSemanticKind::Store64
-        | MachineSemanticKind::FrameAddress
         | MachineSemanticKind::HostedExitProcessI32
         | MachineSemanticKind::HostedReadByte
         | MachineSemanticKind::SaveFloatingControl
         | MachineSemanticKind::RestoreFloatingControl
         | MachineSemanticKind::HostedWriteByteI32
-        | MachineSemanticKind::CallUnit => {
-            unreachable!("scalar calls use their dedicated declaration")
+        | memory::declared_semantics!() => {
+            unreachable!("semantics with a dedicated declaration do not reach the generic effects")
         }
         MachineSemanticKind::TrappingInteger(_) => {
             unreachable!("trapping forms return their shared encoded effects above")
@@ -1117,36 +1074,19 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         | MachineSemanticKind::ExactShiftRightU64 => {
             unreachable!("subtraction, multiplication, and shifts declare explicit alternatives")
         }
+        // The family macro restates the memory module's whole arm set; the
+        // placement form is matched by its own arm above.
+        #[allow(unreachable_patterns)]
         MachineSemanticKind::CallScalar
         | MachineSemanticKind::CallAggregate
         | MachineSemanticKind::NormalizedForeignCall
-        | MachineSemanticKind::Load8
-        | MachineSemanticKind::Load16
-        | MachineSemanticKind::LoadPacked3
-        | MachineSemanticKind::LoadPacked5
-        | MachineSemanticKind::LoadPacked6
-        | MachineSemanticKind::LoadPacked7
-        | MachineSemanticKind::StorePacked
-        | MachineSemanticKind::Load32
-        | MachineSemanticKind::Load64
-        | MachineSemanticKind::Store
-        | MachineSemanticKind::AddressOffset
-        | MachineSemanticKind::Load8Indexed
-        | MachineSemanticKind::CopyBytes
-        | MachineSemanticKind::ZeroBytes
-        | MachineSemanticKind::ScanByteSequence
-        | MachineSemanticKind::LoadEncodedScalar
-        | MachineSemanticKind::StoreEncodedScalar
-        | MachineSemanticKind::CompareByteSequences
-        | MachineSemanticKind::Store64
-        | MachineSemanticKind::FrameAddress
         | MachineSemanticKind::HostedExitProcessI32
         | MachineSemanticKind::HostedReadByte
         | MachineSemanticKind::SaveFloatingControl
         | MachineSemanticKind::RestoreFloatingControl
         | MachineSemanticKind::HostedWriteByteI32
-        | MachineSemanticKind::CallUnit => {
-            unreachable!("scalar calls use their dedicated declaration")
+        | memory::declared_semantics!() => {
+            unreachable!("semantics with a dedicated declaration have no generic size")
         }
     }
 }

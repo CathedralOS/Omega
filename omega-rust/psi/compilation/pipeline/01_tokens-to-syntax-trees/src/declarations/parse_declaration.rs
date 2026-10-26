@@ -160,6 +160,18 @@ fn target_machine_prefix<'tokens, 'source>(
         .then_some((target, boundary, rest))
 }
 
+/// The same machine introducers are legal at module and lexical scope. This
+/// lookahead only finds the statement/declaration boundary; `parse_item` owns
+/// the full head and its diagnostics.
+pub(crate) fn starts_machine_declaration(input: Input<'_, '_>) -> bool {
+    if input.at_keyword(KeywordKind::Public) || input.at_contextual("boundary") {
+        return starts_machine_declaration(
+            input.restarted(input.tokens.get(1..).unwrap_or_default()),
+        );
+    }
+    input.at_keyword(KeywordKind::Machine) || target_machine_prefix(input).is_some()
+}
+
 pub(crate) fn parse_item<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,

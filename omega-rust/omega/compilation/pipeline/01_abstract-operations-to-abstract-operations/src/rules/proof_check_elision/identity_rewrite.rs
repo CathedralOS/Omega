@@ -7,13 +7,13 @@ use abstract_operations::AbstractOperation;
 use optimization_core::{AnalysisKind, OptimizationRuleContract};
 use optimization_unit::{
     IntegerConstantRewrite, NodeLocation, ProofCertifiedScalarIdentityKind,
-    ProofCertifiedScalarIdentityRewrite, PsiOptimizationUnit, PsiRealizationSite,
-    PsiRewriteCandidate, scalar_value_definition,
+    ProofCertifiedScalarIdentityRewrite, PsiOptimizationUnit, PsiRewriteCandidate,
+    scalar_value_definition,
 };
 use semantic_vocabulary::{IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
 
 use crate::rules::accepted_obligations::accepted_obligation_fact;
-use crate::rules::control_flow_cleanup::provenance_realized_at;
+use crate::rules::control_flow_cleanup::node_realized_provenance;
 use crate::rules::node_elision::node_elision_accounting;
 use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
 
@@ -56,18 +56,12 @@ pub(super) fn propose_proof_certified_integer_constants(
                     block: block.id,
                     node: node_index,
                 };
-                let site = PsiRealizationSite::Node(location);
                 candidates.push(
                     PsiRewriteCandidate::new_proof_certified_integer_constant_replacement(
                         unit.identity,
                         contract,
                         vec![block.id],
-                        vec![provenance_realized_at(
-                            site,
-                            site,
-                            &node.provenance,
-                            &node.fuel,
-                        )],
+                        vec![node_realized_provenance(location, node)],
                         obligation_fact,
                         -1,
                         IntegerConstantRewrite {

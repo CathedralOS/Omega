@@ -13,8 +13,7 @@ use semantic_vocabulary::{
 use crate::proofs::float_meaning_projection::FloatMeaningProjectionLoweringError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LoweringError {
-    MachineNotFound(String),
+pub enum LoweringError {    MachineNotFound(String),
     AmbiguousMachineName(String),
     /// A closure names storage absent from its retained type catalog.
     MissingUnitStructuralType(String),
@@ -57,6 +56,18 @@ pub enum LoweringError {
         gap: Option<Diagnostic>,
     },
     Unsupported(&'static str),
+    MissingScalarParameterQualification {
+        state: String,
+        source_position: u32,
+        prepared_positions: Vec<u32>,
+    },
+    MissingSelectionFrontier {
+        machine: String,
+        state: String,
+        statement_index: u32,
+        local: String,
+        formation_statement: u32,
+    },
     NonDenseStructuralResult {
         reason: &'static str,
         completed_bindings: usize,

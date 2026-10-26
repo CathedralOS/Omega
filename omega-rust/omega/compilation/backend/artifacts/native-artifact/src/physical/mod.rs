@@ -51,7 +51,7 @@ mod projection;
 
 use crate::NativeSelectedProviderPlanDigest;
 use boundary_applications::OperatorApplicationCoverageRef;
-pub(crate) use derivation::hashing::{canonical_usize, hash_bytes};
+pub(crate) use derivation::hashing::{canonical_usize, hash_bytes, hash_call_site_owner};
 pub(crate) use derivation::{NativePhysicalEvidenceDerivation, derive_physical_evidence};
 pub(crate) use fragment_publication::derive_scope as derive_fragment_publication_scope;
 use optimization_core::{

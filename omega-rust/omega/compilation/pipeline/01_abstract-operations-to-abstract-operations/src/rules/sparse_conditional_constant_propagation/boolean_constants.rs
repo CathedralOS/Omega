@@ -7,10 +7,11 @@ use abstract_operations::AbstractOperation as O;
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
 use optimization_unit::{
     BooleanConstantRewrite, IntegerEvaluationWitness, OptimizationNode, PsiOptimizationFunction,
-    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+    PsiOptimizationUnit, PsiRewriteCandidate,
 };
 use semantic_vocabulary::{OperationId, ValueId};
 
+use crate::rules::control_flow_cleanup::node_realized_provenance;
 use crate::rules::sparse_conditional_constant_propagation::{
     constant_evaluation_contract as contract, integer_constant, integer_value_type, node_location,
 };
@@ -74,7 +75,7 @@ fn propose(
                         contract,
                         vec![block.id],
                         Vec::new(),
-                        vec![realized_node_provenance!(location, node)],
+                        vec![node_realized_provenance(location, node)],
                         witness,
                         -1,
                         BooleanConstantRewrite {

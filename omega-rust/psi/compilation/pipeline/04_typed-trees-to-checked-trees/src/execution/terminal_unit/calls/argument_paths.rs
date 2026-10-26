@@ -713,7 +713,7 @@ fn constant_local_index(
     usize::try_from(
         program
             .expression_table
-            .constant_integer_value(local.initial_value)?,
+            .constant_integer_value(local.ordinary_value_initializer()?)?,
     )
     .ok()
 }

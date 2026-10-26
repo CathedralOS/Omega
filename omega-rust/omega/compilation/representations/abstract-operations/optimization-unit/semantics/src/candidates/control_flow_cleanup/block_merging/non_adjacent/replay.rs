@@ -1,4 +1,7 @@
 //! Independent non-adjacent block-merge replay mechanics.
+use crate::candidates::control_flow_cleanup::{
+    checked_scalar_substitutions, patched_jump_bindings, require_scalar_bindings,
+};
 use crate::candidates::global_value_numbering::{
     independent_reachable_dominators, independently_replacement_dominates_uses,
 };
@@ -10,9 +13,7 @@ use crate::candidates::{
 };
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
-use optimization_unit::{
-    PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch, ScalarSubstitution,
-};
+use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch};
 
 pub(super) fn validate(
     input: &PsiOptimizationUnit,
@@ -25,14 +26,7 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let function = candidate_function(input, patch.predecessor.machine)?;
-    // These rewrites substitute scalar bindings only.
-    if function
-        .blocks
-        .iter()
-        .any(|block| !block.structural_parameters.is_empty())
-    {
-        return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
-    }
+    require_scalar_bindings(function)?;
 
     let predecessor_position = function
         .block_index(patch.predecessor.block)
@@ -55,22 +49,7 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let predecessor_node = &predecessor.nodes[predecessor_index];
-    let O::Jump {
-        structural_bindings: _,
-        psi_edge,
-        target: jump_target,
-        bindings,
-        cleanup_actions,
-    } = &predecessor_node.operation
-    else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
-    if !cleanup_actions.is_empty()
-        || *psi_edge != patch.incoming_edge
-        || *jump_target != patch.target
-    {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    }
+    let bindings = patched_jump_bindings(predecessor_node, patch.incoming_edge, patch.target)?;
     let incoming = function
         .block_edges()
         .filter(|edge| edge.target == patch.target)
@@ -85,35 +64,20 @@ pub(super) fn validate(
     {
         return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
     }
-    if target.parameters.len() != bindings.len() {
-        return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
-    }
-    let mut substitutions = target
-        .parameters
-        .iter()
-        .zip(bindings)
-        .map(|(parameter, binding)| {
-            (binding.parameter == parameter.value
-                && binding.scalar_type == parameter.scalar_type
-                && independently_replacement_dominates_uses(
-                    function,
-                    &dominators,
-                    binding.argument,
-                    parameter.value,
-                    parameter.scalar_type,
-                ))
-            .then_some(ScalarSubstitution {
-                from: parameter.value,
-                to: binding.argument,
-                scalar_type: parameter.scalar_type,
-            })
-        })
-        .collect::<Option<Vec<_>>>()
-        .ok_or(OptimizationUnitValidationError::CandidateIncomingBindingMismatch)?;
-    substitutions.sort();
-    if candidate.substitutions() != substitutions {
-        return Err(OptimizationUnitValidationError::CandidateSubstitutionMismatch);
-    }
+    let substitutions = checked_scalar_substitutions(
+        candidate,
+        &target.parameters,
+        bindings,
+        |parameter, binding| {
+            independently_replacement_dominates_uses(
+                function,
+                &dominators,
+                binding.argument,
+                parameter.value,
+                parameter.scalar_type,
+            )
+        },
+    )?;
     if !reconstruct_adjacent_merge_ownership_is_identity(
         input,
         function,

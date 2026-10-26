@@ -130,6 +130,7 @@ pub(crate) fn try_desugar_atomic_let(
     // Reserve storage without reading the atomic place. The selected instruction
     // supplies the observed prior value; a separate load would race with it.
     let mut result_binding = binding.clone();
+    result_binding.role = language_core::LocalBindingRole::AtomicObservedResult;
     result_binding.initial_value = syntax_trees
         .expressions
         .insert(ExpressionNode::Integer(IntegerLiteral::zero()));

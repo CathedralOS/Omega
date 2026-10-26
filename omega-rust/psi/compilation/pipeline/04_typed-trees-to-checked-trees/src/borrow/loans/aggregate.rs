@@ -14,6 +14,7 @@ pub(in crate::borrow) struct BorrowedInitializer {
 pub(in crate::borrow) enum BorrowedInitializerKind {
     Reference {
         access: language_semantics::ReferenceAccess,
+        type_reference: typed_trees::types::TypeReferenceHandle,
     },
     Aggregate {
         type_reference: typed_trees::types::TypeReferenceHandle,
@@ -57,7 +58,10 @@ pub(super) fn borrowed_initializers(
         TypeReferenceNode::Reference { access, .. } => vec![BorrowedInitializer {
             owner_path: owner_path.to_vec(),
             expression,
-            kind: BorrowedInitializerKind::Reference { access: *access },
+            kind: BorrowedInitializerKind::Reference {
+                access: *access,
+                type_reference,
+            },
         }],
         TypeReferenceNode::Constrained { base_type, .. } => {
             borrowed_initializers(program, *base_type, expression, substitutions, owner_path)

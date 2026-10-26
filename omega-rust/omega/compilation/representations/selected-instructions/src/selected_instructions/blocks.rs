@@ -37,7 +37,7 @@ pub struct BlockEntry {
     block: SelectedBlock,
     digest: OnceLock<[u8; 32]>,
     encoding: OnceLock<Arc<CachedBlockEncoding>>,
-    previous_encoding: Option<(Arc<CachedBlockEncoding>, usize)>,
+    previous_encoding: Option<(Arc<CachedBlockEncoding>, usize, usize)>,
     lookup: OnceLock<BlockLookup>,
     slot_summary: OnceLock<BlockSlotSummary>,
 }
@@ -122,7 +122,7 @@ impl BlockEntry {
     }
     fn new_with_previous_encoding(
         block: SelectedBlock,
-        previous_encoding: Option<(Arc<CachedBlockEncoding>, usize)>,
+        previous_encoding: Option<(Arc<CachedBlockEncoding>, usize, usize)>,
     ) -> Arc<Self> {
         Arc::new(Self {
             block,
@@ -139,7 +139,7 @@ impl BlockEntry {
                 &self.block,
                 self.previous_encoding
                     .as_ref()
-                    .map(|(enc, prefix)| (enc.as_ref(), *prefix)),
+                    .map(|(enc, prefix, suffix)| (enc.as_ref(), *prefix, *suffix)),
             );
             let _ = self.encoding.set(encoding);
             digest
@@ -221,7 +221,14 @@ impl BlockEntry {
                         if span.0 == u32::MAX {
                             *span = (idx_u32, idx_u32);
                         } else {
-                            span.1 = idx_u32;
+                            let prev_last = span.1 & 0x7FFF_FFFF;
+                            if idx_u32 > prev_last {
+                                if prev_last != span.0 {
+                                    span.1 = idx_u32 | 0x8000_0000;
+                                } else {
+                                    span.1 = idx_u32;
+                                }
+                            }
                         }
                     }
                     if let Some(view) = operand.fixed_view {
@@ -658,6 +665,14 @@ impl SelectedBlocks {
             total.checked_add(entry.lookup().transport_count?)
         })
     }
+    /// Maximum 64-bit word count of referenced register bitsets across all blocks.
+    pub fn max_referenced_register_word_count(&self) -> usize {
+        self.0
+            .iter()
+            .map(|entry| entry.lookup().referenced_register_bits.len())
+            .max()
+            .unwrap_or(0)
+    }
     /// Inclusive `(first_instruction_index, last_instruction_index)` in `block_index`'s
     /// body instructions where `register` appears as an operand, or `None` when no
     /// body instruction in `block_index` references `register`.
@@ -687,30 +702,70 @@ impl SelectedBlocks {
             if first == u32::MAX {
                 None
             } else {
-                Some((first as usize, last as usize))
+                Some((first as usize, (last & 0x7FFF_FFFF) as usize))
             }
         } else {
             Some((0, len - 1))
         }
     }
+    /// First and last body instruction indices in `block_index` that reference
+    /// `register`, together with whether `register` is referenced by any
+    /// instruction strictly between `first` and `last`.
+    pub fn block_register_instruction_span_detail(
+        &self,
+        block_index: usize,
+        register: VirtualRegisterId,
+    ) -> Option<(usize, usize, bool)> {
+        let entry = self.0.get(block_index)?;
+        let len = entry.block.instructions.len();
+        if len == 0 {
+            return None;
+        }
+        let lookup = entry.lookup();
+        let word = (register.0 as usize) >> 6;
+        if !lookup
+            .referenced_register_bits
+            .get(word)
+            .is_some_and(|&w| (w & (1u64 << (register.0 & 63))) != 0)
+        {
+            return None;
+        }
+        if len >= 64 {
+            let &(first, last) = lookup
+                .register_instruction_spans
+                .get(register.0 as usize)?;
+            if first == u32::MAX {
+                None
+            } else {
+                let has_interior = (last & 0x8000_0000) != 0;
+                Some((first as usize, (last & 0x7FFF_FFFF) as usize, has_interior))
+            }
+        } else {
+            Some((0, len - 1, true))
+        }
+    }
     /// Replace `index`'s instructions and terminator without cloning the old
     /// `SelectedBlock` when the entry is shared, optionally retaining the first
-    /// `unchanged_instruction_prefix` instructions' pre-encoded digest pages.
+    /// `unchanged_instruction_prefix` and last `unchanged_instruction_suffix`
+    /// instructions' pre-encoded digest chunks.
     pub fn replace_block_contents(
         &mut self,
         index: usize,
         instructions: Vec<SelectedInstruction>,
         terminator: SelectedTerminator,
         unchanged_instruction_prefix: usize,
+        unchanged_instruction_suffix: usize,
     ) {
         let entry = &self.0[index];
         let id = entry.block.id;
         let origin = entry.block.origin;
-        let previous_encoding = entry
-            .encoding
-            .get()
-            .cloned()
-            .map(|enc| (enc, unchanged_instruction_prefix));
+        let previous_encoding = entry.encoding.get().cloned().map(|enc| {
+            (
+                enc,
+                unchanged_instruction_prefix,
+                unchanged_instruction_suffix,
+            )
+        });
         self.0[index] = BlockEntry::new_with_previous_encoding(
             SelectedBlock {
                 id,

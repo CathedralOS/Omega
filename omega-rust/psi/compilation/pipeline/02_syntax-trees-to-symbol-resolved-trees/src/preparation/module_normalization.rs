@@ -94,7 +94,7 @@ pub(crate) fn validate_with_const_resolution_mode(
         if !module_sources.contains(&constant.name.source_span().source_id) {
             continue;
         }
-        if mode == crate::resolution::lowerer::ConstResolutionMode::InitializerSelection {
+        if mode != crate::resolution::lowerer::ConstResolutionMode::Complete {
             // This is a declaration/dependency frontier, including literal
             // values whose declared geometry is still pending. Ordinary
             // resolution selects the namespace and carrier; complete resolution

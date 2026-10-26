@@ -315,6 +315,34 @@ pub fn atomic_load_carrier(
     })
 }
 
+/// The parser reserves this binding for the adjacent indivisible event. Its
+/// synthetic initializer is never the observed value or an establishment proof.
+pub fn atomic_result_placeholder(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    local: &typed_trees::statement::TableLocalData,
+) -> Option<AtomicCarrierAccess> {
+    if local.role != language_core::LocalBindingRole::AtomicObservedResult {
+        return None;
+    }
+    let (ordinal, _) = program.state_local_declaration(state, local.symbol)?;
+    let typed_trees::statement::StatementNode::Assignment(assignment) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(ordinal + 1)?
+    else {
+        return None;
+    };
+    let carrier = atomic_assignment_carrier(program, assignment)?;
+    let path = program.expression_table.name_path_node(carrier.result)?;
+    let matches = if path.symbol.is_valid() {
+        path.symbol == local.symbol
+    } else {
+        matches!(program.expression_table.name_path_members(path.members), [name] if *name == local.name)
+    };
+    matches.then_some(carrier)
+}
+
 /// Decode a writing carrier: `target = Atomic { .. }` for store, fetch,
 /// swap, or decisive compare-exchange. The arithmetic model must be exactly
 /// the desugar's shape, with every observed-prior placeholder naming the

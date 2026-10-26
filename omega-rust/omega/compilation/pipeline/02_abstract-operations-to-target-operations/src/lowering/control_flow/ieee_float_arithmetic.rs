@@ -9,44 +9,26 @@
 //! the result is an ordinary scalar home. The row keeps the boundary and admitted execution so legalization can
 //! replay it against the abstract call and its declaration.
 
-use super::LiveDefinitions;
+use super::RowSite;
 use crate::LoweringError;
-use abstract_operations::{AbstractBoundaryResult, AbstractFunction, AbstractOperation};
+use abstract_operations::{AbstractBoundaryResult, AbstractOperation};
 use semantic_vocabulary::BoundaryMachineId;
 use std::collections::BTreeMap;
 use target::NativeTarget;
 use target_operations::{
     BoundaryExecutionBinding, BoundaryRealization, BoundarySettlementBinding,
     BoundarySettlementRealization, CompilerBuiltinExecution, TargetUnitOperation,
-    TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+    TargetUnitScalarHomeRequirement,
 };
-
-/// Whether this boundary's admitted settlement realizes inline arithmetic.
-pub(super) fn is_inline_arithmetic(
-    boundary: BoundaryMachineId,
-    settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
-) -> bool {
-    settlements.get(&boundary).is_some_and(|binding| {
-        matches!(
-            binding.realization,
-            BoundarySettlementRealization::Builtin(
-                BoundaryRealization::NearestIeeeFloatArithmetic(_)
-            )
-        )
-    })
-}
 
 pub(super) fn lower(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    types: &crate::lowering::structural_type_lookup::StructuralTypeLookup<'_>,
+    site: &mut RowSite<'_>,
     target: NativeTarget,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
     let AbstractOperation::BoundaryCall {
         psi_operation,
         result,

@@ -126,7 +126,9 @@ fn field_mutation<'types>(
     active: &mut Vec<StructuralTypeId>,
 ) -> SharedMutation {
     match field {
-        StructuralFieldType::Atomic(_) => SharedMutation::Inline,
+        StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_) => {
+            SharedMutation::Inline
+        }
         StructuralFieldType::Structural(identity) => type_mutation(declarations, *identity, active),
         StructuralFieldType::ByteSequence(carrier)
         | StructuralFieldType::PredicateByteSequence { carrier, .. } => byte_mutation(*carrier),

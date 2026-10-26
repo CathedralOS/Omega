@@ -1,0 +1,43 @@
+// A finite selector retains every exact progress subject required by its selected operation.
+// Expected exit: 0.
+public data Token { identity: u64; }
+public domain Token::Fair satisfies ProgressProfile established by Grants::grant;
+public boundary trait Grants {
+    machine grant(value: u64) -> Token reaches ensures result in Token::Fair;
+}
+Provider satisfies Grants {
+    machine grant(value: u64) -> Token { Token { identity: value } }
+}
+machine consume(value: &Token, calls: &mut u64) -> u64
+requires value in Token::Fair
+terminates;
+{
+    calls = (calls as u64 in Wrapping + 1) as u64;
+    value.identity
+}
+data Holder<'scope> { value: &'scope Token; }
+machine forward_holder<'scope>(holder: Holder<'scope>) -> Holder<'scope> terminates; { holder }
+machine select(mut holder: Holder, left: Token, calls: &mut u64) -> u64
+requires left in Token::Fair
+terminates;
+{
+    let local_left: Token = left;
+    holder.value = &local_left;
+    let forwarded: Holder = forward_holder(holder);
+    transition { _ -> arrive(forwarded, calls) }
+    state arrive(held: Holder, calls: &mut u64) -> u64 {
+        consume(held.value, calls)
+    }
+}
+machine main() reaches Grants crashes Trap {
+    let initial: Token = Grants::grant(43);
+    let holder: Holder = Holder { value: &initial };
+    let mut calls: u64 = 0;
+    let result: u64 = select(holder, Grants::grant(37), &mut calls);
+    transition result == 37 && calls == 1 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -405,6 +405,8 @@ pub enum AbstractOperation {
     AtomicEvent {
         psi_operation: OperationId,
         event: AbstractAtomicEvent,
+        /// Distinct atomic resident establishment, retained through refinements.
+        resident_obligation: Option<semantic_vocabulary::ObligationId>,
         reads_from: Option<AtomicReadsFrom>,
         modification_after: Option<AtomicModificationAfter>,
     },

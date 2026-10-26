@@ -1,10 +1,9 @@
 use super::{
-    LOCAL_CACHE_SNAPSHOTS, LOCAL_SNAPSHOT_METADATA, LocalSourceLimits, SourceContentDigest,
-    SourceResolveError, SourceTreePolicy, VerifiedPackageSourceEntryKind, capture_local_source,
-    capture_verified_package_source_snapshot, local_snapshot_custody_identity,
-    make_snapshot_read_only, make_tree_owner_writable, publish_local_snapshot,
-    resolve_local_source, resolve_local_source_snapshot_from_hardened_base,
-    resolve_materialized_source, temp_root,
+    LOCAL_CACHE_SNAPSHOTS, LOCAL_SNAPSHOT_METADATA, LocalSnapshotAddress, LocalSourceLimits,
+    SourceContentDigest, SourceResolveError, SourceTreePolicy, VerifiedPackageSourceEntryKind,
+    capture_local_source, capture_verified_package_source_snapshot, make_snapshot_read_only,
+    make_tree_owner_writable, publish_local_snapshot, resolve_local_source,
+    resolve_local_source_snapshot_from_hardened_base, resolve_materialized_source, temp_root,
 };
 #[test]
 fn local_snapshot_preserves_empty_directories_and_uses_published_identity() {
@@ -71,9 +70,9 @@ fn local_snapshot_detects_live_mutation_and_removes_staging_tree() {
         SourceTreePolicy::LocalPackage,
     )
     .expect("capture source");
-    let captured_custody_identity = local_snapshot_custody_identity(
+    let captured_address = LocalSnapshotAddress::new(
         &captured.normalized.root,
-        &captured.normalized.content_identity,
+        &SourceContentDigest::derive(captured.normalized.content_identity.as_bytes()),
     );
     std::fs::write(root.join("main.omg"), "machine After::main() {}\n")
         .expect("mutate live source");
@@ -86,11 +85,7 @@ fn local_snapshot_detects_live_mutation_and_removes_staging_tree() {
         SourceResolveError::LocalSourceChanged { .. }
     ));
     let snapshots = cache.join(LOCAL_CACHE_SNAPSHOTS);
-    assert!(
-        !snapshots
-            .join(format!("source-{captured_custody_identity}"))
-            .exists()
-    );
+    assert!(!snapshots.join(captured_address.publication_name()).exists());
     assert!(
         std::fs::read_dir(&snapshots)
             .expect("read snapshot collection")

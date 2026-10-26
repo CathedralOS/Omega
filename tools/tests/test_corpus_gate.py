@@ -1447,15 +1447,7 @@ class ReasonFreeRecord(unittest.TestCase):
 
 
 class StampProvenance(unittest.TestCase):
-    """`--record` stamps only a revision a reader of main can inspect.
-
-    Refusing everything is not a guard, so both outcomes are measured on ONE
-    repository: the same run is refused while its revision is an unpublished
-    candidate and accepted once that revision is an ancestor of the published
-    main. The `+wt` marker is exercised too, because the anchoring convention
-    (`@<published base>+wt`) depends on it being stripped before the ancestry
-    test rather than making the stamp unresolvable.
-    """
+    """Unlanded observations retain exact source without chasing main."""
 
     def setUp(self):
         profile = patch.object(corpus_gate, "require_optimized",
@@ -1501,48 +1493,77 @@ class StampProvenance(unittest.TestCase):
     def write_golden(self, rows):
         self.golden.write_text(corpus_records.render(rows, None), encoding="utf-8")
 
-    def test_record_refuses_a_stamp_no_reader_can_inspect(self):
+    def test_unlanded_record_retains_source_without_moving_head(self):
         self.git("checkout", "-q", "--detach", self.candidate)
-        self.write_golden([record("pass/a/x")])
-        original = self.golden.read_text(encoding="utf-8")
-        self.assertEqual(self.run_gate("--record"), 2)
-        self.assertEqual(self.golden.read_text(encoding="utf-8"), original)
-        message = self.errors.getvalue()
-        self.assertIn("--record refused", message)
-        self.assertIn(f"@{self.candidate[:12]}", message)
-        self.assertIn("not an ancestor of refs/remotes/origin/main", message)
-        # The refusal names the convention that satisfies the check, and says
-        # the tool will not pick a revision for the recorder.
-        self.assertIn("@<base>+wt", message)
-        self.assertIn("does not substitute", message)
-        document = json.loads(self.json_path.read_text(encoding="utf-8"))
-        self.assertEqual(document["verdict"], "infrastructure_failed")
-        self.assertIn("nobody can inspect", document["infrastructure_error"])
-
-    def test_the_same_record_is_accepted_once_its_revision_is_published(self):
-        self.git("checkout", "-q", "--detach", self.candidate)
-        self.assertEqual(self.run_gate("--record"), 2)
-        self.git("update-ref", "refs/remotes/origin/main", self.candidate)
         self.assertEqual(self.run_gate("--record"), 0)
         row = corpus_records.read(self.golden)[0]
         self.assertTrue(row["recorded_at"].startswith(self.candidate[:12]))
+        self.assertEqual(self.git("rev-parse", "HEAD"), self.candidate)
+        bundle = self.root / "build/corpus-source" / (self.candidate + ".bundle")
+        self.assertTrue(bundle.is_file())
+        original = bundle.read_bytes()
+        # Main advances independently; neither the source nor its bundle moves.
+        self.git("checkout", "-q", "--detach", self.base)
+        new_main = self.commit("independent main movement")
+        self.git("update-ref", "refs/remotes/origin/main", new_main)
+        self.git("checkout", "-q", "--detach", self.candidate)
+        self.assertEqual(self.run_gate("--record"), 0)
+        self.assertEqual(bundle.read_bytes(), original)
+        self.assertEqual(self.git("rev-parse", "HEAD"), self.candidate)
+        # Prove exportability after local observation ref/branch removal.
+        self.git("update-ref", "-d", "refs/corpus-observations/" + self.candidate)
+        clone = self.root / "reader"
+        subprocess.run(["git", "init", "-q", str(clone)], check=True)
+        subprocess.run(["git", "fetch", "-q", str(self.root), self.base], cwd=clone,
+                       check=True, capture_output=True)
+        absent = subprocess.run(["git", "cat-file", "-e", self.candidate], cwd=clone,
+                                capture_output=True)
+        self.assertNotEqual(absent.returncode, 0)
+        restored = subprocess.run(["git", "bundle", "unbundle", str(bundle)], cwd=clone,
+                                  check=True, capture_output=True, text=True)
+        self.assertIn(self.candidate, restored.stdout)
+        subprocess.run(["git", "cat-file", "-e", self.candidate], cwd=clone, check=True)
 
-    def test_published_ancestry_decides_with_and_without_the_dirty_marker(self):
+    def test_bundle_failure_refuses_recording(self):
+        with patch.object(corpus_gate.os, "link", side_effect=OSError("evidence unavailable")):
+            self.assertEqual(self.run_gate("--record"), 2)
+        self.assertIn("cannot retain stamped source evidence", self.errors.getvalue())
+        self.assertIsNone(corpus_records.read(self.golden)[0].get("recorded_at"))
+
+    def test_damaged_bundle_refuses_without_overwrite(self):
+        self.assertEqual(self.run_gate("--record"), 0)
+        bundle = self.root / "build/corpus-source" / (self.candidate + ".bundle")
+        bundle.write_bytes(b"damaged evidence")
+        self.assertEqual(self.run_gate("--record"), 2)
+        self.assertEqual(bundle.read_bytes(), b"damaged evidence")
+
+    def test_truncated_pack_refuses_even_when_header_still_verifies(self):
+        self.assertEqual(self.run_gate("--record"), 0)
+        bundle = self.root / "build/corpus-source" / (self.candidate + ".bundle")
+        damaged = bundle.read_bytes()[:-24]
+        bundle.write_bytes(damaged)
+        # Git's header-only verification cannot establish source restorability.
+        self.git("bundle", "verify", str(bundle))
+        self.assertEqual(self.run_gate("--record"), 2)
+        self.assertEqual(bundle.read_bytes(), damaged)
+        self.assertIn("cannot retain stamped source evidence", self.errors.getvalue())
+
+    def test_missing_commit_still_refuses_and_dirty_marker_is_honest(self):
         with patch.object(corpus_gate, "ROOT", self.root):
             self.assertIsNone(corpus_gate.stamp_provenance_problem(self.base[:12]))
-            self.assertIsNone(
-                corpus_gate.stamp_provenance_problem(self.base[:12] + "+wt"))
+            self.assertIsNone(corpus_gate.stamp_provenance_problem(self.candidate[:12] + "+wt"))
             self.assertIsNone(corpus_gate.stamp_provenance_problem(None))
-            absent = corpus_gate.stamp_provenance_problem("0123456789ab")
-            self.assertIn("does not resolve", absent)
-            candidate = corpus_gate.stamp_provenance_problem(self.candidate[:12])
-            self.assertIn("not an ancestor", candidate)
+            self.assertIn("does not resolve", corpus_gate.stamp_provenance_problem("0123456789ab"))
 
-    def test_a_checkout_that_sees_no_published_main_refuses(self):
+    def test_no_published_main_uses_self_contained_source_bundle(self):
         self.git("update-ref", "-d", "refs/remotes/origin/main")
         with patch.object(corpus_gate, "ROOT", self.root):
-            problem = corpus_gate.stamp_provenance_problem(self.base[:12])
-        self.assertIn("no published main ref", problem)
+            self.assertIsNone(corpus_gate.stamp_provenance_problem(self.candidate[:12]))
+        bundle = self.root / "build/corpus-source" / (self.candidate + ".bundle")
+        reader = self.root / "empty-reader"
+        subprocess.run(["git", "init", "-q", str(reader)], check=True)
+        subprocess.run(["git", "bundle", "verify", str(bundle)], cwd=reader,
+                       check=True, capture_output=True)
 
     def record_gate(self, rows, *extra):
         """A real `--record` run: the stamp and both of its guards are unpatched."""

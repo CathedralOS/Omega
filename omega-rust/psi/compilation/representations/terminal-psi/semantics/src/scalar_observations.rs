@@ -94,7 +94,9 @@ pub fn structural_read_scalar_type<'a>(
                     | StructuralFieldType::PredicateByteSequence { carrier, .. } => {
                         Target::Bytes(*carrier)
                     }
-                    StructuralFieldType::Atomic(_) | StructuralFieldType::Erased { .. } => {
+                    StructuralFieldType::Atomic(_)
+                    | StructuralFieldType::AtomicBoundedInteger(_)
+                    | StructuralFieldType::Erased { .. } => {
                         return None;
                     }
                     other => Target::Scalar(other.scalar_type()?),

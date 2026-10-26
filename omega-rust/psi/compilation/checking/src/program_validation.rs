@@ -735,6 +735,7 @@ fn validate<'program>(
                     statements::validate_local_type_reference(
                         program,
                         machine,
+                        Some(state),
                         &state.name,
                         local,
                         &symbols,

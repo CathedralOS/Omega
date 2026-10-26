@@ -25,6 +25,7 @@ pub use executable_value_occurrences::{
 pub(crate) mod intrinsic_boundaries;
 pub(crate) mod literals;
 pub(crate) mod locals;
+pub(crate) mod logical_matches;
 pub(crate) mod owned_value_source;
 pub(crate) mod partial_affine_residuals;
 pub(crate) mod permission_provenance;
@@ -53,3 +54,6 @@ pub(crate) mod wire;
 pub(crate) mod write_only_borrows;
 
 pub mod completed_storage;
+
+pub mod membership_evidence;
+pub(crate) mod static_inline_storage;

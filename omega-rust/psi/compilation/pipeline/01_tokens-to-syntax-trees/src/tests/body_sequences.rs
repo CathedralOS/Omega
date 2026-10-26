@@ -4,6 +4,62 @@ use syntax_trees::item::Item;
 use syntax_trees::statement::StatementNode;
 
 #[test]
+fn nested_machine_declarations_and_copies_retain_direct_child_cohorts() {
+    let source =
+        "machine outer() -> u64 { 42 machine first() { machine inner() {} } machine second() {} }";
+    let trees = super::parse_source(source, "nested declarations after a value completion");
+    let outer = super::root_machine(&trees, "outer machine");
+    assert_eq!(trees.root_items().count(), 1);
+    assert_eq!(outer.nested_machines.len(), 2);
+    let children = outer
+        .nested_machines
+        .handles()
+        .map(|handle| {
+            let Item::Machine(child) = trees.items.item(handle) else {
+                panic!("machine child");
+            };
+            (child.name.as_str(&trees), child.nested_machines.len())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(children, [("first", 1), ("second", 0)]);
+
+    let mut copied = syntax_trees::SyntaxTrees::default();
+    let Item::Machine(outer_copy) = copied.copy_item_from(&trees, &Item::Machine(outer.clone()))
+    else {
+        panic!("machine copy");
+    };
+    let children = outer_copy
+        .nested_machines
+        .handles()
+        .map(|handle| {
+            let Item::Machine(child) = copied.items.item(handle) else {
+                panic!("copied machine child");
+            };
+            (child.name.as_str(&copied), child.nested_machines.len())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(children, [("first", 1), ("second", 0)]);
+}
+
+#[test]
+fn nested_machine_layout_rejects_resumed_statements_and_package_exports() {
+    for (source, expected) in [
+        (
+            "machine outer() { machine helper() {} helper(); }",
+            "executable statements cannot follow",
+        ),
+        (
+            "machine outer() { public machine helper() {} }",
+            "cannot be package-exported",
+        ),
+    ] {
+        let tokens = Lexer::new(source).tokenize().unwrap();
+        let error = parse_syntax_trees(&tokens).unwrap_err();
+        assert!(error.message.contains(expected), "{}", error.message);
+    }
+}
+
+#[test]
 fn entry_and_state_bodies_preserve_expanded_statement_order_and_boundaries() {
     let body =
         "let first: u64 = 1; asm where clobbers none { lfence; sfence } transition { _ -> done() }";

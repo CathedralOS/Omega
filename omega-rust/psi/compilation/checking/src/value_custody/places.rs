@@ -314,6 +314,21 @@ pub fn declared_place_type_raw(
         handle = inner.target;
     }
 
+    // A retained subject names the already-evaluated value, including the
+    // descriptor or owned carrier of a selected match payload. Recover only
+    // its authenticated producer for typing; this supplies no executable
+    // read, transfer, or permission to repeat that producer.
+    if let ExpressionNode::SavedSubject(saved) = program.expression_table.expression(handle) {
+        return program.saved_value_source(saved).and_then(|source| {
+            crate::expression_result_type_reference(
+                program,
+                current_machine,
+                current_state?,
+                source,
+            )
+        });
+    }
+
     // A contract result is a declaration-backed value rather than runtime
     // storage. Keep its exact owning occurrence and full result type, just as
     // selected calls retain their declared result below. This query supplies

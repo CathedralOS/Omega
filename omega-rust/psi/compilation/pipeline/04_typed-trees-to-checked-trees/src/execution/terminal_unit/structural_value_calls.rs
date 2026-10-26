@@ -247,10 +247,7 @@ fn schedule(
     let source_calls = facts.flow.control.calls.span(source_flow.calls)?;
     for operation in inputs.operations {
         let Some(result) = operation.structural_result_binding() else {
-            let statement = operation
-                .call()
-                .map(|call| call.coordinate.statement_index)
-                .or_else(|| operation.store_statement_index());
+            let statement = operation.source_statement_index();
             if statement.is_some_and(|statement| statement < root.statement_ordinal) {
                 preceding.push(operation.clone());
             }

@@ -12,13 +12,15 @@ requires choice in Choice::Cell
 machine observe(choice: &Choice) -> u32 in Wrapping
 requires choice in Choice::Cell
 {
-    let resident: u32 in Wrapping = choice.counter.load(NoOrdering);
+    let resident_atomic_observed: u32 = choice.counter.load(NoOrdering);
+    let resident: u32 in Wrapping = resident_atomic_observed as u32 in Wrapping;
     transition { _ -> (resident) }
 }
 machine selected_value(choice: &Choice) -> bool
 requires choice in Choice::Cell
 {
-    let resident: u32 in Wrapping = choice.counter.load(NoOrdering);
+    let resident_atomic_observed: u32 = choice.counter.load(NoOrdering);
+    let resident: u32 in Wrapping = resident_atomic_observed as u32 in Wrapping;
     transition { _ -> (resident == 16) }
 }
 

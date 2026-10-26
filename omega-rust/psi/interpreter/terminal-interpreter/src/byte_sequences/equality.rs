@@ -6,7 +6,6 @@
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::values::TerminalScalarValue;
-use semantic_vocabulary::ScalarType;
 use terminal_psi::{Operation, OperationKind};
 
 impl TerminalExecution<'_> {
@@ -17,15 +16,10 @@ impl TerminalExecution<'_> {
         let OperationKind::ByteSequenceEqual { left, right } = &operation.kind else {
             return Err(malformed());
         };
-        let result = operation.result.expect_scalar();
-        if result.scalar_type != ScalarType::Boolean {
-            return Err(malformed());
-        }
+        self.require_boolean_result(operation)?;
         let left = self.byte_sequence_operand_view(left)?;
         let right = self.byte_sequence_operand_view(right)?;
         let verdict = left.bytes() == right.bytes();
-        self.values
-            .insert(result.id, TerminalScalarValue::Boolean(verdict))?;
-        Ok(OperationFlow::Advance)
+        self.store_scalar(operation, TerminalScalarValue::Boolean(verdict))
     }
 }

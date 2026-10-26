@@ -67,19 +67,26 @@ pub(crate) fn compute_function(
             *cursor += 1;
         }
     }
-    let mut edge_rows = vec![Vec::new(); register_count];
-    for block in &liveness.blocks {
-        for edge in &block.successors {
-            let mut prev = None;
-            for &register in &edge.virtual_live {
-                if prev == Some(register) {
-                    continue;
-                }
-                prev = Some(register);
-                if let Some(&idx) = register_index.get(register.0 as usize)
-                    && idx != u32::MAX
-                {
-                    edge_rows[idx as usize].push(connector(block.block, edge));
+    let has_edges = liveness.blocks.iter().any(|b| !b.successors.is_empty());
+    let mut edge_rows = if has_edges {
+        vec![Vec::new(); register_count]
+    } else {
+        Vec::new()
+    };
+    if has_edges {
+        for block in &liveness.blocks {
+            for edge in &block.successors {
+                let mut prev = None;
+                for &register in &edge.virtual_live {
+                    if prev == Some(register) {
+                        continue;
+                    }
+                    prev = Some(register);
+                    if let Some(&idx) = register_index.get(register.0 as usize)
+                        && idx != u32::MAX
+                    {
+                        edge_rows[idx as usize].push(connector(block.block, edge));
+                    }
                 }
             }
         }
@@ -127,7 +134,11 @@ pub(crate) fn compute_function(
         } else {
             Vec::new()
         };
-        let edge_connectors = edge_rows[canonical_idx].clone();
+        let edge_connectors = if has_edges {
+            edge_rows[canonical_idx].clone()
+        } else {
+            Vec::new()
+        };
         virtual_rows.push(VirtualLiveRange {
             virtual_register: register.id,
             class: register.class,

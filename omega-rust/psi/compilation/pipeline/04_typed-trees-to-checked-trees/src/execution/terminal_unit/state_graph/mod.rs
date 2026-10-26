@@ -22,7 +22,7 @@ use super::{
 };
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::calls::{
-    entry_claims, free_structural_scalar_signature_traced, structural_scalar_signature_traced,
+    entry_claims, free_structural_scalar_entry_signature_traced, structural_scalar_signature_traced,
 };
 use crate::execution::terminal_unit::providers::checked_composed_provider_attachment_requirements;
 use crate::execution::terminal_unit::types::{
@@ -379,7 +379,7 @@ pub(super) fn build_traced(
         state_requires.push(requires);
         trace.phase("state graph: state signature: parameter signature");
         let (mut structural, scalar) = if owner.attached_data.is_some() {
-            let (identity, structural, scalar) =
+            let (identity, mut structural, scalar) =
                 structural_scalar_signature_traced(program, shapes, state, &[], trace)?;
             // One graph can publish only one attachment identity. Static
             // qualification contributes no attachment storage.
@@ -388,12 +388,12 @@ pub(super) fn build_traced(
                 return None;
             }
             attachment = attachment.or(identity);
+            fold_parameter_entry_domains(program, shapes, owner, state, &mut structural)?;
             (structural, scalar)
         } else {
-            free_structural_scalar_signature_traced(program, shapes, state, &[], trace)?
+            free_structural_scalar_entry_signature_traced(program, shapes, state, &[], trace)?
         };
         trace.phase("state graph: state signature: entry domains");
-        fold_parameter_entry_domains(program, shapes, machine, state, &mut structural)?;
         if let Err(reason) =
             retain_parameter_arrival_domains(program, facts, shapes, owner, state, &mut structural)
         {
