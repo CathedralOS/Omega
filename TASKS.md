@@ -1276,7 +1276,7 @@ decision (`SourceChecked`) into stage 05 and stage 00.
 
 - **BORROW-PROOF-CONVERGENCE.** Complete borrow-disjointness establishment in
   stage 04 `checks/borrows/` under [loans](wiki/spec/terminal-psi/loans.md)
-  across remaining callee/domain predicates, runtime projections, and
+  across remaining structured callee/domain predicates, runtime projections, and
   same-statement/theorem establishment beyond
   `samples/cli/facts/computed_subslice_extent`, using exact call substitution
   and the shared contract/range readers.
@@ -1286,12 +1286,6 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   `pass/slices/disjoint_mut_subslice_windows_compile` and
   `fail/slices/overlapping_mut_subslice_windows_rejected`), while missing,
   stale, or insufficient premises and overlapping mutations reject.
-
-  Evidence: [checked predicate disjoint loans](samples/cli/facts/checked_predicate_disjoint_loans/README.md)
-  covers checked scalar callee predicates and unary constant-bound consequences
-  across all nine places, including writes and exclusive call operands. Domain
-  predicates, broader runtime projections and same-statement/theorem premise
-  establishment remain in this outcome's acceptance.
 
 - **TERMINAL-SLICE-VIEW-VOCABULARY.** (split-of:SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT)
   Complete consuming non-byte `&[T]` calls and state transfers end to end (`Psi

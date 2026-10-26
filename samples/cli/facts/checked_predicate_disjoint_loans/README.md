@@ -144,3 +144,12 @@ Seven focused custody tests pass, and the five affected historical slice/helper
 fixtures lose no behavior against the fixed baseline. The ranked recursive
 predicate/helper-theorem core separately checks on baseline and repaired source;
 that control is checking evidence, not a runtime claim.
+
+An actual merge conflict with main was resolved at
+`91838745b51bb7cae56a606372c70fa87b4d715d`, retaining the shared consequence
+reader and main's structural interval fallback. Its fresh optimized producer
+repeats all 74 public observations and the 73 checking/30 dual-engine corpus
+observations successfully; the seven custody tests and five fixed-baseline
+comparisons also pass. Two focused consumers preserve main's domain-match field
+interval and reborrowed stored-view parameter behavior, including their reject
+controls. Earlier producer observations retain their original identities.
