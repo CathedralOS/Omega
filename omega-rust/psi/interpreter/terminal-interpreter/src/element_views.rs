@@ -820,14 +820,7 @@ impl TerminalExecution<'_> {
             }
             self.structural_values
                 .insert(result.place, descriptor_value)?;
-            if multiplicity == StructuralMultiplicity::Affine {
-                self.live_affine_frontier
-                    .insert(terminal_psi::StructuralAffineDiscard {
-                        place: result.place,
-                        path: Vec::new(),
-                        structural_type: result.structural_type,
-                    });
-            }
+            self.track_affine_result(result);
             return Ok(OperationFlow::Advance);
         }
         if let StructuralTypeShape::FixedArray {
@@ -862,14 +855,7 @@ impl TerminalExecution<'_> {
                     path: Vec::new(),
                 },
             )?;
-            if multiplicity == StructuralMultiplicity::Affine {
-                self.live_affine_frontier
-                    .insert(terminal_psi::StructuralAffineDiscard {
-                        place: result.place,
-                        path: Vec::new(),
-                        structural_type: result.structural_type,
-                    });
-            }
+            self.track_affine_result(result);
             return Ok(OperationFlow::Advance);
         }
         let collection = collection.ok_or_else(malformed)?;
@@ -1001,14 +987,7 @@ impl TerminalExecution<'_> {
         }
         self.structural_values
             .insert(result.place, descriptor_value)?;
-        if multiplicity == StructuralMultiplicity::Affine {
-            self.live_affine_frontier
-                .insert(terminal_psi::StructuralAffineDiscard {
-                    place: result.place,
-                    path: Vec::new(),
-                    structural_type: result.structural_type,
-                });
-        }
+        self.track_affine_result(result);
         Ok(OperationFlow::Advance)
     }
 
@@ -1523,14 +1502,7 @@ impl TerminalExecution<'_> {
             .commit_cursor(identity_cursor);
         self.element_view_values.insert(result.place, window)?;
         self.structural_values.insert(result.place, destination)?;
-        if result.multiplicity == StructuralMultiplicity::Affine {
-            self.live_affine_frontier
-                .insert(terminal_psi::StructuralAffineDiscard {
-                    place: result.place,
-                    path: Vec::new(),
-                    structural_type: result.structural_type,
-                });
-        }
+        self.track_affine_result(result);
         Ok(())
     }
 }

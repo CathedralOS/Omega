@@ -2,7 +2,7 @@
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use semantic_vocabulary::{IntegerSign, IntegerType, ValueId};
-use terminal_psi::{Operation, OperationKind, StructuralAccess, StructuralMultiplicity};
+use terminal_psi::{Operation, OperationKind, StructuralAccess};
 
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
@@ -122,14 +122,7 @@ impl TerminalExecution<'_> {
             .commit_cursor(identity_cursor);
         self.byte_sequence_values.insert(result.place, view)?;
         self.structural_values.insert(result.place, destination)?;
-        if result.multiplicity == StructuralMultiplicity::Affine {
-            self.live_affine_frontier
-                .insert(terminal_psi::StructuralAffineDiscard {
-                    place: result.place,
-                    path: Vec::new(),
-                    structural_type: result.structural_type,
-                });
-        }
+        self.track_affine_result(result);
         Ok(())
     }
     /// Capture a window of an authenticated byte binding before publication.

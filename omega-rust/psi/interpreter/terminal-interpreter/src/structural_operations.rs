@@ -120,7 +120,7 @@ impl TerminalExecution<'_> {
     }
 
     /// Record the affine debt a fresh affine result owes the live frontier.
-    fn track_affine_result(&mut self, result: &terminal_psi::StructuralOperationResult) {
+    pub(crate) fn track_affine_result(&mut self, result: &terminal_psi::StructuralOperationResult) {
         if result.multiplicity == StructuralMultiplicity::Affine {
             self.live_affine_frontier.insert(StructuralAffineDiscard {
                 place: result.place,
