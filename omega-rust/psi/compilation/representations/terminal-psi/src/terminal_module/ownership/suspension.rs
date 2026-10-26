@@ -142,7 +142,10 @@ pub enum TerminalSuspensionCallTarget {
     Machine(MachineId),
     Boundary(BoundaryMachineId),
     /// The public slot owns the shape; the call's captured selector selects its row.
-    Dynamic { interface: u32, slot: u32 },
+    Dynamic {
+        interface: u32,
+        slot: u32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

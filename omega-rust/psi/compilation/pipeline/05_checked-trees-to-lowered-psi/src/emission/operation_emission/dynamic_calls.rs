@@ -46,6 +46,7 @@ pub(crate) struct LoweredDynamicCallBinding {
 pub(super) fn emit_dynamic_call_binding(
     call: &LoweredDynamicCallBinding,
     parameters: &[ValueDeclaration],
+    frontier: &lowered_psi::LoweredSourceFrontierBindings,
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
@@ -97,14 +98,14 @@ pub(super) fn emit_dynamic_call_binding(
             "selector call value identity overflow",
         ))?;
     let operation = operations.allocate();
-    operations.record_source_call_with_values(
+    operations.record_source_call(
         call.source_coordinate,
         Some(checked_trees::NominalMachineUseSite::Expression(
             call.source_expression,
         )),
         operation,
         call.slot,
-        parameters,
+        frontier,
     )?;
     emit_dynamic_call_leaf(
         selector,

@@ -73,6 +73,7 @@ pub(crate) fn emit_scalar_binding(
     checked: &checked_trees::CheckedTrees,
     binding: &LoweredScalarBinding,
     parameters: &[ValueDeclaration],
+    frontier: &lowered_psi::LoweredSourceFrontierBindings,
     caller_erased_formals: &[ValueDeclaration],
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
@@ -215,6 +216,7 @@ pub(crate) fn emit_scalar_binding(
             checked,
             call,
             parameters,
+            frontier,
             caller_erased_formals,
             next_value_identity,
             operations,
@@ -223,6 +225,7 @@ pub(crate) fn emit_scalar_binding(
         LoweredScalarBinding::BoundaryCall(call) => boundary_calls::emit_boundary_call_binding(
             call,
             parameters,
+            frontier,
             next_value_identity,
             operations,
             call_emission,
@@ -230,6 +233,7 @@ pub(crate) fn emit_scalar_binding(
         LoweredScalarBinding::DynamicCall(call) => dynamic_calls::emit_dynamic_call_binding(
             call,
             parameters,
+            frontier,
             next_value_identity,
             operations,
             call_emission,

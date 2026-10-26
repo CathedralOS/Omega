@@ -10,9 +10,10 @@
 pub mod flow_effects;
 pub use flow_effects::{
     CallOperational, CallServiceReachInference, CapabilityFlowFact, CapabilityFlowKind,
-    CapabilityFlowPlan, CleanupDependency, InstallationReachRequirement, InvocationInferencePlan,
-    InvocationTarget, MachineInvocationInference, MachineOperational, MachineServiceReachInference,
-    OperationalPlan, ServiceReachDependency, ServiceReachInferencePlan, StateOperational,
-    StateServiceReachInference, StaticMachineCallBinding, capabilities, invocations, operational,
-    service_reach,
+    CapabilityFlowPlan, CapturedSelectorArgument, CapturedSelectorCall, CapturedSelectorCalls,
+    CapturedSelectorOrigin, CleanupDependency, InstallationReachRequirement,
+    InvocationInferencePlan, InvocationTarget, MachineInvocationInference, MachineOperational,
+    MachineServiceReachInference, OperationalPlan, ServiceReachDependency,
+    ServiceReachInferencePlan, StateOperational, StateServiceReachInference,
+    StaticMachineCallBinding, capabilities, invocations, operational, service_reach,
 };

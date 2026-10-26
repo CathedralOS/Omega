@@ -53,9 +53,9 @@ occurrence and frontier for scalar and Unit calls; the Terminal target names the
 public interface/slot and captures its selector separately from the data lane.
 Wire tag 5 records that target; retired tags 3 and 4 still reject.
 
-The focused corpus records 11 source positives and 12 intended rejects: nine
-places and twins, two composition positives, and three additional controls.
-The 11 positives execute with native and Terminal exit 0. Five suspension-codec
+The focused corpus records 15 source positives and 18 intended rejects: nine
+places and twins, six composition positives, and nine additional controls.
+The 15 positives execute with native and Terminal exit 0. Five suspension-codec
 tests pass, including target roundtrip and rejection of retired target tags.
 These are local observations; full parent acceptance remains open.
 
@@ -64,6 +64,18 @@ data-only contract telescope, with its own [invalid input](unit_call/invalid/mai
 [Retained selection](retained_selector/main.omg) uses the same selector for two
 possibly-suspending calls. Missing acknowledgement and nested-suspension controls
 are pinned under `tests/omega/fail/traits/dyn_suspending_*`.
+
+[Live record](retained_record/main.omg) keeps a structural local across the
+computed call. [Retained envelope](retained_envelope/main.omg) copies a pure
+selector into a field, rebinds the original to a waiting implementation, and
+uses both exact envelopes. [Parameter envelope](parameter_envelope/main.omg)
+forwards each selection through two private machines, including a nested machine.
+[Returned envelope](returned_envelope/main.omg) transports each selection through
+a private identity result. Their marker controls reject both a missing waiting
+acknowledgement and a redundant pure acknowledgement. The source-value graph
+uses captured storage versions and call operands; an unknown or public/opaque
+result keeps the public requirement bound. Dynamic selection narrows only the
+suspension/blocking summary here; other envelope categories remain parent work.
 
 Scheduler parking, borrowed-parameter preservation across an inner suspension,
 complete operational-envelope refinement, crash and recursion contracts,

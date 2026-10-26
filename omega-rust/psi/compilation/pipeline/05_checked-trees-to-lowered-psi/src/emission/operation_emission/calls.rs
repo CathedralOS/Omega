@@ -212,6 +212,7 @@ pub(super) fn emit_scalar_call_binding(
     checked: &checked_trees::CheckedTrees,
     call: &LoweredDirectCallBinding,
     parameters: &[ValueDeclaration],
+    frontier: &lowered_psi::LoweredSourceFrontierBindings,
     caller_erased_formals: &[ValueDeclaration],
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
@@ -242,6 +243,7 @@ pub(super) fn emit_scalar_call_binding(
         // fold guards, but are not the callee's published runtime contract.
         &call.parameter_relative_crash_routes,
         parameters,
+        frontier,
         caller_erased_formals,
         &arguments,
         next_value_identity,
@@ -256,6 +258,7 @@ fn emit_direct_call_operation(
     call: &LoweredDirectCallBinding,
     crash_routes: &[checked_trees::CrashRouteBucket],
     source_values_before_call: &[ValueDeclaration],
+    frontier: &lowered_psi::LoweredSourceFrontierBindings,
     caller_erased_formals: &[ValueDeclaration],
     arguments: &[ValueDeclaration],
     next_value_identity: &mut u64,
@@ -300,7 +303,7 @@ fn emit_direct_call_operation(
         call.source_coordinate,
         None,
         call.target_machine,
-        crate::direct_calls::CallRecord::Values(source_values_before_call),
+        crate::direct_calls::CallRecord::Frontier(frontier),
         terminal_psi::OperationResult::Scalar(ValueDeclaration {
             qualifications: call.result_type.qualifications,
             id: result,

@@ -16,6 +16,8 @@ pub struct OperationalPlan {
     pub calls: Arena<CallOperational>,
     /// Compiler-selected invocations on ownership edges, separate from source calls.
     pub cleanup_dependencies: Arena<CleanupDependency>,
+    /// Complete selected-row alternatives at an exact captured selector call.
+    pub captured_selector_calls: CapturedSelectorCalls,
     pub static_machine_bindings: Arena<StaticMachineCallBinding>,
     /// Machine-symbol lookup owned by the plan; see
     /// [`OperationalMachineIndex`].
@@ -124,4 +126,33 @@ pub struct CleanupDependency {
     pub caller_state: SymbolHandle,
     pub target_machine: SymbolHandle,
     pub target_state: SymbolHandle,
+}
+
+/// Captured selector inputs retain ordinary value flow without selecting one row
+/// for an unknown parameter. Unknown alternatives have no origin roster.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CapturedSelectorCalls {
+    pub calls: Arena<CapturedSelectorCall>,
+    pub arguments: Arena<CapturedSelectorArgument>,
+    pub origins: Arena<CapturedSelectorOrigin>,
+}
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CapturedSelectorCall {
+    pub caller_state: SymbolHandle,
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub target: SymbolHandle,
+    pub arguments: HandleSpan<CapturedSelectorArgument>,
+}
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CapturedSelectorArgument {
+    pub source_position: usize,
+    pub origins: HandleSpan<CapturedSelectorOrigin>,
+}
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum CapturedSelectorOrigin {
+    #[default]
+    Unresolved,
+    Implementation(SymbolHandle),
+    Parameter(SymbolHandle),
 }

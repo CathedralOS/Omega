@@ -19,7 +19,7 @@ pub use invocations::{
     has_self_forwarded_boundary_parameter, infer_synchronous_invocations, invocation_target_label,
 };
 pub(crate) use operational::signature_operational;
-pub use operational::{infer_operational_may, infer_operational_may_for_cleanup_dependencies};
+pub use operational::{infer_operational_may, infer_operational_may_for_dependencies};
 pub(crate) use service_reach::signature_service_reach;
 pub use service_reach::{
     boundary_signature_service_reach, fixed_installation_boundary_service_reach,

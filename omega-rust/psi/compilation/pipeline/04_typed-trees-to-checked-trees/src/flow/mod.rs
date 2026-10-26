@@ -108,6 +108,7 @@ mod carried_semantic_dependencies;
 mod cleanup_case_evidence;
 pub(crate) use cleanup_case_evidence::CleanupCaseEvidence;
 mod cleanup_effect_dependencies;
+pub(crate) mod dynamic_effect_dependencies;
 pub(crate) use cleanup_effect_dependencies::{
     CleanupLeaf, cleanup_path_order, concrete_cleanup_paths, derive_cleanup_effect_dependencies,
     residual_cleanup_is_eligible, selected_cleanup_leaves, whole_cleanup_is_eligible,

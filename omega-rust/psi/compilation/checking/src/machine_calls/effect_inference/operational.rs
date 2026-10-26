@@ -31,6 +31,7 @@ use flow_effects::{CallOperational, MachineOperational, OperationalPlan, StateOp
 struct MachineWork {
     symbol: SymbolHandle,
     family_members: Vec<SymbolHandle>,
+    parameters: Vec<SymbolHandle>,
     uses_published_contract: bool,
     published_may_suspend: bool,
     published_may_block: bool,
@@ -60,6 +61,7 @@ struct CallWork {
     static_machine_parameter: SymbolHandle,
     static_machine_arguments: Box<[typed_trees::expression::StaticMachineArgument]>,
     target_machine_symbol: SymbolHandle,
+
     target_operator_symbol: SymbolHandle,
     direct_may_suspend: bool,
     direct_may_block: bool,
@@ -81,20 +83,26 @@ pub fn infer_operational_may(program: &dyn crate::CheckingInput) -> OperationalP
 pub(crate) fn infer_operational_may_uncached(
     program: &dyn crate::CheckingInput,
 ) -> OperationalPlan {
-    infer_operational_may_for_cleanup_dependencies(program, &arena::Arena::default())
+    infer_operational_may_for_dependencies(
+        program,
+        &arena::Arena::default(),
+        &flow_effects::CapturedSelectorCalls::default(),
+    )
 }
 
 /// Settle the same operational graph with ownership-selected edge invocations.
 /// The caller supplies exact custody selection, never inferred source calls.
-pub fn infer_operational_may_for_cleanup_dependencies(
+pub fn infer_operational_may_for_dependencies(
     program: &dyn crate::CheckingInput,
     dependencies: &arena::Arena<flow_effects::CleanupDependency>,
+    captured: &flow_effects::CapturedSelectorCalls,
 ) -> OperationalPlan {
     let signature_effects = DirectSignatureEffects::of(program);
     let mut machines = build_machine_work(&signature_effects, program);
-    propagate_operational_may(&mut machines, dependencies);
+    propagate_operational_may(program, &mut machines, dependencies, captured);
     let mut plan = build_plan(program, machines);
     plan.cleanup_dependencies = dependencies.clone();
+    plan.captured_selector_calls = captured.clone();
     plan
 }
 
@@ -129,6 +137,17 @@ fn build_machine_work(
         machines.push(MachineWork {
             symbol: machine.symbol,
             family_members,
+            parameters: program
+                .machine_states(machine)
+                .first()
+                .map(|entry| {
+                    program
+                        .state_parameters(entry)
+                        .iter()
+                        .map(|parameter| parameter.symbol)
+                        .collect()
+                })
+                .unwrap_or_default(),
             uses_published_contract,
             published_may_suspend: published.may_suspend,
             published_may_block: published.may_block,
@@ -335,6 +354,7 @@ fn push_call(
         static_machine_parameter,
         static_machine_arguments: static_machine_arguments.into(),
         target_machine_symbol,
+
         target_operator_symbol,
         direct_may_suspend: direct.may_suspend,
         direct_may_block: direct.may_block,
@@ -473,135 +493,277 @@ pub(crate) fn machine_operational(
     operational
 }
 
-fn propagate_operational_may(
-    machines: &mut [MachineWork],
-    dependencies: &arena::Arena<flow_effects::CleanupDependency>,
-) {
-    loop {
-        let previous = machines
-            .iter()
-            .map(|machine| {
-                (
-                    machine.transitive_may_suspend,
-                    machine.transitive_may_block,
-                    machine.body_may_suspend,
-                    machine.body_may_block,
-                )
-            })
-            .collect::<Vec<_>>();
+/// A selector parameter's envelope is substituted per call, without cloning code.
+/// Unknown inputs retain their declared ceilings. Only reached contexts are queued.
+#[derive(Clone, PartialEq, Eq)]
+struct OperationalContext {
+    machine: usize,
+    selectors: Vec<Option<Vec<SymbolHandle>>>,
+    body: DirectCallOperational,
+    summary: DirectCallOperational,
+}
 
-        for machine_index in 0..machines.len() {
-            let mut body_may_suspend = false;
-            let mut body_may_block = false;
-            for state in &machines[machine_index].states {
-                body_may_suspend |= state.direct_may_suspend;
-                body_may_block |= state.direct_may_block;
-                for call in &state.calls {
-                    body_may_suspend |= call.direct_may_suspend;
-                    body_may_block |= call.direct_may_block;
-                    if let Some(target) = machines
-                        .iter()
-                        .find(|machine| machine.symbol == call.target_machine_symbol)
-                    {
-                        body_may_suspend |= target.transitive_may_suspend;
-                        body_may_block |= target.transitive_may_block;
-                    }
-                }
+fn context_index(
+    machines: &[MachineWork],
+    contexts: &mut Vec<OperationalContext>,
+    machine: usize,
+    mut selectors: Vec<Option<Vec<SymbolHandle>>>,
+) -> usize {
+    selectors.resize(machines[machine].parameters.len(), None);
+    if let Some(position) = contexts
+        .iter()
+        .position(|context| context.machine == machine && context.selectors == selectors)
+    {
+        return position;
+    }
+    let owner = &machines[machine];
+    let position = contexts.len();
+    contexts.push(OperationalContext {
+        machine,
+        selectors,
+        body: DirectCallOperational::default(),
+        summary: DirectCallOperational {
+            may_suspend: owner.uses_published_contract && owner.published_may_suspend,
+            may_block: owner.uses_published_contract && owner.published_may_block,
+        },
+    });
+    position
+}
+
+fn selector_actual(
+    captured: &flow_effects::CapturedSelectorCalls,
+    call: Option<&flow_effects::CapturedSelectorCall>,
+    position: usize,
+    owner: &MachineWork,
+    selectors: &[Option<Vec<SymbolHandle>>],
+) -> Option<Vec<SymbolHandle>> {
+    let argument = captured
+        .arguments
+        .span_or_empty(call?.arguments)
+        .iter()
+        .find(|argument| argument.source_position == position)?;
+    let mut implementations = Vec::new();
+    for origin in captured.origins.span_or_empty(argument.origins) {
+        match origin {
+            flow_effects::CapturedSelectorOrigin::Unresolved => return None,
+            flow_effects::CapturedSelectorOrigin::Implementation(implementation) => {
+                implementations.push(*implementation)
             }
-            for (_, dependency) in dependencies.iter().filter(|(_, dependency)| {
-                dependency.caller_machine == machines[machine_index].symbol
-            }) {
-                if let Some(target) = machines
+            flow_effects::CapturedSelectorOrigin::Parameter(parameter) => {
+                let position = owner
+                    .parameters
                     .iter()
-                    .find(|machine| machine.symbol == dependency.target_machine)
-                {
-                    body_may_suspend |= target.transitive_may_suspend;
-                    body_may_block |= target.transitive_may_block;
-                }
-            }
-            // A family has no body to validate. Its callable envelope joins
-            // member summaries inside this same fixed point, including cycles
-            // from members through portable calls back into other families.
-            let mut family_may_suspend = false;
-            let mut family_may_block = false;
-            for member in &machines[machine_index].family_members {
-                if let Some(target) = machines.iter().find(|machine| machine.symbol == *member) {
-                    family_may_suspend |= target.transitive_may_suspend;
-                    family_may_block |= target.transitive_may_block;
-                }
-            }
-            machines[machine_index].body_may_suspend = body_may_suspend;
-            machines[machine_index].body_may_block = body_may_block;
-            if machines[machine_index].uses_published_contract {
-                machines[machine_index].transitive_may_suspend =
-                    machines[machine_index].published_may_suspend;
-                machines[machine_index].transitive_may_block =
-                    machines[machine_index].published_may_block;
-            } else {
-                machines[machine_index].transitive_may_suspend =
-                    body_may_suspend || family_may_suspend;
-                machines[machine_index].transitive_may_block = body_may_block || family_may_block;
+                    .position(|symbol| symbol == parameter)?;
+                implementations.extend_from_slice(selectors.get(position)?.as_ref()?);
             }
         }
+    }
+    implementations.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    implementations.dedup();
+    (!implementations.is_empty()).then_some(implementations)
+}
 
-        if machines
-            .iter()
-            .map(|machine| {
-                (
-                    machine.transitive_may_suspend,
-                    machine.transitive_may_block,
-                    machine.body_may_suspend,
-                    machine.body_may_block,
-                )
-            })
-            .eq(previous)
-        {
+#[allow(clippy::too_many_arguments)]
+fn call_envelope(
+    program: &dyn crate::CheckingInput,
+    machines: &[MachineWork],
+    captured: &flow_effects::CapturedSelectorCalls,
+    contexts: &mut Vec<OperationalContext>,
+    owner: &MachineWork,
+    selectors: &[Option<Vec<SymbolHandle>>],
+    state: SymbolHandle,
+    call: &CallWork,
+) -> DirectCallOperational {
+    let mut records = captured.calls.iter().filter_map(|(_, record)| {
+        (record.caller_state == state
+            && record.statement_index == call.statement_index
+            && record.call_ordinal == call.call_ordinal
+            && record.target == call.target_state_symbol)
+            .then_some(record)
+    });
+    let record = records.next().filter(|_| records.next().is_none());
+    let mut envelope = DirectCallOperational {
+        may_suspend: call.direct_may_suspend,
+        may_block: call.direct_may_block,
+    };
+    let (targets, offset) = if let Some(slot) =
+        program.dynamic_slot_by_symbol(call.target_state_symbol)
+    {
+        let selected =
+            selector_actual(captured, record, 0, owner, selectors).and_then(|implementations| {
+                implementations
+                    .into_iter()
+                    .map(|implementation| {
+                        let implementation = program.conformance_by_symbol(implementation)?;
+                        implementation
+                            .rows
+                            .iter()
+                            .find(|row| {
+                                row.declaring_trait == slot.declaring_trait
+                                    && row.requirement == slot.requirement
+                            })
+                            .map(|row| row.realization_machine)
+                    })
+                    .collect::<Option<Vec<_>>>()
+            });
+        match selected.filter(|targets| {
+            !targets.is_empty()
+                && targets
+                    .iter()
+                    .all(|target| machines.iter().any(|machine| machine.symbol == *target))
+        }) {
+            Some(targets) => {
+                envelope = DirectCallOperational::default();
+                (targets, 1)
+            }
+            None => (Vec::new(), 1),
+        }
+    } else {
+        (vec![call.target_machine_symbol], 0)
+    };
+    for target in targets {
+        let Some(machine) = machines.iter().position(|machine| machine.symbol == target) else {
+            continue;
+        };
+        let arguments = (0..machines[machine].parameters.len())
+            .map(|position| selector_actual(captured, record, position + offset, owner, selectors))
+            .collect();
+        let target = context_index(machines, contexts, machine, arguments);
+        envelope.may_suspend |= contexts[target].summary.may_suspend;
+        envelope.may_block |= contexts[target].summary.may_block;
+    }
+    envelope
+}
+
+fn propagate_operational_may(
+    program: &dyn crate::CheckingInput,
+    machines: &mut [MachineWork],
+    dependencies: &arena::Arena<flow_effects::CleanupDependency>,
+    captured: &flow_effects::CapturedSelectorCalls,
+) {
+    let mut contexts = Vec::new();
+    let roots = (0..machines.len())
+        .map(|machine| context_index(machines, &mut contexts, machine, Vec::new()))
+        .collect::<Vec<_>>();
+    loop {
+        let previous = contexts.clone();
+        for position in 0..previous.len() {
+            let owner = &machines[contexts[position].machine];
+            let selectors = contexts[position].selectors.clone();
+            let mut body = DirectCallOperational::default();
+            for state in &owner.states {
+                body.may_suspend |= state.direct_may_suspend;
+                body.may_block |= state.direct_may_block;
+                for call in &state.calls {
+                    let envelope = call_envelope(
+                        program,
+                        machines,
+                        captured,
+                        &mut contexts,
+                        owner,
+                        &selectors,
+                        state.symbol,
+                        call,
+                    );
+                    body.may_suspend |= envelope.may_suspend;
+                    body.may_block |= envelope.may_block;
+                }
+            }
+            for target in dependencies.iter().filter_map(|(_, dependency)| {
+                (dependency.caller_machine == owner.symbol).then_some(dependency.target_machine)
+            }) {
+                if let Some(machine) = machines.iter().position(|machine| machine.symbol == target)
+                {
+                    let target = context_index(machines, &mut contexts, machine, Vec::new());
+                    body.may_suspend |= contexts[target].summary.may_suspend;
+                    body.may_block |= contexts[target].summary.may_block;
+                }
+            }
+            // A target family owns an envelope, not a source body to validate.
+            let mut family = DirectCallOperational::default();
+            for target in &owner.family_members {
+                if let Some(machine) = machines
+                    .iter()
+                    .position(|machine| machine.symbol == *target)
+                {
+                    let target = context_index(machines, &mut contexts, machine, selectors.clone());
+                    family.may_suspend |= contexts[target].summary.may_suspend;
+                    family.may_block |= contexts[target].summary.may_block;
+                }
+            }
+            contexts[position].body = body;
+            contexts[position].summary = if owner.uses_published_contract {
+                DirectCallOperational {
+                    may_suspend: owner.published_may_suspend,
+                    may_block: owner.published_may_block,
+                }
+            } else {
+                DirectCallOperational {
+                    may_suspend: body.may_suspend || family.may_suspend,
+                    may_block: body.may_block || family.may_block,
+                }
+            };
+        }
+        if contexts == previous {
             break;
         }
     }
-
-    let summaries = machines
+    let declaration_summaries = machines
         .iter()
-        .map(|machine| {
-            (
-                machine.symbol,
-                machine.transitive_may_suspend,
-                machine.transitive_may_block,
-            )
-        })
+        .enumerate()
+        .map(|(position, machine)| (machine.symbol, contexts[roots[position]].summary))
         .collect::<Vec<_>>();
-
-    for machine in machines {
+    // Publish each declaration under unknown fitting inputs. Its call sites can
+    // independently consume a narrower context without changing the body or markers.
+    for machine_index in 0..machines.len() {
+        let root = roots[machine_index];
+        let summary = contexts[root].clone();
+        let mut call_summaries = Vec::new();
+        for state in &machines[machine_index].states {
+            for call in &state.calls {
+                call_summaries.push(call_envelope(
+                    program,
+                    machines,
+                    captured,
+                    &mut contexts,
+                    &machines[machine_index],
+                    &summary.selectors,
+                    state.symbol,
+                    call,
+                ));
+            }
+        }
+        let machine = &mut machines[machine_index];
+        machine.body_may_suspend = summary.body.may_suspend;
+        machine.body_may_block = summary.body.may_block;
+        machine.transitive_may_suspend = summary.summary.may_suspend;
+        machine.transitive_may_block = summary.summary.may_block;
+        let mut summaries = call_summaries.into_iter();
         for state in &mut machine.states {
-            let mut transitive_may_suspend = state.direct_may_suspend;
-            let mut transitive_may_block = state.direct_may_block;
+            state.transitive_may_suspend = state.direct_may_suspend;
+            state.transitive_may_block = state.direct_may_block;
             for call in &mut state.calls {
-                call.transitive_may_suspend = call.direct_may_suspend;
-                call.transitive_may_block = call.direct_may_block;
-                if let Some((_, may_suspend, may_block)) = summaries
-                    .iter()
-                    .find(|(symbol, _, _)| *symbol == call.target_machine_symbol)
-                {
-                    call.transitive_may_suspend |= may_suspend;
-                    call.transitive_may_block |= may_block;
+                if let Some(envelope) = summaries.next() {
+                    // The selected row replaces the slot ceiling for every consumer.
+                    call.direct_may_suspend &= envelope.may_suspend;
+                    call.direct_may_block &= envelope.may_block;
+                    call.transitive_may_suspend = envelope.may_suspend;
+                    call.transitive_may_block = envelope.may_block;
                 }
-                transitive_may_suspend |= call.transitive_may_suspend;
-                transitive_may_block |= call.transitive_may_block;
+                state.transitive_may_suspend |= call.transitive_may_suspend;
+                state.transitive_may_block |= call.transitive_may_block;
             }
             for (_, dependency) in dependencies.iter().filter(|(_, dependency)| {
                 dependency.caller_machine == machine.symbol
                     && dependency.caller_state == state.symbol
             }) {
-                if let Some((_, may_suspend, may_block)) = summaries
-                    .iter()
-                    .find(|(symbol, _, _)| *symbol == dependency.target_machine)
-                {
-                    transitive_may_suspend |= may_suspend;
-                    transitive_may_block |= may_block;
+                if let Some(target) = declaration_summaries.iter().find_map(|(symbol, summary)| {
+                    (*symbol == dependency.target_machine).then_some(*summary)
+                }) {
+                    state.transitive_may_suspend |= target.may_suspend;
+                    state.transitive_may_block |= target.may_block;
                 }
             }
-            state.transitive_may_suspend = transitive_may_suspend;
-            state.transitive_may_block = transitive_may_block;
         }
     }
 }

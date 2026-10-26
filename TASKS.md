@@ -343,9 +343,10 @@ helper that passes does not close an item.
       requirement's public contract independently of stronger implementation
       guarantees (preserving `samples/cli/facts/dynamic_float_refinement` across
       all nine places).
-    - Complete suspending requirements with borrowed values and operational
-      envelope refinement, retaining the scalar/Unit-call and live-selector
-      witnesses in `samples/cli/facts/dynamic_suspension`; finish crash-refinement
+    - Complete suspending requirements with borrowed values and remaining
+      operational envelope refinement, retaining the scalar/Unit-call,
+      live-value, and exact selector-envelope witnesses in
+      `samples/cli/facts/dynamic_suspension`; finish crash-refinement
       rows when operands lead with the selector and ranked recursion cycles
       crossing a dispatch edge
       (`fail/traits/dyn_selector_{reentry,self_reentry}_unranked` until ranked).

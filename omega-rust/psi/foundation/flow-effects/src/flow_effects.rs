@@ -9,8 +9,9 @@ pub mod service_reach;
 pub use capabilities::{CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan};
 pub use invocations::{InvocationInferencePlan, InvocationTarget, MachineInvocationInference};
 pub use operational::{
-    CallOperational, CleanupDependency, MachineOperational, OperationalPlan, StateOperational,
-    StaticMachineCallBinding,
+    CallOperational, CapturedSelectorArgument, CapturedSelectorCall, CapturedSelectorCalls,
+    CapturedSelectorOrigin, CleanupDependency, MachineOperational, OperationalPlan,
+    StateOperational, StaticMachineCallBinding,
 };
 pub use service_reach::{
     CallServiceReachInference, InstallationReachRequirement, MachineServiceReachInference,

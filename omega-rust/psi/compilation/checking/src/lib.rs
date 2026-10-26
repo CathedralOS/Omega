@@ -278,7 +278,7 @@ pub use declarations::traits::{
 pub use machine_calls::effect_inference::{
     boundary_signature_service_reach, declared_machine_invocations, declared_signature_invocations,
     fixed_installation_boundary_service_reach, has_self_forwarded_boundary_parameter,
-    infer_operational_may, infer_operational_may_for_cleanup_dependencies, infer_service_reaches,
+    infer_operational_may, infer_operational_may_for_dependencies, infer_service_reaches,
     infer_synchronous_invocations, invocation_target_label,
 };
 pub use machine_calls::effects::{
@@ -519,12 +519,12 @@ pub use machine_calls::calls::{
     CallSite, CompletingTransfer, call_is_unconditional, call_receiver_parts,
     call_site_argument_expressions, call_site_evidence_arguments, call_target_parameters,
     call_target_return_type, call_target_state, call_target_symbol, call_target_type_parameters,
-    collect_call_sites_in_statement, completing_call_transfer, completing_transition_invocation, completing_transition_transfer,
-    find_call_site, find_call_site_in_state, find_machine, find_machine_by_entry_state,
-    find_machine_head, find_state, find_state_for_exit, find_state_in_machine,
-    find_state_on_machine, machine_parameter_signature_symbol, machine_state_by_symbols,
-    machine_state_count, normal_completion_possible, receiver_can_dispatch_to_machine,
-    resolve_name_path_member_symbol, resolve_state_call_target,
+    collect_call_sites_in_statement, completing_call_transfer, completing_transition_invocation,
+    completing_transition_transfer, find_call_site, find_call_site_in_state, find_machine,
+    find_machine_by_entry_state, find_machine_head, find_state, find_state_for_exit,
+    find_state_in_machine, find_state_on_machine, machine_parameter_signature_symbol,
+    machine_state_by_symbols, machine_state_count, normal_completion_possible,
+    receiver_can_dispatch_to_machine, resolve_name_path_member_symbol, resolve_state_call_target,
     statement_call_can_dispatch_to_machine, statement_call_receiver_members,
     statement_call_receiver_path, terminal_callable_target, trait_machine_signature_symbol,
     transition_call_target,
