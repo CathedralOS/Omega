@@ -48,6 +48,7 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         provisions: report.runtime_provisions(),
         provider_proposal: None,
         x86_flags: terminal_runtime::capture_host_x86_flags(profile.target_name()).unwrap(),
+        memory_ordering: None,
         fuel_allowance: 100_000,
         // This program returns normally; possession of its artifact does not
         // supply process-domain death authority.

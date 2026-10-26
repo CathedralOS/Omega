@@ -1024,13 +1024,31 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             );
             ParsedAsmInstruction::ok(statement, contract, input)
         }
-        AsmInstructionShape::MemoryFence(kind) => parsed_intrinsic_instruction(
-            syntax_trees,
-            &mnemonic,
-            kind.intrinsic_name(),
-            contract,
-            input,
-        ),
+        AsmInstructionShape::MemoryFence(kind) => {
+            let (kind, input) = if kind.target()
+                == language_core::inline_assembly::AsmTargetApplicability::Aarch64
+            {
+                let (option, rest) = input.take_identifier()?;
+                let kind = language_core::inline_assembly::AsmFenceKind::from_aarch64_option(
+                    option.as_str(syntax_trees),
+                )
+                .ok_or_else(|| {
+                    input.error_here(
+                        "dmb requires an explicit supported full-system option: ld, st, or sy",
+                    )
+                })?;
+                (kind, rest)
+            } else {
+                (kind, input)
+            };
+            parsed_intrinsic_instruction(
+                syntax_trees,
+                &mnemonic,
+                kind.intrinsic_name(),
+                language_core::inline_assembly::AsmInstructionContract::memory_fence(kind),
+                input,
+            )
+        }
         AsmInstructionShape::InterruptControl(kind) => parsed_intrinsic_instruction(
             syntax_trees,
             &mnemonic,

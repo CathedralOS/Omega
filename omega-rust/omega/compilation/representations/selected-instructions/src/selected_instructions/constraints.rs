@@ -19,6 +19,7 @@ pub struct SelectedConstraintKeys {
     pub model_specific_write: Option<RegisterConstraintKey>,
     pub processor_halt: Option<RegisterConstraintKey>,
     pub interrupt_control: Option<RegisterConstraintKey>,
+    pub memory_fence: Option<RegisterConstraintKey>,
     pub atomic_fence: Option<RegisterConstraintKey>,
     pub atomic_load: Option<RegisterConstraintKey>,
     pub atomic_store: Option<RegisterConstraintKey>,

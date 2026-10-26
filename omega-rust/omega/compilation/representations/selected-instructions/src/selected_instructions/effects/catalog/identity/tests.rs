@@ -57,6 +57,7 @@ fn keys() -> SelectedConstraintKeys {
         model_specific_write: Some(instruction(809)),
         processor_halt: Some(instruction(810)),
         interrupt_control: Some(instruction(811)),
+        memory_fence: Some(instruction(812)),
         atomic_fence: Some(instruction(800)),
         placed_read: Some(instruction(806)),
         placed_write: Some(instruction(807)),

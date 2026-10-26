@@ -638,3 +638,38 @@ fn rejects_unknown_asm_mnemonics() {
         );
     }
 }
+
+#[test]
+fn parses_aarch64_fence_options_into_exact_operand_free_events() {
+    let parsed = super::parse_source(
+        "machine main() { asm where clobbers none { dmb ld; dmb st; dmb sy } }",
+        "exact DMB options parse",
+    );
+    let machine = super::root_machine(&parsed, "machine");
+    let entry = parsed.items.state_handles(machine.states)[0];
+    let statements = instruction_statements(
+        &parsed,
+        parsed
+            .items
+            .statements(parsed.items.state(entry).statements),
+    );
+    assert_eq!(statements.len(), 3);
+    for (statement, expected) in statements
+        .iter()
+        .zip(["asm#dmb_ld", "asm#dmb_st", "asm#dmb_sy"])
+    {
+        let StatementNode::Call(call) = parsed.statements.statement(*statement) else {
+            panic!("one catalog event");
+        };
+        assert_eq!(call.target.as_str(&parsed), expected);
+        assert_eq!(call.arguments.count(), 0);
+    }
+    for body in ["dmb", "dmb ish", "dmb 15", "dmb sy, 1", "lfence 1"] {
+        let source = format!("machine main() {{ asm {{ {body} }} }}");
+        let _error = super::parse_source_error(
+            &source,
+            "known tokens",
+            "unsupported fence operands must reject",
+        );
+    }
+}

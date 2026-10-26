@@ -181,6 +181,8 @@ pub(super) fn target_installations(
         let result = terminal_runtime::execute(TerminalRuntimeRequest {
             native_provider: Some(std::process::Command::new(executable)),
             x86_flags,
+            memory_ordering:
+                terminal_interpreter::TerminalMemoryOrderingEnvironment::private_sequential(&target),
             artifact,
             target: Some(&target),
             provisions,
@@ -309,6 +311,8 @@ pub(super) fn interpret(
     let result = match terminal_runtime::execute(TerminalRuntimeRequest {
         native_provider: Some(std::process::Command::new(executable)),
         x86_flags,
+        memory_ordering: target
+            .and_then(terminal_interpreter::TerminalMemoryOrderingEnvironment::private_sequential),
         provider_proposal: None,
         artifact,
         target,
