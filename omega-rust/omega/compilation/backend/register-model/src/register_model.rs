@@ -17,7 +17,7 @@ use crate::{
     RegisterUnitKind, RegisterView, RegisterViewId, RegisterWriteSemantics,
 };
 use identities::PhysicalRegisterModelIdentity;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use target::Architecture;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,6 +50,16 @@ impl PhysicalRegisterModel {
     /// The register view keyed `id`, when the model declares it.
     pub fn view(&self, id: RegisterViewId) -> Option<&RegisterView> {
         self.views.iter().find(|view| view.id == id)
+    }
+
+    /// The register unit keyed `id`, when the model declares it.
+    pub fn unit(&self, id: RegisterUnitId) -> Option<&RegisterUnit> {
+        self.units.iter().find(|unit| unit.id == id)
+    }
+
+    /// The register class keyed `id`, when the model declares it.
+    pub fn class(&self, id: RegisterClassId) -> Option<&RegisterClass> {
+        self.classes.iter().find(|class| class.id == id)
     }
 
     /// The preservation convention named `name`, when the model declares it.
@@ -146,21 +156,6 @@ pub fn validate_physical_register_model(
         return Err(RegisterModelValidationError::DuplicateName);
     }
 
-    let units = model
-        .units
-        .iter()
-        .map(|unit| (unit.id, unit))
-        .collect::<BTreeMap<_, _>>();
-    let views = model
-        .views
-        .iter()
-        .map(|view| (view.id, view))
-        .collect::<BTreeMap<_, _>>();
-    let classes = model
-        .classes
-        .iter()
-        .map(|class| (class.id, class))
-        .collect::<BTreeMap<_, _>>();
     if model.units.iter().any(|unit| unit.bits == 0) {
         return Err(RegisterModelValidationError::ZeroWidthUnit);
     }
@@ -172,17 +167,17 @@ pub fn validate_physical_register_model(
         if view.units.is_empty() {
             return Err(RegisterModelValidationError::EmptyViewUnits);
         }
-        validate_unit_set(&view.units, &units)?;
-        validate_unit_set(&view.write_units, &units)?;
+        validate_unit_set(&view.units, &model)?;
+        validate_unit_set(&view.write_units, &model)?;
         let storage_bits = view
             .units
             .iter()
-            .map(|unit| u32::from(units[unit].bits))
+            .map(|unit| u32::from(model.unit(*unit).expect("view unit validated above").bits))
             .sum::<u32>();
         if u32::from(view.bits) > storage_bits {
             return Err(RegisterModelValidationError::ViewWidthExceedsUnits(view.id));
         }
-        if !classes.contains_key(&view.class) {
+        if model.class(view.class).is_none() {
             return Err(RegisterModelValidationError::UnknownClass(view.class));
         }
         if !view
@@ -206,10 +201,10 @@ pub fn validate_physical_register_model(
                 ));
             }
             RegisterWriteSemantics::Discards
-                if view
-                    .units
-                    .iter()
-                    .any(|unit| units[unit].kind != RegisterUnitKind::Zero) =>
+                if view.units.iter().any(|unit| {
+                    model.unit(*unit).expect("view unit validated above").kind
+                        != RegisterUnitKind::Zero
+                }) =>
             {
                 return Err(RegisterModelValidationError::WriteFootprintMismatch(
                     view.id,
@@ -221,15 +216,20 @@ pub fn validate_physical_register_model(
         covered.extend(view.write_units.iter().copied());
     }
     for class in &model.classes {
-        validate_view_set(&class.views, &views)?;
+        validate_view_set(&class.views, &model)?;
         for view in &class.views {
-            if views[view].class != class.id {
+            if model.view(*view).expect("class view validated above").class != class.id {
                 return Err(RegisterModelValidationError::ClassMembershipMismatch);
             }
         }
     }
     for view in &model.views {
-        if !classes[&view.class].views.contains(&view.id) {
+        if !model
+            .class(view.class)
+            .expect("view class validated above")
+            .views
+            .contains(&view.id)
+        {
             return Err(RegisterModelValidationError::ClassMembershipMismatch);
         }
     }
@@ -238,13 +238,13 @@ pub fn validate_physical_register_model(
     }
 
     for convention in &model.conventions {
-        validate_convention(convention, &units, &views)?;
+        validate_convention(convention, &model)?;
     }
     for reservation in &model.reservations {
         if reservation.units.is_empty() {
             return Err(RegisterModelValidationError::EmptyReservation);
         }
-        validate_unit_set(&reservation.units, &units)?;
+        validate_unit_set(&reservation.units, &model)?;
     }
     let identity = identities::physical_register_model_identity(&model);
     Ok(ValidatedPhysicalRegisterModel { model, identity })
@@ -268,12 +268,12 @@ fn unique_names<'a>(names: impl Iterator<Item = &'a str> + Clone) -> bool {
 
 fn validate_unit_set(
     set: &[RegisterUnitId],
-    known: &BTreeMap<RegisterUnitId, &RegisterUnit>,
+    model: &PhysicalRegisterModel,
 ) -> Result<(), RegisterModelValidationError> {
     if set.windows(2).any(|pair| pair[0] >= pair[1]) {
         return Err(RegisterModelValidationError::NonCanonicalUnitSet);
     }
-    if let Some(unit) = set.iter().find(|unit| !known.contains_key(unit)) {
+    if let Some(unit) = set.iter().find(|unit| model.unit(**unit).is_none()) {
         return Err(RegisterModelValidationError::UnknownUnit(*unit));
     }
     Ok(())
@@ -281,12 +281,12 @@ fn validate_unit_set(
 
 fn validate_view_set(
     set: &[RegisterViewId],
-    known: &BTreeMap<RegisterViewId, &RegisterView>,
+    model: &PhysicalRegisterModel,
 ) -> Result<(), RegisterModelValidationError> {
     if set.windows(2).any(|pair| pair[0] >= pair[1]) {
         return Err(RegisterModelValidationError::NonCanonicalViewSet);
     }
-    if let Some(view) = set.iter().find(|view| !known.contains_key(view)) {
+    if let Some(view) = set.iter().find(|view| model.view(**view).is_none()) {
         return Err(RegisterModelValidationError::UnknownView(*view));
     }
     Ok(())
@@ -294,8 +294,7 @@ fn validate_view_set(
 
 fn validate_convention(
     convention: &PreservationConvention,
-    units: &BTreeMap<RegisterUnitId, &RegisterUnit>,
-    views: &BTreeMap<RegisterViewId, &RegisterView>,
+    model: &PhysicalRegisterModel,
 ) -> Result<(), RegisterModelValidationError> {
     if convention.argument_views.is_empty() || convention.result_views.is_empty() {
         return Err(RegisterModelValidationError::EmptyConvention);
@@ -303,11 +302,11 @@ fn validate_convention(
     if convention.stack_alignment == 0 || !convention.stack_alignment.is_power_of_two() {
         return Err(RegisterModelValidationError::InvalidStackAlignment);
     }
-    validate_ordered_views(&convention.argument_views, views)?;
-    validate_ordered_views(&convention.result_views, views)?;
-    validate_unit_set(&convention.caller_saved, units)?;
-    validate_unit_set(&convention.callee_saved, units)?;
-    validate_unit_set(&convention.fixed, units)?;
+    validate_ordered_views(&convention.argument_views, model)?;
+    validate_ordered_views(&convention.result_views, model)?;
+    validate_unit_set(&convention.caller_saved, model)?;
+    validate_unit_set(&convention.callee_saved, model)?;
+    validate_unit_set(&convention.fixed, model)?;
     let mut partition = BTreeSet::new();
     for unit in convention
         .caller_saved
@@ -321,9 +320,14 @@ fn validate_convention(
             ));
         }
     }
-    if let Some(unit) = units.keys().find(|unit| !partition.contains(unit)) {
+    if let Some(unit) = model
+        .units
+        .iter()
+        .map(|unit| unit.id)
+        .find(|unit| !partition.contains(unit))
+    {
         return Err(RegisterModelValidationError::ConventionPartitionOmission(
-            *unit,
+            unit,
         ));
     }
     Ok(())
@@ -331,12 +335,12 @@ fn validate_convention(
 
 fn validate_ordered_views(
     ordered: &[RegisterViewId],
-    known: &BTreeMap<RegisterViewId, &RegisterView>,
+    model: &PhysicalRegisterModel,
 ) -> Result<(), RegisterModelValidationError> {
     if ordered.iter().copied().collect::<BTreeSet<_>>().len() != ordered.len() {
         return Err(RegisterModelValidationError::NonCanonicalViewSet);
     }
-    if let Some(view) = ordered.iter().find(|view| !known.contains_key(view)) {
+    if let Some(view) = ordered.iter().find(|view| model.view(**view).is_none()) {
         return Err(RegisterModelValidationError::UnknownView(*view));
     }
     Ok(())
