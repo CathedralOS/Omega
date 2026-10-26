@@ -526,16 +526,10 @@ pub(super) fn normal_return_recipe(
     callee: &CalleeContract<'_>,
 ) -> Option<checked_trees::IntegerRangeRecipe> {
     use checked_trees::IntegerRangeRecipe;
-    use numerics::bignum::BigInt;
     if program.constant_recipes.is_empty() {
         return None;
     }
     let primitive = program.primitive_type_reference(callee.return_type)?;
-    let carrier = primitive_range(primitive)?;
-    let low = BigInt::from_i64(carrier.low?);
-    let high = carrier.high.map(BigInt::from_i64).or_else(|| {
-        (primitive == typed_trees::types::PrimitiveType::U64).then(|| BigInt::from_u64(u64::MAX))
-    })?;
     let mut pending = program
         .contract_expressions(callee.contracts.iter(), SignatureContractKind::Ensures)
         .collect::<Vec<_>>();
@@ -586,26 +580,15 @@ pub(super) fn normal_return_recipe(
         ) {
             continue;
         }
-        let observation = IntegerRangeRecipe::observation(bound, callee.callable);
-        let lower = IntegerRangeRecipe::bounds(low.clone(), low.clone());
-        let upper = IntegerRangeRecipe::bounds(high.clone(), high.clone());
-        let one = IntegerRangeRecipe::bounds(BigInt::from_i64(1), BigInt::from_i64(1));
-        let next = match operator {
-            BinaryOperator::LessOrEqual => IntegerRangeRecipe::interval(&lower, &observation),
-            BinaryOperator::Less => IntegerRangeRecipe::interval(
-                &lower,
-                &observation.binary(BinaryOperator::Subtract, &one)?,
-            ),
-            BinaryOperator::GreaterOrEqual => IntegerRangeRecipe::interval(&observation, &upper),
-            BinaryOperator::Greater => IntegerRangeRecipe::interval(
-                &observation.binary(BinaryOperator::Add, &one)?,
-                &upper,
-            ),
-            BinaryOperator::Equal => observation,
-            _ => continue,
+        let Some(bound_recipe) = super::deferred_bounds::comparison_recipe(
+            program,
+            callee.callable,
+            primitive,
+            bound,
+            operator,
+        ) else {
+            continue;
         };
-        let carrier = IntegerRangeRecipe::bounds(low.clone(), high.clone());
-        let bound_recipe = next.intersect(&carrier);
         result = Some(result.map_or_else(
             || bound_recipe.clone(),
             |previous| previous.intersect(&bound_recipe),

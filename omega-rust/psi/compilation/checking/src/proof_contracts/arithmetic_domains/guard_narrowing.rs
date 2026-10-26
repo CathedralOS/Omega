@@ -139,6 +139,14 @@ pub(crate) fn requires_value_environment(
         let Some(comparison) = program.expression_table.binary_node(expression) else {
             return;
         };
+        parameter_bounds::narrow_recipe(
+            program,
+            machine,
+            Some(entry_state),
+            &mut environment,
+            comparison,
+            true,
+        );
         if let Some((left, right)) =
             joint_subtract_guard(program, machine, Some(entry_state), comparison)
         {
@@ -695,6 +703,7 @@ pub(super) fn narrow_environment_by_comparison(
             return;
         }
     }
+    parameter_bounds::narrow_recipe(program, machine, state, environment, &comparison, positive);
     parameter_bounds::narrow(program, machine, state, environment, condition, positive);
     // An immutable singleton parameter is the same integer at every
     // evaluation, so it supplies the literal-equivalent bound without reading

@@ -38,6 +38,7 @@ pub(crate) use bitwise::binary as bitwise_binary;
 mod referent_predicates;
 pub(crate) use referent_predicates::referent_predicates_preserved;
 mod call_result_bounds;
+mod deferred_bounds;
 pub(crate) use call_result_bounds::normal_return_referent_interval;
 mod call_result_measures;
 pub use call_result_measures::normal_return_length_collection;
