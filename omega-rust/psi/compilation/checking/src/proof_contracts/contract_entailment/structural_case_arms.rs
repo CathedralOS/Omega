@@ -676,38 +676,25 @@ fn recognize_structural_state_leaves_from<'a>(
                         )
                         .unwrap_or_default()
                     };
-                    let outcomes = phase_profile::scope("05.d.7.3b.1.cap.2d.expr", || {
-                        judge.normal_return_paths(
+                    if !is_tail
+                        || matches!(
+                            program
+                                .type_reference_table
+                                .type_reference(state.return_type),
+                            typed_trees::types::TypeReferenceNode::Unit
+                        )
+                    {
+                        let outcomes = judge.normal_completion_paths(
                             *expression,
                             &environment,
                             (machine, state, result_type),
-                        )
-                    })?;
-                    let mut leaves = Vec::new();
-                    for outcome in outcomes {
-                        if is_tail {
-                            if requirement.is_none() {
-                                leaves.push(finalize_structural_case_arm(
-                                    program,
-                                    machine,
-                                    &outcome.judge,
-                                    classification,
-                                    diagnostics,
-                                    parameter_names,
-                                    case_hypotheses.clone(),
-                                    case_equations.clone(),
-                                    pending_citations.clone(),
-                                    outcome.value,
-                                ));
-                            }
-                        } else {
-                            // An evaluated expression is not an early return.
-                            // Resume with its own facts and discard only its
-                            // value; later statements still own the result.
+                        )?;
+                        let mut leaves = Vec::new();
+                        for completed in outcomes {
                             leaves.extend(recognize_structural_state_leaves_from(
                                 program,
                                 machine,
-                                &outcome.judge,
+                                &completed,
                                 classification,
                                 diagnostics,
                                 states,
@@ -724,6 +711,31 @@ fn recognize_structural_state_leaves_from<'a>(
                                 established_guarantees.clone(),
                                 next_statement,
                             )?);
+                        }
+                        return Some(leaves);
+                    }
+                    let outcomes = phase_profile::scope("05.d.7.3b.1.cap.2d.expr", || {
+                        judge.normal_return_paths(
+                            *expression,
+                            &environment,
+                            (machine, state, result_type),
+                        )
+                    })?;
+                    let mut leaves = Vec::new();
+                    for outcome in outcomes {
+                        if requirement.is_none() {
+                            leaves.push(finalize_structural_case_arm(
+                                program,
+                                machine,
+                                &outcome.judge,
+                                classification,
+                                diagnostics,
+                                parameter_names,
+                                case_hypotheses.clone(),
+                                case_equations.clone(),
+                                pending_citations.clone(),
+                                outcome.value,
+                            ));
                         }
                     }
                     return Some(leaves);
@@ -799,7 +811,12 @@ fn recognize_structural_state_leaves_from<'a>(
             if requirement.is_some() {
                 return Some(Vec::new());
             }
-            if state.return_type.is_valid() {
+            if !matches!(
+                program
+                    .type_reference_table
+                    .type_reference(state.return_type),
+                typed_trees::types::TypeReferenceNode::Unit
+            ) {
                 return None;
             }
             return Some(vec![finalize_structural_case_arm(

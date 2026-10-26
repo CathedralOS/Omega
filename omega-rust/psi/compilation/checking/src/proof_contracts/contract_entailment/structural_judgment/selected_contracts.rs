@@ -432,7 +432,7 @@ impl StructuralJudge<'_> {
             .zip(arguments)
             .map(|(parameter, value)| (parameter.symbol, value.clone()))
             .collect::<Vec<_>>();
-        self.selected_guarantees(&owner, &bindings, &bindings, application, depth)
+        self.selected_guarantees(&owner, &bindings, &bindings, Some(application), depth)
             .map(|guarantees| guarantees.equations)
     }
 
@@ -445,7 +445,7 @@ impl StructuralJudge<'_> {
         owner: &SelectedCallContract<'_>,
         entry_bindings: &[(SymbolHandle, StructuralTerm)],
         bindings: &[(SymbolHandle, StructuralTerm)],
-        result: &StructuralTerm,
+        result: Option<&StructuralTerm>,
         depth: usize,
     ) -> Option<SelectedGuarantees> {
         let program = self.program;
@@ -566,7 +566,7 @@ impl StructuralJudge<'_> {
         owner: &SelectedCallContract<'_>,
         entry_bindings: &[(SymbolHandle, StructuralTerm)],
         bindings: &[(SymbolHandle, StructuralTerm)],
-        result: &StructuralTerm,
+        result: Option<&StructuralTerm>,
         depth: usize,
     ) -> Option<SelectedGuarantees> {
         if depth >= 32 {
@@ -605,7 +605,7 @@ impl StructuralJudge<'_> {
                             "STRUCT normal-guarantee requires owner={callable:?} fact={fact:?} judgment={judgment:?} entry_bindings={entry_bindings:?}"
                         );
                     }
-                    return self.unconditional_boolean_result(owner, result, depth);
+                    return self.unconditional_boolean_result(owner, result?, depth);
                 }
             }
         }
@@ -632,7 +632,9 @@ impl StructuralJudge<'_> {
         // A body-wide constant records its literal on the result. Both a
         // match and a direct use read this equation; an authored `ensures`
         // is not required for a result every normal exit already supplies.
-        if let Some(literal) = self.recorded_body_boolean(owner, depth + 1) {
+        if let Some(result) = result
+            && let Some(literal) = self.recorded_body_boolean(owner, depth + 1)
+        {
             let equation = (result.clone(), literal);
             let present = equations.iter().any(|(left, right)| {
                 (left, right) == (&equation.0, &equation.1)
@@ -645,20 +647,21 @@ impl StructuralJudge<'_> {
         // Conservation snapshots belong to executed normal returns. A pure
         // specification application has no call-entry storage epoch and must
         // not initialize normalization while forming a projection's own body.
-        let content =
-            if self.runtime_body_values && matches!(result, StructuralTerm::CapturedValue { .. }) {
-                super::super::content_conservation::call_content_guarantees(
-                    program,
-                    self,
-                    owner_symbol(owner),
-                    parameters,
-                    entry_bindings,
-                    bindings,
-                    result,
-                )
-            } else {
-                Vec::new()
-            };
+        let content = if self.runtime_body_values
+            && let Some(result @ StructuralTerm::CapturedValue { .. }) = result
+        {
+            super::super::content_conservation::call_content_guarantees(
+                program,
+                self,
+                owner_symbol(owner),
+                parameters,
+                entry_bindings,
+                bindings,
+                result,
+            )
+        } else {
+            Vec::new()
+        };
         Some(SelectedGuarantees { equations, content })
     }
 
@@ -1143,7 +1146,7 @@ pub(super) fn capture_guarantees(
     parameters: &[typed_trees::signature::StateParameter],
     callable: SymbolHandle,
     bindings: &[(SymbolHandle, StructuralTerm)],
-    result: &StructuralTerm,
+    result: Option<&StructuralTerm>,
     equations: &mut Vec<(StructuralTerm, StructuralTerm)>,
     depth: usize,
 ) {
@@ -1194,7 +1197,7 @@ pub(super) fn capture_guarantees(
                 parameters,
                 callable,
                 bindings,
-                Some(result),
+                result,
                 0,
             ),
             bound_term(
@@ -1204,7 +1207,7 @@ pub(super) fn capture_guarantees(
                 parameters,
                 callable,
                 bindings,
-                Some(result),
+                result,
                 0,
             ),
         )
@@ -1238,7 +1241,7 @@ pub(super) fn capture_guarantees(
         parameters,
         callable,
         bindings,
-        Some(result),
+        result,
         depth + 1,
     ) else {
         return;
