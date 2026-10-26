@@ -256,19 +256,17 @@ pub(crate) fn lower_structural_indexed_term(
             let StructuralFieldType::Structural(structural_type) = selected else {
                 return unsupported("indexed contract member follows a scalar leaf");
             };
-            let namespace = StructuralParameterDeclaration {
-                structural_type,
-                ..parameter.clone()
-            };
-            let (_, path, field) = lower_structural_member_path(
+            let observation = structural_observation_path(
                 identities,
-                position,
+                structural_type,
+                parameter.access,
                 &static_path,
-                &[namespace],
                 structural_types,
             )?;
-            terminal_path.extend(path.into_iter().map(ScalarReadProjection::Static));
-            selected = field;
+            selected = observation_field_type(&observation)?;
+            terminal_path.extend(observation.observation.ok_or(LoweringError::Unsupported(
+                "indexed contract member has no retained observation path",
+            ))?);
             continue;
         }
         let CheckedScalarReadProjection::RuntimeIndex(selector) = &projections[cursor] else {

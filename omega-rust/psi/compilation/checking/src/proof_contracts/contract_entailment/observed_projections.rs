@@ -15,6 +15,7 @@ pub(super) fn project_observed_value(
     path: &[PlaceSegment],
 ) -> Option<StructuralTerm> {
     for segment in path {
+        (reference, value) = inline_projection_source(program, reference, value)?;
         let owned = super::structural_terms::owned_observation_type(program, &value).is_some();
         if owned && !super::structural_terms::scalar_operand_is_observed(program, reference, &value)
         {
@@ -124,7 +125,9 @@ pub(super) fn project_declared_field(
     value: StructuralTerm,
     field_name: &str,
 ) -> Option<StructuralTerm> {
-    let Some(reference) = super::structural_terms::owned_observation_type(program, &value) else {
+    let Some(reference) = super::structural_terms::owned_observation_type(program, &value)
+        .or_else(|| super::structural_terms::shared_inline_observation_type(program, &value))
+    else {
         return project_field(value, field_name);
     };
     let data = crate::value_custody::places::data_definition_for_type(program, reference)?;
@@ -153,6 +156,7 @@ pub(super) fn project_index(
     value: StructuralTerm,
     index: StructuralTerm,
 ) -> Option<StructuralTerm> {
+    let (reference, value) = inline_projection_source(program, reference, value)?;
     readable_projection_crossings(program, reference, &value)?;
     if !super::structural_terms::scalar_operand_is_observed(program, reference, &value) {
         return None;
@@ -254,4 +258,21 @@ pub(super) fn declared_integer_field_read(
     declared_scalar_field_read(program, machine, state, expression).filter(|primitive| {
         primitive.is_fixed_integer() || *primitive == typed_trees::types::PrimitiveType::Addr
     })
+}
+
+fn inline_projection_source(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    value: StructuralTerm,
+) -> Option<(TypeReferenceHandle, StructuralTerm)> {
+    let Some(observed) = super::structural_terms::shared_inline_observation_type(program, &value)
+    else {
+        return Some((reference, value));
+    };
+    crate::declared_carriers_match(program, reference, observed).then_some(())?;
+    let shell = crate::reference_shell(program, observed)?;
+    let StructuralTerm::ObservedValue { value, .. } = value else {
+        return None;
+    };
+    Some((shell.referee, *value))
 }
