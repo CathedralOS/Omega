@@ -2028,8 +2028,8 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     statement and terminal calls, and calls inside the supplied body; broader
     formation acceptance remains open. Its applied Type/Const production now
     transports the same premise through the nine places, retaining complete
-    static tuples and exact lexical type scopes; machine-valued tuples, aliases
-    and broader premise formation remain open.
+    static tuples and exact lexical type scopes; machine-valued tuples, aliases,
+    open-Const families and broader premise formation remain open.
   - Extend `OpenIndexOperationSelection` in
     `omega-rust/psi/compilation/checking/src/value_custody/type_references/open_index_expressions.rs`
     with distributivity and zero/one law evidence surviving

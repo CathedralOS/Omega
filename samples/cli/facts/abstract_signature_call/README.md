@@ -247,13 +247,25 @@ the selected roster only in executable occurrences. Full tuple formation and
 callable refinement remain separate checking obligations. The complete row,
 independent review and publication remain to be established.
 
-Further valid-positive refusals are retained against both fixed baseline 37
-and this repair: a provider tuple containing a Machine argument refuses
+Further valid-positive refusals are retained against fixed baseline 37
+and the historical first candidate `f2dcd8f`: a provider tuple containing a Machine argument refuses
 `an unclosed machine or runtime operand`, a cross-module const alias loses its
 exact declaration selection, and a generic abstract-premise call confuses its
-actual and required `T`. They remain the same parent's next formation work.
+actual and required `T`. Their current producer behavior has not been re-observed;
+they remain the same parent's next formation work.
 This Type/Const application step does not claim those repairs. The broader
 task's law, declaration migration and other-host acceptance remain open.
+
+The bounded existing contextual-call check also preserves two inherited
+open-Const refusals:
+[`contextual_static_machine_const_scopes_exit`](../../../../tests/omega/pass/generics/contextual_static_machine_const_scopes_exit/main.omg)
+and [`contextual_static_machine_open_const_exit`](../../../../tests/omega/pass/generics/contextual_static_machine_open_const_exit/main.omg).
+Both fixed producer 37 and current producer `3c2ec6aaf4dd` refuse those positives
+before execution. All 38 selected existing fixtures retain exactly the same
+status, diagnostic, facts and oracle fields, including three inherited diagnostic
+movements. The raw gate exit remains 3, with no oracle or infrastructure errors;
+it is an attributed inherited failure, not a clean corpus or an accepted language
+restriction. Open-Const families remain part of the parent formation acceptance.
 
 ## Execution
 
