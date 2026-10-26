@@ -579,7 +579,9 @@ pub use proof_contracts::arithmetic_domains::{
 pub use machine_calls::contract_dependencies::{
     independent_call_application, independent_call_site,
 };
-pub use value_custody::type_references::normalize_closed_const_expression;
+pub use value_custody::type_references::{
+    check_closed_const_expression, normalize_closed_const_expression,
+};
 
 pub use value_custody::const_expressions::{
     ImmutableConstRecordProjection, immutable_record_projection,

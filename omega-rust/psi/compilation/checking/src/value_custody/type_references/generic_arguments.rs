@@ -13,6 +13,34 @@ use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, T
 mod closed_expressions;
 pub use closed_expressions::normalize_closed_const_expression;
 
+/// Check the supplying expression before a closed value can specialize another
+/// declaration's theory. The destination supplies a carrier, never assumptions
+/// that discharge the source operation's formation obligations.
+pub fn check_closed_const_expression(
+    program: &dyn crate::CheckingInput,
+    lexical_owner: SymbolHandle,
+    expression: typed_trees::expression::ExpressionHandle,
+    carrier: TypeReferenceHandle,
+) -> Result<Option<CanonicalConstValue>, Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    crate::proof_contracts::arithmetic_domains::validate_declaration_value_range(
+        program,
+        lexical_owner,
+        &declaration_parameters(program, lexical_owner),
+        &[],
+        expression,
+        program.primitive_type_reference(carrier),
+        program.arithmetic_domain_for_type_reference(carrier),
+        "closed const argument",
+        &mut diagnostics,
+    );
+    if diagnostics.iter().any(Diagnostic::is_error) {
+        return Err(diagnostics);
+    }
+    normalize_closed_const_expression(program, lexical_owner, expression, carrier)
+        .map_err(|message| vec![Diagnostic::error(message)])
+}
+
 pub(crate) fn validate_machine_data_argument(
     program: &dyn crate::CheckingInput,
     base_symbol: SymbolHandle,

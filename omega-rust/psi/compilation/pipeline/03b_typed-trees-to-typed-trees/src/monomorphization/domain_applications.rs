@@ -8,11 +8,11 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 
 pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     loop {
-        let references = typed_trees::references::collect_program_references(program);
         let mut requests = Vec::new();
-        for reference in references.type_references {
-            if let TypeReferenceNode::Constrained { constraints, .. } =
-                program.type_reference_table.type_reference(reference)
+        for occurrence in typed_trees::references::collect_program_type_occurrences(program) {
+            if let TypeReferenceNode::Constrained { constraints, .. } = program
+                .type_reference_table
+                .type_reference(occurrence.reference)
             {
                 requests.extend(
                     program
@@ -20,17 +20,20 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
                         .constraints(*constraints)
                         .iter()
                         .filter_map(|constraint| match constraint {
-                            TypeConstraintNode::Domain(domain) => {
-                                Some((domain.symbol, domain.arguments.clone()))
-                            }
+                            TypeConstraintNode::Domain(domain) => Some((
+                                occurrence.lexical_owner,
+                                domain.symbol,
+                                domain.arguments.clone(),
+                            )),
                             _ => None,
                         }),
                 );
             }
         }
-        for handle in references.proof_facts {
-            if let Some(membership) = program.proof_facts.get(handle).as_membership() {
+        for (owner, _, fact) in typed_trees::references::program_scoped_proof_facts(program) {
+            if let Some(membership) = fact.as_membership() {
                 requests.push((
+                    owner,
                     membership.domain_symbol,
                     program
                         .type_reference_table
@@ -40,7 +43,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
             }
         }
         let mut changed = false;
-        for (symbol, arguments) in requests {
+        for (lexical_owner, symbol, arguments) in requests {
             let Some(domain) = program.domain_definition(symbol).cloned() else {
                 continue;
             };
@@ -63,19 +66,48 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
             }
             let mut canonical = true;
             for (parameter, argument) in parameters.iter().zip(&arguments) {
-                if matches!(parameter.kind, TypeParameterKind::Const { .. }) {
-                    if !matches!(program.type_reference_table.type_reference(*argument),
-                        TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid())
-                    {
-                        canonical = false;
-                        break;
+                if let TypeParameterKind::Const {
+                    type_reference: carrier,
+                } = parameter.kind
+                {
+                    match program.type_reference_table.type_reference(*argument) {
+                        TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid() => {
+                            validation::validate_closed_const_argument(
+                                program,
+                                domain.name.as_str(),
+                                parameter,
+                                *argument,
+                            )?;
+                        }
+                        TypeReferenceNode::ConstExpression(expression)
+                            if lexical_owner.is_valid() && is_closed(program, carrier) =>
+                        {
+                            // Keep the source recipe and its exact instance ID.
+                            // Checking a completed value grants no permission to
+                            // erase the supplying operation or borrow the receiving
+                            // domain's assumptions. Dependent carriers defer until
+                            // their supplying telescope has actually closed.
+                            // Successful normalization currently excludes calls
+                            // and lexical implementation-dependent operations.
+                            // If that cohort expands, derived theory traversal
+                            // must also retain each recipe's supplying scope.
+                            if validation::check_closed_const_expression(
+                                program,
+                                lexical_owner,
+                                *expression,
+                                carrier,
+                            )?
+                            .is_none()
+                            {
+                                canonical = false;
+                                break;
+                            }
+                        }
+                        _ => {
+                            canonical = false;
+                            break;
+                        }
                     }
-                    validation::validate_closed_const_argument(
-                        program,
-                        domain.name.as_str(),
-                        parameter,
-                        *argument,
-                    )?;
                 }
             }
             if !canonical {

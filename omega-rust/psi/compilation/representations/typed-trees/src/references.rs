@@ -258,6 +258,14 @@ pub struct TypeOccurrence {
     pub reference: TypeReferenceHandle,
 }
 
+/// Retain the supplying declaration for every live type operand. A shared
+/// arena handle does not transfer its author's lexical checking scope.
+pub fn collect_program_type_occurrences(program: &TypedTrees) -> Vec<TypeOccurrence> {
+    let mut occurrences = TypeOccurrences::default();
+    visit_program(program, &mut occurrences);
+    occurrences.types
+}
+
 /// Exact authored call applications reached from retained declaration/body
 /// roots. This inventory creates neither execution reach nor admission.
 pub fn collect_program_conformance_occurrences(
