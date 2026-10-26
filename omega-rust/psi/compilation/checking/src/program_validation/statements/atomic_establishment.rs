@@ -97,19 +97,37 @@ pub(super) fn validate_once_resident(
         owner,
         diagnostics,
     );
-    let contained = arithmetic_domains::check_where_interval_containment(
-        program,
-        stated,
-        arithmetic_domains::IntegerValueObservation {
-            machine: scope.machine,
-            state: Some(state),
-            expression: replacement,
-            environment: &observed,
-            interval,
-        },
-        owner,
-        diagnostics,
-    );
+    let contained = if anonymous.is_some() {
+        arithmetic_domains::check_where_interval_containment(
+            program,
+            stated,
+            arithmetic_domains::IntegerValueObservation {
+                machine: scope.machine,
+                state: Some(state),
+                expression: replacement,
+                environment: &observed,
+                interval,
+            },
+            owner,
+            diagnostics,
+        )
+    } else {
+        let proven =
+            crate::proof_contracts::contract_entailment::completed_value_fits_integer_interval(
+                program,
+                scope.machine,
+                state,
+                scope.statement_index,
+                replacement,
+                stated,
+            );
+        if !proven {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} stores a value not provably within its data's `where` facts at replacement completion"
+            )));
+        }
+        proven
+    };
     if contained
         && diagnostics.len() == before
         && let Some(decision) = super::integer_establishment::checked_integer_establishment(
