@@ -36,12 +36,16 @@
 mod codec_bytes;
 mod component_object;
 mod component_shared_image;
+mod foreign_adapter;
 pub use component_object::{
     ComponentFunctionImage, component_export_symbol, prepare_component_function_image,
 };
 pub use component_shared_image::{
     ComponentSharedContainer, ComponentSharedImage, ComponentSharedImageEmissionError,
     emit_component_shared_image,
+};
+pub use foreign_adapter::{
+    NativeForeignAdapterEmissionError, NativeForeignAdapterImage, emit_native_foreign_adapter,
 };
 mod callable_entry_transport;
 pub use callable_entry_transport::{

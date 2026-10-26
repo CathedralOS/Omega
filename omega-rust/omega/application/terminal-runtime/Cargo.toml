@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+native-provider-runtime = { path = "../native-provider-runtime" }
 terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }
 runtime-abi = { path = "../../compilation/backend/runtime/runtime-abi" }
 numerics = { path = "../../../psi/foundation/numerics" }

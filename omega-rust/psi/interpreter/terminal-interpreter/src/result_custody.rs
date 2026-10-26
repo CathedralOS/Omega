@@ -9,7 +9,6 @@ use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{CompletedReturn, TerminalExecution};
 use crate::provider_storage::{ProviderStorageBinding, ProviderStorageSlot, ResidentStorageSlot};
 use crate::results::TerminalExecutionResult;
-use crate::runtime_rows::RuntimeRows;
 use crate::structural_storage::{StorageKey, cells};
 use crate::values::StructuralRuntimePlace;
 use evaluation_accounting::{EvaluationAccountingError, EvaluationResource};
@@ -49,7 +48,7 @@ impl<'storage> ResultCustody<'storage> {
 
     pub(crate) fn rows<K: StorageKey, Value>(
         &mut self,
-        rows: &RuntimeRows<K, Value>,
+        rows: &impl std::borrow::Borrow<std::collections::BTreeMap<K, Value>>,
         root: &StructuralRuntimePlace,
     ) -> Result<(), TerminalInterpretError> {
         self.add_cells(cells(rows, root).count())
@@ -208,6 +207,7 @@ impl TerminalExecution<'_> {
         custody.rows(&self.structural_primitive_storage, root)?;
         custody.rows(&self.structural_cases, root)?;
         custody.rows(&self.structural_host_atoms, root)?;
+        custody.rows(&self.original_storage_roots, root)?;
         custody.rows(&self.provider_storage.completed_profiles, root)?;
         custody.rows(&self.structural_byte_storage, root)?;
         custody.rows(&self.structural_byte_sequence_fields, root)?;

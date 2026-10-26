@@ -32,6 +32,7 @@ use crate::values::{
 /// never a grant of access to the runtime or its qualifications.
 #[derive(Debug)]
 pub struct TerminalBoundaryScalarBuffer {
+    pub(super) original_storage: Option<super::original_storage::TerminalOriginalStorageLoan>,
     identity: Arc<()>,
     argument_index: usize,
     field_path: Vec<CanonicalStructuralPathSegment>,
@@ -43,6 +44,11 @@ pub struct TerminalBoundaryScalarBuffer {
 }
 
 impl TerminalBoundaryScalarBuffer {
+    pub fn original_storage(
+        &self,
+    ) -> Option<&super::original_storage::TerminalOriginalStorageLoan> {
+        self.original_storage.as_ref()
+    }
     /// Index in the structural argument lane, not the scalar argument lane.
     pub fn argument_index(&self) -> usize {
         self.argument_index
@@ -90,13 +96,14 @@ impl TerminalBoundaryScalarBuffer {
     }
 }
 
-struct ScalarLoanBinding {
+pub(super) struct ScalarLoanBinding {
     identity: Arc<()>,
-    argument_index: usize,
+    pub(super) argument_index: usize,
     field_path: Vec<CanonicalStructuralPathSegment>,
-    access: StructuralAccess,
+    pub(super) access: StructuralAccess,
     source: PlaceId,
-    storage: PrimitiveStorage,
+    pub(super) storage: PrimitiveStorage,
+    pub(super) direct_original: bool,
     scalar_type: ScalarType,
     shared_view: bool,
     original: TerminalScalarValue,
@@ -124,7 +131,7 @@ pub(crate) fn satisfies_source_restriction(
 #[derive(Default)]
 pub(crate) struct BoundaryScalarLoans {
     pub(crate) buffers: Vec<TerminalBoundaryScalarBuffer>,
-    bindings: Vec<ScalarLoanBinding>,
+    pub(super) bindings: Vec<ScalarLoanBinding>,
 }
 
 impl BoundaryScalarLoans {
@@ -155,8 +162,9 @@ impl BoundaryScalarLoans {
                 terminal_psi::reading_borrow_pair_pattern!()
             )
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
+            || (parameter.access == StructuralAccess::MutableBorrow
+                && (!parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty()))
         {
             return Err(malformed());
         }
@@ -192,7 +200,9 @@ impl BoundaryScalarLoans {
         argument_index: usize,
         field_path: Vec<CanonicalStructuralPathSegment>,
     ) -> Result<(), TerminalInterpretError> {
-        execution.validate_scalar_loan_qualifications(&storage)?;
+        if access == StructuralAccess::MutableBorrow {
+            execution.validate_scalar_loan_qualifications(&storage)?;
+        }
         let original = execution.read_primitive_storage(
             source,
             storage.clone(),
@@ -218,6 +228,7 @@ impl BoundaryScalarLoans {
         }
         let identity = Arc::new(());
         self.buffers.push(TerminalBoundaryScalarBuffer {
+            original_storage: None,
             identity: Arc::clone(&identity),
             argument_index,
             field_path: field_path.clone(),
@@ -228,6 +239,7 @@ impl BoundaryScalarLoans {
             encoding: storage.encoding,
         });
         self.bindings.push(ScalarLoanBinding {
+            direct_original: false,
             identity,
             argument_index,
             field_path,
@@ -272,13 +284,19 @@ impl BoundaryScalarLoans {
             }
             // Validate the captured backing, never resolve a source path after
             // host code. Callback code receives no mutable execution reference.
-            if execution.read_primitive_storage(
+            let current = execution.read_primitive_storage(
                 binding.source,
                 binding.storage.clone(),
                 binding.scalar_type,
                 binding.scalar_type,
                 binding.shared_view,
-            )? != binding.original
+            )?;
+            let expected = if binding.direct_original {
+                buffer.value
+            } else {
+                binding.original
+            };
+            if (binding.direct_original && buffer.original_storage.is_none()) || current != expected
             {
                 return Err(malformed());
             }
@@ -298,12 +316,16 @@ impl BoundaryScalarLoans {
         // paths or introduce a later, partially committed validation phase.
         for (buffer, binding) in buffers.into_iter().zip(self.bindings) {
             if binding.access != StructuralAccess::SharedBorrow {
-                execution.store_primitive_storage(
-                    binding.source,
-                    binding.storage,
-                    binding.scalar_type,
-                    buffer.value,
-                )?;
+                if binding.direct_original {
+                    execution.record_original_scalar_write(&binding.storage)?;
+                } else {
+                    execution.store_primitive_storage(
+                        binding.source,
+                        binding.storage,
+                        binding.scalar_type,
+                        buffer.value,
+                    )?;
+                }
             }
         }
         Ok(())

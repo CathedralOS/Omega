@@ -141,7 +141,8 @@ fn reach(value: ProfileValue<'_, '_>) -> Result<BoundaryReach, TerminalInterpret
                 .execution
                 .structural_primitive_storage
                 .get(&StructuralRuntimePlace::from(&entry.value))
-                .copied()
+                .map(crate::scalar_storage::ScalarCell::read)
+                .transpose()?
                 .ok_or_else(malformed)?;
             BoundaryServiceReachId::from_normalized_identity(unsigned(scalar)?).map_err(|_| {
                 TerminalInterpretError::ContentTransformationMismatch(
@@ -209,7 +210,8 @@ impl<'execution, 'program> ProfileValue<'execution, 'program> {
             .execution
             .structural_scalar_fields
             .get(&cell)
-            .copied()
+            .map(crate::scalar_storage::ScalarCell::read)
+            .transpose()?
             .ok_or_else(malformed)?;
         if !value.satisfies_field(&field.field_type) {
             return Err(malformed());

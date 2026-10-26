@@ -131,7 +131,7 @@ impl TerminalExecution<'_> {
         }
         let (allocation, profile, base) =
             self.provider_storage.live_provider_allocation(&binding)?;
-        if !self.provider_storage_geometry_matches(&home, &plan.storage, base, binding.length) {
+        if !self.provider_storage_geometry_matches(&home, &plan.storage, base, binding.length)? {
             return Err(TerminalInterpretError::ContentTransformationMismatch(
                 "extraction changed the original allocation geometry",
             ));

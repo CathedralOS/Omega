@@ -2399,6 +2399,7 @@ fn prior_millis() -> std::collections::HashMap<String, u64> {
 }
 
 fn main() {
+    terminal_runtime::run_native_provider_worker_if_requested();
     if env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
         if env::args_os().count() != 2 {
             eprintln!("corpus_runner --build-profile takes no arguments");

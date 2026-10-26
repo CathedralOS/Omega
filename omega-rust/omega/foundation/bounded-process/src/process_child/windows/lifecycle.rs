@@ -44,6 +44,10 @@ pub(crate) struct WindowsJobChild {
 }
 
 impl WindowsJobChild {
+    pub(crate) fn id(&self) -> u32 {
+        self.child.id()
+    }
+
     pub(crate) fn spawn(command: &mut Command, limits: BoundedProcessLimits) -> io::Result<Self> {
         Self::spawn_with_config(command, WindowsJobLimits::from_limits(limits)?)
     }

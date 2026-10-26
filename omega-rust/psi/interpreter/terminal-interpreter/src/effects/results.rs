@@ -22,8 +22,9 @@ pub enum TerminalEffectResult {
     Crash(CrashCause),
     Unit,
     Scalar(TerminalScalarValue),
-    /// An exact scalar record or selected sum case and its actual scalar payload. No opaque
-    /// host allocation identity, grants, claims or qualifications are inferred.
+    /// An exact scalar record or selected sum case and its actual scalar
+    /// payload. The payload supplies no authority: normal completion and the
+    /// admitted boundary declaration own any result claims or qualifications.
     ScalarAggregate(TerminalScalarAggregateValue),
     /// The same opaque, target-neutral value used for structural entry inputs.
     /// This does not provide a sum discriminator or materialized payload fields.
@@ -122,13 +123,8 @@ impl TerminalExecution<'_> {
         &self,
         result: &terminal_psi::StructuralOperationResult,
     ) -> bool {
-        result.qualifications.is_empty()
-            && result.projected_qualifications.is_empty()
-            && result.claims.is_empty()
-            && matches!(
-                result.multiplicity,
-                terminal_psi::nonlinear_multiplicity_pair_pattern!()
-            )
+        result.projected_qualifications.is_empty()
+            && (result.claims.is_empty() || result.multiplicity == StructuralMultiplicity::Linear)
             && self
                 .program
                 .structural_types()

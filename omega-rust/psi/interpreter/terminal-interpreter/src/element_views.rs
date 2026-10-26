@@ -1170,7 +1170,8 @@ impl TerminalExecution<'_> {
             let value = self
                 .structural_scalar_fields
                 .get(&field)
-                .copied()
+                .map(crate::scalar_storage::ScalarCell::read)
+                .transpose()?
                 .ok_or_else(malformed)?;
             if value.scalar_type() != stored_type {
                 return Err(malformed());
@@ -1229,7 +1230,7 @@ impl TerminalExecution<'_> {
             if stored.scalar_type() != scalar.scalar_type() {
                 return Err(malformed());
             }
-            *stored = scalar;
+            stored.write(scalar)?;
             Ok(())
         } else {
             if let Some(home) = &view.home {

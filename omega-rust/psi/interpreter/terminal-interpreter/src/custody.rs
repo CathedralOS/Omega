@@ -658,12 +658,12 @@ pub(crate) fn bind_structural_primitive_values(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     structural_values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     arguments: &[TerminalStructuralPrimitiveValue],
-    mut storage: RuntimeRows<StructuralRuntimePlace, TerminalScalarValue>,
+    mut storage: crate::scalar_storage::ScalarStorageRows<StructuralRuntimePlace>,
     zero_initialized_arguments: &[u32],
     account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
 ) -> Result<
     (
-        RuntimeRows<StructuralRuntimePlace, TerminalScalarValue>,
+        crate::scalar_storage::ScalarStorageRows<StructuralRuntimePlace>,
         RuntimeRows<u32, StructuralRuntimePlace>,
     ),
     TerminalInterpretError,

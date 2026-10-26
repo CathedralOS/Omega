@@ -64,10 +64,12 @@ pub(in crate::legalization) fn result_at(
                 || result.qualifications != declared.qualifications
                 || result.projected_qualifications != declared.projected_qualifications
                 || !result.projected_qualifications.is_empty()
-                || !result.qualification_establishments.is_empty()
             {
                 return Err(LegalizationError::custody());
             }
+            // The validated optimized source owns qualification establishment.
+            // Replay retains those exact rows in the operation-result home;
+            // native result bits neither discard nor establish that authority.
             // Whole-unit ownership validation authenticates the source result's
             // claim bindings. Rejoin every binding in the operation-result home
             // below; physical ABI placement neither discards nor reissues them.
