@@ -1,5 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "recipe_endpoint_membership_refused_at_closure");
+    Build::select_provider<Math, Provider>(builder);
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
 }

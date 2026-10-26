@@ -364,11 +364,22 @@ impl BuildTimeAdmissionPlan {
             {
                 return true;
             }
+            // Operational inference retains exact named/signature selections
+            // before every expression has a value-origin fact. Those rows
+            // still owe selected realization; no unresolved target acquires
+            // a boundary meaning merely because another row needs one.
+            if self.call_edges.iter().any(|edge| {
+                edge.source_machine_symbol == machine
+                    && (boundary_use(edge.target_operator_symbol)
+                        || boundary_use(edge.target_state_symbol))
+            }) {
+                return true;
+            }
             pending.extend(
                 self.call_edges
                     .iter()
                     .filter(|edge| edge.source_machine_symbol == machine)
-                    .map(|edge| edge.target_machine_symbol),
+                    .filter_map(|edge| edge.target_machine(program)),
             );
         }
         false

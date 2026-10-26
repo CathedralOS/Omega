@@ -211,7 +211,12 @@ pub fn selected_constant_target_bodies(
         else {
             continue;
         };
-        if !realizes_machine(context, member, Some(target.target_name())) {
+        // This roster transports ordinary checked bodies only. An imported
+        // intrinsic or foreign family keeps its own execution owner; merely
+        // being realized for this target cannot turn it into checked source.
+        if !member.supplies_checked_body()
+            || !realizes_machine(context, member, Some(target.target_name()))
+        {
             continue;
         }
         selected.push(

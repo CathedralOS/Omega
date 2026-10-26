@@ -5,25 +5,31 @@
 // unbounded parameter.
 use omega_language_std::console;
 
-data Math {}
-
-boundary machine % Math::remainder(left: u64, right: u64) -> u64;
-
-data Provider {}
-
-machine Provider::remainder(left: u64, right: u64) -> u64
-satisfies Math::remainder
-{
-    transition { _ -> (left | right) }
+public boundary trait Math {
+    machine remainder(left: u64, right: u64) -> u64 reaches terminates;
+}
+public Provider satisfies Math {
+    machine remainder(left: u64, right: u64) -> u64 { left | right }
+}
+trait Remainder {
+    machine % remainder(left: u64, right: u64) -> u64;
+}
+BoundaryRemainder satisfies Remainder {
+    machine remainder(left: u64, right: u64) -> u64 {
+        Math::remainder(left, right)
+    }
+}
+machine selected_remainder<Operations satisfies Remainder>(left: u64, right: u64) -> u64 {
+    left % right
 }
 
 machine limit() -> u64 {
     let left: u64 = 7;
     let right: u64 = 2;
-    transition { _ -> (left % right) }
+    transition { _ -> (selected_remainder<BoundaryRemainder>(left, right)) }
 }
 
-machine take_bounded(value: u64[0..=limit()]) -> u64 { value }
+machine take_bounded(value: u64) -> u64 requires value <= limit() { value }
 
 data Main {
 }
