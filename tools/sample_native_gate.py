@@ -511,7 +511,8 @@ def measure(cli, sample, target, timeout, build_unscored=False, accepted_inputs_
         completed = run(command, timeout)
         if completed is None:
             return {"sample": sample, "role": project.role, "state": "timeout", "detail": f">{timeout}s"}
-        matched, detail = rejection_verdict(project, completed.returncode, completed.stderr)
+        matched, detail = rejection_verdict(project, completed.returncode, completed.stderr,
+                                            expected_exit=200 if invocation.is_file() else 1)
         return {"sample": sample, "role": project.role, "state": "rejected" if matched else "rejection-failed", "detail": detail}
     if any(sample.startswith(prefix) for prefix in NOT_HOST_RUNNABLE):
         return {

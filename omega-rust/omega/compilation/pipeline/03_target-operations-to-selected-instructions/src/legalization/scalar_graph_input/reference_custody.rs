@@ -3630,10 +3630,15 @@ pub(in crate::legalization) fn placed_call_custody(
             .ok_or_else(|| invalid())?;
         let association = match placed_source(caller, custody, types, argument) {
             Some(target_operations::TargetPlacedInterpretation::Captured(captured)) => {
-                let observed =
-                    call_paths::call_reference_custody(caller, custody, types, argument)?;
-                if observed.referent != plan.carrier {
+                if reference_source_type(caller, custody, types, argument) != Some(plan.carrier) {
                     return Err(invalid());
+                }
+                if argument.path.contains(&StructuralPathSegment::Referent) {
+                    let observed =
+                        call_paths::call_reference_custody(caller, custody, types, argument)?;
+                    if observed.referent != plan.carrier {
+                        return Err(invalid());
+                    }
                 }
                 optimization_unit_semantics::placed_references::validate_backing(
                     types,

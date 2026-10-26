@@ -16,14 +16,14 @@ pub(super) fn capture(
             .output()
             .map(|output| (output, Vec::new(), Vec::new()));
     }
-    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
     {
         return Err(io::Error::new(
             io::ErrorKind::Unsupported,
             "private entry RAM execution requires the checked Unix runtime observation lane",
         ));
     }
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     {
         let expected = recipes
             .iter()
