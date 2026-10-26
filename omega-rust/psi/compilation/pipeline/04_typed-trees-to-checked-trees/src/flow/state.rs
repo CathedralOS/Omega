@@ -37,7 +37,6 @@ pub(super) fn build_state_flow_fact<'plans>(
         return;
     };
 
-
     // Store potentials are this pass's evidence; a rebuilt state accumulates
     // them afresh.
     build

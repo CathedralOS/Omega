@@ -434,7 +434,8 @@ fn argument_contract(
                     call.statement_index,
                     place,
                     selectors,
-                ).and_then(|(selected, path)| {
+                )
+                .and_then(|(selected, path)| {
                     (base_type_identity(program, selected, &[], &[])? == target_identity)
                         .then_some(path)
                 })

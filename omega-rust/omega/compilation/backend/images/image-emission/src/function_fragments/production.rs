@@ -79,9 +79,12 @@ pub fn build_function_fragment_object_artifact(
         fragments.function(placed.machine).ok_or(Error::Mismatch(
             "missing current fragment for temporary stack replay",
         ))?;
-        let function_temporary_stack = *temporary_stack_bytes.get(&placed.machine).ok_or(
-            Error::Mismatch("missing selected function for temporary stack replay"),
-        )?;
+        let function_temporary_stack =
+            *temporary_stack_bytes
+                .get(&placed.machine)
+                .ok_or(Error::Mismatch(
+                    "missing selected function for temporary stack replay",
+                ))?;
         let mut local_peak = frame_bytes
             .checked_add(function_temporary_stack)
             .ok_or(Error::Overflow)?;

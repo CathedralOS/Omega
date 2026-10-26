@@ -841,10 +841,12 @@ pub(crate) fn emit_direct_expression(
                 next_value_identity,
                 operations,
             );
-            operations
-                .storage_observations
-                .field_bytes
-                .push((*source, path.clone(), *field, value));
+            operations.storage_observations.field_bytes.push((
+                *source,
+                path.clone(),
+                *field,
+                value,
+            ));
             value
         }
         LoweredDirectExpression::ByteSequenceFieldRead {

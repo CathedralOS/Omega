@@ -71,10 +71,16 @@ fn source_outputs_are_attributed(
     let Some(state) = program.state_in_machine(machine, state) else {
         return false;
     };
-    let Some(flow) = facts.flow.control.unique_state(machine.symbol, state.symbol) else {
+    let Some(flow) = facts
+        .flow
+        .control
+        .unique_state(machine.symbol, state.symbol)
+    else {
         return false;
     };
-    let order = program.statement_table.admitted_execution_order(state.statement_nodes);
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
     let Some(position) = order.position(statement) else {
         return false;
     };

@@ -76,5 +76,4 @@ impl emission::Emission<'_, '_, '_> {
         };
         CompletedOperand::checked(argument, claims)
     }
-
 }

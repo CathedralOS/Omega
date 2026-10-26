@@ -117,7 +117,9 @@ impl CheckedMachineDeclaration {
                 specialization.commitment == other_specialization.commitment
                     && match (&specialization.capture, &other_specialization.capture) {
                         (None, None) => true,
-                        (Some(left), Some(right)) => left.same_identity_as(identities, right, other_identities),
+                        (Some(left), Some(right)) => {
+                            left.same_identity_as(identities, right, other_identities)
+                        }
                         _ => false,
                     }
                     && identities

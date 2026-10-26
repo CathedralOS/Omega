@@ -59,17 +59,19 @@ impl Checker<'_> {
                 place,
                 structural_type,
             } => {
-                *place == source && self.optimized.blocks.iter().any(|owner| {
-                    owner.id == *block
-                        && owner.id != self.optimized.entry
-                        && owner.structural_parameters.iter().any(|parameter| {
-                            parameter.place == *place
-                                && parameter.structural_type == *structural_type
-                                && self
-                                    .types
-                                    .iter()
-                                    .find(|row| row.id == parameter.structural_type)
-                                    .is_some_and(|row| match row.shape {
+                *place == source
+                    && self.optimized.blocks.iter().any(|owner| {
+                        owner.id == *block
+                            && owner.id != self.optimized.entry
+                            && owner.structural_parameters.iter().any(|parameter| {
+                                parameter.place == *place
+                                    && parameter.structural_type == *structural_type
+                                    && self
+                                        .types
+                                        .iter()
+                                        .find(|row| row.id == parameter.structural_type)
+                                        .is_some_and(|row| {
+                                            match row.shape {
                                         terminal_psi::StructuralTypeShape::ByteSequence(
                                             terminal_psi::ByteSequenceCarrier::BoundedOwned {
                                                 ..
@@ -89,11 +91,12 @@ impl Checker<'_> {
                                         )
                                         .is_some(),
                                         _ => false,
-                                    })
-                                && self.optimized.arrival_parameter(source) == Some(parameter)
-                                && parameter.projected_qualifications.is_empty()
-                        })
-                })
+                                    }
+                                        })
+                                    && self.optimized.arrival_parameter(source) == Some(parameter)
+                                    && parameter.projected_qualifications.is_empty()
+                            })
+                    })
             }
             TargetByteView::Parameter { place, placement } => {
                 *place == source

@@ -89,62 +89,59 @@ pub enum CheckedPropositionBinderArgumentKind {
 // normalized-to-checked conversion. These constructors make no proof decision.
 impl CheckedPropositionApplication {
     pub fn from_normalized(
-    normalized: typed_trees::proposition::NormalizedPropositionApplicationIdentity,
-) -> Self {
-    let evidence_interface = match &normalized.classification {
-        typed_trees::proposition::PropositionEvidenceClassification::FactOnly => None,
-        typed_trees::proposition::PropositionEvidenceClassification::Witness {
-            interface, ..
-        } => interface.as_ref().map(CheckedEvidenceInterfaceIdentity::from_normalized),
-    };
-    CheckedPropositionApplication {
-        declaration: normalized.declaration,
-        binder_arguments: normalized
-            .binder_arguments
-            .into_iter()
-            .map(|argument| CheckedPropositionBinderArgument {
-                kind: match argument.kind {
-                    typed_trees::proposition::PropositionBinderArgumentKind::Type => {
-                        CheckedPropositionBinderArgumentKind::Type
-                    }
-                    typed_trees::proposition::PropositionBinderArgumentKind::Const => {
-                        CheckedPropositionBinderArgumentKind::Const
-                    }
-                    typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
-                        CheckedPropositionBinderArgumentKind::Machine
-                    }
-                },
-                diagnostic_label: argument.identity,
-                evidence_projection: None,
-            })
-            .collect(),
-        arguments: normalized.arguments,
-        evidence_interface,
+        normalized: typed_trees::proposition::NormalizedPropositionApplicationIdentity,
+    ) -> Self {
+        let evidence_interface = match &normalized.classification {
+            typed_trees::proposition::PropositionEvidenceClassification::FactOnly => None,
+            typed_trees::proposition::PropositionEvidenceClassification::Witness {
+                interface,
+                ..
+            } => interface
+                .as_ref()
+                .map(CheckedEvidenceInterfaceIdentity::from_normalized),
+        };
+        CheckedPropositionApplication {
+            declaration: normalized.declaration,
+            binder_arguments: normalized
+                .binder_arguments
+                .into_iter()
+                .map(|argument| CheckedPropositionBinderArgument {
+                    kind: match argument.kind {
+                        typed_trees::proposition::PropositionBinderArgumentKind::Type => {
+                            CheckedPropositionBinderArgumentKind::Type
+                        }
+                        typed_trees::proposition::PropositionBinderArgumentKind::Const => {
+                            CheckedPropositionBinderArgumentKind::Const
+                        }
+                        typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
+                            CheckedPropositionBinderArgumentKind::Machine
+                        }
+                    },
+                    diagnostic_label: argument.identity,
+                    evidence_projection: None,
+                })
+                .collect(),
+            arguments: normalized.arguments,
+            evidence_interface,
+        }
     }
-}
-
-
 }
 impl CheckedEvidenceInterfaceIdentity {
     pub fn from_normalized(
-    interface: &typed_trees::proposition::NormalizedEvidenceInterfaceIdentity,
-) -> Self {
-    CheckedEvidenceInterfaceIdentity {
-        trait_symbol: interface.trait_symbol,
-        arguments: interface.arguments.clone(),
-        requirements: interface
-            .requirements
-            .iter()
-            .map(
-                |requirement| CheckedEvidenceRequirementIdentity {
+        interface: &typed_trees::proposition::NormalizedEvidenceInterfaceIdentity,
+    ) -> Self {
+        CheckedEvidenceInterfaceIdentity {
+            trait_symbol: interface.trait_symbol,
+            arguments: interface.arguments.clone(),
+            requirements: interface
+                .requirements
+                .iter()
+                .map(|requirement| CheckedEvidenceRequirementIdentity {
                     declaring_trait: requirement.declaring_trait,
                     declaring_trait_arguments: requirement.declaring_trait_arguments.clone(),
                     requirement: requirement.requirement,
-                },
-            )
-            .collect(),
+                })
+                .collect(),
+        }
     }
-}
-
-
 }

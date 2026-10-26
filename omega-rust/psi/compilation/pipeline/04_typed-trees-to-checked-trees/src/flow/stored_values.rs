@@ -118,17 +118,29 @@ pub(crate) fn append_preserved_binding(
     destination: &CanonicalPlace,
     source: Handle<checked_trees::FlowStorageSnapshot>,
 ) -> Handle<checked_trees::FlowStorageSnapshot> {
-    if !destination.segments.iter().all(super::place_segment_has_static_identity) {
+    if !destination
+        .segments
+        .iter()
+        .all(super::place_segment_has_static_identity)
+    {
         return previous;
     }
-    let segments = control.operand_referent_segments.insert_many(destination.segments.iter().copied());
-    control.storage_snapshots.insert(checked_trees::FlowStorageSnapshot {
-        previous,
-        operation: checked_trees::FlowStorageOperation::PreserveBinding {
-            destination: FlowOperandReferent { formation: Handle::invalid(), root: destination.root, segments },
-            source,
-        },
-    })
+    let segments = control
+        .operand_referent_segments
+        .insert_many(destination.segments.iter().copied());
+    control
+        .storage_snapshots
+        .insert(checked_trees::FlowStorageSnapshot {
+            previous,
+            operation: checked_trees::FlowStorageOperation::PreserveBinding {
+                destination: FlowOperandReferent {
+                    formation: Handle::invalid(),
+                    root: destination.root,
+                    segments,
+                },
+                source,
+            },
+        })
 }
 
 pub(crate) fn join(
@@ -152,18 +164,14 @@ pub(crate) fn join(
 }
 
 pub(in crate::flow) fn invalidates_destination(
-        program: &dyn validation::CheckingInput,
-        writes: Option<&[CanonicalPlace]>,
-        destination: &CanonicalPlace,
-    ) -> bool {
-        writes.is_none_or(|writes| {
-            writes.iter().any(|write| {
-                write.root == destination.root
-                    && super::operand_contexts::binding_overwrite(
-                        program,
-                        destination,
-                        &write.segments,
-                    )
-            })
+    program: &dyn validation::CheckingInput,
+    writes: Option<&[CanonicalPlace]>,
+    destination: &CanonicalPlace,
+) -> bool {
+    writes.is_none_or(|writes| {
+        writes.iter().any(|write| {
+            write.root == destination.root
+                && super::operand_contexts::binding_overwrite(program, destination, &write.segments)
         })
-    }
+    })
+}

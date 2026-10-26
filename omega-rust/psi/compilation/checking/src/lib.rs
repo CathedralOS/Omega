@@ -425,9 +425,6 @@ pub use proof_contracts::arithmetic_domains::{
     stored_integer_source_projection, stored_integer_source_projections,
     stored_integer_source_reach,
 };
-pub use proof_contracts::contract_entailment::{
-    CollectionBoundsObservations, StatementPredicateObservations,
-};
 pub use proof_contracts::contract_entailment::integer_embedding_sources_equal;
 pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
 pub use proof_contracts::contract_entailment::selected_value_call_requirement_entailed;
@@ -446,6 +443,9 @@ pub use proof_contracts::contract_entailment::{
     ranking_range_premise_symbols, ranking_range_required_coordinates,
     ranking_range_state_premise_coordinates, ranking_slice_length_observation,
     select_rank_arrival_correspondence,
+};
+pub use proof_contracts::contract_entailment::{
+    CollectionBoundsObservations, StatementPredicateObservations,
 };
 pub use proof_contracts::contract_entailment::{
     ComputationBodyShape, DeclaredScalarView, MeasureBodyShape, ProjectionStep,

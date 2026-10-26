@@ -375,10 +375,18 @@ pub(super) fn operator_statement_call_mutated_places(
         return Some(Vec::new());
     }
     let (_, operands) = operator_statement_operands(
-        program, build, caller_machine_symbol, caller_state_symbol, statement_index, call,
+        program,
+        build,
+        caller_machine_symbol,
+        caller_state_symbol,
+        statement_index,
+        call,
     )?;
-    operands.into_iter().filter(|operand| operand.is_mutable)
-        .map(|operand| operand.place).collect()
+    operands
+        .into_iter()
+        .filter(|operand| operand.is_mutable)
+        .map(|operand| operand.place)
+        .collect()
 }
 
 /// Introduce domain memberships guaranteed by a named boundary/operator call

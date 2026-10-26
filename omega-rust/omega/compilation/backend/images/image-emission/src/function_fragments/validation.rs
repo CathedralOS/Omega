@@ -214,9 +214,11 @@ fn validate(
                     frame.is_some_and(|frame| frame.contains_call),
                 ),
                 text.target.architecture,
-                *temporary_stack_bytes.get(&placed.machine).ok_or(Error::Mismatch(
-                    "missing selected function for temporary stack replay",
-                ))?,
+                *temporary_stack_bytes
+                    .get(&placed.machine)
+                    .ok_or(Error::Mismatch(
+                        "missing selected function for temporary stack replay",
+                    ))?,
                 &calls,
                 function.unit_stack,
                 function.scalar_stack,

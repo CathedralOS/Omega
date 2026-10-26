@@ -279,7 +279,10 @@ impl TypedTrees {
         while enclosing.is_valid() {
             if let Some(declaration) = self.machine_by_symbol(enclosing) {
                 for parameter in self.machine_type_parameters(declaration) {
-                    if !type_parameters.iter().any(|existing| same_type_parameter(existing, parameter)) {
+                    if !type_parameters
+                        .iter()
+                        .any(|existing| same_type_parameter(existing, parameter))
+                    {
                         type_parameters.push(parameter.clone());
                     }
                 }

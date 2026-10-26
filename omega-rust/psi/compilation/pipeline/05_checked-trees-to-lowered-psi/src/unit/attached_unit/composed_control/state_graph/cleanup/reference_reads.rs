@@ -4,11 +4,11 @@
 //! forward the saved reference. The complete emitted use inventory authenticates that selected endpoint;
 //! later reads on another continuation retain their own live descriptor.
 
+use crate::LoweringError;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use checked_trees::{CheckedComposedUnitControlStatePlan, CheckedUnitEffectOperationPlan};
 use semantic_vocabulary::PlaceId;
 use terminal_psi::{Block, TerminalAffineCleanupAction, Terminator};
-use crate::LoweringError;
 
 /// Resolve each deferred whole-carrier release before mutating the block
 /// graph. The caller queries the completed emitted carrier, so source use

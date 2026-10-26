@@ -74,7 +74,10 @@ pub(crate) fn is_image_storage_root(
         return false;
     };
     program.expression_table.expression_is_valid(expression)
-        && matches!(program.expression_table.expression(expression), ExpressionNode::String(_))
+        && matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::String(_)
+        )
 }
 
 pub(crate) fn borrow_access_place(

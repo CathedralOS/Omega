@@ -624,8 +624,10 @@ impl super::TypedTrees {
         if !data_symbol.is_valid() {
             return false;
         }
-        if self.unique_data_definition_by_symbol(data_symbol)
-            .is_some_and(|data| data.cleanup_selection.is_some()) {
+        if self
+            .unique_data_definition_by_symbol(data_symbol)
+            .is_some_and(|data| data.cleanup_selection.is_some())
+        {
             return true;
         }
         self.declaration_indexes.attached_drops.with(

@@ -78,8 +78,10 @@ fn incoming_reference_survives_call(
             ),
         };
         return !super::super::stored_values::invalidates_destination(
-                        program, Some(binding_writes), &destination,
-                    );
+            program,
+            Some(binding_writes),
+            &destination,
+        );
     }
     !borrow
         .reference_slot_effects

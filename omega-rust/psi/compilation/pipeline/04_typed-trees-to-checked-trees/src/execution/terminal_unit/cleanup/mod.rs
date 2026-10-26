@@ -283,7 +283,9 @@ pub(crate) fn nominal_cleanup_target_matches(
     let [receiver] = program.state_parameters(state) else {
         return false;
     };
-    let TypeReferenceNode::Reference { access, referee, .. } = program
+    let TypeReferenceNode::Reference {
+        access, referee, ..
+    } = program
         .type_reference_table
         .type_reference(receiver.type_reference)
     else {

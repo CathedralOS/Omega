@@ -254,11 +254,10 @@ impl StateGraphEmission<'_, '_> {
             &mut self.catalogs.temporary_places,
         )?;
         evaluation.blocks.extend(edge_blocks);
-        let reference_retirements = super::super::cleanup::observed_reference_retirements(
-            state,
-            &operations,
-            |place| evaluation.descriptor_retirement(place, &operations),
-        )?;
+        let reference_retirements =
+            super::super::cleanup::observed_reference_retirements(state, &operations, |place| {
+                evaluation.descriptor_retirement(place, &operations)
+            })?;
         super::super::cleanup::retire_observed_references(
             &reference_retirements,
             &operations,

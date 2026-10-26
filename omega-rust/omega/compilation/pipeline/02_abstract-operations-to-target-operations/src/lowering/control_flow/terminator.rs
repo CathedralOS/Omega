@@ -157,8 +157,11 @@ pub(super) fn plain_home_cleanup(
                                 live.block_views.contains(place),
                                 live.retired_reference_roots.contains(place),
                                 live.structural_homes.get(place).map(|home| (
-                                    home.structural_type(), home.access(), home.multiplicity(),
-                                    home.qualifications(), home.projected_qualifications(),
+                                    home.structural_type(),
+                                    home.access(),
+                                    home.multiplicity(),
+                                    home.qualifications(),
+                                    home.projected_qualifications(),
                                 )),
                             );
                         }
