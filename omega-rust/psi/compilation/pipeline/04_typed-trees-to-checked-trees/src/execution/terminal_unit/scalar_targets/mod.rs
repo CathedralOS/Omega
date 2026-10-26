@@ -401,13 +401,14 @@ pub(super) fn available_target(
                 }
                 Some((result, Some(producer.authored_expression)))
             }
-            CheckedUnitEffectOperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, .. },
-            )
-            | CheckedUnitEffectOperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { result, .. },
-            ) => Some((result, None)),
-            _ => None,
+            // Named results share one namespace regardless of their producer
+            // (construction, reference formation, or an owned field move).
+            // Rebuilding only literal/call bindings loses the exact local that
+            // statement sequencing already supplied to the argument transfer.
+            _ => operation
+                .statement_structural_result_binding()
+                .filter(|result| result.local.symbol.is_valid())
+                .map(|result| (result, None)),
         })
         .filter_map(|(result, expression)| {
             if let Some(expression) = expression {
@@ -420,6 +421,9 @@ pub(super) fn available_target(
             else {
                 return None;
             };
+            if local.symbol != result.local.symbol {
+                return None;
+            }
             Some((result.clone(), facts::PlaceRoot::Symbol(local.symbol)))
         })
         .collect::<Vec<_>>();
