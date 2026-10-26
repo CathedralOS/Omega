@@ -71,7 +71,8 @@ pub(crate) fn admit_machine_rankings(
                     .is_some_and(|topology| topology.requires_arrival_witness(position))
         });
         let mut local_terminates =
-            machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody && !cycle;
+            machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody && !cycle
+                && !topology.as_ref().is_some_and(|topology| topology.requires_arrival_witness(position));
         let mut entry_rank_formed = false;
         let mut diagnostic = String::new();
         if needs_judgment {

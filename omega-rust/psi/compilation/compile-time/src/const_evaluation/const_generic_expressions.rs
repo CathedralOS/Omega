@@ -449,7 +449,7 @@ pub(super) fn append_named_probe(
     });
     let state = syntax.items.append_state_handle(state);
     syntax.push_root_item(Item::Machine(Machine {
-        nested_machines: Vec::new(),
+        nested_machines: HandleSpan::empty(),
         name: name.clone(),
         generic_data_template: Default::default(),
         default_body_trait: Default::default(),

@@ -214,7 +214,7 @@ pub(super) fn assign_top_level_symbols(
         program.roots.machines,
         SymbolKind::Machine,
         declaration,
-        declaration.lexical_parent.is_none()
+        !declaration.lexical_parent.is_valid()
     );
     bind_cohort!(
         program.roots.propositions,
@@ -251,39 +251,6 @@ pub(super) fn assign_top_level_symbols(
         return diagnostics;
     }
 
-    // The nested roster is preorder: every lexical parent is already bound.
-    // Bind exact Machine children in declaration order, never by spelling.
-    let mut child_ordinals = std::collections::HashMap::<usize, usize>::new();
-    for index in 0..program.machines.len() {
-        let Some(parent) = program.machines[index].lexical_parent else {
-            continue;
-        };
-        if parent >= index {
-            diagnostics.push(diagnostics::Diagnostic::error(
-                "nested machine lost its lexical ancestry",
-            ));
-            continue;
-        }
-        let ordinal = child_ordinals.entry(parent).or_default();
-        let symbol = symbols
-            .child_handles(program.machines[parent].symbol)
-            .into_iter()
-            .flatten()
-            .filter(|symbol| symbols.get(*symbol).kind == SymbolKind::Machine)
-            .nth(*ordinal)
-            .unwrap_or_else(SymbolHandle::invalid);
-        *ordinal += 1;
-        if !symbol.is_valid() {
-            diagnostics.push(diagnostics::Diagnostic::error(
-                "nested machine lost its lexical declaration symbol",
-            ));
-        } else {
-            program.machines[index].symbol = symbol;
-        }
-    }
-    if !diagnostics.is_empty() {
-        return diagnostics;
-    }
     assign_domain_symbols(program, symbols);
     assign_data_symbols(program, symbols);
     assign_conformance_parameter_symbols(program, symbols);
