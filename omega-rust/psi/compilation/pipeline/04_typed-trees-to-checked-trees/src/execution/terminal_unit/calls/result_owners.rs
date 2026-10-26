@@ -9,7 +9,7 @@ use checked_trees::{
 use facts::PlaceRoot;
 use symbols::SymbolHandle;
 
-pub(super) fn structural_result_owner(
+pub(in crate::execution::terminal_unit) fn structural_result_owner(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     state: SymbolHandle,
