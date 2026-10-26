@@ -7,15 +7,18 @@ author rebase/review merely because main advanced.
 
 ## Submit a finished change
 
-Work in an isolated worktree. Finish focused checks and any explicitly required
-review on the submitted source. Record the actual revision, commands, results,
-known limitations and claim ticket in the PR. Required review follows changes to
-meaning, not each queue-generated SHA. Resolve actual conflicts or failed checks;
-do not repeatedly refresh an otherwise eligible PR against moving main.
+Work in an isolated detached-HEAD worktree (`git worktree add --detach .agents/worktree/<short-name> origin/main`).
+Never develop or edit files in the primary repository checkout, and never create local named branches.
+Finish focused checks and any explicitly required review on the submitted source.
+Never chase main by rebasing, rebuilding, or re-running gates: once the PR is submitted,
+GitHub Actions CI executes the integration build and checks in the merge queue.
+Record the actual revision, commands, results, known limitations and claim ticket in the PR.
+Required review follows changes to meaning, not each queue-generated SHA.
+Resolve actual conflicts or failed checks; do not repeatedly refresh an otherwise eligible PR against moving main.
 
 Python 3, Git and an authenticated GitHub CLI (`gh`) work on Windows, macOS and
 Linux. Commands below use `python`; use `python3` if that is its installed name.
-Choose a unique `work/NAME` branch and replace `NUMBER` and `FULL_HEAD_SHA` with
+Choose a unique remote ref name `work/NAME` and replace `NUMBER` and `FULL_HEAD_SHA` with
 the PR number and the full output of `git rev-parse HEAD`:
 
 ```text
@@ -105,12 +108,13 @@ git merge-base --is-ancestor PUBLISHED_SHA origin/main
 
 Squash publication means the local source HEAD need not be an ancestor of main.
 The merged PR binds that source to publication. Preserve both IDs and the PR/run
-URLs. Only then release the work claim and remove task-owned, clean worktrees
-and branches if no processes or unique evidence still need them. Inspect status
-and ensure HEAD still equals the merged PR head before removal. Never clean
-another session's work, shared caches, dirty trees or unsubmitted later commits.
-For a squash-landed branch, deletion may need `git branch -D` after those checks;
-failure of `git branch -d` alone is not proof the work is unpublished.
+URLs. Only then release the work claim. Worktrees should generally be retained and
+reused as warm build workbenches (`git checkout --detach origin/main`) to accelerate
+future compilation. Remove task-owned worktrees (`git worktree remove <path>`) only
+when explicitly requested or reclaiming disk space. Because development uses
+detached-HEAD worktrees, no local branch deletion is needed. Inspect status and ensure
+HEAD still equals the merged PR head before any removal. Never clean another session's
+work, shared caches, dirty trees or unsubmitted later commits.
 
 Postlanding verification is read-only PR/commit/CI observation; it never requires
 a local rebuild or acceptance rerun. Leave the starting checkout at its recorded
