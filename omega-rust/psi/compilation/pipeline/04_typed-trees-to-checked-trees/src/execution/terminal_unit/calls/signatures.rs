@@ -289,6 +289,34 @@ pub(crate) fn free_structural_scalar_signature_traced(
     scalar_and_structural_parameters(program, shapes, state, binders, trace)
 }
 
+/// The entry roster shared by composed bodies and their public family heads.
+/// Ordinary invocations retain Requires in their separate contract channel;
+/// composed graphs additionally expose authored entry memberships as invariants.
+pub(crate) fn free_structural_scalar_entry_signature_traced(
+    program: &dyn ::validation::CheckingInput,
+    shapes: &mut ShapeCollector<'_>,
+    state: &typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+    trace: &LocalConstructionTrace,
+) -> Option<(
+    Vec<CheckedUnitStructuralParameterPlan>,
+    Vec<CheckedStructuralScalarParameterPlan>,
+)> {
+    let (mut structural, scalar) =
+        free_structural_scalar_signature_traced(program, shapes, state, binders, trace)?;
+    let (owner, _) = validation::find_state(program, state.symbol)?;
+    // The published invocation and its composed body share the authored
+    // entry contract. Arrival-derived facts remain local to the body graph.
+    super::super::types::fold_parameter_entry_domains(
+        program,
+        shapes,
+        owner,
+        state,
+        &mut structural,
+    )?;
+    Some((structural, scalar))
+}
+
 fn scalar_and_structural_parameters(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,

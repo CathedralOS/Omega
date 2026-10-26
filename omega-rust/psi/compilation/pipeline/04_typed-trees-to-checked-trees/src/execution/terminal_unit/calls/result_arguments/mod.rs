@@ -193,6 +193,7 @@ fn argument_contract(
             parameter,
             target_identity,
             trace,
+            selectors,
         );
     }
     // Anonymous producers publish the same stored descriptor as named locals.
@@ -247,6 +248,7 @@ fn argument_contract(
                 parameter,
                 target_identity,
                 trace,
+                selectors,
             );
         }
     }

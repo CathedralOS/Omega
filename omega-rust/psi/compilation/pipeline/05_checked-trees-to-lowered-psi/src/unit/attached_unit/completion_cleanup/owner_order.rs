@@ -146,8 +146,7 @@ pub(crate) fn selection(
         let parameter = evaluation
             .structural_parameters
             .iter()
-            .find(|(_, declaration)| declaration.place == place)
-            .map(|(position, _)| (0, *position, 0));
+            .find(|(_, declaration)| declaration.place == place);
         // Both the retained old source and the current replacement belong to
         // one named declaration. Current storage is an exact published alias;
         // an equal type or a younger producer cannot establish this relation.
@@ -179,6 +178,42 @@ pub(crate) fn selection(
             .structural_establishments
             .iter()
             .position(|root| *root == place);
+        let parameter = if let Some((position, current)) = parameter {
+            let materialized_ingress = explicit.is_none()
+                && current.access == terminal_psi::StructuralAccess::Owned
+                && evaluation.previous_parameter_homes.iter().any(|previous| {
+                    previous.position == current.position
+                        && previous.place != current.place
+                        && previous.access == terminal_psi::StructuralAccess::SharedBorrow
+                });
+            if materialized_ingress {
+                // Borrowed ingress owns no descriptor death. A later binding
+                // adopts a fresh completed carrier; order its intrinsic expiry
+                // at that receiving event, before the backing it then borrows.
+                // Explicit source dispositions retain their declared order.
+                let receiving = evaluation
+                    .structural_value_owners
+                    .iter()
+                    .find(|owner| owner.value.place == place)
+                    .map(|owner| owner.statement)
+                    .or_else(|| produced.map(|result| result.statement_index))
+                    .or(operations.structural_materialization_statement(place, state)?)
+                    .ok_or(LoweringError::Unsupported(
+                        "rebound borrowed formal has no completed receiving occurrence",
+                    ))?;
+                Some((
+                    1,
+                    receiving,
+                    physical.ok_or(LoweringError::Unsupported(
+                        "rebound borrowed formal has no materialized descriptor",
+                    ))?,
+                ))
+            } else {
+                Some((0, *position, 0))
+            }
+        } else {
+            None
+        };
         let declared_order = explicit
             .map(|(kind, coordinate)| (kind, coordinate, if kind == 0 { 0 } else { usize::MAX }))
             .or(parameter)

@@ -51,8 +51,58 @@ pub(super) fn finish(
     parameters: &[PlaceId],
     next_obligation: &mut u64,
 ) -> Result<(), LoweringError> {
+    // A direct borrow of descriptor storage retains that physical owner,
+    // independently of the ultimate referent's checked logical loan. Loading
+    // through a reference does not borrow the descriptor bytes: stop at those
+    // crossings rather than inventing a dependency on the pointer container.
+    let owned_homes = machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .filter(|parameter| {
+            parameter.access == terminal_psi::StructuralAccess::Owned
+                && parameter.multiplicity != StructuralMultiplicity::Unrestricted
+        })
+        .map(|parameter| parameter.place)
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter_map(|operation| match &operation.result {
+                    terminal_psi::OperationResult::Structural(result)
+                        if result.multiplicity != StructuralMultiplicity::Unrestricted =>
+                    {
+                        Some(result.place)
+                    }
+                    _ => None,
+                }),
+        )
+        .collect::<BTreeSet<_>>();
+    let mut parents = parents.to_vec();
+    for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+        if let terminal_psi::OperationKind::EstablishReference { source, .. } = &operation.kind
+            && owned_homes.contains(&source.place)
+            && !source
+                .path
+                .iter()
+                .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Referent))
+            && let terminal_psi::OperationResult::Structural(result) = &operation.result
+            && result.place != source.place
+            && !parents.contains(&(result.place, source.place))
+        {
+            parents.push((result.place, source.place));
+        }
+    }
+    let parents = parents.as_slice();
+    let availability = super::super::loaned_local_homes::HomeAvailability::new(machine)?;
     let mut homes: Vec<Home> = Vec::new();
-    let mut supplied = owned_carrier_lifetimes(machine, headers, parents)?;
+    let mut supplied = carrier_lifetimes(machine, headers, parents)?;
     for chain in chains {
         let mut lifetime = Lifetime::default();
         for &(position, dense, parameter) in &chain.members {
@@ -119,7 +169,7 @@ pub(super) fn finish(
             } else {
                 homes.push(Home {
                     place: parent,
-                    lender: birth_header(machine, parent, headers)?,
+                    lender: birth_header(machine, parent, headers, &availability)?,
                     lifetime,
                     implicit_carrier: false,
                 });
@@ -130,7 +180,6 @@ pub(super) fn finish(
             break;
         }
     }
-    let availability = super::super::loaned_local_homes::HomeAvailability::new(machine)?;
     let mut remaining = (0..homes.len()).collect::<Vec<_>>();
     while !remaining.is_empty() {
         let ready = remaining
@@ -218,7 +267,7 @@ pub(super) fn finish(
             &actions,
             next_obligation,
         )?;
-        let earlier = earlier_homes(position, &homes, producers, parameters)?;
+        let earlier = earlier_homes(position, &homes, producers, machine)?;
         for header in &home.lifetime.members {
             let exit = ChainExit {
                 headers,
@@ -293,11 +342,12 @@ fn retain_storage(
     }
 }
 
-/// A moved aggregate keeps its contained loans through every later owned
-/// transport. Close the already-emitted owned handoffs backwards from state
-/// parameters, so inline values, local values and forwarded values share one
-/// route. This tracks lifetime only; a moved source never gains a second death.
-fn owned_carrier_lifetimes(
+/// Captured carriers retain their checked dependencies through later state
+/// handoffs, whether the carrier is owned or borrowed. Close the emitted
+/// handoffs backwards from exact state parameters. A borrowed projection can
+/// extend its source's lifetime but cannot move or dispose of that source;
+/// owned projections still need their complete dependency frontier.
+fn carrier_lifetimes(
     machine: &TerminalMachine,
     headers: &BTreeSet<BlockId>,
     parents: &[(PlaceId, PlaceId)],
@@ -324,12 +374,12 @@ fn owned_carrier_lifetimes(
                     ));
                 }
                 for (parameter, argument) in target.structural_parameters.iter().zip(arguments) {
-                    if argument.access != terminal_psi::StructuralAccess::Owned
-                        || !dependent_carriers.contains(&argument.place)
-                    {
+                    if !dependent_carriers.contains(&argument.place) {
                         continue;
                     }
-                    if !argument.path.is_empty() {
+                    if argument.access == terminal_psi::StructuralAccess::Owned
+                        && !argument.path.is_empty()
+                    {
                         return Err(LoweringError::Unsupported(
                             "retained owned transport needs an exact projected dependency frontier",
                         ));
@@ -349,7 +399,7 @@ fn owned_carrier_lifetimes(
         .filter(|block| headers.contains(&block.id))
     {
         for parameter in &block.structural_parameters {
-            if parameter.access == terminal_psi::StructuralAccess::Owned {
+            if dependent_carriers.contains(&parameter.place) {
                 supplied.push((
                     parameter.place,
                     Lifetime {
@@ -373,10 +423,9 @@ fn owned_carrier_lifetimes(
                     "owned lifetime transport lost its target",
                 ))?;
                 for (parameter, argument) in target.structural_parameters.iter().zip(arguments) {
-                    if argument.access != terminal_psi::StructuralAccess::Owned {
-                        continue;
-                    }
-                    if !argument.path.is_empty() {
+                    if argument.access == terminal_psi::StructuralAccess::Owned
+                        && !argument.path.is_empty()
+                    {
                         continue;
                     }
                     let Some((_, lifetime)) =
@@ -407,22 +456,12 @@ fn birth_header(
     machine: &TerminalMachine,
     home: PlaceId,
     headers: &BTreeSet<BlockId>,
+    availability: &super::super::loaned_local_homes::HomeAvailability,
 ) -> Result<BlockId, LoweringError> {
-    let birth = machine
-        .blocks
-        .iter()
-        .find(|block| {
-            block.operations.iter().any(|operation| {
-                operation
-                    .result
-                    .structural()
-                    .is_some_and(|result| result.place == home)
-            })
-        })
-        .ok_or(LoweringError::Unsupported(
-            "retained parent lost its owned birth",
-        ))?
-        .id;
+    // Moving an owned input or block parameter into a local keeps the same
+    // storage occurrence. Its birth is the invocation/arrival, not necessarily
+    // an operation result; use the shared occurrence-availability judgment.
+    let birth = machine.blocks[availability.birth(machine, home)?].id;
     let mut owners = headers
         .iter()
         .copied()
@@ -443,7 +482,7 @@ fn earlier_homes(
     current: usize,
     homes: &[Home],
     producers: &BTreeMap<PlaceId, OperationId>,
-    parameters: &[PlaceId],
+    machine: &TerminalMachine,
 ) -> Result<Vec<PlaceId>, LoweringError> {
     let mut pending = vec![current];
     let mut visited = vec![current];
@@ -453,9 +492,18 @@ fn earlier_homes(
             .get(&place)
             .map(|producer| (1, producer.get()))
             .or_else(|| {
-                parameters
+                // Invocation and block parameters are births too. Their
+                // declared order precedes operations in the owning region.
+                machine
+                    .structural_parameters
                     .iter()
-                    .position(|parameter| *parameter == place)
+                    .chain(
+                        machine
+                            .blocks
+                            .iter()
+                            .flat_map(|block| &block.structural_parameters),
+                    )
+                    .position(|parameter| parameter.place == place)
                     .map(|position| (0, position as u64))
             })
             .ok_or(LoweringError::Unsupported(

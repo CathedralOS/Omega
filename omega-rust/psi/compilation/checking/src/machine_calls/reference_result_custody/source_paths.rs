@@ -146,7 +146,7 @@ pub(super) fn structural_path(
     let mut payload = None;
     for segment in segments {
         selected = crate::peel_declared_constraints(program, selected);
-        if let Some(shell) = crate::reference_shell(program, selected) {
+        while let Some(shell) = crate::reference_shell(program, selected) {
             selected = shell.referee;
             path.push(CheckedUnitStructuralPathSegment::Referent);
         }
