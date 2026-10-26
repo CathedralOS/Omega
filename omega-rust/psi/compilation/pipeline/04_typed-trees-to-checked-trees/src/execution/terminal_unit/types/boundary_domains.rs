@@ -3,7 +3,9 @@
 //! predicates and nominal identity remain independent; neither provider choice
 //! nor projection of the numeric component can establish routed membership.
 
-use super::signature_contracts::signature_progress_requirement;
+use super::signature_contracts::{
+    normal_mutable_parameter_position, signature_progress_requirement,
+};
 use super::{
     CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralParameterPlan, ShapeCollector,
 };
@@ -74,12 +76,8 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements<'a>(
             // preserves existing memberships on one exact mutable formal;
             // it neither infers projected subjects nor grants new membership.
             if !entry
-                && !source_position.is_some_and(|position| {
-                    validation::reference_shell(program, source_parameters[position].type_reference)
-                        .is_some_and(|shell| {
-                            shell.access == language_semantics::ReferenceAccess::Mutable
-                        })
-                })
+                && normal_mutable_parameter_position(program, source_parameters, membership.value)
+                    .is_none()
             {
                 continue;
             }

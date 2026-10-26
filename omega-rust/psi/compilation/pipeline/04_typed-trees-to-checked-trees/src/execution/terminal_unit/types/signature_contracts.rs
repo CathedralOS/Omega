@@ -227,8 +227,9 @@ pub(in crate::execution::terminal_unit) fn qualification_carriers(
 /// route. The call-result custody checker owns that distinction and provider
 /// installation retains its separate admission obligation. Requiring an
 /// issuance route here incorrectly rejected preserved input qualifications.
-/// Non-result outputs and nonstructural carriers still need their own plans;
-/// never move their obligations onto a different returned value.
+/// Exact mutable-formal guarantees belong to the normal-parameter roster;
+/// never move their obligations onto a different returned value. Other
+/// non-result outputs and nonstructural carriers still need their own plans.
 pub(in crate::execution::terminal_unit) fn fold_boundary_result_domains(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
@@ -249,6 +250,15 @@ pub(in crate::execution::terminal_unit) fn fold_boundary_result_domains(
             if validation::reserved_result_owner(program, membership.value)
                 .is_none_or(|(owner, _)| owner != signature.symbol)
             {
+                if normal_mutable_parameter_position(
+                    program,
+                    program.state_signature_parameters(signature),
+                    membership.value,
+                )
+                .is_some()
+                {
+                    continue;
+                }
                 return None;
             }
             // A membership whose domain reference declares no value-domain theory
@@ -293,6 +303,22 @@ pub(in crate::execution::terminal_unit) fn fold_boundary_result_domains(
         multiplicity,
         qualifications,
         projected_qualifications,
+    })
+}
+
+/// A normal guarantee can preserve an existing qualification on this exact
+/// mutable formal. Projected subjects and shared/value inputs have different
+/// owners and cannot borrow that restoration authority.
+pub(super) fn normal_mutable_parameter_position(
+    program: &dyn ::validation::CheckingInput,
+    parameters: &[typed_trees::signature::StateParameter],
+    value: typed_trees::expression::ExpressionHandle,
+) -> Option<usize> {
+    let root = validation::single_segment_name_symbol(program, value)?;
+    parameters.iter().position(|parameter| {
+        parameter.symbol == root
+            && validation::reference_shell(program, parameter.type_reference)
+                .is_some_and(|shell| shell.access == language_semantics::ReferenceAccess::Mutable)
     })
 }
 
