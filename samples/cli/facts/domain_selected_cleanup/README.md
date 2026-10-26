@@ -10,14 +10,17 @@ reference through transport, then writes 7 to the original backing exactly once.
 Every standard place copies this sentence. The observer traps unless the original
 Counter contains value 7 and invocation count 1 after normal cleanup.
 
-Candidate 22, built from `f0a5b7ed756cf2570e7f7e15a4e260821d0242ae` with
+Candidate 33, built from `f2fcf548c9e66e4499ecd5621ede1ad010624262` with
 optimization level 1, passes all nine positive places with native exit 0 and
 Terminal interpreter exit 0 on Linux x86-64. Each corresponding invalid twin
 changes the prerequisite to code 6 and rejects on the missing code-7 obligation.
-The focused record contains 28 matching command expectations: producer profile,
-nine project updates, nine both-engine runs, and nine rejects. Every positive
-build binds all four hosted ProgramEntry targets; execution here qualifies only
-the actual Linux x86-64 host.
+The focused corpus records twelve positives checked and twenty-nine negatives
+rejected with their required diagnostic fragments. All twelve executable pins
+agree at exit 0 in both engines: the standard row plus predicate erasure and
+literal/computed inherited indices. These rows are registered in the checking
+and Linux x86-64 both-engine goldens with the exact candidate applied to recorded
+base `290b093a0ecc`. Every positive build binds all four hosted ProgramEntry
+targets; execution here qualifies only the actual Linux x86-64 host.
 
 | Place | Runtime result | Sensitive twin |
 | --- | --- | --- |
@@ -52,17 +55,13 @@ containers, and deeper/sibling/terminal nested calls. Controls cover conflicting
 applications, direct hook invocation, unauthorized selection, wrong carriers,
 crashing, exiting, fallible, blocking and suspending hooks, and cast erasure.
 The nine standard places and these controls have source pins under
-`tests/omega/{pass,fail}/facts/domain_selected_cleanup_*`; focused corpus
-qualification and golden registration remain pending.
+`tests/omega/{pass,fail}/facts/domain_selected_cleanup_*` and registered focused
+corpus outcomes.
 
-Integrated candidate 28 passes the direct indexed, indexed predicate and computed
-index productions in both engines. It also passes nested helpers beneath distinct
-result overloads and explicit predicate erasure that retains a default cleanup
-application. All sixteen conflict, authority, effect, erasure and scope controls
-reject on their intended obligations. Candidate 31 repeats the complete nine-place
-row on the integrated baseline: all nine both-engine runs and nine sensitive
-twins pass. Candidate 33 at `f2fcf548c9e66e4499ecd5621ede1ad010624262`
-also passes inherited literal and computed (`3 + 4`) index productions in both
+Additional runtime evidence passes direct indexed, indexed predicate and computed
+index productions, nested helpers beneath distinct result overloads, and explicit
+predicate erasure retaining a default cleanup application. Candidate 33 also
+passes inherited literal and computed (`3 + 4`) index productions in both
 engines, with their code-6 twins rejecting on `Label` membership. It checks the
 original const recipe before substituting a canonical value into the private
 applied theory. The overflow control rejects the exact out-of-carrier value
