@@ -40,6 +40,7 @@ fn main() {
     application_source_resolution("executed_dependency_source_join_exit", true);
     application_source_resolution("executed_dependency_shared_source_exit", false);
     project_session_lifecycle();
+    completed_build_target_fanout();
     interleaved_build_invocations();
     foreign_build_return_refuses();
     ignored_build_request_still_requires_join();
@@ -992,6 +993,119 @@ fn project_session_lifecycle() {
     assert_eq!(counters::build_execution_count(), before);
     println!(
         "ordinary_project_native_and_terminal_exit0_shared_discovery_budget_and_closed_session_refusals"
+    );
+}
+
+fn completed_build_target_fanout() {
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "build-target-fanout",
+        false,
+    )
+    .unwrap();
+    let fixture = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/build/project_session_shared_budget_exit");
+    let project = temporary.path().join("project");
+    std::fs::create_dir(&project).unwrap();
+    for name in ["main.omg", "build.omg"] {
+        std::fs::copy(fixture.join(name), project.join(name)).unwrap();
+    }
+    let host = target::TargetProfile::host_if_supported().unwrap();
+    let preparation = package_manager::operations::begin_local_project_preparation(
+        &project.join("main.omg"),
+        &[host],
+        true,
+    )
+    .unwrap()
+    .unwrap();
+    let mut session =
+        package_manager::PackageBuildSession::create(&temporary.path().join("session")).unwrap();
+    let before = counters::build_execution_count();
+    let mut resolved =
+        omega_build::resolve_project_sources(&mut session, preparation, host).unwrap();
+    let build = resolved.builds.pop().unwrap();
+    let inputs = build.package_inputs().clone();
+    let build = build.complete(session.compiler(), inputs.clone()).unwrap();
+    for name in ["main.omg", "build.omg"] {
+        std::fs::remove_file(project.join(name)).unwrap();
+    }
+    let windows = target::TargetProfile::from_omega_target_name(Some("windows_x86_64")).unwrap();
+    let linux = target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap();
+    let unbound_target =
+        target::TargetProfile::from_omega_target_name(Some("uefi_x86_64")).unwrap();
+    let mut products = Vec::new();
+    for profile in [windows, linux, unbound_target] {
+        let selected = build.select_target(profile, inputs.clone()).unwrap();
+        assert_eq!(selected.generated_source_bundle().target(), profile);
+        products.push((
+            (profile, false),
+            compiler::PreparedPackageProduct {
+                build: selected,
+                product: compiler::CompilationProduct::Terminal(Default::default()),
+                permissions: None,
+            },
+        ));
+    }
+    let wrong_purpose = inputs
+        .clone()
+        .with_compilation_purpose(build_declarations::DependencyPurpose::Build)
+        .unwrap();
+    let failure = build
+        .select_target(host, wrong_purpose)
+        .err()
+        .expect("target selection cannot reinterpret Product as Build scope");
+    assert!(failure.into_diagnostics().iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot change its source or semantic admission")
+    }));
+    products.push(((host, true), compiler::PreparedPackageProduct {
+        build,
+        product: compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+            private_entry_ram: Vec::new(),
+            terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+            terminal_authority_permission_policy: None,
+            optimization_rollback: Default::default(),
+        }),
+        permissions: None,
+    }));
+    let completions = counters::product_source_completion_count();
+    let outcomes = session
+        .compiler()
+        .complete_package_products(products)
+        .unwrap();
+    assert_eq!(outcomes.len(), 4);
+    for ((profile, native), outcome) in outcomes {
+        if profile == unbound_target {
+            let diagnostics = outcome
+                .err()
+                .expect("missing UEFI entry must refuse only this target")
+                .into_diagnostics();
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(
+                    "selected target `uefi_x86_64` has no bound required root slot `uefi_x86_64::ProgramEntry`"
+                    )),
+                "{diagnostics:?}"
+            );
+            continue;
+        }
+        let report = outcome.unwrap().into_report().unwrap();
+        if native {
+            execute_report(report, &temporary.path().join("native"));
+        } else {
+            let artifact = report.artifact().expect("portable target artifact");
+            let decoded =
+                terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+                    .unwrap();
+            assert_eq!(artifact.view().identity(), decoded.view().identity());
+        }
+    }
+    assert_eq!(counters::product_source_completion_count(), completions + 1);
+    assert_eq!(counters::build_execution_count(), before + 1);
+    session.close().unwrap();
+    println!(
+        "one_returned_build_one_product_source_two_portable_targets_host_native_terminal_exit0_and_isolated_target_refusal"
     );
 }
 

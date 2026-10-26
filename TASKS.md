@@ -1137,9 +1137,13 @@ narrows realization only.
   now use one application-owned package session, compiler and aggregate sponsors;
   source work cannot replenish a spent result allowance or start after closure.
   The captured executed graph passes subsequent admission with the same sponsor
-  identity after live deletion. Ordinary application native/Terminal execution
-  and focused review/preparation checks pass. Package tests preserve transaction
-  exclusion and refusal ordering. Production CLI discovery still consumes the
+  identity after live deletion. Completed Builds can select multiple targets
+  with equal source/semantic inputs, retaining the completed configuration and
+  each occurrence's execution observations. The SDK proves one Build and one
+  Product source completion produce two portable targets plus host native/Terminal
+  execution, isolating a missing-entry target refusal. Ordinary application
+  execution and focused review/preparation checks pass; transaction exclusion
+  and refusal ordering remain enforced. Production CLI discovery still consumes the
   static graph; it must consume these retained Builds across review and target
   occurrences. Ordinary one-shot compiler calls still own their execution loop.
   Extend pinned Git/workspace acquisition and preserve

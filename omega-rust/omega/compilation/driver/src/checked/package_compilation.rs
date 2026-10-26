@@ -56,6 +56,20 @@ impl PackageBuildInvocation {
 }
 
 impl PackageBuild {
+    /// Reuse this completed activation for an admitted product target with
+    /// equal source and semantic inputs. The completed observations are shared;
+    /// permissions remain on each requested product.
+    pub fn select_target(
+        &self,
+        target: target::TargetProfile,
+        inputs: package_compilation::PackageCompilationInputs,
+    ) -> Result<Self, CompileFailure> {
+        self.source
+            .select_target(target, inputs)
+            .map(|source| Self { source })
+            .map_err(CompileFailure::from)
+    }
+
     pub fn package_inputs(&self) -> &package_compilation::PackageCompilationInputs {
         self.source.package_inputs()
     }
