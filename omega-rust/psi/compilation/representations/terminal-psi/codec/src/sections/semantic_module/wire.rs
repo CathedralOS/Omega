@@ -229,3 +229,24 @@ pub(crate) fn decode_optional_id<I: PsiSemanticId>(
         tag => Err(CodecError::InvalidTag("OptionalSemanticId", tag)),
     }
 }
+
+/// Decode one standalone leaf transport through the canonical envelope:
+/// consume every byte of the input, then require the decoded value to
+/// re-encode to those exact bytes, so alternate spellings, unreachable rows
+/// or reordered tables cannot alias one artifact. This is the one place the
+/// envelope is decided; callers pass their byte-exact leaf pair.
+pub(crate) fn decode_canonical<T>(
+    bytes: &[u8],
+    decode: impl FnOnce(&mut Reader<'_>) -> Result<T, CodecError>,
+    encode: impl FnOnce(&T) -> Result<Vec<u8>, CodecError>,
+) -> Result<T, CodecError> {
+    let mut reader = Reader::new(bytes);
+    let value = decode(&mut reader)?;
+    if reader.remaining() != 0 {
+        return Err(CodecError::TrailingBytes(reader.remaining()));
+    }
+    if encode(&value)? != bytes {
+        return Err(CodecError::NonCanonicalEncoding);
+    }
+    Ok(value)
+}

@@ -22,13 +22,29 @@ struct CallerEffects {
 
 impl CallerEffects {
     fn inert(&self, program: &TypedTrees, expression: ExpressionHandle) -> bool {
-        validation::expression_traversal::inert_value_tree_with_calls(program, expression, |call| {
-            self.no_write_calls
-                .binary_search_by_key(&(call.arena_index(), call.generation()), |candidate| {
-                    (candidate.arena_index(), candidate.generation())
-                })
-                .is_ok()
-        })
+        validation::expression_traversal::inert_value_tree_with_operations(
+            program,
+            expression,
+            |operation| match program.expression_table.expression(operation) {
+                ExpressionNode::Call(_) => self
+                    .no_write_calls
+                    .binary_search_by_key(
+                        &(operation.arena_index(), operation.generation()),
+                        |candidate| (candidate.arena_index(), candidate.generation()),
+                    )
+                    .is_ok(),
+                ExpressionNode::Binary(_) => {
+                    program
+                        .machine_by_symbol(self.machine)
+                        .is_some_and(|machine| {
+                            validation::has_builtin_binary_expression_meaning(
+                                program, machine, None, operation,
+                            )
+                        })
+                }
+                _ => false,
+            },
+        )
     }
 }
 
@@ -497,9 +513,6 @@ fn capture_recipe(
     if !stable_literal && (earlier_effects || !effects.inert(program, expression)) {
         return None;
     }
-    if substitutions.is_empty() {
-        return Some(expression);
-    }
     let mut tree = Vec::new();
     validation::expression_traversal::collect_expression_tree(program, expression, &mut tree);
     for member in &tree {
@@ -512,9 +525,10 @@ fn capture_recipe(
             return None;
         }
     }
-    let mut staging = typed_trees::expression::ExpressionTable::default();
-    let staged = staging.copy_from(&program.expression_table, expression);
-    let copied = program.expression_table.copy_from(&staging, staged);
+    // A type application owns a recipe, not an executable occurrence. Keep
+    // its selected meaning and graph independent from the descriptor read;
+    // later execution/checking must not rewrite the signature's proof schema.
+    let copied = program.expression_table.insert_copy(expression);
     tree.clear();
     validation::expression_traversal::collect_expression_tree(program, copied, &mut tree);
     for member in tree {
@@ -526,6 +540,7 @@ fn capture_recipe(
             _ => None,
         };
         if let Some(actual) = replacement {
+            let actual = program.expression_table.insert_copy(actual);
             let value = program.expression_table.expression(actual).clone();
             *program.expression_table.expression_mut(member) = value;
         }

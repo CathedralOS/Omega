@@ -682,7 +682,7 @@ pub(crate) fn checked_method_arguments(
             TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => terminal_psi::ClosedReachArgument::Const(identities.intern(constants.next().ok_or(LoweringError::Unsupported("static method tuple lost a const argument"))?)),
             TypeParameterKind::Machine { .. } => {
                 let (selected, commitment) = machines.next().ok_or(LoweringError::Unsupported("static method tuple lost a Machine argument"))?;
-                terminal_psi::ClosedReachArgument::Machine { identity: identities.intern(&super::evidence_lowering::checked_evidence_machine_identity(checked, checked.typed.machine_holding_state(*selected).map_or(*selected, |machine| machine.symbol))?), contract_commitment: *commitment }
+                terminal_psi::ClosedReachArgument::Machine { identity: identities.intern(&super::closed_reach_applications::selected_static_machine_identity(checked, *selected)?), contract_commitment: *commitment }
             }
             _ => return Err(LoweringError::Unsupported("static method tuple contains an unsupported proposition or implementation argument")),
         });

@@ -9,7 +9,7 @@ Failure returns the removed token; success disposes that token and constructs
 its replacement. Neither outcome cancels the restoration debt.
 
 `repair` first consumes `holder.token` through `alias`, returns the result through
-`Outcome`, and repairs through `alias`. It then extracts again through that alias
+`Outcome`, and repairs through `alias` with an ordinary match expression. It then extracts again through that alias
 and repairs through the original owner path. Both calls may mutate only the
 disjoint `sibling`. Running both failure and success leaves token value 44 and
 sibling value 19. The caller checks those actual storage values and traps on
@@ -55,7 +55,30 @@ Recoverable failure is an ordinary result sum under [effects](../../../../wiki/s
 This row does not establish physical suspension/resume/cancellation or completion
 on unexercised native hosts. The parent capability remains open.
 
-## Baseline and validation
+## Current direct-match validation
+
+At frozen main `036605466510d2361fd579cf9fd97b722e070beb`, the existing
+helper-call repair already executes natively and in Terminal. Replacing only
+the first repair call with an equivalent exhaustive match wrongly rejects the
+second extraction through `alias`. The checker lost the saved match result
+type and treated the referent store as descriptor rebinding. Source identity
+SHA-256 for the frozen first-match probe is
+`337d3a72ab6f5b91c4f438a20caee182db9255c8876868c3c79cb7761750fb0a`.
+
+The repaired compiler retains actual saved-value typing, active-case transfer
+evidence, expression-result claim bindings and exact descriptor retirement
+occurrences across control joins. All nine positives now observe native 0 and
+Terminal 0 on Linux x86-64. All nine twins reject for the original unfilled
+`holder.token` window. A separate repeated-match composition fixture exercises
+both repairs as match expressions after the alias descriptor has ended; it
+also observes native 0 and Terminal 0. These observations use the fresh
+optimized compiler in `build/gate-cli`; raw logs, binary identity and source
+checkpoints are retained in `build/slot11-evidence/`.
+
+No execution on the other bound hosts, or physical suspension/cancellation
+acceptance, is claimed by these Linux observations.
+
+## Historical helper-call baseline and validation
 
 The reconstructed local witness was frozen before compiler edits with SHA-256
 `d7094bcb7e35b6091fd11c5a56c79271dab2fea90bdcb81de5257eec1cdc0030`.

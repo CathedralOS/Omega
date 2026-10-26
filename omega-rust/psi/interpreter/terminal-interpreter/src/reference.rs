@@ -118,8 +118,19 @@ pub(crate) fn discard_structural_value(
     referents: &mut RuntimeRows<StructuralRuntimePlace, ReferenceReferent>,
     element_views: &mut RuntimeRows<StructuralRuntimePlace, crate::element_views::ElementView>,
     place: PlaceId,
+    machine: &terminal_psi::TerminalMachine,
 ) -> Option<TerminalStructuralValue> {
     let value = values.remove(&place)?;
+    // A borrowed signature/block binding names the supplying descriptor's
+    // physical cells. Ending this loan retires its binding, not those cells:
+    // the owner can still observe or lend its stored descriptor afterward.
+    // Owned carriers keep ordinary subtree disposal, including moved inputs.
+    if machine
+        .structural_parameter(place)
+        .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
+    {
+        return Some(value);
+    }
     // Carrier paths belong to the discarded owner. Captured backing values
     // are map payloads, not descendants to dispose along with that owner.
     referents.retain(|carrier, _| {

@@ -3,10 +3,7 @@
 
 use super::super::TerminalRuntimeError;
 use calling_conventions::BoundaryCallingApplication;
-use semantic_vocabulary::{
-    IntegerSign, IntegerType, IntegerValue, ScalarType, StructuralFieldId, StructuralTypeId,
-};
-use target::{ForeignLocatorCandidate, TargetProfile};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
@@ -15,11 +12,9 @@ use terminal_interpreter::{
 };
 use terminal_psi::BoundaryMachineDeclaration;
 
-pub(super) struct IntegerDivisionImport {
-    signature: TerminalImportSignature,
-    structural_type: StructuralTypeId,
-    fields: [StructuralFieldId; 2],
-}
+/// The lldiv import is the shared two-word C record admission; the effect
+/// handler below owns only the quotient/remainder call contract.
+pub(super) type IntegerDivisionImport = super::scalar_record::ScalarRecordAdmission<2>;
 
 impl IntegerDivisionImport {
     pub(super) fn admit(
@@ -28,7 +23,12 @@ impl IntegerDivisionImport {
         binding: &NormalizedForeignCallBinding,
         application: Option<&BoundaryCallingApplication>,
     ) -> Result<Option<Self>, TerminalRuntimeError> {
-        if !matches_locator(binding)? {
+        if !super::matches_platform_c_symbol(
+            binding,
+            b"lldiv",
+            &[b"/usr/lib/libSystem.B.dylib".as_slice()],
+            Some(b"api-ms-win-crt-utility-l1-1-0.dll".as_slice()),
+        )? {
             return Ok(None);
         }
         let integer = IntegerType::new(IntegerSign::Signed, 64)
@@ -42,61 +42,8 @@ impl IntegerDivisionImport {
             &[scalar, scalar],
             [scalar, scalar],
         )?;
-        Ok(Some(Self {
-            signature: admitted.signature,
-            structural_type: admitted.structural_type,
-            fields: admitted.fields,
-        }))
+        Ok(Some(admitted))
     }
-}
-
-fn matches_locator(binding: &NormalizedForeignCallBinding) -> Result<bool, TerminalRuntimeError> {
-    let Some((locator, _)) = binding.import() else {
-        return Ok(false);
-    };
-    let target = locator.target();
-    let (host, candidate) = match target {
-        TargetProfile::MacosArm64 | TargetProfile::MacosX64 => (
-            cfg!(target_os = "macos"),
-            ForeignLocatorCandidate::MachODylibSymbol {
-                install_name: b"/usr/lib/libSystem.B.dylib".to_vec(),
-                symbol: b"_lldiv".to_vec(),
-            },
-        ),
-        TargetProfile::LinuxX64 | TargetProfile::LinuxArm64 => (
-            cfg!(target_os = "linux"),
-            ForeignLocatorCandidate::ElfVersioned {
-                object: b"libc.so.6".to_vec(),
-                symbol: b"lldiv".to_vec(),
-                version: if target == TargetProfile::LinuxX64 {
-                    b"GLIBC_2.2.5".to_vec()
-                } else {
-                    b"GLIBC_2.17".to_vec()
-                },
-            },
-        ),
-        TargetProfile::WindowsX64 => (
-            cfg!(target_os = "windows"),
-            ForeignLocatorCandidate::PeByName {
-                library: b"api-ms-win-crt-utility-l1-1-0.dll".to_vec(),
-                export: b"lldiv".to_vec(),
-            },
-        ),
-        _ => return Ok(false),
-    };
-    let host_arch = match target {
-        TargetProfile::MacosArm64 | TargetProfile::LinuxArm64 => cfg!(target_arch = "aarch64"),
-        TargetProfile::MacosX64 | TargetProfile::LinuxX64 | TargetProfile::WindowsX64 => {
-            cfg!(target_arch = "x86_64")
-        }
-        _ => false,
-    };
-    if !host || !host_arch {
-        return Ok(false);
-    }
-    let expected = target::normalize_foreign_locator(candidate, target)
-        .map_err(|_| TerminalRuntimeError::InvalidProvision("lldiv host locator is invalid"))?;
-    Ok(*locator == expected)
 }
 
 import_signature_via_clone!(IntegerDivisionImport);

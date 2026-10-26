@@ -4,15 +4,15 @@
 //! (`borrowed_windows.rs`):
 //! both copy one resolved extent of a root into a fresh home, and differ only
 //! in the custody the abstract operation already verified.
-use super::LiveDefinitions;
+use super::RowSite;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation};
+use abstract_operations::AbstractOperation;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralTypeId,
 };
 use std::collections::{BTreeMap, BTreeSet};
-use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+use target_operations::TargetUnitOperation;
 use terminal_psi::{StructuralOperationResult, StructuralPathSegment, StructuralTypeShape};
 
 /// Transport a selected value into its fresh physical home. Read-only copies
@@ -20,12 +20,9 @@ use terminal_psi::{StructuralOperationResult, StructuralPathSegment, StructuralT
 /// abstract operation keeps that distinction after the bytes share one route.
 pub(super) fn transport(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
+    site: &mut RowSite<'_>,
 ) -> Result<(), LoweringError> {
+    let (function, types) = (site.function, site.types);
     let owned_path;
     let (psi_operation, result, source, path, transfer) = match operation {
         AbstractOperation::StructuralLeafCopy {
@@ -56,11 +53,12 @@ pub(super) fn transport(
         }
         _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
     };
-    let root_type = live
+    let root_type = site
+        .live
         .structural_observation_type(function, source)
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if transfer.is_none()
-        && let Some(home) = live.structural_homes.get(&source)
+        && let Some(home) = site.live.structural_homes.get(&source)
         && home.has_claims()
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -71,7 +69,7 @@ pub(super) fn transport(
         super::references::subtree_leaves(
             function,
             types,
-            live,
+            site.live,
             &[],
             result.structural_type,
             argument,
@@ -81,22 +79,11 @@ pub(super) fn transport(
         )?;
         BTreeMap::new()
     } else {
-        super::references::copied_leaves(function, types, live, result, source, path)?
+        super::references::copied_leaves(function, types, site.live, result, source, path)?
     };
-    copy_extent(
-        psi_operation,
-        result,
-        source,
-        path,
-        root_type,
-        function,
-        types,
-        live,
-        operations,
-        provenance,
-    )?;
-    live.references.extend(copied);
-    super::references::relocate_leaves(live, result.place, relocations, moved_leaves);
+    copy_extent(psi_operation, result, source, path, root_type, site)?;
+    site.live.references.extend(copied);
+    super::references::relocate_leaves(site.live, result.place, relocations, moved_leaves);
     Ok(())
 }
 
@@ -112,12 +99,9 @@ pub(super) fn copy_extent(
     source: PlaceId,
     path: &abstract_operations::StructuralCopyPath,
     root_type: StructuralTypeId,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
+    site: &mut RowSite<'_>,
 ) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
     let (endpoint, shape, byte_offset, indices) = match path {
         abstract_operations::StructuralCopyPath::Case(path) => {
             let (endpoint, shape, offset) = crate::lowering::structural_layout::case_projection(

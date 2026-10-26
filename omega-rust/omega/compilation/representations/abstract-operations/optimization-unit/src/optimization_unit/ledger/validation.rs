@@ -7,19 +7,10 @@ pub(super) fn validate_provenance(
     if rows.is_empty() || rows.iter().any(|row| row.sources.is_empty()) {
         return Err(InvalidPsiTransformationLedger::EmptyProvenance);
     }
-    if rows.windows(2).any(|pair| {
-        let left = (
-            pair[0].input,
-            pair[0].disposition.canonical_tag(),
-            pair[0].disposition.site(),
-        );
-        let right = (
-            pair[1].input,
-            pair[1].disposition.canonical_tag(),
-            pair[1].disposition.site(),
-        );
-        left >= right
-    }) {
+    if rows
+        .windows(2)
+        .any(|pair| pair[0].canonical_sort_key() >= pair[1].canonical_sort_key())
+    {
         return Err(InvalidPsiTransformationLedger::NonCanonicalProvenance);
     }
     for group in rows.chunk_by(|left, right| left.input == right.input) {

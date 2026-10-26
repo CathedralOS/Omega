@@ -6,7 +6,6 @@ use calling_conventions::{
     BoundaryCallingApplication, BoundaryValueClass, BoundaryValueGraph, CallSignature, ValueShape,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
-use target::TargetProfile;
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::TerminalImportSignature;
 use terminal_psi::{
@@ -18,54 +17,16 @@ use super::{AddressContract, AddressOperation, TerminalRuntimeError};
 pub(super) fn select(
     binding: &NormalizedForeignCallBinding,
 ) -> Result<Option<AddressOperation>, TerminalRuntimeError> {
-    let Some((locator, _)) = binding.import() else {
-        return Ok(None);
-    };
-    let target = locator.target();
-    // An exact target's runtime supply cannot be borrowed from another host.
-    let host = match target {
-        TargetProfile::LinuxX64 => cfg!(all(target_os = "linux", target_arch = "x86_64")),
-        TargetProfile::LinuxArm64 => cfg!(all(target_os = "linux", target_arch = "aarch64")),
-        TargetProfile::MacosArm64 => cfg!(all(target_os = "macos", target_arch = "aarch64")),
-        TargetProfile::MacosX64 => cfg!(all(target_os = "macos", target_arch = "x86_64")),
-        TargetProfile::WindowsX64 => cfg!(all(target_os = "windows", target_arch = "x86_64")),
-        _ => false,
-    };
-    if !host {
-        return Ok(None);
-    }
     for (symbol, operation) in [
-        ("inet_makeaddr", AddressOperation::Make),
-        ("inet_lnaof", AddressOperation::Host),
+        (b"inet_makeaddr".as_slice(), AddressOperation::Make),
+        (b"inet_lnaof".as_slice(), AddressOperation::Host),
     ] {
-        let candidate = match target {
-            TargetProfile::LinuxX64 | TargetProfile::LinuxArm64 => {
-                target::ForeignLocatorCandidate::ElfVersioned {
-                    object: b"libc.so.6".to_vec(),
-                    symbol: symbol.as_bytes().to_vec(),
-                    version: if target == TargetProfile::LinuxX64 {
-                        b"GLIBC_2.2.5".to_vec()
-                    } else {
-                        b"GLIBC_2.17".to_vec()
-                    },
-                }
-            }
-            TargetProfile::MacosArm64 | TargetProfile::MacosX64 => {
-                target::ForeignLocatorCandidate::MachODylibSymbol {
-                    install_name: b"/usr/lib/libSystem.B.dylib".to_vec(),
-                    symbol: format!("_{symbol}").into_bytes(),
-                }
-            }
-            TargetProfile::WindowsX64 => target::ForeignLocatorCandidate::PeByName {
-                library: runtime_abi::WINDOWS_INTERNET_PROVIDER_LIBRARY.to_vec(),
-                export: symbol.as_bytes().to_vec(),
-            },
-            _ => return Ok(None),
-        };
-        let offered = target::normalize_foreign_locator(candidate, target).map_err(|_| {
-            TerminalRuntimeError::InvalidProvision("inet implementation has an invalid locator")
-        })?;
-        if offered == *locator {
+        if super::super::matches_platform_c_symbol(
+            binding,
+            symbol,
+            &[b"/usr/lib/libSystem.B.dylib".as_slice()],
+            Some(runtime_abi::WINDOWS_INTERNET_PROVIDER_LIBRARY),
+        )? {
             return Ok(Some(operation));
         }
     }

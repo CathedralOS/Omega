@@ -93,8 +93,7 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     }
     machine_parameter_requirements::normalize_nominal_machine_parameter_requirements(
         &mut lowerer.symbol_resolved_trees,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
+    )?;
     machine_parameter_requirements::normalize_trait_machine_requirement_arguments(
         &mut lowerer.symbol_resolved_trees,
     )

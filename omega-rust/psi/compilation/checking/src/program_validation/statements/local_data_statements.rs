@@ -50,6 +50,8 @@ pub(super) fn validate(
         diagnostics,
         TypeReferenceOwner::StateLocalData {
             machine,
+            current_state,
+            value_environment,
             state: state_name,
             local: local_data.name.as_str(),
             generic_depth: 0,

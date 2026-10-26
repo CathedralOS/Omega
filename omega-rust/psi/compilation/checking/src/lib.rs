@@ -511,7 +511,7 @@ pub use machine_calls::calls::{
     CallSite, CompletingTransfer, call_is_unconditional, call_receiver_parts,
     call_site_argument_expressions, call_site_evidence_arguments, call_target_parameters,
     call_target_return_type, call_target_state, call_target_symbol, call_target_type_parameters,
-    collect_call_sites_in_statement, completing_call_transfer, completing_transition_transfer,
+    collect_call_sites_in_statement, completing_call_transfer, completing_transition_invocation, completing_transition_transfer,
     find_call_site, find_call_site_in_state, find_machine, find_machine_by_entry_state,
     find_machine_head, find_state, find_state_for_exit, find_state_in_machine,
     find_state_on_machine, machine_parameter_signature_symbol, machine_state_by_symbols,
@@ -576,7 +576,9 @@ pub use proof_contracts::arithmetic_domains::{
 };
 
 /// Exact selected-call dependency availability for ordinary result refinements.
-pub use machine_calls::contract_dependencies::independent_call_application;
+pub use machine_calls::contract_dependencies::{
+    independent_call_application, independent_call_site,
+};
 pub use value_custody::type_references::normalize_closed_const_expression;
 
 pub use value_custody::const_expressions::{

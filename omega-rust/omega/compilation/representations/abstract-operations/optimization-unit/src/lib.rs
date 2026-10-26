@@ -77,7 +77,7 @@ pub use optimization_unit::{
     encode_value_definition_site_identity, established_case_at, extract_integer_intervals,
     field_evidence, function_analysis, integer_comparison_condition,
     literal_scalar_constant_fact_identity, observed_field_declaration, operation_definition,
-    placed_view_catalog_identity_bytes, proof_basis, proof_range_goal,
+    operation_uses, placed_view_catalog_identity_bytes, proof_basis, proof_range_goal,
     reachable_blocks_after_conditional_fold, recompute_psi_optimization_unit_identity,
     reconstruct_psi_closed_region_observation, reconstruct_psi_observation_model,
     reconstruct_psi_optimization_function_seed, reconstruct_psi_optimization_unit_seed,

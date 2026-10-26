@@ -18,3 +18,5 @@ pub(super) use assignment::{
     assign_type_reference_symbol_with_locals_and_constraints, assign_type_reference_symbols,
 };
 pub(super) use queries::call_target_for_type_reference;
+
+pub(crate) use assignment::assign_nominal_machine_requirement_arguments;

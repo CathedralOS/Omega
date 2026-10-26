@@ -36,4 +36,4 @@ pub(super) const PASS_WIRE_FORMAT: ManifestWireFormat = ManifestWireFormat {
 pub(super) const DECISION_FIXED_WIDTH: usize = 155;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

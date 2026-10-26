@@ -223,50 +223,12 @@ pub fn named_statement_call_candidates<'program>(
             .filter(|operator| operator.symbol == call.target_symbol)
             .collect();
     }
-    let receiver = program.statement_table.name_path_members(call.receiver);
-    // The receiver names a static namespace when it resolved to one of the
-    // namespace kinds the statement-call gate admits
-    // (`is_named_operator_namespace`), or when it did not resolve at all but
-    // an operator's own path prefix spells it exactly — the same
-    // `is_operator_namespace` fallback the expression-side counterpart uses.
-    // Without it `Ns::probe(arg);` classified `Ns` as the value operand,
-    // shifted every arity check by one, and the statement call never
-    // selected: the downstream rewrite that produces the checked
-    // `named_uses` row then never ran, leaving requires/crash obligations
-    // unexamined while flow still applied the call's ensures.
-    let receiver_resolves_to_namespace = call.receiver_symbol.is_valid()
-        && matches!(
-            program.symbols.get(call.receiver_symbol).kind,
-            symbols::SymbolKind::Module
-                | symbols::SymbolKind::BuiltinType
-                | symbols::SymbolKind::Data
-                | symbols::SymbolKind::Domain
-                | symbols::SymbolKind::Machine
-                | symbols::SymbolKind::Trait
-        );
-    let is_operator_namespace = !call.receiver_symbol.is_valid()
-        && !receiver.is_empty()
-        && program.operators().iter().any(|operator| {
-            let operator_path = program.operator_path_members(operator.name);
-            operator_path
-                .split_last()
-                .is_some_and(|(member, namespace)| {
-                    member.as_str() == call.target.as_str()
-                        && namespace.len() == receiver.len()
-                        && namespace
-                            .iter()
-                            .zip(receiver.iter())
-                            .all(|(expected, actual)| expected == actual)
-                })
-        });
-    let is_static_namespace = receiver_resolves_to_namespace || is_operator_namespace;
-    let static_segments = is_static_namespace.then(|| {
-        receiver
-            .iter()
-            .map(|segment| segment.as_str())
-            .collect::<Vec<_>>()
-    });
-    let has_value_receiver = !receiver.is_empty() && !is_static_namespace;
+    let static_segments = statement_static_receiver_segments(program, call);
+    let has_value_receiver = !program
+        .statement_table
+        .name_path_members(call.receiver)
+        .is_empty()
+        && static_segments.is_none();
     let argument_handles = program.statement_table.expression_handles(call.arguments);
     let argument_count = argument_handles.len();
     let use_site = argument_handles
@@ -335,4 +297,82 @@ fn named_operator_arity_fits_call(
         return positional == argument_count + 1;
     }
     positional == argument_count
+}
+
+/// Statement calls use the same exact namespace/path/arity authority as their
+/// candidate selector. This classifies an operand roster, not effect freedom.
+pub fn selected_named_statement_call_has_no_runtime_receiver(
+    program: &TypedTrees,
+    call: &crate::statement::TableCall,
+) -> bool {
+    let candidates = named_statement_call_candidates(program, call);
+    let [operator] = candidates.as_slice() else {
+        return false;
+    };
+    let arguments = program.statement_table.expression_handles(call.arguments);
+    if arguments.len() != call.arguments.len()
+        || arguments.len() != program.operator_parameters(operator).len()
+    {
+        return false;
+    }
+    if program
+        .statement_table
+        .name_path_members(call.receiver)
+        .is_empty()
+    {
+        return named_operator_path_matches_call(program, operator, None, call.target.as_str());
+    }
+    let Some(namespace) = statement_static_receiver_segments(program, call) else {
+        return false;
+    };
+    named_operator_path_matches_call(program, operator, Some(&namespace), call.target.as_str())
+}
+
+fn statement_static_receiver_segments<'program>(
+    program: &'program TypedTrees,
+    call: &crate::statement::TableCall,
+) -> Option<Vec<&'program str>> {
+    let receiver = program.statement_table.name_path_members(call.receiver);
+    // The receiver names a static namespace when it resolved to one of the
+    // namespace kinds the statement-call gate admits
+    // (`is_named_operator_namespace`), or when it did not resolve at all but
+    // an operator's own path prefix spells it exactly — the same
+    // `is_operator_namespace` fallback the expression-side counterpart uses.
+    // Without it `Ns::probe(arg);` classified `Ns` as the value operand,
+    // shifted every arity check by one, and the statement call never
+    // selected: the downstream rewrite that produces the checked
+    // `named_uses` row then never ran, leaving requires/crash obligations
+    // unexamined while flow still applied the call's ensures.
+    let receiver_resolves_to_namespace = call.receiver_symbol.is_valid()
+        && matches!(
+            program.symbols.get(call.receiver_symbol).kind,
+            symbols::SymbolKind::Module
+                | symbols::SymbolKind::BuiltinType
+                | symbols::SymbolKind::Data
+                | symbols::SymbolKind::Domain
+                | symbols::SymbolKind::Machine
+                | symbols::SymbolKind::Trait
+        );
+    let is_operator_namespace = !call.receiver_symbol.is_valid()
+        && !receiver.is_empty()
+        && program.operators().iter().any(|operator| {
+            let operator_path = program.operator_path_members(operator.name);
+            operator_path
+                .split_last()
+                .is_some_and(|(member, namespace)| {
+                    member.as_str() == call.target.as_str()
+                        && namespace.len() == receiver.len()
+                        && namespace
+                            .iter()
+                            .zip(receiver.iter())
+                            .all(|(expected, actual)| expected == actual)
+                })
+        });
+    let is_static_namespace = receiver_resolves_to_namespace || is_operator_namespace;
+    is_static_namespace.then(|| {
+        receiver
+            .iter()
+            .map(|segment| segment.as_str())
+            .collect::<Vec<_>>()
+    })
 }

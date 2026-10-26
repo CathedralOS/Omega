@@ -176,6 +176,7 @@ impl StateGraphEmission<'_, '_> {
             qualification_coercions: Vec::new(),
             structural_types: std::sync::Arc::from([]),
             structural_value_owners: Vec::new(),
+            retired_structural_homes: Vec::new(),
             selection_cleanups: Vec::new(),
             computation_address_roots: Vec::new(),
             structural_locals: Vec::new(),
