@@ -49,7 +49,7 @@ No ambient mutable global or hidden receiver enters source. Ordinary lifetime,
 loan, qualification, termination and cleanup checks remain in force.
 
 After normal return, the runtime retires the entry loans and observes the same
-original allocations. The dedicated FD 3 protocol binds the canonical artifact,
+original allocations. The private observation protocol (FD 3 on Unix; a process-bound named pipe on Windows) binds the canonical artifact,
 placement seal, occurrence and complete byte count; guest stdout/stderr are not
 this evidence. A partial write, wrong header, missing/extra frame or absent
 normal return cannot pass. The public CLI compares actual native and Terminal
@@ -64,7 +64,7 @@ allocation from the checked recipe and observes the original after execution.
 Provider settlement, layout geometry and ABI planning retain source/physical
 coordinates and each pointer's exact record geometry. Native realization charges
 the callee's complete WCSU to a disjoint stack partition. ISA selection and final
-Mach-O/ELF emission establish initialization before lending and observation after
+Mach-O/ELF/PE emission establish initialization before lending and observation after
 return. A separate instruction reader reconstructs the final pointer addresses,
 argument registers, exact semantic call, stack switch/restore, full writes and
 loader continuation, and the final image header must select that exact adapter.

@@ -248,6 +248,9 @@ mod tests {
         let Ok(contents) = std::env::var("OMEGA_OBSERVATION_TEST_CHILD") else {
             return;
         };
+        if contents == "without-observer" {
+            return;
+        }
         if contents == "flood" {
             use std::io::Write;
             let _ = std::io::stdout()
@@ -309,6 +312,16 @@ mod tests {
                 assert!(result.is_err());
             }
         }
+        let mut absent = Command::new(std::env::current_exe().unwrap());
+        absent
+            .args([
+                "--exact",
+                "private_observation::tests::writer",
+                "--nocapture",
+            ])
+            .env("OMEGA_OBSERVATION_TEST_CHILD", "without-observer");
+        let error = capture_private_observation(absent, 3).unwrap_err();
+        assert!(error.to_string().contains("exact byte roster"), "{error}");
         let mut flood = Command::new(std::env::current_exe().unwrap());
         flood
             .args([

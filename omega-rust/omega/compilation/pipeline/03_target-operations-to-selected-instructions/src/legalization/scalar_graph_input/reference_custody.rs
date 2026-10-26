@@ -1111,9 +1111,17 @@ fn backing_storage_access_conflicts(
             let Some(path) = origin.exact_path() else {
                 return true;
             };
-            origin.extent != semantic_vocabulary::ReferenceOriginExtent::Projected
-                || custody.borrowed_sources.contains_key(&place)
-                || backing_intersects_storage(function, custody, types, backing, place, &path)
+            // A within-region origin may address any byte under its storage
+            // root. Widen to that whole root, retaining its exact identity:
+            // uncertainty inside one allocation does not alias every other
+            // activation-local allocation. Unknown bases still refuse above.
+            let path = if origin.extent == semantic_vocabulary::ReferenceOriginExtent::Projected {
+                path.as_slice()
+            } else {
+                &[]
+            };
+            custody.borrowed_sources.contains_key(&place)
+                || backing_intersects_storage(function, custody, types, backing, place, path)
         });
     }
     backing_intersects_storage(function, custody, types, backing, place, path)
