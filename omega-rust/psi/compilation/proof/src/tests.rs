@@ -28,6 +28,7 @@ fn collects_domain_surface() {
         alias: None,
         authored_routes: Vec::new(),
         classification: None,
+        cleanup_selection: None,
         predicate_body: language_semantics::DomainPredicateBody::Bodyless,
         facts: HandleSpan::empty(),
         operators: HandleSpan::empty(),
