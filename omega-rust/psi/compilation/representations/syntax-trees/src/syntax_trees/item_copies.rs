@@ -522,12 +522,17 @@ impl SyntaxCopy<'_> {
     }
 
     fn copy_machine(&mut self, other: &SyntaxTrees, machine: &Machine) -> Machine {
+        let children = machine
+            .nested_machines
+            .handles()
+            .map(|handle| self.copy_item(other, other.items.item(handle)))
+            .collect::<Vec<_>>();
+        let mut nested_machines = HandleSpan::empty();
+        for child in children {
+            let handle = self.items.append_item(child);
+            nested_machines.push_contiguous(handle);
+        }
         Machine {
-            nested_machines: machine
-                .nested_machines
-                .iter()
-                .map(|nested| self.copy_machine(other, nested))
-                .collect(),
             target_family_interface: machine.target_family_interface,
             name: machine.name.clone(),
             generic_data_template: machine.generic_data_template.clone(),
@@ -591,6 +596,7 @@ impl SyntaxCopy<'_> {
             admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
             contracts: self.copy_capability_contract_span(other, machine.contracts),
             states: self.copy_state_handle_span(other, machine.states),
+            nested_machines,
         }
     }
 

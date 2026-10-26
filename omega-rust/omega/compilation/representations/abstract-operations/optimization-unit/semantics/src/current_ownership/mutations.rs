@@ -1,5 +1,5 @@
-use crate::OptimizationUnitValidationError;
 use crate::current_ownership::CurrentOwnership;
+use crate::{OperationSite, OptimizationUnitValidationError};
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, PlaceId};
 use terminal_psi::StructuralMultiplicity;
@@ -19,12 +19,10 @@ pub(super) fn insert_owned_result(
         return Ok(());
     }
     if frontier.owned_places.insert(place, multiplicity).is_some() {
-        return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
-            machine: function.machine,
-            block,
-            node,
+        return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
+            OperationSite::new(function.machine, block, node),
             place,
-        });
+        ));
     }
     // A new establishment replaces drained scalar storage only after the
     // operation's pin replay has established that no prior loan survives.

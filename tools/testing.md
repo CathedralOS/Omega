@@ -8,6 +8,11 @@ one command.
 
 ## Validation scope
 
+Terminal corpus execution defaults to one million fuel units. A long fixture may
+author one positive `u64` in `terminal_fuel_allowance.txt` to raise its allowance
+for ordinary interpretation and target-installation observations. Exhaustion
+remains a failed execution oracle; the allowance changes no program semantics.
+
 Iteration uses focused behavioral feedback; landing establishes the scoped
 change and attributes affected failures; release runs the full release matrix.
 A known-red unrelated baseline need not block a checkpoint, but is not release

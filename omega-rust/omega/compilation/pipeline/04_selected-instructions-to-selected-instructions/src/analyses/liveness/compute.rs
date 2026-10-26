@@ -225,15 +225,14 @@ fn compute_function_inner(
             fixed_view: register.entry_fixed_view,
         })
         .collect();
-    let mut operand_positions = arena::Arena::new();
-    let operand_spans = function
-        .blocks
-        .iter()
-        .flat_map(block_instructions)
-        .map(|instruction| {
+    let total_operands = function.blocks.total_operand_count().unwrap_or(0);
+    let mut operand_positions = arena::Arena::with_capacity(total_operands);
+    let mut operand_spans = Vec::with_capacity(next_position as usize);
+    for block in &function.blocks {
+        for instruction in block_instructions(block) {
             let instruction_position = LivenessPosition(positions[instruction.id.0 as usize]);
-            operand_positions.insert_many(instruction.operands.iter().map(|operand| {
-                OperandPosition {
+            operand_spans.push(operand_positions.insert_many(instruction.operands.iter().map(
+                |operand| OperandPosition {
                     position: instruction_position,
                     instruction: instruction.id,
                     operand: operand.operand,
@@ -243,10 +242,10 @@ fn compute_function_inner(
                     fixed_view: operand.fixed_view,
                     tied_to: operand.tied_to,
                     early_clobber: operand.early_clobber,
-                }
-            }))
-        })
-        .collect::<Vec<_>>();
+                },
+            )));
+        }
+    }
     let blocks = function
         .blocks
         .iter()
@@ -548,13 +547,12 @@ fn materialize_block(
         block_instructions(block)
             .map(|instruction| {
                 let pos = positions[instruction.id.0 as usize];
-                let (uses, defs) = virtual_uses_defs_vec(instruction);
                 InstructionLiveness {
                     position: LivenessPosition(pos),
                     instruction: instruction.id,
                     operands: operand_spans[pos as usize],
-                    virtual_uses: uses,
-                    virtual_defs: defs,
+                    virtual_uses: Vec::new(),
+                    virtual_defs: Vec::new(),
                     virtual_live_in: Vec::new(),
                     virtual_live_out: Vec::new(),
                     unit_uses: instruction.implicit_uses.clone(),

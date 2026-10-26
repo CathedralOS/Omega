@@ -139,22 +139,22 @@ fn parameter_relative_place_origins_in(
         }
         ExpressionNode::Indexed(indexed) => {
             if expression_is_effectful_for_transparent_result(program, indexed.index) {
-                let Some(machine_symbols) = super::demand::machine_symbols(program, current_machine)
+                let Some(machine_symbols) =
+                    super::demand::machine_symbols(program, current_machine)
                 else {
                     return None;
                 };
                 if !parameter_relative_expression_preserves_transparent_result(
-                        program,
-                        current_machine,
-                        indexed.index,
-                        ValuePosition::IndexOperand,
-                        &machine_symbols,
-                        symbols,
-                        inference,
-                        parameters,
-                        aliases,
-                    )
-                {
+                    program,
+                    current_machine,
+                    indexed.index,
+                    ValuePosition::IndexOperand,
+                    &machine_symbols,
+                    symbols,
+                    inference,
+                    parameters,
+                    aliases,
+                ) {
                     return None;
                 }
             }

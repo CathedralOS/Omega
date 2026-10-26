@@ -15,6 +15,7 @@ use optimization_unit::{
 use semantic_vocabulary::BlockId;
 
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
+use crate::rules::control_flow_cleanup::descriptor_telescope_free;
 use crate::rules::control_flow_cleanup::empty_block_thread_bindings::{
     compose_linear_thread_bindings, linear_thread_ownership_is_identity,
 };
@@ -56,11 +57,7 @@ impl PsiOptimizationRule for LinearEmptyBlockThreadRule {
         let mut candidates = Vec::new();
         for function in &unit.functions {
             // Descriptor telescopes require structural substitution, outside this scalar rewrite.
-            if function
-                .blocks
-                .iter()
-                .any(|block| !block.structural_parameters.is_empty())
-            {
+            if !descriptor_telescope_free(function) {
                 continue;
             }
             for empty in &function.blocks {

@@ -236,7 +236,7 @@ fn parse_statement_handle<'tokens, 'source>(
     }
 
     if input.at_punctuation(PunctuationKind::RightBrace)
-        || input.at_keyword(tokens::KeywordKind::Machine)
+        || crate::declarations::parse_declaration::starts_machine_declaration(input)
     {
         return Ok((
             syntax_trees

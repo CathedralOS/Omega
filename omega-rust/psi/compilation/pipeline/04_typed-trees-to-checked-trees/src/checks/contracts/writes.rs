@@ -31,7 +31,6 @@ use crate::labels::{machine_name, symbol_name};
 
 mod constructor_memberships;
 pub(super) use constructor_memberships::ConstructorMemberships;
-use constructor_memberships::check_constructor_membership;
 mod domain_implications;
 mod member_domains;
 use domain_implications::value_proves_qualification;
@@ -373,20 +372,19 @@ pub(super) fn check_domain_field_writes(
             .map(|reference| reference.context)
             .collect::<Vec<_>>();
         if let Some(transition) = statement.as_transition() {
+            let mut walk = ConstructionWalk {
+                program,
+                facts,
+                constructor_memberships,
+                state_flow,
+                construction_qualifications: &construction_qualifications,
+                statement_index,
+                decisions: &mut *decisions,
+                diagnostics: &mut *diagnostics,
+                frames,
+            };
             if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
-                scan_construction_field_domains(
-                    program,
-                    facts,
-                    constructor_memberships,
-                    state_flow,
-                    &construction_qualifications,
-                    statement_index,
-                    guard,
-                    &mut contexts,
-                    decisions,
-                    diagnostics,
-                    frames,
-                );
+                walk.scan(guard, &mut contexts);
             }
             for target in transition.targets() {
                 let mut branch_contexts = contexts.clone();
@@ -413,37 +411,24 @@ pub(super) fn check_domain_field_writes(
                     _ => Vec::new(),
                 };
                 for expression in expressions {
-                    scan_construction_field_domains(
-                        program,
-                        facts,
-                        constructor_memberships,
-                        state_flow,
-                        &construction_qualifications,
-                        statement_index,
-                        expression,
-                        &mut branch_contexts,
-                        decisions,
-                        diagnostics,
-                        frames,
-                    );
+                    walk.scan(expression, &mut branch_contexts);
                 }
             }
             continue;
         }
+        let mut walk = ConstructionWalk {
+            program,
+            facts,
+            constructor_memberships,
+            state_flow,
+            construction_qualifications: &construction_qualifications,
+            statement_index,
+            decisions: &mut *decisions,
+            diagnostics: &mut *diagnostics,
+            frames,
+        };
         for expression in statement_root_expressions(program, statement) {
-            scan_construction_field_domains(
-                program,
-                facts,
-                constructor_memberships,
-                state_flow,
-                &construction_qualifications,
-                statement_index,
-                expression,
-                &mut contexts,
-                decisions,
-                diagnostics,
-                frames,
-            );
+            walk.scan(expression, &mut contexts);
         }
     }
 }
@@ -469,419 +454,184 @@ fn statement_root_expressions(
     }
 }
 
-/// Walk constructed children in evaluation order and prove each declared field
-/// or contextual element membership at that child's completion frontier.
-fn scan_construction_field_domains(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    constructor_memberships: &ConstructorMemberships<'_>,
-    state_flow: &FlowStateFact,
-    construction_qualifications: &[ConstructionQualification],
+/// The construction-qualification walk context: the program, checked facts,
+/// retained constructor memberships, the state under evaluation, the sorted
+/// qualification rows, the statement occurrence, the decision arena,
+/// diagnostics, and the call-frame resolver. Every recursive construction step
+/// restated this eleven-argument tuple at its call site; the walk now carries
+/// it once, and a step names only the child it descends into and the live
+/// context set it threads.
+struct ConstructionWalk<'a, 'b> {
+    program: &'a dyn ::validation::CheckingInput,
+    facts: &'a CheckFacts,
+    constructor_memberships: &'a ConstructorMemberships<'a>,
+    state_flow: &'a FlowStateFact,
+    construction_qualifications: &'a [ConstructionQualification<'a>],
     statement_index: usize,
-    expression: ExpressionHandle,
-    contexts: &mut Vec<facts::FactContextHandle>,
-    decisions: &mut arena::Arena<checked_trees::CheckedValueQualification>,
-    diagnostics: &mut Vec<Diagnostic>,
-    frames: Option<&validation::CallFrameResolver<'_>>,
-) {
-    if !expression.is_valid() {
-        return;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::SavedSubject(_) => {}
-        ExpressionNode::Atomic(atomic) => scan_construction_field_domains(
-            program,
-            facts,
-            constructor_memberships,
-            state_flow,
-            construction_qualifications,
-            statement_index,
-            atomic.value,
-            contexts,
-            decisions,
-            diagnostics,
-            frames,
-        ),
-        ExpressionNode::Match(dispatch) => {
-            scan_construction_field_domains(
-                program,
-                facts,
-                constructor_memberships,
-                state_flow,
-                construction_qualifications,
-                statement_index,
-                dispatch.subject,
-                contexts,
-                decisions,
-                diagnostics,
-                frames,
-            );
-            let mut joined_contexts: Option<Vec<facts::FactContextHandle>> = None;
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                let mut arm_contexts = contexts.clone();
-                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
-                    scan_construction_field_domains(
+    decisions: &'b mut arena::Arena<checked_trees::CheckedValueQualification>,
+    diagnostics: &'b mut Vec<Diagnostic>,
+    frames: Option<&'a validation::CallFrameResolver<'a>>,
+}
+
+impl ConstructionWalk<'_, '_> {
+    /// Walk constructed children in evaluation order and prove each declared
+    /// field or contextual element membership at that child's completion
+    /// frontier.
+    fn scan(&mut self, expression: ExpressionHandle, contexts: &mut Vec<facts::FactContextHandle>) {
+        let program = self.program;
+        let facts = self.facts;
+        let constructor_memberships = self.constructor_memberships;
+        let state_flow = self.state_flow;
+        let construction_qualifications = self.construction_qualifications;
+        let statement_index = self.statement_index;
+        if !expression.is_valid() {
+            return;
+        }
+        match program.expression_table.expression(expression) {
+            ExpressionNode::SavedSubject(_) => {}
+            ExpressionNode::Atomic(atomic) => self.scan(atomic.value, contexts),
+            ExpressionNode::Match(dispatch) => {
+                self.scan(dispatch.subject, contexts);
+                let mut joined_contexts: Option<Vec<facts::FactContextHandle>> = None;
+                for arm in program.expression_table.match_arms(dispatch.arms) {
+                    let mut arm_contexts = contexts.clone();
+                    for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
+                        self.scan(pattern, &mut arm_contexts);
+                    }
+                    self.scan(arm.value, &mut arm_contexts);
+                    match &mut joined_contexts {
+                        Some(joined) => joined.retain(|context| arm_contexts.contains(context)),
+                        None => joined_contexts = Some(arm_contexts),
+                    }
+                }
+                // Only contexts surviving every arm remain usable afterwards.
+                *contexts = joined_contexts.unwrap_or_default();
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                let type_name = literal.type_name.clone();
+                let case_name = literal.case_name.clone();
+                for field in program.expression_table.struct_fields(literal.fields) {
+                    self.scan(field.value, contexts);
+                    for constraint in construction_field_domain_identities(
                         program,
-                        facts,
-                        constructor_memberships,
-                        state_flow,
-                        construction_qualifications,
-                        statement_index,
-                        pattern,
-                        &mut arm_contexts,
-                        decisions,
-                        diagnostics,
-                        frames,
-                    );
-                }
-                scan_construction_field_domains(
-                    program,
-                    facts,
-                    constructor_memberships,
-                    state_flow,
-                    construction_qualifications,
-                    statement_index,
-                    arm.value,
-                    &mut arm_contexts,
-                    decisions,
-                    diagnostics,
-                    frames,
-                );
-                match &mut joined_contexts {
-                    Some(joined) => joined.retain(|context| arm_contexts.contains(context)),
-                    None => joined_contexts = Some(arm_contexts),
+                        literal.type_symbol,
+                        case_name.as_ref().map(|name| name.as_str()),
+                        field.name.as_str(),
+                    ) {
+                        self.check_constructor_membership(
+                            field.value,
+                            constraint,
+                            contexts,
+                            &format!(
+                                "construction of `{}` field `{}`",
+                                type_name.as_str(),
+                                field.name.as_str()
+                            ),
+                        );
+                    }
                 }
             }
-            // Only contexts surviving every arm remain usable afterwards.
-            *contexts = joined_contexts.unwrap_or_default();
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            let type_name = literal.type_name.clone();
-            let case_name = literal.case_name.clone();
-            for field in program.expression_table.struct_fields(literal.fields) {
-                scan_construction_field_domains(
+            ExpressionNode::ArrayLiteral(elements) => {
+                // The retained operand supplies contextual obligations, not proof.
+                // The source-inferred array type can omit those receiving domains.
+                let element_domains = constructor_memberships.array_element_domains(
                     program,
-                    facts,
-                    constructor_memberships,
-                    state_flow,
-                    construction_qualifications,
+                    state_flow.state_symbol,
                     statement_index,
-                    field.value,
-                    contexts,
-                    decisions,
-                    diagnostics,
-                    frames,
+                    expression,
                 );
-                for constraint in construction_field_domain_identities(
-                    program,
-                    literal.type_symbol,
-                    case_name.as_ref().map(|name| name.as_str()),
-                    field.name.as_str(),
-                ) {
-                    check_constructor_membership(
-                        program,
-                        facts,
-                        constructor_memberships,
-                        state_flow,
-                        statement_index,
-                        field.value,
-                        constraint,
-                        contexts,
-                        decisions,
-                        diagnostics,
-                        frames,
-                        &format!(
-                            "construction of `{}` field `{}`",
-                            type_name.as_str(),
-                            field.name.as_str()
-                        ),
-                    );
+                for element in program.expression_table.expression_handles(*elements) {
+                    self.scan(*element, contexts);
+                    for constraint in &element_domains {
+                        self.check_constructor_membership(
+                            *element,
+                            constraint,
+                            contexts,
+                            "array literal element",
+                        );
+                    }
                 }
             }
-        }
-        ExpressionNode::ArrayLiteral(elements) => {
-            // The retained operand supplies contextual obligations, not proof.
-            // The source-inferred array type can omit those receiving domains.
-            let element_domains = constructor_memberships.array_element_domains(
-                program,
-                state_flow.state_symbol,
-                statement_index,
-                expression,
-            );
-            for element in program.expression_table.expression_handles(*elements) {
-                scan_construction_field_domains(
-                    program,
-                    facts,
-                    constructor_memberships,
-                    state_flow,
-                    construction_qualifications,
-                    statement_index,
-                    *element,
-                    contexts,
-                    decisions,
-                    diagnostics,
-                    frames,
-                );
-                for constraint in &element_domains {
-                    check_constructor_membership(
-                        program,
-                        facts,
-                        constructor_memberships,
-                        state_flow,
-                        statement_index,
-                        *element,
-                        constraint,
-                        contexts,
-                        decisions,
-                        diagnostics,
-                        frames,
-                        "array literal element",
-                    );
+            ExpressionNode::Binary(binary) => {
+                self.scan(binary.left, contexts);
+                self.scan(binary.right, contexts);
+            }
+            ExpressionNode::Cast(cast) => {
+                self.scan(cast.value, contexts);
+                self.judge_value_qualification_cast(expression, cast, contexts);
+            }
+            ExpressionNode::Call(call) => {
+                self.scan(call.receiver, contexts);
+                for argument in program.expression_table.expression_handles(call.arguments) {
+                    self.scan(*argument, contexts);
                 }
-            }
-        }
-        ExpressionNode::Binary(binary) => {
-            scan_construction_field_domains(
-                program,
-                facts,
-                constructor_memberships,
-                state_flow,
-                construction_qualifications,
-                statement_index,
-                binary.left,
-                contexts,
-                decisions,
-                diagnostics,
-                frames,
-            );
-            scan_construction_field_domains(
-                program,
-                facts,
-                constructor_memberships,
-                state_flow,
-                construction_qualifications,
-                statement_index,
-                binary.right,
-                contexts,
-                decisions,
-                diagnostics,
-                frames,
-            );
-        }
-        ExpressionNode::Cast(cast) => {
-            scan_construction_field_domains(
-                program,
-                facts,
-                constructor_memberships,
-                state_flow,
-                construction_qualifications,
-                statement_index,
-                cast.value,
-                contexts,
-                decisions,
-                diagnostics,
-                frames,
-            );
-            judge_value_qualification_cast(
-                program,
-                facts,
-                state_flow,
-                statement_index,
-                expression,
-                cast,
-                contexts,
-                decisions,
-                diagnostics,
-                frames,
-            );
-        }
-        ExpressionNode::Call(call) => {
-            scan_construction_field_domains(
-                program,
-                facts,
-                constructor_memberships,
-                state_flow,
-                construction_qualifications,
-                statement_index,
-                call.receiver,
-                contexts,
-                decisions,
-                diagnostics,
-                frames,
-            );
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                scan_construction_field_domains(
-                    program,
-                    facts,
-                    constructor_memberships,
-                    state_flow,
-                    construction_qualifications,
-                    statement_index,
-                    *argument,
-                    contexts,
-                    decisions,
-                    diagnostics,
-                    frames,
-                );
-            }
-            let mut calls = facts
-                .flow
-                .control
-                .calls
-                .span_or_empty(state_flow.calls)
-                .iter()
-                .filter(|call| {
-                    call.statement_index == statement_index
-                        && call.authored_expression == expression
-                });
-            if let Some(call) = calls.next() {
-                *contexts = facts
+                let mut calls = facts
                     .flow
-                    .contexts
-                    .semantic_context_refs
-                    .span_or_empty(call.exit_semantic_contexts)
+                    .control
+                    .calls
+                    .span_or_empty(state_flow.calls)
                     .iter()
-                    .map(|reference| reference.context)
-                    .collect();
-                // One source occurrence can retain several evaluation rows.
-                // Only contexts surviving every row may feed later children.
-                for call in calls {
-                    let incoming = facts
+                    .filter(|call| {
+                        call.statement_index == statement_index
+                            && call.authored_expression == expression
+                    });
+                if let Some(call) = calls.next() {
+                    *contexts = facts
                         .flow
                         .contexts
                         .semantic_context_refs
-                        .span_or_empty(call.exit_semantic_contexts);
-                    contexts.retain(|context| {
-                        incoming
-                            .iter()
-                            .any(|reference| reference.context == *context)
-                    });
+                        .span_or_empty(call.exit_semantic_contexts)
+                        .iter()
+                        .map(|reference| reference.context)
+                        .collect();
+                    // One source occurrence can retain several evaluation rows.
+                    // Only contexts surviving every row may feed later children.
+                    for call in calls {
+                        let incoming = facts
+                            .flow
+                            .contexts
+                            .semantic_context_refs
+                            .span_or_empty(call.exit_semantic_contexts);
+                        contexts.retain(|context| {
+                            incoming
+                                .iter()
+                                .any(|reference| reference.context == *context)
+                        });
+                    }
+                } else {
+                    contexts.clear();
                 }
-            } else {
-                contexts.clear();
             }
+            ExpressionNode::Indexed(indexed) => {
+                self.scan(indexed.collection, contexts);
+                self.scan(indexed.index, contexts);
+            }
+            ExpressionNode::Member(member) => self.scan(member.receiver, contexts),
+            ExpressionNode::Borrow(inner) => self.scan(inner.target, contexts),
+            ExpressionNode::Range(range) => {
+                self.scan(range.start, contexts);
+                self.scan(range.end, contexts);
+            }
+            ExpressionNode::Unary(unary) => self.scan(unary.operand, contexts),
+            typed_trees::literal_expression_pattern!() => {}
         }
-        ExpressionNode::Indexed(indexed) => {
-            scan_construction_field_domains(
-                program,
-                facts,
-                constructor_memberships,
-                state_flow,
-                construction_qualifications,
-                statement_index,
-                indexed.collection,
-                contexts,
-                decisions,
-                diagnostics,
-                frames,
-            );
-            scan_construction_field_domains(
-                program,
-                facts,
-                constructor_memberships,
-                state_flow,
-                construction_qualifications,
-                statement_index,
-                indexed.index,
-                contexts,
-                decisions,
-                diagnostics,
-                frames,
-            );
-        }
-        ExpressionNode::Member(member) => scan_construction_field_domains(
-            program,
-            facts,
-            constructor_memberships,
-            state_flow,
-            construction_qualifications,
+        // Children complete before the next operand may mutate their source.
+        // Reuse this walk's exact live contexts, just as record-field admission does.
+        let site = (
             statement_index,
-            member.receiver,
-            contexts,
-            decisions,
-            diagnostics,
-            frames,
-        ),
-        ExpressionNode::Borrow(inner) => scan_construction_field_domains(
-            program,
-            facts,
-            constructor_memberships,
-            state_flow,
-            construction_qualifications,
-            statement_index,
-            inner.target,
-            contexts,
-            decisions,
-            diagnostics,
-            frames,
-        ),
-        ExpressionNode::Range(range) => {
-            scan_construction_field_domains(
-                program,
-                facts,
-                constructor_memberships,
-                state_flow,
-                construction_qualifications,
-                statement_index,
-                range.start,
-                contexts,
-                decisions,
-                diagnostics,
-                frames,
-            );
-            scan_construction_field_domains(
-                program,
-                facts,
-                constructor_memberships,
-                state_flow,
-                construction_qualifications,
-                statement_index,
-                range.end,
-                contexts,
-                decisions,
-                diagnostics,
-                frames,
-            );
-        }
-        ExpressionNode::Unary(unary) => scan_construction_field_domains(
-            program,
-            facts,
-            constructor_memberships,
-            state_flow,
-            construction_qualifications,
-            statement_index,
-            unary.operand,
-            contexts,
-            decisions,
-            diagnostics,
-            frames,
-        ),
-        typed_trees::literal_expression_pattern!() => {}
-    }
-    // Children complete before the next operand may mutate their source.
-    // Reuse this walk's exact live contexts, just as record-field admission does.
-    let site = (
-        statement_index,
-        expression.arena_index(),
-        expression.generation(),
-    );
-    let first = construction_qualifications.partition_point(|row| row.site() < site);
-    let rows = &construction_qualifications[first..];
-    for row in rows.iter().take_while(|row| row.site() == site) {
-        check_constructor_membership(
-            program,
-            facts,
-            constructor_memberships,
-            state_flow,
-            statement_index,
-            expression,
-            row.constraint,
-            contexts,
-            decisions,
-            diagnostics,
-            frames,
-            "construction value",
+            expression.arena_index(),
+            expression.generation(),
         );
+        let first = construction_qualifications.partition_point(|row| row.site() < site);
+        let rows = &construction_qualifications[first..];
+        for row in rows.iter().take_while(|row| row.site() == site) {
+            self.check_constructor_membership(
+                expression,
+                row.constraint,
+                contexts,
+                "construction value",
+            );
+        }
     }
 }
 
@@ -935,102 +685,103 @@ fn construction_field_domain_identities<'program>(
 /// value-interval judgment in `validation`. Routed qualifications, scalar or
 /// structural, instead retain the operand's exact live membership evidence;
 /// predicate proofs alone cannot introduce their provenance.
-#[allow(clippy::too_many_arguments)]
-fn judge_value_qualification_cast(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    state_flow: &FlowStateFact,
-    statement_index: usize,
-    expression: ExpressionHandle,
-    cast: &typed_trees::expression::TableCastExpression,
-    contexts: &[facts::FactContextHandle],
-    decisions: &mut arena::Arena<checked_trees::CheckedValueQualification>,
-    diagnostics: &mut Vec<Diagnostic>,
-    frames: Option<&validation::CallFrameResolver<'_>>,
-) {
-    let domain_symbol = cast.semantic_domain_symbol;
-    let Some(domain) = program.domain_definition(domain_symbol) else {
-        return;
-    };
-    let requires_provenance =
-        validation::field_domains::domain_requires_provenance(program, domain_symbol);
-    if cast.semantic_domain.is_empty()
-        || (!requires_provenance
-            && program
-                .primitive_type_reference(domain.target_type)
-                .is_some())
-        || validation::field_domains::domain_is_vacuous(program, domain_symbol, &mut Vec::new())
-    {
-        return;
-    }
-    // Typed normalization already expands transparent aliases into their exact
-    // constituent instances. These are obligations, not evidence: each atom
-    // must hold on the operand at this occurrence. Requiring a single fact for
-    // the alias would reject an existing routed claim plus a vacuous label;
-    // proving only predicates would instead forge the routed constituent.
-    let obligations =
-        validation::field_domains::declared_domain_constraint_records(program, cast.result_type);
-    let established = !obligations.is_empty()
-        && obligations.iter().all(|obligation| {
-            validation::field_domains::domain_is_vacuous(
-                program,
-                obligation.symbol,
-                &mut Vec::new(),
-            ) || decisions.iter().any(|(_, decision)| {
-                // The child completed before this operand judgment. Consume
-                // its exact checked membership, not the cast's target type or
-                // a declaration on storage. This composes qualifications while
-                // preserving the selected instance and evaluation occurrence.
-                decision.machine == state_flow.machine_symbol
-                    && decision.state == state_flow.state_symbol
-                    && decision.statement_index as usize == statement_index
-                    && decision.expression == cast.value
-                    && !decision.structural_value.is_valid()
-                    && decision.domain_symbol == obligation.symbol
-                    && decision.semantic_domain == obligation.semantic_id
-            }) || value_proves_qualification_in_contexts(
-                program,
-                facts,
-                state_flow,
-                statement_index,
-                cast.value,
-                obligation.symbol,
-                obligation.semantic_id,
-                contexts,
-            ) || (!validation::field_domains::domain_requires_provenance(
-                program,
-                obligation.symbol,
-            ) && value_satisfies_domain_predicates_in_contexts(
-                program,
-                facts,
-                state_flow,
-                statement_index,
-                cast.value,
-                obligation.symbol,
-                contexts,
-                &mut Vec::new(),
-                None,
-                frames,
-            ))
-        });
-    if established {
-        for obligation in obligations {
-            record_qualification(
-                decisions,
-                state_flow,
-                statement_index,
-                expression,
-                obligation.semantic_id,
-                obligation.symbol,
-            );
+impl ConstructionWalk<'_, '_> {
+    fn judge_value_qualification_cast(
+        &mut self,
+        expression: ExpressionHandle,
+        cast: &typed_trees::expression::TableCastExpression,
+        contexts: &[facts::FactContextHandle],
+    ) {
+        let program = self.program;
+        let facts = self.facts;
+        let state_flow = self.state_flow;
+        let statement_index = self.statement_index;
+        let domain_symbol = cast.semantic_domain_symbol;
+        let Some(domain) = program.domain_definition(domain_symbol) else {
+            return;
+        };
+        let requires_provenance =
+            validation::field_domains::domain_requires_provenance(program, domain_symbol);
+        if cast.semantic_domain.is_empty()
+            || (!requires_provenance
+                && program
+                    .primitive_type_reference(domain.target_type)
+                    .is_some())
+            || validation::field_domains::domain_is_vacuous(program, domain_symbol, &mut Vec::new())
+        {
+            return;
         }
-        return;
+        // Typed normalization already expands transparent aliases into their exact
+        // constituent instances. These are obligations, not evidence: each atom
+        // must hold on the operand at this occurrence. Requiring a single fact for
+        // the alias would reject an existing routed claim plus a vacuous label;
+        // proving only predicates would instead forge the routed constituent.
+        let obligations = validation::field_domains::declared_domain_constraint_records(
+            program,
+            cast.result_type,
+        );
+        let established = !obligations.is_empty()
+            && obligations.iter().all(|obligation| {
+                validation::field_domains::domain_is_vacuous(
+                    program,
+                    obligation.symbol,
+                    &mut Vec::new(),
+                ) || self.decisions.iter().any(|(_, decision)| {
+                    // The child completed before this operand judgment. Consume
+                    // its exact checked membership, not the cast's target type or
+                    // a declaration on storage. This composes qualifications while
+                    // preserving the selected instance and evaluation occurrence.
+                    decision.machine == state_flow.machine_symbol
+                        && decision.state == state_flow.state_symbol
+                        && decision.statement_index as usize == statement_index
+                        && decision.expression == cast.value
+                        && !decision.structural_value.is_valid()
+                        && decision.domain_symbol == obligation.symbol
+                        && decision.semantic_domain == obligation.semantic_id
+                }) || value_proves_qualification_in_contexts(
+                    program,
+                    facts,
+                    state_flow,
+                    statement_index,
+                    cast.value,
+                    obligation.symbol,
+                    obligation.semantic_id,
+                    contexts,
+                ) || (!validation::field_domains::domain_requires_provenance(
+                    program,
+                    obligation.symbol,
+                ) && value_satisfies_domain_predicates_in_contexts(
+                    program,
+                    facts,
+                    state_flow,
+                    statement_index,
+                    cast.value,
+                    obligation.symbol,
+                    contexts,
+                    &mut Vec::new(),
+                    None,
+                    self.frames,
+                ))
+            });
+        if established {
+            for obligation in obligations {
+                record_qualification(
+                    self.decisions,
+                    state_flow,
+                    statement_index,
+                    expression,
+                    obligation.semantic_id,
+                    obligation.symbol,
+                );
+            }
+            return;
+        }
+        self.diagnostics.push(qualification_cast_refusal(
+            program,
+            domain_symbol,
+            requires_provenance,
+        ));
     }
-    diagnostics.push(qualification_cast_refusal(
-        program,
-        domain_symbol,
-        requires_provenance,
-    ));
 }
 
 fn qualification_cast_refusal(

@@ -1,25 +1,22 @@
 //! Exact mutable byte descriptors and once-evaluated scalar write operands.
 
-use super::LiveDefinitions;
+use super::{LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::{IntegerSign, IntegerType, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
-use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+use target_operations::TargetUnitOperation;
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
 
 /// Keep replacement as one ordered operation. Capacity is a destination bound,
 /// not permission to read that many bytes from a shorter immutable source.
 pub(super) fn replace(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    structural_types: &StructuralTypeLookup<'_>,
+    site: &mut RowSite<'_>,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
-    live: &LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    let (function, structural_types, live, operations, provenance) = site.view();
     let (psi_operation, destination, source, length, obligation, field_destination) =
         match operation {
             AbstractOperation::ByteSequenceStore {
@@ -170,13 +167,10 @@ fn writable_field(
 /// replay owns the source loan's lifetime and the destination's predicates.
 pub(super) fn replace_view_descriptor(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    structural_types: &StructuralTypeLookup<'_>,
+    site: &mut RowSite<'_>,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
-    live: &LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    let (function, structural_types, live, operations, provenance) = site.view();
     let AbstractOperation::StructuralByteViewFieldStore {
         psi_operation,
         destination,
@@ -375,13 +369,10 @@ fn writable_byte_field(
 
 pub(super) fn replace_byte(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    structural_types: &StructuralTypeLookup<'_>,
+    site: &mut RowSite<'_>,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
-    live: &LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    let (function, structural_types, live, operations, provenance) = site.view();
     let AbstractOperation::StructuralByteSequenceFieldByteStore {
         psi_operation,
         destination,
@@ -449,13 +440,10 @@ pub(super) fn replace_byte(
 
 pub(super) fn lower(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    structural_types: &StructuralTypeLookup<'_>,
+    site: &mut RowSite<'_>,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
-    live: &LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    let (function, structural_types, live, operations, provenance) = site.view();
     let AbstractOperation::ByteSequenceWrite {
         psi_operation,
         destination,

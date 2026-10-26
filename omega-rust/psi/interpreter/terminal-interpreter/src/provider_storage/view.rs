@@ -4,7 +4,7 @@
 //! compatibility result establishes vacancy, residency or a storage loan.
 
 use super::initialization::InitializationRejection;
-use super::{ProviderStorageBinding, ProviderStorageSlot, RuntimeProviderStorage};
+use super::{ProviderStorageBinding, RuntimeProviderStorage};
 use crate::errors::{TerminalInterpretError, malformed};
 use access_plans::{
     PlacementResourceCompatibility, ValidatedPlacementPlan, ValidatedResourceProfile,
@@ -25,14 +25,7 @@ impl RuntimeProviderStorage {
                 "borrowed placement lost its live original backing",
             ));
         }
-        let ProviderStorageSlot::Live {
-            allocation,
-            profile,
-            ..
-        } = self.allocations.get(binding.allocation)
-        else {
-            return Err(malformed());
-        };
+        let (allocation, profile, base) = self.live_provider_allocation(&binding)?;
         let required = placement.layout().size.ok_or_else(malformed)?;
         if required > binding.length {
             return Ok(Err(InitializationRejection::RangeTooSmall {
@@ -40,11 +33,6 @@ impl RuntimeProviderStorage {
                 available: binding.length,
             }));
         }
-        let base = allocation
-            .extent
-            .base()
-            .checked_add(binding.offset)
-            .ok_or_else(malformed)?;
         let loan = allocation
             .extent
             .loan(binding.offset, binding.length)

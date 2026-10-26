@@ -106,15 +106,11 @@ pub struct StoredLoadForwardingReceipt {
 }
 
 impl StoredLoadForwardingReceipt {
-    pub const fn identity(&self) -> StoredLoadForwardingIdentity {
-        self.identity
-    }
-    pub const fn function_index(&self) -> usize {
-        self.function_index
-    }
-    pub const fn load(&self) -> SelectedInstructionId {
-        self.load
-    }
+    receipt_accessor_rows!(ref StoredLoadForwardingReceipt {
+        identity: StoredLoadForwardingIdentity,
+        function_index: usize,
+        load: SelectedInstructionId,
+    });
 }
 
 receipt_selected_identities!(StoredLoadForwardingReceipt);

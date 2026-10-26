@@ -10,7 +10,7 @@ use super::member_domains::{
     captured_value_satisfies_indexed_domain, value_satisfies_domain_instance_predicates_in_contexts,
 };
 use super::{
-    CheckFacts, Diagnostic, ExpressionHandle, FlowStateFact, SymbolHandle, record_qualification,
+    CheckFacts, ConstructionWalk, Diagnostic, ExpressionHandle, SymbolHandle, record_qualification,
     value_proves_qualification_in_contexts,
 };
 use crate::labels::{machine_name, symbol_name};
@@ -109,111 +109,115 @@ fn occurrence(capture: &checked_trees::FlowOperandFact) -> Occurrence {
     )
 }
 
-/// Construction obligations share one judgment across records and arrays.
-/// Predicate-only membership comes from the completed child's facts; routed
-/// membership still needs its exact authorized provenance. The destination's
-/// type cannot establish either. Retain only successful source judgments for
-/// ordinary child completion and subsequent membership relocation.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn check_constructor_membership(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    constructor_memberships: &ConstructorMemberships<'_>,
-    state: &FlowStateFact,
-    statement_index: usize,
-    value: ExpressionHandle,
-    constraint: &typed_trees::types::DomainConstraint,
-    contexts: &[facts::FactContextHandle],
-    decisions: &mut arena::Arena<checked_trees::CheckedValueQualification>,
-    diagnostics: &mut Vec<Diagnostic>,
-    frames: Option<&validation::CallFrameResolver<'_>>,
-    owner: &str,
-) {
-    let domain_symbol = constraint.symbol;
-    let semantic_domain = constraint.semantic_id;
-    // Completed transformations supply the destination membership; publishing
-    // it on the raw child would invent authority before parent consumption.
-    if facts.qualifications.content.publishes_formation_membership(
-        &facts.flow,
-        state.state_symbol,
-        statement_index,
-        value,
-        domain_symbol,
-        semantic_domain,
+impl ConstructionWalk<'_, '_> {
+    /// Construction obligations share one judgment across records and arrays.
+    /// Predicate-only membership comes from the completed child's facts; routed
+    /// membership still needs its exact authorized provenance. The destination's
+    /// type cannot establish either. Retain only successful source judgments for
+    /// ordinary child completion and subsequent membership relocation.
+    pub(super) fn check_constructor_membership(
+        &mut self,
+        value: ExpressionHandle,
+        constraint: &typed_trees::types::DomainConstraint,
+        contexts: &[facts::FactContextHandle],
+        owner: &str,
     ) {
-        return;
-    }
-    let predicate_only =
-        !validation::field_domains::domain_requires_provenance(program, domain_symbol);
-    let vacuous = predicate_only
-        && validation::field_domains::domain_is_vacuous(program, domain_symbol, &mut Vec::new());
-    let proves = |capture: Option<&checked_trees::FlowOperandFact>,
-                  contexts: &[facts::FactContextHandle]| {
-        value_proves_qualification_in_contexts(
-            program,
-            facts,
-            state,
+        let program = self.program;
+        let facts = self.facts;
+        let state = self.state_flow;
+        let statement_index = self.statement_index;
+        let constructor_memberships = self.constructor_memberships;
+        let frames = self.frames;
+        let domain_symbol = constraint.symbol;
+        let semantic_domain = constraint.semantic_id;
+        // Completed transformations supply the destination membership; publishing
+        // it on the raw child would invent authority before parent consumption.
+        if facts.qualifications.content.publishes_formation_membership(
+            &facts.flow,
+            state.state_symbol,
             statement_index,
             value,
             domain_symbol,
             semantic_domain,
-            contexts,
-        ) || vacuous
-            || (predicate_only
-                && capture.is_some()
-                && (value_satisfies_domain_instance_predicates_in_contexts(
-                    program,
-                    facts,
-                    state,
-                    statement_index,
-                    value,
-                    domain_symbol,
-                    semantic_domain,
-                    contexts,
-                    &mut Vec::new(),
-                    capture,
-                    frames,
-                ) || capture.is_some_and(|capture| {
-                    captured_value_satisfies_indexed_domain(
-                        program, facts, state, capture, constraint, frames,
-                    )
-                })))
-    };
-    let captures = constructor_memberships.at(state.state_symbol, statement_index, value);
-    let proven = if captures.is_empty() {
-        proves(None, contexts)
-    } else {
-        // Membership transport and predicate discharge share the same universal
-        // occurrence check. No shortcut may choose one capture or use another
-        // child's later facts to qualify the value completed here.
-        captures.iter().all(|capture| {
-            let contexts = crate::flow::operand_contexts(
+        ) {
+            return;
+        }
+        let predicate_only =
+            !validation::field_domains::domain_requires_provenance(program, domain_symbol);
+        let vacuous = predicate_only
+            && validation::field_domains::domain_is_vacuous(
                 program,
-                &facts.flow.contexts,
-                &facts.flow.control,
-                &facts.semantic,
-                capture,
-                capture.type_reference,
-                capture.constraints,
+                domain_symbol,
+                &mut Vec::new(),
             );
-            proves(Some(capture), &contexts)
-        })
-    };
-    if proven {
-        record_qualification(
-            decisions,
-            state,
-            statement_index,
-            value,
-            semantic_domain,
-            domain_symbol,
-        );
-    } else {
-        diagnostics.push(Diagnostic::error(format!(
+        let proves = |capture: Option<&checked_trees::FlowOperandFact>,
+                      contexts: &[facts::FactContextHandle]| {
+            value_proves_qualification_in_contexts(
+                program,
+                facts,
+                state,
+                statement_index,
+                value,
+                domain_symbol,
+                semantic_domain,
+                contexts,
+            ) || vacuous
+                || (predicate_only
+                    && capture.is_some()
+                    && (value_satisfies_domain_instance_predicates_in_contexts(
+                        program,
+                        facts,
+                        state,
+                        statement_index,
+                        value,
+                        domain_symbol,
+                        semantic_domain,
+                        contexts,
+                        &mut Vec::new(),
+                        capture,
+                        frames,
+                    ) || capture.is_some_and(|capture| {
+                        captured_value_satisfies_indexed_domain(
+                            program, facts, state, capture, constraint, frames,
+                        )
+                    })))
+        };
+        let captures = constructor_memberships.at(state.state_symbol, statement_index, value);
+        let proven = if captures.is_empty() {
+            proves(None, contexts)
+        } else {
+            // Membership transport and predicate discharge share the same universal
+            // occurrence check. No shortcut may choose one capture or use another
+            // child's later facts to qualify the value completed here.
+            captures.iter().all(|capture| {
+                let contexts = crate::flow::operand_contexts(
+                    program,
+                    &facts.flow.contexts,
+                    &facts.flow.control,
+                    &facts.semantic,
+                    capture,
+                    capture.type_reference,
+                    capture.constraints,
+                );
+                proves(Some(capture), &contexts)
+            })
+        };
+        if proven {
+            record_qualification(
+                self.decisions,
+                state,
+                statement_index,
+                value,
+                semantic_domain,
+                domain_symbol,
+            );
+        } else {
+            self.diagnostics.push(Diagnostic::error(format!(
             "{owner} is not proven in domain `{}` in {} state `{}` at statement {statement_index}; a construction value must establish the domain's predicates and any required provenance",
             symbol_name(program, domain_symbol),
             machine_name(program, state.machine_symbol),
             symbol_name(program, state.state_symbol),
         )));
+        }
     }
 }

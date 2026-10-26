@@ -227,6 +227,7 @@ pub(super) fn resolve(
 impl PreparedScalarQualifications {
     pub(crate) fn parameter_value_type(
         &self,
+        checked: &CheckedTrees,
         state: SymbolHandle,
         position: u32,
     ) -> Result<QualifiedScalarType, LoweringError> {
@@ -234,8 +235,11 @@ impl PreparedScalarQualifications {
             .iter()
             .find(|parameter| parameter.state == state && parameter.position == position)
             .map(|parameter| parameter.value_type)
-            .ok_or(LoweringError::Unsupported(
-                "scalar formal has no prepared entry qualification",
-            ))
+            .ok_or_else(|| LoweringError::MissingScalarParameterQualification {
+                state: checked.symbols.display_path(state, "::"),
+                source_position: position,
+                prepared_positions: self.parameters.iter().filter(|parameter| parameter.state == state)
+                    .map(|parameter| parameter.position).collect(),
+            })
     }
 }

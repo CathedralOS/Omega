@@ -870,6 +870,77 @@ fn validate_structural_field_range_authority(
                     )?;
                 }
             }
+            O::AtomicEvent {
+                psi_operation,
+                event,
+                resident_obligation,
+                ..
+            } => {
+                let Some(location) = event.location() else {
+                    if resident_obligation.is_some() {
+                        return Err(
+                            OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
+                        );
+                    }
+                    continue;
+                };
+                let root = optimization_unit::field_evidence(function, location.root)
+                    .and_then(|row| row.root_type)
+                    .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
+                let declaration = terminal_semantics::projected_field_declaration(
+                    types.values().copied(),
+                    root,
+                    &location.path,
+                    location.field,
+                )
+                .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
+                let bounded = matches!(
+                    declaration.field_type,
+                    terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
+                );
+                let requires = bounded && event.joins_modification_order();
+                if requires != resident_obligation.is_some() {
+                    return Err(
+                        OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
+                    );
+                }
+                if requires {
+                    let value = event.replacement().ok_or(
+                        OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
+                    )?;
+                    let requirement = terminal_semantics::atomic_resident_requirement(
+                        &declaration.field_type,
+                        value,
+                    )
+                    .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
+                    terminal_codec::canonical_proposition_order_key(&requirement).map_err(
+                        |_| OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
+                    )?;
+                    let receiving = optimization_unit::SourceCheckedScalarReceiving {
+                        value,
+                        restriction: declaration.field_type.clone(),
+                    };
+                    if unit
+                        .accepted_obligation_facts
+                        .iter()
+                        .filter(|fact| {
+                            fact.machine == function.machine
+                                && fact.owner
+                                    == optimization_unit::PsiProvenance::Operation(*psi_operation)
+                                && Some(fact.obligation) == *resident_obligation
+                                && fact.psi == unit.psi
+                                && fact.has_canonical_identity()
+                                && fact.scalar_receiving.as_ref() == Some(&receiving)
+                        })
+                        .count()
+                        != 1
+                    {
+                        return Err(
+                            OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
+                        );
+                    }
+                }
+            }
             O::StructuralScalarFieldStore {
                 psi_operation,
                 destination,
@@ -997,7 +1068,7 @@ fn validate_field_range_authority(
     value: ValueId,
     obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    validate_scalar_range_authority(
+    validate_initialization_range_authority(
         unit,
         machine,
         operation,
@@ -1015,7 +1086,40 @@ fn validate_scalar_range_authority(
     value: ValueId,
     obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let Some(requirement) = terminal_semantics::scalar_field_requirement(restriction, value) else {
+    validate_range_fact(
+        unit,
+        machine,
+        operation,
+        terminal_semantics::scalar_field_requirement(restriction, value),
+        obligation,
+    )
+}
+
+fn validate_initialization_range_authority(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+    operation: OperationId,
+    restriction: &terminal_psi::StructuralFieldType,
+    value: ValueId,
+    obligation: Option<semantic_vocabulary::ObligationId>,
+) -> Result<(), OptimizationUnitValidationError> {
+    validate_range_fact(
+        unit,
+        machine,
+        operation,
+        terminal_semantics::scalar_field_initialization_requirement(restriction, value),
+        obligation,
+    )
+}
+
+fn validate_range_fact(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+    operation: OperationId,
+    requirement: Option<semantic_vocabulary::Proposition>,
+    obligation: Option<semantic_vocabulary::ObligationId>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let Some(requirement) = requirement else {
         return Ok(());
     };
     terminal_codec::canonical_proposition_order_key(&requirement)

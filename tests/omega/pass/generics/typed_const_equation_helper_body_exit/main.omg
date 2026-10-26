@@ -1,0 +1,16 @@
+data Holder<Value [copy], const Size: u64> [copy]
+where Value == [u8; Size]
+{ items: Value; }
+machine extent() -> u64 {
+    let holder: Holder<[u8; 2], 2> = Holder { items: [2, 3] };
+    holder.items[0] as u64
+}
+data Buffer<const Size: u64> [copy] { items: [u8; Size]; }
+data Main { buffer: Buffer<extent()>; }
+// Expected exit: 0
+machine main() crashes Trap {
+    let buffer: Buffer<extent()> = Buffer { items: [7, 11] };
+    let observed: u8 = buffer.items[1];
+    transition observed == 11 { true -> done() _ -> bad() }
+    state done() {} state bad() { crash Trap; }
+}

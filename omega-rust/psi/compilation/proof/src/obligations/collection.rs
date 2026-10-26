@@ -1067,7 +1067,7 @@ fn collect_bounded_local_initializer_obligation(
     local: &TableLocalData,
     proof_plan: &mut ProofPlan<'_>,
 ) {
-    if !local.initial_value.is_valid()
+    if local.ordinary_value_initializer().is_none()
         || matches!(
             program
                 .type_reference_table

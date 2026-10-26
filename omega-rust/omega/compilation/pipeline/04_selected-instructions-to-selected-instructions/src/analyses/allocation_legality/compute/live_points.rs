@@ -45,7 +45,7 @@ pub(super) fn compute(
             boundaries.dedup();
         }
     }
-    let mut spans: Vec<VirtualLegalitySpan> = Vec::new();
+    let mut spans: Vec<VirtualLegalitySpan> = Vec::with_capacity(register.fragments.len());
     for fragment in &register.fragments {
         if fragment.start >= fragment.end {
             continue;
@@ -62,6 +62,7 @@ pub(super) fn compute(
             boundaries.partition_point(|boundary| *boundary <= point)
         };
         while point < fragment.end {
+            let cell = architectural_index;
             let architectural = views
                 .boundaries_for(class.id)
                 .get(architectural_index)
@@ -90,13 +91,14 @@ pub(super) fn compute(
                     entry_point,
                 )?
             };
-            let candidates = views.candidates_at(
+            let candidates = views.candidates_at_cell(
                 function_index,
                 register,
                 class,
                 available,
                 fragment.block,
                 point,
+                cell,
                 fixed,
             )?;
             if candidates.is_empty() {

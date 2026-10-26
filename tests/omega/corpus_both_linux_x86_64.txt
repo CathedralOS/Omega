@@ -1913,6 +1913,16 @@ pass/facts/atomic_boolean_store/other_machine built 1750ms exit:0 interpreter-ex
 pass/facts/atomic_boolean_store/other_state built 1982ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
 pass/facts/atomic_boolean_store/parameter built 1837ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
 pass/facts/atomic_boolean_store/target_body built 2265ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/call_result built 1865ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/composition built 2095ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/const_name built 1767ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/field built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/local built 1854ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/match_join built 1900ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/other_machine built 1906ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/other_state built 2084ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/parameter built 1747ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/target_body built 1693ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
 pass/facts/atomic_compare_exchange_once_composition_exit built 2181ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/atomic_compare_exchange_once_high_bit_exit built 2192ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/atomic_compare_exchange_once_local_exit built 2173ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -5642,8 +5652,17 @@ pass/facts/state_transition_ranking_bound_through_other_machine_exit built 2202m
 pass/facts/state_transition_ranking_bound_through_other_state_exit built 2706ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/state_transition_ranking_bound_through_parameter_exit built 1974ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/state_transition_ranking_bound_through_target_body_exit built 2855ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/static_callback_reach_boundary_schema built 15491ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_captured_schema built 20425ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_captured_scope built 20150ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_captured_selection built 18813ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_captured_shadow built 17355ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_captured_unused built 12373ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_evidence_scope built 12483ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_private_helper built 13135ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3c1b7104e4f6+wt
 pass/facts/static_callback_reach_recursive_component built 5793ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
 pass/facts/static_callback_reach_recursive_terminal built 5484ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_requirement_telescope built 9501ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3c1b7104e4f6+wt
 pass/facts/static_callback_reach_selected_schema built 6268ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
 pass/facts/static_callback_reach_terminal_binder built 6798ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
 pass/facts/static_callback_reach_through_call_result built 10689ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt

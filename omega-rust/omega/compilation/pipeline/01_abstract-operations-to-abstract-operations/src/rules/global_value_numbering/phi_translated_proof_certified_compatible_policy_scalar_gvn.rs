@@ -1,9 +1,10 @@
 //! Proof-certified translation from exact redundants to total-policy leaders.
 
 use optimization_core::{OptimizationRuleContract, OptimizationSafetyClass};
-use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
+use optimization_unit::{OptimizationFact, PsiOptimizationUnit, PsiRewriteCandidate};
 
-use crate::rules::global_value_numbering::collect_compatible_policy_scalar_rows;
+use super::expression_keys::{compatible_policy_scalar_leader, compatible_policy_scalar_redundant};
+use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::global_value_numbering::phi_translated_contract;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
@@ -25,8 +26,26 @@ fn propose(
         unit,
         analyses,
         |unit, function, effects, _| {
-            let (leaders, redundants) =
-                collect_compatible_policy_scalar_rows(unit, function, effects);
+            let (leaders, redundants) = super::collect_scalar_rows(
+                unit,
+                function,
+                effects,
+                |operation| {
+                    let row = compatible_policy_scalar_leader(operation)?;
+                    if function.facts.iter().any(|fact| {
+                        matches!(fact, OptimizationFact::OperationObligationReference { support, .. }
+                            if *support == row.1)
+                    }) {
+                        return None;
+                    }
+                    Some(row)
+                },
+                |operation| {
+                    let row = compatible_policy_scalar_redundant(operation)?;
+                    let fact = accepted_obligation_fact(unit, function.machine, row.1).ok()?;
+                    Some((row, fact))
+                },
+            );
             // The compatible-policy rule refuses a redundant at the function
             // entry: an entry block has no incoming join to translate.
             let redundants = redundants

@@ -115,6 +115,8 @@ pub(crate) enum TypeReferenceOwner<'program> {
     },
     StateLocalData {
         machine: &'program typed_trees::machine::Machine,
+        current_state: Option<&'program typed_trees::state::State>,
+        value_environment: &'program crate::proof_contracts::arithmetic_domains::ValueEnvironment,
         state: &'program str,
         local: &'program str,
         generic_depth: usize,
@@ -213,11 +215,15 @@ impl TypeReferenceOwner<'_> {
             },
             Self::StateLocalData {
                 machine,
+                current_state,
+                value_environment,
                 state,
                 local,
                 generic_depth,
             } => Self::StateLocalData {
                 machine,
+                current_state,
+                value_environment,
                 state,
                 local,
                 generic_depth: generic_depth + 1,
@@ -327,6 +333,8 @@ impl fmt::Display for TypeReferenceOwner<'_> {
             }
             Self::StateLocalData {
                 machine,
+                current_state: _,
+                value_environment: _,
                 state,
                 local,
                 generic_depth,
@@ -801,6 +809,7 @@ fn validate_type_reference_node(
                                 *argument,
                                 type_parameter_scope,
                                 &owner.value_formation_facts(program),
+                                owner.local_value_formation(),
                                 diagnostics,
                             );
                         }

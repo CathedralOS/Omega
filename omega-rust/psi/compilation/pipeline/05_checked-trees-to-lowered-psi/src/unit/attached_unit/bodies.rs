@@ -70,6 +70,36 @@ impl<'a> UnitPlans<'a> {
     ) -> impl Iterator<Item = &'a checked_trees::CheckedUnitStructuralTypePlan> {
         self.checked.structural_types.iter()
     }
+
+    /// Exact declaration owners whose retained computations these emitted
+    /// bodies read. A fused graph keeps each state's owner, independently of
+    /// the dispatch head that receives its callable identity.
+    pub(crate) fn source_machines(
+        self,
+        checked: &checked_trees::CheckedTrees,
+        bodies: &[symbols::SymbolHandle],
+    ) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
+        let mut sources = Vec::new();
+        for symbol in bodies {
+            match UnitBody::find(self, *symbol)? {
+                UnitBody::Ordinary(plan) => {
+                    if !sources.contains(&plan.machine) {
+                        sources.push(plan.machine);
+                    }
+                }
+                UnitBody::Composed(plan) => {
+                    for state in &plan.states {
+                        let (owner, _) =
+                            crate::declarations::state_declaration(checked, state.state)?;
+                        if !sources.contains(&owner.symbol) {
+                            sources.push(owner.symbol);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(sources)
+    }
 }
 
 #[derive(Clone, Copy)]

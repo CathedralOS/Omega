@@ -1,5 +1,5 @@
 //! Replay symbolic descriptor compatibility against the current unit's calls.
-use crate::OptimizationUnitValidationError;
+use crate::{OperationSite, OptimizationUnitValidationError};
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::MachineId;
 use std::collections::{BTreeMap, BTreeSet};
@@ -26,12 +26,10 @@ pub(crate) fn validate_compatibility(
             })
             .or_else(|| function.structural_places.first().map(|place| place.id))
             .expect("derived storage requirement");
-        OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
-            machine,
-            block: position.0,
-            node: position.1,
+        OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed(
+            OperationSite::new(machine, position.0, position.1),
             place,
-        }
+        )
     };
     let graph = crate::descriptor_results::optimized_catalog_graph(
         unit.functions.iter(),

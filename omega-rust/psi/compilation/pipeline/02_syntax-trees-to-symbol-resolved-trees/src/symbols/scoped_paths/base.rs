@@ -42,6 +42,12 @@ pub(super) fn resolve_base_lookup(
         return SymbolLookup::Unique(machine_child);
     }
 
+    let lexical =
+        super::super::lookup::lexical_machine_lookup(symbols, machine_symbol, member.as_str());
+    if !matches!(lexical, SymbolLookup::NotFound) {
+        return lexical;
+    }
+
     symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
         member.as_str(),
         &[

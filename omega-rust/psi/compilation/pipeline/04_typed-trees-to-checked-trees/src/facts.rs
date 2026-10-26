@@ -160,6 +160,7 @@ pub(crate) fn build_check_facts(
         proof
             .integer_assignments
             .append(checked_trees::CheckedIntegerAssignmentDecision {
+                atomic_resident: false,
                 machine: assignment.machine_symbol,
                 state: assignment.state_symbol,
                 statement_index: assignment.statement_index,

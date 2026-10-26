@@ -24,10 +24,10 @@ pub(crate) struct PreAllocationRuleCatalogPayload {
 }
 
 impl PreAllocationRuleCatalogPayload {
-    /// The pre-allocation rules this exact selection admits.
-    pub const fn policy(self) -> PreAllocationPolicy {
-        self.policy
-    }
+    receipt_accessor_rows!(PreAllocationRuleCatalogPayload {
+        /// The pre-allocation rules this exact selection admits.
+        policy: PreAllocationPolicy,
+    });
 
     /// The row's candidate surface and site attempt.
     pub const fn admission(&self) -> &PreAllocationRuleAdmission {

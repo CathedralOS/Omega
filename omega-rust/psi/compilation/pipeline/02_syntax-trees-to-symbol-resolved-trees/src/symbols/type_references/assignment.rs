@@ -66,6 +66,142 @@ fn trait_parameter_slots(
         .collect::<Vec<_>>()
 }
 
+/// Resolve nominal bound arguments in the same lexical declaration scopes as
+/// signatures and bodies. A symbol's parent is not a capture ownership proof.
+pub(crate) fn assign_nominal_machine_requirement_arguments(
+    program: &mut SymbolResolvedTrees,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    use super::super::scope::{DeclarationTypeScopes, declaration_type_scope};
+    use symbol_resolved_trees::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
+    struct ArgumentScope {
+        trait_definition: SymbolHandle,
+        arguments: HandleSpan<symbol_resolved_trees::types::TypeReference>,
+        parameters: Vec<TypeParameter>,
+    }
+    fn collect(
+        program: &SymbolResolvedTrees,
+        parameters: &[TypeParameter],
+        inherited: &[TypeParameter],
+        scopes: &mut Vec<ArgumentScope>,
+    ) {
+        let lexical = declaration_type_scope(parameters, inherited);
+        for parameter in parameters {
+            match &parameter.kind {
+                TypeParameterKind::Machine {
+                    contract:
+                        MachineParameterContract::Nominal {
+                            trait_definition,
+                            trait_arguments,
+                            ..
+                        },
+                } => scopes.push(ArgumentScope {
+                    trait_definition: *trait_definition,
+                    arguments: *trait_arguments,
+                    parameters: lexical.clone(),
+                }),
+                TypeParameterKind::Machine {
+                    contract: MachineParameterContract::Structural(signature),
+                } => {
+                    collect(
+                        program,
+                        program.data_type_parameters(signature.type_parameters),
+                        &lexical,
+                        scopes,
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+    let captures = DeclarationTypeScopes::of(program)?;
+    let mut scopes = Vec::new();
+    for machine in program.machines.iter() {
+        let attached = program
+            .data_definitions
+            .iter()
+            .find(|data| data.symbol == machine.attached_data_symbol)
+            .map_or(&[][..], |data| {
+                program.data_type_parameters(data.type_parameters)
+            });
+        let mut inherited = declaration_type_scope(captures.parameters(machine.symbol), attached);
+        inherited.extend(super::super::scope::evidence_type_parameters(
+            &machine.conformance_bounds,
+        ));
+        collect(
+            program,
+            program.machine_type_parameters(machine),
+            &inherited,
+            &mut scopes,
+        );
+    }
+    for owner in program.traits.iter() {
+        let parameters = program.trait_type_parameters(owner);
+        collect(program, parameters, &[], &mut scopes);
+        for signature in program.trait_machine_signatures(owner.machines) {
+            collect(
+                program,
+                program.data_type_parameters(signature.type_parameters),
+                parameters,
+                &mut scopes,
+            );
+        }
+    }
+    for owner in program.conformances.iter() {
+        collect(
+            program,
+            program.data_type_parameters(owner.type_parameters),
+            &[],
+            &mut scopes,
+        );
+    }
+    for owner in program.data_definitions.iter() {
+        collect(
+            program,
+            program.data_type_parameters(owner.type_parameters),
+            &[],
+            &mut scopes,
+        );
+    }
+    for owner in program.domain_definitions.iter() {
+        collect(
+            program,
+            program.data_type_parameters(owner.type_parameters),
+            &[],
+            &mut scopes,
+        );
+    }
+    let propositions = trait_parameter_slots(program, |parameter| {
+        matches!(parameter.kind, TypeParameterKind::Proposition { .. })
+    });
+    let machines = trait_parameter_slots(program, |parameter| {
+        matches!(
+            parameter.kind,
+            TypeParameterKind::Machine {
+                contract: MachineParameterContract::RequirementIdentity
+            }
+        )
+    });
+    for scope in scopes {
+        assign_type_reference_argument_symbols_with_constraints(
+            &program.symbols,
+            &mut program.tables.declarations.child_type_references,
+            &program.tables.types.constraints,
+            &scope.parameters,
+            scope.arguments,
+        );
+        assign_trait_bound_slot_argument_symbols(
+            &program.symbols,
+            &mut program.tables.declarations.child_type_references,
+            &scope.parameters,
+            scope.trait_definition,
+            scope.arguments,
+            &propositions,
+            &machines,
+        );
+    }
+    Ok(())
+}
+
 pub(in crate::symbols) fn assign_type_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
@@ -569,10 +705,6 @@ pub(in crate::symbols) fn assign_machine_declaration_identity_argument_symbols(
             .iter()
             .find(|parameter| {
                 parameter.name.as_str() == name.as_str()
-                    && matches!(
-                        parameter.kind,
-                        symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
-                    )
             })
             .map(|parameter| parameter.symbol)
             .unwrap_or_else(SymbolHandle::invalid);
@@ -624,10 +756,6 @@ pub(in crate::symbols) fn assign_proposition_family_argument_symbols(
             .iter()
             .find(|parameter| {
                 parameter.name.as_str() == name.as_str()
-                    && matches!(
-                        parameter.kind,
-                        symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
-                    )
             })
             .map(|parameter| parameter.symbol)
             .unwrap_or_else(SymbolHandle::invalid);

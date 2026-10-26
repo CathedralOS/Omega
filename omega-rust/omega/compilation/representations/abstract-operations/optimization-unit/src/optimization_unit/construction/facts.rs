@@ -81,6 +81,11 @@ fn operation_obligation(operation: &AbstractOperation) -> Option<(ObligationId, 
             range_obligation: Some(obligation),
             ..
         }
+        | O::AtomicEvent {
+            psi_operation,
+            resident_obligation: Some(obligation),
+            ..
+        }
         | O::StructuralByteViewFieldStore {
             psi_operation,
             predicate_obligation: Some(obligation),

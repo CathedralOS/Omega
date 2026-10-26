@@ -277,10 +277,38 @@ fn required_type_matches_inner<const EXACT: bool>(
         ) if EXACT => actual.is_valid() && actual == required,
         (TypeReferenceNode::Unit, TypeReferenceNode::Unit) if EXACT => true,
         _ if EXACT => actual == required,
-        _ => {
-            crate::value_custody::type_references::type_references_match(program, actual, required)
-        }
+        _ => corresponding_types_match(program, actual, required, bindings, binder_bindings),
     }
+}
+
+/// Exact recipe and qualification identity under the callable's positional
+/// formal correspondence. A preliminary carrier walk must not reject renamed
+/// value operands before the complete signature uses that same correspondence.
+pub(super) fn corresponding_types_match(
+    program: &dyn crate::CheckingInput,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    bindings: &[TypeBinding],
+    binder_bindings: &[BinderBinding],
+) -> bool {
+    let mut positional = Vec::with_capacity(binder_bindings.len() * 2);
+    for (position, binding) in binder_bindings.iter().enumerate() {
+        let label = format!("$formation{position}");
+        positional.push((binding.required, label.clone()));
+        positional.push((binding.actual, label));
+    }
+    let substitutions = bindings
+        .iter()
+        .map(|binding| (binding.symbol, binding.actual))
+        .collect::<Vec<_>>();
+    let identity = |reference| {
+        program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
+            binders: &positional,
+            substitutions: &substitutions,
+            ..typed_trees::type_identity::TypeIdentityRequest::ordinary(reference)
+        })
+    };
+    identity(required) == identity(actual)
 }
 
 fn fixed_array_lengths_match(

@@ -149,16 +149,18 @@ impl Assignment {
     /// `private` for a position the use scan never admitted, which no caller
     /// reaches.
     pub(super) fn load_slot(&self, block: usize, index: usize) -> LocalStorageSlotId {
-        self.loads[block]
-            .instructions
-            .get(&index)
-            .copied()
+        self.loads
+            .get(block)
+            .and_then(|loads| loads.instructions.get(&index).copied())
             .unwrap_or(self.private)
     }
 
     /// The slot an end-of-block reload pair in `block` must name.
     pub(super) fn end_of_block_slot(&self, block: usize) -> LocalStorageSlotId {
-        self.loads[block].end_of_block.unwrap_or(self.private)
+        self.loads
+            .get(block)
+            .and_then(|loads| loads.end_of_block)
+            .unwrap_or(self.private)
     }
 }
 
@@ -246,39 +248,41 @@ pub(super) fn assign(
         }
     }
     if candidate_slots.is_empty() {
-        let mut loads: Vec<BlockLoads> = (0..block_count).map(|_| BlockLoads::default()).collect();
         let mut any_emitted_load = false;
-        for (block_index, block) in function.blocks.iter().enumerate() {
-            let positions = &uses[block_index];
-            if positions.end_of_block {
-                loads[block_index].end_of_block = Some(private);
-                any_emitted_load = true;
-            }
-            if positions.unpinned.is_empty()
-                && positions.pinned.is_empty()
-                && positions.dedicated.is_empty()
-            {
-                continue;
-            }
-            for &index in positions
-                .unpinned
-                .iter()
-                .chain(&positions.pinned)
-                .chain(&positions.dedicated)
-            {
-                if index < block.instructions.len() {
-                    loads[block_index].instructions.insert(index, private);
-                    if !any_emitted_load
+        if definitions.is_empty() {
+            for (block_index, block) in function.blocks.iter().enumerate() {
+                let positions = &uses[block_index];
+                if positions.end_of_block {
+                    any_emitted_load = true;
+                    break;
+                }
+                if positions.unpinned.is_empty()
+                    && positions.pinned.is_empty()
+                    && positions.dedicated.is_empty()
+                {
+                    continue;
+                }
+                for &index in positions
+                    .unpinned
+                    .iter()
+                    .chain(&positions.pinned)
+                    .chain(&positions.dedicated)
+                {
+                    if index < block.instructions.len()
                         && loads_before(uses, shared_reload, span_closes, block_index, index)
                     {
                         any_emitted_load = true;
+                        break;
                     }
+                }
+                if any_emitted_load {
+                    break;
                 }
             }
         }
         return Assignment {
             stores: vec![private; definitions.len()],
-            loads,
+            loads: Vec::new(),
             declares_private: !definitions.is_empty() || any_emitted_load,
             private,
         };

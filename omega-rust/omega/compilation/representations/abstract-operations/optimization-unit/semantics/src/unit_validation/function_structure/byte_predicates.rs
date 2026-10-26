@@ -5,7 +5,7 @@
 //! accepted goal carrying the stored byte's class legs (checked beside the
 //! unit's obligation catalog) and, for `valid_utf8`, an all-ASCII carrier on
 //! every path of the current graph, checked here.
-use crate::OptimizationUnitValidationError;
+use crate::{OperationSite, OptimizationUnitValidationError};
 use abstract_operations::AbstractOperation as Operation;
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
 use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind, StructuralTypeId};
@@ -68,11 +68,13 @@ pub(super) fn validate_indexed_byte_stores(
                         function.structural_places.len() + 1,
                     )
                 {
-                    return Err(OptimizationUnitValidationError::InvalidByteSequenceWrite {
-                        machine: function.machine,
-                        block: block.id,
-                        node: u32::try_from(node_position).unwrap_or(u32::MAX),
-                    });
+                    return Err(OptimizationUnitValidationError::InvalidByteSequenceWrite(
+                        OperationSite::new(
+                            function.machine,
+                            block.id,
+                            u32::try_from(node_position).unwrap_or(u32::MAX),
+                        ),
+                    ));
                 }
                 continue;
             }
@@ -106,11 +108,13 @@ pub(super) fn validate_indexed_byte_stores(
                             },
                         )
                     {
-                        return Err(OptimizationUnitValidationError::InvalidByteSequenceWrite {
-                            machine: function.machine,
-                            block: block.id,
-                            node: u32::try_from(node_position).unwrap_or(u32::MAX),
-                        });
+                        return Err(OptimizationUnitValidationError::InvalidByteSequenceWrite(
+                            OperationSite::new(
+                                function.machine,
+                                block.id,
+                                u32::try_from(node_position).unwrap_or(u32::MAX),
+                            ),
+                        ));
                     }
                 }
                 continue;
@@ -124,10 +128,12 @@ pub(super) fn validate_indexed_byte_stores(
             else {
                 continue;
             };
-            let invalid = || OptimizationUnitValidationError::InvalidByteSequenceWrite {
-                machine: function.machine,
-                block: block.id,
-                node: u32::try_from(node_position).unwrap_or(u32::MAX),
+            let invalid = || {
+                OptimizationUnitValidationError::InvalidByteSequenceWrite(OperationSite::new(
+                    function.machine,
+                    block.id,
+                    u32::try_from(node_position).unwrap_or(u32::MAX),
+                ))
             };
             let predicates = byte_field_predicates(unit, function, *destination, path, *field)
                 .ok_or_else(invalid)?;

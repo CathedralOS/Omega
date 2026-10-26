@@ -120,14 +120,12 @@ pub struct ConstantBooleanReceipt {
 }
 
 impl ConstantBooleanReceipt {
+    receipt_accessor_rows!(ref ConstantBooleanReceipt {
     /// The function the fold was committed in.
-    pub const fn function_index(&self) -> usize {
-        self.function_index
-    }
+        function_index: usize,
     /// The folded flag-reader materialization's source-side identity.
-    pub const fn materialization(&self) -> SelectedInstructionId {
-        self.materialization
-    }
+        materialization: SelectedInstructionId,
+    });
     /// The durable transformation identity the post-allocation manifest
     /// ledger records: the receipt's exact fields under the
     /// constant-boolean domain separator.

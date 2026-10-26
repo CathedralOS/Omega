@@ -49,6 +49,7 @@ pub(super) fn lower(
         path,
         field,
         event,
+        resident_obligation,
     } = &operation.kind
     else {
         unreachable!("the atomic router dispatches only AtomicAccess");
@@ -187,6 +188,7 @@ pub(super) fn lower(
     Ok(AbstractOperation::AtomicEvent {
         psi_operation: operation.id,
         event: lowered,
+        resident_obligation: *resident_obligation,
         reads_from,
         modification_after,
     })
@@ -378,6 +380,7 @@ fn latest_write(
             path: other_path,
             field: other_field,
             event,
+            ..
         } => {
             if other_root == root
                 && other_path == path

@@ -76,7 +76,19 @@ pub(super) fn receiver_frame_origins(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<(Vec<String>, Vec<FramePlaceOrigin>, Option<String>, bool)> {
-    let receiver = program.expression_table.call_node(expression)?.receiver;
+    let call = program.expression_table.call_node(expression)?;
+    let receiver = call.receiver;
+    // A selected namespace supplies callable authority, never caller storage.
+    // Use the shared exact target/path/arity query; unresolved or value
+    // receivers still require chronological place origins below.
+    if program.call_has_no_runtime_receiver_for_target(call) {
+        return Some((
+            super::receiver_member_chain(program, receiver).unwrap_or_default(),
+            Vec::new(),
+            None,
+            true,
+        ));
+    }
     if !receiver.is_valid() {
         return Some((Vec::new(), Vec::new(), None, false));
     }

@@ -2,8 +2,6 @@ use super::*;
 
 #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct Machine {
-    /// Lexically scoped independent declarations, retained until resolution.
-    pub nested_machines: Vec<Machine>,
     pub name: Identifier,
     /// Exact authored template token for a method cloned onto closed generic
     /// data. Empty on authored declarations and other synthesis families.
@@ -94,6 +92,9 @@ pub struct Machine {
     pub admitted_same_stack_bytes: u64,
     pub contracts: HandleSpan<CapabilityContract>,
     pub states: HandleSpan<StateHandle>,
+    /// Trailing lexical declarations, retaining complete ordinary machine heads.
+    /// Children are item-arena handles, not executable members of the entry.
+    pub nested_machines: HandleSpan<Item>,
 }
 
 #[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]

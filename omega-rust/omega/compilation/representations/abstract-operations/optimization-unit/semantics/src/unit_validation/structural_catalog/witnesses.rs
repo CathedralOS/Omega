@@ -1,5 +1,5 @@
-use crate::OptimizationUnitValidationError;
 use crate::unit_validation::derived_metadata::expected_provenance;
+use crate::{OperationSite, OptimizationUnitValidationError};
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{PsiOptimizationFunction, PsiProvenance};
 use std::collections::{BTreeMap, BTreeSet};
@@ -152,30 +152,24 @@ pub(crate) fn validate_trivial_affine_local_witnesses(
                 )
             {
                 return Err(
-                    OptimizationUnitValidationError::StructuralReturnTrivialAffineLocalsMismatch {
-                        machine: function.machine,
-                        block: block.id,
-                        node: node_index,
-                    },
+                    OptimizationUnitValidationError::StructuralReturnTrivialAffineLocalsMismatch(
+                        OperationSite::new(function.machine, block.id, node_index),
+                    ),
                 );
             }
 
             let Some(returned_parameter) = function.structural_parameters.first() else {
                 return Err(
-                    OptimizationUnitValidationError::StructuralReturnTrivialAffineShapeMismatch {
-                        machine: function.machine,
-                        block: block.id,
-                        node: node_index,
-                    },
+                    OptimizationUnitValidationError::StructuralReturnTrivialAffineShapeMismatch(
+                        OperationSite::new(function.machine, block.id, node_index),
+                    ),
                 );
             };
             let Some(result) = function.result.structural() else {
                 return Err(
-                    OptimizationUnitValidationError::StructuralReturnTrivialAffineShapeMismatch {
-                        machine: function.machine,
-                        block: block.id,
-                        node: node_index,
-                    },
+                    OptimizationUnitValidationError::StructuralReturnTrivialAffineShapeMismatch(
+                        OperationSite::new(function.machine, block.id, node_index),
+                    ),
                 );
             };
             if !function.parameters.is_empty()
@@ -197,11 +191,9 @@ pub(crate) fn validate_trivial_affine_local_witnesses(
                     })
             {
                 return Err(
-                    OptimizationUnitValidationError::StructuralReturnTrivialAffineShapeMismatch {
-                        machine: function.machine,
-                        block: block.id,
-                        node: node_index,
-                    },
+                    OptimizationUnitValidationError::StructuralReturnTrivialAffineShapeMismatch(
+                        OperationSite::new(function.machine, block.id, node_index),
+                    ),
                 );
             }
             let expected_discards = trivial_affine_locals
@@ -224,11 +216,9 @@ pub(crate) fn validate_trivial_affine_local_witnesses(
                     .collect::<Vec<_>>()
             {
                 return Err(
-                    OptimizationUnitValidationError::StructuralReturnAffineDiscardsMismatch {
-                        machine: function.machine,
-                        block: block.id,
-                        node: node_index,
-                    },
+                    OptimizationUnitValidationError::StructuralReturnAffineDiscardsMismatch(
+                        OperationSite::new(function.machine, block.id, node_index),
+                    ),
                 );
             }
         }

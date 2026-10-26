@@ -662,8 +662,8 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
         Item::Machine(value) => ItemSnapshot::Machine {
             nested_machines: value
                 .nested_machines
-                .iter()
-                .map(|nested| snapshot_item(syntax_trees, &Item::Machine(nested.clone())))
+                .handles()
+                .map(|handle| snapshot_item(syntax_trees, syntax_trees.items.item(handle)))
                 .collect(),
             where_facts: syntax_trees
                 .items

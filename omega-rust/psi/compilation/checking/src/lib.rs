@@ -35,6 +35,9 @@ pub use value_custody::places::binding_observations::stable_slice_descriptor_pla
 pub use value_custody::places::collection_operations;
 pub use value_custody::places::declared_reference_access;
 pub use value_custody::places::{declaration_type_reference, declared_case_projection_field};
+pub use value_custody::static_inline_storage::{
+    runtime_inline_array_extent, validate_prepared_inline_storage,
+};
 
 pub use declarations::selection_resolution;
 pub use declarations::source_completion;
@@ -166,7 +169,8 @@ pub use access_plans::AtomicAccessOperation;
 pub use value_custody::atomic_operations::{
     AtomicCarrierAccess, atomic_assignment_carrier, atomic_execution_children, atomic_load_carrier,
     atomic_once_carrier, atomic_once_operands, atomic_once_result_type, atomic_once_write_place,
-    atomic_resident_type_reference, atomic_value_operands, place_is_atomic_storage,
+    atomic_resident_type_reference, atomic_result_placeholder, atomic_value_operands,
+    place_is_atomic_storage,
 };
 pub use value_custody::places::{
     AttachedStorageRoot, StructuralScalarField, StructuralSource, assignment_target_indexes,
@@ -353,6 +357,10 @@ pub use value_custody::literals::{
     is_closed_primitive_array_type, peel_arithmetic_policy, scalar_array_elements,
     scalar_array_preserves_memberships,
 };
+pub use value_custody::logical_matches::{
+    LogicalMatchBinding, LogicalRecordCapture, expression_has_closed_value_captures,
+    logical_record_match_capture, logical_saved_subject_projection,
+};
 pub use value_custody::places::ownership_place_from_expression_in_state;
 pub use value_custody::places::{assignment_value_type, declared_place_type_raw};
 pub use value_custody::places::{
@@ -511,7 +519,7 @@ pub use machine_calls::calls::{
     CallSite, CompletingTransfer, call_is_unconditional, call_receiver_parts,
     call_site_argument_expressions, call_site_evidence_arguments, call_target_parameters,
     call_target_return_type, call_target_state, call_target_symbol, call_target_type_parameters,
-    collect_call_sites_in_statement, completing_call_transfer, completing_transition_transfer,
+    collect_call_sites_in_statement, completing_call_transfer, completing_transition_invocation, completing_transition_transfer,
     find_call_site, find_call_site_in_state, find_machine, find_machine_by_entry_state,
     find_machine_head, find_state, find_state_for_exit, find_state_in_machine,
     find_state_on_machine, machine_parameter_signature_symbol, machine_state_by_symbols,

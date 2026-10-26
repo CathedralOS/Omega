@@ -17,7 +17,8 @@ requires choice in Choice::Live
 machine observe(choice: &Choice) -> u32 in Wrapping
 requires choice in Choice::Live
 {
-    let resident: u32 in Wrapping = choice.counter.value.load(NoOrdering);
+    let resident_atomic_observed: u32 = choice.counter.value.load(NoOrdering);
+    let resident: u32 in Wrapping = resident_atomic_observed as u32 in Wrapping;
     transition { _ -> (resident) }
 }
 

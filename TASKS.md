@@ -153,26 +153,6 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
-- **STATIC-CALLBACK-REACH-RETENTION.** Retain static callback reach dependencies
-  end to end through `samples/cli/facts/` witnesses and `omega run --both` under
-  [static callback reach dependencies](wiki/spec/language/effects.md#static-callback-reach-dependencies).
-  Owners: `omega-rust/psi/compilation/checking/src/machine_calls/static_machine_call_contracts.rs`
-  and `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/closed_reach_applications.rs`.
-  - `retain_closed_reach_applications` skips proposition and requirement-identity
-    binders, and `prune_incomplete_closed_reach_applications` removes incomplete
-    annotations and their dependents. Retain the original dependency and
-    telescope instead, including for inlined or absent emitted callees, reusing
-    exact specialization/contract identities.
-  Acceptance: nine-place fact witnesses and corpus fixtures (covering a named
-  traversal with pure and Console callbacks, nested/private helpers, recursive
-  components, selected generic schemas, and unused selections) execute via
-  `omega run --both`, while selections exceeding requirement bounds, redirected
-  same-shaped calls, and incomplete telescopes reject. Inlining or a missing
-  callee never removes reach coverage, and the pure callback's ordinary callers
-  see its specialized empty row without consuming the generic definition. Keep
-  `tests/omega/pass/effects/{nominal_callback_dependency,generic_callback_schema_reach,structural_callback_reach}`
-  passing.
-
 - **CHECKED-PACKAGE-REUSE.** (new-scope) A dependent's check re-judges its
   dependencies' bodies (`std` is checked once at package review, then re-judged
   in dependents). Dependents must consume that judgment through compiler-private
@@ -422,10 +402,8 @@ defines the complete product bar.
     reference-valued locals from every admitted producer keep their loan
     identity, backing, and access through reads, calls, and explicit state
     transfers with no implicit backing copies. Qualify the remaining routes on
-    Linux x86-64 and Windows x86-64, carry
-    `samples/cli/facts/scalar_tag_field_loan` through remaining matching hosts,
-    and run `samples/cli/systems/descriptor_walk/main.omg` through
-    `omega run --both` (exit 50 in both engines after local package review).
+    Linux x86-64 and Windows x86-64, and carry
+    `samples/cli/facts/scalar_tag_field_loan` through remaining matching hosts.
     Keep the local symbol as the loan subject and compose its captured
     projection at use; shared loans cannot gain mutation authority by widening
     the exclusive `receiver_aliases` match.

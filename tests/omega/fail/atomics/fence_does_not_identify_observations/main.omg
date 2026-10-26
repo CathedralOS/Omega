@@ -3,8 +3,10 @@ data Cell { value: AtomicU32; }
 machine same(before: u32 in Wrapping, after: u32 in Wrapping)
 requires before == after {}
 machine observe(cell: &Cell) {
-    let before: u32 in Wrapping = cell.value.load(NoOrdering);
+    let before_atomic_observed: u32 = cell.value.load(NoOrdering);
+    let before: u32 in Wrapping = before_atomic_observed as u32 in Wrapping;
     Atomic::fence(FenceOrdering::ReceivePublish);
-    let after: u32 in Wrapping = cell.value.load(NoOrdering);
+    let after_atomic_observed: u32 = cell.value.load(NoOrdering);
+    let after: u32 in Wrapping = after_atomic_observed as u32 in Wrapping;
     same(before, after);
 }

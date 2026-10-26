@@ -144,7 +144,11 @@ impl Scope<'_> {
         {
             return self
                 .values(application.formation)?
-                .application_value(expression, &application.arguments)
+                .application_value_with_captured(
+                    expression,
+                    &application.arguments,
+                    &application.substitutions,
+                )
                 .map(ScopedArithmeticValue::Term);
         }
         let TypeReferenceNode::Named { symbol, name } =
@@ -261,6 +265,42 @@ impl Scope<'_> {
                     .expression_handles(call.arguments);
                 let (mut substitutions, captured_arguments) =
                     self.argument_substitutions(parameters, arguments);
+                let inert = arguments.iter().all(|argument| {
+                    self.frames.is_some_and(|frames| {
+                        frames
+                            .expression_write_frame(self.machine, *argument)
+                            .complete_paths()
+                            .is_some_and(|paths| paths.is_empty())
+                    })
+                });
+                if let Some(signature) = self
+                    .program
+                    .dynamic_slot_by_symbol(call.target_symbol)
+                    .and_then(|slot| self.program.dynamic_slot_requirement(slot))
+                    .or_else(|| {
+                        self.program
+                            .trait_machine_signature(call.target_symbol)
+                            .map(|(_, signature)| signature)
+                    })
+                {
+                    let locals = self.program.state_signature_type_parameters(signature);
+                    if locals.len() == call.machine_arguments.len() {
+                        let values = self.values(self.statement);
+                        for (formal, actual) in locals.iter().zip(call.machine_arguments.iter()) {
+                            if matches!(
+                                formal.kind,
+                                TypeParameterKind::Value { .. } | TypeParameterKind::Const { .. }
+                            ) {
+                                substitutions.push((
+                                    formal.symbol,
+                                    inert
+                                        .then(|| values.as_ref()?.static_argument_value(actual))
+                                        .flatten(),
+                                ));
+                            }
+                        }
+                    }
+                }
                 let site = validation::CallSite::Expression { expression, call };
                 if let Some(callee) = self
                     .program
@@ -287,6 +327,9 @@ impl Scope<'_> {
                 }
 
                 Some(Application {
+                    // Interpret the declaration under captured formal bindings.
+                    // A caller-applied index could otherwise bypass the prefix
+                    // guard by ceasing to name any of those formal binders.
                     reference: validation::call_target_return_type(
                         self.program,
                         call.target_symbol,
