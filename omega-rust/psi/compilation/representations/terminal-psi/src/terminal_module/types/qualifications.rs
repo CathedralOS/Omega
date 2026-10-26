@@ -45,12 +45,16 @@ pub struct StructuralDomainPredicate {
 impl StructuralDomainDeclaration {
     /// Authorization belongs to this exact boundary requirement, not another
     /// conformer or a private issuer whose value the provider merely forwards.
-    pub fn authorizes_boundary_requirement(&self, requirement: TerminalIdentityIndex) -> bool {
+    pub fn authorizes_boundary_requirement(
+        &self,
+        requirement: TerminalIdentityIndex,
+        declaration: Option<TerminalIdentityIndex>,
+    ) -> bool {
         self.establishment_routes.iter().any(|route| {
             matches!(route, StructuralEstablishmentRoute::BoundaryRequirement {
                 requirement: authorized,
-                ..
-            } if *authorized == requirement)
+                declaration: owner,
+            } if *authorized == requirement && Some(owner.identity()) == declaration)
         })
     }
 

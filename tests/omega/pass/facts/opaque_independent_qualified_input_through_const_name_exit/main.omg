@@ -1,0 +1,23 @@
+// Expected exit: 0
+// Routed opaque input membership survives transport and an independent installed call, preserving libc host numbers 66051 and 513 and replacement 1027 while retaining the disjoint sibling.
+use producer::main;
+public data AddressBox { value: InternetAddress in Classified; }
+public data AddressPair { first: InternetAddress in Classified; second: InternetAddress; }
+
+machine consume(first: InternetAddress in Classified, second: InternetAddress) -> bool reaches AddressParts, AddressBridge {
+    let mut pair: AddressPair = AddressPair { first: first, second: second };
+    let old_host: u32 = AddressBridge::classified_host(pair.first);
+    pair.first = classify(AddressBridge::make(10, 1027));
+    let sibling_host: u32 = AddressBridge::host(pair.second);
+    let replacement_host: u32 = AddressBridge::host(pair.first as InternetAddress);
+    old_host == 66051 && sibling_host == 513 && replacement_host == 1027
+}
+const FIRST_HOST: u32 = 66051;
+const SECOND_HOST: u32 = 513;
+machine observe() -> bool reaches AddressParts, AddressBridge { consume(classify(AddressBridge::make(10, FIRST_HOST)), AddressBridge::make(44048, SECOND_HOST)) }
+
+machine main() reaches AddressParts, AddressBridge crashes Trap {
+ transition observe() { true -> done() _ -> failed() }
+ state done() {}
+ state failed() { crash Trap; }
+}

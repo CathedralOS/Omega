@@ -15,6 +15,37 @@ use terminal_psi::{BoundaryMachineDeclaration, ProviderCandidateConformance, Ter
 /// Every structural domain names a known carrier type.
 pub(super) fn validate_domains(module: &TerminalModule) -> Result<(), CodecError> {
     for domain in &module.structural_domains {
+        if domain
+            .establishment_routes
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        {
+            return malformed("structural domain issuer routes must be canonical and unique");
+        }
+        for route in &domain.establishment_routes {
+            let (declaration, callable) = match route {
+                terminal_psi::StructuralEstablishmentRoute::Requirement {
+                    declaration,
+                    requirement,
+                }
+                | terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement {
+                    declaration,
+                    requirement,
+                } => (declaration.identity(), *requirement),
+                terminal_psi::StructuralEstablishmentRoute::ExactMachine {
+                    declaration,
+                    machine,
+                } => (declaration.identity(), *machine),
+            };
+            if [declaration, callable]
+                .iter()
+                .any(|identity| module.identities.text(*identity).is_none_or(str::is_empty))
+            {
+                return malformed(
+                    "structural domain issuer declaration and callable identities must be present",
+                );
+            }
+        }
         if domain.predicate.as_ref().is_some_and(|predicate| {
             !terminal_semantics::domain_predicate_is_closed(
                 module.structural_types.iter(),
@@ -289,10 +320,15 @@ fn validate_provider_scalar_contract(
     {
         return malformed("provider candidate scalar signature disagrees with its boundary");
     }
-    if !boundary
-        .result
-        .accepts_provider_result(&machine.result, boundary.identity, domains)
-    {
+    if !boundary.result.accepts_provider_result(
+        &machine.result,
+        boundary.identity,
+        boundary
+            .declaration
+            .as_ref()
+            .map(|callable| callable.source.semantic_declaration),
+        domains,
+    ) {
         return malformed("provider candidate result disagrees with its boundary");
     }
     if boundary.structural_parameters.len() != machine.structural_parameters.len()

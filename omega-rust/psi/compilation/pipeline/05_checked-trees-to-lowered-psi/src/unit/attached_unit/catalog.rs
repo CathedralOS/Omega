@@ -1744,11 +1744,19 @@ pub(super) fn call_result_qualification_establishments(
         };
         let requirement =
             identities.intern(&checked.trait_requirement_callable_identity_text(owner, signature));
+        let declaration = crate::machine_lowering::declarations::semantic_identity(
+            identities,
+            checked,
+            boundary_callee,
+        )
+        .map_err(|_| {
+            LoweringError::Unsupported("boundary issuer lost its exact declaration owner")
+        })?;
         if let Some(index) = catalog.iter().position(|route| {
             matches!(route, terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement {
                 requirement: candidate,
-                ..
-            } if *candidate == requirement)
+                declaration: candidate_owner,
+            } if *candidate == requirement && candidate_owner.identity() == declaration)
         }) {
             establishments.push(terminal_psi::ResultQualificationEstablishment {
                 domain: lookup_domain_id(domain_ids, *domain)?,
