@@ -320,6 +320,28 @@ pub(crate) fn evaluate_statement_permissions(
             )?
         };
     }
+    // The same twelve-argument completion call is staged at every step arm
+    // (observe, move-without-transfer, projected whole-affine transfer,
+    // production target, and the complete arm); the macro owns the tuple here
+    // so an arm names only the occurrence and custody halves it completes.
+    macro_rules! complete_occurrence {
+        ($ordinal:expr, $places:ident, $remaining:ident) => {
+            observed_completions::complete_at(
+                program,
+                facts,
+                &source_completions,
+                occurrences,
+                moves,
+                temporary_owners,
+                $ordinal,
+                selection_site,
+                $places,
+                $remaining,
+                permission_events,
+                cleanup_dispositions,
+            )?
+        };
+    }
     // Calls are completion facts, not a second ordering authority. Grouping
     // them before construction moves delays anonymous custody past joins.
     for (occurrence_ordinal, occurrence) in occurrences.iter().enumerate() {
@@ -410,20 +432,7 @@ pub(crate) fn evaluate_statement_permissions(
                 // still complete their evaluations, but transfer neither the
                 // source carrier nor its contained claims or projected scope.
                 if !transfers_custody {
-                    observed_completions::complete_at(
-                        program,
-                        facts,
-                        &source_completions,
-                        occurrences,
-                        moves,
-                        temporary_owners,
-                        occurrence_ordinal,
-                        selection_site,
-                        places,
-                        remaining,
-                        permission_events,
-                        cleanup_dispositions,
-                    )?;
+                    complete_occurrence!(occurrence_ordinal, places, remaining);
                     continue;
                 }
                 // A transition's selected exit owns its residual schedule.
@@ -452,20 +461,7 @@ pub(crate) fn evaluate_statement_permissions(
                         &event_path,
                     )
                 }) {
-                    observed_completions::complete_at(
-                        program,
-                        facts,
-                        &source_completions,
-                        occurrences,
-                        moves,
-                        temporary_owners,
-                        occurrence_ordinal,
-                        selection_site,
-                        places,
-                        remaining,
-                        permission_events,
-                        cleanup_dispositions,
-                    )?;
+                    complete_occurrence!(occurrence_ordinal, places, remaining);
                     continue;
                 }
                 trace_transfer_cut(program, machine_symbol, event, &event_path, places);
@@ -567,20 +563,7 @@ pub(crate) fn evaluate_statement_permissions(
                     &event_path,
                 );
                 remaining.transfer_storage(event.root, &event_path);
-                observed_completions::complete_at(
-                    program,
-                    facts,
-                    &source_completions,
-                    occurrences,
-                    moves,
-                    temporary_owners,
-                    occurrence_ordinal,
-                    selection_site,
-                    places,
-                    remaining,
-                    permission_events,
-                    cleanup_dispositions,
-                )?;
+                complete_occurrence!(occurrence_ordinal, places, remaining);
             }
 
             StatementStep::Complete(expression) => {
@@ -863,20 +846,7 @@ pub(crate) fn evaluate_statement_permissions(
                         crate::checks::multiplicity::CompletedClaimLocation::Expression,
                     );
                 }
-                observed_completions::complete_at(
-                    program,
-                    facts,
-                    &source_completions,
-                    occurrences,
-                    moves,
-                    temporary_owners,
-                    occurrence_ordinal,
-                    selection_site,
-                    places,
-                    remaining,
-                    permission_events,
-                    cleanup_dispositions,
-                )?;
+                complete_occurrence!(occurrence_ordinal, places, remaining);
             }
         }
     }
