@@ -625,11 +625,54 @@ fn collect_expression_binder_mentions(
             collect_expression_binder_mentions(syntax, member.receiver, parameters, mentions);
         }
         ExpressionNode::Call(call) => {
+            collect_expression_binder_mentions(syntax, call.receiver, parameters, mentions);
+            if let Some(index) = parameters
+                .iter()
+                .position(|parameter| parameter == call.target.as_str(syntax))
+            {
+                mentions.push(index);
+            }
+            for argument in &call.machine_arguments {
+                collect_static_argument_binder_mentions(syntax, argument, parameters, mentions);
+            }
             for argument in syntax.expressions.expression_handles(call.arguments) {
                 collect_expression_binder_mentions(syntax, *argument, parameters, mentions);
             }
         }
         _ => {}
+    }
+}
+
+fn collect_static_argument_binder_mentions(
+    syntax: &SyntaxTrees,
+    argument: &syntax_trees::expression::StaticMachineArgument,
+    parameters: &[String],
+    mentions: &mut Vec<usize>,
+) {
+    if argument.type_reference.is_valid() {
+        type_structure::collect_binder_mentions(
+            syntax,
+            argument.type_reference,
+            parameters,
+            mentions,
+        );
+    }
+    let name = match (&*argument.path, &argument.evidence_projection) {
+        ([name], _) => Some(name),
+        (_, Some(projection)) => Some(&projection.term),
+        _ => None,
+    };
+    if let Some(name) = name
+        && let Some(index) = parameters
+            .iter()
+            .position(|parameter| parameter == name.as_str(syntax))
+    {
+        mentions.push(index);
+    }
+    if let Some(application) = &argument.application {
+        for argument in &application.arguments {
+            collect_static_argument_binder_mentions(syntax, argument, parameters, mentions);
+        }
     }
 }
 

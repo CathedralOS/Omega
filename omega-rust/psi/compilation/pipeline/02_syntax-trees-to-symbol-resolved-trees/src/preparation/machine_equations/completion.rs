@@ -88,7 +88,9 @@ pub(super) fn complete_arguments(
         if all_parameters.get(index).is_some_and(|parameter| {
             matches!(
                 parameter.kind,
-                TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                TypeParameterKind::Type
+                    | TypeParameterKind::Const { .. }
+                    | TypeParameterKind::Value { .. }
             )
         }) {
             continue;
@@ -99,7 +101,7 @@ pub(super) fn complete_arguments(
                 .any(|equation| equation.mentions_parameter(syntax, &all_names, index))
         {
             return Err(Diagnostic::error(format!(
-                "machine structural equation requires a type or const binder; `{name}` retains a non-type selection in its signature"
+                "machine structural inference cannot replace non-type binder `{name}` with a global declaration"
             ))
             .with_source_span(target.source_span()));
         }
@@ -108,7 +110,9 @@ pub(super) fn complete_arguments(
     for (index, parameter) in all_parameters.iter().enumerate() {
         if matches!(
             parameter.kind,
-            TypeParameterKind::Type | TypeParameterKind::Const { .. }
+            TypeParameterKind::Type
+                | TypeParameterKind::Const { .. }
+                | TypeParameterKind::Value { .. }
         ) {
             equation_positions.push(index);
         } else {
@@ -146,10 +150,11 @@ pub(super) fn complete_arguments(
     for parameter in &parameters {
         const_parameter_types.push(match parameter.kind {
             TypeParameterKind::Type => None,
-            TypeParameterKind::Const { type_reference } => Some(type_reference),
+            TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference } => Some(type_reference),
             _ => {
                 return Err(Diagnostic::error(
-                    "machine equation completion requires type and const binders",
+                    "machine equation completion requires type or value binders",
                 )
                 .with_source_span(target.source_span()));
             }
@@ -171,11 +176,11 @@ pub(super) fn complete_arguments(
             }
             // Supplied literals retain ordinary static-argument carrier checking;
             // unrelated equations must not impose constructor-slot restrictions.
-            TypeParameterKind::Const { .. } if argument.const_literal.is_some() => {
+            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } if argument.const_literal.is_some() => {
                 let value = argument.const_literal.as_ref().and_then(IntegerLiteral::value_bignum).ok_or_else(|| Diagnostic::error("machine equation const argument is not an exact integer"))?;
                 syntax.type_references.insert(TypeReferenceNode::Named(syntax_trees::identifier::Identifier::generated(value.to_string())))
             }
-            TypeParameterKind::Const { .. } => {
+            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
                 supplied_const_argument_reference(syntax, argument, selection)?
             }
             _ => return Err(Diagnostic::error("machine equation argument mixes type and value kinds or retains an open static argument").with_source_span(target.source_span())),
@@ -267,7 +272,7 @@ pub(super) fn complete_arguments(
         };
         match parameter.kind {
             TypeParameterKind::Type => argument.type_reference = reference,
-            TypeParameterKind::Const { .. } => {
+            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
                 let Some(value) = syntax.type_references.type_reference(reference).as_named()
                 else {
                     return Err(Diagnostic::error(
