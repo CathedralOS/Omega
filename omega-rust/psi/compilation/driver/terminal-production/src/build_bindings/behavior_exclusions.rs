@@ -48,10 +48,43 @@ pub(super) fn capture(
                 ));
             }
         };
-        let author = checked
+        // The internal boundary only observes identity. Mutable Build
+        // authority belongs to its exact public Prelude wrapper, before this
+        // shared borrow is formed. Direct user calls cannot acquire a host
+        // binding even if they can name the toolchain requirement.
+        let machine = checked
             .machine_holding_state(occurrence.source_state)
-            .and_then(|machine| checked.symbols.symbol_source_span(machine.symbol))
             .ok_or_else(|| Diagnostic::error("Build exclusion lost its selecting machine"))?;
+        let state = checked
+            .state_by_symbol(occurrence.source_state)
+            .ok_or_else(|| Diagnostic::error("Build exclusion lost its selecting state"))?;
+        let expected_method = match kind {
+            BuildBehaviorExclusionKind::Crash => "exclude_crash",
+            BuildBehaviorExclusionKind::PhysicalAuthority => "exclude_physical_authority",
+        };
+        if !checked.symbols.is_build_prelude_symbol(machine.symbol)
+            || !checked.symbols.is_build_prelude_symbol(state.symbol)
+            || state.name.as_str() != expected_method
+            || !checked.data_definitions().iter().any(|declaration| {
+                declaration.symbol == machine.attached_data_symbol
+                    && language_semantics::build_requests::is_build_protocol(
+                        &checked.symbols,
+                        declaration.symbol,
+                        "Build",
+                    )
+            })
+        {
+            return Err(Diagnostic::error(
+                "Build behavior protocol requires its source-owned mutable Build selection helper",
+            )
+            .with_source_span(source_span));
+        }
+        let author = checked
+            .symbols
+            .symbol_source_span(machine.symbol)
+            .ok_or_else(|| {
+                Diagnostic::error("Build exclusion lost its authored selecting machine")
+            })?;
         Ok(TerminalBuildBindingCall {
             operation,
             boundary,
@@ -93,10 +126,12 @@ fn cases(
         .find(|declaration| declaration.id == boundary)
         .ok_or_else(refuse)?
         .structural_parameters;
-    let [_, parameter] = parameters.as_slice() else {
+    let [receiver, parameter] = parameters.as_slice() else {
         return Err(refuse());
     };
-    if parameter.access != terminal_psi::StructuralAccess::Owned {
+    if receiver.access != terminal_psi::StructuralAccess::SharedBorrow
+        || parameter.access != terminal_psi::StructuralAccess::Owned
+    {
         return Err(refuse());
     }
     let definition = module

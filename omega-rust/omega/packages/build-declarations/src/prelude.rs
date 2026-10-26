@@ -250,9 +250,12 @@ public machine Build::exclude_crash(builder: &mut Build, cause: CrashCause) reac
 public machine Build::exclude_physical_authority(builder: &mut Build, authority: PhysicalAuthorityClass) reaches BuildBehaviorOperations invokes BuildBehaviorOperations; {
     BuildBehaviorOperations::exclude_physical_authority(builder, authority);
 }
+// Internal recording observes identity; it never replaces Build storage.
+// Source admission permits these calls only in the exact mutable public
+// helpers above. A user-authored direct call carries no host authority.
 public boundary trait BuildBehaviorOperations {
-    machine exclude_crash(builder: &mut Build, cause: CrashCause) reaches;
-    machine exclude_physical_authority(builder: &mut Build, authority: PhysicalAuthorityClass) reaches;
+    machine exclude_crash(builder: &Build, cause: CrashCause) reaches;
+    machine exclude_physical_authority(builder: &Build, authority: PhysicalAuthorityClass) reaches;
 }
 // Independent-component assumption acceptance
 // (wiki/spec/build/component_publication.md): a verified component
