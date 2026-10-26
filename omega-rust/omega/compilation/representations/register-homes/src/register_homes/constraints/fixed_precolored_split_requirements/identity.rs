@@ -97,9 +97,5 @@ fn encode_connector(bytes: &mut Vec<u8>, connector: selected_instructions::LiveR
 }
 
 fn length(bytes: &mut Vec<u8>, value: usize) {
-    bytes.extend_from_slice(
-        &u64::try_from(value)
-            .expect("fixed/precolored split requirement length fits u64")
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::length(bytes, value, "fixed/precolored split requirement");
 }
