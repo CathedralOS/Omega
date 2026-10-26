@@ -632,11 +632,10 @@ pub(crate) fn build_checked_unit_effect_plans(
                 .flat_map(|state| state.operation_dependencies()),
         )
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
-            ) => Some(*value),
-            _ => None,
+        .filter_map(|operation| {
+            operation
+                .structural_value_evaluation()
+                .map(|(value, _)| value)
         })
         .chain(scalar_value_roots)
         .collect::<Vec<_>>();
