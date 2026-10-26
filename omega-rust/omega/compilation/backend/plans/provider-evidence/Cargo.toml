@@ -21,3 +21,7 @@ language-core = { path = "../../../../../psi/foundation/language-core" }
 language-semantics = { path = "../../../../../psi/foundation/language-semantics" }
 numerics = { path = "../../../../../psi/foundation/numerics" }
 sha2 = "0.10.9"
+
+[dev-dependencies]
+# The source guards delegate their scan to the shared audit crate.
+source-audit = { path = "../../../../../psi/foundation/source-audit" }

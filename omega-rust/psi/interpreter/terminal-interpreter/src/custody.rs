@@ -49,15 +49,7 @@ pub(crate) fn bind_result_claim(
     if live_claims
         .insert(
             binding.claim,
-            crate::execution::LiveClaim {
-                place: Some(place),
-                path: binding.path.clone(),
-                multiplicity: Some(if binding.path.is_empty() {
-                    multiplicity
-                } else {
-                    StructuralMultiplicity::Linear
-                }),
-            },
+            crate::execution::LiveClaim::at(place, binding.path.clone(), multiplicity),
         )
         .is_some()
     {
@@ -85,6 +77,7 @@ pub(crate) fn commit_cleanup_action(
         crate::structural_inputs::case_membership::StructuralCaseContents,
     >,
     machines: &crate::program::ProgramDeclarations<'_, TerminalMachine>,
+    current_machine: &TerminalMachine,
     structural_values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
     scalar_arrays: &mut crate::scalar_array::ScalarArrayBindings,
     reference_referents: &mut RuntimeRows<
@@ -109,6 +102,7 @@ pub(crate) fn commit_cleanup_action(
                 reference_referents,
                 element_views,
                 *place,
+                current_machine,
             )
             .is_none()
                 || !remove_affine_root(frontier, *place)
@@ -1353,15 +1347,11 @@ pub(crate) fn bind_entry_claims(
             || claims
                 .insert(
                     entry_claim.claim,
-                    LiveClaim {
-                        place: Some(parameter.place),
-                        path: entry_claim.path.clone(),
-                        multiplicity: Some(if entry_claim.path.is_empty() {
-                            parameter.multiplicity
-                        } else {
-                            StructuralMultiplicity::Linear
-                        }),
-                    },
+                    LiveClaim::at(
+                        parameter.place,
+                        entry_claim.path.clone(),
+                        parameter.multiplicity,
+                    ),
                 )
                 .is_some()
         {
@@ -1635,15 +1625,11 @@ pub(crate) fn transfer_claims(
             if callee_claims
                 .insert(
                     entry_claim.claim,
-                    LiveClaim {
-                        place: Some(parameter.place),
-                        path: entry_claim.path.clone(),
-                        multiplicity: Some(if entry_claim.path.is_empty() {
-                            parameter.multiplicity
-                        } else {
-                            StructuralMultiplicity::Linear
-                        }),
-                    },
+                    LiveClaim::at(
+                        parameter.place,
+                        entry_claim.path.clone(),
+                        parameter.multiplicity,
+                    ),
                 )
                 .is_some()
             {
@@ -1695,11 +1681,8 @@ pub(crate) fn rebind_structural_result_claims(
     }
     let mut rebound = caller_claims.clone();
     for binding in &result.claims {
-        let expected_multiplicity = if binding.path.is_empty() {
-            result.multiplicity
-        } else {
-            StructuralMultiplicity::Linear
-        };
+        let expected_multiplicity =
+            LiveClaim::path_multiplicity(&binding.path, result.multiplicity);
         let mut held = returned_claims.iter().filter(|returned| {
             returned.path == binding.path
                 && callee_claims
@@ -1717,11 +1700,7 @@ pub(crate) fn rebind_structural_result_claims(
             || rebound
                 .insert(
                     binding.claim,
-                    LiveClaim {
-                        place: Some(result.place),
-                        path: binding.path.clone(),
-                        multiplicity: Some(expected_multiplicity),
-                    },
+                    LiveClaim::at(result.place, binding.path.clone(), result.multiplicity),
                 )
                 .is_some()
         {

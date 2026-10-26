@@ -28,9 +28,14 @@ impl PsiOptimizationRule for DominatorProofCertifiedScalarGvnRule {
             unit,
             analyses,
             |_| (),
-            |_, unit, machine, operation| {
+            |_, unit, function, operation| {
                 let row = proof_certified_scalar_expression(operation)?;
-                let fact = accepted_obligation_fact(unit, machine, row.1).ok()?;
+                accepted_obligation_fact(unit, function.machine, row.1).ok()?;
+                Some(row)
+            },
+            |_, unit, function, operation| {
+                let row = proof_certified_scalar_expression(operation)?;
+                let fact = accepted_obligation_fact(unit, function.machine, row.1).ok()?;
                 Some((row, fact))
             },
             |same| {

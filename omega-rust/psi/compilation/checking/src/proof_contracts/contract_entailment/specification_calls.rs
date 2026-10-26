@@ -1221,6 +1221,35 @@ pub(super) enum RuntimeScalarSubject {
     Expression(ExpressionHandle),
 }
 
+/// Whole public contracts read the occurrence's applied signature. Selected
+/// executable calls have already substituted closed operands into that view;
+/// their runtime Value coordinates are ordinary mapped public formals supplied
+/// by `call_parameter_scope`. Rebinding the provider's tuple by the fresh public
+/// symbols loses that correspondence. Raw index projections retain their own
+/// executable telescope and use `call_scalar_substitution` below instead.
+pub(super) fn call_contract_scalar_substitution(
+    program: &dyn crate::CheckingInput,
+    caller: SymbolHandle,
+    owner: &SelectedCallContract<'_>,
+    site: crate::CallSite<'_>,
+    observed: impl FnMut(RuntimeScalarSubject) -> Option<StructuralTerm>,
+) -> Option<Vec<(typed_trees::signature::StateParameter, StructuralTerm)>> {
+    if site.static_requirement_dispatch().is_some() {
+        let (_, selected) = crate::requirement_contract_signature(program, caller, &site)?;
+        let SelectedCallContract::Signature(signature) = owner else {
+            return None;
+        };
+        // The declaration symbol alone does not identify a fresh applied view.
+        // Both borrows must name this exact retained invocation signature.
+        if !std::ptr::eq(*signature, selected) {
+            return None;
+        }
+        crate::selected_call_arguments(program, caller, &site).ok()?;
+        return Some(Vec::new());
+    }
+    call_scalar_substitution(program, caller, owner, site, observed)
+}
+
 pub(super) fn call_scalar_substitution(
     program: &dyn crate::CheckingInput,
     caller: SymbolHandle,

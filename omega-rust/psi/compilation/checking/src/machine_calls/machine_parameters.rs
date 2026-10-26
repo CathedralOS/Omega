@@ -12,6 +12,7 @@ mod family_demands;
 mod selected_dependencies;
 pub(crate) use selected_dependencies::{
     call_selection_dependency_symbols, machine_selection_dependency_symbols,
+    specialization_selection_dependency_symbols,
 };
 mod closed_types;
 mod type_selections;
@@ -61,6 +62,8 @@ pub enum ValidatedNominalMachineUseSite {
 pub struct ValidatedNominalMachineUse {
     pub site: ValidatedNominalMachineUseSite,
     pub registration_operation: SymbolHandle,
+    /// Exact public requirement owner judged at this occurrence; classification only.
+    pub registration_requirement_trait: Option<SymbolHandle>,
     pub static_machine_ordinal: u32,
     pub selected_machine: SymbolHandle,
     pub selected_entry: SymbolHandle,
@@ -450,6 +453,10 @@ fn form_call_selection(
     let closed_requirement = source_target
         .and_then(|target| program.closed_requirement_application(target))
         .filter(|closed| closed.template == target_symbol);
+    let registration_requirement_trait = closed_requirement
+        .map(|closed| closed.declaring_trait)
+        .or_else(|| crate::selected_requirement_signature(program, target_symbol)
+            .map(|(declaration, _)| declaration.symbol));
     /// Split a type-parameter signature into its `Machine`-kind contract
     /// requirements and its `Type`-kind generic slots, in declaration order.
     fn contract_and_type_parameters<'p>(
@@ -742,6 +749,7 @@ fn form_call_selection(
                 .push(ValidatedNominalMachineUse {
                     site,
                     registration_operation: target_symbol,
+                    registration_requirement_trait,
                     static_machine_ordinal: u32::try_from(static_machine_ordinal)
                         .expect("static machine argument ordinal overflow"),
                     selected_machine: selection.selected_machine,

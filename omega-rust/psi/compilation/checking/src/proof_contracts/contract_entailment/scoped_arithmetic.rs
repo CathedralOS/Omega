@@ -320,6 +320,51 @@ pub fn scoped_arithmetic_values_relation(
     left: &ScopedArithmeticValue,
     right: &ScopedArithmeticValue,
 ) -> StrictArithmeticImplicationJudgment {
+    values_relation(
+        program,
+        calls::ScopedCalls::new(program, context_machine),
+        Engine::strict(program, context_machine, &[]),
+        hypotheses,
+        operator,
+        left,
+        right,
+    )
+}
+
+/// Declaration recipes carry a supplying telescope, not an executable frame.
+/// Reuse the same relation judgment without inventing a temporary machine.
+pub(crate) fn scoped_arithmetic_values_relation_for_declaration(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    hypotheses: &[ScopedArithmeticHypothesis],
+    operator: BinaryOperator,
+    left: &ScopedArithmeticValue,
+    right: &ScopedArithmeticValue,
+) -> StrictArithmeticImplicationJudgment {
+    let engine = program.machine(owner).map_or_else(
+        || Engine::strict_for_declaration(program, owner),
+        |machine| Engine::strict(program, machine, &[]),
+    );
+    values_relation(
+        program,
+        calls::ScopedCalls::for_declaration(program, owner),
+        engine,
+        hypotheses,
+        operator,
+        left,
+        right,
+    )
+}
+
+fn values_relation<'program>(
+    program: &'program dyn crate::CheckingInput,
+    mut calls: calls::ScopedCalls<'program>,
+    mut engine: Engine<'program>,
+    hypotheses: &[ScopedArithmeticHypothesis],
+    operator: BinaryOperator,
+    left: &ScopedArithmeticValue,
+    right: &ScopedArithmeticValue,
+) -> StrictArithmeticImplicationJudgment {
     use numerics::bignum::BigInt;
     // An inconsistent premise set entails propositions, but does not turn an
     // arithmetic or Boolean operator into a comparison judgment.
@@ -333,14 +378,12 @@ pub fn scoped_arithmetic_values_relation(
     ) {
         return StrictArithmeticImplicationJudgment::Unknown;
     }
-    let mut calls = calls::ScopedCalls::new(program, context_machine);
     let (Some(left), Some(right)) = (calls.value(left), calls.value(right)) else {
         return StrictArithmeticImplicationJudgment::Unknown;
     };
     let Some(hypotheses) = calls.hypotheses(hypotheses) else {
         return StrictArithmeticImplicationJudgment::Unknown;
     };
-    let mut engine = Engine::strict(program, context_machine, &[]);
     let Some(left) = engine.normalize_scoped_value(&left) else {
         return StrictArithmeticImplicationJudgment::Unknown;
     };

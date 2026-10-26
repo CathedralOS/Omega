@@ -147,7 +147,8 @@ impl<'program> CallFrameResolver<'program> {
                     return None;
                 };
                 (
-                    call.target_symbol,
+                    typed_trees::operator::resolve_named_expression_call(program, call)
+                        .map_or(call.target_symbol, |operator| operator.symbol),
                     call.target.as_str(),
                     call.receiver,
                     frames::receiver_member_chain(program, call.receiver).unwrap_or_default(),
@@ -224,7 +225,15 @@ impl<'program> CallFrameResolver<'program> {
                                     program.call_has_no_runtime_receiver_for_target(call)
                                 }),
                             _ => false,
-                        };
+                        }
+                        || frames::boundary_calls::boundary_trait_signature_and_receiver(
+                            program,
+                            machine,
+                            &receiver_members,
+                            name,
+                            site,
+                        )
+                        .is_some_and(|(_, has_runtime_receiver)| !has_runtime_receiver);
                 // A nested call can follow effects in an enclosing operand. The
                 // prefix owner has not captured those substatement updates.
                 // Reuse its expression inventory and frame query; do not

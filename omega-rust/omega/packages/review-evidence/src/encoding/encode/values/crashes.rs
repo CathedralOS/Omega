@@ -13,7 +13,7 @@ pub(crate) use scalar::encode_scalar_expression;
 mod vocabulary;
 
 use vocabulary::{arithmetic_domain_name, primitive_type_name};
-pub(crate) use vocabulary::{encode_primitive_type, integer_binary_tag, integer_comparison_tag};
+pub(crate) use vocabulary::{encode_primitive_type, integer_binary_row, integer_comparison_row};
 
 pub(crate) fn encode_structural_field(
     encoder: &mut Encoder,

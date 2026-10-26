@@ -39,6 +39,13 @@ impl RepresentationView {
         }
     }
 
+    pub(super) fn retained_bytes(&self) -> Option<&ByteSequenceView> {
+        match &self.storage {
+            ByteStorage::Immutable(view) => Some(view),
+            ByteStorage::Array { .. } => None,
+        }
+    }
+
     fn scalar_position<'a>(
         &'a self,
         view: &ElementView,

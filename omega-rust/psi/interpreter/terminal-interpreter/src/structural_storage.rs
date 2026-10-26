@@ -51,7 +51,7 @@ impl StorageKey for StructuralByteSequenceRuntimeField {
 }
 pub(crate) fn cells<'a, K: StorageKey + 'a, V: 'a>(
     map: &'a impl std::borrow::Borrow<BTreeMap<K, V>>,
-    root: &'a StructuralRuntimePlace,
+    root: &StructuralRuntimePlace,
 ) -> impl Iterator<Item = (&'a K, &'a V)> {
     let lower = Included(K::identity_start(root.opaque_identity));
     let upper = root

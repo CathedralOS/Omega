@@ -5,9 +5,8 @@ use crate::encoding::encode::values::crashes::arithmetic_domain_name;
 use crate::encoding::encode::values::crashes::encode_boolean_expression;
 use crate::encoding::encode::values::crashes::encode_primitive_type;
 use crate::encoding::encode::values::crashes::encode_structural_path;
-use crate::encoding::encode::values::crashes::integer_binary_tag;
+use crate::encoding::encode::values::crashes::integer_binary_row;
 use crate::encoding::encode::values::crashes::primitive_type_name;
-use crate::record::PackageReviewIntegerBinaryKind;
 use crate::record::PackageReviewScalarExpression;
 
 pub(crate) fn encode_scalar_expression(
@@ -98,7 +97,8 @@ fn encode_scalar_node(
         } => {
             encoder.tag("integer_binary", 4);
             encoder.field("kind", |encoder| {
-                encoder.tag(integer_binary_name(*kind), integer_binary_tag(*kind));
+                let (tag, name) = integer_binary_row(*kind);
+                encoder.tag(name, tag);
                 Ok(())
             })?;
             encoder.field("primitive_type", |encoder| {
@@ -208,40 +208,4 @@ fn encode_scalar_node(
         }
     }
     Ok(())
-}
-
-const fn integer_binary_name(kind: PackageReviewIntegerBinaryKind) -> &'static str {
-    match kind {
-        PackageReviewIntegerBinaryKind::ExactAdd => "exact_add",
-        PackageReviewIntegerBinaryKind::ExactSubtract => "exact_subtract",
-        PackageReviewIntegerBinaryKind::ExactMultiply => "exact_multiply",
-        PackageReviewIntegerBinaryKind::ExactDivide => "exact_divide",
-        PackageReviewIntegerBinaryKind::ExactRemainder => "exact_remainder",
-        PackageReviewIntegerBinaryKind::WrappingDivide => "wrapping_divide",
-        PackageReviewIntegerBinaryKind::WrappingRemainder => "wrapping_remainder",
-        PackageReviewIntegerBinaryKind::SaturatingDivide => "saturating_divide",
-        PackageReviewIntegerBinaryKind::SaturatingRemainder => "saturating_remainder",
-        PackageReviewIntegerBinaryKind::WrappingAdd => "wrapping_add",
-        PackageReviewIntegerBinaryKind::SaturatingAdd => "saturating_add",
-        PackageReviewIntegerBinaryKind::WrappingSubtract => "wrapping_subtract",
-        PackageReviewIntegerBinaryKind::SaturatingSubtract => "saturating_subtract",
-        PackageReviewIntegerBinaryKind::WrappingMultiply => "wrapping_multiply",
-        PackageReviewIntegerBinaryKind::SaturatingMultiply => "saturating_multiply",
-        PackageReviewIntegerBinaryKind::BitwiseAnd => "bitwise_and",
-        PackageReviewIntegerBinaryKind::BitwiseOr => "bitwise_or",
-        PackageReviewIntegerBinaryKind::BitwiseXor => "bitwise_xor",
-        PackageReviewIntegerBinaryKind::WrappingShiftLeft => "wrapping_shift_left",
-        PackageReviewIntegerBinaryKind::WrappingShiftRight => "wrapping_shift_right",
-        PackageReviewIntegerBinaryKind::ExactShiftLeft => "exact_shift_left",
-        PackageReviewIntegerBinaryKind::ExactShiftRight => "exact_shift_right",
-        PackageReviewIntegerBinaryKind::TrappingShiftLeft => "trapping_shift_left",
-        PackageReviewIntegerBinaryKind::TrappingShiftRight => "trapping_shift_right",
-        PackageReviewIntegerBinaryKind::TrappingAdd => "trapping_add",
-        PackageReviewIntegerBinaryKind::TrappingSubtract => "trapping_subtract",
-        PackageReviewIntegerBinaryKind::TrappingMultiply => "trapping_multiply",
-        PackageReviewIntegerBinaryKind::TrappingDivide => "trapping_divide",
-        PackageReviewIntegerBinaryKind::TrappingRemainder => "trapping_remainder",
-        PackageReviewIntegerBinaryKind::SaturatingShiftLeft => "saturating_shift_left",
-        PackageReviewIntegerBinaryKind::SaturatingShiftRight => "saturating_shift_right",
-    }
 }

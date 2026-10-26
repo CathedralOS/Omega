@@ -241,7 +241,8 @@ pub(super) fn disposition_actions(
                 validation::CleanupCaseReachability::Selected => {}
                 validation::CleanupCaseReachability::Runtime
                     if removed.cause
-                        == checked_trees::ContextualCleanupExclusionCause::Unestablished => {}
+                        == checked_trees::ContextualCleanupExclusionCause::Unestablished
+                        || case_evidence.definitely_transferred(excluded) => {}
                 // Only a positive, all-path receiving absence can exclude a
                 // value without selecting its case. This remains runtime tag
                 // geometry, never membership or whole-owner disposal proof.

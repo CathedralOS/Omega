@@ -299,6 +299,7 @@ pub(crate) fn captured_arithmetic_observation(
                 &captured,
                 primitive,
                 &contexts,
+                true,
                 &mut Vec::new(),
             )?;
             match crate::values::evaluate_checked_scalar(&value, &mut |_| None)? {
@@ -578,6 +579,7 @@ fn current_actual(
     captured: &crate::flow::CapturedValue<'_>,
     primitive: typed_trees::types::PrimitiveType,
     contexts: &[FactContextHandle],
+    fold_observed_values: bool,
     bindings: &mut Vec<crate::facts::boolean_predicates::BoundObservation>,
 ) -> Option<CheckedScalarExpression> {
     let (machine, body) =
@@ -634,6 +636,7 @@ fn current_actual(
                     place.clone(),
                     primitive,
                     contexts,
+                    fold_observed_values,
                     bindings,
                 )
             },
@@ -653,7 +656,15 @@ fn current_actual(
     )?;
     place.extend_segments(&projection.remaining);
     bind_current(
-        program, facts, state, call, place, primitive, contexts, bindings,
+        program,
+        facts,
+        state,
+        call,
+        place,
+        primitive,
+        contexts,
+        fold_observed_values,
+        bindings,
     )
 }
 
@@ -665,6 +676,7 @@ fn bind_current(
     place: CanonicalPlace,
     primitive: typed_trees::types::PrimitiveType,
     contexts: &[FactContextHandle],
+    fold_observed_values: bool,
     bindings: &mut Vec<crate::facts::boolean_predicates::BoundObservation>,
 ) -> Option<CheckedScalarExpression> {
     let type_reference = validation::canonical_place_type_reference(
@@ -676,20 +688,21 @@ fn bind_current(
     if program.primitive_type_reference(type_reference) != Some(primitive) {
         return None;
     }
-    if let Some(value) = scalar_at(
-        program,
-        facts,
-        contexts,
-        facts::ProgramPoint::Statement {
-            machine_symbol: state.machine_symbol,
-            state_symbol: state.state_symbol,
-            statement_index: call.statement_index,
-        },
-        &place,
-    ) {
-        if let Some(literal) = observed_literal(value, primitive) {
-            return Some(literal);
-        }
+    if fold_observed_values
+        && let Some(value) = scalar_at(
+            program,
+            facts,
+            contexts,
+            facts::ProgramPoint::Statement {
+                machine_symbol: state.machine_symbol,
+                state_symbol: state.state_symbol,
+                statement_index: call.statement_index,
+            },
+            &place,
+        )
+        && let Some(literal) = observed_literal(value, primitive)
+    {
+        return Some(literal);
     }
     let operand = CheckedScalarExpression::Parameter {
         position: bindings.len(),
@@ -804,6 +817,22 @@ pub(crate) fn proves_bound_predicate<'program>(
     frames: Option<&validation::CallFrameResolver<'_>>,
     actual: &impl Fn(&crate::facts::boolean_predicates::BoundObservation) -> Option<Actual<'program>>,
 ) -> bool {
+    proves_bound_predicate_mode(
+        program, facts, state, call, contexts, predicate, frames, actual, true,
+    )
+}
+
+fn proves_bound_predicate_mode<'program>(
+    program: &'program dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    contexts: &[FactContextHandle],
+    predicate: &crate::facts::boolean_predicates::BoundPredicate,
+    frames: Option<&validation::CallFrameResolver<'_>>,
+    actual: &impl Fn(&crate::facts::boolean_predicates::BoundObservation) -> Option<Actual<'program>>,
+    fold_observed_values: bool,
+) -> bool {
     // Judge one formula in the observed-value namespace. Producer evidence
     // joins each exact copied value independently, rather than requiring all
     // operands to retain the same context or choosing one global proof mode.
@@ -846,6 +875,7 @@ pub(crate) fn proves_bound_predicate<'program>(
             &captured,
             operand.primitive_type()?,
             &operand_contexts,
+            fold_observed_values,
             &mut current.bindings,
         )?;
         for binding in &current.bindings[first_binding..] {
@@ -919,26 +949,57 @@ pub(crate) fn proves_bound_predicate<'program>(
     // receiving bound. Use the shared completed-value equation closure; the
     // required bound is never one of its premises and unseeded cycles prove
     // nothing. Observation epochs were authenticated above.
-    super::prover::call_guarantees::proves_captured_predicates(
-        program,
-        &facts.semantic,
-        &selected_contexts,
-        &retained,
-        &current,
-        |place| {
-            scalar_at(
-                program,
-                facts,
-                &selected_contexts,
-                facts::ProgramPoint::Statement {
-                    machine_symbol: state.machine_symbol,
-                    state_symbol: state.state_symbol,
-                    statement_index: call.statement_index,
-                },
-                place,
-            )
-        },
-    )
+    if !fold_observed_values {
+        // Authenticate the same captures and epochs, but retain their storage
+        // coordinates. An edge implication can be established propositionally
+        // from an entry invariant without mixing a selected branch's premise
+        // with a closed predecessor value. No scalar premise is added here.
+        return super::calls::selected_guard_predicate(program, facts, state, call, frames)
+            .and_then(|guard| {
+                crate::facts::boolean_predicates::guarded_requirement(&guard, &current)
+            })
+            .is_some_and(|required| {
+                crate::facts::boolean_predicates::proves(&retained, &required, |_| None)
+            });
+    }
+    let proves = |required: &crate::facts::boolean_predicates::BoundPredicate| {
+        super::prover::call_guarantees::proves_captured_predicates(
+            program,
+            &facts.semantic,
+            &selected_contexts,
+            &retained,
+            required,
+            |place| {
+                scalar_at(
+                    program,
+                    facts,
+                    &selected_contexts,
+                    facts::ProgramPoint::Statement {
+                        machine_symbol: state.machine_symbol,
+                        state_symbol: state.state_symbol,
+                        statement_index: call.statement_index,
+                    },
+                    place,
+                )
+            },
+        )
+    };
+    if proves(&current) {
+        return true;
+    }
+    // Prove G => Q as a goal. Asserting G beside exact values from a
+    // known-false branch would create contradictory evidence; the shared
+    // algebra deliberately rejects that. No branch assertion or conclusion
+    // enters the premise set, and all observations retain exact places.
+    let Some(guard) = super::calls::selected_guard_predicate(program, facts, state, call, frames)
+    else {
+        return false;
+    };
+    crate::facts::boolean_predicates::guarded_requirement(&guard, &current)
+        .is_some_and(|required| proves(&required))
+        || proves_bound_predicate_mode(
+            program, facts, state, call, contexts, predicate, frames, actual, false,
+        )
 }
 
 /// Transport only entry-custodied observations. A callee selector remains a

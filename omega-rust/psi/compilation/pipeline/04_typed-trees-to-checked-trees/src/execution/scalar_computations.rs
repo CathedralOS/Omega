@@ -641,22 +641,17 @@ pub(crate) fn build_checked_value_computation_plans(
                             result_type,
                         );
                     }
-                    let TransitionTargetNode::Named {
-                        path,
-                        arguments,
-                        evidence_arguments,
-                        ..
-                    } = program.statement_table.transition_target(target)
+                    let Some(transfer) =
+                        validation::completing_transition_transfer(program, target)
                     else {
                         continue;
                     };
-                    if !evidence_arguments.is_empty() {
-                        continue;
-                    }
-                    let Some(target_state) =
-                        validation::activation_target_state_index(program, machine, path.symbol)
-                            .and_then(|target_index| states.get(target_index))
-                    else {
+                    let Some(target_state) = validation::activation_target_state_index(
+                        program,
+                        machine,
+                        transfer.target,
+                    )
+                    .and_then(|target_index| states.get(target_index)) else {
                         continue;
                     };
                     // Tail-normalized calls deliver into entry storage just
@@ -669,9 +664,8 @@ pub(crate) fn build_checked_value_computation_plans(
                     // the same coordinate.
                     let target_parameters =
                         program.state_parameters(target_state).iter().enumerate();
-                    let arguments = program.statement_table.expression_handles(*arguments);
                     for (argument, (target_position, parameter)) in
-                        arguments.iter().zip(target_parameters)
+                        transfer.arguments.iter().zip(target_parameters)
                     {
                         let Ok(argument_ordinal) = u32::try_from(target_position) else {
                             continue;

@@ -68,8 +68,11 @@ impl Captures<'_> {
         }
         let mut origins = Vec::new();
         for candidate in relative {
-            let (result_path, _) =
-                self.structural_path(target.return_type, &candidate.result_path)?;
+            let (result_path, _) = super::super::source_paths::structural_path(
+                self.program,
+                target.return_type,
+                &candidate.result_path,
+            )?;
             if !leaves.iter().any(|leaf| leaf.path == result_path) {
                 return None;
             }
@@ -92,7 +95,7 @@ impl Captures<'_> {
             for source in self.captured_input_sources(
                 state,
                 parameter.type_reference,
-                operand,
+                call.argument_operands().handles().nth(position)?,
                 &candidate.source,
                 active,
             )? {
@@ -164,13 +167,14 @@ impl Captures<'_> {
         &self,
         state: &typed_trees::state::State,
         reference: TypeReferenceHandle,
-        operand: &checked_trees::FlowOperandFact,
+        operand_handle: arena::Handle<checked_trees::FlowOperandFact>,
         relative: &crate::LocalWriteSource,
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<crate::LocalWriteSource>> {
-        let operand = self.completed_operand_source(operand)?;
+        let actual = self.facts.flow.control.operands.get(operand_handle);
+        let operand = self.completed_operand_source(actual)?;
         let mut relative = relative.clone();
-        let mut selected = operand;
+        let selected = operand;
         if crate::reference_shell(self.program, reference).is_none() {
             let carrier = declared_carrier_references(self.program, reference)?;
             let mut boundary = None;
@@ -204,43 +208,21 @@ impl Captures<'_> {
             )? {
                 return Some(Vec::new());
             }
-            if let Some(child) = self.completed_operand_leaf(operand, &path) {
-                selected = child;
-                relative.segments = relative
-                    .segments
-                    .strip_prefix(segments.as_slice())?
-                    .to_vec();
-            } else {
-                // An opaque owned input retains its own descriptor identities.
-                // Presence checked the captured write prefix; never turn a
-                // detached carrier's empty referents into an empty result.
-                let place = crate::canonical_place_from_expression_in_state(
-                    self.program,
-                    state.symbol,
-                    operand.statement_index,
-                    operand.expression,
-                )?;
-                let root = place.root.as_symbol()?;
-                if !self
-                    .program
-                    .state_parameters(state)
-                    .iter()
-                    .any(|parameter| parameter.symbol == root)
-                {
-                    return None;
-                }
-                let source = crate::LocalWriteSource {
-                    invocation_output: None,
-                    is_image_storage: false,
-                    recasts: Vec::new(),
-                    representation: None,
-                    path: self.program.symbols.name(root).to_owned(),
-                    collection_coarse: false,
-                    root,
-                    segments: place.segments,
-                };
-                return Some(vec![source.substitute_storage(self.program, &relative)?]);
-            }
+            relative.segments = relative
+                .segments
+                .strip_prefix(segments.as_slice())?
+                .to_vec();
+            let expected =
+                crate::project_type_reference_from_segments(self.program, reference, &segments)?;
+            let actual_path = loan_place_segments(self.program, actual.type_reference, &path)?;
+            return self.completed_descriptor_sources(
+                state,
+                operand_handle,
+                &actual_path,
+                expected,
+                &relative,
+                &mut Vec::new(),
+            );
         }
         let referents = self
             .facts
@@ -348,7 +330,8 @@ impl Captures<'_> {
                 .operand_children
                 .span(operand.constructed_children())?
             {
-                let (destination, _) = self.structural_path(
+                let (destination, _) = super::super::source_paths::structural_path(
+                    self.program,
                     operand.type_reference,
                     self.facts
                         .flow

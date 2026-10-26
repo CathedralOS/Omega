@@ -29,7 +29,7 @@ pub(crate) fn analyze_fixed_precolored_split_requirements(
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedFixedPrecoloredSplitRequirements, FixedPrecoloredSplitRequirementError> {
     let plan = compute::compute(ranges, legality, fixed, policy, budget)?;
-    validation::seal_fixed_precolored_split_requirements(legality, plan)
+    validation::seal_fixed_precolored_split_requirements(plan)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,12 +45,6 @@ pub struct FixedPrecoloredSplitRequirementValidationReceipt {
     pub(crate) target: NativeTarget,
     pub(crate) policy: FixedPrecoloredSplitRequirementPolicy,
     pub(crate) usage: OptimizationWorkUsage,
-    pub(crate) function_count: usize,
-    pub(crate) register_count: usize,
-    pub(crate) fragment_count: usize,
-    pub(crate) source_point_count: usize,
-    pub(crate) segment_count: usize,
-    pub(crate) incompatible_fixed_use_boundary_count: usize,
 }
 
 impl FixedPrecoloredSplitRequirementValidationReceipt {
@@ -86,24 +80,6 @@ impl FixedPrecoloredSplitRequirementValidationReceipt {
     }
     pub const fn usage(self) -> OptimizationWorkUsage {
         self.usage
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn register_count(self) -> usize {
-        self.register_count
-    }
-    pub const fn fragment_count(self) -> usize {
-        self.fragment_count
-    }
-    pub const fn source_point_count(self) -> usize {
-        self.source_point_count
-    }
-    pub const fn segment_count(self) -> usize {
-        self.segment_count
-    }
-    pub const fn incompatible_fixed_use_boundary_count(self) -> usize {
-        self.incompatible_fixed_use_boundary_count
     }
 }
 

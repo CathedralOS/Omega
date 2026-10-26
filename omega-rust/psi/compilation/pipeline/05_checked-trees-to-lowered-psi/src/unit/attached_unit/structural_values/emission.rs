@@ -1019,12 +1019,21 @@ fn prepare_owners(
             == Multiplicity::Affine
             && available(local.symbol, local.statement_index)?
             && !owners.iter().any(|owner| owner.symbol == local.symbol)
+            && !evaluation
+                .retired_structural_bindings
+                .iter()
+                .any(|retired| {
+                    retired.symbol == local.symbol
+                        && retired.statement == Some(local.statement_index)
+                        && retired.end == argument_evaluation::StructuralBindingEnd::RetiredHome
+                })
         {
-            return Err(LoweringError::MissingSelectionOwner {
+            return Err(LoweringError::MissingSelectionFrontier {
                 machine: checked.symbols.display_path(machine, "::"),
                 state: checked.symbols.display_path(state, "::"),
                 statement_index: statement,
                 local: checked.symbols.display_path(local.symbol, "::"),
+                formation_statement: local.statement_index,
             });
         }
     }

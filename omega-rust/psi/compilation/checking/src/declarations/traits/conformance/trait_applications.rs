@@ -74,6 +74,7 @@ pub(crate) fn validate_trait_application_obligations(
                 AppliedValueCarrier::applied(*type_reference, parameters, applied_arguments),
                 *argument,
                 caller_scope,
+                &[],
                 diagnostics,
                 formation_obligations,
             ),

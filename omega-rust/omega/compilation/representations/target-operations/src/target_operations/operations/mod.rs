@@ -7,3 +7,6 @@ mod unit;
 pub use unit::{
     NativeCallOrigin, TargetFloatResultPolicy, TargetStructuralRuntimeIndex, TargetUnitOperation,
 };
+
+mod atomic;
+pub use atomic::atomic_storage_integer_type;

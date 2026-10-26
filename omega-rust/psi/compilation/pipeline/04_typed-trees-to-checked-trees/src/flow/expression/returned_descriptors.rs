@@ -184,11 +184,9 @@ impl Execution<'_, '_, '_> {
                         operand,
                         projection,
                     }]);
-                self.context
-                    .control
-                    .operand_retentions
-                    .get_mut(retention)
-                    .suppliers = suppliers;
+                let profile = self.context.control.operand_retentions.get_mut(retention);
+                profile.suppliers = suppliers;
+                profile.descriptor_sources = suppliers;
             }
             let referents = self.append_captured_references(&places);
             alternatives.push(FlowOperandFact {

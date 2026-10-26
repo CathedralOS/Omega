@@ -225,16 +225,14 @@ impl StructuralJudge<'_> {
     /// Unknown effects retire every live storage observation, not immutable
     /// model premises or detached values captured before the call. Absence of
     /// a complete frame is never an empty frame or evidence of non-interference.
-    /// Incoming by-value aggregates already own their inline cells. Retain
-    /// that entry observation before the first effect, just as completed local
-    /// bindings do. A disjoint write may erase pointee observations without
+    /// Incoming by-value parameters own their scalar payload or inline cells.
+    /// Retain that entry observation before the first effect, just as completed
+    /// local bindings do. A disjoint write may erase pointee observations without
     /// erasing this copy's descriptor words. No reference formal is seeded.
     pub(super) fn retain_entry_owned_values(&mut self, state: &State) {
         for parameter in self.program.state_parameters(state) {
             let reference = parameter.type_reference;
-            if self.program.primitive_type_reference(reference).is_some()
-                || crate::reference_shell(self.program, reference).is_some()
-            {
+            if crate::reference_shell(self.program, reference).is_some() {
                 continue;
             }
             let value = super::StructuralTerm::Variable(parameter.name.to_string());

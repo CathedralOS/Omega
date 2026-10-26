@@ -157,12 +157,23 @@ pub(crate) struct Evaluation {
     pub blocks: Vec<Block>,
 }
 
+/// Ending an executable source name does not itself finish the physical home.
+/// Only the whole-home disposition can authorize a missing-frontier exemption.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StructuralBindingEnd {
+    ConsumedSource,
+    RetiredHome,
+}
+
 /// A retired source occurrence remains identifiable after its executable local
 /// binding is removed. Rebinding that source name clears this negative fact.
 #[derive(Clone)]
 pub(crate) struct RetiredStructuralBinding {
     pub(crate) symbol: symbols::SymbolHandle,
     pub(crate) place: PlaceId,
+    /// Anonymous aliases without a named owner grant no declaration exemption.
+    pub(crate) statement: Option<u32>,
+    pub(crate) end: StructuralBindingEnd,
 }
 
 /// The source correspondence at one control-flow frontier. Emitted blocks and
@@ -901,6 +912,13 @@ impl Evaluation {
     /// rosters. Historical declarations and shared type geometry stay intact.
     pub(crate) fn retire_structural_home(&mut self, place: PlaceId) {
         self.retire_structural_sources(place);
+        for binding in self
+            .retired_structural_bindings
+            .iter_mut()
+            .filter(|binding| binding.place == place)
+        {
+            binding.end = StructuralBindingEnd::RetiredHome;
+        }
         self.structural_locals
             .retain(|local| local.argument.place != place);
     }
@@ -925,8 +943,18 @@ impl Evaluation {
                 .iter()
                 .any(|binding| binding.symbol == symbol && binding.place == place)
             {
+                let statement = self
+                    .structural_value_owners
+                    .iter()
+                    .find(|owner| owner.symbol == symbol && owner.value.place == place)
+                    .map(|owner| owner.statement);
                 self.retired_structural_bindings
-                    .push(RetiredStructuralBinding { symbol, place });
+                    .push(RetiredStructuralBinding {
+                        symbol,
+                        place,
+                        statement,
+                        end: StructuralBindingEnd::ConsumedSource,
+                    });
             }
         }
         self.structural_value_owners

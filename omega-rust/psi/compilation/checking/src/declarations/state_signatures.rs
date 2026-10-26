@@ -48,6 +48,7 @@ pub(crate) fn validate_callable_state_signatures(
                 .machine_states(machine)
                 .iter()
                 .map(|state| StateSignatureView {
+                    symbol: state.symbol,
                     name: state.name.as_str(),
                     lifetime_parameters: &[],
                     parameters: program.state_parameters(state),
@@ -123,6 +124,7 @@ pub(crate) fn validate_callable_state_signatures(
             lifetime_parameters.extend_from_slice(&machine.lifetime_parameters);
             validate_state_signature_types(
                 std::iter::once(StateSignatureView {
+                    symbol: machine.symbol,
                     name: machine.name.as_str(),
                     lifetime_parameters: &machine.lifetime_parameters,
                     parameters: program.state_signature_parameters(machine),
@@ -200,6 +202,7 @@ fn validate_machine_state_result_agreement(
 
 #[derive(Debug, Clone, Copy)]
 struct StateSignatureView<'program> {
+    symbol: symbols::SymbolHandle,
     name: &'program str,
     lifetime_parameters: &'program [Identifier],
     parameters: &'program [StateParameter],
@@ -277,6 +280,7 @@ fn validate_machine_parameter_signatures<'program>(
         }
         validate_state_signature_types(
             std::iter::once(StateSignatureView {
+                symbol: contract.symbol,
                 name: contract.name.as_str(),
                 lifetime_parameters: &contract.lifetime_parameters,
                 parameters: program.state_signature_parameters(contract),
@@ -354,6 +358,7 @@ fn validate_state_signature_types<'program>(
                 symbols,
                 diagnostics,
                 TypeReferenceOwner::StateParameter {
+                    signature: signature.symbol,
                     owner,
                     state: signature.name,
                     parameter: parameter.name.as_str(),
@@ -374,6 +379,7 @@ fn validate_state_signature_types<'program>(
                 symbols,
                 diagnostics,
                 TypeReferenceOwner::StateReturn {
+                    signature: signature.symbol,
                     owner,
                     state: signature.name,
                     generic_depth: 0,

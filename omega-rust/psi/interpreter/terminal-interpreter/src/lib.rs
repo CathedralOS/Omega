@@ -9,9 +9,10 @@
 //! custody; fuel exhaustion is not a semantic program outcome.
 //! `runtime_rows` owns live-cell reservations for frame values/descriptors and
 //! shared scalar record fields. Constructor and subtree staging pay for their
-//! overlap, then transfer reservations with the rows. Primitive backing and
-//! other shared descriptor/case tables still have separate accounting debt;
-//! these owners do not yet establish a complete Build storage ceiling.
+//! overlap, then transfer reservations with the rows. `result_custody` charges
+//! completed publications from their retained storage graph, not declarations or
+//! unrelated frame storage. These owners alone do not establish complete Build
+//! accounting: remaining Build host operations and scheduler integration remain.
 //!
 //! The embedding surface sits beside it, by lifecycle: `program` (one owned or
 //! borrowed immutable artifact — `TerminalProgram` — reusable across
@@ -56,6 +57,7 @@ mod program;
 mod provider_storage;
 mod record;
 mod reference;
+mod result_custody;
 mod results;
 mod runtime_indexes;
 mod runtime_rows;

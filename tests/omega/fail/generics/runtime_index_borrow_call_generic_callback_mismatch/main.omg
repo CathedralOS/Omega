@@ -1,0 +1,5 @@
+data Indexed<Limit:u32>{value:u32;}
+machine apply<machine Routine>(value:&mut Indexed<7>)
+where machine Routine<Item>(item:&mut Item);
+{ Routine<Indexed<9>>(value); }
+machine main() {}

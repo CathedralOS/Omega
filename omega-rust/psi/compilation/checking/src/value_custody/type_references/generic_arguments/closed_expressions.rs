@@ -130,18 +130,22 @@ impl Context<'_> {
                 member.receiver,
             )
             .ok_or("const field projection has no independently typed receiver")?;
+            // Projection folding needs a completed receiver first. An open
+            // runtime read retains its typed recipe; it is not a failed const
+            // record projection. Ordinary source formation still owns its
+            // selected member meaning and carrier/access obligations.
+            let Some(value) =
+                self.value(member.receiver, AppliedValueCarrier::ordinary(receiver))?
+            else {
+                return Ok(None);
+            };
             let field =
                 crate::value_custody::places::applied_data_member_field(program, receiver, member)
                     .ok_or("const field projection lost its exact declared field")?;
             if !carrier.matches(program, field.type_reference) {
                 return Err("const field projection has a different declared carrier".to_owned());
             }
-            let Some(receiver) =
-                self.value(member.receiver, AppliedValueCarrier::ordinary(receiver))?
-            else {
-                return Ok(None);
-            };
-            let fields = match receiver {
+            let fields = match value {
                 DecodedCanonicalConstValue::Record { fields, .. }
                 | DecodedCanonicalConstValue::Variant { fields, .. } => fields,
                 _ => {

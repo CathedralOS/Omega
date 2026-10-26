@@ -81,16 +81,7 @@ pub enum RegisterHomeDecodeError {
     TrailingBytes,
 }
 
-impl std::fmt::Display for RegisterHomeDecodeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid Terminal register-home encoding: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for RegisterHomeDecodeError {}
+crate::decode_error_display! { RegisterHomeDecodeError, "invalid Terminal register-home encoding" }
 
 optimization_core::truncated_from_adapter!(RegisterHomeDecodeError);
 

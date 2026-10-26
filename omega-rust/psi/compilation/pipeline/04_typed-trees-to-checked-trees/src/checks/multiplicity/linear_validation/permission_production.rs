@@ -567,6 +567,14 @@ pub(crate) fn evaluate_statement_permissions(
                     place.live = false;
                 }
                 transfers[transfer_snapshot].events.end = permission_events.len() - event_start;
+                remaining.observe_selected_transfer(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    event.root,
+                    event.expression,
+                    &event_path,
+                );
                 remaining.transfer_storage(event.root, &event_path);
                 observed_completions::complete_at(
                     program,

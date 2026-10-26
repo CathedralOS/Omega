@@ -271,7 +271,7 @@ pub(super) fn validate_resolved_call_arguments(
         selected_float_operation_retains_argument_policy(program, callee.symbol),
         &[],
         |argument, required| {
-            crate::value_custody::expression_types::argument_matches_carrier(
+            crate::value_custody::expression_types::argument_matches_call_carrier(
                 program,
                 caller.symbol,
                 argument,

@@ -6,7 +6,7 @@
 //! of this module's machinery — signatures, entry claims, successors — reads
 //! this roster through `FusedStates`, each state keeping its authored owner
 //! for signatures and proof facts.
-use super::super::{StatementNode, TransitionTargetNode};
+use super::super::StatementNode;
 
 /// A composed graph's state roster: the dispatch machine's states followed by
 /// the foreign machines in its recursive component. Each entry pairs the
@@ -34,7 +34,7 @@ pub(in crate::execution::terminal_unit) fn fused_states<'program>(
     let mut cursor = 0;
     while let Some(&(_, state)) = fused.get(cursor) {
         cursor += 1;
-        for target_symbol in named_transition_targets(program, state) {
+        for target_symbol in completing_transition_targets(program, state) {
             if fused_target_index(program, &fused, target_symbol).is_some() {
                 continue;
             }
@@ -76,7 +76,7 @@ pub(in crate::execution::terminal_unit) fn fused_states<'program>(
         let Some(source_index) = owners.iter().position(|symbol| *symbol == owner.symbol) else {
             continue;
         };
-        for target_symbol in named_transition_targets(program, state) {
+        for target_symbol in completing_transition_targets(program, state) {
             let Some(target_index) = fused_target_index(program, &fused, target_symbol) else {
                 continue;
             };
@@ -117,9 +117,10 @@ pub(in crate::execution::terminal_unit) fn fused_states<'program>(
     fused
 }
 
-/// The valid named targets of one state's transitions, in authored order:
-/// each transition's target and continuation, filtered to `Named` spells.
-fn named_transition_targets<'a>(
+/// Every complete transition invocation in authored order. Applied calls
+/// retain their full source payload; exact resolution supplies the same
+/// component edge as a named arrival without rewriting the typed tree.
+fn completing_transition_targets<'a>(
     program: &'a dyn ::validation::CheckingInput,
     state: &'a typed_trees::state::State,
 ) -> impl Iterator<Item = symbols::SymbolHandle> + 'a {
@@ -132,12 +133,10 @@ fn named_transition_targets<'a>(
             _ => None,
         })
         .flat_map(|transition| transition.targets())
-        .filter_map(
-            |target| match program.statement_table.transition_target(target) {
-                TransitionTargetNode::Named { path, .. } => Some(path.symbol),
-                _ => None,
-            },
-        )
+        .filter_map(|target| {
+            validation::completing_transition_transfer(program, target)
+                .map(|transfer| transfer.target)
+        })
 }
 
 /// The fused position of a named transition target: a state symbol resolves

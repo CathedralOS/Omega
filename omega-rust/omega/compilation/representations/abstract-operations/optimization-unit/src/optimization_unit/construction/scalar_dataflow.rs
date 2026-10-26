@@ -91,7 +91,7 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
 /// Every scalar the operation reads, in operand order: its direct operands,
 /// then each runtime-selected path element's selector
 /// (`AbstractOperation::runtime_indices`).
-pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
+pub fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
     let mut uses = direct_uses(operation);
     uses.extend(
         operation

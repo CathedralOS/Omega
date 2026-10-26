@@ -1,5 +1,6 @@
 //! Place ordinary blocks by mandatory conditional fallthrough chains.
 use super::super::{OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy};
+use super::branch::conditional_branch_descriptor;
 use selected_instructions::{SelectedBlock, SelectedFunction, SelectedTerminator};
 
 pub(super) fn derive(
@@ -43,14 +44,8 @@ pub(super) fn derive(
     let mut following = vec![None; count];
     let mut preceding = vec![None; count];
     for (source, block) in function.blocks.iter().enumerate() {
-        let successor = match &block.terminator {
-            SelectedTerminator::ConditionalBranch { when_zero, .. } => Some(when_zero),
-            selected_instructions::conditional_branch_less_pair_pattern!(when_not_less, ..) => {
-                Some(when_not_less)
-            }
-            SelectedTerminator::Jump { .. }
-            | selected_instructions::terminator_no_successor_pattern!(..) => None,
-        };
+        let successor =
+            conditional_branch_descriptor(block).map(|descriptor| descriptor.when_fallthrough);
         if let Some(successor) = successor {
             let destination = position_of(successor.block).ok_or_else(invalid)?;
             if destination == source || preceding[destination].replace(source).is_some() {

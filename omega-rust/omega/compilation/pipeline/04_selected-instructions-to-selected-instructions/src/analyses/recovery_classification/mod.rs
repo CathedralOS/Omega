@@ -53,9 +53,6 @@ pub struct RecoveryClassificationValidationReceipt {
     pub(crate) fuel_schedule: FuelScheduleIdentity,
     pub(crate) policy: RecoveryClassificationPolicy,
     pub(crate) usage: OptimizationWorkUsage,
-    pub(crate) function_count: usize,
-    pub(crate) classification_count: usize,
-    pub(crate) immediate_candidate_count: usize,
 }
 
 impl RecoveryClassificationValidationReceipt {
@@ -74,15 +71,6 @@ impl RecoveryClassificationValidationReceipt {
     }
     pub const fn usage(self) -> OptimizationWorkUsage {
         self.usage
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn classification_count(self) -> usize {
-        self.classification_count
-    }
-    pub const fn immediate_candidate_count(self) -> usize {
-        self.immediate_candidate_count
     }
 }
 

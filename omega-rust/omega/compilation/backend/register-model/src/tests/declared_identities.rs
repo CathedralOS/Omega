@@ -176,19 +176,10 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         save_floating_control: None,
         restore_floating_control: None,
         hosted_exit_process_i32: None,
-        call_unit: vec![RegisterConstraintKey {
-            family: RegisterConstraintFamily::Call,
-            variant: 2,
-        }],
+        call_unit: vec![RegisterConstraintKey::call(2)],
         call_unit_mixed: Vec::new(),
-        call_scalar: vec![RegisterConstraintKey {
-            family: RegisterConstraintFamily::Call,
-            variant: 3,
-        }],
-        call_normalized_foreign: vec![RegisterConstraintKey {
-            family: RegisterConstraintFamily::Call,
-            variant: 3000,
-        }],
+        call_scalar: vec![RegisterConstraintKey::call(3)],
+        call_normalized_foreign: vec![RegisterConstraintKey::call(3000)],
         materialize_i64: instruction_key(1),
         materialize_boolean: instruction_key(732),
         copy_i64: instruction_key(5),

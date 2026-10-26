@@ -48,6 +48,14 @@ impl PartialEq for ByteSequenceView {
 impl Eq for ByteSequenceView {}
 
 impl ByteSequenceView {
+    pub(crate) fn shares_backing(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.backing, &other.backing)
+    }
+
+    pub(crate) fn retained_payload_bytes(&self) -> usize {
+        self.backing.storage.bytes().len()
+    }
+
     pub(crate) fn new(storage: storage::ByteSequenceStorage) -> Self {
         let length = storage.bytes().len();
         Self {

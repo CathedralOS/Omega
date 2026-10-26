@@ -187,12 +187,6 @@ fn rule_pruned_machine_provenance(
             }
         }
     }
-    rows.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    rows.sort_by_key(ProvenanceRewrite::canonical_sort_key);
     Some(rows)
 }

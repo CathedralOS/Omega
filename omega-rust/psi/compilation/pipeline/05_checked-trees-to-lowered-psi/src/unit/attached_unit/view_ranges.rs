@@ -11,7 +11,7 @@
 //! Normalize an inclusive end only after capturing its value: a rewritten source
 //! expression would lose that identity and could repeat a call's effects. Both
 //! schedules then narrow the same half-open descriptor with exact arithmetic.
-use super::{CheckedTrees, LoweringError, unsupported};
+use super::{CheckedTrees, LoweringError, allocate_dense, place_id, unsupported};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, LoweredElementPathSegment, TERMINAL_NESTED_SELECTOR_LIMIT,
@@ -452,6 +452,46 @@ pub(crate) fn storage(
         collection_element,
         access: argument.access,
     })
+}
+
+/// Stage the narrowed-view source one range site emits from: the collection's
+/// descriptor storage, the whole-view place its establishment owes (only where
+/// the descriptor does not already carry one), and the bound source. The
+/// establishment declaration returns for the site to place in the roster that
+/// owns it; sites keep their own emit and their own declaration placement.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn stage_source(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    statement: u32,
+    argument: &CheckedUnitStructuralArgumentPlan,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    bindings: &ScalarBindings,
+    next_place: &mut u64,
+    values: &mut Vec<ValueDeclaration>,
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<(ViewRangeSource, Option<StructuralPlaceDeclaration>), LoweringError> {
+    let storage = storage(
+        identities,
+        checked,
+        state,
+        statement,
+        argument,
+        declarations,
+    )?;
+    let whole = if storage.requires_establishment() {
+        Some(place_id(allocate_dense(next_place)?))
+    } else {
+        None
+    };
+    let (source, establishment) =
+        storage.bind(identities, checked, state, bindings, whole, declarations)?;
+    let declaration = establishment
+        .map(|establishment| establish(&establishment, values, next_value, operations))
+        .transpose()?;
+    Ok((source, declaration))
 }
 
 pub(crate) fn establish(

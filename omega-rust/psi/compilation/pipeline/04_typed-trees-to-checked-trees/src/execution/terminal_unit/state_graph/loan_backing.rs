@@ -19,6 +19,7 @@ use typed_trees::expression::ExpressionHandle;
 use crate::borrow::accesses::is_image_storage_root;
 
 fn selected_call(
+    program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -30,7 +31,13 @@ fn selected_call(
     let mut calls = flow.calls.handles().filter(|handle| {
         let call = facts.flow.control.calls.get(*handle);
         call.statement_index == statement
-            && call.authored_site == checked_trees::FlowCallSite::NamedTransition
+            && (call.authored_site == checked_trees::FlowCallSite::NamedTransition
+                || (call.authored_site == checked_trees::FlowCallSite::Expression
+                    && program.state_by_symbol(state).and_then(|state| program.statement_table.statement_at(state, statement)).is_some_and(|statement| match statement {
+                        typed_trees::statement::StatementNode::Transition(transition) => transition.targets().any(|target| matches!(program.statement_table.transition_target(target), typed_trees::statement::TransitionTargetNode::Value(expression) if *expression == call.authored_expression)),
+                        typed_trees::statement::StatementNode::Expression(expression) => *expression == call.authored_expression,
+                        _ => false,
+                    })))
             && call.authored_target == target
             && facts
                 .flow
@@ -63,7 +70,7 @@ pub(super) fn retained_storage(
     argument_position: usize,
     operations: &[CheckedUnitEffectOperationPlan],
 ) -> Result<RetainedStorage, &'static str> {
-    let call_handle = selected_call(facts, machine, state, statement, target, arguments)
+    let call_handle = selected_call(program, facts, machine, state, statement, target, arguments)
         .ok_or("state loan: exact captured call")?;
     let operand = facts
         .flow
@@ -652,7 +659,7 @@ pub(super) fn retired_carrier_backing(
                 _ => None,
             })?;
 
-    let call_handle = selected_call(facts, machine, state, statement, target, arguments)?;
+    let call_handle = selected_call(program, facts, machine, state, statement, target, arguments)?;
     let call = facts.flow.control.calls.get(call_handle);
     let selected_operand = call.argument_operands().handles().nth(argument_position)?;
     let resources = facts

@@ -17,10 +17,5 @@ pub(super) fn custody_receipt(
         liveness: upstream.liveness(),
         ranges: upstream.ranges(),
         legality: legality.identity(),
-        function_count: legality.function_count(),
-        virtual_register_count: legality.virtual_register_count(),
-        point_count: legality.point_count(),
-        candidate_count: legality.candidate_count(),
-        entry_transition_count: legality.entry_transition_count(),
     }
 }

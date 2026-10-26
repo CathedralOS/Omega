@@ -74,6 +74,11 @@ pub struct FlowOperandRetention {
     /// a post-call observation, not an evaluated child, loan authority, scalar
     /// equality or a snapshot of the referent. Zero withholds exact geometry.
     pub descriptor: Handle<FlowOperandFact>,
+    /// Complete body-proven input descriptor candidates. Projection selects
+    /// the captured invocation-entry pointer. Unlike permission suppliers,
+    /// this relation establishes descriptor forwarding, never pointee contents.
+    /// Only the returned-descriptor producer may install this roster.
+    pub descriptor_sources: HandleSpan<FlowOperandRetainedSupplier>,
     /// Pointer scope authenticated by an immutable literal producer. Empty
     /// lifetime roots alone never establish image backing. Copies retain this
     /// scope; borrowing a holder does not inherit its pointee's scope.

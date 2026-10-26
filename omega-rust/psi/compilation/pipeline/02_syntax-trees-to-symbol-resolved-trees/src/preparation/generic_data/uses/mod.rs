@@ -32,7 +32,7 @@ pub(super) fn concrete_state_local_types(
     syntax: &super::SyntaxTrees,
     declarations: &[syntax_trees::item::ItemHandle],
 ) -> Vec<(
-    syntax_trees::item::StateNode,
+    syntax_trees::item::State,
     super::HashMap<String, super::TypeReferenceHandle>,
     Vec<syntax_trees::statement::StatementHandle>,
 )> {

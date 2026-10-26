@@ -4,6 +4,7 @@ use optimization_core::{OptimizationRuleContract, OptimizationSafetyClass};
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 use super::expression_keys::proof_certified_scalar_expression;
+use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::global_value_numbering::same_block_contract;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
@@ -26,17 +27,24 @@ impl PsiOptimizationRule for SameBlockProofCertifiedScalarCseRule {
         super::propose_same_block_scalar_cse(
             unit,
             analyses,
-            true,
             |_| (),
-            |_, operation| proof_certified_scalar_expression(operation),
+            |_, unit, function, operation| {
+                let row = proof_certified_scalar_expression(operation)?;
+                accepted_obligation_fact(unit, function.machine, row.1).ok()?;
+                Some(row)
+            },
+            |_, unit, function, operation| {
+                let row = proof_certified_scalar_expression(operation)?;
+                let fact = accepted_obligation_fact(unit, function.machine, row.1).ok()?;
+                Some((row, fact))
+            },
             |same| {
                 PsiRewriteCandidate::new_proof_certified_local_scalar_common_subexpression(
                     unit.identity,
                     Self::contract(),
                     same.affected_blocks,
                     same.provenance,
-                    same.obligation_fact
-                        .expect("proof-certified match carries its obligation fact"),
+                    same.extras,
                     -1,
                     same.patch,
                 )

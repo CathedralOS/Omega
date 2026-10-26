@@ -2192,9 +2192,7 @@ impl TerminalExecution<'_> {
         else {
             unreachable!("dispatched execute_boolean_structural_field")
         };
-        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-            return Err(malformed());
-        }
+        self.require_boolean_result(operation)?;
         let value = self.read_observed_field(source, path, field, ScalarType::Boolean)?;
         self.store_scalar(operation, value)
     }

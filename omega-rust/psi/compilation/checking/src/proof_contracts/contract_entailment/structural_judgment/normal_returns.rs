@@ -1996,7 +1996,7 @@ impl<'program> StructuralJudge<'program> {
         // One authenticated telescope supplies closed constants and completed
         // runtime operands. Executable formals already captured above retain
         // their own ordered value; header subjects never replay their storage.
-        let static_bindings = super::super::specification_calls::call_scalar_substitution(
+        let static_bindings = super::super::specification_calls::call_contract_scalar_substitution(
             program,
             scope.0.symbol,
             &owner,
@@ -2268,7 +2268,7 @@ impl<'program> StructuralJudge<'program> {
         // A dependent result recipe keeps the same formal presentation used
         // by admission. Its operands are these completed invocation bindings;
         // neither slot alpha-renaming nor later writes can replay their source.
-        self.intake_result_indices(
+        self.intake_admitted_value_indices(
             result_type,
             &captured,
             result_presentation.parameter_owner,

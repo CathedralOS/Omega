@@ -134,6 +134,12 @@ fn observe_program(
             if !matches {
                 return Err(format!("expected {expected:?}, observed {result:?}"));
             }
+            if sponsor.consumed_result_storage_cells() != 1 {
+                return Err(format!(
+                    "expected one published result cell, observed {}",
+                    sponsor.consumed_result_storage_cells()
+                ));
+            }
             if sponsor.peak_live_cells() != peak {
                 return Err(format!(
                     "expected peak {peak}, observed {}",

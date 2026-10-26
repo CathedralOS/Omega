@@ -28,6 +28,7 @@ machine-code = { path = "../representations/machine-code" }
 machine-emission = { path = "../backend/machine-emission" }
 native-artifact = { path = "../backend/artifacts/native-artifact" }
 optimization-core = { path = "../../foundation/optimization-core" }
+phase-profile = { path = "../../../psi/foundation/phase-profile" }
 register-environment = { path = "../backend/register-environment" }
 runtime-abi = { path = "../backend/runtime/runtime-abi" }
 target = { path = "../backend/target" }

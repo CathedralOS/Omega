@@ -51,7 +51,17 @@ pub(in crate::proof_contracts::arithmetic_domains) fn rebind_relations(
             if ceiling == *operand {
                 continue;
             }
-            for left in ceiling.rebound(&bindings) {
+            let Some(left_targets) = operands
+                .iter()
+                .position(|existing| *existing == ceiling)
+                .map(|idx| &delivered[idx])
+            else {
+                continue;
+            };
+            if left_targets.is_empty() {
+                continue;
+            }
+            for left in left_targets {
                 for right in targets {
                     let relation = Relation {
                         left: left.clone(),
@@ -74,7 +84,7 @@ fn bind_equal_observations(
 ) -> Vec<(Operand, Operand)> {
     // The owner records equality as opposite non-strict orders. Both must
     // still be live here; one direction or an exclusion is not equality.
-    let equalities = relations
+    let mut equalities = relations
         .iter()
         .filter(|relation| {
             relation.constraint == RelationConstraint::MinimumDifference(0)
@@ -85,24 +95,29 @@ fn bind_equal_observations(
                 })
         })
         .collect::<Vec<_>>();
+    if equalities.is_empty() {
+        return bindings.to_vec();
+    }
     let mut bindings = bindings.to_vec();
     loop {
         let previous_count = bindings.len();
-        for equality in &equalities {
+        equalities.retain(|equality| {
             if !equality.left.rebound(&bindings).is_empty() {
-                continue;
+                return false;
             }
             if let Some(value) = equality.right.rebound(&bindings).into_iter().next() {
                 // One delivered representative suffices. Original bindings
                 // retain every actual argument; this does not multiply equal
                 // expression variants or create another declaration identity.
                 bindings.push((equality.left.clone(), value));
+                return false;
             }
-        }
+            true
+        });
         // Each iteration binds a previously unbound member of the finite
         // equality roster. Cyclic equalities without a delivered anchor add
         // nothing, and known mappings are never recursively expanded again.
-        if bindings.len() == previous_count {
+        if bindings.len() == previous_count || equalities.is_empty() {
             return bindings;
         }
     }

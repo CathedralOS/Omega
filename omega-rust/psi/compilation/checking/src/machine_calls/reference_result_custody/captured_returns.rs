@@ -13,6 +13,7 @@
 //! formation and the returned live association own its placement authority.
 //! Forwarded descriptors still retain their exact existing interpretation.
 
+mod descriptor_sources;
 mod incoming_origins;
 mod named_returns;
 mod presence;
@@ -522,7 +523,8 @@ impl Captures<'_> {
                 if !reference_access_can_supply(shell.access.into(), leaf.source.access) {
                     return None;
                 }
-                let (suffix, endpoint, extent) = self.origin_path(shell.referee, segments)?;
+                let (suffix, endpoint, extent) =
+                    super::reference_origin_path(self.program, shell.referee, segments)?;
                 let identity = self.program.normalized_type_identity(endpoint);
                 if identity != leaf.source.type_identity {
                     return None;
@@ -635,7 +637,8 @@ impl Captures<'_> {
         // type equals the original endpoint. Type equality cannot erase a view.
         if captured.is_none()
             && !has_presentation
-            && let Some((suffix, endpoint, extent)) = self.origin_path(selected, &segments)
+            && let Some((suffix, endpoint, extent)) =
+                super::reference_origin_path(self.program, selected, &segments)
         {
             let identity = self.program.normalized_type_identity(endpoint);
             if let Some(extent) = self.result_origin_extent(
@@ -731,7 +734,8 @@ impl Captures<'_> {
         // here would pretend the public signature selected a private address.
         // The original loan/root/access joins above remain mandatory, and
         // completion must check the actual returned footprint's containment.
-        let (suffix, mut endpoint, extent) = self.origin_path(selected, &segments)?;
+        let (suffix, mut endpoint, extent) =
+            super::reference_origin_path(self.program, selected, &segments)?;
         // A captured window still needs a compatible slice presentation when
         // no body relation is available. A wider opaque lifetime region, in
         // contrast, has no window conversion to establish here.
@@ -835,8 +839,11 @@ impl Captures<'_> {
             if origin.representation.is_some() {
                 return None;
             }
-            let (path, backing, extent) =
-                self.origin_path(selected, origin.segments.strip_prefix(incoming)?)?;
+            let (path, backing, extent) = super::reference_origin_path(
+                self.program,
+                selected,
+                origin.segments.strip_prefix(incoming)?,
+            )?;
             return Some(FrameOrigin {
                 path,
                 backing,
@@ -862,7 +869,8 @@ impl Captures<'_> {
                 }
                 selectors
             };
-            let (projection, endpoint, selection_extent) = self.origin_path(selected, selectors)?;
+            let (projection, endpoint, selection_extent) =
+                super::reference_origin_path(self.program, selected, selectors)?;
             if selection_extent == ReferenceOriginExtent::WithinRegion {
                 extent = ReferenceOriginExtent::WithinRegion;
             }
@@ -997,7 +1005,8 @@ impl Captures<'_> {
                 extent,
             });
         }
-        let (suffix, endpoint, selection_extent) = self.origin_path(selected, selectors)?;
+        let (suffix, endpoint, selection_extent) =
+            super::reference_origin_path(self.program, selected, selectors)?;
         if selection_extent == ReferenceOriginExtent::WithinRegion {
             extent = ReferenceOriginExtent::WithinRegion;
         }
@@ -1033,226 +1042,6 @@ impl Captures<'_> {
                 symbol: state.symbol,
             },
         )
-    }
-
-    /// Runtime element selections describe one typed element; erased windows
-    /// describe a region of the collection. Neither enumerates addresses.
-    /// Exact formation and bounds remain in the invocation's captured loan.
-    fn origin_path(
-        &self,
-        mut selected: TypeReferenceHandle,
-        mut segments: &[facts::PlaceSegment],
-    ) -> Option<(
-        Vec<CheckedReferenceOriginProjection>,
-        TypeReferenceHandle,
-        ReferenceOriginExtent,
-    )> {
-        let mut output = Vec::new();
-        // An erased Index still denotes one element. Erased range expressions
-        // have their own OpaqueRange kind, so an invalid handle cannot collapse
-        // a window into its element type.
-        let is_element_selection = |expression: ExpressionHandle| {
-            !expression.is_valid()
-                || self
-                    .program
-                    .expression_table
-                    .expression_is_valid(expression)
-                    && self
-                        .program
-                        .expression_table
-                        .range_node(expression)
-                        .is_none()
-        };
-        loop {
-            let selection = segments.iter().position(|segment| {
-                matches!(
-                    segment,
-                    facts::PlaceSegment::Index { .. }
-                        | facts::PlaceSegment::FixedIndex { .. }
-                        | facts::PlaceSegment::FixedRange { .. }
-                        | facts::PlaceSegment::OpaqueRange
-                )
-            });
-            let prefix_length = selection.unwrap_or(segments.len());
-            let (prefix, endpoint) = self.structural_path(selected, &segments[..prefix_length])?;
-            output.extend(
-                prefix
-                    .into_iter()
-                    .map(CheckedReferenceOriginProjection::Exact),
-            );
-            selected = endpoint;
-            let Some(position) = selection else {
-                return Some((output, selected, ReferenceOriginExtent::Projected));
-            };
-            selected = crate::peel_declared_constraints(self.program, selected);
-            // A window that ends the path narrows a collection without selecting an
-            // element. Its origin is the collection it narrows, presented as
-            // that collection is: a view formal presents its descriptor, as
-            // the unprojected region below does. The descriptor retains the
-            // captured window and bound. A fixed array keeps its own storage
-            // type here; its returned slice is a separate descriptor, never an
-            // assertion that the array and slice types are interchangeable.
-            let trailing_window = position + 1 == segments.len()
-                && match segments[position] {
-                    facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => {
-                        true
-                    }
-                    facts::PlaceSegment::Index { expression } => !is_element_selection(expression),
-                    _ => false,
-                };
-            if trailing_window {
-                let collection = crate::reference_shell(self.program, selected)
-                    .map_or(selected, |shell| {
-                        crate::peel_declared_constraints(self.program, shell.referee)
-                    });
-                return matches!(
-                    self.program.type_reference_table.type_reference(collection),
-                    TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. }
-                )
-                .then_some((output, selected, ReferenceOriginExtent::WithinRegion));
-            }
-            if let Some(shell) = crate::reference_shell(self.program, selected) {
-                output.push(CheckedReferenceOriginProjection::Exact(
-                    CheckedUnitStructuralPathSegment::Referent,
-                ));
-                selected = crate::peel_declared_constraints(self.program, shell.referee);
-            }
-            let (TypeReferenceNode::FixedArray { element_type, .. }
-            | TypeReferenceNode::Slice { element_type }) =
-                self.program.type_reference_table.type_reference(selected)
-            else {
-                return None;
-            };
-            selected = *element_type;
-            let (projection, consumed) = match segments[position] {
-                facts::PlaceSegment::FixedIndex { index } => (
-                    CheckedReferenceOriginProjection::Exact(
-                        CheckedUnitStructuralPathSegment::FixedIndex(u64::try_from(index).ok()?),
-                    ),
-                    1,
-                ),
-                facts::PlaceSegment::Index { expression } if is_element_selection(expression) => {
-                    (CheckedReferenceOriginProjection::Element, 1)
-                }
-                facts::PlaceSegment::FixedRange { start, end } => {
-                    // A view window and its element selector share one array
-                    // dimension. This is provenance, not a new address: the
-                    // descriptor retains its captured window, selector and
-                    // bound. Never consult the selector's later value here.
-                    let projection = match segments.get(position.checked_add(1)?)? {
-                        facts::PlaceSegment::Index { expression }
-                            if start < end && is_element_selection(*expression) =>
-                        {
-                            CheckedReferenceOriginProjection::Element
-                        }
-                        facts::PlaceSegment::FixedIndex { index }
-                            if *index < end.checked_sub(start)? =>
-                        {
-                            CheckedReferenceOriginProjection::Exact(
-                                CheckedUnitStructuralPathSegment::FixedIndex(
-                                    u64::try_from(start.checked_add(*index)?).ok()?,
-                                ),
-                            )
-                        }
-                        _ => return None,
-                    };
-                    (projection, 2)
-                }
-                facts::PlaceSegment::OpaqueRange => {
-                    match segments.get(position.checked_add(1)?)? {
-                        facts::PlaceSegment::Index { expression }
-                            if is_element_selection(*expression) => {}
-                        facts::PlaceSegment::FixedIndex { .. } => {}
-                        _ => return None,
-                    }
-                    (CheckedReferenceOriginProjection::Element, 2)
-                }
-                _ => return None,
-            };
-            output.push(projection);
-            segments = &segments[position + consumed..];
-        }
-    }
-
-    fn structural_path(
-        &self,
-        mut selected: TypeReferenceHandle,
-        segments: &[facts::PlaceSegment],
-    ) -> Option<(Vec<CheckedUnitStructuralPathSegment>, TypeReferenceHandle)> {
-        let mut path = Vec::new();
-        let mut payload = None;
-        for segment in segments {
-            selected = crate::peel_declared_constraints(self.program, selected);
-            if let Some(shell) = crate::reference_shell(self.program, selected) {
-                selected = shell.referee;
-                path.push(CheckedUnitStructuralPathSegment::Referent);
-            }
-            match segment {
-                facts::PlaceSegment::Case { variant } => {
-                    let data = self.program.closed_data_definition(selected)?;
-                    let case =
-                        self.program
-                            .data_members(data)
-                            .iter()
-                            .find_map(|member| match member {
-                                typed_trees::data::DataMember::Variant(case)
-                                    if case.symbol == *variant =>
-                                {
-                                    Some(case)
-                                }
-                                _ => None,
-                            })?;
-                    path.push(CheckedUnitStructuralPathSegment::Case(
-                        checked_trees::CheckedMemberIdentity::of_member(
-                            case.identity,
-                            case.name.clone(),
-                        ),
-                    ));
-                    payload = Some(case);
-                }
-                facts::PlaceSegment::Field { symbol } => {
-                    let field = if let Some(case) = payload.take() {
-                        self.program
-                            .data_payload_fields(case)
-                            .iter()
-                            .find(|field| field.symbol == *symbol)?
-                    } else {
-                        let data = self.program.closed_data_definition(selected)?;
-                        self.program
-                            .data_members(data)
-                            .iter()
-                            .find_map(|member| match member {
-                                typed_trees::data::DataMember::Field(field)
-                                    if field.symbol == *symbol =>
-                                {
-                                    Some(field)
-                                }
-                                _ => None,
-                            })?
-                    };
-                    path.push(CheckedUnitStructuralPathSegment::Field(
-                        checked_trees::CheckedMemberIdentity::of_member(
-                            field.identity,
-                            field.name.clone(),
-                        ),
-                    ));
-                    selected = field.type_reference;
-                }
-                facts::PlaceSegment::FixedIndex { index } => {
-                    let TypeReferenceNode::FixedArray { element_type, .. } =
-                        self.program.type_reference_table.type_reference(selected)
-                    else {
-                        return None;
-                    };
-                    selected = *element_type;
-                    path.push(CheckedUnitStructuralPathSegment::FixedIndex(
-                        u64::try_from(*index).ok()?,
-                    ));
-                }
-                _ => return None,
-            }
-        }
-        Some((path, selected))
     }
 }
 

@@ -10,6 +10,7 @@ pub(crate) fn validate_declaration_value_range(
     program: &dyn crate::CheckingInput,
     lexical_owner: SymbolHandle,
     parameters: &[StateParameter],
+    prior_facts: &[ExpressionHandle],
     expression: ExpressionHandle,
     target_primitive: Option<PrimitiveType>,
     target_domain: ArithmeticDomain,
@@ -18,7 +19,7 @@ pub(crate) fn validate_declaration_value_range(
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     crate::proof_contracts::contract_entailment::specification_calls::validate_declaration_expression_formation(
-        program, lexical_owner, parameters, expression, &[], owner, diagnostics,
+        program, lexical_owner, parameters, expression, prior_facts, owner, diagnostics,
         formation_obligations,
     );
     // A known scalar projection does not waive formation of a constructor
@@ -105,6 +106,7 @@ pub(crate) fn validate_declaration_value_range(
         program,
         lexical_owner,
         parameters,
+        prior_facts,
         expression,
         &ValueEnvironment::new(),
         target_primitive,
@@ -113,4 +115,95 @@ pub(crate) fn validate_declaration_value_range(
         diagnostics,
     );
     formation_obligations.extend(analysis.decisions.integer_range_obligations);
+}
+
+/// Prove an Exact result from the supplying declaration's formed operands and
+/// incoming requirements. The result is mathematical only for this formation
+/// question: it does not replace the executable operation or its value identity.
+/// The common walk has already checked children and selected builtin meaning.
+pub(super) fn binary_result_fits(
+    program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
+    parameters: &[StateParameter],
+    prior_facts: &[ExpressionHandle],
+    expression: ExpressionHandle,
+    primitive: PrimitiveType,
+) -> bool {
+    use crate::proof_contracts::contract_entailment::{
+        ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
+        ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
+        scoped_arithmetic_values_relation_for_declaration,
+    };
+    use typed_trees::expression::BinaryOperator;
+    if prior_facts.is_empty() {
+        return false;
+    }
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        return false;
+    };
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+    ) {
+        return false;
+    }
+    let Some((minimum, maximum)) = primitive.integer_bounds() else {
+        return false;
+    };
+    let bindings = parameters
+        .iter()
+        .filter_map(|parameter| {
+            let primitive = crate::value_custody::recasts::exact_primitive_type(
+                program,
+                parameter.type_reference,
+            )?;
+            let (minimum, maximum) = primitive.integer_bounds()?;
+            Some(ScopedArithmeticBinding {
+                binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
+                value: ScopedArithmeticValue::BoundedInteger {
+                    value: Box::new(ScopedArithmeticValue::Atom {
+                        identity: format!("\0declaration-value:{:?}", parameter.symbol),
+                        unsigned: !primitive.is_signed_integer(),
+                    }),
+                    minimum: Some(numerics::bignum::BigInt::from_i128(minimum)),
+                    maximum: Some(numerics::bignum::BigInt::from_i128(maximum)),
+                },
+            })
+        })
+        .collect::<Vec<_>>();
+    let term = |expression| ScopedArithmeticExpression {
+        owner,
+        expression,
+        bindings: bindings.clone(),
+    };
+    let hypotheses = prior_facts
+        .iter()
+        .map(|&expression| ScopedArithmeticHypothesis {
+            proposition: term(expression),
+            holds: true,
+        })
+        .collect::<Vec<_>>();
+    let value = ScopedArithmeticValue::IntegerOperation {
+        operator: binary.operator,
+        left: Box::new(ScopedArithmeticValue::Term(term(binary.left))),
+        right: Box::new(ScopedArithmeticValue::Term(term(binary.right))),
+    };
+    [
+        (BinaryOperator::GreaterOrEqual, minimum),
+        (BinaryOperator::LessOrEqual, maximum),
+    ]
+    .into_iter()
+    .all(|(operator, bound)| {
+        matches!(
+            scoped_arithmetic_values_relation_for_declaration(
+                program,
+                owner,
+                &hypotheses,
+                operator,
+                &value,
+                &ScopedArithmeticValue::Integer(numerics::bignum::BigInt::from_i128(bound)),
+            ),
+            StrictArithmeticImplicationJudgment::Proven
+        )
+    })
 }

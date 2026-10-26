@@ -65,11 +65,12 @@ pub(in crate::legalization) fn result_at(
                 || result.projected_qualifications != declared.projected_qualifications
                 || !result.projected_qualifications.is_empty()
                 || !result.qualification_establishments.is_empty()
-                || !result.claims.is_empty()
-                || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             {
                 return Err(LegalizationError::custody());
             }
+            // Whole-unit ownership validation authenticates the source result's
+            // claim bindings. Rejoin every binding in the operation-result home
+            // below; physical ABI placement neither discards nor reissues them.
             let storage = crate::structural_inputs::structural_reference_input::shape(
                 result.structural_type,
                 &plan.structural_types,

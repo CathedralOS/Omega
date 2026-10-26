@@ -11,9 +11,11 @@ use state_preservation::{
     caller_state_preserves_field, caller_state_preserves_label_names,
     caller_state_preserves_self_fields_against_call_writes, collect_expression_self_fields,
 };
-pub(super) use transition_guards::transition_guard_proves_boolean_requirement;
 use transition_guards::{
     guard_conjunct_matches, negated_guard_conjunct_matches, transition_guard_proves_requires,
+};
+pub(super) use transition_guards::{
+    selected_guard_predicate, transition_guard_proves_boolean_requirement,
 };
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};

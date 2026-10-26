@@ -110,6 +110,11 @@ impl CheckedMachineDeclaration {
             (None, None) => true,
             (Some(specialization), Some(other_specialization)) => {
                 specialization.commitment == other_specialization.commitment
+                    && match (&specialization.capture, &other_specialization.capture) {
+                        (None, None) => true,
+                        (Some(left), Some(right)) => left.same_identity_as(identities, right, other_identities),
+                        _ => false,
+                    }
                     && identities
                         .text(specialization.template_callable)
                         .zip(other_identities.text(other_specialization.template_callable))
@@ -127,12 +132,40 @@ impl CheckedMachineDeclaration {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CheckedMachineSpecialization {
+    /// Independent expected capture receipt, before any reach projection.
+    pub capture: Option<CheckedMachineCapture>,
     pub template: NominalDeclarationIdentity,
     /// Exact authored overload, distinct from the instantiated callable and
     /// from the template's nominal declaration path. Issuer routes name this
     /// declaration, not a same-spelled specialization or sibling overload.
     pub template_callable: TerminalIdentityIndex,
     pub commitment: [u8; 32],
+}
+
+/// Exact capture composition retained on the checked declaration independently
+/// of its optional closed-reach payload. Omitting a wholly unused prefix cannot
+/// turn a captured method into an ordinary invocation.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CheckedMachineCapture {
+    pub template_identity: TerminalIdentityIndex,
+    pub template_commitment: [u8; 32],
+    pub specialization_commitment: [u8; 32],
+}
+
+impl CheckedMachineCapture {
+    pub fn same_identity_as(
+        &self,
+        identities: &TerminalIdentityTable,
+        other: &Self,
+        other_identities: &TerminalIdentityTable,
+    ) -> bool {
+        self.template_commitment == other.template_commitment
+            && self.specialization_commitment == other.specialization_commitment
+            && identities
+                .text(self.template_identity)
+                .zip(other_identities.text(other.template_identity))
+                .is_some_and(|(left, right)| !left.is_empty() && left == right)
+    }
 }
 
 #[cfg(test)]

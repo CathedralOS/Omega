@@ -275,7 +275,7 @@ impl ArgumentOrigins for SymbolicArguments<'_> {
         super::super::result_origins::call_result_origins(
             program,
             machine,
-            program.expression_table.call_node(expression)?,
+            expression,
             expected,
             symbols,
             inference,

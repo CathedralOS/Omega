@@ -104,6 +104,13 @@ pub enum LoweringError {
     /// Preserve the actual graph entry rather than merging duplicate edge,
     /// argument-frame, and ordered-cleanup failures into one static message.
     InvalidSelectedCleanupEntry(Box<SelectedCleanupEntryMismatch>),
+    MissingSelectionFrontier {
+        machine: String,
+        state: String,
+        statement_index: u32,
+        local: String,
+        formation_statement: u32,
+    },
     NonDenseStructuralResult {
         reason: &'static str,
         completed_bindings: usize,

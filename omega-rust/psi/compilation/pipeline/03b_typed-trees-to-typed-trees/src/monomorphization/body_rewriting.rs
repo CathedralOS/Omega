@@ -172,6 +172,7 @@ enum OperandPlan {
         descriptor: SymbolHandle,
     },
     Existing(ExpressionHandle),
+    Recipe(ExpressionHandle),
     Name(typed_trees::name::Identifier, SymbolHandle),
     Field {
         receiver_name: typed_trees::name::Identifier,
@@ -187,7 +188,7 @@ fn plan_runtime_operand(
     argument: &StaticMachineArgument,
 ) -> Option<OperandPlan> {
     if let Some(expression) = const_arguments::runtime_subject_expression(program, argument) {
-        return Some(OperandPlan::Existing(expression));
+        return Some(OperandPlan::Recipe(expression));
     }
     if let Some(projection) = &argument.evidence_projection {
         let subject = validation::runtime_field_subject(
@@ -244,6 +245,9 @@ fn realize_operand(program: &mut TypedTrees, plan: OperandPlan) -> ExpressionHan
                 }))
         }
         OperandPlan::Existing(expression) => expression,
+        // Static application metadata must not alias the executable argument.
+        // Ordinary operator binding reads this new occurrence in its caller.
+        OperandPlan::Recipe(expression) => program.expression_table.insert_copy(expression),
         OperandPlan::Name(name, symbol) => {
             insert_subject_name(&mut program.expression_table, name, symbol)
         }

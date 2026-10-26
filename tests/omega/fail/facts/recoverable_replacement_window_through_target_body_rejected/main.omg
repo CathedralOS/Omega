@@ -26,7 +26,10 @@ machine observe(sibling: &mut u64) -> u64 { sibling = 19; sibling }
 linux_x86_64 machine repair(holder: &mut Holder, succeed: bool) {
     let alias: &mut Token = &mut holder.token;
     let first: Outcome = attempt(alias, succeed, observe(&mut holder.sibling));
-    alias = recover(first);
+    alias = match first {
+        Outcome::Success { token } -> token
+        Outcome::Failure { token } -> token
+    };
     let detached: Token = alias;
     let second: Outcome = attempt(detached, succeed, observe(&mut holder.sibling));
     drop(recover(second));
@@ -34,7 +37,10 @@ linux_x86_64 machine repair(holder: &mut Holder, succeed: bool) {
 linux_arm64 machine repair(holder: &mut Holder, succeed: bool) {
     let alias: &mut Token = &mut holder.token;
     let first: Outcome = attempt(alias, succeed, observe(&mut holder.sibling));
-    alias = recover(first);
+    alias = match first {
+        Outcome::Success { token } -> token
+        Outcome::Failure { token } -> token
+    };
     let detached: Token = alias;
     let second: Outcome = attempt(detached, succeed, observe(&mut holder.sibling));
     drop(recover(second));
@@ -42,7 +48,10 @@ linux_arm64 machine repair(holder: &mut Holder, succeed: bool) {
 macos_arm64 machine repair(holder: &mut Holder, succeed: bool) {
     let alias: &mut Token = &mut holder.token;
     let first: Outcome = attempt(alias, succeed, observe(&mut holder.sibling));
-    alias = recover(first);
+    alias = match first {
+        Outcome::Success { token } -> token
+        Outcome::Failure { token } -> token
+    };
     let detached: Token = alias;
     let second: Outcome = attempt(detached, succeed, observe(&mut holder.sibling));
     drop(recover(second));
@@ -50,7 +59,10 @@ macos_arm64 machine repair(holder: &mut Holder, succeed: bool) {
 windows_x86_64 machine repair(holder: &mut Holder, succeed: bool) {
     let alias: &mut Token = &mut holder.token;
     let first: Outcome = attempt(alias, succeed, observe(&mut holder.sibling));
-    alias = recover(first);
+    alias = match first {
+        Outcome::Success { token } -> token
+        Outcome::Failure { token } -> token
+    };
     let detached: Token = alias;
     let second: Outcome = attempt(detached, succeed, observe(&mut holder.sibling));
     drop(recover(second));

@@ -245,8 +245,7 @@ impl UnsealedRecoveryFacts {
                     .functions
                     .shares_function_storage(&next_plan.functions, index)
                     || anchor_plan.functions.get(index) == Some(function))
-                    && anchor_liveness.plan().functions.get(index)
-                        == liveness_functions.get(index)
+                    && anchor_liveness.plan().functions.get(index) == liveness_functions.get(index)
                     && anchor_ranges.plan().functions.get(index) == self.range_functions.get(index)
                     && anchor_legality.plan().functions.get(index)
                         == self.legality_functions.get(index)
@@ -260,11 +259,9 @@ impl UnsealedRecoveryFacts {
             functions: liveness_functions,
         };
         let validated_liveness = liveness::validate::admit_validated_liveness(
-            selected,
             liveness_plan,
             &carried,
             &anchor_liveness.function_digests,
-            &anchor_liveness.function_counts,
         );
         let range_plan = selected_instructions::LiveRangePlan {
             selected: selected.selected_identity(),

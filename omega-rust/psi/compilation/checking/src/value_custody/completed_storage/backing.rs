@@ -156,12 +156,7 @@ impl Resolver<'_, '_> {
                             continue;
                         }
                     }
-                } else if profile.is_some_and(|profile| profile.immutable_image)
-                    && self
-                        .control
-                        .retained_roots(descriptor.retention)
-                        .is_some_and(|roots| roots.is_empty())
-                {
+                } else if profile.is_some_and(|profile| profile.immutable_image) {
                     continue;
                 } else if let Some(profile) = profile
                     && profile.enclosing_storage.is_valid()
@@ -248,12 +243,9 @@ impl Resolver<'_, '_> {
                 Some(ProfileBacking::Known(output))
             };
         }
-        if row.immutable_image
-            && self
-                .control
-                .retained_roots(profile)
-                .is_some_and(|roots| roots.is_empty())
-        {
+        // Image authentication describes pointer storage independently of
+        // retained signature lifetime debts; alternatives were joined above.
+        if row.immutable_image {
             return Some(ProfileBacking::Known(Vec::new()));
         }
         if row.enclosing_storage.is_valid() {

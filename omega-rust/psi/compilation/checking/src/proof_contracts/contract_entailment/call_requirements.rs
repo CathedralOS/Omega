@@ -1084,7 +1084,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                     self.proven = false;
                     return;
                 };
-                let Some(bindings) = super::specification_calls::call_scalar_substitution(
+                let Some(bindings) = super::specification_calls::call_contract_scalar_substitution(
                     program,
                     machine.symbol,
                     &owner,

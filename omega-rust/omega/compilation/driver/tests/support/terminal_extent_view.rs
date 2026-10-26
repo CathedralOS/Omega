@@ -1,5 +1,8 @@
 //! Borrowed nonresident access must use the exact admitted provider allocation.
 //! These are embedding inputs, not authority produced by numeric addresses.
+#[path = "terminal_provision.rs"]
+mod terminal_provision;
+
 use access_plans::{
     AtomicCapability, BoundaryReach, ExternalCapability, ExternalReadBehavior, PeerWritability,
     ResourceProfile, ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion,
@@ -47,23 +50,15 @@ pub(super) fn observe(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     writes: bool,
 ) -> Result<(), String> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let loaded = TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap();
-        for program in [TerminalProgram::borrow(artifact.view()), loaded] {
-            exercise(artifact, &program, writes);
-        }
-    }))
-    .map_err(|failure| {
-        failure
-            .downcast_ref::<String>()
-            .cloned()
-            .or_else(|| {
-                failure
-                    .downcast_ref::<&str>()
-                    .map(|message| (*message).to_owned())
-            })
-            .unwrap_or_else(|| "external extent view provision failed".to_owned())
-    })
+    terminal_provision::result(
+        || {
+            let loaded = TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap();
+            for program in [TerminalProgram::borrow(artifact.view()), loaded] {
+                exercise(artifact, &program, writes);
+            }
+        },
+        "external extent view provision failed",
+    )
 }
 
 fn exercise(

@@ -27,6 +27,9 @@ pub(super) fn call_origins(
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<FramePlaceOrigin>> {
+    let expression = program
+        .expression_table
+        .peeled_expression_handle(expression);
     let call = call_expression(program, expression)?;
     let (_, callee_state) = machine_state_by_symbol(program, call.target_symbol)?;
     if !type_reference_is_reference(program, callee_state.return_type) {
@@ -41,8 +44,8 @@ pub(super) fn call_origins(
     let returned = result_origins::call_result_origins(
         program,
         machine,
-        call,
-        callee_state.return_type,
+        expression,
+        crate::machine_calls::calls::call_result_type(program, expression)?,
         symbols,
         inference,
         true,

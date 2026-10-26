@@ -114,14 +114,36 @@ impl Execution<'_, '_, '_> {
             }
             start = length;
             retention = self.captured_retention_at_path(*(actual), &segments[..length]);
-            super::super::operand_values::captured_operand_reference_places_with_formation(
+            // The completed aggregate's descriptor children own its addresses.
+            // Resolve their retained epochs before crossing the reference shell;
+            // an outer capture need not repeat its children's referents.
+            let capture = self.context.control.operands.insert(*actual);
+            let selected = validation::completed_storage::reference_captures_at_path(
                 self.program,
                 &self.context.control,
-                actual,
-                actual.type_reference,
+                capture,
                 &segments[..length],
+                self.storage_snapshot,
             )
-            .ok_or(ReferenceProjectionRefusal::MissingCapturedLeaf)?
+            .and_then(|stored| stored.captures())
+            .ok_or(ReferenceProjectionRefusal::MissingCapturedLeaf)?;
+            let mut places = Vec::new();
+            for descriptor in selected {
+                if !descriptor.projection.is_empty() {
+                    return Err(ReferenceProjectionRefusal::MissingCapturedLeaf);
+                }
+                let descriptor = self.context.control.operands.get(descriptor.capture);
+                let addresses = self.captured_reference_places(descriptor.referents);
+                if addresses.is_empty() {
+                    return Err(ReferenceProjectionRefusal::EmptyActualAddress);
+                }
+                for address in addresses {
+                    if !places.contains(&address) {
+                        places.push(address);
+                    }
+                }
+            }
+            places
         };
         if places.is_empty() {
             return Err(ReferenceProjectionRefusal::EmptyActualAddress);

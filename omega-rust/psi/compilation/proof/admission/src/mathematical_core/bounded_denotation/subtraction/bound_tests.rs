@@ -1,7 +1,8 @@
 use std::collections::BTreeSet;
 
 use super::super::test_utilities::{
-    direct_affine_proof, direct_fixture, elaborate_checked, mathematical, verify_then_elaborate,
+    assert_refused, direct_affine_proof, direct_fixture, elaborate_checked, mathematical,
+    verify_then_elaborate,
 };
 use crate::proof::assumption_proof;
 use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
@@ -72,26 +73,19 @@ fn check(left: ScalarTerm, right: ScalarTerm) {
         budget.remaining()
     );
     assert!(denoted.certificate.signature.len() < 800);
-    assert!(
-        verify_bounded_certificate(&context, &goal, &[], &[], &proof, &mut Budget::default())
-            .is_err()
-    );
+    assert_refused(&context, &goal, &[], &[], &proof);
     let mut reversed = proof.clone();
     let ProofRule::IntegerAffineBound { root_bound, .. } = &mut reversed.rule else {
         unreachable!()
     };
     root_bound.conclusion = Proposition::LessOrEqual(left, right);
     let reversed_premise = root_bound.conclusion.clone();
-    assert!(
-        verify_bounded_certificate(
-            &context,
-            &goal,
-            std::slice::from_ref(&reversed_premise),
-            &[],
-            &reversed,
-            &mut Budget::default()
-        )
-        .is_err()
+    assert_refused(
+        &context,
+        &goal,
+        std::slice::from_ref(&reversed_premise),
+        &[],
+        &reversed,
     );
 }
 
@@ -186,16 +180,12 @@ fn correlated_subtract_lower_uses_the_add_cancel_law() {
     };
     root_bound.conclusion = Proposition::LessOrEqual(literal(8), left.clone());
     let wrong_assumption = root_bound.conclusion.clone();
-    assert!(
-        verify_bounded_certificate(
-            &context,
-            &goal,
-            std::slice::from_ref(&wrong_assumption),
-            &[],
-            &wrong_premise,
-            &mut Budget::default()
-        )
-        .is_err()
+    assert_refused(
+        &context,
+        &goal,
+        std::slice::from_ref(&wrong_assumption),
+        &[],
+        &wrong_premise,
     );
     let mut wrong_goal = proof.clone();
     wrong_goal.conclusion = Proposition::IntegerMathLessOrEqual(
@@ -205,17 +195,7 @@ fn correlated_subtract_lower_uses_the_add_cancel_law() {
             Box::new(mathematical(&right)),
         ),
     );
-    assert!(
-        verify_bounded_certificate(
-            &context,
-            &goal,
-            &assumptions,
-            &[],
-            &wrong_goal,
-            &mut Budget::default()
-        )
-        .is_err()
-    );
+    assert_refused(&context, &goal, &assumptions, &[], &wrong_goal);
 }
 
 /// `x ≤ e + 7` with `e = max` proves `x − 7 ≤ max` over `u64` — the value
@@ -526,17 +506,7 @@ fn direct_subtract_bound_rejects_mismatched_certificates() {
     ] {
         let mut invalid = proof.clone();
         invalid.conclusion = wrong_goal.clone();
-        assert!(
-            verify_bounded_certificate(
-                &context,
-                &wrong_goal,
-                &assumptions,
-                &[],
-                &invalid,
-                &mut Budget::default()
-            )
-            .is_err()
-        );
+        assert_refused(&context, &wrong_goal, &assumptions, &[], &invalid);
     }
     // A non-conjunction premise, bounds on the wrong operands, and two
     // same-direction oriented bounds (the right operand must flip).
@@ -556,16 +526,12 @@ fn direct_subtract_bound_rejects_mismatched_certificates() {
             unreachable!()
         };
         root_bound.conclusion = wrong_premise.clone();
-        assert!(
-            verify_bounded_certificate(
-                &context,
-                &goal,
-                std::slice::from_ref(&wrong_premise),
-                &[],
-                &invalid,
-                &mut Budget::default()
-            )
-            .is_err()
+        assert_refused(
+            &context,
+            &goal,
+            std::slice::from_ref(&wrong_premise),
+            &[],
+            &invalid,
         );
     }
     // The witness root must be the minuend.
@@ -574,17 +540,7 @@ fn direct_subtract_bound_rejects_mismatched_certificates() {
         unreachable!()
     };
     witness.root = value(2);
-    assert!(
-        verify_bounded_certificate(
-            &context,
-            &goal,
-            &assumptions,
-            &[],
-            &invalid,
-            &mut Budget::default()
-        )
-        .is_err()
-    );
+    assert_refused(&context, &goal, &assumptions, &[], &invalid);
 }
 
 /// The `IntegerExactSubtractDefinitionBound` fixture: a minuend bound in the

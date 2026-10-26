@@ -39,7 +39,18 @@ pub(crate) fn collect_machine_proposals_for_callee(
     let mut machine_index = 0usize;
     let mut evidence_index = 0usize;
     for selected in machine_arguments {
-        if let Some(expression) = const_expression_argument(program, selected) {
+        let value_slot = const_index < candidate.template.const_parameters.len()
+            && candidate
+                .template
+                .value_const_parameters
+                .contains(&const_index);
+        let runtime_expression = const_arguments::runtime_subject_expression(program, selected);
+        // Closed recipes have already had their normalization opportunity.
+        // A remaining Value expression binds the shared body's ordinary formal;
+        // copying its caller-owned recipe into a static tuple leaks that scope.
+        if !(value_slot && runtime_expression.is_some())
+            && let Some(expression) = const_expression_argument(program, selected)
+        {
             if const_index >= candidate.template.const_parameters.len() {
                 return Err(StaticArgumentOverflow);
             }
@@ -76,7 +87,6 @@ pub(crate) fn collect_machine_proposals_for_callee(
                 }
             }
         }
-        let runtime_expression = const_arguments::runtime_subject_expression(program, selected);
         let runtime_field = runtime_scope.and_then(|(state, _)| {
             selected
                 .evidence_projection
@@ -90,11 +100,6 @@ pub(crate) fn collect_machine_proposals_for_callee(
                     )
                 })
         });
-        let value_slot = const_index < candidate.template.const_parameters.len()
-            && candidate
-                .template
-                .value_const_parameters
-                .contains(&const_index);
         if selected.type_reference.is_valid() && !(value_slot && runtime_expression.is_some()) {
             if type_index >= candidate.template.type_parameters.len() {
                 return Err(StaticArgumentOverflow);

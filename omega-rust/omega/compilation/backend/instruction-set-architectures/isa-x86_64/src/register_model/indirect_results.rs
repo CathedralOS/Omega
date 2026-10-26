@@ -5,17 +5,14 @@ use super::{
     x86_64_system_v_mixed_unit_call_keys, x86_64_system_v_register_unit_call_keys,
 };
 use register_model::{
-    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
-    ValidatedPhysicalRegisterModel, find_register_constraint,
+    RegisterConstraintKey, RegisterInstructionConstraint, ValidatedPhysicalRegisterModel,
+    find_register_constraint,
 };
 pub fn x86_64_indirect_aggregate_call_keys(microsoft: bool) -> Vec<RegisterConstraintKey> {
     let first = if microsoft { 2300 } else { 2200 };
     let count = if microsoft { 15 } else { 54 };
     (first..first + count)
-        .map(|variant| RegisterConstraintKey {
-            family: RegisterConstraintFamily::Call,
-            variant,
-        })
+        .map(RegisterConstraintKey::call)
         .collect()
 }
 

@@ -261,15 +261,7 @@ impl TerminalExecution<'_> {
             if remaining
                 .insert(
                     binding.claim,
-                    LiveClaim {
-                        place: Some(result.place),
-                        path: binding.path.clone(),
-                        multiplicity: Some(if binding.path.is_empty() {
-                            result.multiplicity
-                        } else {
-                            StructuralMultiplicity::Linear
-                        }),
-                    },
+                    LiveClaim::at(result.place, binding.path.clone(), result.multiplicity),
                 )
                 .is_some()
             {

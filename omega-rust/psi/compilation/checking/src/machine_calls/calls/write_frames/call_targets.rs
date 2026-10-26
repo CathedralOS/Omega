@@ -65,6 +65,18 @@ pub(super) fn call_argument_types(
             .map(|parameter| parameter.type_reference)
             .collect();
     }
+    // The selected operator owns its operand telescope too. Capturing a
+    // scalar actual without this declaration type loses its detached-value
+    // identity before operation-completion effects are classified. This query
+    // supplies types only; origin capture and the signature ceiling still
+    // reject unknown origins or unresolved writable generic parameters.
+    if let Some(operator) = program.operator_definition_by_symbol(target_symbol) {
+        return program
+            .operator_parameters(operator)
+            .iter()
+            .map(|parameter| parameter.type_reference)
+            .collect();
+    }
     let Some((machine, state)) = machine_state_by_symbol(program, target_symbol).or_else(|| {
         receiver
             .is_empty()

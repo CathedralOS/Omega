@@ -980,29 +980,6 @@ pub(super) fn account<'calls>(
                         == Some(result.binding_ordinal)
                         && argument.path.is_empty()
                 });
-        // An exclusive or shared window returned straight into one call has
-        // no named home and no owned transfer. That call is the disposition.
-        // A second whole loan, or a named binding, keeps its own accounting.
-        let lent_borrowed_window = !result.local.is_named()
-            && result.multiplicity == Multiplicity::Affine
-            && returns_borrowed_parts(program, operation)
-            && operations[producer_index + 1..]
-                .iter()
-                .filter(|consumer| {
-                    consumer.structural_operands().iter().any(|argument| {
-                        argument.source_structural_result_binding_ordinal()
-                            == Some(result.binding_ordinal)
-                            && argument.path.is_empty()
-                            && matches!(
-                                argument.access,
-                                CheckedStructuralAccess::SharedBorrow
-                                    | CheckedStructuralAccess::MutableBorrow
-                                    | CheckedStructuralAccess::WriteOnlyBorrow
-                            )
-                    })
-                })
-                .count()
-                == 1;
         // A whole local rebind retires the previous unrestricted occurrence
         // at the store, before any exit observes the replacement.
         let replaced_unrestricted =
@@ -1013,7 +990,6 @@ pub(super) fn account<'calls>(
             || copied_into_construction
             || copied_into_byte_store
             || observed_by_call
-            || lent_borrowed_window
             || replaced_unrestricted;
         // Unrestricted copies and observations leave the supplying occurrence
         // in place. Its explicit whole cleanup, when present, realizes the same
@@ -1057,19 +1033,6 @@ pub(super) fn account<'calls>(
         *discard_result_on_return = true;
     }
     Some(())
-}
-
-/// The producer returned a caller-frame borrow. Slice windows use this
-/// carrier even when their captured loan roster is empty.
-fn returns_borrowed_parts(
-    program: &dyn ::validation::CheckingInput,
-    operation: &CheckedUnitEffectOperationPlan,
-) -> bool {
-    operation.call().is_some_and(|call| {
-        validation::call_target_return_type(program, call.target.state).is_some_and(|returned| {
-            validation::reference_result_custody::has_borrowed_parts(program, returned)
-        })
-    })
 }
 
 /// Use the actual producer's claim frontier; storage shape alone cannot tell

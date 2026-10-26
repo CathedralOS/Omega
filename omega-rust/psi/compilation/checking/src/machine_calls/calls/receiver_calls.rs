@@ -127,7 +127,7 @@ fn validate_signature_result_and_arguments(
         false,
         &[],
         |argument, required| {
-            crate::value_custody::expression_types::argument_matches_carrier(
+            crate::value_custody::expression_types::argument_matches_call_carrier(
                 program,
                 current_machine.symbol,
                 argument,

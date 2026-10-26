@@ -143,6 +143,13 @@ impl ElementView {
         retained.elements(collection, window, suffix);
     }
 
+    pub(crate) fn retained_bytes(&self) -> Option<&crate::byte_sequences::ByteSequenceView> {
+        match &self.backing {
+            ElementViewBacking::Representation(view) => view.retained_bytes(),
+            ElementViewBacking::Structural { .. } | ElementViewBacking::Typed(_) => None,
+        }
+    }
+
     /// Freeze a projection in the supplying home, rather than retaining a
     /// path through a descriptor that can subsequently be replaced.
     pub(crate) fn captured_storage_home(
@@ -1128,6 +1135,33 @@ impl TerminalExecution<'_> {
             u64::try_from(position).map_err(|_| malformed())?,
         ));
         path.extend_from_slice(suffix);
+        // Descriptor crossings select their captured backing before inline
+        // primitive geometry. In particular, a record element may contain a
+        // second view whose selected element contains a fixed primitive array.
+        // A static path through the outer descriptor cannot name those cells.
+        let selected = self
+            .resolve_reference_storage_projection(
+                collection,
+                &path,
+                if shared {
+                    StructuralAccess::SharedBorrow
+                } else {
+                    StructuralAccess::MutableBorrow
+                },
+            )?
+            .ok_or_else(malformed)?;
+        if let Some(storage) = selected.primitive_storage {
+            let StructuralTypeShape::PrimitiveScalar(logical) = self
+                .program
+                .structural_types()
+                .get(&selected.value.structural_type)
+                .ok_or_else(malformed)?
+                .shape
+            else {
+                return Err(malformed());
+            };
+            return Ok((storage, logical, shared));
+        }
         let canonical = if shared {
             terminal_semantics::canonical_primitive_read_path
         } else {

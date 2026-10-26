@@ -482,7 +482,7 @@ fn validate_expression_call_bounds(
             selected_float_operation_retains_argument_policy(program, operator.symbol),
             &[],
             |argument, required| {
-                crate::value_custody::expression_types::argument_matches_carrier(
+                crate::value_custody::expression_types::argument_matches_call_carrier(
                     program,
                     current_machine.symbol,
                     argument,
@@ -592,7 +592,7 @@ fn validate_expression_call_bounds(
             false,
             &[],
             |argument, required| {
-                crate::value_custody::expression_types::argument_matches_carrier(
+                crate::value_custody::expression_types::argument_matches_call_carrier(
                     program,
                     current_machine.symbol,
                     argument,

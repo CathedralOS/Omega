@@ -426,7 +426,7 @@ impl ArgumentOrigins for Inputs<'_, '_> {
         result_origins::call_result_origins(
             program,
             machine,
-            program.expression_table.call_node(expression)?,
+            expression,
             expected,
             symbols,
             &mut observed_inference,

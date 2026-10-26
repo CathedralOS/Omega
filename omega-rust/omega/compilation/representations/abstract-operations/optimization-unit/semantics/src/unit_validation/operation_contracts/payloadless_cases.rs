@@ -1,4 +1,5 @@
 use crate::unit_validation::operation_contracts::claim_transfers::proposition_structural_roots;
+use crate::unit_validation::operation_contracts::plain_calls::plain_structural_call;
 use crate::unit_validation::structural_catalog::resolve_structural_path;
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
@@ -12,45 +13,17 @@ pub(crate) fn plain_scalar_sum_call(
     callee: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
-    let O::CallStructural {
-        result:
-            AbstractStructuralCallResult::Structural {
-                result,
-                selected_evidence,
-            },
-        claim_transfers,
-        requirement_obligations,
-        crash_continuations,
-        ..
-    } = operation
-    else {
-        return false;
-    };
-    let Some(signature) = callee.result.structural() else {
-        return false;
-    };
-    let Some(contract) = &callee.verified_contract else {
+    let Some(call) = plain_structural_call(operation, callee) else {
         return false;
     };
     matches!(
-        signature.multiplicity,
+        call.signature.multiplicity,
         terminal_psi::StructuralMultiplicity::Affine
             | terminal_psi::StructuralMultiplicity::Unrestricted
-    ) && signature.qualifications.is_empty()
-        && signature.projected_qualifications.is_empty()
-        && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
-        && result.claims.is_empty()
-        && claim_transfers.is_empty()
-        && requirement_obligations.is_empty()
-        && *crash_continuations == contract.crash_routes
-        && selected_evidence.is_empty()
-        && callee.entry_claim_declarations.is_empty()
-        && callee.content_entry_claims.is_empty()
-        && callee.evidence_contract_lanes.is_empty()
-        && contract.requires.is_empty()
-        && contract.ensures.is_empty()
-        && contract.outcome_specific_ensures.is_empty()
+    ) && call.signature.qualifications.is_empty()
+        && call.signature.projected_qualifications.is_empty()
+        && call.selected_evidence.is_empty()
+        && call.contract.outcome_specific_ensures.is_empty()
         && callee.structural_parameters.iter().all(|parameter| {
             matches!(
                 parameter.access,
@@ -61,7 +34,7 @@ pub(crate) fn plain_scalar_sum_call(
                 && parameter.projected_qualifications.is_empty()
         })
         && types
-            .get(&signature.structural_type)
+            .get(&call.signature.structural_type)
             .is_some_and(|declaration| match &declaration.shape {
                 terminal_psi::StructuralTypeShape::Sum { cases } => cases.iter().all(|case| {
                     case.fields.iter().all(|field| {
@@ -237,21 +210,10 @@ pub(crate) fn exact_payloadless_structural_call(
         &terminal_psi::StructuralDomainDeclaration,
     >,
 ) -> bool {
-    let O::CallStructural {
-        result: AbstractStructuralCallResult::Structural { result, .. },
-        structural_arguments,
-        claim_transfers,
-        requirement_obligations,
-        crash_continuations,
-        ..
-    } = operation
-    else {
+    let Some(call) = plain_structural_call(operation, callee) else {
         return false;
     };
     let Some(callee_result) = callee.result.structural() else {
-        return false;
-    };
-    let Some(contract) = callee.verified_contract.as_ref() else {
         return false;
     };
     // Scalar parameters decide the returned case and carry no custody; the
@@ -265,24 +227,13 @@ pub(crate) fn exact_payloadless_structural_call(
                 |id| types.get(&id).copied(),
                 parameter.structural_type,
             )
-    }) && callee.entry_claim_declarations.is_empty()
-        && callee.content_entry_claims.is_empty()
-        && contract.requires.is_empty()
-        && contract.ensures.is_empty()
-        && callee.evidence_contract_lanes.is_empty()
-        && structural_arguments.len() == callee.structural_parameters.len()
-        && claim_transfers.is_empty()
-        && requirement_obligations.is_empty()
-        && *crash_continuations == contract.crash_routes
-        && result.structural_type == callee_result.structural_type
-        && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-        && result.multiplicity == callee_result.multiplicity
-        && result.qualifications.is_empty()
-        && result.qualifications == callee_result.qualifications
-        && result.projected_qualifications.is_empty()
-        && result.projected_qualifications == callee_result.projected_qualifications
-        && result.claims.is_empty()
-        && contract.outcome_specific_ensures.iter().all(|row| {
+    }) && call.structural_arguments.len() == callee.structural_parameters.len()
+        && call.result.structural_type == callee_result.structural_type
+        && call.result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && call.result.multiplicity == callee_result.multiplicity
+        && call.result.qualifications == callee_result.qualifications
+        && call.result.projected_qualifications == callee_result.projected_qualifications
+        && call.contract.outcome_specific_ensures.iter().all(|row| {
             proposition_structural_roots(&row.proposition)
                 .into_iter()
                 .all(|root| root == callee_result.place)

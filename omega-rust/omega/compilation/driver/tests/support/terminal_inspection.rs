@@ -13,6 +13,8 @@ use crate::fixture_package_inputs::{
     fixture_build_snapshot, reviewed_repository_fixture_package_inputs,
 };
 
+#[path = "closed_reach_controls.rs"]
+mod closed_reach_controls;
 #[path = "dynamic_image_controls.rs"]
 mod dynamic_image_controls;
 #[path = "terminal_host_provisions.rs"]
@@ -31,6 +33,8 @@ enum InspectionControls {
     IndexedFamily,
     MathematicalActuals,
     DynamicImage,
+    ClosedReach,
+    ClosedReachCaptures,
 }
 
 #[derive(Clone, Copy)]
@@ -85,6 +89,14 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 false,
                 Some(InspectionControls::MethodApplications),
             ),
+            [machine, "closed-reach-capture-controls"] => (
+                *machine,
+                false,
+                Some(InspectionControls::ClosedReachCaptures),
+            ),
+            [machine, "closed-reach-controls"] => {
+                (*machine, false, Some(InspectionControls::ClosedReach))
+            }
             [machine, "boundary-conformance-controls"] => {
                 (*machine, false, Some(InspectionControls::BoundaryCallables))
             }
@@ -101,7 +113,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             }
             _ => {
                 return Err(format!(
-                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `boundary-conformance-controls`, `indexed-family-controls`, `mathematical-actuals` or `dynamic-image-controls`"
+                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `boundary-conformance-controls`, `indexed-family-controls` or `mathematical-actuals` or `dynamic-image-controls`"
                 ));
             }
         };
@@ -208,6 +220,10 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             }
             match controls {
                 InspectionControls::MethodApplications => closed_conformance_controls(&decoded)?,
+                InspectionControls::ClosedReach => closed_reach_controls::inspect(&decoded)?,
+                InspectionControls::ClosedReachCaptures => {
+                    closed_reach_controls::inspect_captures(&decoded)?
+                }
                 InspectionControls::BoundaryCallables => boundary_conformance_controls(&decoded)?,
                 InspectionControls::DynamicImage => dynamic_image_controls::inspect(&decoded)?,
                 InspectionControls::IndexedFamily | InspectionControls::MathematicalActuals => {

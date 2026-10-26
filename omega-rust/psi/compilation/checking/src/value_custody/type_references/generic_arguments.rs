@@ -285,6 +285,7 @@ pub fn validate_closed_const_argument(
             type_parameters: &[],
             lifetime_parameters: &[],
         },
+        &[],
         &mut diagnostics,
         &mut formation_obligations,
     );
@@ -337,6 +338,7 @@ pub(crate) fn const_argument_matches_parameter(
             type_parameters: caller_parameters,
             lifetime_parameters: &[],
         },
+        &[],
         &mut diagnostics,
         &mut formation_obligations,
     );
@@ -482,6 +484,7 @@ pub(crate) fn validate_const_data_argument(
     carrier: AppliedValueCarrier<'_>,
     argument: TypeReferenceHandle,
     type_parameter_scope: TypeParameterScope<'_>,
+    prior_facts: &[typed_trees::expression::ExpressionHandle],
     diagnostics: &mut Vec<Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
@@ -537,6 +540,7 @@ pub(crate) fn validate_const_data_argument(
             program,
             type_parameter_scope.lexical_owner,
             &parameters,
+            prior_facts,
             *expression,
             program.primitive_type_reference(parameter_type),
             program.arithmetic_domain_for_type_reference(parameter_type),

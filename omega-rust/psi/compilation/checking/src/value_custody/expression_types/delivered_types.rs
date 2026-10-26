@@ -62,6 +62,12 @@ pub(super) fn delivered_value_type(
             .expression_table
             .constructed_value_type_reference(value),
         ExpressionNode::Name(path) => named_value_type_reference(program, path)?,
+        ExpressionNode::Atomic(_) => {
+            let event = crate::atomic_load_carrier(program, value)?;
+            let cell =
+                reference_values::declared_value_type(program, event.place, &mut substitutions)?;
+            crate::atomic_resident_type_reference(program, cell)?
+        }
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             reference_values::declared_value_type(program, value, &mut substitutions)?
         }
@@ -96,7 +102,7 @@ enum Position {
 /// that origin lets an instance meet the same application spelled directly.
 /// The instance may carry lifetime arguments of its own; they supply no type
 /// argument.
-fn application_form(
+pub(super) fn application_form(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> TypeReferenceHandle {

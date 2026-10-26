@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 188 even when every table
+order below. This layout uses semantic format marker 189 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -692,7 +692,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 188 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 189 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.
@@ -1039,15 +1039,21 @@ BlockParameter places are machine-local and reject at content positions:
 | 2 | Separate | counted content terms; nesting deeper than 256 rejects |
 
 A closed reach application is a `bool` presence flag; when present it carries
-the template identity string, the 32-byte template commitment, the 32-byte
-specialization commitment, a counted telescope, the fixed service ceiling, a
-counted `u32` dependency binder list, and counted call rows. A call row is an
+the template identity index, the 32-byte template commitment, the 32-byte
+specialization commitment, a counted declaration-kind roster, a counted
+invocation telescope, the fixed service ceiling, a
+counted `u32` dependency binder list, and counted call rows. After the invocation
+telescope, a `bool` marks a distinct capture receipt: template identity, 32-byte
+template commitment, 32-byte capture commitment, a counted declaration-kind
+roster, and its counted telescope.
+Dependency positions traverse capture slots before method-local invocation slots;
+method invocation tuple comparisons use only the latter. A call row is an
 operation id, a `u32` binder, and a `bool` application presence flag followed,
 when present, by the call application.
 
 | Closed reach row | Fields |
 | --- | --- |
-| machine binding | `bool` nominal-requirement presence + requirement string when present + upper-bound service ceiling + selected identity string + 32-byte selected contract commitment + selected-reach service ceiling + optional callee machine identity + `bool` schema presence + schema template identity string and 32-byte schema template commitment when present |
+| machine binding | `bool` nominal-requirement presence + requirement string when present + counted requirement declaration kinds + counted argument identity indices + upper-bound service ceiling + selected identity index + 32-byte selected contract commitment + selected-reach service ceiling + optional callee machine identity + `bool` schema presence + schema template identity index and 32-byte schema template commitment when present |
 | call application | callee machine id + 32-byte specialization commitment + counted reach arguments |
 
 <!-- reach-parameter-tags -->
@@ -1061,10 +1067,10 @@ when present, by the call application.
 <!-- reach-argument-tags -->
 | Tag | Reach argument | Fields after the tag |
 | --- | --- | --- |
-| 0 | Type | identity string |
-| 1 | Const | identity string |
-| 2 | Proposition | identity string |
-| 3 | Machine | identity string + 32-byte contract commitment |
+| 0 | Type | identity index |
+| 1 | Const | identity index |
+| 2 | Proposition | identity index |
+| 3 | Machine | identity index + 32-byte contract commitment |
 
 ## Module declaration tables
 
@@ -1970,3 +1976,19 @@ Substitution retains every crossing under the actual prefix. Descriptor writes
 and possibly aliasing backing writes invalidate dependent observations; an
 inline-owner framing or byte-offset query cannot treat a pointer crossing as
 an inline child. Existing path tags retain their encodings.
+
+Closed reach declaration-kind rosters use bytes: `0` Type, `1` Const/value,
+`2` Proposition, `3` callable Machine, `4` requirement declaration identity,
+`5` implementation. These are declaration categories, independently of the
+substituted argument list. Invocation and capture rosters must match their
+complete argument telescopes, including unused slots. Nominal callable bindings
+also retain their trait's complete category roster and argument identities;
+scoped owner references use the same alpha-normalized binder positions as the
+surrounding application. Structural callable bindings have no trait arguments.
+
+A checked machine specialization additionally carries a `bool` expected-capture
+flag. If present it contains the capture's template identity index, 32-byte
+template commitment and 32-byte capture-application commitment. The separate
+closed-reach capture payload must be present exactly when this declaration
+receipt requires it, and all three coordinates must agree. Every emitted checked
+specialization retains a closed-reach application, even with no call markers.
