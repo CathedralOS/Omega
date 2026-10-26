@@ -12,6 +12,9 @@ use package_compilation::PackageCompilationInputs;
 use package_manager::operations::{
     LocalProjectPreparation, PrepareLocalProjectError, PreparedLocalProject,
 };
+use package_manager::resolution::source::{
+    AcquiredBuildSource, BuildSourceAcquisitions, ResolvedBuildSources,
+};
 use package_manager::resolution::source::{BuildSourceAcquisition, ExecutedSourceResolution};
 use target::TargetProfile;
 
@@ -121,7 +124,7 @@ pub fn resolve_project_sources(
     session: &mut BuildSession,
     request: ProjectSourceRequest,
 ) -> Result<ResolvedProjectBuilds, ProjectSourceResolutionError> {
-    use ProjectSourceResolutionError::{Compilation, Preparation, Resources, Source};
+    use ProjectSourceResolutionError::Preparation;
     let ProjectSourceRequest {
         preparation,
         execution_profile,
@@ -131,13 +134,42 @@ pub fn resolve_project_sources(
 
     let mut acquisitions = preparation.source_acquisitions().map_err(Preparation)?;
     let acquired = preparation.acquire_root().map_err(Preparation)?;
+    let (resolved, builds) = resolve_acquired_sources(
+        session,
+        acquired,
+        &preparation.entry_path(),
+        &mut acquisitions,
+        execution_profile,
+        snapshot,
+        collect_timings,
+    )?;
+    drop(acquisitions);
+    let prepared = preparation
+        .complete_source_resolution(resolved)
+        .map_err(Preparation)?;
+    Ok(ResolvedProjectBuilds {
+        prepared,
+        builds,
+        execution_profile,
+    })
+}
+
+/// One execution/discovery loop for live projects and staged package commands.
+/// The caller keeps its transaction and acquisition policy; this owner retains
+/// the exact activations whose declarations produced the resolved source graph.
+pub(crate) fn resolve_acquired_sources(
+    session: &mut BuildSession,
+    acquired: AcquiredBuildSource,
+    entry: &std::path::Path,
+    acquisitions: &mut BuildSourceAcquisitions<'_>,
+    execution_profile: TargetProfile,
+    snapshot: Option<build_evaluation::BuildSnapshotRequest>,
+    collect_timings: bool,
+) -> Result<(ResolvedBuildSources, Vec<ResolvedPackageBuild>), ProjectSourceResolutionError> {
+    use ProjectSourceResolutionError::{Compilation, Resources, Source};
     let mut request = session
         .packages
-        .source_build_request(
-            acquired.source_capture(),
-            &preparation.entry_path(),
-            execution_profile,
-        )
+        .source_build_request(acquired.source_capture(), entry, execution_profile)
         .map_err(Resources)?;
     if snapshot.is_some() {
         request.build.snapshot = snapshot;
@@ -213,15 +245,7 @@ pub fn resolve_project_sources(
         let inputs = resolved.join_build(identity, returned).map_err(Source)?;
         builds.push(ResolvedPackageBuild { build, inputs });
     }
-    drop(acquisitions);
-    let prepared = preparation
-        .complete_source_resolution(resolved)
-        .map_err(Preparation)?;
-    Ok(ResolvedProjectBuilds {
-        prepared,
-        builds,
-        execution_profile,
-    })
+    Ok((resolved, builds))
 }
 
 /// Root catalog obligations settle before membership is used. Members run only

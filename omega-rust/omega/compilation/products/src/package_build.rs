@@ -34,8 +34,11 @@ impl PreparedPackageBuild {
         &self,
         inputs: &PackageCompilationInputs,
         rollback: &OptimizationRollback,
+        permit_unsettled_fused_service_fields: bool,
     ) -> bool {
-        self.rollback == *rollback && self.same_source_inputs(inputs)
+        self.rollback == *rollback
+            && self.permit_unsettled_fused_service_fields == permit_unsettled_fused_service_fields
+            && self.same_source_inputs(inputs)
     }
 
     fn same_source_inputs(&self, inputs: &PackageCompilationInputs) -> bool {

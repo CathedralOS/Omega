@@ -93,6 +93,15 @@ pub struct CompletedBuild {
     products: Vec<PreparedPackageBuild>,
 }
 
+/// Product judgment policy, distinct from the already settled Build execution.
+/// Discovery may leave service fields unsettled; a bound Product must check
+/// them under its own admission and cannot reuse that relaxed judgment.
+#[derive(Default)]
+pub struct PackageProductOptions {
+    pub optimization_rollback: optimization_core::OptimizationRollback,
+    pub permit_unsettled_fused_service_fields: bool,
+}
+
 impl CompletedBuild {
     pub fn package_inputs(&self) -> &package_compilation::PackageCompilationInputs {
         &self.source.inputs
@@ -225,21 +234,25 @@ impl CompilationSession {
         completed: &mut CompletedBuild,
         target: target::TargetProfile,
         inputs: package_compilation::PackageCompilationInputs,
-        optimization_rollback: optimization_core::OptimizationRollback,
+        options: PackageProductOptions,
     ) -> Result<PackageBuild, CompileFailure> {
         super::run_on_compile_thread(|| {
-            if let Some(prepared) = completed
-                .products
-                .iter()
-                .find(|prepared| prepared.has_source_admission(&inputs, &optimization_rollback))
-            {
+            if let Some(prepared) = completed.products.iter().find(|prepared| {
+                prepared.has_source_admission(
+                    &inputs,
+                    &options.optimization_rollback,
+                    options.permit_unsettled_fused_service_fields,
+                )
+            }) {
                 return prepared
                     .select_target(target, inputs)
                     .map(|source| PackageBuild { source })
                     .map_err(CompileFailure::from);
             }
             let mut source = completed.source.fork();
-            source.rollback = optimization_rollback;
+            source.rollback = options.optimization_rollback;
+            source.permit_unsettled_fused_service_fields =
+                options.permit_unsettled_fused_service_fields;
             let source = super::checking::prepare_settled_package_product(source, target, inputs)?;
             completed.products.push(source.clone());
             Ok(PackageBuild { source })

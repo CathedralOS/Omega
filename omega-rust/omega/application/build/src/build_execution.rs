@@ -87,7 +87,10 @@ impl PackageSourceRequest {
                     source,
                     request.target,
                     request.inputs,
-                    request.optimization_rollback,
+                    compiler::PackageProductOptions {
+                        optimization_rollback: request.optimization_rollback,
+                        ..Default::default()
+                    },
                 )
             }
         }

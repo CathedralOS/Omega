@@ -17,6 +17,13 @@ struct PendingReviewBuild {
     snapshot: Option<package_compilation::BuildSnapshotRequest>,
 }
 
+/// Command review consumes already executed Build work. Audit still admits
+/// fresh execution until its source discovery migrates to that same lifecycle.
+pub(super) enum ReviewBuilds<'session> {
+    Execute,
+    Retained(&'session mut [compiler::CompletedBuild]),
+}
+
 /// A demanded cache record may lack an executable component description.
 /// Refresh that dependency while retaining completed reviews and the waiting
 /// consumer's Build. Each restart adds a newly demanded occurrence; exact
@@ -26,13 +33,21 @@ pub(super) fn execute_pass(
     compiler: &mut compiler::CompilationSession,
     session: &mut PackageBuildSession,
     source_bindings: &mut PackageSourceBindings,
+    mut builds: ReviewBuilds<'_>,
 ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
     let mut fresh_components = BTreeSet::new();
     let mut recovered = Vec::new();
     let mut pending_builds = Vec::new();
     loop {
         let mut round = plan.begin_round(source_bindings, &fresh_components, &recovered);
-        let result = execute_round(&plan, &mut round, compiler, session, &mut pending_builds);
+        let result = execute_round(
+            &plan,
+            &mut round,
+            compiler,
+            session,
+            &mut pending_builds,
+            &mut builds,
+        );
         match result {
             Ok(()) => return round.finish(),
             Err(error) => {
@@ -56,12 +71,13 @@ fn execute_round<'pass>(
     compiler: &mut compiler::CompilationSession,
     session: &mut PackageBuildSession,
     pending_builds: &mut Vec<PendingReviewBuild>,
+    builds: &mut ReviewBuilds<'_>,
 ) -> Result<(), CompileResolvedPackageReviewsError> {
     for occurrence in plan.occurrences() {
-        let Some(work) = round.admit_occurrence(occurrence, session)? else {
+        let Some(work) = round.admit_occurrence(occurrence)? else {
             continue;
         };
-        complete_occurrence(work, round, compiler, session, pending_builds)?;
+        complete_occurrence(work, round, compiler, session, pending_builds, builds)?;
     }
     Ok(())
 }
@@ -72,22 +88,16 @@ fn complete_occurrence(
     compiler: &mut compiler::CompilationSession,
     session: &mut PackageBuildSession,
     pending_builds: &mut Vec<PendingReviewBuild>,
+    builds: &mut ReviewBuilds<'_>,
 ) -> Result<(), CompileResolvedPackageReviewsError> {
     let PackageReviewWork {
-        mut request,
+        request,
         completion,
         maximum_policy_canonical_bytes,
     } = work;
-    let inputs = request.package_inputs.as_ref().ok_or_else(|| {
-        completion.compilation_failure(
-            vec![Diagnostic::error(
-                "review work has no package input custody",
-            )]
-            .into(),
-        )
-    })?;
-    let entry = request.root_path.clone();
-    let snapshot = request.build.snapshot.clone();
+    let inputs = &request.inputs;
+    let entry = request.entry.clone();
+    let snapshot = request.execution.snapshot.clone();
     let pending = pending_builds
         .iter()
         .position(|pending| {
@@ -103,11 +113,42 @@ fn complete_occurrence(
     });
     let build = match pending {
         Some(pending) => pending.build,
-        None => {
-            request.build.directory = Some(completion.reserve_build_directory(session)?);
-            crate::build_execution::execute_package_build(compiler, request)
-                .map_err(|failure| completion.compilation_failure(failure))?
-        }
+        None => match builds {
+            ReviewBuilds::Retained(completed) => {
+                let source = completed
+                    .iter_mut()
+                    .find(|source| source.package_inputs().root() == request.inputs.root())
+                    .ok_or_else(|| {
+                        completion.compilation_failure(
+                            vec![Diagnostic::error(
+                                "review request has no settled source Build",
+                            )]
+                            .into(),
+                        )
+                    })?;
+                source
+                    .require_execution_contract(&request.execution)
+                    .map_err(|failure| completion.compilation_failure(failure))?;
+                compiler
+                    .prepare_package_product(
+                        source,
+                        request.target,
+                        request.inputs,
+                        compiler::PackageProductOptions {
+                            permit_unsettled_fused_service_fields: request
+                                .permit_unsettled_fused_service_fields,
+                            ..Default::default()
+                        },
+                    )
+                    .map_err(|failure| completion.compilation_failure(failure))?
+            }
+            ReviewBuilds::Execute => {
+                let directory = completion.reserve_build_directory(session)?;
+                let request = request.into_execution_request(session, directory);
+                crate::build_execution::execute_package_build(compiler, request)
+                    .map_err(|failure| completion.compilation_failure(failure))?
+            }
+        },
     };
 
     let descriptions = component_descriptions(&build, &completion, round);

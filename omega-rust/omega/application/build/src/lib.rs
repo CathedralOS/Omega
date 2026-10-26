@@ -14,7 +14,8 @@
 //! `build_session.rs` retains the compiler alongside package-owned resources
 //! across those operations; package policy borrows execution, not a compiler.
 //! Ordinary CLI products consume executed discovery through package-owned
-//! Product admission. Install/update/audit discovery and provider/helper
+//! Product admission. Install/update also execute their staged candidates once
+//! and retain Builds across review passes. Audit discovery and provider/helper
 //! suspension remain migration work.
 
 mod build;

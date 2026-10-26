@@ -9,10 +9,8 @@ use super::errors::ResolveExternalLocalPackageClosureError;
 use super::git_pins::GitResolutionOptions;
 use crate::declarations::PackageKey;
 use crate::resolution::source::{
-    PackageSourceCustody, ResolvePackageSourceError, bind_staged_external_local_project_source,
-    capture_external_local_project_source,
+    PackageSourceCustody, ResolvePackageSourceError, capture_external_local_project_source,
 };
-use package_source::local::staging::StagedLocalSnapshot;
 use package_source::{ExternalSourceContext, SourceLineage};
 use package_source::{LocalSourceLimits, SourceResolver};
 use std::collections::BTreeMap;
@@ -51,30 +49,6 @@ pub(crate) fn resolve_external_local_project_closure(
     result
 }
 
-/// Resolve a proposed local project using its original live directory for Path
-/// dependencies. The caller retains the stage for the project-file transaction.
-/// `options` carries the invocation-wide Git selection policy; accepted pins
-/// (an install or selective update preserving unchanged accepted Git
-/// requests) must belong to the original live root request and context.
-pub(crate) fn resolve_staged_external_local_project_closure(
-    stage: &StagedLocalSnapshot,
-    source_context: ExternalSourceContext,
-    storage: &SourceResolver,
-    source_limits: LocalSourceLimits,
-    closure_limits: PackageSourceClosureLimits,
-    options: GitResolutionOptions<'_>,
-) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
-    verify_pin_root(stage.requested_root(), &source_context, options)?;
-    resolve_staged_external_local_project(
-        stage,
-        source_context,
-        storage,
-        source_limits,
-        closure_limits,
-        &mut GitAcquisitionCache::with_options(storage, options),
-    )
-}
-
 fn verify_pin_root(
     live_root: &Path,
     source_context: &ExternalSourceContext,
@@ -90,48 +64,6 @@ fn verify_pin_root(
         return Err(ResolveExternalLocalPackageClosureError::RootRequestMismatch);
     }
     Ok(())
-}
-
-fn resolve_staged_external_local_project(
-    stage: &StagedLocalSnapshot,
-    source_context: ExternalSourceContext,
-    storage: &SourceResolver,
-    source_limits: LocalSourceLimits,
-    closure_limits: PackageSourceClosureLimits,
-    git_acquisitions: &mut GitAcquisitionCache<'_>,
-) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
-    let source_error = |error| {
-        ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
-    };
-    storage.verify_path_identity().map_err(source_error)?;
-    let result =
-        bind_staged_external_local_project_source(stage, source_limits, source_context.clone())
-            .map_err(ResolveExternalLocalPackageClosureError::Root)
-            .and_then(|root| {
-                let source_limits = root.source_limits();
-                let cache_dir = SourceCacheLane::Retained(storage.external_local_sources())
-                    .checked_source_cache_dir()
-                    .map_err(ResolveExternalLocalPackageClosureError::Root)?;
-                let review_cache_dir = SourceCacheLane::Retained(storage.external_local_sources())
-                    .compiled_review_cache_dir()
-                    .map_err(ResolveExternalLocalPackageClosureError::Root)?;
-                resolve_bound_external_local_closure(
-                    stage.requested_root(),
-                    stage.canonical_live_root(),
-                    source_context,
-                    root.into_custody()
-                        .with_checked_source_cache_dir(cache_dir)
-                        .with_compiled_review_cache_dir(review_cache_dir),
-                    SourceCacheLane::Retained(storage.external_local_sources()),
-                    SourceCacheLane::Retained(storage.workspace_members()),
-                    SourceCacheLane::Retained(storage.git_sources()),
-                    source_limits,
-                    closure_limits,
-                    git_acquisitions,
-                )
-            });
-    storage.verify_path_identity().map_err(source_error)?;
-    result
 }
 
 #[allow(clippy::too_many_arguments)]
