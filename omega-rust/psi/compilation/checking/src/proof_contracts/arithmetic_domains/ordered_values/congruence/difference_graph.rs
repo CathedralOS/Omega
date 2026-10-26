@@ -33,19 +33,6 @@ pub(super) struct DifferenceGraph<'relations> {
 }
 
 impl<'relations> DifferenceGraph<'relations> {
-    /// Exact endpoints in their original first-occurrence order, including
-    /// vertices introduced only by nonordering relations. Consumers retain
-    /// these indices instead of rediscovering each endpoint in an inner loop.
-    pub(super) fn operands(&self) -> &[&'relations Operand] {
-        &self.operands
-    }
-
-    pub(super) fn indexed_relations(&self) -> impl Iterator<Item = (usize, usize, i64)> + '_ {
-        self.edges
-            .iter()
-            .map(|edge| (edge.destination, edge.source, edge.minimum_difference))
-    }
-
     pub(super) fn new(relations: &'relations [Relation]) -> Self {
         phase_profile::count("05.ordered_relations.graphs", 1);
         let mut operands = Vec::new();
@@ -167,25 +154,13 @@ impl<'relations> DifferenceGraph<'relations> {
         let Some(source) = self.operands.iter().position(|operand| *operand == left) else {
             return false;
         };
+        if !self.has_outgoing[source] || !self.has_incoming[source] {
+            return false;
+        }
         let Some(destination) = self.operands.iter().position(|operand| *operand == right) else {
             return false;
         };
-        self.mutual_nonnegative_gap_indexed(source, destination)
-    }
-
-    /// Both indices belong to this graph's published endpoint roster. The
-    /// equality closure already owns them; no symbolic lookup is needed here.
-    pub(super) fn mutual_nonnegative_gap_indexed(
-        &mut self,
-        source: usize,
-        destination: usize,
-    ) -> bool {
-        if source == destination {
-            return true;
-        }
-        if !self.has_outgoing[source]
-            || !self.has_incoming[source]
-            || !self.has_outgoing[destination]
+        if !self.has_outgoing[destination]
             || !self.has_incoming[destination]
             || self.core_component[source] != self.core_component[destination]
         {

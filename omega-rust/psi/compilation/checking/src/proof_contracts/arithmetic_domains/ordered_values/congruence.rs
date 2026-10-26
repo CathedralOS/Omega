@@ -20,9 +20,30 @@ struct IndexedOrderGraph<'relations> {
 }
 
 impl<'relations> IndexedOrderGraph<'relations> {
-    fn new(differences: &DifferenceGraph<'relations>) -> Self {
-        let operands = differences.operands().to_vec();
-        let indexed_relations = differences.indexed_relations().collect();
+    fn new(relations: &'relations [Relation]) -> Self {
+        let mut operands: Vec<&'relations Operand> = Vec::new();
+        let mut indexed_relations = Vec::with_capacity(relations.len());
+        for relation in relations {
+            let left_idx = operands
+                .iter()
+                .position(|existing| *existing == &relation.left)
+                .unwrap_or_else(|| {
+                    let idx = operands.len();
+                    operands.push(&relation.left);
+                    idx
+                });
+            let right_idx = operands
+                .iter()
+                .position(|existing| *existing == &relation.right)
+                .unwrap_or_else(|| {
+                    let idx = operands.len();
+                    operands.push(&relation.right);
+                    idx
+                });
+            if let Some(floor) = relation.minimum_difference() {
+                indexed_relations.push((left_idx, right_idx, floor));
+            }
+        }
         let count = operands.len();
         Self {
             operands,
@@ -71,12 +92,10 @@ impl<'relations> ValueComparison<'relations> {
             return vec![(value, 0)];
         }
         let relations = self.relations;
+        let graph = self
+            .order_graph
+            .get_or_insert_with(|| IndexedOrderGraph::new(relations));
         let differences = &mut self.differences;
-        let graph = self.order_graph.get_or_insert_with(|| {
-            IndexedOrderGraph::new(
-                differences.get_or_insert_with(|| DifferenceGraph::new(relations)),
-            )
-        });
         let n = graph.operands.len();
         if n == 0 {
             return vec![(value, 0)];
@@ -222,7 +241,7 @@ impl<'relations> ValueComparison<'relations> {
             return true;
         }
         let differences = differences.get_or_insert_with(|| DifferenceGraph::new(relations));
-        Equalities::prepare([left, right], differences)
+        Equalities::prepare(relations, [left, right], differences)
             .is_some_and(|equalities| equalities.same_value(left, right))
     }
 
@@ -389,10 +408,11 @@ impl<'terms> EqualityQuery<'terms> {
                 .comparison
                 .differences
                 .get_or_insert_with(|| DifferenceGraph::new(self.comparison.relations));
-            self.prepared = match Equalities::prepare(self.roots, differences) {
-                Some(equalities) => PreparedEqualities::Known(equalities),
-                None => PreparedEqualities::Unavailable,
-            };
+            self.prepared =
+                match Equalities::prepare(self.comparison.relations, self.roots, differences) {
+                    Some(equalities) => PreparedEqualities::Known(equalities),
+                    None => PreparedEqualities::Unavailable,
+                };
         }
         match &self.prepared {
             PreparedEqualities::Known(equalities) => equalities.same_value(left, right),
@@ -412,32 +432,37 @@ struct Equalities<'terms> {
 }
 
 impl<'terms> Equalities<'terms> {
-    fn prepare<'relations: 'terms>(
+    fn prepare(
+        relations: &'terms [Relation],
         roots: [&'terms Operand; 2],
-        differences: &mut DifferenceGraph<'relations>,
+        differences: &mut DifferenceGraph<'_>,
     ) -> Option<Self> {
         let mut terms = Vec::new();
         for root in roots {
             collect_term(&mut terms, root, 0)?;
         }
         let mut endpoints = Vec::new();
-        // This is the exact same first-occurrence roster used by the
-        // difference solver. Roots and child terms retain their existing
-        // insertion order; only duplicate endpoint lookups disappear.
-        for &operand in differences.operands() {
-            endpoints.push(collect_term(&mut terms, operand, 0)?);
+        for relation in relations {
+            for operand in [&relation.left, &relation.right] {
+                let index = collect_term(&mut terms, operand, 0)?;
+                if !endpoints.contains(&index) {
+                    endpoints.push(index);
+                }
+            }
         }
         let mut comparisons = MAXIMUM_COMPARISONS;
         let mut reachable = vec![Vec::new(); terms.len()];
-        for (source_vertex, &source) in endpoints.iter().enumerate() {
-            for (destination_vertex, &destination) in endpoints.iter().enumerate() {
+        for &source in &endpoints {
+            for &destination in &endpoints {
                 if !consume_comparison(&mut comparisons) {
                     return None;
                 }
                 // Only exact ordering endpoints seed equivalence. Cached rows
                 // retain the original relation order, finite round bound and
                 // checked gaps; constructor closure cannot add ordering edges.
-                if differences.mutual_nonnegative_gap_indexed(source_vertex, destination_vertex) {
+                if differences
+                    .mutual_nonnegative_gap(terms[source].operand, terms[destination].operand)
+                {
                     reachable[source].push(destination);
                 }
             }
