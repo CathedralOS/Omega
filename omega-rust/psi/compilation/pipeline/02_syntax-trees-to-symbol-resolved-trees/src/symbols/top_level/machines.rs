@@ -19,31 +19,28 @@ pub(super) fn assign_machine_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) -> Vec<Diagnostic> {
-    let root_machine_symbols = symbols
-        .child_handles(symbols.root())
-        .into_iter()
-        .flatten()
-        .filter(|symbol| symbols.get(*symbol).kind == SymbolKind::Machine)
-        .collect::<Vec<_>>();
+    // The machine arena includes nested declarations; the symbol root does
+    // not. Positional zipping shifts every later boundary requirement when
+    // an earlier machine has children. Classification belongs to the exact
+    // declaration identity already assigned by the root/lexical traversal.
     let top_level_requirement_symbols = program
         .machines
         .iter()
-        .zip(root_machine_symbols.iter().copied())
-        .filter_map(|(machine, symbol)| {
+        .filter_map(|machine| {
             matches!(
                 machine.supply_mode,
                 language_semantics::MachineSupplyMode::TopLevelRequirement
             )
-            .then_some(symbol)
+            .then_some(machine.symbol)
         })
         .collect::<Vec<_>>();
     let token_requirement_symbols = program
         .machines
         .iter()
-        .zip(root_machine_symbols)
-        .filter_map(|(machine, symbol)| {
-            (machine.spelling.is_some() && top_level_requirement_symbols.contains(&symbol))
-                .then_some(symbol)
+        .filter_map(|machine| {
+            (machine.spelling.is_some()
+                && top_level_requirement_symbols.contains(&machine.symbol))
+                .then_some(machine.symbol)
         })
         .collect::<Vec<_>>();
     let mut diagnostics = Vec::new();
