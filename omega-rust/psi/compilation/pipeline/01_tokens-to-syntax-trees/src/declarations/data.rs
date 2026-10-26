@@ -123,9 +123,11 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     if input.at_contextual("where") {
         input = input.take_contextual("where")?;
         let ((facts, _token_count), rest) =
-            crate::contracts::facts::parse_proof_facts_until(syntax_trees, input, |input| {
-                input.at_punctuation(PunctuationKind::LeftBrace) || input.tokens.is_empty()
-            })?;
+            crate::contracts::facts::parse_logical_proof_facts_until(
+                syntax_trees,
+                input,
+                |input| input.at_punctuation(PunctuationKind::LeftBrace) || input.tokens.is_empty(),
+            )?;
         where_facts = facts;
         input = rest;
     }
@@ -448,9 +450,11 @@ fn parse_case_member<'tokens, 'source>(
     if input.at_contextual("where") {
         input = input.take_contextual("where")?;
         let ((facts, _token_count), rest) =
-            crate::contracts::facts::parse_proof_facts_until(syntax_trees, input, |input| {
-                input.at_punctuation(PunctuationKind::Semicolon) || input.tokens.is_empty()
-            })?;
+            crate::contracts::facts::parse_logical_proof_facts_until(
+                syntax_trees,
+                input,
+                |input| input.at_punctuation(PunctuationKind::Semicolon) || input.tokens.is_empty(),
+            )?;
         where_facts = facts;
         input = rest;
     }

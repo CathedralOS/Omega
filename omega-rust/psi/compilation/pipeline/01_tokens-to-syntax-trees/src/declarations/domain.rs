@@ -1,4 +1,4 @@
-use crate::contracts::facts::parse_proof_facts_until;
+use crate::contracts::facts::parse_logical_proof_facts_until;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use arena::HandleSpan;
@@ -287,7 +287,7 @@ fn parse_domain_requires<'tokens, 'source>(
 
     let input = input.take_contextual("requires")?;
     let ((facts, token_count), input) =
-        parse_proof_facts_until(syntax_trees, input, domain_requires_terminator)?;
+        parse_logical_proof_facts_until(syntax_trees, input, domain_requires_terminator)?;
     if facts.is_empty() {
         return Err(input.error_here("domain `requires` must contain at least one proposition"));
     }
