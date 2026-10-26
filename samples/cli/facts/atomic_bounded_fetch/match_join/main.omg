@@ -1,0 +1,25 @@
+// Expected exit: 0.
+// A shared atomic fetch preserves its resident bound and ordering, and a load carries that bound into Exact subtraction.
+use omega::language::core::atomic;
+data Cell where value <= 100 { value: AtomicU32; }
+machine mutate(cell: &Cell, mask: u32) -> u32 requires mask <= 63 {
+    let prior: u32 = cell.value.fetch_and(mask, NoOrdering);
+    prior
+}
+machine join(value: u32, branch: bool) -> u32
+requires value <= 100
+ensures result <= 100
+{
+    let joined: u32 = match branch { true -> value, false -> value, };
+    joined
+}
+machine main() crashes Trap {
+    let cell: Cell;
+    cell.value.store(99, NoOrdering);
+    let prior: u32 = mutate(&cell, 63);
+    let observed: u32 = join(cell.value.load(NoOrdering), true);
+    let remaining: u32 = 100 - observed;
+    transition prior == 99 && observed == 35 && remaining == 65 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

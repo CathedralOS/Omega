@@ -95,7 +95,11 @@ fn source_checked_obligation_facts(
                             let location = event.location()?;
                             let root = optimization_unit::field_evidence(function, location.root)?.root_type?;
                             let declaration = terminal_semantics::projected_field_declaration(unit.structural_types.iter(), root, &location.path, location.field)?;
-                            (*psi_operation, *resident_obligation, event.replacement()?, declaration.field_type.clone())
+                            let value = event.replacement().or_else(|| match event {
+                                abstract_operations::AbstractAtomicEvent::ReadModifyWrite { operand, .. } => Some(*operand),
+                                _ => None,
+                            })?;
+                            (*psi_operation, *resident_obligation, value, declaration.field_type.clone())
                         },
                         _ => return None,
                     };
