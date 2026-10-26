@@ -110,21 +110,7 @@ pub(super) fn derive(
     }
     // Retained authored selections outrank runtime inference. In particular an
     // explicit const cannot be silently reselected from a callback's carrier.
-    let application = match site {
-        CallSite::Expression(handle) => {
-            program
-                .expression_table
-                .call_node(handle)?
-                .authored_machine_application
-        }
-        CallSite::Statement(handle) => {
-            program
-                .statement_table
-                .statement(handle)
-                .as_call()?
-                .authored_machine_application
-        }
-    };
+    let application = site.authored_machine_application(program)?;
     if application.is_valid() {
         for binding in program
             .expression_table

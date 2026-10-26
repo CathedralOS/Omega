@@ -63,7 +63,7 @@ pub(crate) use dynamic_slots::instantiate_dynamic_slots;
 mod requirement_applications;
 pub(crate) use requirement_applications::instantiate_requirement_applications;
 pub(crate) use requirement_providers::generate_requirement_provider_specializations;
-pub(crate) use type_reference_walk::{for_each_type_reference, type_reference_endpoints};
+pub(crate) use type_reference_walk::for_each_type_reference;
 mod const_values;
 pub(crate) use const_values::value as materialize_static_value;
 mod range_arguments;
@@ -143,6 +143,33 @@ struct CalleeState {
 pub(crate) enum CallSite {
     Statement(StatementHandle),
     Expression(ExpressionHandle),
+}
+
+impl CallSite {
+    /// The authored static machine application this site's call node carries:
+    /// the retained application an ordinary call authored, or the zero handle
+    /// when the node authorizes no application. `None` when the site names no
+    /// call node at all, so every caller keeps its own missing-node behaviour.
+    pub(crate) fn authored_machine_application(
+        self,
+        program: &TypedTrees,
+    ) -> Option<typed_trees::static_applications::StaticMachineApplicationHandle> {
+        Some(match self {
+            CallSite::Expression(handle) => {
+                program
+                    .expression_table
+                    .call_node(handle)?
+                    .authored_machine_application
+            }
+            CallSite::Statement(handle) => {
+                program
+                    .statement_table
+                    .statement(handle)
+                    .as_call()?
+                    .authored_machine_application
+            }
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -744,18 +771,12 @@ fn candidate_for_selection<'template>(
 ) -> Candidate<'template> {
     Candidate {
         template: std::borrow::Cow::Borrowed(&template.template),
-        binding_application: match selection.site {
-            CallSite::Expression(handle) => program.expression_table.call_node(handle).map_or(
-                typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
-                |call| call.authored_machine_application,
+        binding_application: selection
+            .site
+            .authored_machine_application(program)
+            .unwrap_or_else(
+                typed_trees::static_applications::StaticMachineApplicationHandle::invalid,
             ),
-            CallSite::Statement(handle) => {
-                program.statement_table.statement(handle).as_call().map_or(
-                    typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
-                    |call| call.authored_machine_application,
-                )
-            }
-        },
         type_bindings: selection.type_bindings.clone(),
         const_bindings: selection.const_bindings.clone(),
         runtime_value_bindings: selection.runtime_value_bindings.clone(),
