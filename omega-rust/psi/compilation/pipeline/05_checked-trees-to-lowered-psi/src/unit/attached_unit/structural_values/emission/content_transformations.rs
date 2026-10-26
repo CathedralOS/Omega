@@ -67,32 +67,22 @@ impl Emission<'_, '_, '_> {
         &self,
         node: &checked_trees::CheckedStructuralValue,
     ) -> Result<Option<checked_trees::facts::ContentBodyTransformation>, LoweringError> {
-        let mut matching = self
-            .checked
-            .facts
-            .qualifications
-            .content
-            .body_transformations
-            .iter()
-            .filter_map(|(_, transaction)| {
-                let occurrence = self
-                    .checked
-                    .facts
-                    .flow
-                    .control
-                    .operands
-                    .get(transaction.completed_value);
-                (transaction.machine_symbol == node.machine
-                    && transaction.state_symbol == node.state
-                    && occurrence.statement_index == node.statement_index as usize
-                    && occurrence.expression == node.expression)
-                    .then_some(transaction)
-            });
-        let selected = matching.next().cloned();
-        if matching.next().is_some() {
-            return unsupported("content completion has ambiguous evaluation transactions");
+        let content = &self.checked.facts.qualifications.content;
+        if !node.content_transformation.is_valid() {
+            return Ok(None);
         }
-        Ok(selected)
+        if !content
+            .body_transformations
+            .is_valid(node.content_transformation)
+        {
+            return unsupported("content value lost its exact completion transaction");
+        }
+        Ok(Some(
+            content
+                .body_transformations
+                .get(node.content_transformation)
+                .clone(),
+        ))
     }
 
     pub(super) fn transform_content(
@@ -270,10 +260,22 @@ impl Emission<'_, '_, '_> {
             );
             derivations.push(ContentTransformationDerivation {
                 conservation,
-                lineage_anchor: crate::terminal_identities::lookup_claim_id(
-                    self.calls.claims.bindings(),
-                    derived.lineage_anchor,
-                )?,
+                lineage_roots: {
+                    let mut roots = content
+                        .body_claim_bindings
+                        .span_or_empty(derived.lineage_roots)
+                        .iter()
+                        .map(|binding| {
+                            crate::terminal_identities::lookup_claim_id(
+                                self.calls.claims.bindings(),
+                                binding.claim_identity,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                    roots.sort();
+                    roots.dedup();
+                    roots
+                },
                 ancestry: self.content_ancestry(derived.conservation)?,
                 custody,
                 inputs,
@@ -347,21 +349,19 @@ impl Emission<'_, '_, '_> {
             .operands
             .get(equation.completed_value);
         let mut retained = Vec::new();
-        for entry in equation.inputs.handles() {
-            let frontier = content
-                .descendant_frontier(
-                    entry,
-                    equation.machine_symbol,
-                    equation.state_symbol,
-                    completed.statement_index,
-                    equation.evaluation,
-                    conservation,
-                )
-                .map_err(LoweringError::Unsupported)?;
-            for (handle, _, _) in frontier.replacements {
-                if !retained.contains(&handle) {
-                    retained.push(handle);
-                }
+        let frontier = content
+            .descendant_frontier(
+                equation.inputs,
+                equation.machine_symbol,
+                equation.state_symbol,
+                completed.statement_index,
+                equation.evaluation,
+                conservation,
+            )
+            .map_err(LoweringError::Unsupported)?;
+        for (handle, _, _) in frontier.replacements {
+            if !retained.contains(&handle) {
+                retained.push(handle);
             }
         }
         let mut ancestry = Vec::new();

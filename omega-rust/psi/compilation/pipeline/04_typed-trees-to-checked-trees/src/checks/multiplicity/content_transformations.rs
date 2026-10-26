@@ -42,7 +42,7 @@ struct Transaction {
 
 struct PreparedDerivation {
     conservation: Handle<ContentBodyConservationFact>,
-    lineage_anchor: PermissionClaimIdentity,
+    lineage_roots: Vec<ContentBodyClaimBinding>,
     custody: PreparedCustody,
 }
 
@@ -147,7 +147,9 @@ pub(super) fn commit(
         };
         derivations.push(ContentBodyDerivation {
             conservation: prepared.conservation,
-            lineage_anchor: prepared.lineage_anchor,
+            lineage_roots: content
+                .body_claim_bindings
+                .insert_many(prepared.lineage_roots),
             custody,
         });
     }
@@ -231,12 +233,7 @@ fn prepare(
         let available = content
             .body_available_inputs
             .span_or_empty(equation.available_inputs);
-        if available.is_empty()
-            || equation
-                .inputs
-                .handles()
-                .any(|entry| !available.iter().any(|input| input.entry_binding == entry))
-        {
+        if available.is_empty() {
             return Err("derived transaction lacks every available parent");
         }
         let first_owner = available.first().map(|available| {
@@ -266,7 +263,7 @@ fn prepare(
         } else {
             PreparedCustody::Boundary(boundary_correspondence::prepare(program, facts, equation)?)
         };
-        let mut anchor = PermissionClaimIdentity::Unknown;
+        let mut roots = Vec::new();
         let mut owner = None;
         for input in available {
             let binding = content.body_claim_bindings.get(input.binding);
@@ -286,12 +283,16 @@ fn prepare(
                 return Err("two equations spend the same parent qualification");
             }
             inputs.push(binding);
-            let lineage =
-                lineage_anchor(facts, content.body_claim_bindings.get(input.entry_binding))?;
-            if anchor != PermissionClaimIdentity::Unknown && anchor != lineage {
-                return Err("derived parents have no checked common backing lineage");
+        }
+        for entry in equation.inputs.handles() {
+            for root in lineage_roots(facts, content.body_claim_bindings.get(entry))? {
+                if !roots
+                    .iter()
+                    .any(|previous| same_qualification(previous, &root))
+                {
+                    roots.push(root);
+                }
             }
-            anchor = lineage;
         }
         for output in content.body_claim_bindings.span_or_empty(equation.outputs) {
             if ordinary
@@ -353,7 +354,7 @@ fn prepare(
         }
         transaction.equations.push(PreparedDerivation {
             conservation: *handle,
-            lineage_anchor: anchor,
+            lineage_roots: roots,
             custody,
         });
     }
@@ -656,12 +657,12 @@ fn same_qualification(left: &ContentBodyClaimBinding, right: &ContentBodyClaimBi
         && left.projection_machine == right.projection_machine
 }
 
-fn lineage_anchor(
+fn lineage_roots(
     facts: &CheckFacts,
     input: &ContentBodyClaimBinding,
-) -> Result<PermissionClaimIdentity, &'static str> {
+) -> Result<Vec<ContentBodyClaimBinding>, &'static str> {
     let content = &facts.qualifications.content;
-    let mut anchor = None;
+    let mut roots: Option<Vec<ContentBodyClaimBinding>> = None;
     for (_, derivation) in content.body_derivations.iter() {
         if !matches!(derivation.custody, ContentBodyCustody::Derived) {
             continue;
@@ -673,15 +674,25 @@ fn lineage_anchor(
             .iter()
             .any(|output| same_qualification(input, output))
         {
-            if anchor.is_some_and(|anchor| anchor != derivation.lineage_anchor) {
-                return Err("ambiguous qualified ancestor");
+            let candidate = content
+                .body_claim_bindings
+                .span_or_empty(derivation.lineage_roots);
+            if candidate.is_empty()
+                || roots.as_ref().is_some_and(|previous| {
+                    previous.len() != candidate.len()
+                        || previous.iter().any(|root| {
+                            !candidate
+                                .iter()
+                                .any(|other| same_qualification(root, other))
+                        })
+                })
+            {
+                return Err("ambiguous qualified root roster");
             }
-            anchor = Some(derivation.lineage_anchor);
+            roots = Some(candidate.to_vec());
         }
     }
-    // The body binder names an exact already-qualified entry claim. With no
-    // earlier derivation that entry is an opaque authority anchor, not fresh
-    // issuance. Distinct entries cannot be unified by equal provenance or
-    // equal geometry; call substitution must establish any relation first.
-    Ok(anchor.unwrap_or(input.claim_identity))
+    // Entry claims are already established authority. Their identities remain
+    // independent even when a proved operation combines their complete content.
+    Ok(roots.unwrap_or_else(|| vec![input.clone()]))
 }

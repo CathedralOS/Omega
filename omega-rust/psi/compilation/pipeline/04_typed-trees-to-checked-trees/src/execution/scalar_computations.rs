@@ -249,6 +249,8 @@ pub(crate) fn build_checked_value_computation_plans(
                             source_span: Default::default(),
                             type_reference: local.type_reference,
                             qualification_decisions: Default::default(),
+                            content_transformation: Default::default(),
+                            content_inputs: Default::default(),
                             kind: checked_trees::CheckedStructuralValueKind::ZeroedStructural {
                                 projected_qualifications,
                             },

@@ -7,7 +7,9 @@
 
 use super::linear_obligations::LinearPlace;
 use checked_trees::CheckFacts;
-use checked_trees::facts::{ContentBodyAvailableInput, ContentBodyConservationFact};
+use checked_trees::facts::{
+    ContentBodyAvailableInput, ContentBodyClaimBinding, ContentBodyConservationFact,
+};
 use language_semantics::{PermissionClaimIdentity, PermissionProvenance};
 use validation::CanonicalPlace;
 
@@ -16,7 +18,14 @@ pub(crate) fn observe_inputs(
     facts: &CheckFacts,
     conservation: &ContentBodyConservationFact,
     places: &[LinearPlace],
-) -> Result<Vec<(ContentBodyAvailableInput, Vec<facts::PlaceSegment>)>, &'static str> {
+) -> Result<
+    Vec<(
+        ContentBodyAvailableInput,
+        Vec<facts::PlaceSegment>,
+        Vec<ContentBodyClaimBinding>,
+    )>,
+    &'static str,
+> {
     let machine = program
         .machine_by_symbol(conservation.machine_symbol)
         .ok_or("missing owning machine")?;
@@ -41,81 +50,86 @@ pub(crate) fn observe_inputs(
         .semantic_constraint_contexts(operand.constraints)
         .collect::<Vec<_>>();
     let mut inputs = Vec::new();
-    for binding_handle in conservation.inputs.handles() {
-        let binding = facts
+    let descendants = facts.qualifications.content.descendant_frontier(
+        conservation.inputs,
+        conservation.machine_symbol,
+        conservation.state_symbol,
+        operand.statement_index,
+        conservation.evaluation,
+        arena::Handle::invalid(),
+    )?;
+    for (transformation, expected, consumed) in descendants.replacements {
+        super::content_snapshots::preserve_replacement(
+            program,
+            facts,
+            transformation,
+            expected,
+            consumed,
+        )?;
+    }
+    for descendant in descendants.bindings {
+        let current_binding = facts
             .qualifications
             .content
             .body_claim_bindings
-            .get(binding_handle);
-        let descendants = facts.qualifications.content.descendant_frontier(
-            binding_handle,
+            .get(descendant.binding);
+        let place = unique_live_input(places, current_binding.claim_identity)?;
+        let current = CanonicalPlace {
+            root: place.root,
+            segments: place.path.clone(),
+        };
+        if !crate::flow::place_cases_are_selected(
+            program,
+            &facts.semantic,
+            &contexts,
             conservation.machine_symbol,
             conservation.state_symbol,
             operand.statement_index,
-            conservation.evaluation,
-            arena::Handle::invalid(),
+            &current,
+        ) {
+            return Err("input case is not selected at completion");
+        }
+        if !crate::checks::contracts::exact_scalar_membership(
+            program,
+            facts,
+            &contexts,
+            &current,
+            current_binding.domain,
+            current_binding.semantic_domain,
+        ) {
+            return Err("input's exact routed membership is not live at completion");
+        }
+        super::content_snapshots::preserve_projection(
+            program,
+            facts,
+            descendant.binding,
+            super::content_snapshots::Observation::Place {
+                at: operand,
+                place: current,
+            },
         )?;
-        for (transformation, expected, consumed) in descendants.replacements {
-            super::content_snapshots::preserve_replacement(
-                program,
-                facts,
-                transformation,
-                expected,
-                consumed,
-            )?;
-        }
-        for descendant in descendants.bindings {
-            let current_binding = facts
-                .qualifications
-                .content
-                .body_claim_bindings
-                .get(descendant);
-            let place = unique_live_input(places, current_binding.claim_identity)?;
-            let current = CanonicalPlace {
+        inputs.push((
+            ContentBodyAvailableInput {
+                binding: descendant.binding,
+                entry_bindings: Default::default(),
                 root: place.root,
-                segments: place.path.clone(),
-            };
-            if !crate::flow::place_cases_are_selected(
-                program,
-                &facts.semantic,
-                &contexts,
-                conservation.machine_symbol,
-                conservation.state_symbol,
-                operand.statement_index,
-                &current,
-            ) {
-                return Err("input case is not selected at completion");
-            }
-            if !crate::checks::contracts::exact_scalar_membership(
-                program,
-                facts,
-                &contexts,
-                &current,
-                binding.domain,
-                binding.semantic_domain,
-            ) {
-                return Err("input's exact routed membership is not live at completion");
-            }
-            super::content_snapshots::preserve_projection(
-                program,
-                facts,
-                descendant,
-                super::content_snapshots::Observation::Place {
-                    at: operand,
-                    place: current,
-                },
-            )?;
-            inputs.push((
-                ContentBodyAvailableInput {
-                    binding: descendant,
-                    entry_binding: binding_handle,
-                    root: place.root,
-                    segments: Default::default(),
-                    provenance: place.provenance.ok_or("missing input provenance")?,
-                },
-                place.path.clone(),
-            ));
-        }
+                segments: Default::default(),
+                provenance: place.provenance.ok_or("missing input provenance")?,
+            },
+            place.path.clone(),
+            descendant
+                .entries
+                .iter()
+                .map(|entry| {
+                    facts
+                        .qualifications
+                        .content
+                        .body_claim_bindings
+                        .get(*entry)
+                        .clone()
+                })
+                .collect(),
+        ));
     }
     if inputs.is_empty() {
         return Err("no owned input");
@@ -129,7 +143,7 @@ pub(crate) fn observe_inputs(
         conservation.evaluation,
         &inputs
             .iter()
-            .map(|(input, path)| CanonicalPlace {
+            .map(|(input, path, _)| CanonicalPlace {
                 root: input.root,
                 segments: path.clone(),
             })
@@ -165,11 +179,20 @@ fn unique_live_input(
 pub(crate) fn publish(
     facts: &mut CheckFacts,
     conservation: arena::Handle<ContentBodyConservationFact>,
-    observed: Vec<(ContentBodyAvailableInput, Vec<facts::PlaceSegment>)>,
+    observed: Vec<(
+        ContentBodyAvailableInput,
+        Vec<facts::PlaceSegment>,
+        Vec<ContentBodyClaimBinding>,
+    )>,
 ) {
     let inputs = observed
         .into_iter()
-        .map(|(mut input, path)| {
+        .map(|(mut input, path, entries)| {
+            input.entry_bindings = facts
+                .qualifications
+                .content
+                .body_claim_bindings
+                .insert_many(entries);
             input.segments = facts.flow.ownership.segments.insert_many(path);
             input
         })
