@@ -333,24 +333,29 @@ impl BoundaryScalarLoans {
 }
 
 impl TerminalExecution<'_> {
-    /// A plain formal cannot erase a stronger qualification on its caller's
-    /// backing. This transport has no qualified replacement protocol, so it
-    /// conservatively refuses qualified roots and projected owner constraints.
+    /// An unqualified scalar replacement cannot erase a stronger caller owner.
     pub(crate) fn validate_scalar_loan_qualifications(
         &self,
         storage: &PrimitiveStorage,
     ) -> Result<(), TerminalInterpretError> {
-        let target: &StructuralRuntimePlace = match &storage.endpoint {
-            PrimitiveStorageEndpoint::Scalar(place) => place,
-            PrimitiveStorageEndpoint::ScalarField(field) => &field.parent,
-            PrimitiveStorageEndpoint::ArrayElement { array, .. } => &array.referent,
-            // The frame-home resolver already requires unqualified parameters
-            // and unqualified, claim-free structural results for array locals.
-            // An immutable view byte carries no replacement authority at all.
-            PrimitiveStorageEndpoint::OwnedArrayElement { .. }
-            | PrimitiveStorageEndpoint::ViewByte { .. } => return Ok(()),
+        let Some(target) = scalar_qualification_owner(storage) else {
+            return Ok(());
         };
         self.validate_storage_loan_qualifications(target)
+    }
+
+    /// A nested scalar uses the original formal's captured preservation scope;
+    /// its immediate parent never becomes a separately authorized formal.
+    pub(crate) fn validate_scalar_loan_restoration(
+        &self,
+        storage: &PrimitiveStorage,
+        owner: &StructuralRuntimePlace,
+        normal: &[semantic_vocabulary::StructuralDomainId],
+    ) -> Result<(), TerminalInterpretError> {
+        let Some(target) = scalar_qualification_owner(storage) else {
+            return Ok(());
+        };
+        self.validate_storage_loan_restoration_at(target, owner, normal)
     }
 
     pub(crate) fn validate_storage_loan_qualifications(
@@ -368,6 +373,19 @@ impl TerminalExecution<'_> {
         target: &StructuralRuntimePlace,
         normal: &[semantic_vocabulary::StructuralDomainId],
     ) -> Result<(), TerminalInterpretError> {
+        self.validate_storage_loan_restoration_at(target, target, normal)
+    }
+
+    fn validate_storage_loan_restoration_at(
+        &self,
+        target: &StructuralRuntimePlace,
+        owner: &StructuralRuntimePlace,
+        normal: &[semantic_vocabulary::StructuralDomainId],
+    ) -> Result<(), TerminalInterpretError> {
+        if target.opaque_identity != owner.opaque_identity || !target.path.starts_with(&owner.path)
+        {
+            return Err(malformed());
+        }
         let owns_target = |value: &TerminalStructuralValue| {
             value.opaque_identity == target.opaque_identity && target.path.starts_with(&value.path)
         };
@@ -376,7 +394,7 @@ impl TerminalExecution<'_> {
                        projected_empty: bool| {
             projected_empty
                 && (qualifications.is_empty()
-                    || (value.path == target.path
+                    || (value.path == owner.path
                         && qualifications.iter().all(|domain| normal.contains(domain))))
         };
         let unsupported = || {
@@ -495,5 +513,15 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         Ok(Some(field.field_type.clone()))
+    }
+}
+
+fn scalar_qualification_owner(storage: &PrimitiveStorage) -> Option<&StructuralRuntimePlace> {
+    match &storage.endpoint {
+        PrimitiveStorageEndpoint::Scalar(place) => Some(place),
+        PrimitiveStorageEndpoint::ScalarField(field) => Some(&field.parent),
+        PrimitiveStorageEndpoint::ArrayElement { array, .. } => Some(&array.referent),
+        PrimitiveStorageEndpoint::OwnedArrayElement { .. }
+        | PrimitiveStorageEndpoint::ViewByte { .. } => None,
     }
 }

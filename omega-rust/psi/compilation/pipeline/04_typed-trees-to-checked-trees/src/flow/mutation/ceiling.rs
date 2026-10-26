@@ -517,6 +517,10 @@ pub(super) fn retained_loan_write_regions(
     borrow: &BorrowFacts,
     call: &BorrowCallFact,
 ) -> Option<Vec<StorageRegion>> {
+    let source_state = program.state_by_symbol(state_symbol)?;
+    let order = program
+        .statement_table
+        .admitted_execution_order(source_state.statement_nodes);
     let (_, state) = borrow
         .states
         .iter()
@@ -540,7 +544,7 @@ pub(super) fn retained_loan_write_regions(
         // A later operand can form a debt in this same statement. Its future
         // effects cannot invalidate facts before that formation. A completed
         // nested producer is available to the enclosing invocation.
-        let formed = loan.statement_index < call.statement_index
+        let formed = order.precedes(loan.statement_index, call.statement_index)
             || (loan.formation_expression.is_valid()
                 && arguments.iter().any(|argument| {
                     validation::expression_owners::expression_contains(

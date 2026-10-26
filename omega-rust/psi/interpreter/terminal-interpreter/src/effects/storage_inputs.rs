@@ -123,6 +123,7 @@ impl BoundaryStorageInputs {
                 array_loan,
                 parameter.access,
                 &leaves,
+                &[],
             )?;
             let identity = Arc::new(());
             self.buffers.push(TerminalBoundaryStorageBuffer::Structural(
@@ -179,6 +180,7 @@ impl BoundaryStorageInputs {
             array_loan,
             parameter.access,
             &leaves,
+            &normal_qualifications,
         )?;
         let identity = Arc::new(());
         self.buffers.push(TerminalBoundaryStorageBuffer::Structural(
