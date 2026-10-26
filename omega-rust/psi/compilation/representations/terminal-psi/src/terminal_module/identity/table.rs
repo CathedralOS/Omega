@@ -82,7 +82,7 @@ impl TerminalIdentityTable {
             .map(|(position, entry)| (entry.clone(), position as u32))
             .collect();
         TerminalIdentityTableBuilder {
-            entries: self.entries,
+            table: self,
             positions,
         }
     }
@@ -93,7 +93,7 @@ impl TerminalIdentityTable {
 /// field is the plain `entries` vector.
 #[derive(Debug)]
 pub struct TerminalIdentityTableBuilder {
-    entries: Vec<String>,
+    table: TerminalIdentityTable,
     positions: std::collections::HashMap<String, u32>,
 }
 
@@ -102,7 +102,7 @@ pub struct TerminalIdentityTableBuilder {
 impl Default for TerminalIdentityTableBuilder {
     fn default() -> Self {
         Self {
-            entries: vec![String::new()],
+            table: TerminalIdentityTable::default(),
             positions: [(String::new(), 0)].into_iter().collect(),
         }
     }
@@ -115,10 +115,10 @@ impl TerminalIdentityTableBuilder {
         if let Some(&position) = self.positions.get(text) {
             return TerminalIdentityIndex(position);
         }
-        let position = u32::try_from(self.entries.len())
+        let position = u32::try_from(self.table.entries.len())
             .expect("terminal identity table overflowed u32 entries");
         self.positions.insert(text.to_owned(), position);
-        self.entries.push(text.to_owned());
+        self.table.entries.push(text.to_owned());
         TerminalIdentityIndex(position)
     }
 
@@ -130,24 +130,25 @@ impl TerminalIdentityTableBuilder {
 
     /// The text an interned index carries. Read-only.
     pub fn text(&self, index: TerminalIdentityIndex) -> Option<&str> {
-        self.entries.get(index.0 as usize).map(String::as_str)
+        self.table.text(index)
+    }
+
+    /// Borrow the interned prefix without cloning the entries vector.
+    pub fn as_table(&self) -> &TerminalIdentityTable {
+        &self.table
     }
 
     /// A read-side view of the interned prefix. Fingerprint and commitment
     /// helpers take `&TerminalIdentityTable`; the producer borrows one
     /// mid-construction rather than rebuilding interned text.
     pub fn snapshot(&self) -> TerminalIdentityTable {
-        TerminalIdentityTable {
-            entries: self.entries.clone(),
-        }
+        self.table.clone()
     }
 
     /// The finished table. `build` runs no deduplication: `intern` already
     /// assigned each distinct text exactly one entry.
     pub fn build(self) -> TerminalIdentityTable {
-        TerminalIdentityTable {
-            entries: self.entries,
-        }
+        self.table
     }
 }
 

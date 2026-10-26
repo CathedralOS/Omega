@@ -7,8 +7,12 @@ pub(super) fn retained(
     operation: &terminal_psi::Operation,
     position: (semantic_vocabulary::BlockId, u32),
     analysis: &mut descriptors::DescriptorAnalysis<'_>,
+    memberships: &super::membership_reachability::MembershipReachability,
 ) -> Option<PayloadMembershipContract> {
     let result = operation.result.structural()?;
+    if !memberships.may_contain(result.structural_type) {
+        return None;
+    }
     let terminal_psi::StructuralTypeShape::ElementView { element, .. } =
         terminal_psi::find_structural_type(&module.structural_types, result.structural_type)?.shape
     else {
@@ -95,6 +99,9 @@ pub(super) fn retained(
                 }
             }
         }
+    }
+    if projected_qualifications.is_empty() {
+        return None;
     }
     projected_qualifications.sort();
     projected_qualifications.dedup();

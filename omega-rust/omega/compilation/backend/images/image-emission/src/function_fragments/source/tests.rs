@@ -21,6 +21,7 @@ fn atomic_storage_requires_retained_graph_replay() {
         },
         reads_from: None,
         modification_after: Some(AtomicModificationAfter::InitialResidency),
+        resident_obligation: None,
     };
     assert!(requires_graph_storage_replay(&[operation]));
 }
