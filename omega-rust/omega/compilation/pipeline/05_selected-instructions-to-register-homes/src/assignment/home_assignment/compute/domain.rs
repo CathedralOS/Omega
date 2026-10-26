@@ -437,6 +437,30 @@ fn common_candidates_repr(
             function,
             register: register.virtual_register.0,
         })?;
+    if register.spans.len() == 1 && register.early_clobber_points.is_empty() {
+        if first.candidates.is_empty() {
+            return Err(RegisterHomeError::NoCommonCandidate {
+                function,
+                register: register.virtual_register.0,
+            });
+        }
+        let mut mask = 0u64;
+        let mut all_under_64 = true;
+        for &v in &first.candidates {
+            if (v.0 as usize) < 64 {
+                mask |= 1u64 << v.0;
+            } else {
+                all_under_64 = false;
+                break;
+            }
+        }
+        if all_under_64 {
+            return Ok(DomainCandidates {
+                mask,
+                overflow: Vec::new(),
+            });
+        }
+    }
     let common = intersect_candidates_repr(
         &first.candidates,
         register.spans[1..]
