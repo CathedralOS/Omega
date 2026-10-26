@@ -227,7 +227,8 @@ impl Captures<'_> {
             .cloned()
             .collect::<Vec<_>>();
         let segments = loan_place_segments(self.program, reference, &coordinates)?;
-        let (physical, _) = self.structural_path(reference, &segments)?;
+        let (physical, _) =
+            super::super::source_paths::structural_path(self.program, reference, &segments)?;
         (physical == path).then_some(segments)
     }
 
