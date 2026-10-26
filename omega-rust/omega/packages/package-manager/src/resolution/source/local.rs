@@ -2,11 +2,7 @@ mod recovery;
 pub(crate) use recovery::recover_cached_external_local_source;
 
 use super::projection::project_package_build;
-use super::{
-    AcquiredBuildSource, BuildSourceAcquisitionError, ResolvePackageSourceError,
-    ResolvedPackageSource, SourceRootRole,
-};
-use crate::declarations::PackageKey;
+use super::{ResolvePackageSourceError, ResolvedPackageSource, SourceRootRole};
 use package_source::local::operations::resolve_local_source_snapshot_in_lane;
 use package_source::storage::RetainedStorageLane;
 use package_source::{
@@ -29,43 +25,6 @@ pub(crate) fn external_local_dependency_root(
     } else {
         requester_root.join(authored)
     })
-}
-
-/// Ordinary local compilation owns a closed in-memory capture. Transaction
-/// candidates and foreign review continue to request persisted custody below.
-pub(crate) fn capture_external_local_project_source(
-    root: &Path,
-    limits: LocalSourceLimits,
-    context: ExternalSourceContext,
-) -> Result<super::PackageSourceCustody, ResolvePackageSourceError> {
-    let AcquiredBuildSource {
-        capture: captured,
-        lineage,
-        limits,
-        ..
-    } = AcquiredBuildSource::capture_local(root, limits, context).map_err(|error| match error {
-        BuildSourceAcquisitionError::Source(error) => ResolvePackageSourceError::Source(error),
-        BuildSourceAcquisitionError::Identity(error) => ResolvePackageSourceError::Identity(error),
-    })?;
-    let declaration = super::projection::project_captured_package_build(
-        captured.canonical_live_root(),
-        captured.tree(),
-        SourceRootRole::Project,
-    )?;
-    Ok(super::PackageSourceCustody::from_resolved_parts(
-        PackageKey::new(declaration.name, lineage),
-        declaration.role,
-        ImmutableSourceResolution::external_local(SourceContentDigest::derive(
-            captured.normalized().content_identity.as_bytes(),
-        )),
-        super::PackageSourceMaterialization::from_local(captured.normalized()),
-        captured.canonical_live_root().to_path_buf(),
-        super::PackageSourceNavigation::Root,
-        super::PackageSourceSelectionEvidence::Root,
-        limits,
-        declaration.dependencies,
-    )
-    .with_captured_source(std::sync::Arc::clone(captured.tree())))
 }
 
 /// Resolve one declared external-local source in a retained lane.

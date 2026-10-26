@@ -31,13 +31,14 @@ use disposable workspaces and do not claim the requested product directory.
 
 [products.rs](src/products.rs) translates package and standalone product demands.
 [project_compilation.rs](src/project_compilation.rs) shows ordinary package
-compilation: admit the target batch, schedule its Builds and products, then reconcile
+compilation: settle returned Builds, admit the target batch and prepare products, then reconcile
 package identities and dispose staging. Package management returns requests; it
 does not invoke this route. Its completion owner retains acquisition custody and
 one aggregate sponsor until every target returns. An inadmissible target remains
 an ordered refusal beside successful siblings. A failed staging close is reported.
-The prepared-project native/check/inspection APIs here also serve SDK callers;
-package-management compilation exports have been removed.
+SDK callers use the same `build(BuildRequest)` entrance, including the
+`package_batch` counter probe and CLI `qualify_inputs` replay example. There is
+no separate prepared-project check/native/inspection API or static graph resolver.
 
 [package_compilation.rs](src/package_compilation.rs) owns the admitted package
 invocation. [build_execution.rs](src/build_execution.rs) advances dependency-first

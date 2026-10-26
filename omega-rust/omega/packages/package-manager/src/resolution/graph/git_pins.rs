@@ -27,7 +27,7 @@ pub(crate) struct RecordedGitSource<'a> {
 
 impl<'a> GitResolutionOptions<'a> {
     /// Select accepted immutable objects, or permit ordinary selector resolution.
-    /// Both executed and transitional static acquisition consume this policy.
+    /// Executed source acquisition consumes this policy before fetching bytes.
     pub(crate) fn recorded(
         &self,
         request: &GitSourceRequest,
@@ -94,10 +94,6 @@ impl<'a> GitDependencyPins<'a> {
             updates,
             acquisition,
         })
-    }
-
-    pub(super) fn accepted(&self) -> &CanonicalSourceClosureSubject {
-        self.accepted
     }
 
     fn resolution(

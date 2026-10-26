@@ -190,15 +190,37 @@ fn ordinary_package_operations_admit_instead_of_execute() {
     }
     let execution = include_str!("project_compilation.rs");
     let admit = execution
-        .find("admit_project_compilation(request, &mut session.packages)")
+        .find("package_manager::operations::admit_project_products(")
         .unwrap();
     let compile = execution
-        .find("crate::compile_packages(&mut session.compiler, admitted.requests)")
+        .find("crate::package_compilation::compile_returned_packages(")
         .unwrap();
     let reconcile = execution
         .find("admitted.completion.complete(products, session.packages)")
         .unwrap();
     assert!(admit < compile && compile < reconcile);
+    let preparation =
+        include_str!("../../../packages/package-manager/src/operations/prepare_project.rs");
+    assert!(!preparation.contains("resolve_static_source_closure"));
+    let build_exports = include_str!("lib.rs");
+    for removed in [
+        "mod check_project",
+        "mod native_project",
+        "PreparedLocalProjectNativeRequest",
+        "PreparedLocalProjectCheckRequest",
+    ] {
+        assert!(
+            !build_exports.contains(removed),
+            "obsolete Build facade: {removed}"
+        );
+    }
+    for example in [
+        include_str!("../examples/package_batch.rs"),
+        include_str!("../../cli/examples/qualify_inputs.rs"),
+    ] {
+        assert!(example.contains("build(BuildRequest {"));
+        assert!(!example.contains("prepare_local_project"));
+    }
 }
 
 #[test]

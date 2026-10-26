@@ -31,7 +31,6 @@ pub(crate) fn compile(
         let outcomes = crate::project_compilation::compile_returned(
             crate::project_compilation::ProjectCompilationRequest {
                 prepared: resolved.prepared,
-                build_directory: directory,
                 target_profiles: targets,
                 snapshot: request.build_snapshot.as_ref(),
                 verify: request.verify,

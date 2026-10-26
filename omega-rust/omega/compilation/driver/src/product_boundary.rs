@@ -75,8 +75,9 @@ fn application_does_not_depend_on_pipeline_stages() {
 #[test]
 fn build_operations_do_not_assemble_compiler_products() {
     for source in [
-        include_str!("../../../application/build/src/check_project.rs"),
-        include_str!("../../../application/build/src/native_project.rs"),
+        include_str!("../../../application/build/src/build.rs"),
+        include_str!("../../../application/build/src/project_compilation.rs"),
+        include_str!("../../../application/build/src/products.rs"),
     ] {
         for forbidden in [
             ".admit_trust(",
@@ -121,17 +122,11 @@ fn accepted_packages_supply_plans_not_compiler_continuations() {
 
 #[test]
 fn build_submits_admitted_package_batches_together() {
-    for source in [
-        include_str!("../../../application/build/src/check_project.rs"),
-        include_str!("../../../application/build/src/native_project.rs"),
-    ] {
-        assert!(source.contains("crate::project_compilation::compile("));
-    }
+    let products = include_str!("../../../application/build/src/products.rs");
+    assert!(products.contains("crate::project_compilation::compile_returned("));
     let application = include_str!("../../../application/build/src/project_compilation.rs");
-    assert!(application.contains("admit_project_compilation(request, &mut session.packages)"));
-    assert!(
-        application.contains("crate::compile_packages(&mut session.compiler, admitted.requests)")
-    );
+    assert!(application.contains("package_manager::operations::admit_project_products("));
+    assert!(application.contains("crate::package_compilation::compile_returned_packages("));
     assert!(application.contains("admitted.completion.complete(products, session.packages)"));
     let admission =
         include_str!("../../../packages/package-manager/src/operations/accepted_compilation.rs");

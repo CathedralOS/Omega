@@ -1,100 +1,28 @@
-//! Pure joins performed before any dependent acquisition.
+//! Accepted-source comparisons over executed graphs, without source acquisition.
 
-use super::{ResolveLockedPackageClosureError as Error, RootPolicy};
+use crate::declarations::PackageKey;
 use crate::declarations::dependencies::read::{DependencyPurpose, DependencySourceRequest};
 use crate::resolution::graph::{
     CanonicalDependencySourceRequest as RecordedRequest, CanonicalDependencySourceSelection,
-    CanonicalRootSourceRequest, CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
-    PackageRootSourceRequest, PackageSourceClosureLimits, ResolvedPackageSourceClosure,
+    CanonicalRootSourceRequest, CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectError,
+    CanonicalSourceClosureSubjectLimits, PackageRootSourceRequest, ResolvedPackageSourceClosure,
     ResolvedSourceIdentity,
 };
 use crate::resolution::source::PackageSourceCustody;
 
-pub(super) fn root_request_matches(
-    recorded: &CanonicalRootSourceRequest,
-    actual: &PackageRootSourceRequest,
-) -> bool {
-    match (recorded, actual) {
-        (
-            CanonicalRootSourceRequest::Git {
-                requested_locator,
-                requested_revision,
-                selection,
-            },
-            PackageRootSourceRequest::Git(actual),
-        ) => {
-            requested_locator == actual.acquisition().requested_locator()
-                && requested_revision == actual.acquisition().requested_revision()
-                && selection == actual.selection()
-        }
-        (
-            CanonicalRootSourceRequest::ExternalLocal {
-                requested_root,
-                source_context,
-            },
-            PackageRootSourceRequest::ExternalLocal {
-                requested_root: actual,
-                source_context: context,
-            },
-        ) => requested_root == actual.as_os_str().as_encoded_bytes() && source_context == context,
-        (
-            CanonicalRootSourceRequest::WorkspaceMember {
-                workspace_root_source,
-                member_path,
-                requested_workspace_root,
-            },
-            PackageRootSourceRequest::WorkspaceMember {
-                workspace_root_source: actual_source,
-                member_path: actual_member,
-                requested_workspace_root: actual_root,
-            },
-        ) => {
-            workspace_root_source == actual_source
-                && member_path == actual_member
-                && requested_workspace_root == actual_root.as_os_str().as_encoded_bytes()
-        }
-        _ => false,
-    }
-}
-
-pub(super) fn limits(
+/// Refuse a changed edge before fetching or opening its selected source.
+pub(crate) fn admit_locked_source_request(
     subject: &CanonicalSourceClosureSubject,
-    closure: PackageSourceClosureLimits,
-    limits: CanonicalSourceClosureSubjectLimits,
-) -> Result<(), Error> {
-    if subject.packages().len() > closure.max_packages
-        || subject.packages().len() > limits.maximum_packages
-        || subject.dependency_requests().len() > closure.max_dependency_requests
-        || subject.dependency_requests().len() > limits.maximum_dependency_requests
-        || subject.canonical_bytes().len() > limits.maximum_record_bytes
-    {
-        return Err(Error::LimitExceeded);
-    }
-    subject.validate_recovery_limits(limits)?;
-    Ok(())
-}
-
-pub(super) fn custody(
-    subject: &CanonicalSourceClosureSubject,
-    expected: &ResolvedSourceIdentity,
-    actual: &PackageSourceCustody,
-) -> Result<(), Error> {
-    checked_custody(subject, expected, actual, false)
-}
-
-pub(super) fn requester_custody(
-    subject: &CanonicalSourceClosureSubject,
-    expected: &ResolvedSourceIdentity,
-    actual: &PackageSourceCustody,
-    policy: RootPolicy,
-) -> Result<(), Error> {
-    checked_custody(
+    pending: &super::reconcile::PendingSourceResolution,
+) -> Result<(), AcceptedSourceError> {
+    edge(
         subject,
-        expected,
-        actual,
-        matches!(policy, RootPolicy::MutableLocal)
-            && expected.key() == subject.root().selected().key(),
-    )
+        pending.requester(),
+        pending.purpose(),
+        pending.dependency_index(),
+        pending.source(),
+    )?;
+    Ok(())
 }
 
 fn checked_custody(
@@ -102,17 +30,17 @@ fn checked_custody(
     expected: &ResolvedSourceIdentity,
     actual: &PackageSourceCustody,
     mutable_root: bool,
-) -> Result<(), Error> {
+) -> Result<(), AcceptedSourceError> {
     if actual.key() != expected.key()
         || (!mutable_root && actual.resolution() != expected.resolution())
     {
-        return Err(Error::mismatch(
+        return Err(AcceptedSourceError::mismatch(
             expected.key(),
             "fresh source key or immutable content differs",
         ));
     }
     if subject.package_navigation(expected.key()) != Some(actual.navigation()) {
-        return Err(Error::mismatch(
+        return Err(AcceptedSourceError::mismatch(
             expected.key(),
             "fresh source navigation differs",
         ));
@@ -120,7 +48,7 @@ fn checked_custody(
     if subject.package_dependency_projection(expected.key())
         != Some(actual.dependency_projections())
     {
-        return Err(Error::mismatch(
+        return Err(AcceptedSourceError::mismatch(
             expected.key(),
             "complete fresh dependency projection differs",
         ));
@@ -128,23 +56,24 @@ fn checked_custody(
     Ok(())
 }
 
-pub(super) fn edge<'a>(
+fn edge<'a>(
     subject: &'a CanonicalSourceClosureSubject,
     requester: &PackageSourceCustody,
     purpose: DependencyPurpose,
     ordinal: usize,
     request: &DependencySourceRequest,
-    policy: RootPolicy,
-) -> Result<&'a CanonicalDependencySourceSelection, Error> {
+) -> Result<&'a CanonicalDependencySourceSelection, AcceptedSourceError> {
     let package_index = subject
         .packages()
         .binary_search_by(|source| source.key().cmp(requester.key()))
-        .map_err(|_| Error::mismatch(requester.key(), "requester is absent from locked graph"))?;
-    requester_custody(
+        .map_err(|_| {
+            AcceptedSourceError::mismatch(requester.key(), "requester is absent from locked graph")
+        })?;
+    checked_custody(
         subject,
         &subject.packages()[package_index],
         requester,
-        policy,
+        requester.key() == subject.root().selected().key(),
     )?;
     let index = subject
         .dependency_requests()
@@ -155,14 +84,14 @@ pub(super) fn edge<'a>(
                 .then(edge.dependency_index().cmp(&ordinal))
         })
         .map_err(|_| {
-            Error::mismatch(
+            AcceptedSourceError::mismatch(
                 requester.key(),
                 "authored request occurrence is absent from locked graph",
             )
         })?;
     let edge = &subject.dependency_requests()[index];
     if !request_matches(edge.request(), request) {
-        return Err(Error::mismatch(
+        return Err(AcceptedSourceError::mismatch(
             requester.key(),
             "exact authored dependency request differs",
         ));
@@ -170,7 +99,7 @@ pub(super) fn edge<'a>(
     Ok(edge)
 }
 
-pub(super) fn local_root_context_matches(
+fn local_root_context_matches(
     recorded: &CanonicalRootSourceRequest,
     actual: &PackageRootSourceRequest,
 ) -> bool {
@@ -186,7 +115,7 @@ pub(crate) fn mutable_local_graph_matches(
     recorded: &CanonicalSourceClosureSubject,
     closure: &ResolvedPackageSourceClosure,
     limits: CanonicalSourceClosureSubjectLimits,
-) -> Result<bool, Error> {
+) -> Result<bool, AcceptedSourceError> {
     let fresh = CanonicalSourceClosureSubject::from_resolved(
         &closure.for_exact_target(recorded.target_profile()),
         limits,
@@ -248,3 +177,40 @@ fn request_matches(recorded: &RecordedRequest, actual: &DependencySourceRequest)
         _ => false,
     }
 }
+
+#[derive(Debug)]
+pub(crate) enum AcceptedSourceError {
+    SourceMismatch {
+        package: PackageKey,
+        detail: &'static str,
+    },
+    Subject(CanonicalSourceClosureSubjectError),
+}
+
+impl AcceptedSourceError {
+    fn mismatch(package: &PackageKey, detail: &'static str) -> Self {
+        Self::SourceMismatch {
+            package: package.clone(),
+            detail,
+        }
+    }
+}
+
+impl From<CanonicalSourceClosureSubjectError> for AcceptedSourceError {
+    fn from(error: CanonicalSourceClosureSubjectError) -> Self {
+        Self::Subject(error)
+    }
+}
+
+impl std::fmt::Display for AcceptedSourceError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::SourceMismatch { package, detail } => {
+                write!(formatter, "locked source {package:?}: {detail}")
+            }
+            Self::Subject(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for AcceptedSourceError {}
