@@ -1,6 +1,6 @@
 // Selected + retains its left operand; the index is captured once before payload writes.
 // Expected exit: 0
-trait Arithmetic { operator + add(left:u32,right:u32)->u32 ensures result == left; }
+trait Arithmetic { machine + add(left:u32,right:u32)->u32 ensures result == left; }
 RetainLeft satisfies Arithmetic {
  machine add(left:u32,right:u32)->u32 ensures result == left { left }
 }

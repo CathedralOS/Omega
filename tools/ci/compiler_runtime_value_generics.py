@@ -18,7 +18,8 @@ GENERIC_PREFIXES = ("runtime_index_carrier_", "runtime_value_recipe_", "runtime_
                     "runtime_index_borrow_call_", "selected_value_bool_public_contract_")
 RUNTIME_NAMED = ("runtime_index_application_root_exit", "runtime_value_generic_subject_exit", "runtime_forwarded_value_contract_exit",
                  "static_callable_local_type_argument_exit", "runtime_computed_data_subject_exit",
-                 "runtime_computed_initializer_capture_exit")
+                 "runtime_computed_initializer_capture_exit", "runtime_computed_selected_call_once_exit",
+                 "runtime_computed_proof_only_exit", "runtime_computed_closed_identity_exit")
 NAMED = RUNTIME_NAMED + ("const_generic_runtime_argument", "const_data_machine_call_runtime_argument")
 
 
