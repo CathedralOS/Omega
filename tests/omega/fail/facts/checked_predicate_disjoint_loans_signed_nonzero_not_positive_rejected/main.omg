@@ -1,0 +1,5 @@
+// Expected exit: 0
+machine nonzero(value: i64) -> bool { value != 0 }
+machine require_positive(value: i64) requires value > 0 { }
+machine invalid_use(value: i64) requires nonzero(value) == true { require_positive(value); }
+machine main() { }

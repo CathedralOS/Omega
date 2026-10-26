@@ -1276,7 +1276,7 @@ decision (`SourceChecked`) into stage 05 and stage 00.
 
 - **BORROW-PROOF-CONVERGENCE.** Complete borrow-disjointness establishment in
   stage 04 `checks/borrows/` under [loans](wiki/spec/terminal-psi/loans.md)
-  across remaining callee/domain predicates, runtime projections, and
+  across remaining structured callee/domain predicates, runtime projections, and
   same-statement/theorem establishment beyond
   `samples/cli/facts/computed_subslice_extent`, using exact call substitution
   and the shared contract/range readers.
