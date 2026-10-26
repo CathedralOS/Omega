@@ -59,9 +59,15 @@ Integrated candidate 28 passes the direct indexed, indexed predicate and compute
 index productions in both engines. It also passes nested helpers beneath distinct
 result overloads and explicit predicate erasure that retains a default cleanup
 application. All sixteen conflict, authority, effect, erasure and scope controls
-reject on their intended obligations. The inherited indexed production still
-fails because its retained const-expression argument has no applied theory view;
-that repair is in progress. Enclosing generic/lifetime telescopes,
+reject on their intended obligations. Candidate 31 repeats the complete nine-place
+row on the integrated baseline: all nine both-engine runs and nine sensitive
+twins pass. Candidate 33 at `f2fcf548c9e66e4499ecd5621ede1ad010624262`
+also passes inherited literal and computed (`3 + 4`) index productions in both
+engines, with their code-6 twins rejecting on `Label` membership. It checks the
+original const recipe before substituting a canonical value into the private
+applied theory. The overflow control rejects the exact out-of-carrier value
+`u64(18446744073709551616)`; normalization does not erase that obligation.
+Affected-library Clippy passes with warnings. Enclosing generic/lifetime telescopes,
 general erased-interface transport, product-producer parity, source retirement,
 and the whole item's required applications/corpus/host results remain open.
 No TASKS acceptance has been subtracted. Reviewed source is published in draft
