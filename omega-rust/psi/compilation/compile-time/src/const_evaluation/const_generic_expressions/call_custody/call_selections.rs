@@ -161,12 +161,39 @@ fn trait_supplies_requirement(
     false
 }
 
-pub(super) fn retained_target(site: &CallSite<'_>) -> SymbolHandle {
-    match site {
+pub(super) fn retained_target(
+    program: &TypedTrees,
+    site: &CallSite<'_>,
+) -> Result<SymbolHandle, String> {
+    let target = match site {
         CallSite::Statement(call) => call.target_symbol,
         CallSite::Expression { call, .. } => call.target_symbol,
         CallSite::TransitionNamed { path, .. } => path.symbol,
+    };
+    if program.symbols.get(target).kind != SymbolKind::Machine {
+        return Ok(target);
     }
+    // Terminal invocations keep their machine identity to distinguish a call
+    // from an internal state arrival. Their authored selection, like an
+    // ordinary call's, names that exact machine's callable entry declaration.
+    let mut machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == target);
+    let machine = machines
+        .next()
+        .ok_or("constant call lost its selected machine")?;
+    if machines.next().is_some() {
+        return Err("constant call has ambiguous selected machine identity".into());
+    }
+    let states = program.machine_states(machine);
+    if states.len() != machine.states.len() {
+        return Err("constant call selected machine has stale states".into());
+    }
+    states
+        .first()
+        .map(|state| state.symbol)
+        .ok_or_else(|| "constant call selected machine has no entry state".into())
 }
 
 /// A rewritten direct call must still select this exact source binder and the
@@ -201,7 +228,8 @@ pub(super) fn static_callable_matches(
         if let Some(StaticMachineBindingValue::Machine(argument)) =
             program.specialization_binding(instance, authored)
         {
-            return Ok(argument.application.is_none() && argument.symbol == retained_target(site));
+            return Ok(argument.application.is_none()
+                && argument.symbol == retained_target(program, site)?);
         }
         owner = instance.template;
     }

@@ -579,7 +579,7 @@ impl<'program> Collector<'program> {
         context: Context<'program>,
         authored: SymbolHandle,
     ) -> Result<bool, String> {
-        let target = call_selections::retained_target(site);
+        let target = call_selections::retained_target(self.program, site)?;
         if authored == self.authored_target(target, context.initializer)? {
             return Ok(true);
         }
@@ -606,7 +606,7 @@ impl<'program> Collector<'program> {
         authored: SymbolHandle,
         reference: SourceSpan,
     ) -> Result<(), String> {
-        let target = call_selections::retained_target(site);
+        let target = call_selections::retained_target(self.program, site)?;
         if authored == self.authored_target(target, context.initializer)? {
             return self.call(target, reference, context.initializer);
         }

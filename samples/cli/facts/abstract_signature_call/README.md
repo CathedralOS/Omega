@@ -123,6 +123,26 @@ productions execute with native exit 0 and Terminal exit 0, and both premise-fal
 twins refuse the intended obligation. This is the same fact and transport row;
 the additional call positions do not create another nine-place matrix.
 
+### Calls inside the supplied body
+
+Independent review of `0cb9d9fe3c9272d60ca402aab5c2353bd5e4718f` found that
+ordinary terminal calls inside the selected callback still lose their authored
+callable-entry selection. Frozen
+[`supplied_body_terminal`](constant_initializer/supplied_body_terminal/main.omg)
+and [`unexecuted_body_dependency`](constant_initializer/unexecuted_body_dependency/main.omg)
+retain the same callback, premise, constant and `hold` consumer. The second
+also retains a call in an unexecuted branch, so source custody must cover the
+whole selected body. Both constant forms refuse `constant call differs from its
+exact authored selection`; separate runtime-oracle controls observe native 0 and
+Terminal 0. An initial runtime variant that retained `hold` could not prove its
+result contract and supplies no runtime evidence.
+
+Both frozen positives have premise-false twins and matching corpus pins. The
+rejected C3 review remains immutable. This closure repair rejoins the exact
+machine's callable entry declaration while terminal invocation keeps its machine
+identity; a matching name or signature grants no selection. The new positives
+and their twins remain unfinished until the repaired producer validates them.
+
 ### Requirement accounting for this production
 
 - **Establishment:** the closed invocation evaluates only after ordinary checked
