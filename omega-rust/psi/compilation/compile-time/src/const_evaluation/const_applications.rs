@@ -1037,14 +1037,12 @@ pub(crate) fn const_application_plan(
             .iter()
             .enumerate()
         {
-            let destination = parameters
-                .and_then(|parameters| parameters.get(index))
-                .and_then(|parameter| match &parameter.kind {
-                    TypeParameterKind::Const { type_reference }
-                    | TypeParameterKind::Value { type_reference } => Some(*type_reference),
-                    _ => None,
-                });
-            visit_argument(typed, *argument, destination, &mut plan);
+            visit_argument(
+                typed,
+                *argument,
+                parameters.and_then(|parameters| parameters.get(index)),
+                &mut plan,
+            );
         }
     }
     plan
@@ -1072,11 +1070,41 @@ fn generic_type_parameters(
 fn visit_argument(
     typed: &TypedTrees,
     reference: TypeReferenceHandle,
-    destination: Option<TypeReferenceHandle>,
+    parameter: Option<&typed_trees::data::TypeParameter>,
     plan: &mut ConstApplicationPlan,
 ) {
+    let destination = parameter.and_then(|parameter| match parameter.kind {
+        TypeParameterKind::Const { type_reference }
+        | TypeParameterKind::Value { type_reference } => Some(type_reference),
+        _ => None,
+    });
     match typed.type_reference_table.type_reference(reference) {
         TypeReferenceNode::ConstExpression(root) => {
+            // Const slots owe static execution; Value slots only fold closed
+            // recipes. Runtime subjects and reference formations belong to
+            // ordinary operand capture, including their observable effects.
+            if parameter
+                .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Value { .. }))
+                && expression_subtree(typed, *root).iter().any(|expression| {
+                    match typed.expression_table.expression(*expression) {
+                        typed_trees::expression::ExpressionNode::Borrow(_) => true,
+                        typed_trees::expression::ExpressionNode::Name(path)
+                            if path.symbol.is_valid() =>
+                        {
+                            matches!(
+                                typed.symbols.get(path.symbol).kind,
+                                SymbolKind::Local
+                                    | SymbolKind::Parameter
+                                    | SymbolKind::Field
+                                    | SymbolKind::TypeParameter
+                            )
+                        }
+                        _ => false,
+                    }
+                })
+            {
+                return;
+            }
             // Only a root that names an ordinary machine call is an
             // application this machinery may finish. A boundary-operator
             // token or any other expression at the root is a malformed
@@ -1112,14 +1140,14 @@ fn visit_argument(
             }));
         }
         TypeReferenceNode::Constrained { base_type, .. } => {
-            visit_argument(typed, *base_type, destination, plan);
+            visit_argument(typed, *base_type, parameter, plan);
         }
         TypeReferenceNode::Reference { referee, .. } => {
-            visit_argument(typed, *referee, destination, plan);
+            visit_argument(typed, *referee, parameter, plan);
         }
         TypeReferenceNode::FixedArray { element_type, .. }
         | TypeReferenceNode::Slice { element_type } => {
-            visit_argument(typed, *element_type, destination, plan);
+            visit_argument(typed, *element_type, parameter, plan);
         }
         TypeReferenceNode::Generic {
             base_symbol,
@@ -1133,14 +1161,12 @@ fn visit_argument(
                 .iter()
                 .enumerate()
             {
-                let destination = parameters
-                    .and_then(|parameters| parameters.get(index))
-                    .and_then(|parameter| match &parameter.kind {
-                        TypeParameterKind::Const { type_reference }
-                        | TypeParameterKind::Value { type_reference } => Some(*type_reference),
-                        _ => None,
-                    });
-                visit_argument(typed, *nested, destination, plan);
+                visit_argument(
+                    typed,
+                    *nested,
+                    parameters.and_then(|parameters| parameters.get(index)),
+                    plan,
+                );
             }
         }
         _ => {}

@@ -1,0 +1,5 @@
+// Expected exit: 0
+data Index<Limit:u32> [copy] where value<Limit {value:u32;}
+machine count<Count:u32>()->u32 ensures result==Count {Count}
+machine probe(limit:u32)->u32 requires limit>=9 && limit<=10 {let indexed:Index<(count<limit>())> = Index{value:8}; indexed.Limit}
+machine main() crashes Trap {transition probe(9)==9 && probe(10)==10 {true->done() _->bad()} machine done(){} machine bad() crashes Trap {crash Trap;}}
