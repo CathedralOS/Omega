@@ -16,8 +16,6 @@ use compilation_products::compile_request::{SharedCompileInputs, ValidatedTarget
 use compilation_products::{CheckedProductSource, RequestedCompileProduct};
 use diagnostics::Diagnostic;
 
-pub(crate) mod package;
-
 /// A validated target roster and one pending source continuation. Target-local
 /// admission errors remain in their original positions while the application
 /// executes the shared Build, if there is any admitted target.
@@ -139,7 +137,7 @@ fn prepare_target(
             CompilationProduct::Native(target.into_native_product_request())
         }
     };
-    Ok(ProductRequest {
+    Ok(ProductRequest::Requested {
         realization,
         root: shared.root_path.clone(),
         product,

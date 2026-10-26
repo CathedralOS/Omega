@@ -906,7 +906,10 @@ narrows realization only.
     per compilation with no realized target observed, run Psi `00–07` once in
     `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega
     `00–09` and emission once per requested target without
-    checked-tree/lowered-Psi sidecars.
+    checked-tree/lowered-Psi sidecars. The default `package_batch_sources`
+    measurement currently observes three source completions for two distinct
+    source cohorts; restore its existing two-completion oracle while preserving
+    each occurrence's Build receipts and exact Product admission.
   - Enforce via `cargo metadata` and source guards that Psi never depends on
     Omega, Omega pipeline/realization never depends on source/typed/checked Psi
     or interpreters, numbered stages are called only inside the Psi/Omega
