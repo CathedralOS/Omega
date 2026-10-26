@@ -60,6 +60,24 @@ impl SourceScopedTopLevelBinding {
 }
 
 impl SymbolTable {
+    /// Whether this source has a loader-certified package qualifier. Package
+    /// aliases select namespaces without manufacturing a Module declaration.
+    /// Type and trait qualifiers retain their separate call semantics.
+    pub fn is_source_package_qualifier(&self, reference: SourceSpan, qualifier: &str) -> bool {
+        self.source_scoped_bindings_for(reference.source_id)
+            .iter()
+            .filter_map(|binding| binding.module_import.as_ref())
+            .any(|import| {
+                import.exact_source
+                    && import.package_prefix_members != 0
+                    && import
+                        .path
+                        .split("::")
+                        .take(import.package_prefix_members)
+                        .eq(qualifier.split("::"))
+            })
+    }
+
     /// Authored import spellings retained for source lookup diagnostics.
     pub fn source_module_import_paths(&self, source: SourceId) -> impl Iterator<Item = &str> {
         self.source_scoped_bindings_for(source)

@@ -6,6 +6,24 @@ mod fixture_package_inputs;
 use compiler::{CheckedCompileRequest, CompilationSession, PackageReviewFailure};
 use package_evidence::PackageReviewProjectionError;
 
+fn execute_build(
+    session: &mut CompilationSession,
+    request: CheckedCompileRequest,
+) -> compiler::PackageBuild {
+    let mut invocation = session
+        .begin_package_build(request)
+        .expect("admit package Build");
+    let returned = invocation.execution().map(|execution| {
+        let mut host = execution.host().expect("Build host");
+        let mut activation = host.start().expect("Build activation");
+        while !activation.advance(1024).expect("Build step").returned {}
+        activation.complete().expect("normal Build return")
+    });
+    session
+        .complete_package_build(invocation, returned)
+        .expect("complete package Build")
+}
+
 #[test]
 fn review_product_keeps_exact_custody_and_policy_budget() {
     let target = "linux_x86_64";
@@ -18,12 +36,13 @@ fn review_product_keeps_exact_custody_and_policy_budget() {
     let package = inputs.root();
     let mut session = CompilationSession::default();
     let mut review = |maximum_bytes| {
-        let build = session
-            .prepare_package_build(CheckedCompileRequest {
+        let build = execute_build(
+            &mut session,
+            CheckedCompileRequest {
                 package_inputs: Some(inputs.clone()),
                 ..CheckedCompileRequest::new(&prepared.root_path, Some(target))
-            })
-            .expect("prepare package Build");
+            },
+        );
         session.review_package_build(build, maximum_bytes)
     };
     let first = review(usize::MAX).expect("review product");
@@ -96,12 +115,13 @@ fn review_policy_round_trip_preserves_authored_and_inferred_reach() {
         )
         .expect("reviewable reach fixture");
         let mut session = CompilationSession::default();
-        let build = session
-            .prepare_package_build(CheckedCompileRequest {
+        let build = execute_build(
+            &mut session,
+            CheckedCompileRequest {
                 package_inputs: prepared.package_inputs,
                 ..CheckedCompileRequest::new(&prepared.root_path, Some("macos_arm64"))
-            })
-            .expect("prepare reach review");
+            },
+        );
         let reviewed = session
             .review_package_build(build, usize::MAX)
             .expect("reach review");

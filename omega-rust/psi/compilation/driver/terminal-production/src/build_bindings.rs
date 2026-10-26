@@ -21,28 +21,28 @@ pub struct TerminalBuildBindingCall {
     pub request: RootBindingRequest,
 }
 
-/// Source-issued context bound to one canonical semantic artifact. Its private
-/// construction is not reproduced by loading arbitrary external bytes.
+/// Source-issued context bound to exact Terminal semantics and, for private
+/// code, its live invocation owner. Loading bytes cannot recreate this context.
 #[derive(Debug, PartialEq, Eq)]
 pub struct TerminalBuildBindings {
-    identity: terminal_psi::SemanticFingerprint,
+    identity: terminal_codec::TerminalExecutionIdentity,
     calls: Vec<TerminalBuildBindingCall>,
 }
 
 impl TerminalBuildBindings {
     pub fn calls_for(
         &self,
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
     ) -> Option<&[TerminalBuildBindingCall]> {
-        (self.identity == artifact.manifest().semantic().program_fingerprint).then_some(&self.calls)
+        (self.identity == artifact.custody_identity()).then_some(&self.calls)
     }
 
     pub(super) fn new(
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
         calls: Vec<TerminalBuildBindingCall>,
     ) -> Self {
         Self {
-            identity: artifact.manifest().semantic().program_fingerprint,
+            identity: artifact.custody_identity(),
             calls,
         }
     }
@@ -91,27 +91,33 @@ pub(super) fn capture(
                 ));
             }
         };
-        let emitted = lowered
-            .semantic_module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
-            .flat_map(|block| &block.operations)
-            .find(|emitted| emitted.id == operation)
-            .ok_or_else(|| {
-                diagnostics::Diagnostic::error("Build binding lost its emitted operation")
-            })?;
-        let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &emitted.kind else {
-            return Err(diagnostics::Diagnostic::error(
-                "Build binding no longer names a boundary call",
-            ));
-        };
+        let boundary = emitted_boundary(lowered, operation)?;
         calls.push(TerminalBuildBindingCall {
             operation,
-            boundary: *boundary,
+            boundary,
             action,
             request: request.clone(),
         });
     }
     Ok(calls)
+}
+
+pub(super) fn emitted_boundary(
+    lowered: &lowered_psi::LoweredPsi,
+    operation: OperationId,
+) -> Result<semantic_vocabulary::BoundaryMachineId, diagnostics::Diagnostic> {
+    let emitted = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find(|emitted| emitted.id == operation)
+        .ok_or_else(|| diagnostics::Diagnostic::error("Build operation lost its emitted call"))?;
+    let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &emitted.kind else {
+        return Err(diagnostics::Diagnostic::error(
+            "Build operation no longer names a boundary call",
+        ));
+    };
+    Ok(*boundary)
 }

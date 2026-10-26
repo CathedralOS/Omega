@@ -80,7 +80,11 @@ impl CompilationSession {
                         // The program and source custody are common; admission,
                         // accounting and Build receipts belong to this member.
                         application.admission = prepared.built.admission;
-                        application.computed_build_config = prepared.built.computed_build_config;
+                        application.computed_build_config = std::sync::Arc::new(
+                            source
+                                .computed_build_config
+                                .with_execution_observation(&prepared.built.computed_build_config),
+                        );
                         application.retained_checks.build = prepared.built.retained_build_check;
                         application.timings = prepared.timings;
                         application.timings.extend(&completion_timings);

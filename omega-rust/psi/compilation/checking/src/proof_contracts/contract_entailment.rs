@@ -80,6 +80,8 @@ mod call_requirements;
 mod citations;
 mod collection_bounds;
 pub use collection_bounds::CollectionBoundsObservations;
+mod statement_predicates;
+pub use statement_predicates::StatementPredicateObservations;
 mod completed_domains;
 mod completed_observations;
 mod completed_values;

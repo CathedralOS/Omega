@@ -22,8 +22,8 @@ use crate::expression_preparation::bindings::structural_fields::CasePayloadRead;
 use crate::expression_preparation::bindings::view_locals::{ViewCarrier, ViewLocalBinding};
 use crate::expression_preparation::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
-    CheckedScalarExpression, LoweringError, PlaceId, PrimitiveType, ScalarType,
-    StructuralParameterDeclaration, StructuralTypeId, unsupported,
+    CheckedScalarExpression, LoweringError, PlaceId, PrimitiveType, ScalarType, StructuralTypeId,
+    unsupported,
 };
 
 /// Lower one checked scalar expression against no prepared sources. A
@@ -222,101 +222,11 @@ impl<'a> PreparedExpressionContext<'a> {
                 let scalar_type = terminal_scalar_type(*primitive_type)?;
                 let left = self.lower_scalar(identities, left)?;
                 let right = self.lower_scalar(identities, right)?;
+                if *kind == CheckedIntegerBinaryKind::SaturatingShiftLeft {
+                    return super::saturating_shift::left(scalar_type, left, right);
+                }
                 Ok(LoweredDirectExpression::IntegerBinary {
-                    kind: match kind {
-                        CheckedIntegerBinaryKind::ExactAdd => LoweredIntegerBinaryKind::ExactAdd,
-                        CheckedIntegerBinaryKind::ExactSubtract => {
-                            LoweredIntegerBinaryKind::ExactSubtract
-                        }
-                        CheckedIntegerBinaryKind::ExactMultiply => {
-                            LoweredIntegerBinaryKind::ExactMultiply
-                        }
-                        CheckedIntegerBinaryKind::ExactDivide => {
-                            LoweredIntegerBinaryKind::ExactDivide
-                        }
-                        CheckedIntegerBinaryKind::ExactRemainder => {
-                            LoweredIntegerBinaryKind::ExactRemainder
-                        }
-                        CheckedIntegerBinaryKind::WrappingDivide => {
-                            LoweredIntegerBinaryKind::WrappingDivide
-                        }
-                        CheckedIntegerBinaryKind::WrappingRemainder => {
-                            LoweredIntegerBinaryKind::WrappingRemainder
-                        }
-                        CheckedIntegerBinaryKind::SaturatingDivide => {
-                            LoweredIntegerBinaryKind::SaturatingDivide
-                        }
-                        CheckedIntegerBinaryKind::SaturatingRemainder => {
-                            LoweredIntegerBinaryKind::SaturatingRemainder
-                        }
-                        CheckedIntegerBinaryKind::WrappingAdd => {
-                            LoweredIntegerBinaryKind::WrappingAdd
-                        }
-                        CheckedIntegerBinaryKind::SaturatingAdd => {
-                            LoweredIntegerBinaryKind::SaturatingAdd
-                        }
-                        CheckedIntegerBinaryKind::WrappingSubtract => {
-                            LoweredIntegerBinaryKind::WrappingSubtract
-                        }
-                        CheckedIntegerBinaryKind::SaturatingSubtract => {
-                            LoweredIntegerBinaryKind::SaturatingSubtract
-                        }
-                        CheckedIntegerBinaryKind::WrappingMultiply => {
-                            LoweredIntegerBinaryKind::WrappingMultiply
-                        }
-                        CheckedIntegerBinaryKind::SaturatingMultiply => {
-                            LoweredIntegerBinaryKind::SaturatingMultiply
-                        }
-                        CheckedIntegerBinaryKind::BitwiseAnd => {
-                            LoweredIntegerBinaryKind::BitwiseAnd
-                        }
-                        CheckedIntegerBinaryKind::BitwiseOr => LoweredIntegerBinaryKind::BitwiseOr,
-                        CheckedIntegerBinaryKind::BitwiseXor => {
-                            LoweredIntegerBinaryKind::BitwiseXor
-                        }
-                        CheckedIntegerBinaryKind::WrappingShiftLeft => {
-                            LoweredIntegerBinaryKind::WrappingShiftLeft
-                        }
-                        CheckedIntegerBinaryKind::WrappingShiftRight => {
-                            LoweredIntegerBinaryKind::WrappingShiftRight
-                        }
-                        CheckedIntegerBinaryKind::ExactShiftLeft => {
-                            LoweredIntegerBinaryKind::ExactShiftLeft
-                        }
-                        CheckedIntegerBinaryKind::ExactShiftRight => {
-                            LoweredIntegerBinaryKind::ExactShiftRight
-                        }
-                        CheckedIntegerBinaryKind::SaturatingShiftRight => {
-                            LoweredIntegerBinaryKind::ExactShiftRight
-                        }
-                        CheckedIntegerBinaryKind::SaturatingShiftLeft => {
-                            return super::saturating_shift::left(scalar_type, left, right);
-                        }
-                        // Each Trapping primitive keeps its own Terminal operation and
-                        // operation-level crash site; it is never weakened into the
-                        // Exact, Wrapping, or Saturating sibling.
-                        CheckedIntegerBinaryKind::TrappingShiftLeft => {
-                            LoweredIntegerBinaryKind::TrappingShiftLeft
-                        }
-                        CheckedIntegerBinaryKind::TrappingShiftRight => {
-                            LoweredIntegerBinaryKind::TrappingShiftRight
-                        }
-                        CheckedIntegerBinaryKind::TrappingAdd => {
-                            LoweredIntegerBinaryKind::TrappingAdd
-                        }
-                        CheckedIntegerBinaryKind::TrappingSubtract => {
-                            LoweredIntegerBinaryKind::TrappingSubtract
-                        }
-                        CheckedIntegerBinaryKind::TrappingMultiply => {
-                            LoweredIntegerBinaryKind::TrappingMultiply
-                        }
-                        CheckedIntegerBinaryKind::TrappingDivide => {
-                            LoweredIntegerBinaryKind::TrappingDivide
-                        }
-                        CheckedIntegerBinaryKind::TrappingRemainder => {
-                            LoweredIntegerBinaryKind::TrappingRemainder
-                        }
-                    },
+                    kind: identical_lowered_integer_binary_kind(*kind),
                     scalar_type,
                     left: Box::new(left),
                     right: Box::new(right),
@@ -1014,3 +924,61 @@ pub(crate) fn exact_u64_index(
         _ => unsupported("indexed reads require an integer index"),
     }
 }
+
+/// The checked and lowered integer binary vocabularies share these kind names
+/// one for one, so the identity translation is stated as the one row list it
+/// is: a name here translates, and a kind that lowers through its own composed
+/// form cannot join by accident. Trapping kinds translate to their own
+/// Terminal operation and operation-level crash site; none is weakened into
+/// its Exact, Wrapping, or Saturating sibling.
+macro_rules! identical_lowered_integer_binary_kinds {
+    ($($kind:ident),* $(,)?) => {
+        fn identical_lowered_integer_binary_kind(
+            kind: CheckedIntegerBinaryKind,
+        ) -> LoweredIntegerBinaryKind {
+            match kind {
+                $(CheckedIntegerBinaryKind::$kind => LoweredIntegerBinaryKind::$kind,)*
+                // A saturating right shift is the mathematical one: it can
+                // never overflow, so its counts remain the Exact shift's.
+                CheckedIntegerBinaryKind::SaturatingShiftRight => {
+                    LoweredIntegerBinaryKind::ExactShiftRight
+                }
+                CheckedIntegerBinaryKind::SaturatingShiftLeft => {
+                    unreachable!("saturating shift left lowers through its composed form")
+                }
+            }
+        }
+    };
+}
+
+identical_lowered_integer_binary_kinds!(
+    ExactAdd,
+    ExactSubtract,
+    ExactMultiply,
+    ExactDivide,
+    ExactRemainder,
+    WrappingDivide,
+    WrappingRemainder,
+    SaturatingDivide,
+    SaturatingRemainder,
+    WrappingAdd,
+    SaturatingAdd,
+    WrappingSubtract,
+    SaturatingSubtract,
+    WrappingMultiply,
+    SaturatingMultiply,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+    WrappingShiftLeft,
+    WrappingShiftRight,
+    ExactShiftLeft,
+    ExactShiftRight,
+    TrappingShiftLeft,
+    TrappingShiftRight,
+    TrappingAdd,
+    TrappingSubtract,
+    TrappingMultiply,
+    TrappingDivide,
+    TrappingRemainder,
+);

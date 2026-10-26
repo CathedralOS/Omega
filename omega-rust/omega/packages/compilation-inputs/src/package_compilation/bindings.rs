@@ -48,7 +48,7 @@ impl PackageSourceBinding {
         tree: Arc<source::CapturedSourceTree>,
     ) -> Result<Self, String> {
         let input = source_snapshot::retained_source_input(&tree)?;
-        self.canonical_source_metadata = Some(input.canonical_source_metadata().clone());
+        self.canonical_source_metadata = None;
         self.captured_source = Some(tree);
         self.captured_build_source = Some(input);
         Ok(self)
@@ -98,7 +98,11 @@ impl PackageSourceBinding {
     }
 
     pub fn canonical_source_metadata(&self) -> Option<&CanonicalFilesystemMetadataIndex> {
-        self.canonical_source_metadata.as_ref()
+        self.canonical_source_metadata.as_ref().or_else(|| {
+            self.captured_build_source
+                .as_ref()
+                .map(|input| input.canonical_source_metadata())
+        })
     }
 }
 
@@ -152,65 +156,6 @@ impl PackageDependencyBinding {
 
     pub const fn purpose(&self) -> DependencyPurpose {
         self.purpose
-    }
-
-    /// The exact occurrence coordinate of this edge: requester, purpose,
-    /// alias, and target together, so an immutable input assigned to one
-    /// occurrence can never slide onto a different edge.
-    pub fn occurrence(&self) -> BuildDependencyOccurrence {
-        BuildDependencyOccurrence {
-            requester: self.requester,
-            purpose: self.purpose,
-            alias: self.alias.clone(),
-            target: self.target,
-        }
-    }
-}
-
-/// The exact dependency-occurrence coordinate an immutable build input is
-/// assigned to: one reconciled edge identified by requester, purpose,
-/// alias, and target. Two edges sharing a requester and target under
-/// different aliases remain distinct occurrences, and a coordinate naming
-/// no edge is an extra input the binding rejects rather than guesses at.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct BuildDependencyOccurrence {
-    pub(super) requester: PackageKeyIdentity,
-    pub(super) purpose: DependencyPurpose,
-    pub(super) alias: String,
-    pub(super) target: PackageKeyIdentity,
-}
-
-impl BuildDependencyOccurrence {
-    /// The declared coordinate; membership against a reconciled graph is
-    /// checked by `PackageCompilationInputs::has_dependency_occurrence`.
-    pub fn new(
-        requester: PackageKeyIdentity,
-        purpose: DependencyPurpose,
-        alias: impl Into<String>,
-        target: PackageKeyIdentity,
-    ) -> Self {
-        Self {
-            requester,
-            purpose,
-            alias: alias.into(),
-            target,
-        }
-    }
-
-    pub const fn requester(&self) -> PackageKeyIdentity {
-        self.requester
-    }
-
-    pub const fn purpose(&self) -> DependencyPurpose {
-        self.purpose
-    }
-
-    pub fn alias(&self) -> &str {
-        &self.alias
-    }
-
-    pub const fn target(&self) -> PackageKeyIdentity {
-        self.target
     }
 }
 

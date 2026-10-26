@@ -73,7 +73,9 @@ pub fn inspect_terminal(
         .into_inspection()
         .map_err(|error| InspectTerminalError::Diagnostics(error.into_diagnostics()))?;
     Ok(TerminalInspection {
-        artifact: artifact.into_artifact(),
+        artifact: artifact
+            .into_artifact()
+            .map_err(InspectTerminalError::Artifact)?,
     })
 }
 

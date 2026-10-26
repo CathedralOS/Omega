@@ -1303,6 +1303,7 @@ impl<'program> ShapeCollector<'program> {
         if !receiving_type_identity.is_valid() {
             return None;
         }
+        let mut byte_sequence_type_identity = Default::default();
         let field_type = if field.relevance.is_erased() {
             CheckedUnitStructuralFieldType::Erased {
                 type_identity: receiving_type_identity,
@@ -1336,7 +1337,8 @@ impl<'program> ShapeCollector<'program> {
                 )
             })
         {
-            self.add_type(field_type_reference, binders, substitutions)?;
+            byte_sequence_type_identity =
+                self.add_type(field_type_reference, binders, substitutions)?;
             let declared = typed_trees::byte_predicates::type_reference_domain_predicates(
                 self.program,
                 field_type_reference,
@@ -1436,6 +1438,7 @@ impl<'program> ShapeCollector<'program> {
             ),
             relevance: field.relevance,
             field_type,
+            byte_sequence_type_identity,
             storage: None,
             qualification_carriers,
         })

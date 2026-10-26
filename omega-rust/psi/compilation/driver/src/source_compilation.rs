@@ -14,6 +14,7 @@ mod authored_completion;
 use authored_completion::AuthoredCompletions;
 
 /// Parsed, source-scoped input after package admission and Build-helper selection.
+#[derive(Clone)]
 pub struct SourceCompilationRequest {
     pub syntax: syntax_trees::SyntaxTrees,
     pub sources: Arc<source::SourceMap>,
@@ -149,6 +150,60 @@ impl SourceContinuation {
     /// Borrow declaration descriptions for package custody; this is not executable input.
     pub fn typed(&self) -> &typed_trees::TypedTrees {
         self.input.typing.typed()
+    }
+
+    /// Locate the same authored machine in a distinct source context. This
+    /// transfers selection, never a checking judgment or execution authority.
+    /// Anonymous ownership may become final; already supplied owners, source
+    /// bytes, and checked-instance metadata must remain unchanged.
+    pub fn rejoin_machine(
+        &self,
+        previous: &Self,
+        selected: symbols::SymbolHandle,
+    ) -> Result<symbols::SymbolHandle, Vec<Diagnostic>> {
+        let refuse = |reason| vec![Diagnostic::error(reason)];
+        let span = previous
+            .typed()
+            .symbols
+            .symbol_source_span(selected)
+            .ok_or_else(|| refuse("selected machine has no retained declaration coordinate"))?;
+        let original = previous
+            .typed()
+            .symbols
+            .source_file(span)
+            .ok_or_else(|| refuse("selected machine lost its original source"))?;
+        let current = self
+            .typed()
+            .symbols
+            .source_file(span)
+            .ok_or_else(|| refuse("selected machine has no source in the new context"))?;
+        if original.source != current.source
+            || original.source_id != current.source_id
+            || original.path != current.path
+            || original.package_root != current.package_root
+            || original.origin != current.origin
+            || original.resolution_stratum != current.resolution_stratum
+            || original.dependency_scope != current.dependency_scope
+            || original
+                .package_identity
+                .is_some_and(|owner| Some(owner) != current.package_identity)
+        {
+            return Err(refuse(
+                "selected machine source changed between compilation contexts",
+            ));
+        }
+        let mut matches = self.typed().machines().iter().filter(|machine| {
+            self.typed().symbols.symbol_source_span(machine.symbol) == Some(span)
+        });
+        let selected = matches
+            .next()
+            .ok_or_else(|| refuse("selected machine declaration is absent from the new context"))?;
+        if matches.next().is_some() {
+            return Err(refuse(
+                "selected machine declaration is ambiguous in the new context",
+            ));
+        }
+        Ok(selected.symbol)
     }
 
     pub fn build_input(&mut self) -> BuildSourceInput<'_> {

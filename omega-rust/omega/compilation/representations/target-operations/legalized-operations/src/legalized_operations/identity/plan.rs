@@ -8,6 +8,7 @@ use crate::legalized_operations::identity::structural_types::{
 pub(super) fn encode_structural_contract(
     bytes: &mut Vec<u8>,
     function: &LegalizedStructuralContract,
+    cached_catalog: &mut Option<(abstract_operations::StructuralTypeCatalog, Vec<u8>)>,
 ) {
     match &function.result {
         None => bytes.push(0),
@@ -16,20 +17,31 @@ pub(super) fn encode_structural_contract(
             super::structural_result::encode_result(bytes, result);
         }
     }
-    encode_len(bytes, function.structural_types.len());
-    for declaration in &function.structural_types {
-        encode_structural_type(bytes, declaration);
+    if let Some((cached, encoded)) = cached_catalog.as_ref()
+        && cached.ptr_eq(&function.structural_types)
+    {
+        bytes.extend_from_slice(encoded);
+    } else {
+        let start = bytes.len();
+        encode_len(bytes, function.structural_types.len());
+        for declaration in &function.structural_types {
+            encode_structural_type(bytes, declaration);
+        }
+        encode_len(bytes, function.structural_types.referents().len());
+        for referent in function.structural_types.referents() {
+            bytes.extend_from_slice(&referent.id.get().to_le_bytes());
+            bytes.extend_from_slice(&referent.identity.0.to_le_bytes());
+        }
+        // Bind the actual retained interpretation catalog, including callable/slot
+        // mappings. A stale copied catalog cannot borrow the unit's identity.
+        bytes.extend_from_slice(&optimization_unit::placed_view_catalog_identity_bytes(
+            &function.structural_types,
+        ));
+        *cached_catalog = Some((
+            function.structural_types.clone(),
+            bytes[start..].to_vec(),
+        ));
     }
-    encode_len(bytes, function.structural_types.referents().len());
-    for referent in function.structural_types.referents() {
-        bytes.extend_from_slice(&referent.id.get().to_le_bytes());
-        bytes.extend_from_slice(&referent.identity.0.to_le_bytes());
-    }
-    // Bind the actual retained interpretation catalog, including callable/slot
-    // mappings. A stale copied catalog cannot borrow the unit's identity.
-    bytes.extend_from_slice(&optimization_unit::placed_view_catalog_identity_bytes(
-        &function.structural_types,
-    ));
     encode_len(bytes, function.parameters.len());
     for parameter in &function.parameters {
         encode_structural_parameter(bytes, &parameter.semantic);

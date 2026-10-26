@@ -87,6 +87,81 @@ fn assignment_path(
     .map(|(_, path)| path)
 }
 
+/// Descriptor retirement consumes the completed store's semantic coordinate.
+/// Keep it rooted at the executable owner; a resolved backing belonging to a
+/// different root cannot identify a carrier in this owner's declaration.
+pub(super) fn captured_assignment_path(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    target: ExpressionHandle,
+    owner: &CanonicalPlace,
+) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
+    let control = &facts.flow.control;
+    let flow = control.state(machine.symbol, state.symbol)?;
+    let statement = facts
+        .flow
+        .state_statement(flow, usize::try_from(statement_index).ok()?)?;
+    let authored = program
+        .statement_table
+        .statement_at(state, statement_index as usize)?;
+    if authored.as_assignment()?.target != target {
+        return None;
+    }
+    let operand = control.operands.get(
+        control
+            .operands
+            .is_valid(statement.store_target)
+            .then_some(statement.store_target)?,
+    );
+    if operand.state_symbol != state.symbol
+        || operand.statement_index != statement_index as usize
+        || operand.expression != target
+    {
+        return None;
+    }
+    let [destination] = control.operand_referents.span(operand.referents)? else {
+        return None;
+    };
+    if destination.root != owner.root {
+        return None;
+    }
+    let captured = CanonicalPlace {
+        root: destination.root,
+        segments: control
+            .operand_referent_segments
+            .span(destination.segments)?
+            .to_vec(),
+    };
+    // The capture belongs to this exact authored address operation. Requiring
+    // the captured constant to be rediscovered from a symbolic call path would
+    // discard the value identity the operation already retained.
+    if validation::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index as usize,
+        target,
+    )
+    .as_ref()
+        != Some(owner)
+        || !validation::CallFrameResolver::new(program)?
+            .captured_assignment_destination_remains_current(machine, authored, &captured)
+    {
+        return None;
+    }
+    assignment_path(
+        program,
+        facts,
+        machine,
+        state,
+        statement_index,
+        target,
+        &captured,
+    )
+}
+
 /// Stored references retain their physical crossing in both destination
 /// capture and displacement. A structural local contains the descriptor;
 /// borrowed ingress already names its referent. Views have their own carrier
@@ -981,6 +1056,28 @@ impl OpenWindows {
                     selector_target,
                     &destination_place,
                 )?;
+                // Runtime address evaluation and descriptor occurrence identity
+                // are separate coordinates of this same completed store. The
+                // retained destination can identify an exact old descriptor
+                // without replacing the executable AssignmentIndex above.
+                let captured_path = path
+                    .iter()
+                    .any(|segment| {
+                        matches!(segment, CheckedUnitStructuralPathSegment::RuntimeIndex(_))
+                    })
+                    .then(|| {
+                        captured_assignment_path(
+                            program,
+                            facts,
+                            machine,
+                            state,
+                            statement_index,
+                            selector_target,
+                            &destination_place,
+                        )
+                    })
+                    .flatten();
+                let retirement_path = captured_path.as_deref().unwrap_or(&path);
                 let occupied = slot_occupied(facts, machine, state, index, &destination_place)
                     || validation::reference_result_custody::replaced_reference_carrier(
                         program,
@@ -989,7 +1086,7 @@ impl OpenWindows {
                         state,
                         destination_place.root,
                         statement_index,
-                        &path,
+                        retirement_path,
                     )
                     .is_some();
                 let opening = self

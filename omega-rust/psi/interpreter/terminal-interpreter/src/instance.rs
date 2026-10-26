@@ -174,6 +174,17 @@ pub enum TerminalInstanceError {
     Execution(TerminalInterpretError),
 }
 
+impl std::fmt::Display for TerminalInstanceError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Execution(reason) => reason.fmt(formatter),
+            other => write!(formatter, "{other:?}"),
+        }
+    }
+}
+
+impl std::error::Error for TerminalInstanceError {}
+
 /// Why an instance cannot close now.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalInstanceCloseError {

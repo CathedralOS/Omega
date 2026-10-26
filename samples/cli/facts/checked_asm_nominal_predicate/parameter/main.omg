@@ -1,0 +1,25 @@
+// Expected exit: 0.
+// An admitted nominal length predicate fixes the selected value at seven and proves the assembly move stores seven.
+data Counted [copy] where length == 7 { length: u64; }
+machine snapshot(start: u64, end: u64) -> Counted
+requires start <= end && end - start == 7 { Counted { length: end - start } }
+machine reset(cursor: &mut u64) -> u64
+ensures cursor == 0 && result == 0 { cursor = 0; 0 }
+machine finished() {}
+machine failed() crashes Trap { crash Trap; }
+machine move_selected(selected: Counted, ignored: u64) -> u64
+ensures result == 7 {
+    let mut output: u64 = 99;
+    asm where clobbers none {
+    entry:
+        mov output, selected.length;
+    done requires output == 7 ensures output == selected.length && output == 7:
+        nop
+    }
+    output
+}
+machine main() crashes Trap {
+    let mut cursor: u64 = 2;
+    let observed: u64 = move_selected(snapshot(cursor, 9), reset(&mut cursor));
+    transition observed == 7 && cursor == 0 { true -> finished() false -> failed() }
+}

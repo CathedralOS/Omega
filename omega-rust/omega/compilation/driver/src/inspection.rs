@@ -14,7 +14,7 @@ use terminal_production::{
 pub fn inspect_terminal(
     mut checked: CheckedCompilation,
     machine: &str,
-) -> Result<terminal_production::ProducedTerminalArtifact, Vec<Diagnostic>> {
+) -> Result<terminal_production::ProducedTerminalProgram, Vec<Diagnostic>> {
     let mut timings = std::mem::take(checked.timings_mut());
     produce_terminal_artifact(
         TerminalProductionRequest::new(

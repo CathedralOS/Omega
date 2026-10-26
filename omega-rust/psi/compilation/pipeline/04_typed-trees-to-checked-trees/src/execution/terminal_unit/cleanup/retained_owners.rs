@@ -46,15 +46,18 @@ pub(super) fn selected_actions(
                 source.clone(),
             )?);
         }
-        actions.extend(selected_regions(
-            program,
-            facts,
-            targets,
-            shapes,
-            disposition_handle,
-            source.clone(),
-            None,
-        )?);
+        actions.extend(
+            selected_regions(
+                program,
+                facts,
+                targets,
+                shapes,
+                disposition_handle,
+                source.clone(),
+                None,
+            )
+            .ok()?,
+        );
     }
     if let Some(retirement) = retirement {
         super::actions::finish_home(&mut actions, retirement);

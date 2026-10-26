@@ -54,8 +54,8 @@ fn main() {
     ] {
         let mut request = CheckedCompileRequest::new(&prepared.root_path, Some(target));
         request.package_inputs = prepared.package_inputs.clone();
-        request.build_execution_profile = target::TargetProfile::host_if_supported();
-        request.build_snapshot =
+        request.build.profile = target::TargetProfile::host_if_supported();
+        request.build.snapshot =
             package_compilation::BuildSnapshotRequest::automatic_package_inventory(
                 request.package_inputs.as_ref(),
             );

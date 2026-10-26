@@ -2,7 +2,6 @@
 
 mod ordinary;
 mod state;
-mod work;
 mod writes;
 
 use std::collections::BTreeSet;
@@ -14,7 +13,7 @@ use register_environment::{FrameAbiPreservationConvention, selected_abi_preserva
 
 use super::{
     AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementPolicy,
-    FunctionAllocatedCalleeSavedRequirements,
+    FunctionAllocatedCalleeSavedRequirements, compute::work,
 };
 use state::{ReplayTraversal, keyed_homes};
 

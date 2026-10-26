@@ -48,6 +48,7 @@ pub fn lower_machine(
     machine: TerminalMachineSelection<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     program_roots: crate::TerminalProgramRoots<'_>,
+    publication: terminal_codec::TerminalPublication,
 ) -> Result<LoweredPsi, LoweringError> {
     if checked
         .facts
@@ -76,7 +77,14 @@ pub fn lower_machine(
     // snapshots only a prefix: declaration, evidence and application retention
     // can intern more rows. Seal the complete table after those producers, so
     // every durable index resolves in the module that owns it.
-    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+    let mut identities = match publication {
+        terminal_codec::TerminalPublication::Portable => {
+            terminal_psi::TerminalIdentityTableBuilder::default()
+        }
+        terminal_codec::TerminalPublication::Invocation => {
+            terminal_psi::TerminalIdentityTableBuilder::for_invocation()
+        }
+    };
     // Nominal callbacks are checked callable roots, even though their foreign
     // invocation is not an ordinary source call edge. Retain them once beside
     // program entries; native ABI adapters select these exact bodies later.
@@ -118,7 +126,7 @@ pub fn lower_machine(
         exact_toolchain_sources,
         &mut lowered,
     )
-    .map_err(LoweringError::Unsupported)?;
+    .map_err(LoweringError::InvalidDeclarationIdentity)?;
     lowered.semantic_module.identities = identities.build();
     // Declaration and evidence producers intern beyond the body snapshot.
     // Validate against their complete module-owned table before publication.
@@ -289,7 +297,7 @@ fn lower_terminal_selection(
         &source_machine_ids,
         &mut lowered.semantic_module,
     )
-    .map_err(LoweringError::Unsupported)?;
+    .map_err(LoweringError::InvalidDeclarationIdentity)?;
     retain_nominal_cleanup_roles(checked, &source_machine_ids, &mut lowered.semantic_module)?;
     closed_reach_applications::retain_closed_reach_applications(
         identities,

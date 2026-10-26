@@ -1,0 +1,6 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "terminal_build_forged_output");
+    let forged: BuildOutput = BuildOutput {};
+    let path: BuildPath = BuildOutput::resolve(&forged, "manifest.txt");
+    _ = BuildOutput::create(&mut builder.output, path, 0);
+}

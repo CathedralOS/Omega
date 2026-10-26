@@ -31,7 +31,7 @@ fn check_state_assembly_facts(
     state_flow: &FlowStateFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some((_machine, state)) = validation::machine_state_by_symbols(
+    let Some((machine, state)) = validation::machine_state_by_symbols(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -39,6 +39,7 @@ fn check_state_assembly_facts(
         return;
     };
 
+    let predicates = validation::StatementPredicateObservations::new(program, machine, state);
     let statements = program.statement_table.statements(state.statement_nodes);
     for (statement_index, statement) in statements.iter().enumerate() {
         let Some(fact) = statement.as_assembly_fact() else {
@@ -89,6 +90,10 @@ fn check_state_assembly_facts(
                     &contexts,
                     fact.fact,
                     !invalidated_inside_block,
+                ) || matches!(
+                    program.proof_facts.get(fact.fact),
+                    typed_trees::domain::ProofFact::Expression(expression)
+                        if predicates.proves(*observation, *expression)
                 )
             })
         {

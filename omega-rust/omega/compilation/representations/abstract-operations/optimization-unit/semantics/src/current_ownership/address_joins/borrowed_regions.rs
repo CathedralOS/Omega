@@ -52,19 +52,27 @@ pub(in crate::current_ownership) struct BorrowedRegions {
 }
 
 impl BorrowedRegions {
+    pub(in crate::current_ownership) fn has_returned_call_origins(&self, place: PlaceId) -> bool {
+        self.returned.contains_key(&place)
+    }
+
     pub(in crate::current_ownership) fn new(
         function: &PsiOptimizationFunction,
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         call_accesses: &crate::current_ownership::CallAccesses,
     ) -> Self {
-        let mut result = Self::origins(
-            function,
-            functions,
-            call_accesses.boundaries(),
-            call_accesses.dynamic_dispatch,
-            types,
-        );
+        let mut result = call_accesses
+            .take_borrowed_origins(function.machine)
+            .unwrap_or_else(|| {
+                Self::origins(
+                    function,
+                    functions,
+                    call_accesses.boundaries(),
+                    call_accesses.dynamic_dispatch,
+                    types,
+                )
+            });
         let mut writes = BTreeMap::new();
         for block in &function.blocks {
             for (index, node) in block.nodes.iter().enumerate() {
@@ -126,6 +134,25 @@ impl BorrowedRegions {
             dynamic_dispatch,
             |_, node| Some(std::borrow::Cow::Borrowed(&node.operation)),
         );
+        let mut analysis = graph
+            .as_ref()
+            .map(|graph| DescriptorAnalysis::new(&declarations, graph));
+        Self::origins_with_analysis(
+            function,
+            &declarations,
+            graph.as_deref(),
+            analysis.as_mut(),
+            types,
+        )
+    }
+
+    pub(in crate::current_ownership) fn origins_with_analysis(
+        function: &PsiOptimizationFunction,
+        declarations: &[StructuralTypeDeclaration],
+        graph: Option<&[terminal_semantics::descriptor_results::DescriptorMachine]>,
+        analysis: Option<&mut DescriptorAnalysis<'_>>,
+        types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    ) -> Self {
         let mut reference_sources = BorrowedReferenceSources::new();
         for parameter in function.block_structural_parameters() {
             if parameter.access != StructuralAccess::Owned
@@ -144,8 +171,7 @@ impl BorrowedRegions {
         let mut locations = BTreeMap::new();
         let mut effects = BTreeMap::new();
         let mut flow = None;
-        if let Some(graph) = &graph {
-            let mut analysis = DescriptorAnalysis::new(&declarations, graph);
+        if let (Some(graph), Some(analysis)) = (graph, analysis) {
             flow = analysis.flow(function.machine);
             if let Some(current) =
                 terminal_semantics::descriptor_results::descriptor_machine(graph, function.machine)
@@ -166,7 +192,7 @@ impl BorrowedRegions {
                                     .into_iter()
                                     .map(|origin| {
                                         let path = terminal_semantics::descriptor_lifetimes::descriptor_path(
-                                            &declarations,
+                                            declarations,
                                             *current.place_types.get(&origin.root)?,
                                             &origin.path,
                                         )?;
@@ -232,7 +258,7 @@ impl BorrowedRegions {
                             if let Some(ty) = current.place_types.get(&root)
                                 && let Some(slots) =
                                     terminal_semantics::descriptor_results::descriptor_slots(
-                                        &declarations,
+                                        declarations,
                                         root,
                                         *ty,
                                     )
@@ -261,7 +287,7 @@ impl BorrowedRegions {
                             continue;
                         };
                         let Some(path) = terminal_semantics::descriptor_lifetimes::descriptor_path(
-                            &declarations,
+                            declarations,
                             *ty,
                             &location.path,
                         ) else {
@@ -269,7 +295,7 @@ impl BorrowedRegions {
                         };
                         let key = (position, location.root, path);
                         if terminal_semantics::descriptor_results::descriptor_slots(
-                            &declarations,
+                            declarations,
                             location.root,
                             *ty,
                         )

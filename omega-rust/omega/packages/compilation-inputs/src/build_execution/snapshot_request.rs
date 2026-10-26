@@ -1,6 +1,6 @@
 //! Caller-selected immutable build inputs and required output names.
 
-use crate::{BuildDependencyOccurrence, BuildSourceCaptureRequest};
+use crate::BuildSourceCaptureRequest;
 use build_output::CapturedBuildSourceInput;
 use diagnostics::Diagnostic;
 use std::collections::BTreeMap;
@@ -17,23 +17,11 @@ use std::collections::BTreeMap;
 /// canonical sealed form (the same physical inventory validated for canonical
 /// Source metadata); an unsealed or mutating root fails capture rather than
 /// producing a falsely attributed snapshot.
-///
-/// `dependency_inputs` carries immutable inputs already captured by the
-/// caller, each keyed to an exact dependency occurrence — requester, purpose,
-/// alias, and target — under a canonical slot name. Binding rejects an input
-/// whose occurrence does not exist in the reconciled graph rather than
-/// attaching it to another edge; a keyed input can never widen an occurrence
-/// or substitute host filesystem access. An edge assignment applies to each
-/// checked context that edge serves within this target invocation. Shared
-/// scheduling nodes require all incoming complete maps to agree; aliases do
-/// not create extra package instances or accumulate grants.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildSnapshotRequest {
     required_outputs: Vec<Vec<u8>>,
     capture: BuildSnapshotCapture,
     inputs: BTreeMap<Vec<u8>, CapturedBuildSourceInput>,
-    dependency_inputs:
-        BTreeMap<BuildDependencyOccurrence, BTreeMap<Vec<u8>, CapturedBuildSourceInput>>,
 }
 
 /// The caller-authorized source inventory one build activation captures
@@ -59,7 +47,6 @@ impl BuildSnapshotRequest {
             required_outputs: required_outputs.into_iter().collect(),
             capture: BuildSnapshotCapture::PackageInventory,
             inputs: BTreeMap::new(),
-            dependency_inputs: BTreeMap::new(),
         }
     }
 
@@ -95,7 +82,6 @@ impl BuildSnapshotRequest {
             required_outputs: required_outputs.into_iter().collect(),
             capture: BuildSnapshotCapture::Scoped(capture),
             inputs: BTreeMap::new(),
-            dependency_inputs: BTreeMap::new(),
         }
     }
 
@@ -115,14 +101,6 @@ impl BuildSnapshotRequest {
         &self.inputs
     }
 
-    /// Package orchestration consumes edge assignments before issuing each
-    /// activation. Retaining the graph-wide map in the root evaluator would
-    /// expose inputs that belong only to dependencies.
-    pub fn without_dependency_inputs(mut self) -> Self {
-        self.dependency_inputs.clear();
-        self
-    }
-
     /// Required sealed output paths in canonical slash-separated form. An
     /// empty roster still runs against the captured source snapshot.
     pub fn required_outputs(&self) -> &[Vec<u8>] {
@@ -132,26 +110,6 @@ impl BuildSnapshotRequest {
     /// The caller-authorized inventory this snapshot captures.
     pub const fn capture(&self) -> &BuildSnapshotCapture {
         &self.capture
-    }
-
-    /// Read one validated edge assignment without rebuilding its lookup index.
-    pub fn dependency_input_slots(
-        &self,
-        occurrence: &BuildDependencyOccurrence,
-    ) -> Option<&BTreeMap<Vec<u8>, CapturedBuildSourceInput>> {
-        self.dependency_inputs.get(occurrence)
-    }
-
-    /// Immutable inputs assigned to exact dependency occurrences.
-    pub fn dependency_inputs(
-        &self,
-    ) -> impl Iterator<
-        Item = (
-            &BuildDependencyOccurrence,
-            &BTreeMap<Vec<u8>, CapturedBuildSourceInput>,
-        ),
-    > {
-        self.dependency_inputs.iter()
     }
 }
 

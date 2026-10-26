@@ -89,63 +89,55 @@ pub(super) fn selected_region(
     source: CheckedUnitStructuralArgumentSourcePlan,
     captured_path: Option<&[checked_trees::CheckedUnitStructuralPathSegment]>,
 ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
-    let selected = (|| {
-        let disposition = facts.contextual_cleanup.dispositions.get(handle);
-        let machine = program.machine_by_symbol(disposition.machine)?;
-        let statement = match disposition.source {
-            language_semantics::PermissionEventSource::Statement { statement_index }
-            | language_semantics::PermissionEventSource::Call {
-                statement_index, ..
-            } => statement_index,
-            _ => disposition.exit.statement_index,
-        };
-        let place = validation::CanonicalPlace {
-            root: disposition.root,
-            segments: facts
-                .flow
-                .ownership
-                .segments
-                .span_or_empty(disposition.path)
-                .to_vec(),
-        };
-        let reference = if disposition.disposed_type.is_valid() {
-            disposition.disposed_type
-        } else {
-            validation::canonical_place_type_reference(
-                program,
-                disposition.state,
-                statement,
-                &place,
-            )?
-        };
-        let path = if let Some(path) = captured_path {
-            path.to_vec()
-        } else if place.segments.is_empty() {
-            Vec::new()
-        } else {
-            crate::execution::terminal_unit::calls::projected_argument_path(
-                program,
-                disposition.state,
-                statement,
-                &place,
-                None,
-                None,
-            )?
-            .1
-        };
-        Some(checked_trees::CheckedUnitStructuralArgumentPlan {
-            projection_evaluations: Default::default(),
-            source,
-            path,
-            type_identity: shapes.add_stored_type(
-                reference,
-                &machine_binders(program, machine),
-                &[],
-            )?,
-            access: checked_trees::CheckedStructuralAccess::Owned,
-        })
-    })();
-    selected
+    let disposition = facts.contextual_cleanup.dispositions.get(handle);
+    let machine = program.machine_by_symbol(disposition.machine)?;
+    let statement = match disposition.source {
+        language_semantics::PermissionEventSource::Statement { statement_index }
+        | language_semantics::PermissionEventSource::Call {
+            statement_index, ..
+        } => statement_index,
+        _ => disposition.exit.statement_index,
+    };
+    let place = validation::CanonicalPlace {
+        root: disposition.root,
+        segments: facts
+            .flow
+            .ownership
+            .segments
+            .span_or_empty(disposition.path)
+            .to_vec(),
+    };
+    let reference = if disposition.disposed_type.is_valid() {
+        disposition.disposed_type
+    } else {
+        validation::canonical_place_type_reference(program, disposition.state, statement, &place)?
+    };
+    let path = if let Some(path) = captured_path {
+        path.to_vec()
+    } else if place.segments.is_empty() {
+        Vec::new()
+    } else {
+        crate::execution::terminal_unit::calls::projected_argument_path(
+            program,
+            disposition.state,
+            statement,
+            &place,
+            None,
+            None,
+        )?
+        .1
+    };
+    Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
+        source,
+        path,
+        type_identity: shapes.add_stored_type(
+            reference,
+            &machine_binders(program, machine),
+            &[],
+        )?,
+        access: checked_trees::CheckedStructuralAccess::Owned,
+    })
 }
 
 pub(super) fn disposition_actions(
@@ -156,314 +148,347 @@ pub(super) fn disposition_actions(
     disposition_handle: arena::Handle<checked_trees::ContextualCleanupDisposition>,
     source: CheckedUnitStructuralArgumentSourcePlan,
     place_path: Option<&[checked_trees::CheckedUnitStructuralPathSegment]>,
-) -> Option<Vec<CheckedNormalCleanupAction>> {
-    let selected = (|| {
-        let disposition = facts
+) -> Result<Vec<CheckedNormalCleanupAction>, &'static str> {
+    let disposition = facts
+        .contextual_cleanup
+        .dispositions
+        .get(disposition_handle);
+    let selected_disposition = facts
+        .contextual_cleanup
+        .is_selected_disposition(disposition_handle);
+    let machine = program
+        .machine_by_symbol(disposition.machine)
+        .ok_or("cleanup disposition has no owning machine")?;
+    let binders = machine_binders(program, machine);
+    let statement_index = match disposition.source {
+        language_semantics::PermissionEventSource::Call {
+            statement_index, ..
+        }
+        | language_semantics::PermissionEventSource::Statement { statement_index } => {
+            statement_index
+        }
+        _ => disposition.exit.statement_index,
+    };
+    let selected = crate::flow::selected_cleanup_leaves(program, facts, disposition)
+        .ok_or("cleanup cannot select its remaining owned leaves")?;
+    let case_evidence = crate::flow::CleanupCaseEvidence::new(program, facts, disposition)
+        .ok_or("cleanup has invalid occurrence case evidence")?;
+    let case_reachability = |segments: &[facts::PlaceSegment]| case_evidence.reachability(segments);
+    let place = validation::CanonicalPlace {
+        root: disposition.root,
+        segments: facts
+            .flow
+            .ownership
+            .segments
+            .span(disposition.path)
+            .ok_or("cleanup has an invalid owned path")?
+            .to_vec(),
+    };
+    let reference = if disposition.disposed_type.is_valid() {
+        disposition.disposed_type
+    } else {
+        validation::canonical_place_type_reference(
+            program,
+            disposition.state,
+            statement_index,
+            &place,
+        )
+        .ok_or("cleanup cannot resolve its disposed type")?
+    };
+    // A disposed reference is its stored descriptor, not the referee beneath
+    // its access shell. Use the same storage identity as fields and receiving
+    // slots; ordinary value types retain their existing shape.
+    let type_identity = shapes
+        .add_stored_type(reference, &binders, &[])
+        .ok_or("cleanup cannot lower its stored type")?;
+    // A caller that already holds the dying place in its own operand
+    // namespace supplies it: a runtime-selected element has no static
+    // argument path, but its store names the same place.
+    let path = if let Some(place_path) = place_path {
+        place_path.to_vec()
+    } else if place.segments.is_empty() {
+        Vec::new()
+    } else {
+        crate::execution::terminal_unit::calls::projected_argument_path(
+            program,
+            disposition.state,
+            statement_index,
+            &place,
+            None,
+            None,
+        )
+        .ok_or("cleanup cannot lower its disposed path")?
+        .1
+    };
+    let mut moved = Vec::new();
+    for removed in facts
+        .contextual_cleanup
+        .exclusions
+        .span(disposition.exclusions)
+        .ok_or("cleanup has invalid exclusions")?
+    {
+        let excluded = facts
             .contextual_cleanup
-            .dispositions
-            .get(disposition_handle);
-        let selected_disposition = facts
-            .contextual_cleanup
-            .is_selected_disposition(disposition_handle);
-        let machine = program.machine_by_symbol(disposition.machine)?;
-        let binders = machine_binders(program, machine);
-        let statement_index = match disposition.source {
-            language_semantics::PermissionEventSource::Call {
-                statement_index, ..
+            .segments
+            .span(removed.segments)
+            .ok_or("cleanup exclusion has an invalid path")?;
+        // Siblings outside this exact dying subtree were already checked by
+        // the selected-leaf query and need no unrelated case observation.
+        if !excluded.starts_with(place.segments.as_slice()) && !place.segments.starts_with(excluded)
+        {
+            continue;
+        }
+        match case_reachability(excluded)
+            .ok_or("cleanup cannot establish excluded case reachability")?
+        {
+            validation::CleanupCaseReachability::Inactive => continue,
+            validation::CleanupCaseReachability::Selected => {}
+            // A runtime tag cannot establish a transfer. The custody producer
+            // must additionally prove absence on every edge where it is active.
+            validation::CleanupCaseReachability::Runtime => {
+                if removed.cause != checked_trees::ContextualCleanupExclusionCause::Unestablished
+                    && !case_evidence.definitely_transferred(excluded)
+                {
+                    return Err("cleanup exclusion has no selected transfer custody");
+                }
             }
-            | language_semantics::PermissionEventSource::Statement { statement_index } => {
-                statement_index
+        }
+        // The contextual row remembers earlier transfers under the original
+        // owner. A selected residual ignores siblings outside its subtree;
+        // an already removed ancestor cannot authorize another disposition.
+        let Some(relative_segments) = excluded.strip_prefix(place.segments.as_slice()) else {
+            if place.segments.starts_with(excluded) {
+                return Err("cleanup disposition overlaps a removed ancestor");
             }
-            _ => disposition.exit.statement_index,
+            continue;
         };
-        let selected = crate::flow::selected_cleanup_leaves(program, facts, disposition)?;
-        let case_evidence = crate::flow::CleanupCaseEvidence::new(program, facts, disposition)?;
-        let case_reachability =
-            |segments: &[facts::PlaceSegment]| case_evidence.reachability(segments);
-        let place = validation::CanonicalPlace {
-            root: disposition.root,
-            segments: facts
-                .flow
-                .ownership
-                .segments
-                .span(disposition.path)?
-                .to_vec(),
-        };
-        let reference = if disposition.disposed_type.is_valid() {
-            disposition.disposed_type
-        } else {
-            validation::canonical_place_type_reference(
-                program,
-                disposition.state,
-                statement_index,
-                &place,
-            )?
-        };
-        // A disposed reference is its stored descriptor, not the referee beneath
-        // its access shell. Use the same storage identity as fields and receiving
-        // slots; ordinary value types retain their existing shape.
-        let type_identity = shapes.add_stored_type(reference, &binders, &[])?;
-        // A caller that already holds the dying place in its own operand
-        // namespace supplies it: a runtime-selected element has no static
-        // argument path, but its store names the same place.
-        let path = if let Some(place_path) = place_path {
-            place_path.to_vec()
-        } else if place.segments.is_empty() {
-            Vec::new()
-        } else {
+        // An allocated home with no established cleanup-bearing region has
+        // an exact whole-region exclusion. It owns no value disposal or hook:
+        // the surrounding owner selection still publishes RetireHome. Do not
+        // encode this empty complement as a partial moved-path reconstruction,
+        // whose inputs must be strict nonempty subregions of a live value.
+        if relative_segments.is_empty() {
+            return (removed.root == disposition.root && selected.is_empty())
+                .then(Vec::new)
+                .ok_or("cleanup whole-region exclusion does not identify an empty owner");
+        }
+        let (reference, relative_path) =
             crate::execution::terminal_unit::calls::projected_argument_path(
                 program,
                 disposition.state,
                 statement_index,
-                &place,
+                &validation::CanonicalPlace {
+                    root: facts::PlaceRoot::TypeReference(reference),
+                    segments: relative_segments.to_vec(),
+                },
                 None,
                 None,
-            )?
-            .1
+            )
+            .ok_or("cleanup cannot lower its excluded relative path")?;
+        moved.push((
+            relative_path,
+            shapes
+                .add_type(reference, &binders, &[])
+                .ok_or("cleanup cannot lower its excluded type")?,
+        ));
+    }
+    let mut hooks = Vec::new();
+    for leaf in selected {
+        let crate::flow::CleanupLeaf::Nominal {
+            machine: hook,
+            path: selected_path,
+        } = leaf
+        else {
+            return Err("cleanup has an uninstantiated symbolic hook");
         };
-        let mut moved = Vec::new();
-        for removed in facts
-            .contextual_cleanup
-            .exclusions
-            .span(disposition.exclusions)?
+        // The disposed value already fixes its receiver, including any view
+        // range in that captured prefix. Expand only array children inside
+        // the value; expanding the prefix again would turn one selected view
+        // element into several unrelated receivers and lose its occurrence.
+        let relative_path = selected_path
+            .strip_prefix(place.segments.as_slice())
+            .ok_or("cleanup hook lies outside its disposed region")?;
+        for relative_segments in crate::flow::concrete_cleanup_paths(relative_path)
+            .ok_or("cleanup cannot expand its selected hook path")?
         {
-            let excluded = facts.contextual_cleanup.segments.span(removed.segments)?;
-            // The shared selected-leaf query already checked disjointness
-            // from exclusions outside this exact dying subtree. Sibling
-            // geometry must not ask for an unrelated case observation.
-            if !excluded.starts_with(place.segments.as_slice())
-                && !place.segments.starts_with(excluded)
+            let mut segments = place.segments.clone();
+            segments.extend_from_slice(&relative_segments);
+            if case_reachability(&segments)
+                .ok_or("cleanup cannot establish hook case reachability")?
+                == validation::CleanupCaseReachability::Inactive
             {
                 continue;
             }
-            match case_reachability(excluded)? {
-                validation::CleanupCaseReachability::Inactive => continue,
-                validation::CleanupCaseReachability::Selected => {}
-                validation::CleanupCaseReachability::Runtime
-                    if removed.cause
-                        == checked_trees::ContextualCleanupExclusionCause::Unestablished
-                        || case_evidence.definitely_transferred(excluded) => {}
-                // Only a positive, all-path receiving absence can exclude a
-                // value without selecting its case. This remains runtime tag
-                // geometry, never membership or whole-owner disposal proof.
-                // Uncertain moves still need their selected custody join.
-                validation::CleanupCaseReachability::Runtime => return None,
+            let selected_place = validation::CanonicalPlace {
+                root: facts::PlaceRoot::TypeReference(reference),
+                segments: relative_segments,
+            };
+            let (selected_reference, relative_path) =
+                crate::execution::terminal_unit::calls::projected_argument_path(
+                    program,
+                    disposition.state,
+                    statement_index,
+                    &selected_place,
+                    None,
+                    None,
+                )
+                .ok_or("cleanup cannot lower its selected hook path")?;
+            let selected_type = shapes
+                .add_type(selected_reference, &binders, &[])
+                .ok_or("cleanup cannot lower its selected hook type")?;
+            let mut selected_path = path.clone();
+            selected_path.extend(relative_path);
+            let mut cleanup = selected_nominal(
+                program,
+                targets,
+                hook,
+                source.clone(),
+                selected_path,
+                selected_type,
+            )
+            .ok_or("cleanup hook has no executable selection")?;
+            cleanup.consumed_claims =
+                consumed_claims(program, facts, disposition, selected_disposition, &segments)
+                    .ok_or("cleanup hook has no exact consumed claims")?;
+            hooks.push(cleanup);
+        }
+    }
+    // A receipt may conditionally move only a child. Keep its exact typed
+    // boundary in the normal-death partition; it is neither an unconditional
+    // exclusion nor permission to dispose the siblings at the value join.
+    let mut partition_paths = Vec::new();
+    if disposition.selection.is_valid() {
+        let ownership = &facts.flow.ownership;
+        let receipt = ownership.owned_selections.get(disposition.selection);
+        for transfer in ownership
+            .selection_transfers
+            .span_or_empty(receipt.transfers)
+        {
+            if !transfer.source.is_valid() {
+                continue;
             }
-            // The contextual row remembers earlier transfers under the original
-            // owner. A selected residual ignores siblings outside its subtree;
-            // an already removed ancestor cannot authorize another disposition.
-            let Some(relative_segments) = excluded.strip_prefix(place.segments.as_slice()) else {
-                if place.segments.starts_with(excluded) {
-                    return None;
-                }
+            let candidate = ownership.selection_sources.get(transfer.source);
+            if Some(candidate.symbol) != disposition.root.as_symbol() {
+                continue;
+            }
+            let transferred = ownership.segments.span_or_empty(transfer.path);
+            let Some(relative) = transferred.strip_prefix(place.segments.as_slice()) else {
                 continue;
             };
-            // An allocated home with no established cleanup-bearing region has
-            // an exact whole-region exclusion. It owns no value disposal or hook:
-            // the surrounding owner selection still publishes RetireHome. Do not
-            // encode this empty complement as a partial moved-path reconstruction,
-            // whose inputs must be strict nonempty subregions of a live value.
-            if relative_segments.is_empty() {
-                return (removed.root == disposition.root && selected.is_empty()).then(Vec::new);
+            if relative.is_empty() {
+                continue;
             }
-            let (reference, relative_path) =
+            let (_, selected_path) =
                 crate::execution::terminal_unit::calls::projected_argument_path(
                     program,
                     disposition.state,
                     statement_index,
                     &validation::CanonicalPlace {
                         root: facts::PlaceRoot::TypeReference(reference),
-                        segments: relative_segments.to_vec(),
+                        segments: relative.to_vec(),
                     },
                     None,
                     None,
-                )?;
-            moved.push((relative_path, shapes.add_type(reference, &binders, &[])?));
-        }
-        let mut hooks = Vec::new();
-        for leaf in selected {
-            let crate::flow::CleanupLeaf::Nominal {
-                machine: hook,
-                path: selected_path,
-            } = leaf
-            else {
-                return None;
-            };
-            // The disposed value already fixes its receiver, including any view
-            // range in that captured prefix. Expand only array children inside
-            // the value; expanding the prefix again would turn one selected view
-            // element into several unrelated receivers and lose its occurrence.
-            let relative_path = selected_path.strip_prefix(place.segments.as_slice())?;
-            for relative_segments in crate::flow::concrete_cleanup_paths(relative_path)? {
-                let mut segments = place.segments.clone();
-                segments.extend_from_slice(&relative_segments);
-                if case_reachability(&segments)? == validation::CleanupCaseReachability::Inactive {
-                    continue;
-                }
-                let selected_place = validation::CanonicalPlace {
-                    root: facts::PlaceRoot::TypeReference(reference),
-                    segments: relative_segments,
-                };
-                let (selected_reference, relative_path) =
-                    crate::execution::terminal_unit::calls::projected_argument_path(
-                        program,
-                        disposition.state,
-                        statement_index,
-                        &selected_place,
-                        None,
-                        None,
-                    )?;
-                let selected_type = shapes.add_type(selected_reference, &binders, &[])?;
-                let mut selected_path = path.clone();
-                selected_path.extend(relative_path);
-                let mut cleanup = selected_nominal(
-                    program,
-                    targets,
-                    hook,
-                    source.clone(),
-                    selected_path,
-                    selected_type,
-                )?;
-                cleanup.consumed_claims =
-                    consumed_claims(program, facts, disposition, selected_disposition, &segments)?;
-                hooks.push(cleanup);
+                )
+                .ok_or("cleanup cannot lower its selected transfer path")?;
+            if !partition_paths.contains(&selected_path) {
+                partition_paths.push(selected_path);
             }
         }
-        // A receipt may conditionally move only a child. Keep its exact typed
-        // boundary in the normal-death partition; it is neither an unconditional
-        // exclusion nor permission to dispose the siblings at the value join.
-        let mut partition_paths = Vec::new();
-        if disposition.selection.is_valid() {
-            let ownership = &facts.flow.ownership;
-            let receipt = ownership.owned_selections.get(disposition.selection);
-            for transfer in ownership
-                .selection_transfers
-                .span_or_empty(receipt.transfers)
-            {
-                if !transfer.source.is_valid() {
-                    continue;
-                }
-                let candidate = ownership.selection_sources.get(transfer.source);
-                if Some(candidate.symbol) != disposition.root.as_symbol() {
-                    continue;
-                }
-                let transferred = ownership.segments.span_or_empty(transfer.path);
-                let Some(relative) = transferred.strip_prefix(place.segments.as_slice()) else {
-                    continue;
-                };
-                if relative.is_empty() {
-                    continue;
-                }
-                let (_, selected_path) =
-                    crate::execution::terminal_unit::calls::projected_argument_path(
-                        program,
-                        disposition.state,
-                        statement_index,
-                        &validation::CanonicalPlace {
-                            root: facts::PlaceRoot::TypeReference(reference),
-                            segments: relative.to_vec(),
-                        },
-                        None,
-                        None,
-                    )?;
-                if !partition_paths.contains(&selected_path) {
-                    partition_paths.push(selected_path);
-                }
-            }
-        }
-        // Geometry chooses the live complement, not whether it is cleanup-free.
-        // Hook receivers are intact disposition boundaries. A parent's hook is
-        // followed by structural children, not substituted for them. Refine only
-        // the paths that reach hooks, preserving maximal ordinary residual
-        // subtrees and the same reverse declaration/index order for every kind.
-        let residuals = if moved.is_empty() && hooks.is_empty() && partition_paths.is_empty() {
-            vec![validation::CaseSelectedCleanupRegion {
-                disposition: CheckedUnitPartialAffineDiscardPlan {
-                    source: source.clone(),
-                    path: Vec::new(),
-                    type_identity: type_identity.clone(),
-                    case_conditions: Default::default(),
-                },
-                conditions: Vec::new(),
-            }]
-        } else {
-            let moved = moved
-                .iter()
-                .map(|(path, identity)| (path.as_slice(), *identity))
-                .collect::<Vec<_>>();
-            let boundaries = hooks
-                .iter()
-                .map(|hook| Some((hook.path.strip_prefix(path.as_slice())?, hook.type_identity)))
-                .collect::<Option<Vec<_>>>()?;
-            let types = shapes
-                .types
-                .iter()
-                .map(|(identity, plan)| (*identity, plan))
-                .collect();
-            validation::reconstruct_case_selected_regions(
-                &types,
-                &source,
-                type_identity,
-                &moved,
-                &boundaries,
-                &partition_paths,
-                usize::MAX,
-                &|prefix, _, case| {
-                    let mut segments = place.segments.clone();
-                    segments.extend(checked_case_segments(
-                        program,
-                        disposition.state,
-                        statement_index,
-                        reference,
-                        prefix,
-                        case,
-                    )?);
-                    case_reachability(&segments)
-                },
-            )?
-        };
-        // The effect traversal groups repeated array leaves by field. Index
-        // their exact paths once; only residual geometry chooses action order.
-        hooks.sort_unstable_by(|left, right| left.path.cmp(&right.path));
-        let mut selected_hooks = 0;
-        let actions = residuals
-            .into_iter()
-            .map(|region| {
-                let conditions = region
-                    .conditions
-                    .into_iter()
-                    .map(|condition| {
-                        let mut condition_path = path.clone();
-                        condition_path.extend(condition.path);
-                        checked_trees::CheckedCleanupCaseCondition {
-                            path: shapes.cleanup_control.paths.insert_many(condition_path),
-                            type_identity: condition.type_identity,
-                            case_identity: condition.case_identity,
-                        }
-                    })
-                    .collect::<Vec<_>>();
-                let case_conditions = shapes.cleanup_control.conditions.insert_many(conditions);
-                let mut residual = region.disposition;
-                residual.case_conditions = case_conditions;
-                let mut full_path = path.clone();
-                full_path.append(&mut residual.path);
-                residual.path = full_path;
-                if let Ok(position) = hooks.binary_search_by(|hook| hook.path.cmp(&residual.path)) {
-                    selected_hooks += 1;
-                    let mut hook = hooks[position].clone();
-                    hook.case_conditions = case_conditions;
-                    CheckedNormalCleanupAction::InvokeNominal(hook)
-                } else {
-                    CheckedNormalCleanupAction::Discard(residual)
-                }
-            })
+    }
+    // Geometry chooses the live complement, not whether it is cleanup-free.
+    // Hook receivers are intact disposition boundaries. A parent's hook is
+    // followed by structural children, not substituted for them. Refine only
+    // the paths that reach hooks, preserving maximal ordinary residual
+    // subtrees and the same reverse declaration/index order for every kind.
+    let residuals = if moved.is_empty() && hooks.is_empty() && partition_paths.is_empty() {
+        vec![validation::CaseSelectedCleanupRegion {
+            disposition: CheckedUnitPartialAffineDiscardPlan {
+                source: source.clone(),
+                path: Vec::new(),
+                type_identity: type_identity.clone(),
+                case_conditions: Default::default(),
+            },
+            conditions: Vec::new(),
+        }]
+    } else {
+        let moved = moved
+            .iter()
+            .map(|(path, identity)| (path.as_slice(), *identity))
             .collect::<Vec<_>>();
-        if selected_hooks != hooks.len() {
-            return None;
-        }
-        Some(actions)
-    })();
-    selected
+        let boundaries = hooks
+            .iter()
+            .map(|hook| Some((hook.path.strip_prefix(path.as_slice())?, hook.type_identity)))
+            .collect::<Option<Vec<_>>>()
+            .ok_or("cleanup hook boundary lies outside its disposed path")?;
+        let types = shapes
+            .types
+            .iter()
+            .map(|(identity, plan)| (*identity, plan))
+            .collect();
+        validation::reconstruct_case_selected_regions(
+            &types,
+            &source,
+            type_identity,
+            &moved,
+            &boundaries,
+            &partition_paths,
+            usize::MAX,
+            &|prefix, _, case| {
+                let mut segments = place.segments.clone();
+                segments.extend(checked_case_segments(
+                    program,
+                    disposition.state,
+                    statement_index,
+                    reference,
+                    prefix,
+                    case,
+                )?);
+                case_reachability(&segments)
+            },
+        )
+        .ok_or("cleanup cannot reconstruct its remaining region partition")?
+    };
+    // The effect traversal groups repeated array leaves by field. Index
+    // their exact paths once; only residual geometry chooses action order.
+    hooks.sort_unstable_by(|left, right| left.path.cmp(&right.path));
+    let mut selected_hooks = 0;
+    let actions = residuals
+        .into_iter()
+        .map(|region| {
+            let conditions = region
+                .conditions
+                .into_iter()
+                .map(|condition| {
+                    let mut condition_path = path.clone();
+                    condition_path.extend(condition.path);
+                    checked_trees::CheckedCleanupCaseCondition {
+                        path: shapes.cleanup_control.paths.insert_many(condition_path),
+                        type_identity: condition.type_identity,
+                        case_identity: condition.case_identity,
+                    }
+                })
+                .collect::<Vec<_>>();
+            let case_conditions = shapes.cleanup_control.conditions.insert_many(conditions);
+            let mut residual = region.disposition;
+            residual.case_conditions = case_conditions;
+            let mut full_path = path.clone();
+            full_path.append(&mut residual.path);
+            residual.path = full_path;
+            if let Ok(position) = hooks.binary_search_by(|hook| hook.path.cmp(&residual.path)) {
+                selected_hooks += 1;
+                let mut hook = hooks[position].clone();
+                hook.case_conditions = case_conditions;
+                CheckedNormalCleanupAction::InvokeNominal(hook)
+            } else {
+                CheckedNormalCleanupAction::Discard(residual)
+            }
+        })
+        .collect::<Vec<_>>();
+    if selected_hooks != hooks.len() {
+        return Err("cleanup region partition did not select every hook");
+    }
+    Ok(actions)
 }
 
 /// Join normalized cleanup geometry back to the exact checked source place.

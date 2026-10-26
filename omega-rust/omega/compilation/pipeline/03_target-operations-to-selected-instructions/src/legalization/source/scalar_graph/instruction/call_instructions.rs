@@ -13,13 +13,17 @@ use semantic_vocabulary::OperationId;
 /// Preserve the producer's placement and reference projection for every call
 /// result shape. Source semantics supply instruction custody, not another ABI
 /// planner or loan checker.
-pub(super) fn project_call(
+pub(super) fn project_call<'a, 'g>(
     optimized: &optimization_unit::PsiOptimizationFunction,
-    unit: &PsiOptimizationUnit,
+    unit: &'a PsiOptimizationUnit,
     targeted: &target_operations::TargetUnitOperation,
-    native: &TargetOperationPlan,
-    plan: &AbstractOperationPlan,
-) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    native: &'a TargetOperationPlan,
+    plan: &'a AbstractOperationPlan,
+    call_descriptor_origins: &mut scalar_graph_input::byte_views::CallDescriptorOrigins<'a, 'g>,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError>
+where
+    'a: 'g,
+{
     let target_operations::TargetUnitOperation::Call {
         psi_operation,
         origin,
@@ -66,13 +70,7 @@ pub(super) fn project_call(
         _ => None,
     };
     let mut descriptor_origins = match &structural_result {
-        Some(result) => scalar_graph_input::byte_views::call_descriptor_origins(
-            unit,
-            optimized.machine,
-            result,
-            native,
-            plan,
-        )?,
+        Some(result) => call_descriptor_origins.resolve(optimized.machine, result)?,
         None => Vec::new(),
     };
     if let target_operations::TargetCallResult::Structural {

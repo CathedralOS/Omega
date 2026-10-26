@@ -5,8 +5,8 @@ use super::{
     AsmFenceKind, AsmFlagsDataFlow, AsmInstructionAvailability, AsmInstructionRefusal,
     AsmInstructionSerializationKind, AsmInstructionShape, AsmInterruptControlKind,
     AsmInterruptFlagEffect, AsmMemoryOrdering, AsmMemoryTransferKind, AsmOperandAccess,
-    AsmSchedulingHintKind, AsmSystemRegister, AsmTargetApplicability, asm_catalog_entry,
-    asm_intrinsic_mnemonic, scratch_register,
+    AsmSchedulingHintKind, AsmSystemRegister, AsmTargetApplicability, X86FlagsEnvironment,
+    asm_catalog_entry, asm_intrinsic_mnemonic, scratch_register,
 };
 
 #[test]
@@ -117,6 +117,25 @@ fn flags_contracts_are_explicit_and_stack_balanced_by_lowering() {
     );
     assert_eq!(restore.operands[0].access, AsmOperandAccess::ReadPlace);
     assert_eq!(restore.clobbers, &["r10", "r15"]);
+}
+
+#[test]
+fn x86_flags_environment_validates_reserved_bits_and_restores_arithmetic_only() {
+    // A captured host image: bit 1 set, IF set, ZF set; RF/VM clear.
+    let image: u64 = 0x246;
+    let mut environment = X86FlagsEnvironment::new(image).expect("valid host image");
+    // PUSHFQ clears RF (16) and VM (17) in the observed image; this image
+    // carries neither, so the snapshot is the supplied bits.
+    assert_eq!(environment.snapshot(), image);
+    assert!(X86FlagsEnvironment::new(image & !2).is_err());
+    assert!(X86FlagsEnvironment::new(image | 8).is_err());
+    assert!(X86FlagsEnvironment::new(image | (1 << 22)).is_err());
+    // A saved image with every bit set moves only CF|PF|AF|ZF|SF|OF.
+    environment.restore_arithmetic_bits(!0u64);
+    assert_eq!(environment.snapshot(), (image & !0x8d5) | 0x8d5);
+    // A zero image clears arithmetic bits while reserved bits stay supplied.
+    environment.restore_arithmetic_bits(0);
+    assert_eq!(environment.snapshot(), image & !0x8d5);
 }
 
 #[test]

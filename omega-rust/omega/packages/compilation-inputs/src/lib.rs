@@ -23,6 +23,8 @@
 //! commands, not a dependency on either application's orchestration.
 
 mod anonymous_owner;
+pub use anonymous_owner::AnonymousSourceCapture;
+pub use package_source::local::resolution_observations::CapturedLocalSource;
 pub mod build_execution;
 mod canonical_fs;
 mod checked_source_cache;
@@ -48,10 +50,9 @@ pub use build_declarations::BuildDeclarationKind;
 pub use checked_source_cache::{CheckedSourceCache, CheckedSourceCacheLimits};
 pub use compilation_reuse::SourceAssemblyInputs;
 pub use package_compilation::{
-    BuildDependencyOccurrence, IndependentComponentDescription, PackageCompilationInputError,
-    PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
-    PackageDependencyBinding, PackageDependencyClosure, PackageGeneratedSourceBundle,
-    PackageSourceBinding,
+    IndependentComponentDescription, PackageCompilationInputError, PackageCompilationInputs,
+    PackageCompilationSourceInputs, PackageCompilationTargetInputs, PackageDependencyBinding,
+    PackageDependencyClosure, PackageGeneratedSourceBundle, PackageSourceBinding,
 };
 pub use review_cache_digests::{review_cache_inputs_digest, review_cache_snapshot_digest};
 pub use semantic_bindings::{

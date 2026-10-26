@@ -7338,7 +7338,6 @@ pass/layouts/runtime_target_layout_queries_exit built 3635ms exit:0 @a92f1643104
 pass/layouts/runtime_transition_scalar_reference_codec_exit rejected 1819ms regressed-from:built+exit:0 @a92f16431042
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/schema_field_at_declared_size checked 1764ms @a92f16431042
 pass/layouts/schema_identity_payload_within_predicate checked 1334ms @a92f16431042
 pass/layouts/single_bool_array_layout_compile checked 1431ms @a92f16431042
 pass/layouts/single_byte_member_layout_compile checked 1379ms @a92f16431042

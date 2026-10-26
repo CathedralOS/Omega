@@ -120,6 +120,7 @@ pub(crate) fn validate_function(
         structural_domains,
         &control_flow.predecessors,
         reference_memberships,
+        call_accesses.view_graph(),
     )?;
     crate::unit_validation::references::validate_function_references(
         function,
@@ -159,6 +160,7 @@ pub(crate) fn validate_function(
         services,
         structural_types,
         structural_domains,
+        call_accesses,
     )?;
     validate_places_and_claims(function)?;
     let requirements = current_ownership::validate_current_ownership_frontier_collecting(

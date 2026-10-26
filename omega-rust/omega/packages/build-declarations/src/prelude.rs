@@ -180,23 +180,59 @@ public data Source {
     case Path(location: &[u8]);
     case Git(repository: &[u8], revision: &[u8], selection: PackageSelection);
 }
-public machine Build::depend(builder: &mut Build, source: Source) {
+// Executed project requests cross one compiler-issued host protocol. Source
+// variants are decomposed by ordinary Omega code, not a host syntax visitor.
+public boundary trait BuildRequestOperations {
+    machine package(builder: &Build, name: &[u8]) reaches;
+    machine application(builder: &Build, name: &[u8]) reaches;
+    machine member(builder: &Build, path: &[u8]) reaches;
+    machine artifact_only(builder: &Build) reaches;
+    machine depend_path(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) reaches;
+    machine depend_git(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) reaches;
+    machine write_log(log: &BuildLog, text: &[u8]) reaches;
 }
-public machine Build::depend_as(builder: &mut Build, alias: &[u8], source: Source) {
+public machine Build::depend(builder: &mut Build, source: Source) reaches BuildRequestOperations invokes BuildRequestOperations; {
+    Build::request_dependency(builder, false, false, "", source);
 }
-public machine Build::build_depend(builder: &mut Build, source: Source) {
+public machine Build::depend_as(builder: &mut Build, alias: &[u8], source: Source) reaches BuildRequestOperations invokes BuildRequestOperations; {
+    Build::request_dependency(builder, false, true, alias, source);
 }
-public machine Build::build_depend_as(builder: &mut Build, alias: &[u8], source: Source) {
+public machine Build::build_depend(builder: &mut Build, source: Source) reaches BuildRequestOperations invokes BuildRequestOperations; {
+    Build::request_dependency(builder, true, false, "", source);
 }
-public machine Build::package(builder: &mut Build, name: &[u8]) {
+public machine Build::build_depend_as(builder: &mut Build, alias: &[u8], source: Source) reaches BuildRequestOperations invokes BuildRequestOperations; {
+    Build::request_dependency(builder, true, true, alias, source);
 }
-public machine Build::application(builder: &mut Build, name: &[u8]) {
+machine Build::request_dependency(builder: &mut Build, build_scope: bool, explicit_alias: bool, alias: &[u8], source: Source) reaches BuildRequestOperations {
+    transition source {
+        Source::Path { location } -> Build::request_path(builder, build_scope, explicit_alias, alias, location)
+        Source::Git { repository, revision, selection } -> Build::request_git(builder, build_scope, explicit_alias, alias, repository, revision, selection)
+    }
 }
-public machine Build::member(builder: &mut Build, path: &[u8]) {
+machine Build::request_path(builder: &mut Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) reaches BuildRequestOperations {
+    BuildRequestOperations::depend_path(builder, build_scope, explicit_alias, alias, location);
 }
-// Artifact-only application modifier: a declaration statement harvested
-// statically; the declared body is the evaluator no-op.
-public machine Build::artifact_only(builder: &mut Build) {
+machine Build::request_git(builder: &mut Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], selection: PackageSelection) reaches BuildRequestOperations {
+    transition selection {
+        PackageSelection::Root -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, false, "")
+        PackageSelection::Named { package } -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, true, package)
+    }
+}
+machine Build::request_selected_git(builder: &mut Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) reaches BuildRequestOperations {
+    BuildRequestOperations::depend_git(builder, build_scope, explicit_alias, alias, repository, revision, named_package, package);
+}
+public machine Build::package(builder: &mut Build, name: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations; {
+    BuildRequestOperations::package(builder, name);
+}
+public machine Build::application(builder: &mut Build, name: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations; {
+    BuildRequestOperations::application(builder, name);
+}
+public machine Build::member(builder: &mut Build, path: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations; {
+    BuildRequestOperations::member(builder, path);
+}
+// The executed request is joined with the application role and required outputs.
+public machine Build::artifact_only(builder: &mut Build) reaches BuildRequestOperations invokes BuildRequestOperations; {
+    BuildRequestOperations::artifact_only(builder);
 }
 // Behavior exclusion (wiki/spec/build/behavior_exclusions.md): a
 // product-admission requirement that the selected executable composition
@@ -220,56 +256,79 @@ public machine Build::exclude_physical_authority(builder: &mut Build, authority:
 // evaluator no-op.
 public machine Build::accept_component_assumption(builder: &mut Build, digest: &[u8]) {
 }
-public machine BuildSource::resolve(source: &BuildSource, relative: &[u8]) -> BuildPath {
-    BuildPath {}
+// Ordinary boundary calls carry evaluated operands. Installation requires exact
+// toolchain provenance and the activation's original facets or issued markers.
+public boundary trait BuildFilesystemOperations {
+    machine resolve_source(source: &BuildSource, relative: &[u8]) -> BuildPath reaches;
+    machine resolve_output(output: &BuildOutput, relative: &[u8]) -> BuildPath reaches;
+    machine named_input(inputs: &BuildInputs, name: &[u8]) -> BuildSource reaches;
+    machine open(source: &BuildSource, path: BuildPath, flags: i32) -> i32 reaches;
+    machine read(source: &BuildSource, descriptor: i32, buffer: &mut [u8], count: u64) -> i64 reaches;
+    machine close_source(source: &BuildSource, descriptor: i32) -> i32 reaches;
+    machine create(output: &mut BuildOutput, path: BuildPath, mode: i32) -> i32 reaches;
+    machine write(output: &mut BuildOutput, descriptor: i32, bytes: &[u8]) -> i64 reaches;
+    machine close_output(output: &mut BuildOutput, descriptor: i32) -> i32 reaches;
+    machine include_source(output: &mut BuildOutput, generated: BuildPath) reaches;
+    machine require(output: &mut BuildOutput, name: &[u8]) -> RequiredOutput reaches;
+    machine can_complete(output: &BuildOutput, obligation: &RequiredOutput, file: BuildPath) -> bool reaches;
+    machine complete(output: &mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputReceipt reaches;
+    machine fail(output: &mut BuildOutput, obligation: RequiredOutput, diagnostic: &[u8]) reaches;
+    machine required_path(output: &RequiredOutput) -> &[u8] reaches;
 }
-// Missing slots fail the activation; the declared body is never executed.
-public machine BuildInputs::get(inputs: &BuildInputs, name: &[u8]) -> BuildSource {
-    BuildSource {}
+public machine BuildSource::resolve(source: &BuildSource, relative: &[u8]) -> BuildPath reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+    BuildFilesystemOperations::resolve_source(source, relative)
 }
-public machine BuildOutput::resolve(output: &BuildOutput, relative: &[u8]) -> BuildPath {
-    BuildPath {}
+public machine BuildOutput::resolve(output: &BuildOutput, relative: &[u8]) -> BuildPath reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+    BuildFilesystemOperations::resolve_output(output, relative)
 }
-public machine BuildSource::open(source: &BuildSource, path: BuildPath, flags: i32) -> i32 {
-    0
+public machine BuildInputs::get(inputs: &BuildInputs, name: &[u8]) -> BuildSource reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+    BuildFilesystemOperations::named_input(inputs, name)
 }
-public machine BuildSource::read(source: &BuildSource, descriptor: i32, buffer: &mut [u8], count: u64) -> i64 {
-    0
+public machine BuildSource::open(source: &BuildSource, path: BuildPath, flags: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+    BuildFilesystemOperations::open(source, path, flags)
 }
-public machine BuildSource::close(source: &BuildSource, descriptor: i32) -> i32 {
-    0
+public machine BuildSource::read(source: &BuildSource, descriptor: i32, buffer: &mut [u8], count: u64) -> i64 reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+    BuildFilesystemOperations::read(source, descriptor, buffer, count)
 }
-public machine BuildOutput::create(output: &mut BuildOutput, path: BuildPath, mode: i32) -> i32 {
-    0
+public machine BuildSource::close(source: &BuildSource, descriptor: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+    BuildFilesystemOperations::close_source(source, descriptor)
 }
-public machine BuildOutput::write(output: &mut BuildOutput, descriptor: i32, bytes: &[u8]) -> i64 {
-    0
+public machine BuildOutput::create(output: &mut BuildOutput, path: BuildPath, mode: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+    BuildFilesystemOperations::create(output, path, mode)
 }
-public machine BuildOutput::close(output: &mut BuildOutput, descriptor: i32) -> i32 {
-    0
+public machine BuildOutput::write(output: &mut BuildOutput, descriptor: i32, bytes: &[u8]) -> i64 reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+    BuildFilesystemOperations::write(output, descriptor, bytes)
 }
-public machine BuildOutput::include_source(output: &mut BuildOutput, generated: BuildPath) {
+public machine BuildOutput::close(output: &mut BuildOutput, descriptor: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+    BuildFilesystemOperations::close_output(output, descriptor)
 }
-// Required-output obligation declaration: reserve the canonical output name
-// and return its obligation marker. Duplicate or colliding names reject in
-// the evaluator; this declared body never executes.
-public machine BuildOutput::require(output: &mut BuildOutput, name: &[u8]) -> RequiredOutput {
-    RequiredOutput {}
+public machine BuildOutput::include_source(output: &mut BuildOutput, generated: BuildPath) reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+    BuildFilesystemOperations::include_source(output, generated);
 }
-// Settle one obligation against its sealed staged file. The evaluator
-// intercepts the call: a sealed name yields `OutputCompletion::Sealed` with
-// the receipt, an unsealed file yields `Retry` carrying the obligation and
-// file custody back, and every other custody violation is a hard error.
-public machine BuildOutput::complete(output: &mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputCompletion {
+public machine BuildOutput::require(output: &mut BuildOutput, name: &[u8]) -> RequiredOutput reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+    BuildFilesystemOperations::require(output, name)
+}
+public machine BuildOutput::fail(output: &mut BuildOutput, obligation: RequiredOutput, diagnostic: &[u8]) reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+    BuildFilesystemOperations::fail(output, obligation, diagnostic);
+}
+public machine RequiredOutput::path(output: &RequiredOutput) -> &[u8] reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+    BuildFilesystemOperations::required_path(output)
+}
+// The ordinary Omega branch retains both owned inputs on Retry. The host
+// rechecks the same sealed file and pending obligation when issuing a receipt.
+public machine BuildOutput::complete(output: &mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputCompletion reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+    let ready: bool = BuildFilesystemOperations::can_complete(output, &obligation, file);
+    transition ready {
+        true -> BuildOutput::seal(output, obligation, file)
+        false -> BuildOutput::retry(obligation, file)
+    }
+}
+machine BuildOutput::seal(output: &mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputCompletion reaches BuildFilesystemOperations {
+    let receipt: OutputReceipt = BuildFilesystemOperations::complete(output, obligation, file);
+    OutputCompletion::Sealed { receipt: receipt }
+}
+machine BuildOutput::retry(obligation: RequiredOutput, file: BuildPath) -> OutputCompletion {
     OutputCompletion::Retry { obligation: obligation, file: file }
-}
-// Consume an obligation with an authored diagnostic. The failure is sticky:
-// the activation can never publish a successful product set.
-public machine BuildOutput::fail(output: &mut BuildOutput, obligation: RequiredOutput, diagnostic: &[u8]) {
-}
-// The obligation's declared canonical output name.
-public machine RequiredOutput::path(output: &RequiredOutput) -> &[u8] {
-    ""
 }
 // The described product declaration's canonical path. The evaluator answers
 // from its private description table; the declared body never executes.
@@ -281,7 +340,8 @@ public machine ProductTypeSchema::path(schema: &ProductTypeSchema) -> &[u8] {
 public machine ProductProviderRef::path(provider: &ProductProviderRef) -> &[u8] {
     ""
 }
-public machine BuildLog::write_line(log: &mut BuildLog, text: &[u8]) {
+public machine BuildLog::write_line(log: &mut BuildLog, text: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations; {
+    BuildRequestOperations::write_log(log, text);
 }
 // Fallible logical query: select the exact product machine `path` declares in
 // this call occurrence's own package for root slot `slot`. The evaluator

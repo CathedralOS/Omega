@@ -1,0 +1,6 @@
+module naming;
+
+data Calibration { magnitude: f32; }
+
+public machine enabled() -> bool { true }
+public machine project_name() -> &[u8] { "executed_project_identity_exit" }

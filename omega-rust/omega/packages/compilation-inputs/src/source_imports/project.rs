@@ -77,37 +77,6 @@ fn companion_root_names(root_name: Option<&str>) -> &'static [&'static str] {
     }
 }
 
-/// Require the exact selected free build root to declare its project role
-/// through the same compiler-neutral grammar used by package orchestration.
-/// An application declaration is retained whole for admission and
-/// publication: its one authored name supplies the `.app` basename and
-/// executable leaf, and its `artifact_only` modifier narrows the admitted
-/// route (wiki/spec/build/macos_application.md).
-pub(crate) fn validate_selected_build_role(
-    source_storage: &SourceStorage,
-    build_source_id: Option<source::SourceId>,
-) -> Result<Option<build_declarations::ApplicationDeclaration>, Vec<Diagnostic>> {
-    let Some(build_source_id) = build_source_id else {
-        return Ok(None);
-    };
-    let source = source_storage.sources.get(build_source_id).ok_or_else(|| {
-        vec![Diagnostic::error(
-            "selected build source has no retained source text",
-        )]
-    })?;
-    build_declarations::project_build_declaration_from_source(&source.source)
-        .map(|declaration| match declaration {
-            build_declarations::BuildDeclaration::Application(application) => Some(application),
-            _ => None,
-        })
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "{}: invalid project build declaration: {error}",
-                source.path.display()
-            ))]
-        })
-}
-
 /// Exact project-root scopes and the selected canonical Build source.
 /// Loading and parsing consume the scoped paths; only this selection rejoins
 /// the resulting source id, so a Product instance cannot impersonate Build.

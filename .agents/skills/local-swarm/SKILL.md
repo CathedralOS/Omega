@@ -169,11 +169,11 @@ count a witness landing as full capability closure. Switch only under the
 canonical selection rules and user scope. Send updated selection instructions
 explicitly to existing workers at safe checkpoints without discarding their work.
 
-Publish owned branches as PRs through the native queue in tools/landing.md,
-never direct main pushes. GitHub integrates current main; authors resolve actual
-conflicts/failures, not every base movement. Existing
-unrelated failures do not require another repair assignment. Reconcile board
-requirements; never union-merge accumulated notes. Two advisories order that
+Publish candidate HEAD directly to remote refs (`git push origin HEAD:refs/heads/work/<name>`)
+as PRs through the native queue in tools/landing.md, never direct main pushes.
+GitHub integrates current main; authors resolve actual conflicts/failures, not
+every base movement. Existing unrelated failures do not require another repair
+assignment. Reconcile board requirements; never union-merge accumulated notes. Two advisories order that
 verification: `tools/jev_attribute.py` ranks a commit window for a failing
 signature before a bisect, and `corpus_gate.py --jev` gives the record-safety
 verdict before any `--record` (tools/testing.md).
@@ -246,5 +246,5 @@ helper actions before executing them.
 
 At the stopping condition stop refilling, request safe checkpoints and drain
 reports. Preserve dirty/unpublished work and remaining acceptance; release owned
-claims and remove only verified-landed worktrees/branches. Report outcome closure
+claims and remove only verified-landed worktrees. Report outcome closure
 and observed behavior, not helper-test, commit or occupied-slot counts.

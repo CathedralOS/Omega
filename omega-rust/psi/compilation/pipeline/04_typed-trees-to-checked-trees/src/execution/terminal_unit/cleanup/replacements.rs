@@ -97,6 +97,37 @@ pub(super) fn actions(
         let mut actions = Vec::new();
         let mut selected_regions = Vec::new();
         let mut selected_disposition = false;
+        // Use the completed semantic coordinate only to authenticate the old
+        // descriptor occurrence. Its discard still executes at destination.path,
+        // which retains the actual pre-RHS runtime selector.
+        let captured_path = destination
+            .path
+            .iter()
+            .any(|segment| {
+                matches!(
+                    segment,
+                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                )
+            })
+            .then(|| {
+                let declaration = program.state_by_symbol(state)?;
+                let assignment = program
+                    .statement_table
+                    .statement_at(declaration, *statement_index as usize)?
+                    .as_assignment()?;
+                let owner = replaced_place.as_ref().filter(|place| place.root == root)?;
+                super::super::borrowed_windows::captured_assignment_path(
+                    program,
+                    facts,
+                    program.machine_by_symbol(machine)?,
+                    declaration,
+                    *statement_index,
+                    assignment.target,
+                    owner,
+                )
+            })
+            .flatten();
+        let retirement_path = captured_path.as_deref().unwrap_or(&destination.path);
         let carrier_death = validation::reference_result_custody::replaced_reference_carrier(
             program,
             facts,
@@ -104,7 +135,7 @@ pub(super) fn actions(
             program.state_by_symbol(state)?,
             root,
             *statement_index,
-            &destination.path,
+            retirement_path,
         );
         let carrier_discard = if let Some(carrier) = carrier_death {
             let declaration = shapes.types.get(&destination.type_identity)?;
@@ -135,17 +166,17 @@ pub(super) fn actions(
                         && access == carrier.source.access
                         && carrier.source.path.strip_suffix(&[
                             checked_trees::CheckedUnitStructuralPathSegment::Referent,
-                        ]) == Some(destination.path.as_slice())
+                        ]) == Some(retirement_path)
                 }
                 checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
                     program.normalized_type_identity(reference) == carrier.source.type_identity
-                        && carrier.source.path == destination.path
+                        && carrier.source.path == retirement_path
                 }
                 checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(bytes)
                     if bytes.is_borrowed() =>
                 {
                     program.normalized_type_identity(reference) == carrier.source.type_identity
-                        && carrier.source.path == destination.path
+                        && carrier.source.path == retirement_path
                 }
                 _ => false,
             };
@@ -266,7 +297,8 @@ pub(super) fn actions(
                 disposition_handle,
                 source.clone(),
                 replaced.then_some(destination.path.as_slice()),
-            )?;
+            )
+            .ok()?;
             // A completed empty complement still authenticates this old home.
             // Missing disposition evidence remains different from zero actions.
             selected_disposition = true;

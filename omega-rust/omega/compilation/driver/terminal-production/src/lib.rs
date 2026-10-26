@@ -15,7 +15,7 @@ mod stage_timings;
 mod terminal_production;
 pub use policy::TerminalBehaviorExclusions;
 pub use psi_compiler::{
-    ProducedTerminalArtifact, TerminalApplicationCustody, TerminalMachineSelection,
+    ProducedTerminalProgram, TerminalApplicationCustody, TerminalMachineSelection,
     TerminalProductionRequest, TerminalProgramRoots,
 };
 pub use stage_timings::PsiStageTimings;

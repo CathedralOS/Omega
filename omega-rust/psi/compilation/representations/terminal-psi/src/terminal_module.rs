@@ -56,8 +56,8 @@ pub use control_flow::{
 };
 pub use identity::{
     CheckedMachineCapture, CheckedMachineDeclaration, CheckedMachineSpecialization,
-    NominalDeclarationIdentity, SemanticFingerprint, TerminalIdentityIndex, TerminalIdentityTable,
-    TerminalIdentityTableBuilder, TerminalPsiIdentity, VocabularyMarker,
+    InvocationCodeScope, NominalDeclarationIdentity, SemanticFingerprint, TerminalIdentityIndex,
+    TerminalIdentityTable, TerminalIdentityTableBuilder, TerminalPsiIdentity, VocabularyMarker,
 };
 pub use observation::{
     TerminalObservationSchema, TerminalOperationCrashDenotation, TerminalTraceBoundaryCrashSiteRow,

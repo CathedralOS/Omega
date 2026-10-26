@@ -1141,7 +1141,8 @@ fn finalize_value_completions(
             handle,
             source.clone(),
             None,
-        )?;
+        )
+        .ok()?;
         let retirement = super::actions::home_retirement(program, shapes, disposition, source)?;
         let position = completions
             .iter()

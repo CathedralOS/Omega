@@ -61,6 +61,7 @@ pub(crate) fn operation_service_contract_matches(
 /// verifier-owned module/function catalogs. Call-local source/receipt rows are
 /// evidence to compare, never the authority from which the expected contract
 /// is inferred.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn operation_structural_call_contract_matches(
     unit: &optimization_unit::PsiOptimizationUnit,
     caller: &PsiOptimizationFunction,
@@ -69,6 +70,7 @@ pub(crate) fn operation_structural_call_contract_matches(
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
+    call_accesses: &crate::current_ownership::CallAccesses,
 ) -> bool {
     match operation {
         O::CallStructural {
@@ -261,6 +263,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                             boundary_machines,
                             types,
                             &unit.dynamic_dispatch,
+                            call_accesses,
                         ))
             }),
         O::BoundaryCall {
@@ -446,7 +449,11 @@ fn descriptor_call_origins_match(
     boundaries: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+    call_accesses: &crate::current_ownership::CallAccesses,
 ) -> bool {
+    if let Some(matched) = call_accesses.has_descriptor_call_origins(caller.machine, result) {
+        return matched;
+    }
     let types = types.values().copied().cloned().collect::<Vec<_>>();
     let Some(graph) = crate::descriptor_results::optimized_catalog_graph(
         functions.values().copied(),

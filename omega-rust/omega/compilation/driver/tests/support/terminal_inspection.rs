@@ -124,7 +124,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             .map_err(|errors| format!("inspection {machine} build inputs: {errors:?}"))?;
         let mut request = CheckedCompileRequest::new(&prepared.root_path, None);
         request.package_inputs = prepared.package_inputs;
-        request.build_snapshot = snapshot;
+        request.build.snapshot = snapshot;
         if matches!(
             conformance_controls,
             Some(InspectionControls::MathematicalActuals)
@@ -147,7 +147,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             .and_then(compiler::CompilationOutput::into_inspection)
             .map_err(compiler::CompilationProductError::into_diagnostics)
             .map_err(|errors| format!("inspection {machine} production: {errors:?}"))?;
-        let artifact = produced.artifact();
+        let artifact = produced.artifact().map_err(|error| error.to_string())?;
         let mut transported = artifact.to_bytes();
         let decoded = CanonicalTerminalArtifact::from_bytes(&transported)
             .map_err(|error| format!("inspection {machine} transport: {error:?}"))?;
@@ -181,6 +181,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                         host_provisions::observe_portable(
                             &decoded,
                             produced.build_bindings(),
+                            produced.build_requests(),
                             words,
                         )
                         .map_err(|error| format!("inspection {machine} runtime: {error}"))?;

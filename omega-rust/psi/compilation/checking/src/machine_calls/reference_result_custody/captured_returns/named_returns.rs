@@ -272,7 +272,7 @@ impl Captures<'_> {
     /// Follow the producer's identity-preserving whole-value links. A local
     /// copy can retain an incoming carrier without authoring new child values;
     /// its former local home supplies neither backing nor loan authority.
-    fn completed_operand_source<'fact>(
+    pub(super) fn completed_operand_source<'fact>(
         &'fact self,
         mut operand: &'fact checked_trees::FlowOperandFact,
     ) -> Option<&'fact checked_trees::FlowOperandFact> {
