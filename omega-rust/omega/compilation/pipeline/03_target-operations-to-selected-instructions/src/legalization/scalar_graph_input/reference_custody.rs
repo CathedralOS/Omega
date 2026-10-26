@@ -3349,13 +3349,18 @@ pub(in crate::legalization) fn block_entry_states(
     queued[entry_position] = true;
     let mut final_arrivals = vec![Vec::new(); blocks.len()];
     let mut deferred = BTreeSet::new();
-    while let Some(position) = pending.pop_front() {
+    // An early predecessor can reach a consumer before the path that installs
+    // its current descriptor. A refusal on that provisional entry is not a
+    // fixed-point result. Retain it, replay on changed arrivals, and reject
+    // every unresolved refusal before any entry is published below.
+    let mut failures = BTreeMap::new();
+    'worklist: while let Some(position) = pending.pop_front() {
         queued[position] = false;
         let block = &blocks[position];
         let mut custody = entries.get(&block.id).cloned().ok_or_else(|| invalid())?;
         for (node_index, node) in blocks[position].nodes.iter().enumerate() {
             custody.set_position(block.id, node_index)?;
-            if matches!(
+            let result = if matches!(
                 node.operation,
                 abstract_operations::return_or_return_unit_pattern!(..)
                     | AbstractOperation::ReturnStructural { .. }
@@ -3364,13 +3369,19 @@ pub(in crate::legalization) fn block_entry_states(
                     | AbstractOperation::StructuralCase { .. }
                     | AbstractOperation::ExternalCompletion { .. }
             ) {
-                apply_terminator(&mut custody, &node.operation, function, plan)?;
+                apply_terminator(&mut custody, &node.operation, function, plan)
             } else {
-                apply(&mut custody, node, function, native, plan, unit).map_err(|error| {
-                    error.attributed(function.machine, node.operation.psi_operation())
-                })?;
+                apply(&mut custody, node, function, native, plan, unit)
+            };
+            if let Err(error) = result {
+                failures.insert(
+                    block.id,
+                    error.attributed(function.machine, node.operation.psi_operation()),
+                );
+                continue 'worklist;
             }
         }
+        failures.remove(&block.id);
         let terminator = block.nodes.last().ok_or_else(|| invalid())?;
         let mut arrivals = Vec::with_capacity(terminator.successors.len());
         for edge in &terminator.successors {
@@ -3453,6 +3464,9 @@ pub(in crate::legalization) fn block_entry_states(
                 queued[target_position] = true;
             }
         }
+    }
+    if let Some((_, error)) = failures.into_iter().next() {
+        return Err(error);
     }
     for block in blocks {
         if impossible_context

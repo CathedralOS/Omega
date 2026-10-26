@@ -261,7 +261,7 @@ fn observe_direct_reference_custody(
                 // A descriptor is stored data too. Direct access cannot bypass
                 // a live enclosing loan; traversing that exact ancestor is the
                 // only non-shared exemption, retained separately on each cursor.
-                if custody.leaves.iter().any(|(_, enclosing)| {
+                if let Some((_, enclosing)) = custody.leaves.iter().find(|(_, enclosing)| {
                     super::lifetime_storage_access_conflicts(
                         function,
                         custody,
@@ -281,7 +281,15 @@ fn observe_direct_reference_custody(
                             StructuralAccess::SharedBorrow,
                         )
                 }) {
-                    return Err(invalid());
+                    let mut error = super::observations::Refusal::StorageInterference
+                        .into_error(function, custody, types, place, &path);
+                    if let LegalizationError::ReferenceObservation { context, .. } = &mut error {
+                        context.interference = Some(format!(
+                            "carrier={observed_carrier_place:?}/{observed_carrier_path:?}; ancestors={ancestors:?}; loan={enclosing:#?}; debts={:#?}",
+                            custody.captured_lifetime_debts(enclosing),
+                        ));
+                    }
+                    return Err(error);
                 }
                 if let Some(slot) = &observed.resident {
                     descriptors.push(slot.clone());

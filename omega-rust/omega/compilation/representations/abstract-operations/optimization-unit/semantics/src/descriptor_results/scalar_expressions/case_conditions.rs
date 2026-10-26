@@ -8,6 +8,9 @@ use std::collections::BTreeSet;
 use terminal_psi::StructuralTypeDeclaration;
 use terminal_semantics::descriptor_results::{DescriptorCasePredicate, DescriptorMachine};
 
+#[cfg(test)]
+mod tests;
+
 type Position = (BlockId, usize);
 
 #[derive(Clone, PartialEq, Eq)]
