@@ -567,3 +567,38 @@ also reads byte 49 through the returned `Counted` value, checking the nonzero
 window offset independently of its extent. Native/Terminal observations are macOS
 ARM64 exit 0; other-host execution remains unverified. General opaque/provider
 result composition and the parent capability remain open.
+
+### Forwarded dependent results and static callable contracts
+
+The same nine `captured_window_indices` places now pass their direct producer
+through an explicitly contracted static callback. The completed start operand,
+later endpoint reset, result extent 7, subsequent descriptor replacement and
+extent-6 reject twins remain unchanged. The existing public producer is still
+exercised. Pins retain the same nine fact names.
+
+Baseline `2e70a865669` refuses all nine positives while forming generated result
+locals. Local type recipes now consume the current write-invalidated value
+environment. Their incoming machine contract is not replayed after mutation.
+Call-result types apply the exact occurrence-selected parameter telescope;
+static callable recipes no longer retain foreign formal subjects. Callable
+shape checks use positional formal correspondence for dependent expressions,
+including renamed parameters. Conservative call frames preserve established
+immutable scalar snapshots through the same observation query already used for
+private descriptor metadata. Mutable subjects retain ordinary invalidation.
+These operations supply neither spatial geometry nor access authority.
+
+`controls/dependent_callback_window` also reads byte 49 at the returned window's
+nonzero offset. `dependent_forwarded_window` exercises ordinary forwarding,
+and `dependent_renamed_callback_window` changes the callback's formal names.
+`dependent_local_valid_order` forms a local index from its current written value;
+its `dependent_local_written_order` twin changes only that write to break the
+ordering. `dependent_callback_missing_order` and `dependent_callback_wrong_result`
+reject missing public premises and a different result index. Corresponding pins
+live under `tests/omega/{pass,fail}/{borrows,generics}`.
+
+Acceptance requires all nine positive places and their pins to agree between
+native and Terminal execution, their nine reject twins to refuse `Count == 7`,
+and these composition and invalidation controls to retain their authored
+outcomes. Observations are recorded against the actual producer and host in the
+qualification record. Other-host execution and the broader parent acceptance,
+including opaque/provider result composition, remain open.

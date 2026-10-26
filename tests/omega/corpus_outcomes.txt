@@ -16786,6 +16786,12 @@ fail/generics/core_slice_for_each_callback_termination rejected 1711ms expected 
 	terminating machine does_not_finish contains a recursive cycle but carries no ranking witness -- spell one with `terminates by <subjects> [-> View];` (decision 23)
 fail/generics/data_equation_constructor_binder_carrier_domain rejected 41ms expected @a92f16431042
 	generic data `Box` where type equation constructor const binder has a different declared carrier
+fail/generics/dependent_callback_result_index_mismatch rejected 317ms expected @bdeccd2c2ec4+wt
+	machine argument `snapshot` for `through_callback` does not refine `Callback`: expected return `Counted<const <expression>>`, got `Counted<end>`
+fail/generics/dependent_callback_result_needs_public_order rejected 337ms expected @bdeccd2c2ec4+wt
+	exact arithmetic in value argument `Count` of `Counted` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in value argument `Count` of `Counted` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	machine argument `snapshot` for `through_callback` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/generics/dependent_const_array_extent rejected 1388ms expected @a92f16431042
 	const parameter `Selected` of `Pick` has an invalid named value: named constant `Short` has type `[u8; 1]`, expected `[u8; 2]`
 fail/generics/dependent_const_array_named_carrier rejected 1340ms expected @a92f16431042
@@ -16985,6 +16991,11 @@ fail/generics/local_generic_result_parameter_mismatch rejected 563ms expected @a
 	machine `wrong` state `entry` local `received` expects `Output`, but the value is delivered as `Input`
 fail/generics/local_slice_result_element_mismatch rejected 563ms expected @a92f16431042
 	machine `wrong` state `entry` local `viewed` expects `&[Output]`, but the value is delivered as `&[Input]`
+fail/generics/local_value_index_drops_written_order rejected 384ms expected @bdeccd2c2ec4+wt
+	data `Counted` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	exact arithmetic in construction of `Counted` field `Count` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in value argument `Count` of `Counted` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `invalid` state `entry` local `value` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/generics/machine_bound_violated_at_call rejected 444ms expected @a92f16431042
 	generic machine `Main::copy_it` has a concrete specialization tuple that does not satisfy its authored type bounds
 fail/generics/machine_equation_constructor_binder_carrier_constructed rejected 292ms expected @a92f16431042
@@ -20905,6 +20916,8 @@ pass/borrows/runtime_copied_byte_predicate_snapshot_exit checked 2198ms check-ta
 pass/borrows/runtime_copied_range_record_domains_exit checked 2254ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_copyable_carrier_retirement_exit checked 2258ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_cyclic_field_loan_release_exit checked 5940ms check-target:macos_arm64 @a92f16431042
+pass/borrows/runtime_dependent_callback_window_byte_exit checked 974ms check-target:macos_arm64 @bdeccd2c2ec4+wt
+pass/borrows/runtime_dependent_forwarded_window_exit checked 945ms check-target:macos_arm64 @bdeccd2c2ec4+wt
 pass/borrows/runtime_dependent_window_byte_payload_exit checked 934ms check-target:macos_arm64 @c0a374fa75ca+wt
 pass/borrows/runtime_dependent_window_image_sibling_exit checked 1717ms check-target:macos_arm64 @c0a374fa75ca+wt
 pass/borrows/runtime_dependent_window_region_disjoint_write_exit checked 1518ms check-target:macos_arm64 @c0a374fa75ca+wt
@@ -27850,6 +27863,7 @@ pass/generics/runtime_const_extent_origin_exit checked 6102ms check-target:macos
 pass/generics/runtime_constructor_equation_binder_carriers_exit checked 3057ms check-target:macos_arm64 @a92f16431042
 pass/generics/runtime_container_setter_matrix_exit checked 5593ms check-target:macos_arm64 @a92f16431042
 pass/generics/runtime_copied_indexed_case_subject_exit checked 7527ms check-target:macos_arm64 @a92f16431042
+pass/generics/runtime_dependent_callback_renamed_formals_exit checked 970ms check-target:macos_arm64 @bdeccd2c2ec4+wt
 pass/generics/runtime_dependent_window_parameter_index_exit checked 1563ms check-target:macos_arm64 @c0a374fa75ca+wt
 pass/generics/runtime_equation_constructor_selected_const_exit checked 1988ms check-target:macos_arm64 @a92f16431042
 pass/generics/runtime_equation_named_array_actual_exit checked 1961ms check-target:macos_arm64 @a92f16431042
@@ -27902,6 +27916,7 @@ pass/generics/runtime_inherited_composite_requirement_exit checked 2046ms check-
 pass/generics/runtime_linear_constructor_instances_exit rejected 1525ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	linear state-call result scalar in main::entry at statement 2 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping
 	linear state-call result array in main::entry at statement 3 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping
+pass/generics/runtime_local_value_index_observes_write_exit checked 900ms check-target:macos_arm64 @bdeccd2c2ec4+wt
 pass/generics/runtime_machine_equation_nested_boolean_exit checked 1860ms check-target:macos_arm64 @a92f16431042
 pass/generics/runtime_machine_equation_nested_const_exit checked 2416ms check-target:macos_arm64 @a92f16431042
 pass/generics/runtime_machine_equation_selected_boolean_exit checked 2418ms check-target:macos_arm64 @a92f16431042
