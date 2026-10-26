@@ -19,6 +19,7 @@ pub(super) struct Source {
     projection: StructuralStorageProjection,
     access: StructuralAccess,
     pub(super) parents: Vec<OccurrenceIdentity>,
+    pub(super) placed: Option<target_operations::TargetPlacedInterpretation>,
 }
 
 fn canonicalize(sources: &mut Vec<Source>) {
@@ -183,6 +184,7 @@ pub(super) fn bind(
                 projection: StructuralStorageProjection::Endpoint(parameter.structural_type),
                 access: parameter.access,
                 parents,
+                placed: placed_source(function, before, types, &binding.argument),
             }])
         })();
         sources.insert(parameter.place, captured);
@@ -295,6 +297,7 @@ mod tests {
             projection: StructuralStorageProjection::Endpoint(StructuralTypeId::new(1).unwrap()),
             access,
             parents: vec![parent],
+            placed: None,
         }
     }
 

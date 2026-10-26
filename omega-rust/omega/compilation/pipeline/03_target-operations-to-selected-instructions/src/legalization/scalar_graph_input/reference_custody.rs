@@ -917,10 +917,17 @@ fn storage_projection(
 /// Rejoin the actual live source descriptor; the declared placed carrier alone
 /// does not provide an established backing interpretation.
 fn placed_source(
+    function: &PsiOptimizationFunction,
     custody: &Custody,
+    types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
 ) -> Option<target_operations::TargetPlacedInterpretation> {
     if source.path.is_empty() {
+        if let Some(origins) = custody.borrowed_sources.get(&source.place) {
+            return optimization_unit_semantics::descriptor_results::placed_results::agree(
+                origins.as_ref()?.iter().map(|origin| origin.placed.clone()),
+            );
+        }
         return custody
             .placed_formals
             .get(&source.place)
@@ -930,7 +937,12 @@ fn placed_source(
     let (StructuralPathSegment::Referent, path) = source.path.split_last()? else {
         return None;
     };
-    custody.leaf(source.place, path)?.placed.clone()
+    if let Some(leaf) = custody.leaf(source.place, path) {
+        return leaf.placed.clone();
+    }
+    let observed = observations::observe(function, custody, types, source.place, path).ok()?;
+    let (place, path) = observed.resident?;
+    custody.leaf(place, &path)?.placed.clone()
 }
 
 /// Normalize the current borrowed source through its admitted storage origins.
@@ -1670,7 +1682,7 @@ fn call_results(
                     result,
                     expected,
                 );
-                leaf.placed = placed_source(custody, source);
+                leaf.placed = placed_source(function, custody, types, source);
                 leaf.backing = backing;
                 leaf.parents.extend(backing_parents);
                 leaf.parents.sort();
@@ -1716,7 +1728,7 @@ fn call_results(
                         {
                             return transferred.placed.clone();
                         }
-                        placed_source(custody, &actual)
+                        placed_source(function, custody, types, &actual)
                     },
                     |correspondence| {
                         target_operations::TargetPlacedInterpretation::Captured(
@@ -2402,7 +2414,7 @@ pub(in crate::legalization) fn apply(
                         result,
                         referent,
                     );
-                    leaf.placed = placed_source(custody, source);
+                    leaf.placed = placed_source(function, custody, types, source);
                     leaf.backing = backing;
                     leaf.parents.extend(backing_parents);
                     leaf.parents.sort();
@@ -3616,7 +3628,7 @@ pub(in crate::legalization) fn placed_call_custody(
             .get(runtime_position)
             .filter(|argument| argument.access == parameter.access)
             .ok_or_else(|| invalid())?;
-        let association = match placed_source(custody, argument) {
+        let association = match placed_source(caller, custody, types, argument) {
             Some(target_operations::TargetPlacedInterpretation::Captured(captured)) => {
                 let observed =
                     call_paths::call_reference_custody(caller, custody, types, argument)?;
