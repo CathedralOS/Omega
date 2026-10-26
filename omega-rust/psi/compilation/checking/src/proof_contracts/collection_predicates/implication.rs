@@ -197,7 +197,17 @@ pub(super) fn ordering_consequences(
         return Vec::new();
     };
     let parameters = program.state_parameters(entry);
-    if parameters.len() != application.arguments.len() {
+    if parameters.len() != application.arguments.len()
+        || parameters
+            .iter()
+            .filter(|parameter| {
+                program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_some_and(|primitive| primitive.is_fixed_integer())
+            })
+            .count()
+            < 2
+    {
         return Vec::new();
     }
     let mut proof = Implication {
