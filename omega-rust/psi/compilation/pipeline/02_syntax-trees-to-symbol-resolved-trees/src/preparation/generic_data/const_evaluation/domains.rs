@@ -1,4 +1,6 @@
 //! Constant evaluation: domains.
+#[cfg(test)]
+mod tests;
 use super::super::{
     CanonicalConstValue, ConstDefinition, Diagnostic, ExpressionNode, HashMap, HashSet, Identifier,
     IntegerLiteral, SyntaxTrees, TypeParameterKind, TypeReferenceHandle, TypeReferenceNode,
@@ -285,6 +287,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
     ));
 
     let concrete_data_positions = collect_data_type_reference_positions(syntax, false);
+    let lexical_captures = super::templates::capture_domain_machine_names(syntax);
     for (name, argument_span, reference) in applications {
         // The application selects its family by module name law before any
         // argument folds: a qualified path names its exact owner, a
@@ -321,6 +324,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
             const_values,
             selection,
             &concrete_data_positions,
+            &lexical_captures,
             warnings,
         )?;
     }
@@ -336,6 +340,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
     const_values: &HashMap<String, i128>,
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     concrete_data_positions: &[TypeReferenceHandle],
+    lexical_captures: &super::templates::RuntimeTemplateCaptures,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), Diagnostic> {
     if arguments.len() != family.parameters.len() {
@@ -347,6 +352,11 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
         )));
     }
     for (parameter, argument) in family.parameters.iter().zip(arguments) {
+        if lexical_captures.captures_type_input(syntax, argument) {
+            // Ordinary lexical resolution owns this exact binder occurrence.
+            // A same-spelled global constant cannot close its domain index.
+            continue;
+        }
         let ClosedDomainParameter::Const {
             name: parameter_name,
             type_reference: parameter_type,

@@ -1,4 +1,5 @@
 //! Constant evaluation: templates.
+mod captures;
 use super::super::{
     DataMember, Diagnostic, ExpressionNode, HashMap, HashSet, Identifier, Item, StatementNode,
     SyntaxTrees, TypeConstraintNode, TypeParameterKind, TypeReferenceHandle, TypeReferenceNode,
@@ -7,6 +8,9 @@ use crate::preparation::generic_data::uses::{
     ConstructorFrontier, collect_expression_handles, collect_statement_expression_handles,
     concrete_machine_expression_handles, visit_expression_type_inputs,
     visit_static_argument_type_inputs,
+};
+pub(in crate::preparation::generic_data) use captures::{
+    RuntimeTemplateCaptures, capture_domain_machine_names, capture_machine_runtime_template_names,
 };
 
 use crate::preparation::generic_data::EvaluatedConst;
@@ -33,127 +37,6 @@ pub(in crate::preparation::generic_data) fn replace_const_expression_names_from(
     );
 }
 
-/// Runtime bindings keep their authored selection. A local enters the frontier
-/// only after its initializer; machine-header expressions use entry parameters.
-#[derive(Default)]
-pub(in crate::preparation::generic_data) struct RuntimeTemplateCaptures {
-    expressions: HashSet<ExpressionHandle>,
-    type_references: HashSet<TypeReferenceHandle>,
-}
-
-impl RuntimeTemplateCaptures {
-    pub fn captures_type_reference(&self, reference: TypeReferenceHandle) -> bool {
-        self.type_references.contains(&reference)
-    }
-}
-
-pub(in crate::preparation::generic_data) fn capture_machine_runtime_template_names(
-    syntax: &SyntaxTrees,
-    machine: &Machine,
-    type_watermark: syntax_trees::types::TypeReferenceFrontier,
-    expression_watermark: syntax_trees::expression::ExpressionFrontier,
-) -> RuntimeTemplateCaptures {
-    let states = syntax.items.state_handles(machine.states);
-    let parameters = states
-        .first()
-        .map(|state| syntax.items.state(*state).parameters)
-        .unwrap_or_default();
-    let mut captured = RuntimeTemplateCaptures::default();
-    let header_frontier = ConstructorFrontier {
-        parameters,
-        prior_statements: &[],
-    };
-    for (handle, expression) in syntax.expressions.iter_expressions() {
-        if expression_watermark.contains(handle)
-            && let ExpressionNode::Name(path) = expression
-            && header_frontier.captures(syntax, *path)
-        {
-            captured.expressions.insert(handle);
-        }
-    }
-    for (handle, _) in syntax
-        .type_references
-        .named_nodes_from(type_watermark, syntax)
-    {
-        if let Some(name) = syntax.type_references.type_reference(handle).as_named()
-            && header_frontier.captures_name(syntax, name)
-        {
-            captured.type_references.insert(handle);
-        }
-    }
-    for state in states {
-        let state = syntax.items.state(*state);
-        let mut signature = HashSet::new();
-        let mut signature_types = HashSet::new();
-        collect_type_expression_handles(
-            syntax,
-            state.return_type,
-            &mut signature,
-            &mut signature_types,
-        );
-        for parameter in syntax.items.state_parameters(state.parameters) {
-            collect_type_expression_handles(
-                syntax,
-                syntax.items.state_parameter(*parameter).type_reference,
-                &mut signature,
-                &mut signature_types,
-            );
-        }
-        collect_contract_expression_handles(
-            syntax,
-            state.contracts,
-            &mut signature,
-            &mut signature_types,
-        );
-        let statements = syntax.items.statements(state.statements);
-        update_captured_names(
-            syntax,
-            &mut signature,
-            &mut signature_types,
-            &ConstructorFrontier {
-                parameters: state.parameters,
-                prior_statements: &[],
-            },
-            &mut captured,
-        );
-        for (ordinal, statement) in statements.iter().enumerate() {
-            let mut expressions = HashSet::new();
-            let mut type_references = HashSet::new();
-            collect_statement_expression_handles(syntax, *statement, &mut expressions);
-            match syntax.statements.statement(*statement) {
-                StatementNode::LocalData(local) => {
-                    collect_type_expression_handles(
-                        syntax,
-                        local.type_reference,
-                        &mut expressions,
-                        &mut type_references,
-                    );
-                }
-                StatementNode::Call(call) => {
-                    collect_static_argument_expression_handles(
-                        syntax,
-                        &call.machine_arguments,
-                        &mut expressions,
-                        &mut type_references,
-                    );
-                }
-                _ => {}
-            }
-            update_captured_names(
-                syntax,
-                &mut expressions,
-                &mut type_references,
-                &ConstructorFrontier {
-                    parameters: state.parameters,
-                    prior_statements: &statements[..ordinal],
-                },
-                &mut captured,
-            );
-        }
-    }
-    captured
-}
-
 pub(in crate::preparation::generic_data) fn replace_machine_const_expression_names_from(
     syntax: &mut SyntaxTrees,
     expression_watermark: syntax_trees::expression::ExpressionFrontier,
@@ -166,51 +49,6 @@ pub(in crate::preparation::generic_data) fn replace_machine_const_expression_nam
         const_expressions,
         &captured.expressions,
     );
-}
-
-fn update_captured_names(
-    syntax: &SyntaxTrees,
-    expressions: &mut HashSet<ExpressionHandle>,
-    type_references: &mut HashSet<TypeReferenceHandle>,
-    frontier: &ConstructorFrontier<'_>,
-    captured: &mut RuntimeTemplateCaptures,
-) {
-    // The executable child walker deliberately excludes type positions. Those
-    // positions still belong to the same lexical frontier during substitution.
-    let mut visited = HashSet::new();
-    loop {
-        let pending = expressions
-            .difference(&visited)
-            .copied()
-            .collect::<Vec<_>>();
-        if pending.is_empty() {
-            break;
-        }
-        for handle in pending {
-            visited.insert(handle);
-            visit_expression_type_inputs(syntax, handle, &mut |reference| {
-                collect_type_expression_handles(syntax, reference, expressions, type_references);
-            });
-        }
-    }
-    for handle in expressions.iter() {
-        if let ExpressionNode::Name(path) = syntax.expressions.expression(*handle) {
-            if frontier.captures(syntax, *path) {
-                captured.expressions.insert(*handle);
-            } else {
-                captured.expressions.remove(handle);
-            }
-        }
-    }
-    for reference in type_references.iter() {
-        if let Some(name) = syntax.type_references.type_reference(*reference).as_named() {
-            if frontier.captures_name(syntax, name) {
-                captured.type_references.insert(*reference);
-            } else {
-                captured.type_references.remove(reference);
-            }
-        }
-    }
 }
 
 fn collect_static_argument_expression_handles(

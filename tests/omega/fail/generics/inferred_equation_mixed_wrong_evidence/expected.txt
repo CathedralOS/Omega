@@ -1,0 +1,1 @@
+expected a complete `Probe` implementation with the instantiated trait arguments

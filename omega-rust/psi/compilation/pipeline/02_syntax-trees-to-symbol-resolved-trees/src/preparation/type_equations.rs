@@ -79,6 +79,22 @@ pub(crate) struct TypeEquation {
 }
 
 impl TypeEquation {
+    /// Keep non-equation telescope slots out of structural matching without
+    /// letting their names be reselected as closed declarations.
+    pub(crate) fn mentions_parameter(
+        &self,
+        syntax: &SyntaxTrees,
+        names: &[String],
+        index: usize,
+    ) -> bool {
+        match &self.shape {
+            EquationShape::Structural {
+                binder, structure, ..
+            } => *binder == index || structure.binder_mentions(syntax, names).contains(&index),
+            EquationShape::KindMismatch { .. } => false,
+        }
+    }
+
     pub(crate) fn validate_kind(&self, declaration: &str) -> Result<(), Diagnostic> {
         if let EquationShape::KindMismatch { span, description } = &self.shape {
             return Err(Diagnostic::error(format!(
@@ -603,6 +619,32 @@ fn collect_expression_binder_mentions(
         }
         _ => {}
     }
+}
+
+pub(crate) fn type_mentions_named_parameters(
+    syntax: &SyntaxTrees,
+    reference: TypeReferenceHandle,
+    names: &[String],
+) -> bool {
+    if names.is_empty() || !reference.is_valid() {
+        return false;
+    }
+    let mut mentions = Vec::new();
+    type_structure::collect_binder_mentions(syntax, reference, names, &mut mentions);
+    !mentions.is_empty()
+}
+
+pub(crate) fn expression_mentions_named_parameters(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+    names: &[String],
+) -> bool {
+    if names.is_empty() {
+        return false;
+    }
+    let mut mentions = Vec::new();
+    collect_expression_binder_mentions(syntax, expression, names, &mut mentions);
+    !mentions.is_empty()
 }
 
 /// Declaration-neutral inputs for structural equation completion. Data and
