@@ -1,0 +1,18 @@
+{
+  "source": "bebef33b1170f2dde158053facd65cf0060bb688",
+  "producer": "a0a9721ff70b7998760011d1e6feaf0c59ac62ed",
+  "target": "macos_arm64",
+  "review": "accepted:true reviewer/root/fact_a exactbebef",
+  "qualification": "same active state after actualPR291 conflict integration; three completed-replay checks reused, zero invalidated; no engine replay",
+  "public": "105 actual source-bound observations:46native/Terminalzero agreements59intendedrejects",
+  "retained": "104checking(45accepted59intendedrejects),45native/Terminalzero agreements;5unchanged comparisons andrankedtheoremcore checking",
+  "source_replay": "Exact integrateda0a producerbundle verified/restored in newisolatedbare seededonlyknowne4d9c74577f9ed221697b73113b045220364f9de; earlieractualgatebundles preservedhistorical",
+  "sha256": {
+    "qualification.tar.gz": "beed2d992b1556c39a83bbe8f6fe9507fbc2cb72e996b8e129854daf40b3493e",
+    "baad519176fe5fab77922a6bd0c617108c6765f3.bundle": "d0e70b30bcb6891236a31a079cb1dce103679107b6b94e9d2ebda2366c2ced3d",
+    "10d00029c08b47fe4cb76e10cca469f2f2ff8253.bundle": "e8a31862ea21be7f7768dc2a322c051d32f856e302d8ed8daf53858abd3dd7f4",
+    "a0a9721ff70b7998760011d1e6feaf0c59ac62ed.bundle": "ca02ff21aabc519c7c7daf225d926c9a60e3e58b7c898a77ae87e50f3981913d"
+  },
+  "archive_members": 1750,
+  "limits": "Only owned common integer fields/fullowned paths closed; parent broad structuredcallee/domain/runtimeprojection/theorem remainsopen. Nativehostmacos_arm64 only. Earlier277 approval/runtime remain distinct historical."
+}
