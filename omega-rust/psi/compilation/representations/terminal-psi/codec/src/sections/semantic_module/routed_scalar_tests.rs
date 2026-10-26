@@ -364,6 +364,17 @@ fn routed_scalar_specialization_retains_exact_authored_issuer() {
         template_callable: TerminalIdentityIndex(3),
         commitment: [9; 32],
     });
+    module.machines[0].closed_reach_application = Some(terminal_psi::ClosedReachApplication {
+        template_identity: TerminalIdentityIndex(1),
+        template_commitment: [7; 32],
+        specialization_commitment: [9; 32],
+        parameter_kinds: Vec::new(),
+        telescope: Vec::new(),
+        capture: None,
+        fixed: Vec::new(),
+        dependencies: Vec::new(),
+        calls: Vec::new(),
+    });
     assert_eq!(
         decode_module(&encode_module(&module).unwrap()).unwrap(),
         module
