@@ -121,7 +121,7 @@ impl PremiseScope<'_> {
             return self.bound(program, lookup, expression);
         }
         if let Some(base) = self.bound(program, lookup, expression) {
-            return append_projection(program, lookup, base, projection);
+            return super::indexes::append_immutable_projection(program, lookup, base, projection);
         }
         let (expression, mut prefix) = match self {
             Self::State { .. } => (expression, Vec::new()),
@@ -148,7 +148,7 @@ impl PremiseScope<'_> {
         let mut segments = place.segments;
         segments.append(&mut prefix);
         let base = NormalizedBound::Projected { symbol, segments };
-        append_projection(program, lookup, base, projection)
+        super::indexes::append_immutable_projection(program, lookup, base, projection)
     }
 
     fn bound(
@@ -345,38 +345,6 @@ impl PremiseScope<'_> {
             }
         }
     }
-}
-
-fn append_projection(
-    program: &dyn ::validation::CheckingInput,
-    lookup: &validation::ImmutableBoundLookup<'_>,
-    bound: NormalizedBound,
-    projection: &[facts::PlaceSegment],
-) -> Option<NormalizedBound> {
-    let (symbol, mut segments, storage) = match bound {
-        NormalizedBound::Symbol { symbol, offset: 0 } => (symbol, Vec::new(), false),
-        NormalizedBound::Projected { symbol, segments } => (symbol, segments, false),
-        NormalizedBound::Storage { symbol } => (symbol, Vec::new(), true),
-        NormalizedBound::StorageProjected { symbol, segments } => (symbol, segments, true),
-        _ => return None,
-    };
-    let mut reference = lookup.immutable_binding_type(symbol)?;
-    if let Some(shell) = validation::reference_shell(program, reference) {
-        if shell.access != language_core::ReferenceAccess::Shared {
-            return None;
-        }
-        reference = shell.referee;
-    }
-    segments.extend_from_slice(projection);
-    let leaf = validation::owned_projection_type_reference(program, reference, &segments)?;
-    if !program.primitive_type_reference(leaf)?.is_fixed_integer() {
-        return None;
-    }
-    Some(if storage {
-        NormalizedBound::StorageProjected { symbol, segments }
-    } else {
-        NormalizedBound::Projected { symbol, segments }
-    })
 }
 
 /// The bound of one receiver-rooted field projection as a stated premise
