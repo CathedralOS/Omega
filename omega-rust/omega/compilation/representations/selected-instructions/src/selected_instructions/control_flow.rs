@@ -27,11 +27,15 @@ pub struct SelectedFunction {
 impl SelectedFunction {
     /// The block keyed `block`, when the function declares it.
     pub fn block(&self, block: SelectedBlockId) -> Option<&SelectedBlock> {
-        self.blocks.iter().find(|row| row.id == block)
+        self.block_index(block).map(|index| &self.blocks[index])
     }
 
     /// The position of the block keyed `id`, when the function declares it.
     pub fn block_index(&self, id: SelectedBlockId) -> Option<usize> {
+        let direct = id.0 as usize;
+        if self.blocks.get(direct).is_some_and(|block| block.id == id) {
+            return Some(direct);
+        }
         self.blocks.iter().position(|block| block.id == id)
     }
 
