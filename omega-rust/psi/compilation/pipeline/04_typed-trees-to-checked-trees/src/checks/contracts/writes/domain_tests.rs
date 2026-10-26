@@ -4,7 +4,7 @@
 //! no consumer reconstructs them from the shape of a Match or Boolean tree.
 
 use super::ConstructorMemberships;
-use checked_trees::{CheckFacts, FlowOperandFact, FlowStateFact};
+use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 use typed_trees::expression::ExpressionHandle;
 
@@ -50,7 +50,7 @@ pub(super) fn validate(
                     program,
                     facts,
                     state,
-                    operand,
+                    *operand,
                     domain.symbol,
                     domain.semantic_id,
                 )
@@ -69,7 +69,7 @@ fn retained(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
-    capture: &FlowOperandFact,
+    capture: crate::flow::CapturedOperand<'_>,
     domain: symbols::SymbolHandle,
     identity: language_semantics::SemanticDomainId,
 ) -> bool {
@@ -110,7 +110,7 @@ fn retained(
                     &facts.flow.contexts,
                     &facts.flow.control,
                     &facts.semantic,
-                    operand,
+                    operand.row(),
                     reference,
                     invocation,
                 );

@@ -18,7 +18,7 @@ use crate::labels::{machine_name, symbol_name};
 type Occurrence = ((u32, u32), usize, (u32, u32));
 
 pub(in crate::checks::contracts) struct ConstructorMemberships<'facts> {
-    captures: Vec<&'facts checked_trees::FlowOperandFact>,
+    captures: Vec<crate::flow::CapturedOperand<'facts>>,
 }
 
 impl<'facts> ConstructorMemberships<'facts> {
@@ -28,8 +28,13 @@ impl<'facts> ConstructorMemberships<'facts> {
             .control
             .operands
             .iter()
-            .map(|(_, capture)| capture)
-            .filter(|capture| capture.expression.is_valid() && capture.type_reference.is_valid())
+            .filter(|(_, capture)| {
+                capture.expression.is_valid() && capture.type_reference.is_valid()
+            })
+            .map(|(handle, _)| {
+                crate::flow::CapturedOperand::recorded(&facts.flow.control, handle)
+                    .expect("operand arena iteration returns live recorded handles")
+            })
             .collect::<Vec<_>>();
         captures.sort_by_key(|capture| occurrence(capture));
         Self { captures }
@@ -79,7 +84,7 @@ impl<'facts> ConstructorMemberships<'facts> {
         state: SymbolHandle,
         statement: usize,
         expression: ExpressionHandle,
-    ) -> &[&'facts checked_trees::FlowOperandFact] {
+    ) -> &[crate::flow::CapturedOperand<'facts>] {
         let key = (
             (state.arena_index(), state.generation()),
             statement,
@@ -204,11 +209,11 @@ impl ConstructionWalk<'_, '_> {
                     &facts.flow.contexts,
                     &facts.flow.control,
                     &facts.semantic,
-                    capture,
+                    capture.row(),
                     capture.type_reference,
                     capture.constraints,
                 );
-                proves(Some(capture), &contexts)
+                proves(Some(capture.row()), &contexts)
             })
         };
         if proven {
