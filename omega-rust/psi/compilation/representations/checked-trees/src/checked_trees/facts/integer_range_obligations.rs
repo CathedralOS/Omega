@@ -27,6 +27,7 @@ enum RangeStep {
         expression: ExpressionHandle,
         owner: SymbolHandle,
     },
+    ConstantRecipe(typed_trees::constant_recipes::ConstantRecipeHandle),
     Add,
     Subtract,
     Multiply,
@@ -56,6 +57,43 @@ impl IntegerRangeRecipe {
             steps: vec![RangeStep::Observation { expression, owner }],
             target_dependent: true,
         }
+    }
+
+    /// An established type position supplies this exact immutable extent.
+    /// The selected-target closure must still evaluate its admitted recipe.
+    pub fn constant_recipe(recipe: typed_trees::constant_recipes::ConstantRecipeHandle) -> Self {
+        Self {
+            steps: vec![RangeStep::ConstantRecipe(recipe)],
+            target_dependent: true,
+        }
+    }
+
+    pub fn constant_dependencies(
+        &self,
+    ) -> impl Iterator<Item = typed_trees::constant_recipes::ConstantRecipeHandle> + '_ {
+        self.steps.iter().filter_map(|step| match step {
+            RangeStep::ConstantRecipe(recipe) => Some(*recipe),
+            _ => None,
+        })
+    }
+
+    pub fn observation_dependencies(
+        &self,
+    ) -> impl Iterator<Item = (ExpressionHandle, SymbolHandle)> + '_ {
+        self.steps.iter().filter_map(|step| match step {
+            RangeStep::Observation { expression, owner } => Some((*expression, *owner)),
+            _ => None,
+        })
+    }
+
+    pub fn closed_bounds(&self, program: &TypedTrees) -> Result<(BigInt, BigInt), String> {
+        evaluate(&self.steps, program)
+    }
+
+    pub(super) fn retain(self) -> RetainedIntegerRange {
+        let mut steps = Arena::new();
+        let recipe = steps.insert_many(self.steps);
+        RetainedIntegerRange { steps, recipe }
     }
 
     pub fn is_target_dependent(&self) -> bool {
@@ -91,6 +129,47 @@ impl IntegerRangeRecipe {
     }
 }
 
+/// Published value bounds share one arena owner instead of keeping a scratch
+/// builder beside every proof consumer. Its leaves retain their exact inputs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct RetainedIntegerRange {
+    steps: Arena<RangeStep>,
+    recipe: HandleSpan<RangeStep>,
+}
+
+impl RetainedIntegerRange {
+    pub(super) fn observation_dependencies(
+        &self,
+    ) -> impl Iterator<Item = (ExpressionHandle, SymbolHandle)> + '_ {
+        self.steps
+            .span_or_empty(self.recipe)
+            .iter()
+            .filter_map(|step| match step {
+                RangeStep::Observation { expression, owner } => Some((*expression, *owner)),
+                _ => None,
+            })
+    }
+
+    pub(super) fn constant_dependencies(
+        &self,
+    ) -> impl Iterator<Item = typed_trees::constant_recipes::ConstantRecipeHandle> + '_ {
+        self.steps
+            .span_or_empty(self.recipe)
+            .iter()
+            .filter_map(|step| match step {
+                RangeStep::ConstantRecipe(recipe) => Some(*recipe),
+                _ => None,
+            })
+    }
+
+    pub(super) fn closed_bounds(&self, program: &TypedTrees) -> Result<(BigInt, BigInt), String> {
+        self.steps
+            .span(self.recipe)
+            .ok_or_else(|| "retained integer range has no recipe storage".to_owned())
+            .and_then(|steps| evaluate(steps, program))
+    }
+}
+
 /// The endpoint meaning owned by the formation being retained. A selected
 /// address model is not a fixed integer ceiling known during shared checking.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -111,8 +190,7 @@ pub struct IntegerRangeModel {
 pub struct IntegerRangeObligation {
     expression: ExpressionHandle,
     owner: SymbolHandle,
-    steps: Arena<RangeStep>,
-    recipe: HandleSpan<RangeStep>,
+    recipe: RetainedIntegerRange,
     requirement: RangeRequirement,
     description: String,
     discharged_address_model: Option<IntegerRangeModel>,
@@ -144,13 +222,10 @@ impl IntegerRangeObligation {
         requirement: RangeRequirement,
         description: String,
     ) -> Self {
-        let mut steps = Arena::new();
-        let recipe = steps.insert_many(recipe.steps);
         Self {
             expression,
             owner,
-            steps,
-            recipe,
+            recipe: recipe.retain(),
             requirement,
             description,
             discharged_address_model: None,
@@ -201,13 +276,13 @@ impl IntegerRangeObligation {
     pub fn observation_dependencies(
         &self,
     ) -> impl Iterator<Item = (ExpressionHandle, SymbolHandle)> + '_ {
-        self.steps
-            .span_or_empty(self.recipe)
-            .iter()
-            .filter_map(|step| match step {
-                RangeStep::Observation { expression, owner } => Some((*expression, *owner)),
-                _ => None,
-            })
+        self.recipe.observation_dependencies()
+    }
+
+    pub fn constant_dependencies(
+        &self,
+    ) -> impl Iterator<Item = typed_trees::constant_recipes::ConstantRecipeHandle> + '_ {
+        self.recipe.constant_dependencies()
     }
 
     pub fn discharge(
@@ -231,23 +306,18 @@ impl IntegerRangeObligation {
                     )
                 }),
         };
-        let result = self
-            .steps
-            .span(self.recipe)
-            .ok_or_else(|| "retained integer range has no recipe storage".to_owned())
-            .and_then(|steps| evaluate(steps, program))
-            .and_then(|(low, high)| {
-                let (minimum, maximum) = limits
-                    .as_ref()
-                    .ok_or_else(|| "selected address model is not closed".to_owned())?;
-                if minimum <= &low && &high <= maximum {
-                    Ok(())
-                } else {
-                    Err(format!(
-                        "bounds [{low}, {high}] lie outside [{minimum}, {maximum}]"
-                    ))
-                }
-            });
+        let result = self.recipe.closed_bounds(program).and_then(|(low, high)| {
+            let (minimum, maximum) = limits
+                .as_ref()
+                .ok_or_else(|| "selected address model is not closed".to_owned())?;
+            if minimum <= &low && &high <= maximum {
+                Ok(())
+            } else {
+                Err(format!(
+                    "bounds [{low}, {high}] lie outside [{minimum}, {maximum}]"
+                ))
+            }
+        });
         match result {
             Ok(()) => {
                 self.discharged_target = Some(typed_trees::name::Identifier::generated(target));
@@ -281,6 +351,14 @@ fn evaluate(steps: &[RangeStep], program: &TypedTrees) -> Result<(BigInt, BigInt
                     .closed_integer_expression_value_in(*expression, *owner)
                     .ok_or_else(|| "target observation has no closed integer value".to_owned())?;
                 values.push((value.clone(), value));
+            }
+            RangeStep::ConstantRecipe(recipe) => {
+                let value = program
+                    .closed_constant_recipe_value(*recipe)
+                    .ok_or_else(|| {
+                        "captured constant recipe has no closed integer value".to_owned()
+                    })?;
+                values.push((value.clone(), value.clone()));
             }
             operation => {
                 let (right_low, right_high) = values

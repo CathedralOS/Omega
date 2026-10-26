@@ -31,7 +31,7 @@ pub(super) fn analyze(
             primitive: Some(primitive),
         });
     }
-    if let Some(interval) = collection_length_interval(walk, expression) {
+    if let Some((interval, recipe)) = collection_length_value(walk, expression) {
         let interval = super::super::place_path(walk.program, expression)
             .and_then(|path| walk.environment.get(&path))
             .map_or(interval, |retained| interval.intersect(retained));
@@ -50,7 +50,7 @@ pub(super) fn analyze(
             )
         });
         return Some(Analysis {
-            recipe: None,
+            recipe,
             // Counts keep their declared carrier even when their value is known.
             // They do not select an arithmetic policy for enclosing operations.
             interval,
@@ -61,10 +61,10 @@ pub(super) fn analyze(
     anonymous_value(walk, expression, diagnostics)
 }
 
-fn collection_length_interval(
+fn collection_length_value(
     walk: &ExpressionWalk,
     expression: ExpressionHandle,
-) -> Option<Interval> {
+) -> Option<(Interval, Option<checked_trees::IntegerRangeRecipe>)> {
     let program = walk.program;
     let mut receiver = if let Some(machine) = walk.machine {
         let receiver = crate::collection_length_receiver(program, machine, walk.state, expression)?;
@@ -72,10 +72,13 @@ fn collection_length_interval(
             && let Some(length) = crate::closed_collection_length(program, machine, state, receiver)
         {
             let length = i64::try_from(length).ok();
-            return Some(Interval {
-                low: Some(length.unwrap_or(0)),
-                high: length,
-            });
+            return Some((
+                Interval {
+                    low: Some(length.unwrap_or(0)),
+                    high: length,
+                },
+                None,
+            ));
         }
         walk.declared_type(receiver)?
     } else {
@@ -95,10 +98,13 @@ fn collection_length_interval(
         // A bounded byte buffer's capacity limits its live length; it is not
         // the exact length of every value carried by the constrained type.
         if let Some(capacity) = crate::bounded_byte_buffer_capacity(program, receiver) {
-            return Some(Interval {
-                low: Some(0),
-                high: i64::try_from(capacity).ok(),
-            });
+            return Some((
+                Interval {
+                    low: Some(0),
+                    high: i64::try_from(capacity).ok(),
+                },
+                None,
+            ));
         }
         match program.type_reference_table.type_reference(receiver) {
             TypeReferenceNode::Reference { referee, .. } => receiver = *referee,
@@ -108,19 +114,28 @@ fn collection_length_interval(
                 ..
             } => {
                 let length = i64::try_from(*length).ok();
-                return Some(Interval {
-                    low: Some(length.unwrap_or(0)),
-                    high: length,
-                });
+                return Some((
+                    Interval {
+                        low: Some(length.unwrap_or(0)),
+                        high: length,
+                    },
+                    None,
+                ));
             }
             // A dynamic extent still denotes a u64 count. Unknown length is
             // an unknown value of that carrier, not an anonymous expression
             // exempt from exact conversion and arithmetic obligations.
             TypeReferenceNode::Slice { .. } | TypeReferenceNode::FixedArray { .. } => {
-                return Some(Interval {
-                    low: Some(0),
-                    high: None,
-                });
+                let recipe = program.constant_recipe_for_array_length(receiver);
+                return Some((
+                    Interval {
+                        low: Some(0),
+                        high: None,
+                    },
+                    recipe
+                        .is_valid()
+                        .then(|| checked_trees::IntegerRangeRecipe::constant_recipe(recipe)),
+                ));
             }
             _ => return None,
         }

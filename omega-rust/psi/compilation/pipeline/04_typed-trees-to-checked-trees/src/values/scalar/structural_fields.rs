@@ -90,6 +90,15 @@ pub(crate) fn structural_sequence_receiver_length(
         }
         return facts::u64_integer_literal(u64::try_from(length).ok()?, PrimitiveType::U64);
     }
+    if matches!(
+        validation::fixed_array_type_extent(program, selected_type),
+        Some(checked_trees::CheckedExtent::Recipe(_))
+    ) {
+        return Some(CheckedScalarExpression::StructuralSequenceLength {
+            root: projection.root,
+            path: projection.path,
+        });
+    }
     validation::field_domains::readable_type_reference(program, selected_type)?;
     let byte_carrier =
         crate::execution::terminal_unit::types::byte_sequence_carrier(program, selected_type, &[]);

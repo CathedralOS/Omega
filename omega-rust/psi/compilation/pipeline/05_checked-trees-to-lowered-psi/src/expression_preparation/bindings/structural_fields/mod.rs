@@ -769,6 +769,11 @@ pub(crate) fn plan_case_payload_leaf(
 /// A valid non-descriptor endpoint returns None: indexed byte reads also use
 /// this query to distinguish inline arrays from live descriptors. Invalid paths
 /// and unreadable crossings remain errors, not a different lowering route.
+pub(crate) enum SequenceMeasure {
+    Fixed(u64),
+    Descriptor(super::view_locals::ViewCarrier),
+}
+
 pub(crate) fn prepare_sequence_observation(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     structural_type: StructuralTypeId,
@@ -778,7 +783,7 @@ pub(crate) fn prepare_sequence_observation(
     Option<(
         Vec<super::structural_paths::PreparedStructuralPathSegment>,
         Option<StructuralFieldId>,
-        super::view_locals::ViewCarrier,
+        SequenceMeasure,
     )>,
     LoweringError,
 > {
@@ -798,15 +803,24 @@ pub(crate) fn prepare_sequence_observation(
         ) {
             return Ok(None);
         }
-        (Some(field), super::view_locals::ViewCarrier::Bytes)
+        (
+            Some(field),
+            SequenceMeasure::Descriptor(super::view_locals::ViewCarrier::Bytes),
+        )
     } else {
         let declaration = projection.declaration.ok_or(LoweringError::Unsupported(
             "length observation lost its sequence declaration",
         ))?;
-        let Some(carrier) =
-            super::view_locals::ViewCarrier::observation_of(declaration.id, declarations)
-        else {
-            return Ok(None);
+        let carrier = match &declaration.shape {
+            StructuralTypeShape::FixedArray { length, .. } => SequenceMeasure::Fixed(*length),
+            _ => {
+                let Some(carrier) =
+                    super::view_locals::ViewCarrier::observation_of(declaration.id, declarations)
+                else {
+                    return Ok(None);
+                };
+                SequenceMeasure::Descriptor(carrier)
+            }
         };
         (None, carrier)
     };

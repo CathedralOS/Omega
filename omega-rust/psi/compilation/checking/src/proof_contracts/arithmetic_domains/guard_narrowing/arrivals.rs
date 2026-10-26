@@ -87,19 +87,60 @@ pub fn occurrence_integer_expression_bounds(
 /// has no closed bounds. Handles include their arena generation.
 #[derive(Default)]
 pub struct OccurrenceIntegerBounds {
-    bounds: Vec<(ExpressionHandle, Option<(i64, i64)>)>,
+    values: Vec<OccurrenceIntegerValue>,
+}
+
+struct OccurrenceIntegerValue {
+    expression: ExpressionHandle,
+    bounds: Option<(i64, i64)>,
+    recipe: Option<checked_trees::IntegerRangeRecipe>,
+    projected_recipes: Vec<(Vec<facts::PlaceSegment>, checked_trees::IntegerRangeRecipe)>,
 }
 
 impl OccurrenceIntegerBounds {
     pub fn get(&self, expression: ExpressionHandle) -> Option<(i64, i64)> {
+        self.value(expression)?.bounds
+    }
+
+    /// The same completed observation as `get`, including every normal visit.
+    /// Unknown or unvisited values never acquire a deferred recipe.
+    pub fn recipe(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<&checked_trees::IntegerRangeRecipe> {
+        self.value(expression)?.recipe.as_ref()
+    }
+
+    /// Scalar descendants of the same completed owned aggregate. The paths
+    /// are exact field/index identities in that value, not initializer names.
+    pub fn projected_recipe(
+        &self,
+        expression: ExpressionHandle,
+        path: &[facts::PlaceSegment],
+    ) -> Option<&checked_trees::IntegerRangeRecipe> {
+        if path.is_empty() {
+            return self.recipe(expression);
+        }
+        self.value(expression)?
+            .projected_recipes
+            .iter()
+            .find_map(|(selected, recipe)| (selected == path).then_some(recipe))
+    }
+
+    fn value(&self, expression: ExpressionHandle) -> Option<&OccurrenceIntegerValue> {
         let position = self
-            .bounds
+            .values
             .binary_search_by_key(
                 &(expression.arena_index(), expression.generation()),
-                |(expression, _)| (expression.arena_index(), expression.generation()),
+                |value| {
+                    (
+                        value.expression.arena_index(),
+                        value.expression.generation(),
+                    )
+                },
             )
             .ok()?;
-        self.bounds[position].1
+        self.values.get(position)
     }
 }
 
@@ -133,17 +174,45 @@ pub fn occurrence_integer_bounds(
     ) else {
         return OccurrenceIntegerBounds::default();
     };
-    // This query publishes closed bounds only. Release joined environments
-    // and deferred recipes here rather than retaining discarded snapshots.
+    // Publish value facts from the exact completed occurrence. The mutable
+    // environment is scratch; its immutable recipe travels with the bounds.
     OccurrenceIntegerBounds {
-        bounds: observations
+        values: observations
             .into_iter()
             .map(|observation| {
                 let bounds = observation.interval.and_then(|interval| {
                     let (low, high) = (interval.low?, interval.high?);
                     (low <= high).then_some((low, high))
                 });
-                (observation.expression, bounds)
+                let projected_recipes =
+                    crate::value_custody::places::canonical_place_from_expression(
+                        program,
+                        observation.expression,
+                    )
+                    .zip(observation.environment.as_ref())
+                    .map(|(place, environment)| {
+                        environment
+                            .integer_ranges
+                            .iter()
+                            .filter_map(|range| {
+                                (range.place.root == place.root
+                                    && range.place.segments.starts_with(&place.segments))
+                                .then(|| {
+                                    (
+                                        range.place.segments[place.segments.len()..].to_vec(),
+                                        range.recipe.clone(),
+                                    )
+                                })
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                OccurrenceIntegerValue {
+                    expression: observation.expression,
+                    bounds,
+                    recipe: observation.recipe,
+                    projected_recipes,
+                }
             })
             .collect(),
     }

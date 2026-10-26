@@ -155,8 +155,8 @@ pub(super) fn close_constant_recipes(
         selected_provider_provenance,
         &guarded_owners,
     );
-    let selected_inputs = query_inputs::prepare(
-        shared,
+    let constant_inputs = query_inputs::PreparedInputs::new(shared);
+    let selected_inputs = constant_inputs.prepare(
         selected_target_profile,
         selected_provider_provenance,
         selected_applications,
@@ -185,7 +185,7 @@ pub(super) fn close_constant_recipes(
         let inputs = if target == selected_target_profile {
             &selected_inputs
         } else {
-            supplemental_inputs = query_inputs::prepare(shared, target, provenance, applications)?;
+            supplemental_inputs = constant_inputs.prepare(target, provenance, applications)?;
             &supplemental_inputs
         };
         let declaration_applications =

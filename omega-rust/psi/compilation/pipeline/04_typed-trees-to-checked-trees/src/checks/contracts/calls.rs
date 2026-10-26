@@ -282,6 +282,21 @@ pub(super) fn check_call_requires(
                             )
                         },
                     )
+                    .or_else(|| {
+                        super::call_values::retain_captured_arithmetic_requirement(
+                            program,
+                            facts,
+                            state_flow,
+                            call_flow,
+                            expression,
+                            format!(
+                                "requires contract for call {} from {}: {}",
+                                call_target_label(program, call_flow.target_symbol),
+                                machine_name(program, state_flow.machine_symbol),
+                                semantic_fact_requirement_label(program, &facts.semantic, fact)
+                            ),
+                        )
+                    })
                 {
                     constant_obligations.push(obligation);
                     continue;

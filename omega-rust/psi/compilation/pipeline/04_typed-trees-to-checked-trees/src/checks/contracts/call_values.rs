@@ -240,6 +240,144 @@ pub(crate) fn proves_captured_arithmetic_requirement(
     )
 }
 
+pub(crate) fn retain_captured_arithmetic_requirement(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    expression: ExpressionHandle,
+    description: String,
+) -> Option<checked_trees::ConstantPredicateObligation> {
+    let (machine, body) = validation::find_state(program, call.target_symbol)
+        .or_else(|| validation::find_machine_head(program, call.target_symbol))?;
+    let arguments = captured_argument_expressions(program, facts, state, call)?;
+    let values = validation::occurrence_integer_bounds(
+        program,
+        state.machine_symbol,
+        state.state_symbol,
+        call.statement_index,
+        arguments,
+    );
+    // All actuals still execute and owe their ordinary formation/access checks.
+    // Only their already completed integer values can supply this obligation.
+    validation::retain_captured_arithmetic_call_requirement(
+        program,
+        machine,
+        body,
+        expression,
+        state.machine_symbol,
+        description,
+        |formal, observation| {
+            if let Some(value) =
+                captured_arithmetic_observation(program, facts, state, call, formal, observation)
+            {
+                return Some(checked_trees::IntegerRangeRecipe::bounds(
+                    value.clone(),
+                    value,
+                ));
+            }
+            let parameters = validation::call_target_parameters(program, call.target_symbol)?;
+            let position = parameters
+                .iter()
+                .position(|parameter| parameter.symbol == formal)?;
+            let path = match observation {
+                validation::ArithmeticCallObservation::Value(path)
+                | validation::ArithmeticCallObservation::CollectionLength(path) => path
+                    .iter()
+                    .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
+                    .collect(),
+            };
+            let actual = actual_at(program, state, call, position, path)?;
+            let captures = captured_values(program, facts, state, call, &actual)?;
+            if captures.is_empty()
+                || captures.iter().any(|captured| {
+                    captured.observation.state_symbol != state.state_symbol
+                        || captured.observation.statement_index != call.statement_index
+                        || captured.operand.state_symbol != state.state_symbol
+                        || captured.operand.statement_index > call.statement_index
+                })
+            {
+                return None;
+            }
+            match observation {
+                validation::ArithmeticCallObservation::Value(_) => {
+                    // Exact source occurrences are already joined over all
+                    // normal visits by the value-analysis owner.
+                    let argument = actual.argument?;
+                    let mut reference = actual.parameter.type_reference;
+                    for segment in &actual.path {
+                        // Referenced contents are live at invocation; only an
+                        // owned scalar descendant belongs to this snapshot.
+                        if validation::reference_shell(program, reference).is_some() {
+                            return None;
+                        }
+                        reference = validation::project_type_reference_from_segments(
+                            program,
+                            reference,
+                            std::slice::from_ref(segment),
+                        )?;
+                    }
+                    if validation::reference_shell(program, reference).is_some()
+                        || !program
+                            .primitive_type_reference(reference)?
+                            .is_fixed_integer()
+                    {
+                        return None;
+                    }
+                    if let Some(recipe) = values.projected_recipe(argument, &actual.path) {
+                        return Some(recipe.clone());
+                    }
+                    // A constructed child retains its own completed producer
+                    // coordinate. Query that capture, never an initializer read
+                    // selected by the consumer's current variable name.
+                    let mut combined: Option<checked_trees::IntegerRangeRecipe> = None;
+                    for captured in &captures {
+                        if !captured.projection.remaining.is_empty() {
+                            return None;
+                        }
+                        let recipe = validation::occurrence_integer_bounds(
+                            program,
+                            state.machine_symbol,
+                            captured.operand.state_symbol,
+                            captured.operand.statement_index,
+                            vec![captured.projection.expression],
+                        )
+                        .recipe(captured.projection.expression)?
+                        .clone();
+                        combined = Some(
+                            combined.map_or(recipe.clone(), |previous| previous.union(&recipe)),
+                        );
+                    }
+                    combined
+                }
+                validation::ArithmeticCallObservation::CollectionLength(_) => {
+                    // Fixed extent is immutable type metadata; a slice's live
+                    // length remains an independently captured observation.
+                    let mut combined: Option<checked_trees::IntegerRangeRecipe> = None;
+                    for captured in &captures {
+                        let recipe = match validation::fixed_array_type_extent(
+                            program,
+                            captured.type_reference,
+                        )? {
+                            checked_trees::CheckedExtent::Literal(length) => {
+                                let value = numerics::bignum::BigInt::from_u64(length);
+                                checked_trees::IntegerRangeRecipe::bounds(value.clone(), value)
+                            }
+                            checked_trees::CheckedExtent::Recipe(recipe) => {
+                                checked_trees::IntegerRangeRecipe::constant_recipe(recipe)
+                            }
+                        };
+                        combined = Some(
+                            combined.map_or(recipe.clone(), |previous| previous.union(&recipe)),
+                        );
+                    }
+                    combined
+                }
+            }
+        },
+    )
+}
+
 /// A requirement observes only its demanded formal coordinate. The complete
 /// ordered call roster remains authenticated by `captured_call_operands`; this
 /// projection does not suppress evaluation or availability of another actual.

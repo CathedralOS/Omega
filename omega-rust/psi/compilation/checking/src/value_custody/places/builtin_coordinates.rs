@@ -52,25 +52,39 @@ pub fn declared_collection_extent(
 /// Expression and canonical-place observations share this rule with bounds
 /// checking, so projecting or borrowing a buffer cannot turn capacity into
 /// evidence that any bytes are present.
-pub fn fixed_array_type_length(
+pub fn fixed_array_type_extent(
     program: &dyn crate::CheckingInput,
     mut reference: typed_trees::types::TypeReferenceHandle,
-) -> Option<usize> {
+) -> Option<typed_trees::constant_recipes::DeclaredArrayExtent> {
     loop {
         if crate::bounded_byte_buffer_capacity(program, reference).is_some() {
             return None;
         }
         match program.type_reference_table.type_reference(reference) {
-            typed_trees::types::TypeReferenceNode::FixedArray {
-                length: typed_trees::types::FixedArrayLength::Literal(extent),
-                ..
-            } => return Some(*extent),
+            typed_trees::types::TypeReferenceNode::FixedArray { .. } => {
+                return program.declared_array_extent(reference);
+            }
             typed_trees::types::TypeReferenceNode::Reference { referee, .. }
             | typed_trees::types::TypeReferenceNode::Constrained {
                 base_type: referee, ..
             } => reference = *referee,
             _ => return None,
         }
+    }
+}
+
+pub fn fixed_array_type_length(
+    program: &dyn crate::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<usize> {
+    match fixed_array_type_extent(program, reference)? {
+        typed_trees::constant_recipes::DeclaredArrayExtent::Literal(length) => {
+            usize::try_from(length).ok()
+        }
+        typed_trees::constant_recipes::DeclaredArrayExtent::Recipe(recipe) => program
+            .closed_constant_recipe_value(recipe)?
+            .to_u64()
+            .and_then(|length| usize::try_from(length).ok()),
     }
 }
 

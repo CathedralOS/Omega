@@ -202,13 +202,13 @@ pub use value_custody::places::{
     collection_length_receiver, declaration_storage_label, declared_collection_extent,
     ensured_range_call_endpoints, exact_attached_field, exact_attached_storage_field,
     exact_data_member_field, exact_self_field, expression_names_attached_storage,
-    fixed_array_type_length, has_builtin_subslice_meaning, indexed_operation_has_builtin_meaning,
-    mutable_byte_slice_parameter_element, place_has_builtin_coordinates,
-    range_operator_establishes_endpoint_extent, saved_dispatch_call, saved_dispatch_subject,
-    structural_atomic_field, structural_scalar_field, structural_scalar_field_at_coordinate,
-    structural_scalar_field_in_parameters, structural_scalar_field_of_evaluated_receiver,
-    structural_source, subslice_expression, value_element_has_builtin_coordinate,
-    value_has_builtin_coordinates,
+    fixed_array_type_extent, fixed_array_type_length, has_builtin_subslice_meaning,
+    indexed_operation_has_builtin_meaning, mutable_byte_slice_parameter_element,
+    place_has_builtin_coordinates, range_operator_establishes_endpoint_extent, saved_dispatch_call,
+    saved_dispatch_subject, structural_atomic_field, structural_scalar_field,
+    structural_scalar_field_at_coordinate, structural_scalar_field_in_parameters,
+    structural_scalar_field_of_evaluated_receiver, structural_source, subslice_expression,
+    value_element_has_builtin_coordinate, value_has_builtin_coordinates,
 };
 
 pub use proof_contracts::bound_expression_meaning::{
@@ -463,7 +463,7 @@ pub use proof_contracts::contract_entailment::ranking_range::{
     rank_protected_path, ranking_coordinate_type, ranking_range_arrival_preserves_roles,
     ranking_range_premise_symbols, ranking_range_required_coordinates,
     ranking_range_state_premise_coordinates, ranking_slice_length_observation,
-    select_rank_arrival_correspondence,
+    retain_captured_arithmetic_call_requirement, select_rank_arrival_correspondence,
 };
 pub use proof_contracts::contract_entailment::ranking_range::{
     ComputationBodyShape, DeclaredScalarView, MeasureBodyShape, ProjectionStep,

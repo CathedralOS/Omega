@@ -46,6 +46,7 @@ mod state_aliases;
 pub use requirements::{
     ArithmeticCallObservation, arithmetic_entry_requirement_is_covered,
     prove_arithmetic_call_requirement, prove_captured_arithmetic_call_requirement,
+    retain_captured_arithmetic_call_requirement,
 };
 mod identity_views;
 pub use identity_views::{

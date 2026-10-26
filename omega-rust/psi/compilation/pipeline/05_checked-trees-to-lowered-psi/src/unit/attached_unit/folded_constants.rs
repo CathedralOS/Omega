@@ -143,10 +143,12 @@ fn lower_layout_requirements(
                             .iter()
                             .any(|carrier| {
                                 carrier.proof_owner == requirement.proof_owner
-                                    && !matches!(
-                                        carrier.owner,
-                                        checked_trees::CheckedLayoutOwner::Machine(_)
-                                    )
+                                    && match carrier.owner {
+                                        checked_trees::CheckedLayoutOwner::Machine(receiver) => {
+                                            machines.iter().any(|(source, _)| *source == receiver)
+                                        }
+                                        _ => true,
+                                    }
                                     && carrier.alternatives.contains(alternative)
                             })
                     })

@@ -45,6 +45,30 @@ pub struct CheckedComposedUnitControlMachinePlan {
 }
 
 impl CheckedComposedUnitControlMachinePlan {
+    pub fn stored_type_roots(&self) -> impl Iterator<Item = TypeIdentityId> + '_ {
+        self.result
+            .structural_identity()
+            .into_iter()
+            .chain(self.states.iter().flat_map(|state| {
+                state
+                    .structural_parameters
+                    .iter()
+                    .map(|parameter| parameter.type_identity)
+                    .chain(
+                        state
+                            .parameter_storage
+                            .iter()
+                            .map(|parameter| parameter.type_identity),
+                    )
+                    .chain(
+                        state
+                            .operation_dependencies()
+                            .flat_map(|operation| operation.with_value_calls())
+                            .flat_map(CheckedUnitEffectOperationPlan::stored_type_roots),
+                    )
+            }))
+    }
+
     /// The roster position of the state keyed `state`, if present.
     pub fn state_position(&self, state: SymbolHandle) -> Option<usize> {
         state_position(&self.states, state)

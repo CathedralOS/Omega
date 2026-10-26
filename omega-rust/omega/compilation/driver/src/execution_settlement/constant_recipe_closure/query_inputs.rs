@@ -12,6 +12,11 @@ pub(super) struct Inputs {
     pub applications: Vec<SymbolHandle>,
     pub work: DeclarationSelection,
     pub recipes: Vec<typed_trees::constant_recipes::ConstantRecipeHandle>,
+    pub storage_roots: Vec<(SymbolHandle, typed_trees::type_identity::TypeIdentityId)>,
+    pub recipe_consumers: Vec<(
+        SymbolHandle,
+        typed_trees::constant_recipes::ConstantRecipeHandle,
+    )>,
     pub queries: HashSet<ExpressionHandle>,
     pub owners: Vec<(SymbolHandle, HashSet<ExpressionHandle>)>,
 }
@@ -23,136 +28,239 @@ pub(super) struct Roots {
     declarations: Vec<SymbolHandle>,
 }
 
-pub(super) fn prepare(
-    checked: &CheckedTrees,
-    target: target::TargetProfile,
-    providers: &[provider_planning::SelectedProviderReviewProvenance],
-    mut applications: Vec<SymbolHandle>,
-) -> Result<Inputs, Vec<Diagnostic>> {
-    let materialized = materialized_entry_inputs(checked, Some(target.target_name()));
-    for root in &materialized {
-        if !applications.contains(&root.owner) {
-            applications.push(root.owner);
+pub(super) struct PreparedInputs<'source> {
+    checked: &'source CheckedTrees,
+    storage_roots: Vec<(SymbolHandle, typed_trees::type_identity::TypeIdentityId)>,
+    consumers: Vec<(
+        SymbolHandle,
+        typed_trees::constant_recipes::ConstantRecipeHandle,
+    )>,
+}
+
+impl<'source> PreparedInputs<'source> {
+    pub(super) fn new(checked: &'source CheckedTrees) -> Self {
+        let storage_roots: Vec<_> = checked.facts.flow.stored_type_roots().collect();
+        let mut consumers: Vec<_> = checked
+            .facts
+            .constant_recipe_obligations
+            .iter()
+            .map(|row| (row.owner, row.recipe))
+            .chain(
+                checked
+                    .facts
+                    .constant_predicate_obligations
+                    .iter()
+                    .flat_map(|row| {
+                        row.constant_dependencies()
+                            .map(|recipe| (row.caller(), recipe))
+                    }),
+            )
+            .chain(
+                checked
+                    .facts
+                    .integer_range_obligations
+                    .iter()
+                    .flat_map(|row| {
+                        row.constant_dependencies()
+                            .map(|recipe| (row.owner(), recipe))
+                    }),
+            )
+            .collect();
+        // Source formation records all recipe inputs below an actual body root.
+        // Realization later excludes payload below a closed zero-length array.
+        for (owner, root) in &storage_roots {
+            for identity in checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .stored_type_closure(*root, |_| true)
+            {
+                if let Some(shape) = checked_trees::checked_structural_type_by_identity(
+                    &checked.facts.flow.terminal_unit_effects.structural_types,
+                    identity,
+                ) && let checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
+                    length: checked_trees::CheckedExtent::Recipe(recipe),
+                    ..
+                } = shape.shape
+                {
+                    consumers.push((*owner, recipe));
+                }
+            }
+        }
+        consumers.sort_by_key(|(owner, recipe)| {
+            (
+                owner.arena_index(),
+                owner.generation(),
+                recipe.arena_index(),
+                recipe.generation(),
+            )
+        });
+        consumers.dedup();
+        Self {
+            checked,
+            storage_roots,
+            consumers,
         }
     }
-    loop {
-        let work = work(checked, &applications);
-        let mut references = References::new(&checked.typed, Some(&work));
-        references.visit_selected_declarations();
-        let recipes: Vec<_> = checked
-            .typed
-            .constant_recipes
-            .iter()
-            .filter_map(|(handle, recipe)| {
-                use typed_trees::constant_recipes::RetainedConstantPosition;
-                let selected = match recipe.position {
-                    RetainedConstantPosition::None => false,
-                    RetainedConstantPosition::ArrayLength(site) => references.types.contains(&site),
-                    RetainedConstantPosition::RangeEndpoint(root) => {
-                        references.expressions.contains(&root)
-                    }
-                    RetainedConstantPosition::ConstApplication { site, root } => {
-                        references.types.contains(&site) || references.expressions.contains(&root)
-                    }
+
+    pub(super) fn prepare(
+        &self,
+        target: target::TargetProfile,
+        providers: &[provider_planning::SelectedProviderReviewProvenance],
+        mut applications: Vec<SymbolHandle>,
+    ) -> Result<Inputs, Vec<Diagnostic>> {
+        let checked = self.checked;
+        let storage_roots = &self.storage_roots;
+        let consumers = &self.consumers;
+        let materialized = materialized_entry_inputs(checked, Some(target.target_name()));
+        for root in &materialized {
+            if !applications.contains(&root.owner) {
+                applications.push(root.owner);
+            }
+        }
+        loop {
+            let work = work(checked, &applications);
+            let mut references = References::new(&checked.typed, Some(&work));
+            references.visit_selected_declarations();
+            let mut recipes: Vec<_> = checked
+                .typed
+                .constant_recipes
+                .iter()
+                .filter_map(|(handle, recipe)| {
+                    use typed_trees::constant_recipes::RetainedConstantPosition;
+                    let selected = match recipe.position {
+                        RetainedConstantPosition::None => false,
+                        RetainedConstantPosition::ArrayLength(site) => {
+                            references.types.contains(&site)
+                        }
+                        RetainedConstantPosition::RangeEndpoint(root) => {
+                            references.expressions.contains(&root)
+                        }
+                        RetainedConstantPosition::ConstApplication { site, root } => {
+                            references.types.contains(&site)
+                                || references.expressions.contains(&root)
+                        }
+                    };
+                    selected.then_some(handle)
+                })
+                .collect();
+            for (owner, recipe) in consumers {
+                if applications.contains(owner) && !recipes.contains(recipe) {
+                    recipes.push(*recipe);
+                }
+            }
+            let recipe_consumers: Vec<_> = consumers
+                .iter()
+                .copied()
+                .filter(|(owner, recipe)| applications.contains(owner) && recipes.contains(recipe))
+                .collect();
+            let mut roots = materialized.clone();
+            for row in &checked.facts.constant_predicate_obligations {
+                if applications.contains(&row.caller()) {
+                    append_roots(
+                        &mut roots,
+                        row.caller(),
+                        row.observation_dependencies()
+                            .map(|(expression, _)| expression),
+                        [],
+                    );
+                }
+            }
+            for row in &checked.facts.integer_range_obligations {
+                if applications.contains(&row.owner()) {
+                    append_roots(
+                        &mut roots,
+                        row.owner(),
+                        row.observation_dependencies()
+                            .map(|(expression, _)| expression),
+                        [],
+                    );
+                }
+            }
+            // A symbolic type position consumes its helper just as a retained
+            // scalar does. The recipe roster records that exact application even
+            // though no runtime call or scalar-computation row survives for it.
+            // Keep its query dependencies on the same admitted context path.
+            for handle in &recipes {
+                let recipe = checked.typed.constant_recipes.get(*handle);
+                let expressions = match recipe.position {
+                    typed_trees::constant_recipes::RetainedConstantPosition::RangeEndpoint(
+                        root,
+                    )
+                    | typed_trees::constant_recipes::RetainedConstantPosition::ConstApplication {
+                        root,
+                        ..
+                    } => Some(root),
+                    _ => None,
                 };
-                selected.then_some(handle)
-            })
-            .collect();
-        let mut roots = materialized.clone();
-        for row in &checked.facts.constant_predicate_obligations {
-            if applications.contains(&row.caller()) {
-                append_roots(
-                    &mut roots,
-                    row.caller(),
-                    row.observation_dependencies()
-                        .map(|(expression, _)| expression),
-                    [],
-                );
-            }
-        }
-        for row in &checked.facts.integer_range_obligations {
-            if applications.contains(&row.owner()) {
-                append_roots(
-                    &mut roots,
-                    row.owner(),
-                    row.observation_dependencies()
-                        .map(|(expression, _)| expression),
-                    [],
-                );
-            }
-        }
-        // A symbolic type position consumes its helper just as a retained
-        // scalar does. The recipe roster records that exact application even
-        // though no runtime call or scalar-computation row survives for it.
-        // Keep its query dependencies on the same admitted context path.
-        for handle in &recipes {
-            let recipe = checked.typed.constant_recipes.get(*handle);
-            let expressions = match recipe.position {
-                typed_trees::constant_recipes::RetainedConstantPosition::RangeEndpoint(root)
-                | typed_trees::constant_recipes::RetainedConstantPosition::ConstApplication {
-                    root,
-                    ..
-                } => Some(root),
-                _ => None,
-            };
-            append_roots(&mut roots, recipe.machine, expressions, [recipe.machine]);
-            for obligation in &checked.facts.constant_recipe_obligations {
-                if obligation.recipe == *handle && applications.contains(&obligation.owner) {
-                    append_roots(&mut roots, obligation.owner, expressions, [recipe.machine]);
+                append_roots(&mut roots, recipe.machine, expressions, [recipe.machine]);
+                for (owner, consumed) in &recipe_consumers {
+                    if *consumed == *handle {
+                        append_roots(&mut roots, *owner, expressions, [recipe.machine]);
+                    }
                 }
             }
-        }
-        for (_, node) in checked.facts.values.scalar_computations.nodes.iter() {
-            if let checked_trees::CheckedScalarComputationKind::RetainedConstant {
-                expression,
-                machine,
-            } = node.kind
-                && applications.contains(&machine)
-            {
-                append_roots(&mut roots, machine, [expression], []);
-            }
-        }
-        let mut owners = Vec::new();
-        let mut queries = HashSet::new();
-        let mut added_application = false;
-        for root in roots {
-            let dependencies = dependencies(checked, target, providers, &root);
-            for machine in dependencies.machines {
-                if !applications.contains(&machine) {
-                    applications.push(machine);
-                    added_application = true;
-                }
-            }
-            for expression in &dependencies.queries {
-                if !checked
-                    .facts
-                    .layout_query_subjects
-                    .iter()
-                    .any(|query| query.expression == *expression)
+            for (_, node) in checked.facts.values.scalar_computations.nodes.iter() {
+                if let checked_trees::CheckedScalarComputationKind::RetainedConstant {
+                    expression,
+                    machine,
+                } = node.kind
+                    && applications.contains(&machine)
                 {
-                    return Err(vec![
-                        Diagnostic::error(
-                            "deferred observation has no complete checked layout subject",
-                        )
-                        .with_source_span(checked.typed.expression_table.source_span(*expression)),
-                    ]);
+                    append_roots(&mut roots, machine, [expression], []);
                 }
             }
-            queries.extend(dependencies.queries.iter().copied());
-            if !dependencies.queries.is_empty() {
-                owners.push((root.owner, dependencies.queries));
+            let mut owners = Vec::new();
+            let mut queries = HashSet::new();
+            let mut added_application = false;
+            for root in roots {
+                let dependencies = dependencies(checked, target, providers, &root);
+                for machine in dependencies.machines {
+                    if !applications.contains(&machine) {
+                        applications.push(machine);
+                        added_application = true;
+                    }
+                }
+                for expression in &dependencies.queries {
+                    if !checked
+                        .facts
+                        .layout_query_subjects
+                        .iter()
+                        .any(|query| query.expression == *expression)
+                    {
+                        return Err(vec![
+                            Diagnostic::error(
+                                "deferred observation has no complete checked layout subject",
+                            )
+                            .with_source_span(
+                                checked.typed.expression_table.source_span(*expression),
+                            ),
+                        ]);
+                    }
+                }
+                queries.extend(dependencies.queries.iter().copied());
+                if !dependencies.queries.is_empty() {
+                    owners.push((root.owner, dependencies.queries));
+                }
             }
+            if added_application {
+                continue;
+            }
+            let selected_storage_roots = storage_roots
+                .iter()
+                .copied()
+                .filter(|(owner, _)| applications.contains(owner))
+                .collect();
+            return Ok(Inputs {
+                applications,
+                work,
+                recipes,
+                recipe_consumers,
+                storage_roots: selected_storage_roots,
+                queries,
+                owners,
+            });
         }
-        if added_application {
-            continue;
-        }
-        return Ok(Inputs {
-            applications,
-            work,
-            recipes,
-            queries,
-            owners,
-        });
     }
 }
 

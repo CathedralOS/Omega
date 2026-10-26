@@ -121,84 +121,15 @@ fn captured_requirement(
         ArithmeticCallObservation<'_>,
     ) -> Option<BigInt>,
 ) -> Option<bool> {
+    let requirement = prepare_requirement(program, callee, target, goal)?;
+    let substitutions = requirement.captured_substitutions(&mut |symbol, coordinate| {
+        observation(symbol, coordinate).map(Polynomial::constant)
+    })?;
     let ArithmeticRequirement {
         engine,
-        bindings,
-        fields: coordinates,
-        lengths,
-        projected_lengths,
         comparisons: obligations,
-    } = prepare_requirement(program, callee, target, goal)?;
-    let demanded = |identity: &str| {
-        obligations.iter().any(|(_, left, right)| {
-            [left, right].into_iter().any(|value| {
-                value
-                    .terms
-                    .keys()
-                    .any(|monomial| monomial.contains_key(identity))
-            })
-        })
-    };
-    let mut substitutions = BTreeMap::new();
-    for binding in &bindings {
-        let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
-            return None;
-        };
-        if demanded(identity) {
-            substitutions.insert(
-                identity.clone(),
-                Polynomial::constant(observation(
-                    binding.symbol,
-                    ArithmeticCallObservation::Value(&[]),
-                )?),
-            );
-        }
-    }
-    for coordinate in coordinates.coordinates() {
-        if demanded(&coordinate.identity) {
-            let path = coordinate
-                .steps
-                .iter()
-                .map(|field| field.symbol)
-                .chain(std::iter::once(coordinate.field.symbol))
-                .collect::<Vec<_>>();
-            substitutions.insert(
-                coordinate.identity.clone(),
-                Polynomial::constant(observation(
-                    coordinate.parameter.symbol,
-                    ArithmeticCallObservation::Value(&path),
-                )?),
-            );
-        }
-    }
-    for (symbol, identity) in lengths {
-        if demanded(&identity) {
-            substitutions.insert(
-                identity,
-                Polynomial::constant(observation(
-                    symbol,
-                    ArithmeticCallObservation::CollectionLength(&[]),
-                )?),
-            );
-        }
-    }
-    for coordinate in projected_lengths.coordinates() {
-        if demanded(&coordinate.identity) {
-            let path = coordinate
-                .steps
-                .iter()
-                .map(|field| field.symbol)
-                .chain(std::iter::once(coordinate.field.symbol))
-                .collect::<Vec<_>>();
-            substitutions.insert(
-                coordinate.identity.clone(),
-                Polynomial::constant(observation(
-                    coordinate.parameter.symbol,
-                    ArithmeticCallObservation::CollectionLength(&path),
-                )?),
-            );
-        }
-    }
+        ..
+    } = requirement;
     // There are no caller hypotheses here: a completed closed value is its
     // own evidence. No live source atom or callee requirement proves a capture.
     for (operator, left, right) in obligations {
@@ -209,6 +140,139 @@ fn captured_requirement(
         }
     }
     Some(true)
+}
+
+impl ArithmeticRequirement<'_> {
+    fn captured_substitutions<Value>(
+        &self,
+        observation: &mut impl FnMut(
+            symbols::SymbolHandle,
+            ArithmeticCallObservation<'_>,
+        ) -> Option<Value>,
+    ) -> Option<BTreeMap<String, Value>> {
+        let demanded = |identity: &str| {
+            self.comparisons.iter().any(|(_, left, right)| {
+                [left, right].into_iter().any(|value| {
+                    value
+                        .terms
+                        .keys()
+                        .any(|monomial| monomial.contains_key(identity))
+                })
+            })
+        };
+        let mut substitutions = BTreeMap::new();
+        for binding in &self.bindings {
+            let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
+                return None;
+            };
+            if demanded(identity) {
+                substitutions.insert(
+                    identity.clone(),
+                    observation(binding.symbol, ArithmeticCallObservation::Value(&[]))?,
+                );
+            }
+        }
+        for coordinate in self.fields.coordinates() {
+            if demanded(&coordinate.identity) {
+                let path = coordinate
+                    .steps
+                    .iter()
+                    .map(|field| field.symbol)
+                    .chain(std::iter::once(coordinate.field.symbol))
+                    .collect::<Vec<_>>();
+                substitutions.insert(
+                    coordinate.identity.clone(),
+                    observation(
+                        coordinate.parameter.symbol,
+                        ArithmeticCallObservation::Value(&path),
+                    )?,
+                );
+            }
+        }
+        for (symbol, identity) in &self.lengths {
+            if demanded(&identity) {
+                substitutions.insert(
+                    identity.clone(),
+                    observation(*symbol, ArithmeticCallObservation::CollectionLength(&[]))?,
+                );
+            }
+        }
+        for coordinate in self.projected_lengths.coordinates() {
+            if demanded(&coordinate.identity) {
+                let path = coordinate
+                    .steps
+                    .iter()
+                    .map(|field| field.symbol)
+                    .chain(std::iter::once(coordinate.field.symbol))
+                    .collect::<Vec<_>>();
+                substitutions.insert(
+                    coordinate.identity.clone(),
+                    observation(
+                        coordinate.parameter.symbol,
+                        ArithmeticCallObservation::CollectionLength(&path),
+                    )?,
+                );
+            }
+        }
+        Some(substitutions)
+    }
+}
+
+/// Retain the same selected arithmetic obligation over producer-established
+/// operand snapshots. Target realization supplies recipe values, never source
+/// substitutions or a second proof of the caller's live storage.
+#[allow(clippy::too_many_arguments)]
+pub fn retain_captured_arithmetic_call_requirement(
+    program: &dyn crate::CheckingInput,
+    callee: &Machine,
+    target: &State,
+    goal: ExpressionHandle,
+    caller: symbols::SymbolHandle,
+    description: String,
+    mut observation: impl FnMut(
+        symbols::SymbolHandle,
+        ArithmeticCallObservation<'_>,
+    ) -> Option<checked_trees::IntegerRangeRecipe>,
+) -> Option<checked_trees::ConstantPredicateObligation> {
+    let requirement = prepare_requirement(program, callee, target, goal)?;
+    let substitutions = requirement.captured_substitutions(&mut observation)?;
+    let comparisons = requirement
+        .comparisons
+        .iter()
+        .map(|(operator, left, right)| {
+            Some((
+                *operator,
+                captured_polynomial(left, &substitutions)?,
+                captured_polynomial(right, &substitutions)?,
+            ))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    checked_trees::ConstantPredicateObligation::retain_captured(
+        goal,
+        callee.symbol,
+        caller,
+        description,
+        comparisons,
+    )
+}
+
+fn captured_polynomial(
+    polynomial: &Polynomial,
+    substitutions: &BTreeMap<String, checked_trees::IntegerRangeRecipe>,
+) -> Option<checked_trees::IntegerRangeRecipe> {
+    use checked_trees::IntegerRangeRecipe;
+    let mut sum = IntegerRangeRecipe::bounds(BigInt::zero(), BigInt::zero());
+    for (monomial, coefficient) in &polynomial.terms {
+        let mut term = IntegerRangeRecipe::bounds(coefficient.clone(), coefficient.clone());
+        for (identity, power) in monomial {
+            let value = substitutions.get(identity)?;
+            for _ in 0..*power {
+                term = term.binary(BinaryOperator::Multiply, value)?;
+            }
+        }
+        sum = sum.binary(BinaryOperator::Add, &term)?;
+    }
+    Some(sum)
 }
 
 /// Check the actual callee requirement against the caller's surviving facts.

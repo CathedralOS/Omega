@@ -103,6 +103,64 @@ pub enum CheckedUnitPlanGapReason {
 }
 
 impl CheckedUnitEffectPlans {
+    /// Follow actual structural children, excluding erased fields and schema
+    /// descriptions. The consuming context decides whether an array has an
+    /// element payload: source formation can be symbolic; realization is closed.
+    pub fn stored_type_closure(
+        &self,
+        root: TypeIdentityId,
+        mut array_has_elements: impl FnMut(super::CheckedExtent) -> bool,
+    ) -> Vec<TypeIdentityId> {
+        let mut pending = vec![root];
+        let mut visited = std::collections::BTreeSet::new();
+        while let Some(current) = pending.pop() {
+            if !visited.insert(current) {
+                continue;
+            }
+            let Some(declaration) =
+                crate::checked_structural_type_by_identity(&self.structural_types, current)
+            else {
+                continue;
+            };
+            let children = |fields: &[super::CheckedUnitStructuralFieldPlan]| {
+                fields
+                    .iter()
+                    .filter(|field| !field.relevance.is_erased())
+                    .filter_map(|field| field.field_type.structural_type_identity())
+                    .collect::<Vec<_>>()
+            };
+            match &declaration.shape {
+                super::CheckedUnitStructuralTypeShape::Record { fields, .. } => {
+                    pending.extend(children(fields))
+                }
+                super::CheckedUnitStructuralTypeShape::Sum { cases } => {
+                    for case in cases {
+                        pending.extend(children(&case.fields));
+                    }
+                }
+                super::CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
+                    pending.extend(children(fields));
+                    for case in cases {
+                        pending.extend(children(&case.fields));
+                    }
+                }
+                super::CheckedUnitStructuralTypeShape::FixedArray {
+                    element_type_identity,
+                    length,
+                } if array_has_elements(*length) => pending.push(*element_type_identity),
+                super::CheckedUnitStructuralTypeShape::BorrowedSliceView {
+                    element_type_identity,
+                    ..
+                } => pending.push(*element_type_identity),
+                super::CheckedUnitStructuralTypeShape::Reference {
+                    referent_identity, ..
+                } => pending.push(*referent_identity),
+                _ => {}
+            }
+        }
+        visited.into_iter().collect()
+    }
+
     /// Adopt shapes another Unit-family builder collected into this roster,
     /// the one structural type namespace every Unit body lowers against.
     /// Identities are deterministic, so a shape already present must be the
@@ -840,6 +898,26 @@ impl CheckedUnitEffectOperationPlan {
         }
     }
 
+    /// Actual produced homes and evaluated structural arguments. Declaration
+    /// attachments and qualification catalogues are not storage roots.
+    pub fn stored_type_roots(&self) -> impl Iterator<Item = TypeIdentityId> + '_ {
+        let local = match self {
+            Self::EstablishLocal(
+                CheckedUnitLocalBindingPlan::TrivialAffine { type_identity, .. }
+                | CheckedUnitLocalBindingPlan::Primitive { type_identity, .. },
+            ) => Some(*type_identity),
+            _ => None,
+        };
+        self.structural_operands()
+            .iter()
+            .map(|argument| argument.type_identity)
+            .chain(
+                self.structural_result_binding()
+                    .map(|result| result.type_identity),
+            )
+            .chain(local)
+    }
+
     /// The ordinary or boundary call this operation performs; `None` for
     /// every other operation. Selected operators keep their own operand lanes.
     pub fn call(&self) -> Option<&CheckedUnitCallPlan> {
@@ -1061,6 +1139,40 @@ pub struct CheckedUnitCallableEntry<'plan> {
 }
 
 impl CheckedUnitEffectMachinePlan {
+    pub fn stored_type_roots(&self) -> impl Iterator<Item = TypeIdentityId> + '_ {
+        self.structural_parameters
+            .iter()
+            .map(|parameter| parameter.type_identity)
+            .chain(
+                self.parameter_storage
+                    .iter()
+                    .map(|parameter| parameter.type_identity),
+            )
+            .chain(
+                self.trivial_affine_locals
+                    .iter()
+                    .map(|local| local.type_identity),
+            )
+            .chain(
+                self.structural_result
+                    .as_ref()
+                    .map(|result| result.type_identity),
+            )
+            .chain(
+                self.operations
+                    .iter()
+                    .flat_map(Self::operation_stored_types),
+            )
+    }
+
+    fn operation_stored_types(
+        operation: &CheckedUnitEffectOperationPlan,
+    ) -> impl Iterator<Item = TypeIdentityId> + '_ {
+        operation
+            .with_value_calls()
+            .flat_map(CheckedUnitEffectOperationPlan::stored_type_roots)
+    }
+
     pub fn callable_entry(&self) -> CheckedUnitCallableEntry<'_> {
         CheckedUnitCallableEntry {
             machine: self.machine,

@@ -728,14 +728,6 @@ impl<'a> PreparedExpressionContext<'a> {
         use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment as Prepared;
         use checked_trees::{CheckedRuntimeIndex, CheckedScalarReadProjection as Projection};
         let (home, structural_type) = self.observation_home(root)?;
-        if !matches!(
-            home.access,
-            terminal_psi::StructuralAccess::Owned
-                | terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
-        ) {
-            return unsupported("length observation requires readable storage");
-        }
         let mut selectors = Vec::new();
         let geometry = path
             .iter()
@@ -760,6 +752,26 @@ impl<'a> PreparedExpressionContext<'a> {
     else {
         return Ok(None);
     };
+        let carrier = match carrier {
+            crate::expression_preparation::bindings::structural_fields::SequenceMeasure::Fixed(length) => {
+                if selectors.iter().any(|selector| selector.expression.contains_trapping_operation()) {
+                    return unsupported("fixed extent requires its evaluated selector computations");
+                }
+                return Ok(Some(LoweredDirectExpression::IntegerLiteral {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(length)),
+                    scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
+                }));
+            },
+            crate::expression_preparation::bindings::structural_fields::SequenceMeasure::Descriptor(carrier) => carrier,
+        };
+        if !matches!(
+            home.access,
+            terminal_psi::StructuralAccess::Owned
+                | terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
+        ) {
+            return unsupported("length observation requires readable storage");
+        }
         let source = home.place;
         let mut path = home
             .path
