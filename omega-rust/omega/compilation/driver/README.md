@@ -93,9 +93,12 @@ custody and completes ready
 component/product batches. Application code cannot extract the source continuation;
 component executable custody remains in this session. Package management supplies
 custody, consent and staging, not compiler calls or continuation tables.
-Independent-component publication
-belongs to [package.rs](src/compiler/package.rs), including when review requests
-a description. [Product batching](src/checked/product_batch.rs) partitions the
+Independent-component requests, including lazy review descriptions, enter the
+same [product sequence](src/compiler.rs) as root products. The
+[component owner](src/product_execution/component.rs) prepares its existing
+checked custody and completes its description and permission evidence after
+shared Terminal production; it owns no separate batch loop or compiler entry.
+[Product batching](src/checked/product_batch.rs) partitions the
 admitted root and component continuations by complete source input and checks each partition
 once. Matching members borrow its checked program and sealed source custody;
 each retains its own Build receipts, charges, timings and target settlement.

@@ -130,7 +130,7 @@ impl CompilationSession {
                 })?;
             let mut outputs = crate::compiler::produce_products(vec![(
                 (),
-                Ok(crate::product_execution::ProductRequest {
+                Ok(crate::product_execution::ProductRequest::Requested {
                     realization: selected,
                     root,
                     product,

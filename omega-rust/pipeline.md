@@ -143,7 +143,11 @@ products and exact root permission consent, and receive reports or inspections,
 not checked activations to resume. Standalone and session products share
 selection, Terminal production, then installation; source checking no longer
 installs the package product ahead of that sequence. Review descriptions supply
-the same borrowed production facts without a second producer mode.
+the same borrowed production facts without a second producer mode. Demanded
+components and lazy review descriptions enter the same product sequence as root
+compilation. Component completion owns its exported plans, description and
+permission evidence, not a second Terminal batch loop or public checked-source
+publication entrance.
 Package preparation advances dependency-first rounds across target rosters;
 demanded component continuations enter the same source batch as their siblings,
 rather than completing one target's entire dependency chain first.

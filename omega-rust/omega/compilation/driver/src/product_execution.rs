@@ -6,6 +6,8 @@
 //! across Terminal production. Permission and trust admission stay after selected
 //! execution installation; planning is not authority to execute or publish.
 
+mod component;
+
 use crate::execution_settlement::SelectedProductTarget;
 use crate::native::produce_native_product;
 use crate::terminal::{
@@ -16,6 +18,7 @@ use crate::{CheckedCompilation, CompileReport};
 use compilation_products::{
     CheckedProductReport, NativeProductRequest, ProductReportPlan, ProductReportRequest,
 };
+use component::ComponentPublication;
 use diagnostics::Diagnostic;
 use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
 use std::path::PathBuf;
@@ -44,6 +47,7 @@ impl CompilationProduct {
 pub enum CompilationOutput {
     Report(CompileReport),
     Inspection(psi_compiler::ProducedTerminalProgram),
+    Component(compilation_products::IndependentComponentProduct),
 }
 
 impl CompilationOutput {
@@ -53,6 +57,10 @@ impl CompilationOutput {
             Self::Inspection(_) => Err(CompilationProductError::Production(vec![
                 Diagnostic::error("requested a report from an inspection product"),
             ])),
+            Self::Component(_) => Err(vec![Diagnostic::error(
+                "requested a report from a component product",
+            )]
+            .into()),
         }
     }
 
@@ -64,6 +72,22 @@ impl CompilationOutput {
             Self::Report(_) => Err(CompilationProductError::Production(vec![
                 Diagnostic::error("requested an inspection from a compilation report"),
             ])),
+            Self::Component(_) => Err(vec![Diagnostic::error(
+                "requested an inspection from a component product",
+            )]
+            .into()),
+        }
+    }
+
+    pub(crate) fn into_component(
+        self,
+    ) -> Result<compilation_products::IndependentComponentProduct, CompilationProductError> {
+        match self {
+            Self::Component(product) => Ok(product),
+            Self::Report(_) | Self::Inspection(_) => Err(vec![Diagnostic::error(
+                "requested a component from a non-component product",
+            )]
+            .into()),
         }
     }
 }
@@ -89,11 +113,16 @@ impl CompilationProductError {
 }
 
 /// The selection and exact request travel together, including occurrence consent.
-pub(crate) struct ProductRequest {
-    pub realization: SelectedProductTarget,
-    pub root: PathBuf,
-    pub product: CompilationProduct,
-    pub permissions: Option<TerminalPermissionAcceptance>,
+pub(crate) enum ProductRequest {
+    Requested {
+        realization: SelectedProductTarget,
+        root: PathBuf,
+        product: CompilationProduct,
+        permissions: Option<TerminalPermissionAcceptance>,
+    },
+    /// Review and dependency demands already own installed checked custody.
+    /// They publish a component without selecting or installing it again.
+    Component(CheckedCompilation),
 }
 
 pub(crate) enum CompilationWork {
@@ -104,7 +133,12 @@ pub(crate) enum CompilationWork {
 /// Only work that actually needs Terminal production enters the shared batch.
 /// The report plan owns the native request and its settled optimization choices;
 /// there is no independent requested-mode/report-mode pair to reconcile later.
-pub(crate) struct TerminalCompilation {
+pub(crate) enum TerminalCompilation {
+    Requested(RequestedTerminalCompilation),
+    Component(ComponentPublication),
+}
+
+pub(crate) struct RequestedTerminalCompilation {
     realization: SelectedProductTarget,
     report: ProductReportPlan,
     permissions: Option<TerminalPermissionAcceptance>,
@@ -112,12 +146,20 @@ pub(crate) struct TerminalCompilation {
 
 impl ProductRequest {
     pub(crate) fn plan(self) -> Result<CompilationWork, CompilationProductError> {
-        let Self {
-            realization,
-            root,
-            product,
-            permissions,
-        } = self;
+        let (realization, root, product, permissions) = match self {
+            Self::Requested {
+                realization,
+                root,
+                product,
+                permissions,
+            } => (realization, root, product, permissions),
+            Self::Component(checked) => {
+                let component = ComponentPublication::prepare(checked)?;
+                return Ok(CompilationWork::Terminal(TerminalCompilation::Component(
+                    component,
+                )));
+            }
+        };
         let requested = match product {
             CompilationProduct::Inspection(machine) => {
                 let checked = realization.install()?;
@@ -132,11 +174,13 @@ impl ProductRequest {
         };
         let report = ProductReportPlan::new(root, requested, &realization.custody.build);
         if report.needs_terminal(&realization.custody.build_admission) {
-            Ok(CompilationWork::Terminal(TerminalCompilation {
-                realization,
-                report,
-                permissions,
-            }))
+            Ok(CompilationWork::Terminal(TerminalCompilation::Requested(
+                RequestedTerminalCompilation {
+                    realization,
+                    report,
+                    permissions,
+                },
+            )))
         } else {
             let checked = realization.install()?;
             admit_permissions(&checked, permissions.as_ref(), false)?;
@@ -157,6 +201,28 @@ impl ProductRequest {
 }
 
 impl TerminalCompilation {
+    pub(crate) fn terminal_request(&mut self) -> TerminalProductRequest<'_> {
+        match self {
+            Self::Requested(product) => product.terminal_request(),
+            Self::Component(product) => product.terminal_request(),
+        }
+    }
+
+    pub(crate) fn finish(
+        self,
+        produced: ProducedTerminalApplication,
+    ) -> Result<CompilationOutput, CompilationProductError> {
+        match self {
+            Self::Requested(product) => product.finish(produced),
+            Self::Component(product) => product
+                .finish(produced)
+                .map(CompilationOutput::Component)
+                .map_err(CompilationProductError::Production),
+        }
+    }
+}
+
+impl RequestedTerminalCompilation {
     pub(crate) fn terminal_request(&mut self) -> TerminalProductRequest<'_> {
         TerminalProductRequest {
             view: TerminalProductionView::selection(
