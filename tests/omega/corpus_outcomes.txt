@@ -3648,6 +3648,34 @@ fail/domains/domain_carrier_mismatch rejected 495ms expected @a92f16431042
 	data `Main` field `value` uses `in Scanned`, but no `domain` named `Scanned` is declared for `i32` (domains are bound to their storage type)
 fail/domains/domain_operator_competing_spelling_meanings rejected 1675ms expected @a92f16431042
 	ambiguous operator spelling `+` has 2 viable candidates: `Quantity::Linear::add` owned by domain `Quantity::Linear`, `Quantity::Cyclic::add` owned by domain `Quantity::Cyclic`. The static operand-domain tuple does not uniquely select one -- narrow the binding's semantic qualification or choose a clearer operation.
+fail/domains/domain_pattern_match_bound_alias_routed_unproven_rejected rejected 2766ms expected @ee1410030dca
+	executable domain test `Cell::Ready` requires retained authorized provenance; a predicate test cannot establish it
+fail/domains/domain_pattern_match_bound_extra_predicate_rejected rejected 1865ms expected @ee1410030dca
+	construction of `Selected` field `value` is not proven in domain `u64::AtLeast73` in consume state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
+fail/domains/domain_pattern_match_bound_generic_definition_wrong_carrier_rejected rejected 827ms expected @ee1410030dca
+	executable domain test `Cell::Ready` expects subject carrier `Cell`, got `Other`
+fail/domains/domain_pattern_match_bound_generic_equation_wrong_carrier_rejected rejected 477ms expected @ee1410030dca
+	generic machine `generic_ready` where equation on `Value` does not hold: the supplied `Value` argument is not `Cell`
+fail/domains/domain_pattern_match_bound_generic_open_wrong_carrier_rejected rejected 693ms expected @ee1410030dca
+	executable domain test `Other::Ready` expects subject carrier `Other`, got `Cell`
+fail/domains/domain_pattern_match_bound_inherited_routed_unproven_rejected rejected 2476ms expected @ee1410030dca
+	executable domain test `Cell::Ready` requires retained authorized provenance; a predicate test cannot establish it
+fail/domains/domain_pattern_match_bound_missing_coverage_rejected rejected 875ms expected @ee1410030dca
+	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
+fail/domains/domain_pattern_match_bound_nested_routed_unproven_rejected rejected 2469ms expected @ee1410030dca
+	executable domain test `Cell::Ready` requires retained authorized provenance; a predicate test cannot establish it
+fail/domains/domain_pattern_match_bound_nonfinite_predicate_rejected rejected 1981ms expected @ee1410030dca
+	specification call `undecidable` has no observation-free, reach-free, crash-free value denotation: the selected closure publishes a crash route
+fail/domains/domain_pattern_match_bound_overlapping_write_rejected rejected 1064ms expected @ee1410030dca
+	construction of `Selected` field `value` cannot be proven within its declared range `73..=`; constrain the value, construct with a literal in range, or widen the field
+fail/domains/domain_pattern_match_bound_predicate_helper_rejected rejected 1051ms expected @ee1410030dca
+	exact arithmetic in machine `consume` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/domains/domain_pattern_match_bound_routed_boolean_unproven_rejected rejected 2175ms expected @ee1410030dca
+	executable domain test `Cell::Ready` requires retained authorized provenance; a predicate test cannot establish it
+fail/domains/domain_pattern_match_bound_routed_provenance_rejected rejected 2621ms expected @ee1410030dca
+	executable domain test `Cell::Ready` requires retained authorized provenance; a predicate test cannot establish it
+fail/domains/domain_pattern_match_bound_wrong_carrier_rejected rejected 481ms expected @ee1410030dca
+	executable domain test `Other::Ready` expects subject carrier `Other`, got `Cell`
 fail/domains/exit_ensures_unproven rejected 1679ms expected @a92f16431042
 	cannot prove ensures contract for exit from Main::main at statement 0: main.player in Player::Alive
 fail/domains/fixed_array_domain_split_after_class_store rejected 1680ms expected @a92f16431042
@@ -3696,7 +3724,9 @@ fail/domains/inactive_payload_cannot_supply_false_contract rejected 1391ms expec
 	cannot prove requires contract for call forbidden from consume: false (needs fact `false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/domains/inactive_payload_false_guard_cannot_supply_false_contract rejected 1391ms expected @a92f16431042
 	cannot prove requires contract for call forbidden from consume: false (needs fact `false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation rejected 1353ms expected @a92f16431042
+fail/domains/indexed_domain_requires_invalidated_by_known_index_mutation rejected 1830ms expected @ee1410030dca
+	cannot prove requires contract for call accept from Main::main: main.items[0] in Item::Valid (invalidated by prior mutation of main.items[0].value; main.items[0].value is part of Item::Valid) in state `main`
+fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation rejected 1767ms expected @ee1410030dca
 	cannot prove requires contract for call accept from Main::main: main.items[0] in Item::Valid (invalidated by prior mutation of main.items[__hoist_15].value; main.items[0].value is part of Item::Valid) in state `main`
 fail/domains/indexed_membership_rejects_stale_entry rejected 1395ms expected @a92f16431042
 	construction of `Holder` field `scoped` is not proven in domain `Except` in invalid_record state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
@@ -6465,6 +6495,27 @@ fail/facts/disjoint_windows_through_target_body_overlap rejected 1576ms expected
 	statement 4 reads `a[0]` while local borrow `b` is still active (borrowed at statement 1)
 fail/facts/domain_geometry_conserved_result_wrong_partition rejected 2490ms expected @a92f16431042
 	cannot prove ensures contract for exit from split at statement 3: Bounded.content(old(&whole)) == separate(Bounded.content(&result.left), Bounded.content(&result.right))
+fail/facts/domain_pattern_match_bound_through_call_result_rejected rejected 2514ms expected @ee1410030dca
+	cannot prove ensures contract for exit from select at statement 0: result >= 73
+fail/facts/domain_pattern_match_bound_through_const_name_rejected rejected 1538ms expected @ee1410030dca
+	exact arithmetic in machine `consume` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/domain_pattern_match_bound_through_field_rejected rejected 1532ms expected @ee1410030dca
+	construction of `Selected` field `value` cannot be proven within its declared range `73..=`; constrain the value, construct with a literal in range, or widen the field
+fail/facts/domain_pattern_match_bound_through_local_rejected rejected 1086ms expected @ee1410030dca
+	exact arithmetic in machine `consume` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/domain_pattern_match_bound_through_match_join_rejected rejected 1104ms expected @ee1410030dca
+	exact arithmetic in machine `consume` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/domain_pattern_match_bound_through_other_machine_rejected rejected 1863ms expected @ee1410030dca
+	cannot prove ensures contract for exit from select at statement 0: result >= 73
+fail/facts/domain_pattern_match_bound_through_other_state_rejected rejected 1840ms expected @ee1410030dca
+	cannot prove requires contract for call subtract from consume: selected >= 73 (needs fact `value >= 73` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/domain_pattern_match_bound_through_parameter_rejected rejected 1684ms expected @ee1410030dca
+	cannot prove requires contract for call subtract from consume: selected >= 73 (needs fact `value >= 73` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/domain_pattern_match_bound_through_target_body_rejected rejected 1264ms expected @ee1410030dca
+	exact arithmetic in machine `consume` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `consume` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `consume` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `consume` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/dyn_dispatch_payload_alias_through_call_result_public_bound_weakened rejected 719ms expected @e06334c63dc4+wt
 	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/dyn_dispatch_payload_alias_through_const_name_public_bound_weakened rejected 692ms expected @e06334c63dc4+wt
@@ -22598,6 +22649,16 @@ pass/domains/domain_operator_overloads checked 4065ms @a92f16431042
 pass/domains/domain_operator_requires_discharged checked 2399ms @a92f16431042
 pass/domains/domain_operator_unproven_keeps_builtin_meaning checked 2274ms @a92f16431042
 pass/domains/domain_param_forwarded checked 2352ms @a92f16431042
+pass/domains/domain_pattern_match_bound_alias_routed_retained_exit checked 3497ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/domains/domain_pattern_match_bound_full_width_field_exit checked 3238ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/domains/domain_pattern_match_bound_generic_equation_same_carrier_exit checked 3477ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/domains/domain_pattern_match_bound_generic_open_same_carrier_exit checked 3531ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/domains/domain_pattern_match_bound_inherited_routed_retained_exit checked 3704ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/domains/domain_pattern_match_bound_nested_routed_retained_exit checked 3569ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/domains/domain_pattern_match_bound_ordered_effects_exit checked 3718ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/domains/domain_pattern_match_bound_predicate_helper_exit checked 2668ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/domains/domain_pattern_match_bound_routed_boolean_retained_exit checked 2931ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/domains/domain_pattern_match_bound_routed_retained_exit checked 2698ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
 pass/domains/domain_signed_clamp checked 2583ms @a92f16431042
 pass/domains/domain_subslice_carry checked 3583ms @a92f16431042
 pass/domains/established_by_domain checked 3622ms @a92f16431042
@@ -22610,6 +22671,7 @@ pass/domains/guard_predicate_establishes_domain checked 2118ms @a92f16431042
 pass/domains/inactive_impossible_payload_exit checked 2717ms check-target:macos_arm64 @a92f16431042
 pass/domains/indexed_domain_fact rejected 2116ms regressed-from:checked @a92f16431042
 	cannot establish call-result qualification `Extent::Vacant` in `exercise_placed`, state `entry` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+pass/domains/indexed_domain_known_disjoint_call_exit checked 2849ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
 pass/domains/indexed_membership_follows_completed_values checked 5167ms check-target:macos_arm64 @a92f16431042
 pass/domains/intersected_qualifiers checked 4340ms @a92f16431042
 pass/domains/issued_indexed_subject_predicate checked 2072ms @a92f16431042
@@ -22914,7 +22976,7 @@ pass/expressions/entry_mut_scalar_param checked 2236ms @a92f16431042
 pass/expressions/explicit_scalar_tag_erasure checked 2015ms @a92f16431042
 pass/expressions/giant_literal_subject checked 2363ms @a92f16431042
 pass/expressions/indexed_qualified_call_argument checked 2043ms @a92f16431042
-pass/expressions/match_anonymous_result_landing checked 1801ms @a92f16431042
+pass/expressions/match_anonymous_result_landing checked 15245ms check-target:macos_arm64 @ee1410030dca
 pass/expressions/match_domain_results checked 1799ms @a92f16431042
 pass/expressions/match_float_interpretation checked 5308ms @a92f16431042
 pass/expressions/match_float_patterns checked 11571ms check-target:macos_arm64 @a92f16431042
@@ -22945,7 +23007,7 @@ pass/expressions/match_owned_same_root_projections checked 7413ms check-target:m
 pass/expressions/mixed_integer_comparison_places checked 6822ms check-target:macos_arm64 @a92f16431042
 pass/expressions/mixed_integer_comparison_widths checked 10175ms check-target:macos_arm64 @a92f16431042
 pass/expressions/mixed_integer_guard_comparison checked 9472ms check-target:macos_arm64 @a92f16431042
-pass/expressions/numeric_operand_destinations checked 2177ms @a92f16431042
+pass/expressions/numeric_operand_destinations checked 13680ms check-target:macos_arm64 @ee1410030dca
 pass/expressions/owned_match_authored_state checked 2219ms @a92f16431042
 pass/expressions/owned_match_call_values checked 2206ms @a92f16431042
 pass/expressions/owned_match_interleaved_values checked 2180ms @a92f16431042
@@ -23769,6 +23831,15 @@ pass/facts/disjoint_windows_through_parameter_exit checked 2496ms check-target:m
 pass/facts/disjoint_windows_through_target_body_exit checked 2492ms check-target:macos_arm64 @a92f16431042
 pass/facts/domain_geometry_conserved_result_exit checked 3155ms check-target:macos_arm64 @a92f16431042
 pass/facts/domain_geometry_projected_conserved_result_exit checked 2950ms check-target:macos_arm64 @a92f16431042
+pass/facts/domain_pattern_match_bound_through_call_result_exit checked 3068ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/facts/domain_pattern_match_bound_through_const_name_exit checked 2785ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/facts/domain_pattern_match_bound_through_field_exit checked 3237ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/facts/domain_pattern_match_bound_through_local_exit checked 3509ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/facts/domain_pattern_match_bound_through_match_join_exit checked 3257ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/facts/domain_pattern_match_bound_through_other_machine_exit checked 3262ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/facts/domain_pattern_match_bound_through_other_state_exit checked 3094ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/facts/domain_pattern_match_bound_through_parameter_exit checked 3334ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/facts/domain_pattern_match_bound_through_target_body_exit checked 3631ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
 pass/facts/double_indexed_rmw_through_call_result_exit checked 3074ms check-target:macos_arm64 @a92f16431042
 pass/facts/double_indexed_rmw_through_const_name_exit checked 2624ms check-target:macos_arm64 @a92f16431042
 pass/facts/double_indexed_rmw_through_field_exit checked 2416ms check-target:macos_arm64 @a92f16431042
