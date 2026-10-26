@@ -1,49 +1,7 @@
-//! Independently reconstructed ownership events.
-use optimization_unit::OwnershipEvent;
-
-pub(crate) fn expected_ownership(
-    operation: &abstract_operations::AbstractOperation,
-) -> Vec<OwnershipEvent> {
-    use abstract_operations::AbstractOperation as O;
-    match operation {
-        O::CallStructural {
-            claim_transfers, ..
-        } => vec![OwnershipEvent::ClaimTransfer(
-            claim_transfers
-                .iter()
-                .map(|transfer| transfer.claim)
-                .collect(),
-        )],
-        O::BoundaryCall {
-            completion_receipts,
-            ..
-        } => vec![OwnershipEvent::ClaimCompletion(completion_receipts.clone())],
-        abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..) => {
-            vec![OwnershipEvent::Cleanup(cleanup_actions.clone())]
-        }
-        O::ReturnStructural {
-            returned_claims,
-            cleanup_actions,
-            ..
-        } => vec![
-            OwnershipEvent::StructuralReturn(
-                returned_claims
-                    .iter()
-                    .map(|binding| binding.claim)
-                    .collect(),
-            ),
-            OwnershipEvent::Cleanup(cleanup_actions.clone()),
-        ],
-        O::ExternalCompletion {
-            frontier_lower_bound,
-            ..
-        } => vec![OwnershipEvent::ExternalCompletionFrontier(
-            frontier_lower_bound.clone(),
-        )],
-        O::Crash {
-            frontier_lower_bound,
-            ..
-        } => vec![OwnershipEvent::CrashFrontier(frontier_lower_bound.clone())],
-        _ => Vec::new(),
-    }
-}
+//! Ownership-event reconstruction beside the unit's row owner.
+//!
+//! An ownership event is a pure projection of the operation it belongs to, so
+//! the unit's construction, a moved node's replay and this leaf's independent
+//! validation rebuild the rows from the one owner rather than from a second
+//! 50-line spelling that could drift from it.
+pub(crate) use optimization_unit::operation_ownership as expected_ownership;
