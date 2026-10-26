@@ -142,6 +142,7 @@ pub(crate) fn parse_body<'tokens, 'source>(
 fn starts_implicit_entry_body(input: Input<'_, '_>) -> bool {
     !input.at_punctuation(PunctuationKind::RightBrace)
         && !input.at_keyword(KeywordKind::Public)
+        && !input.at_keyword(KeywordKind::Machine)
         && !starts_retired_entry_member(input)
         && !starts_state_member(input)
         && !starts_retired_invariant_member(input)
@@ -151,6 +152,7 @@ fn starts_implicit_entry_body(input: Input<'_, '_>) -> bool {
 pub(super) fn starts_machine_member(input: Input<'_, '_>) -> bool {
     input.at_punctuation(PunctuationKind::RightBrace)
         || input.at_keyword(KeywordKind::Public)
+        || input.at_keyword(KeywordKind::Machine)
         || starts_retired_entry_member(input)
         || starts_state_member(input)
         || starts_retired_invariant_member(input)

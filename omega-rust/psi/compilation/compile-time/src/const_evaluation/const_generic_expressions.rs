@@ -625,6 +625,7 @@ pub(super) fn expression_custody(
                     | Kind::CaseMembership
                     | Kind::DomainMembership
                     | Kind::DomainIssuerAuthorization
+                    | Kind::DomainCleanupSelection
                     | Kind::StaticArgument
                     | Kind::Conformance
             ) {

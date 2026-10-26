@@ -136,6 +136,20 @@ pub(super) fn check_call_requires(
             // satisfy a domain's declared byte-predicate fact grants that
             // domain without a validating boundary call -- this is how a literal
             // flows into a `&[u8] in Utf8` target.
+            // Complete applied theories can discharge every predicate using
+            // the exact captured actual. The older symbol-only shortcuts
+            // below still cannot collapse an indexed family to its symbol.
+            let satisfied = satisfied
+                || (captured_judgment.is_none()
+                    && proven_predicates_grant_domain(
+                        program,
+                        facts,
+                        state_flow,
+                        call_flow,
+                        requirement_contexts,
+                        fact,
+                        call_frames,
+                    ));
             let satisfied = satisfied
                 || (captured_judgment.is_none()
                     && !super::prover::indexed_membership(program, fact.payload)
@@ -178,14 +192,6 @@ pub(super) fn check_call_requires(
                         membership
                             .as_ref()
                             .and_then(|evidence| evidence.referents.as_deref()),
-                        call_frames,
-                    ) || proven_predicates_grant_domain(
-                        program,
-                        facts,
-                        state_flow,
-                        call_flow,
-                        requirement_contexts,
-                        fact,
                         call_frames,
                     )));
 
@@ -619,15 +625,17 @@ fn proven_predicates_grant_domain(
     let facts::FactPayload::ContractDomainMembership {
         value,
         domain_symbol,
+        semantic_domain,
         ..
     } = fact.payload
     else {
         return false;
     };
-    let Some(domain) = program.domain_definition(domain_symbol) else {
+    let Some(domain) = program.domain_definition_for_instance(domain_symbol, semantic_domain)
+    else {
         return false;
     };
-    let Some(predicates) = predicate_only_domain_predicates(program, domain_symbol) else {
+    let Some(predicates) = predicate_only_domain_predicates(program, domain) else {
         return false;
     };
     let Some(subject) = validation::canonical_place_from_expression(program, value) else {

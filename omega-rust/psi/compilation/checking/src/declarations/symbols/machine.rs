@@ -225,13 +225,6 @@ fn callable_receiver_type_name(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&str> {
-    if let Some(requirement) =
-        typed_trees::service::service_requirement_declaration(program, type_reference)
-    {
-        return program
-            .trait_definition_by_symbol(requirement)
-            .map(|definition| definition.name.as_str());
-    }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
             callable_receiver_type_name(program, *referee)

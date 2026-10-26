@@ -172,6 +172,17 @@ fn validate_domain_delivery(
     {
         return;
     }
+    if let Some(state) = state {
+        crate::value_custody::cleanup::validate_cleanup_delivery(
+            program,
+            machine,
+            state,
+            value,
+            target_type,
+            owner,
+            diagnostics,
+        );
+    }
     let source = expression_atoms(program, machine, state, value);
     if source.is_empty() {
         return;

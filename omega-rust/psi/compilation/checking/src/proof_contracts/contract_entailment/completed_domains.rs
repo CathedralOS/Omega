@@ -59,6 +59,37 @@ pub fn completed_value_proves_domain_predicate(
     judgment.observed && judgment.proven
 }
 
+/// Prove a predicate from the exact already-applied theory. The selected
+/// tuple supplies substitution only; the observed value must establish truth.
+pub fn completed_value_proves_bound_domain_predicate(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    domain: &typed_trees::domain::DomainDefinition,
+    predicate: ExpressionHandle,
+    projection: &[facts::PlaceSegment],
+) -> bool {
+    let judgment = completed_bound_domain_judgment(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        domain,
+        predicate,
+        projection,
+    );
+    if super::struct_trace() {
+        eprintln!(
+            "STRUCT completed-bound-domain machine={} domain={} instance={:?} observed={} proven={}",
+            machine.name, domain.name, domain.semantic_id, judgment.observed, judgment.proven
+        );
+    }
+    judgment.observed && judgment.proven
+}
+
 #[derive(Default)]
 struct CompletedDomainJudgment {
     observed: bool,
@@ -79,7 +110,29 @@ fn completed_domain_judgment(
     let Some(domain) = program.domain_definition(domain_symbol) else {
         return CompletedDomainJudgment::default();
     };
-    if !typed_trees::domain::has_symbol_only_proof(program, domain_symbol) || domain.alias.is_some()
+    completed_bound_domain_judgment(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        domain,
+        predicate,
+        projection,
+    )
+}
+
+fn completed_bound_domain_judgment(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    domain: &typed_trees::domain::DomainDefinition,
+    predicate: ExpressionHandle,
+    projection: &[facts::PlaceSegment],
+) -> CompletedDomainJudgment {
+    if !typed_trees::domain::has_bound_symbol_only_proof(program, domain) || domain.alias.is_some()
     {
         return CompletedDomainJudgment::default();
     }

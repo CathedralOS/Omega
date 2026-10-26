@@ -36,6 +36,9 @@ pub enum AuthoredDeclarationSelectionKind {
     /// Public exposure retains interface identity and dependencies, but does
     /// not make the selected issuer nameable as ordinary consumer API.
     DomainIssuerAuthorization,
+    /// An owner-authored domain clause selecting an edge-only cleanup target.
+    /// This authorizes the cleanup plan, never an ordinary source invocation.
+    DomainCleanupSelection,
     Call,
     StaticArgument,
     Operator,
