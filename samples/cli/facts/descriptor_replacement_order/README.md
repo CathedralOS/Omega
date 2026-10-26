@@ -157,6 +157,19 @@ remains a reborrow even when an owned aggregate contains only one reference
 leaf; only an explicit move operation transfers that permission. The former
 sole-leaf transfer heuristic is removed.
 
+Borrowed arrivals carry the physical storage coordinate and its exact granting
+occurrences together. Relative field stores update that original slot across
+forwarding blocks. One evaluated case test can reach a Boolean conditional
+through scalar bindings and negation; intervening writes, calls, ownership
+changes, divergent observations and unresolved cycles withhold that fact.
+A case-guarded slot may be absent at a join only when the missing predecessor
+independently proves its case impossible. Custody replay settles all arriving
+paths before accepting or rejecting the resulting entry; a provisional refusal
+is retried on changed arrivals and every unresolved refusal still rejects.
+Calls through captured borrowed storage preserve their granting chain, live
+children and independent lifetime debts. Possible external aliasing alone does
+not prove duplicate custody; exact duplicate origins remain conflicting.
+
 The [target-alternatives control](controls/target_alternatives/main.omg)
 returns one backing on macOS and another on the other hosted targets. Its
 [invalid twin](controls/target_alternatives/invalid/main.omg) reads the latter
@@ -170,3 +183,9 @@ and direct native emission agree. The tests exercise the existing record/case,
 reference, call, register/frame and relocation routes without claiming those
 entire layers complete. Generic saved observations, aggregate construction and
 opaque provider compositions remain under the parent task.
+
+Focused validation also retains the pre-existing source refusal in
+`pass/control_flow/saved_case_predicate_disjoint_effects_exit`: both frozen
+producer `622df06cc036` and this repair report missing live case evidence at
+`choice.amount`. It is outside the guard-replacement row and remains in the
+parent task's generic saved-observation acceptance; its success oracle is kept.
