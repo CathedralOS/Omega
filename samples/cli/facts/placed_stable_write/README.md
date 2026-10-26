@@ -2,6 +2,14 @@
 
 Fact: an exact permitted Stable field operation writes its original storage.
 
+Owning task: **PLAN-LAID-VIEWS** in [TASKS.md](../../../../TASKS.md).
+This row establishes subordinate placed-input transport. A borrowed arrival
+retains its original backing, storage projection, access and established placed
+interpretation together. Every incoming path must justify the same interpretation
+before a call can consume it; the carrier type alone establishes none of these.
+Externally installed entry lending and its retirement remain separate acceptance
+of that task, exercised by `installed_entry_storage` and the source-access customer.
+
 This is a prerequisite of BUMP-ALLOCATOR-CANARY, not allocator completion.
 Each program starts with initialized ordinary RAM, obtains an exclusive placed
 view, and writes 29 through its field accessor while a second, disjoint placed

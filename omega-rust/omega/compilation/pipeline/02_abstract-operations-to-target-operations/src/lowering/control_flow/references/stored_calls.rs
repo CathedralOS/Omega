@@ -386,7 +386,7 @@ pub(in super::super) fn stage(
                         root: normalized_source(function, live, types, &source)?,
                         carrier_type,
                         referent,
-                        placed: super::placed_source(live, &source),
+                        placed: super::placed_source(function, live, types, &source),
                     }
                 }
                 Source::Provider(origin) => {
