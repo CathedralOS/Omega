@@ -107,6 +107,13 @@ pub(crate) fn predicate_application(
         }
         _ => return None,
     };
+    predicate_call(program, call_expression)
+}
+
+fn predicate_call(
+    program: &dyn crate::CheckingInput,
+    call_expression: ExpressionHandle,
+) -> Option<PredicateApplication<'_>> {
     let call = program.expression_table.call_node(call_expression)?;
     if !call.is_ordinary_positional_call() {
         return None;
@@ -116,6 +123,28 @@ pub(crate) fn predicate_application(
         machine,
         arguments: program.expression_table.expression_handles(call.arguments),
     })
+}
+
+/// A relation proved on every successful return of one checked predicate.
+/// The operands are its exact caller actuals, never private formal identities.
+pub struct PredicateOrderingConsequence {
+    pub left: ExpressionHandle,
+    pub right: ExpressionHandle,
+    pub operator: BinaryOperator,
+}
+
+/// Recover integer relations from a positive, already-available predicate
+/// occurrence. The shared symbolic implication engine interprets its checked
+/// body, including calls and branches; naming a predicate supplies no relation.
+/// Unsupported bodies and exhausted proof work contribute no evidence.
+pub fn predicate_ordering_consequences(
+    program: &dyn crate::CheckingInput,
+    call_expression: ExpressionHandle,
+) -> Vec<PredicateOrderingConsequence> {
+    let Some(application) = predicate_call(program, call_expression) else {
+        return Vec::new();
+    };
+    implication::ordering_consequences(program, &application)
 }
 
 /// One formal observation in a checked exact interval description of a predicate.

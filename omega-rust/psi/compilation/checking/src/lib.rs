@@ -90,7 +90,8 @@ pub use proof_contracts::arithmetic_domains::{
     selected_scalar_interval,
 };
 pub use proof_contracts::collection_predicates::{
-    exact_predicate_intervals, length_member, premises_prove_expression,
+    exact_predicate_intervals, length_member, predicate_ordering_consequences,
+    premises_prove_expression,
 };
 pub use proof_contracts::contract_entailment::{
     CapturedScalarObservation, captured_call_argument_index_matches, captured_call_index_value,

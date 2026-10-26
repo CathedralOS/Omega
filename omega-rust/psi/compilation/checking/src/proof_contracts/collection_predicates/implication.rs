@@ -184,6 +184,82 @@ pub(super) fn proves(
     proved
 }
 
+/// The same consequence judgment used by helper theorems, projected onto
+/// integer argument pairs. Start with complete carrier domains: a convenient
+/// caller bound, the callee's desired ensures, or an unproved goal never seeds
+/// the proof. The caller separately establishes availability and actual identity.
+pub(super) fn ordering_consequences(
+    program: &dyn crate::CheckingInput,
+    application: &super::PredicateApplication<'_>,
+) -> Vec<super::PredicateOrderingConsequence> {
+    let machine = &program.machines()[application.machine];
+    let Some(entry) = program.machine_states(machine).first() else {
+        return Vec::new();
+    };
+    let parameters = program.state_parameters(entry);
+    if parameters.len() != application.arguments.len() {
+        return Vec::new();
+    }
+    let mut proof = Implication {
+        program,
+        context: machine,
+        remaining: WORK_BUDGET,
+        next_identity: 0,
+        lemmas: Vec::new(),
+        updates: Vec::new(),
+        antecedents: Vec::new(),
+    };
+    let mut path = Path::default();
+    let Some(arguments) = parameters
+        .iter()
+        .map(|parameter| proof.parameter(parameter.type_reference, &mut path))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return Vec::new();
+    };
+    let mut consequences = Vec::new();
+    for (left_position, left) in arguments.iter().enumerate() {
+        let Value::Integer { value: left, .. } = left else {
+            continue;
+        };
+        for (right_position, right) in arguments.iter().enumerate().skip(left_position + 1) {
+            let Value::Integer { value: right, .. } = right else {
+                continue;
+            };
+            for operator in [
+                BinaryOperator::NotEqual,
+                BinaryOperator::Equal,
+                BinaryOperator::Less,
+                BinaryOperator::LessOrEqual,
+                BinaryOperator::Greater,
+                BinaryOperator::GreaterOrEqual,
+            ] {
+                let goal = Boolean::Comparison(compare(operator, left.clone(), right.clone()));
+                if proof.activation(
+                    application.machine,
+                    0,
+                    arguments.clone(),
+                    path.clone(),
+                    &goal,
+                    Judgment::Consequence,
+                    0,
+                ) == Some(true)
+                {
+                    consequences.push(super::PredicateOrderingConsequence {
+                        left: application.arguments[left_position],
+                        right: application.arguments[right_position],
+                        operator,
+                    });
+                }
+                if proof.remaining == 0 {
+                    return consequences;
+                }
+            }
+        }
+    }
+    consequences
+}
+
 /// Steps one theorem judgment may spend across its activations, reads,
 /// assumptions, expression evaluations and statement visits before it
 /// stands down.

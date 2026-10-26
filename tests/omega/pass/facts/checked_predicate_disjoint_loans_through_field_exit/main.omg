@@ -1,0 +1,22 @@
+// A checked distinct-index predicate authorizes two mutable element loans that write 17 and 53 to the original distinct caller elements.
+// Expected exit: 0
+data Cell { value: i32; }
+machine distinct(first_index: u64, second_index: u64) -> bool { first_index != second_index }
+machine replace(values: &mut [Cell], first_index: u64, second_index: u64)
+requires values.len == 2, first_index < values.len, second_index < values.len,
+    distinct(first_index, second_index) == true
+{
+    let first: &mut Cell = &mut values[first_index];
+    let second: &mut Cell = &mut values[second_index];
+    first = Cell { value: 17 };
+    second = Cell { value: 53 };
+}
+data Selection { first: u64; }
+machine main() crashes Trap {
+    let mut values: [Cell; 2] = [Cell { value: 1 }, Cell { value: 2 }];
+    let selected: Selection = Selection { first: 0 };
+    replace(&mut values[..], selected.first, 1);
+    transition values[0].value == 17 && values[1].value == 53 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

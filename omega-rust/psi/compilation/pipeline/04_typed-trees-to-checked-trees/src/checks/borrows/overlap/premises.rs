@@ -13,6 +13,8 @@
 //! compose transitively through a shared middle bound (`i < n` with
 //! `n <= j` proves `i < j`); `==` legs substitute from either side and `!=`
 //! legs never compose.
+//! Checked predicate calls contribute the relations the shared symbolic body
+//! prover establishes on every true return, substituted onto exact actuals.
 //! No relation can form a loan, extend a lifetime, or widen access.
 //! Required domain membership uses the same decomposition with a definition
 //! scope: its reserved self binds the immutable membership subject. The
@@ -570,10 +572,64 @@ fn decompose_premise_expression(
     parameter_arguments: &Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>>,
     premises: &mut Vec<StatedOrderingPremise>,
 ) {
-    if !expression.is_valid() || !scope.has_builtin_meaning(program, expression) {
+    if !expression.is_valid() {
         return;
     }
     let node = program.expression_table.expression(expression);
+    if matches!(node, ExpressionNode::Call(_)) {
+        // Positive predicate truth is available here, but only its checked
+        // body's consequences may justify compatibility. Keep exact actual
+        // normalization in this formation scope; the shared prover's private
+        // formal atoms cannot become caller loan or storage identities.
+        if !negated {
+            for consequence in validation::predicate_ordering_consequences(program, expression) {
+                if !scope.has_builtin_meaning(program, consequence.left)
+                    || !scope.has_builtin_meaning(program, consequence.right)
+                {
+                    continue;
+                }
+                use BorrowCompatibilityPremiseRelation as Relation;
+                let (relation, left, right) = match consequence.operator {
+                    BinaryOperator::Less => (
+                        Relation::StrictlyBefore,
+                        consequence.left,
+                        consequence.right,
+                    ),
+                    BinaryOperator::LessOrEqual => {
+                        (Relation::LessOrEqual, consequence.left, consequence.right)
+                    }
+                    BinaryOperator::Greater => (
+                        Relation::StrictlyBefore,
+                        consequence.right,
+                        consequence.left,
+                    ),
+                    BinaryOperator::GreaterOrEqual => {
+                        (Relation::LessOrEqual, consequence.right, consequence.left)
+                    }
+                    BinaryOperator::Equal => (Relation::Equal, consequence.left, consequence.right),
+                    BinaryOperator::NotEqual => {
+                        (Relation::NotEqual, consequence.left, consequence.right)
+                    }
+                    _ => continue,
+                };
+                if let (Some(left), Some(right)) = (
+                    scope.bound(program, lookup, left),
+                    scope.bound(program, lookup, right),
+                ) {
+                    premises.push(StatedOrderingPremise {
+                        relation,
+                        left,
+                        right,
+                        parameter_arguments: parameter_arguments.clone(),
+                    });
+                }
+            }
+        }
+        return;
+    }
+    if !scope.has_builtin_meaning(program, expression) {
+        return;
+    }
     if let ExpressionNode::Unary(unary) = node
         && unary.operator == UnaryOperator::LogicalNot
     {
