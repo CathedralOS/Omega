@@ -41,6 +41,16 @@ impl IdentityMap {
                     for binding in derived.inputs.iter_mut().chain(&mut derived.outputs) {
                         binding.claim = self.claim(binding.claim);
                     }
+                    if let terminal_psi::ContentTransformationCustody::Boundary {
+                        addresses, ..
+                    } = &mut derived.custody
+                    {
+                        for address in addresses.iter_mut() {
+                            address.input.claim = self.claim(address.input.claim);
+                            address.output.claim = self.claim(address.output.claim);
+                        }
+                        addresses.sort();
+                    }
                     derived.inputs.sort();
                     derived.outputs.sort();
                 }

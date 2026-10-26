@@ -128,6 +128,7 @@ pub(super) fn selected_region(
         .1
     };
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source,
         path,
         type_identity: shapes.add_stored_type(
@@ -231,6 +232,12 @@ pub(super) fn disposition_actions(
             .segments
             .span(removed.segments)
             .ok_or("cleanup exclusion has an invalid path")?;
+        // Siblings outside this exact dying subtree were already checked by
+        // the selected-leaf query and need no unrelated case observation.
+        if !excluded.starts_with(place.segments.as_slice()) && !place.segments.starts_with(excluded)
+        {
+            continue;
+        }
         match case_reachability(excluded)
             .ok_or("cleanup cannot establish excluded case reachability")?
         {
@@ -239,7 +246,9 @@ pub(super) fn disposition_actions(
             // A runtime tag cannot establish a transfer. The custody producer
             // must additionally prove absence on every edge where it is active.
             validation::CleanupCaseReachability::Runtime => {
-                if !case_evidence.definitely_transferred(excluded) {
+                if removed.cause != checked_trees::ContextualCleanupExclusionCause::Unestablished
+                    && !case_evidence.definitely_transferred(excluded)
+                {
                     return Err("cleanup exclusion has no selected transfer custody");
                 }
             }

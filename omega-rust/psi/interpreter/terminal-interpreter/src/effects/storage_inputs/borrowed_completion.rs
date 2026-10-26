@@ -263,6 +263,7 @@ pub(super) fn stage(
                 .prepare_replacement(execution, StructuralRuntimePlace::from(&binding.referent))?,
         );
     }
+    binding.completed_leaves = Some(leaves);
     Ok(())
 }
 
@@ -275,16 +276,20 @@ pub(super) fn commit(
     }
     if let Some(replacement) = binding.replacement {
         replacement.publish(execution)?;
-        return Ok(());
-    }
-    // The case roster is unchanged. Preserve scalar-array homes and narrowed
-    // byte codecs by writing through the pre-call backing, not a rebuilt root.
-    for (storage, scalar, value) in binding.stores {
-        if binding.direct_original {
-            execution.record_original_scalar_write(&storage)?;
-        } else {
-            execution.store_primitive_storage(binding.source, storage, scalar, value)?;
+    } else {
+        // An unchanged case roster writes through its pinned pre-call homes.
+        // Direct original loans already received the host write; record it
+        // without issuing the physical store a second time.
+        for (storage, scalar, value) in binding.stores {
+            if binding.direct_original {
+                execution.record_original_scalar_write(&storage)?;
+            } else {
+                execution.store_primitive_storage(binding.source, storage, scalar, value)?;
+            }
         }
+    }
+    if let Some(references) = binding.reference_replacement {
+        references.publish(execution)?;
     }
     Ok(())
 }

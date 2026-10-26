@@ -163,14 +163,25 @@ pub(crate) fn compute_plan_laid_layouts_in(
                         fields,
                         *fingerprint,
                         selection,
+                        &domain.accounting,
                     )
                 }
-                None => super::super::layout_plans::compute_native_layout_plan_for_machine(
-                    &execution,
-                    machine_symbol,
-                    &record.schema_data,
-                    selection,
-                ),
+                None => {
+                    let (fields, fingerprint) = super::super::schema_reflection::schema_fields(
+                        &execution,
+                        &record.schema_data,
+                    )
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                    super::super::layout_plans::compute_native_layout_plan_with_schema(
+                        &execution,
+                        machine_symbol,
+                        &record.schema_data,
+                        &fields,
+                        fingerprint,
+                        selection,
+                        &domain.accounting,
+                    )
+                }
             }
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
             install_geometry(&execution, record, &schema_fields, report)

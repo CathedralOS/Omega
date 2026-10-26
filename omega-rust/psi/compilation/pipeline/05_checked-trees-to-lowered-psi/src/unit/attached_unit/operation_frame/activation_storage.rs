@@ -40,6 +40,7 @@ impl OperationFrame<'_, '_> {
             &earlier,
             inputs.byte_places,
             inputs.evaluated_selectors,
+            inputs.completed_structural_arguments,
         )?;
         let integer = ScalarType::Integer(
             IntegerType::new(IntegerSign::Unsigned, 64)

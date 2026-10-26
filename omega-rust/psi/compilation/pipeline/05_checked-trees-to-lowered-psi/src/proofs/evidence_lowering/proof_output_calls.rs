@@ -18,6 +18,7 @@ use terminal_psi::ProofOutputRuntimeResult;
 pub(crate) fn lower_proof_output_calls(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    source_machine_ids: &[(symbols::SymbolHandle, MachineId)],
     selected_machine: symbols::SymbolHandle,
     terminal_machine: MachineId,
     semantic_module: &TerminalModule,
@@ -38,6 +39,7 @@ pub(crate) fn lower_proof_output_calls(
         .map(|(ordinal, invocation)| {
             let (runtime_result, runtime_call) = lower_proof_output_runtime_call(
                 checked,
+                source_machine_ids,
                 terminal_machine,
                 semantic_module,
                 occurrences,
@@ -522,6 +524,7 @@ pub(crate) fn terminal_proposition_application_id(
 /// role or the operation form that role took.
 fn lower_proof_output_runtime_call(
     checked: &CheckedTrees,
+    source_machine_ids: &[(symbols::SymbolHandle, MachineId)],
     terminal_machine: MachineId,
     semantic_module: &TerminalModule,
     occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
@@ -536,33 +539,6 @@ fn lower_proof_output_runtime_call(
     let Some(runtime_call) = invocation.runtime_call else {
         return Ok((None, None));
     };
-    let target_state = checked
-        .typed
-        .machines()
-        .iter()
-        .find_map(|machine| {
-            typed_trees::state::state_by_symbol(
-                checked.typed.machine_states(machine),
-                invocation.target_state_symbol,
-            )
-        })
-        .ok_or(LoweringError::Unsupported(
-            "runtime proof-output target state is absent",
-        ))?;
-    let expected = if target_state.return_type.is_valid() {
-        Some(
-            checked
-                .typed
-                .primitive_type_reference(target_state.return_type)
-                .map(terminal_scalar_type)
-                .transpose()?
-                .ok_or(LoweringError::Unsupported(
-                    "runtime proof-output target is not scalar-result",
-                ))?,
-        )
-    } else {
-        None
-    };
     let mut matching = occurrences.iter().filter(|occurrence| {
         occurrence.source_state == invocation.caller_state_symbol
             && occurrence.statement_index == runtime_call.statement_index
@@ -574,9 +550,39 @@ fn lower_proof_output_runtime_call(
     if matching.next().is_some() {
         return unsupported("runtime proof-output call coordinate is not unique");
     }
-    if occurrence.source_target != invocation.target_state_symbol {
-        return unsupported("runtime proof-output target disagrees with its emitted call");
+    // Ordinary direct-call custody records the selected state from the exact
+    // checked coordinate, independently of result role. Rejoin its selected
+    // machine, state and static dispatch before authenticating the emitted callee.
+    let target = crate::call_sites::selected_module_target(checked, occurrence)?;
+    if target.machine.symbol != invocation.target_machine_symbol
+        || target.state.symbol != invocation.target_state_symbol
+        || target.static_requirement_dispatch != invocation.static_requirement_dispatch
+    {
+        return unsupported("runtime proof-output target disagrees with its checked selected call");
     }
+    let mut lowered_targets = source_machine_ids
+        .iter()
+        .filter(|(source, _)| *source == target.machine.symbol);
+    let (_, expected_callee) = lowered_targets.next().ok_or(LoweringError::Unsupported(
+        "runtime proof-output selected target has no emitted machine",
+    ))?;
+    if lowered_targets.next().is_some() {
+        return unsupported("runtime proof-output selected target has ambiguous emitted machines");
+    }
+    let expected = if target.state.return_type.is_valid() {
+        Some(
+            checked
+                .typed
+                .primitive_type_reference(target.state.return_type)
+                .map(terminal_scalar_type)
+                .transpose()?
+                .ok_or(LoweringError::Unsupported(
+                    "runtime proof-output target is not scalar-result",
+                ))?,
+        )
+    } else {
+        None
+    };
     let semantic_vocabulary::BoundaryInvocationSite::Operation(operation_id) =
         occurrence.terminal_site
     else {
@@ -594,6 +600,11 @@ fn lower_proof_output_runtime_call(
     let parts = crate::direct_calls::direct_call_parts(&operation.kind).ok_or(
         LoweringError::Unsupported("runtime proof-output operation is not a direct call"),
     )?;
+    if parts.callee != *expected_callee {
+        return unsupported(
+            "runtime proof-output emitted callee differs from its selected realization",
+        );
+    }
     let result = match (parts.role, expected, operation.result.scalar()) {
         (crate::direct_calls::DirectCallRole::Unit, None, None) => ProofOutputRuntimeResult::Unit,
         (crate::direct_calls::DirectCallRole::Scalar, Some(expected), Some(result))

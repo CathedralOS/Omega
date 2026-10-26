@@ -532,6 +532,7 @@ pub enum PropositionError {
     StructuralIdentityTypeMismatch,
     NonCanonicalStructuralIdentityOperands,
     EmptyStructuralReadPath,
+    NonCanonicalScalarReadProjection,
     StructuralReadIndexType(ScalarType),
     InvalidIntegerWidth(u16),
     InvalidIntegerRange {

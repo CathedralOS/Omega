@@ -175,7 +175,7 @@ fn lower_statement_node(
             let type_reference = if declared_is_unit
                 && local_data.initial_value.is_valid()
                 && local_data.type_is_inferred
-                && local_data.role == language_core::LocalBindingRole::Value
+                && local_data.role.has_ordinary_initializer()
             {
                 infer_hoist_temp_type(lowerer, attached_data, state, local_data.initial_value)?
             } else {

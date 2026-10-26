@@ -103,7 +103,7 @@ impl Evaluation {
         for index in chain {
             // Match the block emitter's observation boundary. Earlier caller
             // observations must not substitute for this activation's reads.
-            operations.length_observations.clear();
+            operations.storage_observations.clear();
             let state = &states[index - 1];
             for binding in &state.bindings {
                 let value_type = binding.value_type(
@@ -121,6 +121,7 @@ impl Evaluation {
                     next_value,
                     operations,
                     calls,
+                    &mut self.current_claims,
                 )?;
                 completed.push(ValueDeclaration {
                     id,
@@ -157,7 +158,7 @@ impl Evaluation {
         }
         let results = completed[source_count..].to_vec();
         *values = completed[..source_count].to_vec();
-        operations.length_observations.clear();
+        operations.storage_observations.clear();
         Ok(Some(results))
     }
 }

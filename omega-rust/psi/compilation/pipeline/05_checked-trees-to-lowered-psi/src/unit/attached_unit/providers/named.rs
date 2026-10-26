@@ -147,7 +147,10 @@ enum EdgeCarrier<'a> {
     /// A conformance map owns one row per exact requirement edge.
     ConformanceMap(&'a Conformance),
     /// A machine owns its own exact clause, realized by its own body.
-    Machine(&'a Machine),
+    Machine {
+        declaration: &'a Machine,
+        lifetime_parameters: usize,
+    },
 }
 
 fn edge_carriers<'a>(typed: &'a TypedTrees, machine: &'a Machine) -> Vec<EdgeCarrier<'a>> {
@@ -159,14 +162,22 @@ fn edge_carriers<'a>(typed: &'a TypedTrees, machine: &'a Machine) -> Vec<EdgeCar
         .collect::<Vec<_>>();
     // A specialization instance is realized through the authored template that
     // carries its edge, and a statically telescoped declaration owns no closed
-    // provider plan; neither declaration holds a selection of its own.
-    if machine.type_parameters.is_empty()
+    // provider plan; neither declaration holds a selection of its own. The
+    // telescope includes nominal and enclosing implementation binders, even
+    // when the method's value signature does not mention them. Captured
+    // specialization operands are not additional declaration binders.
+    let (type_parameters, lifetime_parameters) =
+        typed.machine_declaration_scope(machine, |left, right| left.symbol == right.symbol);
+    if type_parameters.is_empty()
         && !typed
             .machine_specializations
             .iter()
             .any(|receipt| receipt.instance == machine.symbol)
     {
-        carriers.push(EdgeCarrier::Machine(machine));
+        carriers.push(EdgeCarrier::Machine {
+            declaration: machine,
+            lifetime_parameters: lifetime_parameters.len(),
+        });
     }
     carriers
 }
@@ -221,7 +232,10 @@ fn exact_requirement_edges(
                     lifetime_parameters: implementation.lifetime_parameters.len(),
                 });
             }
-            EdgeCarrier::Machine(owner) => {
+            EdgeCarrier::Machine {
+                declaration: owner,
+                lifetime_parameters,
+            } => {
                 if !declares_exact_requirement(typed, owner, definition, template) {
                     continue;
                 }
@@ -237,7 +251,7 @@ fn exact_requirement_edges(
                     selecting_declaration: owner.symbol,
                     realization: owner.symbol,
                     reach: EdgeReach::Named,
-                    lifetime_parameters: owner.lifetime_parameters.len(),
+                    lifetime_parameters,
                 });
             }
         }

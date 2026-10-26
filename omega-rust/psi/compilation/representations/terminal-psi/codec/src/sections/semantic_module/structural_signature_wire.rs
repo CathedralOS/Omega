@@ -14,8 +14,7 @@ use terminal_psi::{
     BoundaryStructuralResultDeclaration, ProgramLocalRootIntroductionSchema,
     RetainedBorrowContentProjection, RetainedBorrowCustody, RetainedBorrowPlace,
     RetainedBorrowPlaceRoot, StructuralAccess, StructuralContentProjection,
-    StructuralDomainRequirement, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathQualification,
+    StructuralDomainRequirement, StructuralParameterDeclaration, StructuralPathQualification,
 };
 
 use super::CodecError;
@@ -25,6 +24,7 @@ use super::content_wire::{
 use super::contract_wire::{decode_crash_routes, encode_crash_routes};
 use super::proposition_wire::{decode_proposition, encode_proposition};
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
+use super::structural_result_wire::{decode_multiplicity, encode_multiplicity};
 use super::wire::{Reader, Writer};
 use crate::sections::semantic_module::wire::{
     decode_counted, decode_ids, decode_optional_id, encode_optional_id,
@@ -240,11 +240,7 @@ pub(crate) fn encode_structural_parameters(
         writer.id(parameter.place);
         writer.u32(parameter.position);
         writer.id(parameter.structural_type);
-        writer.u8(match parameter.multiplicity {
-            StructuralMultiplicity::Unrestricted => 1,
-            StructuralMultiplicity::Affine => 2,
-            StructuralMultiplicity::Linear => 3,
-        });
+        encode_multiplicity(writer, parameter.multiplicity);
         encode_structural_access(writer, parameter.access);
         writer.len(
             "structural parameter qualifications",
@@ -514,20 +510,11 @@ fn encode_retained_borrow_custody(
     writer.u32(custody.callable_identity.0);
     encode_retained_borrow_place(writer, &custody.source)?;
     encode_retained_borrow_place(writer, &custody.result)?;
-    writer.u8(match custody.access {
-        StructuralAccess::Owned => 1,
-        StructuralAccess::SharedBorrow => 2,
-        StructuralAccess::MutableBorrow => 3,
-        StructuralAccess::WriteOnlyBorrow => 4,
-    });
+    encode_structural_access(writer, custody.access);
     writer.u32(custody.callable_lifetime_parameter_count);
     writer.u32(custody.callable_lifetime_parameter_ordinal);
     writer.u32(custody.result_nominal_identity.0);
-    writer.u8(match custody.result_multiplicity {
-        StructuralMultiplicity::Unrestricted => 1,
-        StructuralMultiplicity::Affine => 2,
-        StructuralMultiplicity::Linear => 3,
-    });
+    encode_multiplicity(writer, custody.result_multiplicity);
     writer.u32(custody.result_lifetime_argument_count);
     writer.u32(custody.result_lifetime_argument_ordinal);
     writer.boolean(custody.result_lifetime_slot_is_erased);
@@ -543,22 +530,11 @@ fn decode_retained_borrow_custody(
         callable_identity: TerminalIdentityIndex(reader.u32()?),
         source: decode_retained_borrow_place(reader)?,
         result: decode_retained_borrow_place(reader)?,
-        access: match reader.u8()? {
-            1 => StructuralAccess::Owned,
-            2 => StructuralAccess::SharedBorrow,
-            3 => StructuralAccess::MutableBorrow,
-            4 => StructuralAccess::WriteOnlyBorrow,
-            tag => return Err(CodecError::InvalidTag("StructuralAccess", tag)),
-        },
+        access: decode_structural_access(reader)?,
         callable_lifetime_parameter_count: reader.u32()?,
         callable_lifetime_parameter_ordinal: reader.u32()?,
         result_nominal_identity: TerminalIdentityIndex(reader.u32()?),
-        result_multiplicity: match reader.u8()? {
-            1 => StructuralMultiplicity::Unrestricted,
-            2 => StructuralMultiplicity::Affine,
-            3 => StructuralMultiplicity::Linear,
-            tag => return Err(CodecError::InvalidTag("StructuralMultiplicity", tag)),
-        },
+        result_multiplicity: decode_multiplicity(reader)?,
         result_lifetime_argument_count: reader.u32()?,
         result_lifetime_argument_ordinal: reader.u32()?,
         result_lifetime_slot_is_erased: reader.boolean()?,
@@ -638,12 +614,7 @@ pub(crate) fn decode_structural_parameters(
         let place = reader.id("PlaceId")?;
         let position = reader.u32()?;
         let structural_type = reader.id("StructuralTypeId")?;
-        let multiplicity = match reader.u8()? {
-            1 => StructuralMultiplicity::Unrestricted,
-            2 => StructuralMultiplicity::Affine,
-            3 => StructuralMultiplicity::Linear,
-            tag => return Err(CodecError::InvalidTag("StructuralMultiplicity", tag)),
-        };
+        let multiplicity = decode_multiplicity(reader)?;
         let access = decode_structural_access(reader)?;
         Ok(StructuralParameterDeclaration {
             place,
@@ -695,12 +666,28 @@ pub(crate) fn encode_structural_access(writer: &mut Writer, access: StructuralAc
 pub(crate) fn decode_structural_access(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralAccess, CodecError> {
-    match reader.u8()? {
+    decode_structural_access_tag(reader.u8()?)
+}
+
+fn decode_structural_access_tag(tag: u8) -> Result<StructuralAccess, CodecError> {
+    match tag {
         1 => Ok(StructuralAccess::Owned),
         2 => Ok(StructuralAccess::SharedBorrow),
         3 => Ok(StructuralAccess::MutableBorrow),
         4 => Ok(StructuralAccess::WriteOnlyBorrow),
         tag => Err(CodecError::InvalidTag("StructuralAccess", tag)),
+    }
+}
+
+/// Decode the optional access byte of a standalone view type: zero is the
+/// absent access a declared view slot authors; nonzero is exactly the table
+/// `decode_structural_access` states.
+pub(crate) fn decode_optional_structural_access(
+    reader: &mut Reader<'_>,
+) -> Result<Option<StructuralAccess>, CodecError> {
+    match reader.u8()? {
+        0 => Ok(None),
+        tag => Ok(Some(decode_structural_access_tag(tag)?)),
     }
 }
 
@@ -719,11 +706,7 @@ pub(super) fn encode_call_result(
         BoundaryMachineResult::Structural(result) => {
             writer.u8(2);
             writer.id(result.structural_type);
-            writer.u8(match result.multiplicity {
-                StructuralMultiplicity::Unrestricted => 1,
-                StructuralMultiplicity::Affine => 2,
-                StructuralMultiplicity::Linear => 3,
-            });
+            encode_multiplicity(writer, result.multiplicity);
             writer.len(
                 "boundary result qualifications",
                 result.qualifications.len(),
@@ -748,12 +731,7 @@ pub(super) fn decode_call_result(
         }),
         2 => BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
             structural_type: reader.id("StructuralTypeId")?,
-            multiplicity: match reader.u8()? {
-                1 => StructuralMultiplicity::Unrestricted,
-                2 => StructuralMultiplicity::Affine,
-                3 => StructuralMultiplicity::Linear,
-                tag => return Err(CodecError::InvalidTag("StructuralMultiplicity", tag)),
-            },
+            multiplicity: decode_multiplicity(reader)?,
             qualifications: decode_ids(reader, "boundary result qualifications")?,
             projected_qualifications: decode_projected_qualifications(reader)?,
         }),

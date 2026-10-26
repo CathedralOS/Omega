@@ -19,6 +19,7 @@ mod type_parameter_substitution;
 pub(crate) use const_substitution::fold_closed_const_machine_arguments;
 
 pub(crate) use cloned_calls::{rewrite_cloned_calls, statement_span_handles};
+pub(crate) use const_substitution::normalize_const_arguments;
 
 pub(crate) use evidence_rewrites::collect_evidence_requirement_closure;
 pub(crate) use evidence_rewrites::{evidence_argument_rewrites, rewrite_index_algebra};
@@ -106,28 +107,12 @@ fn retained_capture_operand(
     descriptor: SymbolHandle,
 ) -> Option<ExpressionHandle> {
     use typed_trees::expression::ValueCaptureOwner;
-    let (application, owner) = match site {
-        super::CallSite::Expression(expression) => (
-            program
-                .expression_table
-                .call_node(expression)?
-                .authored_machine_application,
-            ValueCaptureOwner::ExpressionArgument {
-                call: expression,
-                position,
-            },
-        ),
-        super::CallSite::Statement(statement) => (
-            program
-                .statement_table
-                .statement(statement)
-                .as_call()?
-                .authored_machine_application,
-            ValueCaptureOwner::StatementArgument {
-                call: statement,
-                position,
-            },
-        ),
+    let application = site.authored_machine_application(program)?;
+    let owner = match site {
+        super::CallSite::Expression(call) => {
+            ValueCaptureOwner::ExpressionArgument { call, position }
+        }
+        super::CallSite::Statement(call) => ValueCaptureOwner::StatementArgument { call, position },
     };
     if !application.is_valid() {
         return None;

@@ -43,9 +43,45 @@ impl Builder<'_, '_> {
             checked_trees::CheckedScalarComputationHandle,
         )>,
     > {
-        validation::assignment_target_selectors(self.program, source)
+        let selectors = crate::values::authored_projection_selectors(self.program, source)?;
+        self.retain_projection_selector_evaluations(owner, selectors)
+    }
+
+    pub(super) fn retain_projection_selector_evaluations(
+        &mut self,
+        owner: ExpressionHandle,
+        selectors: Vec<ExpressionHandle>,
+    ) -> Option<
+        Vec<(
+            ExpressionHandle,
+            checked_trees::CheckedScalarComputationHandle,
+        )>,
+    > {
+        if selectors.is_empty() {
+            return Some(Vec::new());
+        }
+        let statement = u32::try_from(self.statement_index).ok()?;
+        if let Some(evaluations) =
+            self.plans
+                .projection_selectors_at(self.machine, self.state, statement, owner)
+        {
+            let values = if evaluations.is_empty() {
+                &[][..]
+            } else {
+                self.plans.operands.span(evaluations)?
+            };
+            if selectors.len() != values.len()
+                || selectors.iter().zip(values).any(|(expression, root)| {
+                    !self.plans.nodes.is_valid(*root)
+                        || self.plans.nodes.get(*root).authored_root != *expression
+                })
+            {
+                return None;
+            }
+            return Some(selectors.into_iter().zip(values.iter().copied()).collect());
+        }
+        let values = selectors
             .into_iter()
-            .rev()
             .enumerate()
             .map(|(ordinal, selector)| {
                 // Different consumers of one captured projection share its
@@ -64,7 +100,46 @@ impl Builder<'_, '_> {
                 };
                 Some((selector, value))
             })
-            .collect()
+            .collect::<Option<Vec<_>>>()?;
+        let evaluations = self
+            .plans
+            .operands
+            .insert_many(values.iter().map(|(_, value)| *value));
+        self.plans
+            .projection_selectors
+            .append(checked_trees::CheckedProjectionSelectorRoot {
+                machine: self.machine,
+                state: self.state,
+                statement_ordinal: statement,
+                expression: owner,
+                evaluations,
+            });
+        Some(values)
+    }
+
+    pub(in crate::execution::scalar_computations) fn projection_selector_span(
+        &self,
+        expression: ExpressionHandle,
+        selectors: &[(
+            ExpressionHandle,
+            checked_trees::CheckedScalarComputationHandle,
+        )],
+    ) -> Option<arena::HandleSpan<checked_trees::CheckedScalarComputationHandle>> {
+        if selectors.is_empty() {
+            return Some(Default::default());
+        }
+        let span = self.plans.projection_selectors_at(
+            self.machine,
+            self.state,
+            u32::try_from(self.statement_index).ok()?,
+            expression,
+        )?;
+        let children = self.plans.operands.span(span)?;
+        children
+            .iter()
+            .copied()
+            .eq(selectors.iter().map(|(_, child)| *child))
+            .then_some(span)
     }
 
     pub(in crate::execution::scalar_computations) fn retain_reference_selectors(
@@ -84,12 +159,9 @@ impl Builder<'_, '_> {
                 *value,
             )?;
         }
-        Some(
-            self.plans
-                .operands
-                .insert_many(selectors.into_iter().map(|(_, value)| value)),
-        )
+        self.projection_selector_span(expression, &selectors)
     }
+
     /// A nonempty projection names a subtree of the retained value's owner.
     /// Keep that owner and selection path together. Whole-value occurrences
     /// retain their own checking judgments and evaluation identity.
@@ -101,77 +173,114 @@ impl Builder<'_, '_> {
         ExpressionHandle,
         TypeReferenceHandle,
         Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+        arena::HandleSpan<checked_trees::CheckedScalarComputationHandle>,
     )> {
         let node = self.structural_values.nodes.get(value);
-        let (owner, path) = match &node.kind {
-            // A selected subtree retains its containing owner. A whole-value
-            // cast is itself the occurrence that owns checked memberships;
-            // scheduling only its operand would discard those judgments.
-            CheckedStructuralValueKind::Projection { source, path, .. } if !path.is_empty() => {
-                (*source, path.clone())
-            }
-            _ => (value, Vec::new()),
+        let (owner, path, projection_evaluations) = match &node.kind {
+            // A noncopy selection retains its containing owner. A selected
+            // copy owns an independent completed value, just as a whole-value
+            // cast owns its checked memberships; using its source occurrence
+            // would lose that new value and its exact root identity.
+            CheckedStructuralValueKind::Projection {
+                source,
+                path,
+                projection_evaluations,
+                copies_selected_value: false,
+                ..
+            } if !path.is_empty() => (*source, path.clone(), *projection_evaluations),
+            _ => (value, Vec::new(), Default::default()),
         };
-        let expression = self.structural_values.nodes.get(owner).expression;
-        let owner_reference = if owner == value {
-            reference
-        } else {
-            let place = validation::canonical_place_from_expression_in_state(
-                self.program,
-                self.state,
-                self.statement_index,
-                expression,
-            )?;
-            if !place.segments.is_empty() {
-                return None;
-            }
-            validation::canonical_place_type_reference(
-                self.program,
-                self.state,
-                self.statement_index,
-                &place,
-            )?
-        };
-        // The caller has already selected a completed argument value. A whole
-        // place can require that occurrence to retain its receiving contract
-        // even when it needs no new storage. Do not reclassify it as absent
-        // merely because its physical home already exists.
+        let owner_node = self.structural_values.nodes.get(owner);
+        let expression = owner_node.expression;
+        // The value node owns the declared carrier of this exact completed
+        // occurrence. Its source expression may still spell a projection of
+        // the old storage; that syntax is not its new owned home namespace.
+        let owner_reference = owner_node.type_reference;
+        let statement = u32::try_from(self.statement_index).ok()?;
+        if owner_node.machine != self.machine
+            || owner_node.state != self.state
+            || owner_node.statement_index != statement
+        {
+            return None;
+        }
+        if owner == value
+            && !validation::declared_carriers_match(self.program, owner_reference, reference)
+        {
+            return None;
+        }
+        // Both the containing owner and a selected completed value use the
+        // same association owner. It authenticates value handles before any
+        // ordinary expression publication, so captured copies keep their own
+        // namespace and never acquire a second producer.
         self.retain_structural_value_root(owner, owner_reference)?;
-        Some((expression, owner_reference, path))
+        let retained = self.structural_values.root_for_value(owner)?;
+        if self
+            .program
+            .normalized_type_identity(retained.type_reference)
+            != self.program.normalized_type_identity(owner_reference)
+        {
+            return None;
+        }
+        Some((expression, owner_reference, path, projection_evaluations))
     }
 
-    /// Publish the exact completed value independently of its containing home.
-    /// A projected observer needs both associations: the whole owner supplies
-    /// custody, while the selected value supplies its own shape and type. The
-    /// check refuses a coordinate already holding another value, machine or
-    /// contract; publishing itself is the one operation that keeps an
-    /// association, so an absent coordinate is filled by `retain_structural_root`
-    /// rather than by a second append here.
+    /// Authenticate a completed handle before using the common ordinary root
+    /// publisher. Captured copies are already associated by value and cannot
+    /// be republished through their diagnostic source expression. An occupied
+    /// or ambiguous ordinary coordinate cannot accept a different value.
     pub(super) fn retain_structural_value_root(
         &mut self,
         value: CheckedStructuralValueHandle,
         reference: TypeReferenceHandle,
     ) -> Option<()> {
         let node = self.structural_values.nodes.get(value);
-        let expression = node.expression;
         let statement = u32::try_from(self.statement_index).ok()?;
-        if let Some(retained) = self
-            .structural_values
-            .root_for_expression(self.state, statement, expression)
+        if node.machine != self.machine
+            || node.state != self.state
+            || node.statement_index != statement
+            || !validation::declared_carriers_match(self.program, node.type_reference, reference)
         {
-            if retained.machine != self.machine
-                || self
-                    .program
-                    .normalized_type_identity(retained.type_reference)
-                    != self.program.normalized_type_identity(reference)
-                || retained.root != value
-            {
-                return None;
-            }
-        } else {
-            self.retain_structural_root(statement, expression, reference, value);
+            return None;
         }
+        if let Some(root) = self.structural_values.root_for_value(value) {
+            return (root.machine == self.machine
+                && root.state == self.state
+                && root.statement_ordinal == statement
+                && root.expression == node.expression
+                && validation::declared_carriers_match(
+                    self.program,
+                    root.type_reference,
+                    node.type_reference,
+                ))
+            .then_some(());
+        }
+        if self
+            .structural_values
+            .roots_for_statement(self.state, statement)
+            .iter()
+            .any(|root| {
+                root.root == value
+                    || (!root.captured_copy.is_valid() && root.expression == node.expression)
+            })
+        {
+            return None;
+        }
+        self.retain_structural_root(statement, node.expression, node.type_reference, value);
         Some(())
+    }
+
+    /// A scalar consumer may need the value of readable storage before a later
+    /// operand changes it. Use the ordinary copy producer and its declared
+    /// capability; a tag observation alone never licenses copying an owner.
+    pub(super) fn retain_copied_place_value(
+        &mut self,
+        expression: ExpressionHandle,
+        reference: TypeReferenceHandle,
+    ) -> Option<CheckedStructuralValueHandle> {
+        let kind = self.copied_place(expression, reference)?;
+        let value = self.publish_structural_value(expression, reference, kind)?;
+        self.retained_argument_owner(value, reference)?;
+        Some(value)
     }
 
     /// Retain the value established by an argument, independent of how the
@@ -183,86 +292,100 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<CheckedStructuralValueHandle> {
-        let (expression, expected) =
-            match self.program.type_reference_table.type_reference(expected) {
-                TypeReferenceNode::Reference { .. }
-                    if validation::reference_result_custody::stored_loan_parts(
+        let (expression, expected) = match self
+            .program
+            .type_reference_table
+            .type_reference(expected)
+        {
+            _ if self.uses_captured_dispatch_value(expression) => {
+                let producer = if validation::reference_shell(self.program, expected).is_some() {
+                    validation::expression_result_type_reference(
                         self.program,
-                        expected,
-                    )
-                    .is_some()
-                        && validation::reference_formation_source(self.program, expression)
-                            .is_some() =>
-                {
-                    let machine = self.program.machine_by_symbol(self.machine)?;
-                    let state = self.program.state_by_symbol(self.state)?;
-                    let actual = crate::values::reference_sources::formed_reference_type(
-                        self.program,
-                        machine,
-                        state,
+                        self.program.machine_by_symbol(self.machine)?,
+                        self.program.state_by_symbol(self.state)?,
                         expression,
-                    )?;
-                    (expression, actual)
-                }
-                // A view carries a descriptor value, not an owned slice
-                // referent. Preserve its checked reference shell and loan.
-                TypeReferenceNode::Reference { .. }
-                    if validation::slice_view_shell(self.program, expected, &[]).is_some() =>
-                {
-                    // A view is a descriptor value even when it has a named or
-                    // projected home. Complete that value at this operand's own
-                    // position; a later argument may replace the old slot. The
-                    // same value producer forms array-to-view descriptors, and
-                    // retained loan facts independently preserve backing custody.
-                    (expression, expected)
-                }
-                TypeReferenceNode::Reference { .. }
-                    if let Some(actual) =
-                        crate::values::reference_sources::transported_value_type(
-                            self.program,
-                            self.program.machine_by_symbol(self.machine)?,
-                            self.program.state_by_symbol(self.state)?,
-                            self.statement_index,
-                            expression,
-                        ) =>
-                {
-                    // Source admission already checked this actual against its
-                    // formal in the caller's telescope. Retain the produced
-                    // carrier; replaying correspondence here loses that scope.
-                    (expression, actual)
-                }
-                TypeReferenceNode::Reference { .. }
-                    if validation::reference_formation_source(self.program, expression)
+                    )?
+                } else {
+                    expected
+                };
+                (expression, producer)
+            }
+            TypeReferenceNode::Reference { .. }
+                if validation::reference_result_custody::stored_loan_parts(
+                    self.program,
+                    expected,
+                )
+                .is_some()
+                    && validation::reference_formation_source(self.program, expression)
                         .is_some() =>
-                {
-                    // An explicit loan is a completed value even when its backing
-                    // already exists. Its fresh borrowed arrival carries facts at
-                    // this occurrence without relabeling the backing's old value.
-                    (expression, expected)
+            {
+                let machine = self.program.machine_by_symbol(self.machine)?;
+                let state = self.program.state_by_symbol(self.state)?;
+                let actual = crate::values::reference_sources::formed_reference_type(
+                    self.program,
+                    machine,
+                    state,
+                    expression,
+                )?;
+                (expression, actual)
+            }
+            // A view carries a descriptor value, not an owned slice
+            // referent. Preserve its checked reference shell and loan.
+            TypeReferenceNode::Reference { .. }
+                if validation::slice_view_shell(self.program, expected, &[]).is_some() =>
+            {
+                // A view is a descriptor value even when it has a named or
+                // projected home. Complete that value at this operand's own
+                // position; a later argument may replace the old slot. The
+                // same value producer forms array-to-view descriptors, and
+                // retained loan facts independently preserve backing custody.
+                (expression, expected)
+            }
+            TypeReferenceNode::Reference { .. }
+                if let Some(actual) = crate::values::reference_sources::transported_value_type(
+                    self.program,
+                    self.program.machine_by_symbol(self.machine)?,
+                    self.program.state_by_symbol(self.state)?,
+                    self.statement_index,
+                    expression,
+                ) =>
+            {
+                // Source admission already checked this actual against its
+                // formal in the caller's telescope. Retain the produced
+                // carrier; replaying correspondence here loses that scope.
+                (expression, actual)
+            }
+            TypeReferenceNode::Reference { .. }
+                if validation::reference_formation_source(self.program, expression).is_some() =>
+            {
+                // An explicit loan is a completed value even when its backing
+                // already exists. Its fresh borrowed arrival carries facts at
+                // this occurrence without relabeling the backing's old value.
+                (expression, expected)
+            }
+            TypeReferenceNode::Reference {
+                access: language_semantics::ReferenceAccess::Shared,
+                ..
+            } => {
+                let (expression, expected) = crate::semantic::calls::shared_argument_referent(
+                    self.program,
+                    expression,
+                    expected,
+                )?;
+                let place = validation::canonical_place_from_expression_in_state(
+                    self.program,
+                    self.state,
+                    self.statement_index,
+                    expression,
+                )?;
+                if !matches!(place.root, facts::PlaceRoot::Expression(_)) {
+                    return None;
                 }
-                TypeReferenceNode::Reference {
-                    access: language_semantics::ReferenceAccess::Shared,
-                    ..
-                } => {
-                    let (expression, expected) = crate::semantic::calls::shared_argument_referent(
-                        self.program,
-                        expression,
-                        expected,
-                    )?;
-                    let place = validation::canonical_place_from_expression_in_state(
-                        self.program,
-                        self.state,
-                        self.statement_index,
-                        expression,
-                    )?;
-                    if !matches!(place.root, facts::PlaceRoot::Expression(_)) {
-                        return None;
-                    }
-                    (expression, expected)
-                }
-                TypeReferenceNode::Reference { .. } => return None,
-                _ => (expression, expected),
-            };
+                (expression, expected)
+            }
+            TypeReferenceNode::Reference { .. } => return None,
+            _ => (expression, expected),
+        };
         let statement = u32::try_from(self.statement_index).ok()?;
         let retained = self
             .structural_values
@@ -300,12 +423,15 @@ impl Builder<'_, '_> {
                 return None;
             }
         }
-        // Retain the complete producer as well as the selected value. A loan
-        // of a field or element must establish its owner's home, never move
-        // that child into a detached argument temporary. Scalar calls and
-        // statement calls consume the same owner/path relationship.
+        // A noncopy selection retains its containing producer. A selected
+        // copy already establishes its own independent value home; registering
+        // its source instead would also duplicate this value's ordinary root.
+        // Scalar and statement calls consume the same owner/path relationship.
         if let CheckedStructuralValueKind::Projection {
-            source, ref path, ..
+            source,
+            ref path,
+            copies_selected_value: false,
+            ..
         } = self.structural_values.nodes.get(root).kind
         {
             let source_needs_establishment =
@@ -429,6 +555,10 @@ impl Builder<'_, '_> {
                 return None;
             }
             CheckedStructuralValueKind::NativeCodeLayout { selected_state }
+        } else if self.uses_captured_dispatch_value(expression) {
+            // An authenticated completed receiver supplies the value before
+            // scalar or reference planning can choose a live-storage read.
+            self.copied_dispatch_place(expression, expected)?
         } else if let Some(primitive) = self.program.primitive_type_reference(expected) {
             // Scalar storage is independent of its containing record, array,
             // or argument. Keep the complete receiving type on this node;
@@ -455,7 +585,9 @@ impl Builder<'_, '_> {
             let source = self.structural_value(selected, expected)?;
             CheckedStructuralValueKind::Projection {
                 source,
+                logical_root_type_identity: Default::default(),
                 path: Vec::new(),
+                projection_evaluations: Default::default(),
                 copies_selected_value: false,
                 type_identity: validation::stored_structural_type_identity(
                     self.program,
@@ -625,7 +757,7 @@ impl Builder<'_, '_> {
                     )
                 })
             };
-            let (source, storage, backing_type) =
+            let (mut source, storage, backing_type) =
                 if validation::reference_formation_source(self.program, expression).is_some() {
                     let capture = crate::values::reference_sources::capture(
                         self.program,
@@ -652,6 +784,12 @@ impl Builder<'_, '_> {
                         validation::reference_shell(self.program, expected)?.referee,
                     )
                 };
+            let projection_evaluations = if selectors.is_empty() {
+                Default::default()
+            } else {
+                self.projection_selector_span(expression, &selectors)?
+            };
+            source.retain_projection_evaluations(projection_evaluations, &self.plans.operands)?;
             let selectors = self.retain_reference_selectors(expression, selectors)?;
             CheckedStructuralValueKind::Reference {
                 source,
@@ -687,7 +825,15 @@ impl Builder<'_, '_> {
             self.program.expression_table.expression(expression)
         {
             let call_target = validation::call_target_symbol(self.program, call);
-            let returned = validation::call_target_return_type(self.program, call_target)?;
+            // This occurrence owns its substituted result vocabulary. The
+            // raw declaration still names callee index/region binders and
+            // cannot type the caller's completed structural home.
+            let returned = validation::expression_result_type_reference(
+                self.program,
+                self.program.machine_by_symbol(self.machine)?,
+                self.program.state_by_symbol(self.state)?,
+                expression,
+            )?;
             // Result storage does not depend on the source of executable
             // supply. The ordinary call planner retains the exact boundary,
             // body or dynamic route and its independent completion custody.
@@ -778,6 +924,7 @@ impl Builder<'_, '_> {
             validation::scalar_case_value_source(self.program, expression, expected)
         {
             CheckedStructuralValueKind::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
+                projection_evaluations: Default::default(),
                 source: self.structural_source(symbol),
                 path: Vec::new(),
                 type_identity: self.program.normalized_type_identity(expected),

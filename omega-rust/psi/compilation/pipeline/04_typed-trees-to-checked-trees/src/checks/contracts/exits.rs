@@ -134,6 +134,7 @@ pub(super) fn check_exit_ensures(
     exit_flow: &checked_trees::FlowExitFact,
     entailment: &super::entailment::MachineEntailmentOutcome,
     content_plans: &[validation::ContentConservationSourcePlan],
+    available_content: &[language_semantics::content::ContentConservationPlan],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     cyclic_headers: &mut CyclicHeaderInvariants,
     diagnostics: &mut Vec<Diagnostic>,
@@ -253,7 +254,35 @@ pub(super) fn check_exit_ensures(
                     }
                 })
             };
-            let satisfied = (missing_origins.is_empty()
+            // Canonical content theorems have one rooted publication owner.
+            // Conditional call guarantees may remain ordinary path facts, but
+            // cannot bypass that owner through a different exit prover.
+            let content_theorem = match fact.payload {
+                facts::FactPayload::ContractBooleanExpression { expression, .. } => {
+                    content_plans.iter().any(|source| {
+                        source.source_expression == expression
+                            && source.plan.owner == state_flow.machine_symbol
+                    })
+                }
+                _ => false,
+            };
+            let satisfied = if content_theorem {
+                content_plans.iter().any(|source| {
+                    source.plan.owner == state_flow.machine_symbol
+                        && source.plan.callable == state_flow.state_symbol
+                        && matches!(fact.payload,
+                            facts::FactPayload::ContractBooleanExpression { expression, .. }
+                            if expression == source.source_expression)
+                        && available_content.contains(&source.plan)
+                }) || (missing_origins.is_empty()
+                    && crate::checks::content::proves_composed_exit(
+                        facts,
+                        exit_flow,
+                        fact,
+                        content_plans,
+                    ))
+            } else {
+                (missing_origins.is_empty()
                 && (is_proved()
                     || result_domains::proves_result_domain(
                         program,
@@ -269,6 +298,7 @@ pub(super) fn check_exit_ensures(
                         exit_flow,
                         fact,
                         content_plans,
+                        available_content,
                     )
                     || crate::checks::content::proves_composed_exit(
                         facts, exit_flow, fact, content_plans,
@@ -332,7 +362,8 @@ pub(super) fn check_exit_ensures(
                 // A re-entered parameter has no exact origin, so every route
                 // above is vetoed; a proved header invariant is the guarantee
                 // itself at the header and needs no origin.
-                || cyclic_headers.proves(program, facts, exit_flow, fact);
+                || cyclic_headers.proves(program, facts, exit_flow, fact)
+            };
 
             if !satisfied {
                 let origin_diagnostic = if missing_origins.is_empty() {

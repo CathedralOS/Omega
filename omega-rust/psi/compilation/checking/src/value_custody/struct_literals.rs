@@ -58,6 +58,7 @@ pub fn validate_value_construction(
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let observations = &ConstructionObservations::new(program, machine, state, expression);
@@ -70,6 +71,7 @@ pub fn validate_value_construction(
         &mut diagnostics,
         &mut Vec::new(),
         0,
+        formation_obligations,
     );
     if diagnostics.is_empty() {
         Ok(())
@@ -81,6 +83,7 @@ pub fn validate_value_construction(
 pub(crate) fn validate_struct_literal_fields(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) -> Vec<checked_trees::CheckedStoredIntegerWrite> {
     let mut stored_integer_writes = Vec::new();
     for machine in program.machines() {
@@ -114,6 +117,7 @@ pub(crate) fn validate_struct_literal_fields(
                                 diagnostics,
                                 &mut stored_integer_writes,
                                 statement_index,
+                                formation_obligations,
                             );
                         }
                     }
@@ -127,6 +131,7 @@ pub(crate) fn validate_struct_literal_fields(
                             diagnostics,
                             &mut stored_integer_writes,
                             statement_index,
+                            formation_obligations,
                         );
                         scan_expression(
                             program,
@@ -137,6 +142,7 @@ pub(crate) fn validate_struct_literal_fields(
                             diagnostics,
                             &mut stored_integer_writes,
                             statement_index,
+                            formation_obligations,
                         );
                     }
                     StatementNode::Call(call) => {
@@ -150,6 +156,7 @@ pub(crate) fn validate_struct_literal_fields(
                                 diagnostics,
                                 &mut stored_integer_writes,
                                 statement_index,
+                                formation_obligations,
                             );
                         }
                     }
@@ -163,6 +170,7 @@ pub(crate) fn validate_struct_literal_fields(
                             diagnostics,
                             &mut stored_integer_writes,
                             statement_index,
+                            formation_obligations,
                         );
                     }
                     StatementNode::LocalData(local_data) => {
@@ -175,6 +183,7 @@ pub(crate) fn validate_struct_literal_fields(
                             diagnostics,
                             &mut stored_integer_writes,
                             statement_index,
+                            formation_obligations,
                         );
                     }
                     StatementNode::Transition(transition) => {
@@ -188,6 +197,7 @@ pub(crate) fn validate_struct_literal_fields(
                                 diagnostics,
                                 &mut stored_integer_writes,
                                 statement_index,
+                                formation_obligations,
                             );
                         }
                         for target in transition.targets() {
@@ -200,6 +210,7 @@ pub(crate) fn validate_struct_literal_fields(
                                 diagnostics,
                                 &mut stored_integer_writes,
                                 statement_index,
+                                formation_obligations,
                             );
                         }
                     }
@@ -219,6 +230,7 @@ fn scan_transition_target(
     diagnostics: &mut Vec<Diagnostic>,
     stored_integer_writes: &mut Vec<checked_trees::CheckedStoredIntegerWrite>,
     statement_index: usize,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     match target {
         TransitionTargetNode::Named { arguments, .. } => {
@@ -232,6 +244,7 @@ fn scan_transition_target(
                     diagnostics,
                     stored_integer_writes,
                     statement_index,
+                    formation_obligations,
                 );
             }
         }
@@ -245,6 +258,7 @@ fn scan_transition_target(
                 diagnostics,
                 stored_integer_writes,
                 statement_index,
+                formation_obligations,
             );
         }
         TransitionTargetNode::Terminal => {}
@@ -260,6 +274,7 @@ fn scan_expression(
     diagnostics: &mut Vec<Diagnostic>,
     stored_integer_writes: &mut Vec<checked_trees::CheckedStoredIntegerWrite>,
     statement_index: usize,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     if !expression.is_valid() {
         return;
@@ -293,6 +308,7 @@ fn scan_expression(
                 diagnostics,
                 stored_integer_writes,
                 statement_index,
+                formation_obligations,
             );
         }
         ExpressionNode::Binary(binary) => {
@@ -305,6 +321,7 @@ fn scan_expression(
                 diagnostics,
                 stored_integer_writes,
                 statement_index,
+                formation_obligations,
             );
             let membership = matches!(
                 binary.operator,
@@ -352,6 +369,7 @@ fn scan_expression(
                     diagnostics,
                     stored_integer_writes,
                     statement_index,
+                    formation_obligations,
                 );
             }
             return;
@@ -366,6 +384,7 @@ fn scan_expression(
                 diagnostics,
                 stored_integer_writes,
                 statement_index,
+                formation_obligations,
             );
             return;
         }
@@ -428,6 +447,7 @@ fn scan_expression(
             diagnostics,
             stored_integer_writes,
             statement_index,
+            formation_obligations,
         );
     });
 }

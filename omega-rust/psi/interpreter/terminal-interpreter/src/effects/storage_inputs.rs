@@ -11,17 +11,19 @@
 mod borrowed_completion;
 pub(crate) mod contents;
 mod original_residence;
+mod reference_outputs;
 
 use crate::effects::scalar_loans::{BoundaryScalarLoans, TerminalBoundaryScalarBuffer};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
-use crate::record::storage::PreparedConstructorReplacement;
+use crate::record::storage::{ConstructorStorage, PreparedConstructorReplacement};
 use crate::values::TerminalStructuralValue;
 use std::sync::Arc;
 use terminal_psi::{StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration};
 
 pub use contents::{
-    TerminalBoundaryStorageValue, TerminalBoundaryStructuralBuffer, TerminalStorageContents,
+    TerminalBoundaryReferenceSelection, TerminalBoundaryStorageValue,
+    TerminalBoundaryStructuralBuffer, TerminalStorageContents,
 };
 
 /// Actual backing determines the presentation; these are not alternative
@@ -30,6 +32,48 @@ pub use contents::{
 pub enum TerminalBoundaryStorageBuffer {
     Scalar(TerminalBoundaryScalarBuffer),
     Structural(TerminalBoundaryStructuralBuffer),
+}
+
+impl TerminalBoundaryStorageBuffer {
+    /// Select a typed endpoint of this invocation's captured input. Opaque
+    /// identity and completion validation, not a native integer, authenticate
+    /// the resulting reference request for both primitive and aggregate loans.
+    pub fn select_reference(
+        &self,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        access: terminal_psi::StructuralAccess,
+    ) -> Result<TerminalBoundaryReferenceSelection, crate::effects::TerminalEffectRejection> {
+        let (identity, argument_index, available) = match self {
+            Self::Scalar(buffer) => (
+                buffer.capture_identity(),
+                buffer.argument_index(),
+                buffer.access(),
+            ),
+            Self::Structural(buffer) => (
+                Arc::clone(&buffer.identity),
+                buffer.argument_index,
+                buffer.access,
+            ),
+        };
+        if !crate::reference::access_covers(available, access)
+            || !matches!(
+                access,
+                terminal_psi::StructuralAccess::SharedBorrow
+                    | terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            )
+        {
+            return Err(crate::effects::TerminalEffectRejection::new(
+                "reference selection exceeds captured input access",
+            ));
+        }
+        Ok(TerminalBoundaryReferenceSelection {
+            identity,
+            argument_index,
+            path: path.to_vec(),
+            access,
+        })
+    }
 }
 
 struct StructuralLoanBinding {
@@ -44,8 +88,10 @@ struct StructuralLoanBinding {
     normal_qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     original: Vec<TerminalBoundaryStorageValue>,
     leaves: Vec<contents::StorageLeaf>,
+    completed_leaves: Option<Vec<contents::StorageLeaf>>,
     scalars: Vec<contents::PinnedScalar>,
     replacement: Option<PreparedConstructorReplacement>,
+    reference_replacement: Option<ConstructorStorage>,
     stores: Vec<(
         crate::primitive_storage::PrimitiveStorage,
         semantic_vocabulary::ScalarType,
@@ -68,6 +114,17 @@ pub(crate) struct BoundaryStorageInputs {
     scalars: BoundaryScalarLoans,
     structural: Vec<StructuralLoanBinding>,
     owned: Vec<OwnedPayloadSnapshot>,
+    reference_inputs: Vec<CapturedReferenceInput>,
+}
+
+/// Every storage capture publishes the same private reference-selection
+/// identity, independently of scalar versus aggregate snapshot representation.
+struct CapturedReferenceInput {
+    identity: Arc<()>,
+    argument_index: usize,
+    source_argument: StructuralArgument,
+    referent: TerminalStructuralValue,
+    access: terminal_psi::StructuralAccess,
 }
 
 impl BoundaryStorageInputs {
@@ -76,6 +133,7 @@ impl BoundaryStorageInputs {
             && self.scalars.is_empty()
             && self.structural.is_empty()
             && self.owned.is_empty()
+            && self.reference_inputs.is_empty()
     }
 
     pub(crate) fn capture_scalar(
@@ -93,9 +151,9 @@ impl BoundaryStorageInputs {
             argument_index,
             identity_cursor,
         )?;
-        self.buffers.push(TerminalBoundaryStorageBuffer::Scalar(
-            self.scalars.buffers.pop().ok_or_else(malformed)?,
-        ));
+        let buffer = self.scalars.buffers.pop().ok_or_else(malformed)?;
+        self.buffers
+            .push(TerminalBoundaryStorageBuffer::Scalar(buffer));
         Ok(referent)
     }
 
@@ -134,6 +192,7 @@ impl BoundaryStorageInputs {
                     access: parameter.access,
                     structural_type: referent.structural_type,
                     values: values.clone(),
+                    references: Vec::new(),
                 },
             ));
             self.owned.push(OwnedPayloadSnapshot {
@@ -191,6 +250,7 @@ impl BoundaryStorageInputs {
                 access: parameter.access,
                 structural_type: referent.structural_type,
                 values: original.clone(),
+                references: Vec::new(),
             },
         ));
         self.structural.push(StructuralLoanBinding {
@@ -203,16 +263,79 @@ impl BoundaryStorageInputs {
             normal_qualifications,
             original,
             leaves,
+            completed_leaves: None,
             scalars,
             replacement: None,
+            reference_replacement: None,
             stores: Vec::new(),
         });
+        Ok(())
+    }
+
+    /// Retain reference-selection identities only for a declaration that
+    /// actually publishes reference outputs. The ordinary storage capture has
+    /// already established each buffer's exact input; this is a metadata join,
+    /// not another storage traversal or supplier inference.
+    pub(crate) fn capture_reference_inputs(
+        &mut self,
+        declaration: &terminal_psi::BoundaryMachineDeclaration,
+        arguments: &[StructuralArgument],
+        values: &[TerminalStructuralValue],
+    ) -> Result<(), TerminalInterpretError> {
+        if declaration.reference_outputs.is_empty() {
+            return Ok(());
+        }
+        if !self.reference_inputs.is_empty()
+            || arguments.len() != declaration.structural_parameters.len()
+            || values.len() != arguments.len()
+        {
+            return Err(malformed());
+        }
+        for buffer in &self.buffers {
+            let (identity, argument_index, access) = match buffer {
+                TerminalBoundaryStorageBuffer::Scalar(buffer) => (
+                    buffer.capture_identity(),
+                    buffer.argument_index(),
+                    buffer.access(),
+                ),
+                TerminalBoundaryStorageBuffer::Structural(buffer) => (
+                    Arc::clone(&buffer.identity),
+                    buffer.argument_index,
+                    buffer.access,
+                ),
+            };
+            let parameter = declaration
+                .structural_parameters
+                .get(argument_index)
+                .ok_or_else(malformed)?;
+            let argument = arguments.get(argument_index).ok_or_else(malformed)?;
+            let referent = values.get(argument_index).ok_or_else(malformed)?;
+            if parameter.access != access
+                || argument.access != access
+                || parameter.structural_type != referent.structural_type
+                || self
+                    .reference_inputs
+                    .iter()
+                    .any(|capture| capture.argument_index == argument_index)
+            {
+                return Err(malformed());
+            }
+            self.reference_inputs.push(CapturedReferenceInput {
+                identity,
+                argument_index,
+                source_argument: argument.clone(),
+                referent: referent.clone(),
+                access,
+            });
+        }
         Ok(())
     }
 
     pub(crate) fn validate_writeback(
         &mut self,
         execution: &TerminalExecution,
+        declaration: &terminal_psi::BoundaryMachineDeclaration,
+        identity_cursor: &mut Option<u64>,
     ) -> Result<(), TerminalInterpretError> {
         let scalar_buffers: Vec<_> = self
             .buffers
@@ -256,6 +379,7 @@ impl BoundaryStorageInputs {
                 || buffer.argument_index != original.argument_index
                 || buffer.structural_type != original.structural_type
                 || buffer.values != original.values
+                || !buffer.references.is_empty()
             {
                 return Err(malformed());
             }
@@ -263,9 +387,20 @@ impl BoundaryStorageInputs {
         if structural_buffers.len() != self.structural.len() {
             return Err(malformed());
         }
+        // Ordinary scalar/case restoration validates every original snapshot
+        // first. Reference outputs use those same frozen identities and retain
+        // their separate lifetime contract, never native addresses as authority.
         for (buffer, binding) in structural_buffers.into_iter().zip(&mut self.structural) {
             borrowed_completion::stage(execution, buffer, binding)?;
         }
+        reference_outputs::stage(
+            execution,
+            declaration,
+            &self.buffers,
+            &mut self.structural,
+            &self.reference_inputs,
+            identity_cursor,
+        )?;
         Ok(())
     }
 

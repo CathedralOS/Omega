@@ -1,0 +1,15 @@
+// A receiving annotation and a folded helper Requires do not admit a value.
+machine expects(witness: addr) -> bool
+requires embed(witness) == 4096; { true }
+machine invalid_local() -> bool
+requires addr::Bound == 16
+{
+    let bad: addr = 4096;
+    expects(bad)
+}
+
+// Type matching an anonymous actual to a formal does not prove its fit.
+machine accepts(value: addr) -> bool { true }
+machine invalid_specification_argument() -> bool
+requires addr::Bound == 16
+requires accepts(4096); { true }

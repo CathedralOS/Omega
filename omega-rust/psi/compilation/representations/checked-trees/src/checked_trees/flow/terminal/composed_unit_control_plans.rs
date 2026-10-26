@@ -168,6 +168,9 @@ pub enum CheckedNaturalRankMeasure {
 pub enum CheckedStateContractRequirement {
     Closed(ClosedScalarContractValue),
     SourceExpression(typed_trees::expression::ExpressionHandle),
+    /// Exact declared Requires fact, authenticated by its state proof owner.
+    /// Every actual arrival must retain the complete source checking decision.
+    SourceFact(arena::Handle<typed_trees::domain::ProofFact>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

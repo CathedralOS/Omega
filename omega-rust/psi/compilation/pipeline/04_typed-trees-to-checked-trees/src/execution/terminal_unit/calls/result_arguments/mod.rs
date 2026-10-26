@@ -434,7 +434,8 @@ fn argument_contract(
                     call.statement_index,
                     place,
                     selectors,
-                ).and_then(|(selected, path)| {
+                )
+                .and_then(|(selected, path)| {
                     (base_type_identity(program, selected, &[], &[])? == target_identity)
                         .then_some(path)
                 })
@@ -550,6 +551,7 @@ fn argument_contract(
             return None;
         }
         return Some(CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,
             },
@@ -656,6 +658,7 @@ fn argument_contract(
                 && matches!(place.root, facts::PlaceRoot::Expression(_))
             {
                 return Some(CheckedUnitStructuralArgumentPlan {
+                    projection_evaluations: Default::default(),
                     source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal: result.binding_ordinal,
                     },
@@ -716,7 +719,12 @@ fn argument_contract(
         || if access == CheckedStructuralAccess::Owned {
             result.type_identity == target_identity
         } else {
-            result_presents(base_type_identity(program, referent, &[], &[])?)
+            result_presents(validation::stored_structural_type_identity(
+                program,
+                referent,
+                &[],
+                &[],
+            ))
         };
     // Only owned transfer carries the selected storage's disposal obligation.
     // A loan retains its owner's custody; its source/formal presentation and
@@ -880,6 +888,7 @@ fn argument_contract(
     // A borrowed referent has no owned-ingress permission rows to replay:
     // its extraction operation relocates custody into this same result slot.
     Some(CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         },

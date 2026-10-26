@@ -1,9 +1,6 @@
 //! A branch state's non-scalar effects consume completed operands without
 //! adding value slots.
-use super::{
-    LoweringError, OperationKind, OperationResult, ValueDeclaration, emit_direct_expression,
-    unsupported,
-};
+use super::{LoweringError, ValueDeclaration, emit_direct_expression, unsupported};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::view_subslice;
@@ -26,6 +23,7 @@ pub(crate) fn emit(
 ) -> Result<(), LoweringError> {
     let checked = environment.checked;
     for effect in effects {
+        let first_operation = operations.len();
         match effect {
             LoweredScalarEffect::ObserveStructuralValue { value, observation } => {
                 let completed = operations
@@ -37,6 +35,15 @@ pub(crate) fn emit(
                     .ok_or(LoweringError::Unsupported(
                         "computed observation has no completed value",
                     ))?;
+                if checked
+                    .facts
+                    .values
+                    .structural_values
+                    .root_for_value(*value)
+                    .is_some_and(|root| root.captured_copy.is_valid())
+                {
+                    evaluation.saved_value_binding(*value, operations)?;
+                }
                 let node = checked
                     .facts
                     .values
@@ -48,18 +55,17 @@ pub(crate) fn emit(
                         receiver_value,
                         subject,
                         field,
+                        atomic_ordering,
                         ..
                     } => crate::scalar_lowering::computations::fields::emitted_observation(
-                        identities,
-                        checked,
                         &evaluation.record_fields,
                         &evaluation.contextual_bindings(),
                         calls.structural_types,
-                        *value,
                         *receiver_value,
                         subject,
                         *field,
                         node.primitive_type,
+                        *atomic_ordering,
                         &completed,
                     )?,
                     checked_trees::CheckedScalarComputationKind::CaseMembership {
@@ -227,6 +233,9 @@ pub(crate) fn emit(
                     calls,
                 )?;
                 crate::unit::attached_unit::argument_evaluation::cleanup_control::CleanupEmission {
+                    structural_types: calls.structural_types,
+                    source_parameters: &evaluation.structural_parameters,
+                    previous_parameter_homes: &evaluation.previous_parameter_homes,
                     checked,
                     current: &mut span.id,
                     parameters: &mut span.parameters,
@@ -240,76 +249,131 @@ pub(crate) fn emit(
                     identities, &regions, values, next_value, next_block, next_edge, operations,
                 )?;
                 for region in &regions {
-                    evaluation.retire_structural_home(region.action.place());
+                    if region.action.path().is_empty() {
+                        evaluation.retire_structural_home(region.action.place());
+                    }
                 }
+            }
+            LoweredScalarEffect::CompleteArgumentSnapshots { places } => {
+                let mut regions = Vec::new();
+                for place in places.iter().rev() {
+                    regions.extend(evaluation.normal_discard_regions(
+                        *place,
+                        calls.structural_types,
+                        operations,
+                    )?);
+                }
+                crate::unit::attached_unit::argument_evaluation::cleanup_control::CleanupEmission {
+                    structural_types: calls.structural_types,
+                    source_parameters: &evaluation.structural_parameters,
+                    previous_parameter_homes: &evaluation.previous_parameter_homes,
+                    checked,
+                    current: &mut span.id,
+                    parameters: &mut span.parameters,
+                    structural_parameters: &mut span.structural_parameters,
+                    block_erased_scalar_formals: &mut span.erased_scalar_formals,
+                    erased_proof_formals,
+                    operation_start: &mut span.operation_start,
+                    blocks,
+                }
+                .emit(
+                    identities, &regions, values, next_value, next_block, next_edge, operations,
+                )?;
+                for place in places {
+                    evaluation.retire_structural_home(*place);
+                }
+            }
+            LoweredScalarEffect::CaptureStructuralPlace {
+                source,
+                place,
+                capture,
+                access,
+            } => {
+                let mut source = source.emit(values, calls, next_value, operations)?;
+                source.access = *access;
+                let parameters = environment
+                    .parameters
+                    .iter()
+                    .chain(span.structural_parameters.iter())
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let (qualifications, projected) = crate::unit::attached_unit::argument_memberships(
+                    &source,
+                    &parameters,
+                    evaluation,
+                    operations,
+                )?;
+                let (structural_type, qualifications, projected) =
+                    crate::emission::completed_place::present_capture(
+                        capture,
+                        *access,
+                        calls.structural_types,
+                        calls.domain_declarations,
+                        qualifications,
+                        projected,
+                    )?;
+                evaluation.current = span.id;
+                evaluation.operation_start = span.operation_start;
+                std::mem::swap(&mut evaluation.parameters, &mut span.parameters);
+                std::mem::swap(
+                    &mut evaluation.block_structural_parameters,
+                    &mut span.structural_parameters,
+                );
+                std::mem::swap(&mut evaluation.blocks, blocks);
+                let captured = crate::emission::completed_address::capture_into(
+                    source.place,
+                    source.path,
+                    structural_type,
+                    *access,
+                    qualifications,
+                    projected,
+                    *place,
+                    evaluation,
+                    values,
+                    next_value,
+                    next_block,
+                    next_edge,
+                    environment.private_places,
+                    operations,
+                );
+                span.id = evaluation.current;
+                span.operation_start = evaluation.operation_start;
+                std::mem::swap(&mut evaluation.parameters, &mut span.parameters);
+                std::mem::swap(
+                    &mut evaluation.block_structural_parameters,
+                    &mut span.structural_parameters,
+                );
+                std::mem::swap(&mut evaluation.blocks, blocks);
+                captured?;
             }
             LoweredScalarEffect::CopyStructuralValue {
                 source,
                 place,
                 structural_type,
-                multiplicity,
             } => {
-                use crate::expression_preparation::bindings::PreparedCopyPathSegment;
-                let mut path = Vec::with_capacity(source.path.len());
-                for segment in &source.path {
-                    path.push(match segment {
-                        PreparedCopyPathSegment::Static(segment) => segment.clone(),
-                        PreparedCopyPathSegment::Index(expression) => {
-                            if !matches!(expression.scalar_type(), semantic_vocabulary::ScalarType::Integer(integer) if !integer.is_address()) {
-                                return unsupported("copied value selector is not an integer");
-                            }
-                            let index = emit_direct_expression(expression, values, next_value, operations);
-                            terminal_psi::StructuralPathSegment::RuntimeIndex {
-                                index,
-                                obligation: calls.allocate_requirement()?,
-                            }
-                        }
-                    });
-                }
-                if let Some(length) = &source.length_observation {
-                    emit_direct_expression(length, values, next_value, operations);
-                }
-                // Read the source's published qualifications, never the copy
-                // destination's requested memberships. Projected copies retain
-                // only the exact selected subtree's qualification paths.
-                let (whole, projected) = operations
+                let source = source.emit(values, calls, next_value, operations)?;
+                let parameters = environment
+                    .parameters
                     .iter()
-                    .filter_map(|operation| operation.result.structural())
-                    .find(|result| result.place == source.place)
-                    .map(|result| (&result.qualifications, &result.projected_qualifications))
-                    .unwrap_or((&source.qualifications, &source.projected_qualifications));
-                let (mut qualifications, projected_qualifications) =
-                    terminal_psi::StructuralPathQualification::select(whole, projected, &path);
-                for domain in &source.formation_qualifications {
-                    qualifications.push(crate::terminal_identities::lookup_domain_id_for_carrier(
-                        calls.domain_ids,
-                        *domain,
-                        *structural_type,
-                    )?);
-                }
-                qualifications.sort();
-                qualifications.dedup();
-                operations.push_leaf(
-                    OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                        qualification_establishments: Vec::new(),
-                        place: *place,
-                        structural_type: *structural_type,
-                        multiplicity: *multiplicity,
-                        qualifications,
-                        projected_qualifications,
-                        claims: Vec::new(),
-                    }),
-                    OperationKind::StructuralLeafCopy {
-                        source: source.place,
-                        path,
-                    },
-                );
+                    .chain(span.structural_parameters.iter())
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let declaration = crate::unit::attached_unit::emit_argument_snapshot(
+                    &source,
+                    *place,
+                    *structural_type,
+                    &parameters,
+                    evaluation,
+                    operations,
+                    calls.structural_types,
+                    calls.domain_declarations,
+                )?;
+                environment.private_places.push(declaration);
             }
 
             LoweredScalarEffect::ProduceStructuralValue {
                 value,
                 structural_type,
-                alias,
             } => {
                 // The scalar graph owns its active span. Lend that same span
                 // to ordinary value emission, then take its actual continuation
@@ -343,6 +407,8 @@ pub(crate) fn emit(
                 );
                 std::mem::swap(&mut evaluation.blocks, blocks);
                 produced?;
+            }
+            LoweredScalarEffect::BindCompletedValueAlias { value, alias } => {
                 evaluation.bind_completed_value_alias(*value, *alias, operations)?;
             }
             LoweredScalarEffect::EstablishScalarCase(case) => {
@@ -407,6 +473,8 @@ pub(crate) fn emit(
                 )?;
             }
         }
+        span.current_claims
+            .publish_operations(&operations.operations[first_operation..])?;
     }
     Ok(())
 }

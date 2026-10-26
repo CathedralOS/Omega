@@ -320,6 +320,23 @@ pub(super) fn entry_value_consequences(
     guard: ExpressionHandle,
     negated: bool,
 ) -> Vec<checked_trees::CrashPredicateIdentity> {
+    let Some((_, state, ordinal)) = eval_sites.iter().find(|(handle, ..)| *handle == guard) else {
+        return Vec::new();
+    };
+    entry_value_consequences_at(program, machine.symbol, *state, *ordinal, guard, negated)
+}
+
+/// A saved guard keeps the entry value proved at its actual evaluation site.
+/// Incoming edges, selected calls and later fallthrough all use this owner;
+/// no consumer may infer entry meaning from the capture's generated name.
+pub(super) fn entry_value_consequences_at(
+    program: &dyn ::validation::CheckingInput,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    ordinal: usize,
+    guard: ExpressionHandle,
+    negated: bool,
+) -> Vec<checked_trees::CrashPredicateIdentity> {
     use checked_trees::{CrashPredicateExpression as Expression, CrashPredicateIdentity};
     fn collect(value: Expression, negated: bool, output: &mut Vec<CrashPredicateIdentity>) {
         output.push(CrashPredicateIdentity::from_expression(if negated {
@@ -364,11 +381,7 @@ pub(super) fn entry_value_consequences(
             _ => {}
         }
     }
-    let Some((_, state, ordinal)) = eval_sites.iter().find(|(handle, ..)| *handle == guard) else {
-        return Vec::new();
-    };
-    let Some(value) =
-        crate::facts::crash_entry_operand(program, machine.symbol, *state, *ordinal, guard)
+    let Some(value) = crate::facts::crash_entry_operand(program, machine, state, ordinal, guard)
     else {
         return Vec::new();
     };

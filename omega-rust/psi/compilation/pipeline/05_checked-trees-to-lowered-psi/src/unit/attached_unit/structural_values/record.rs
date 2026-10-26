@@ -124,12 +124,15 @@ impl emission::Emission<'_, '_, '_> {
                 fields: initialized.into_iter().map(|(_, field)| field).collect(),
                 declarations: &shape_fields,
             },
-            self.evaluation
-                .structural_parameters
-                .iter()
-                .map(|(_, parameter)| parameter),
+            self.evaluation.structural_root_parameters(),
             self.operations,
         )?;
+        if let semantic_vocabulary::StructuralPlaceKind::OperationResult { producer, .. } =
+            declaration.kind
+        {
+            self.evaluation
+                .retire_structural_operation_operands(producer, self.operations)?;
+        }
         self.operations
             .set_structural_result_claims(place, claims)?;
         self.environment.private_places.push(declaration);

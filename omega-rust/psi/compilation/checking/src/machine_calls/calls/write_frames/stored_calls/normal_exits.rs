@@ -1,6 +1,5 @@
-//! Solve normal-exit slot contents across the reachable state graph.
-//! The chronological evaluator supplies each edge completion; only real returns seed
-//! contents, and finite root substitutions bound cyclic composition.
+//! Solve all reachable normal exits in the declared slot namespace.
+//! Completed operands retain their exact source cuts and carrier/backing association.
 
 use super::super as frames;
 use super::*;
@@ -25,7 +24,7 @@ enum SlotExit {
     Return(Vec<StoredLocalOrigins>),
     Edge {
         target: usize,
-        arguments: CompletedArguments,
+        arguments: Vec<SlotArgumentCapture>,
         prefix: CollectedStatementPrefix,
     },
 }
@@ -69,11 +68,13 @@ fn solve_state_effects<'program>(
                 continue;
             }
             let prefix = prefixes.get(ordinal)?.as_ref()?;
-            for completed in expression_effects::completed_transition(
-                program, machine, state, transition, prefix, symbols, inference,
-            )? {
-                let edge = completed.target;
-                let prefix = &completed.context;
+            let completed = expression_effects::completed_targets(
+                program, machine, state, statement, prefix, symbols, inference,
+            )?;
+            for edge in transition.targets() {
+                let completed = completed
+                    .iter()
+                    .find(|completed| completed.target == edge)?;
                 match program.statement_table.transition_target(edge) {
                     TransitionTargetNode::Named { arguments, .. } => {
                         if frames::terminal_calls::target(program, machine, edge).is_valid() {
@@ -96,60 +97,23 @@ fn solve_state_effects<'program>(
                         if parameters.len() != arguments.len() {
                             return None;
                         }
-                        for ((parameter, argument), captured) in parameters
-                            .iter()
-                            .zip(arguments)
-                            .zip(&completed.arguments.contexts)
+                        if completed.arguments.len() != arguments.len()
+                            || completed
+                                .arguments
+                                .iter()
+                                .zip(arguments)
+                                .any(|(captured, expression)| captured.expression != *expression)
                         {
-                            let carries_origin = frames::type_reference_is_reference(
-                                program,
-                                parameter.type_reference,
-                            ) || stored_origins::declared_origins_for_query(
-                                program,
-                                parameter.symbol,
-                                parameter.name.as_str(),
-                                parameter.type_reference,
-                                true,
-                            )
-                            .is_some_and(|inventory| !inventory.references.is_empty());
-                            if !carries_origin {
-                                continue;
-                            }
-                            // Finiteness follows captured backing roots, not
-                            // exact descriptor identity. A dynamic window may
-                            // cross this edge with conservative geometry; its
-                            // destination slot is still matched exactly by
-                            // instantiate. Static storage adds no dependency.
-                            let origin = argument_origin(
-                                program, machine, parameter, *argument, captured, symbols,
-                                inference,
-                            )?;
-                            let source = &origin.source;
-                            if !source.builtin_coordinates {
-                                return None;
-                            }
-                            if source.is_static() {
-                                continue;
-                            }
-                            if !source.root.is_valid() {
-                                return None;
-                            }
-                            let from = substitutions.parameter(target.symbol, parameter.symbol);
-                            let to = substitutions.parameter(state.symbol, source.root);
-                            substitutions.insert(
-                                from,
-                                to,
-                                !source.segments.is_empty() || !source.recasts.is_empty(),
-                            );
+                            return None;
                         }
                         exits.push(SlotExit::Edge {
                             target: target_index,
-                            arguments: completed.arguments,
-                            prefix: prefix.clone(),
+                            arguments: completed.arguments.clone(),
+                            prefix: completed.context.clone(),
                         });
                     }
                     TransitionTargetNode::Terminal | TransitionTargetNode::Value(_) => {
-                        exits.push(SlotExit::Return(prefix.stored.clone()))
+                        exits.push(SlotExit::Return(completed.context.stored.clone()))
                     }
                 }
             }
@@ -163,9 +127,6 @@ fn solve_state_effects<'program>(
             exits,
         });
         index += 1;
-    }
-    if !substitutions.is_finite() {
-        return None;
     }
     let mut known = vec![None::<Vec<SlotEffect>>; equations.len()];
     loop {
@@ -184,7 +145,7 @@ fn solve_state_effects<'program>(
                         let Some(relative) = &known[*target] else {
                             continue;
                         };
-                        let effects = instantiate(
+                        let instantiated = instantiate(
                             program,
                             machine,
                             program.state_parameters(equations[*target].state),
@@ -192,10 +153,15 @@ fn solve_state_effects<'program>(
                             relative,
                             prefix,
                             symbols,
-                            inference,
+                        )?;
+                        retain_demanded_substitutions(
+                            equation.state,
+                            equations[*target].state,
+                            &instantiated.substitutions,
+                            &mut substitutions,
                         )?;
                         let mut stored = prefix.stored.clone();
-                        apply(program, &mut stored, &effects);
+                        apply(program, &mut stored, &instantiated.effects);
                         stored
                     }
                 };
@@ -289,6 +255,37 @@ fn solve_state_effects<'program>(
     known.into_iter().next()?
 }
 
+/// Only actual relation roots participate in substitution. A checked empty
+/// relation demands no argument origin; an unknown relation never reaches here.
+/// Ordered argument effects have already established each selected edge's slot
+/// inventory. The same growing-cycle law still bounds every demanded root.
+fn retain_demanded_substitutions(
+    source: &State,
+    target: &State,
+    demanded: &[(SymbolHandle, FrameSourcePlace)],
+    substitutions: &mut frames::cycle_substitutions::Substitutions,
+) -> Option<()> {
+    for (parameter, actual) in demanded {
+        if !actual.builtin_coordinates {
+            return None;
+        }
+        if actual.is_static() {
+            continue;
+        }
+        if !actual.root.is_valid() {
+            return None;
+        }
+        let from = substitutions.parameter(target.symbol, *parameter);
+        let to = substitutions.parameter(source.symbol, actual.root);
+        substitutions.insert(
+            from,
+            to,
+            !actual.segments.is_empty() || !actual.recasts.is_empty(),
+        );
+    }
+    substitutions.is_finite().then_some(())
+}
+
 fn collect_exit(
     program: &dyn crate::CheckingInput,
     state: &State,
@@ -346,7 +343,7 @@ fn collect_exit(
             if !source.source.builtin_coordinates {
                 return None;
             }
-            if !source.source.is_static() {
+            if !source.source.is_static() && source.source.output_identity().is_none() {
                 if !source.source.root.is_valid() {
                     return None;
                 }

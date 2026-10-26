@@ -1,0 +1,4 @@
+// Expected exit: 0
+data Index<Limit:u32> [copy] where value<Limit {value:u32;}
+machine consume<T>(value:T)->u32 {1}
+machine main() crashes Trap {let indexed:Index<(1u32+1u32)> = Index{value:1}; let observed:u32=consume<Index<2>>(indexed); transition observed==1 {true->done() _->bad()} state done(){} state bad(){crash Trap;}}

@@ -49,6 +49,7 @@ pub(super) fn emit_dynamic_call_binding(
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
+    current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
 ) -> Result<ValueId, LoweringError> {
     if !call.result_type.qualifications.is_empty() {
         return unsupported("a selector call's result carries qualifications");
@@ -89,6 +90,8 @@ pub(super) fn emit_dynamic_call_binding(
     let claim_transfers = crate::emission::claim_bindings::emit_prepared_claim_transfers(
         &call.claim_transfers,
         call_emission.claims.bindings(),
+        &structural_arguments,
+        current_claims,
     )?;
     let result = value_id(*next_value_identity);
     *next_value_identity = next_value_identity

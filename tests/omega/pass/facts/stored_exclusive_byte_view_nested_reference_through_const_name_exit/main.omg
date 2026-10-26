@@ -1,0 +1,20 @@
+// An exclusive byte view stored in a fixed array preserves its one-byte extent and byte 19 through owned transport.
+// Place: const_name.
+// Expected exit: 0
+data Bundle<'storage> { windows: [&'storage mut [u8]; 1]; }
+data Wrapper<'bundle, 'storage> { bundle: &'bundle Bundle<'storage>; }
+machine observe(wrapper: &Wrapper) -> bool
+requires wrapper.bundle.windows[FIRST].len == 1
+{
+    wrapper.bundle.windows[FIRST].len == 1 && wrapper.bundle.windows[FIRST][FIRST] == 19
+}
+const FIRST: u64 = 0;
+machine main() crashes Trap {
+    let mut backing: [u8; 1] = [19];
+    let bundle: Bundle = Bundle { windows: [&mut backing[..]] };
+    let wrapper: Wrapper = Wrapper { bundle: &bundle };
+    let observed: bool = observe(&wrapper);
+    transition observed { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

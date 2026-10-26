@@ -77,6 +77,7 @@ pub(crate) fn validate_transition_target_node(
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let TransitionTargetNode::Named {
         path, arguments, ..
@@ -156,6 +157,7 @@ pub(crate) fn validate_transition_target_node(
             program.state_parameters(state),
             writable_roots,
             diagnostics,
+            formation_obligations,
         );
         return;
     }
@@ -183,6 +185,7 @@ pub(crate) fn validate_transition_target_node(
                 )
             },
             diagnostics,
+            formation_obligations,
         );
         return;
     }
@@ -223,6 +226,7 @@ pub(crate) fn validate_transition_target_node(
             program.state_parameters(state),
             writable_roots,
             diagnostics,
+            formation_obligations,
         );
         return;
     }
@@ -259,6 +263,7 @@ pub(crate) fn validate_transition_target_node(
             program.state_parameters(state),
             writable_roots,
             diagnostics,
+            formation_obligations,
         );
     }
 }
@@ -275,6 +280,7 @@ fn validate_transition_arguments_handles(
     parameters: &[StateParameter],
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     validate_call_arguments(
         program,
@@ -298,5 +304,6 @@ fn validate_transition_arguments_handles(
             )
         },
         diagnostics,
+        formation_obligations,
     );
 }

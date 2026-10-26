@@ -8,10 +8,10 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use register_model::{RegisterOperandAccess, RegisterUnitId};
+use register_model::RegisterUnitId;
 use selected_instructions::{SelectedFunction, SelectedValueTransport, VirtualRegisterId};
 
-use super::{LivenessError, block_instructions, control};
+use super::{LivenessError, control};
 
 #[derive(Default)]
 pub(super) struct BlockFlow {
@@ -23,13 +23,14 @@ pub(super) struct BlockFlow {
 
 pub(super) struct EdgeFlow {
     pub(super) target: usize,
-    substitutions: Vec<(VirtualRegisterId, VirtualRegisterId)>,
+    pub(super) substitutions: Vec<(VirtualRegisterId, VirtualRegisterId)>,
+    param_bits: Vec<u64>,
 }
 
 pub(super) struct FunctionFlow {
     pub(super) blocks: Vec<BlockFlow>,
     pub(super) edges: Vec<Vec<EdgeFlow>>,
-    registers: Vec<VirtualRegisterId>,
+    valid_register_bits: Vec<u64>,
 }
 
 #[derive(Default)]
@@ -152,10 +153,17 @@ impl FunctionFlow {
                 } else {
                     Vec::new()
                 };
-                let _ = &mut substitutions;
+                let mut param_bits = Vec::new();
+                if !substitutions.is_empty() {
+                    param_bits.resize(word_count, 0);
+                    for &(parameter, _) in &substitutions {
+                        bit_set(&mut param_bits, parameter.0);
+                    }
+                }
                 block_edges.push(EdgeFlow {
                     target,
                     substitutions,
+                    param_bits,
                 });
             }
             edges.push(block_edges);
@@ -184,74 +192,40 @@ impl FunctionFlow {
                     transfer.unit_kills.extend(unit_kills.iter().copied());
                 }
             }
-            if include_virtual {
-                for instruction in block_instructions(block) {
-                    // Uses precede simultaneous definitions, as in reverse transfer.
-                    if let [operand] = instruction.operands.as_slice() {
-                        match operand.access {
-                            RegisterOperandAccess::Use => {
-                                if !bit_test(
-                                    &transfer.virtual_kills_bits,
-                                    operand.virtual_register.0,
-                                ) {
-                                    bit_set(
-                                        &mut transfer.virtual_uses_bits,
-                                        operand.virtual_register.0,
-                                    );
-                                }
-                            }
-                            RegisterOperandAccess::Def => {
-                                bit_set(
-                                    &mut transfer.virtual_kills_bits,
-                                    operand.virtual_register.0,
-                                );
-                            }
-                            RegisterOperandAccess::UseDef => {}
-                        }
-                    } else {
-                        for operand in &instruction.operands {
-                            if operand.access == RegisterOperandAccess::Use
-                                && !bit_test(
-                                    &transfer.virtual_kills_bits,
-                                    operand.virtual_register.0,
-                                )
-                            {
-                                bit_set(
-                                    &mut transfer.virtual_uses_bits,
-                                    operand.virtual_register.0,
-                                );
-                            }
-                        }
-                        for operand in &instruction.operands {
-                            if operand.access == RegisterOperandAccess::Def {
-                                bit_set(
-                                    &mut transfer.virtual_kills_bits,
-                                    operand.virtual_register.0,
-                                );
-                            }
-                        }
-                    }
-                }
+            if include_virtual
+                && let Some((upward_uses, kills)) =
+                    function.blocks.block_virtual_transfer(block_index)
+            {
+                let uses_len = upward_uses.len().min(word_count);
+                transfer.virtual_uses_bits[..uses_len].copy_from_slice(&upward_uses[..uses_len]);
+                let kills_len = kills.len().min(word_count);
+                transfer.virtual_kills_bits[..kills_len].copy_from_slice(&kills[..kills_len]);
             }
             transfers.push(transfer);
         }
         // Leaf functions never query an incoming register, so they need no roster.
-        let mut registers = if !include_virtual || edges.iter().all(Vec::is_empty) {
-            Vec::new()
-        } else {
-            function
-                .virtual_registers
-                .iter()
-                .map(|register| register.id)
-                .collect::<Vec<_>>()
-        };
-        registers.sort_unstable();
+        let mut valid_register_bits = Vec::new();
+        if include_virtual && !edges.iter().all(Vec::is_empty) {
+            valid_register_bits.resize(word_count, 0);
+            let mut duplicate_register_bits = vec![0u64; word_count];
+            for register in &function.virtual_registers {
+                let id = register.id.0;
+                if bit_test(&valid_register_bits, id) {
+                    bit_set(&mut duplicate_register_bits, id);
+                } else {
+                    bit_set(&mut valid_register_bits, id);
+                }
+            }
+            for (valid, &dup) in valid_register_bits.iter_mut().zip(&duplicate_register_bits) {
+                *valid &= !dup;
+            }
+        }
         let mut flow = Self {
             blocks: (0..function.blocks.len())
                 .map(|_| BlockFlow::default())
                 .collect(),
             edges,
-            registers,
+            valid_register_bits,
         };
         if !include_virtual && transfers.iter().all(|t| t.unit_uses.is_empty()) {
             return Ok(flow);
@@ -268,12 +242,37 @@ impl FunctionFlow {
             if include_virtual {
                 next_exit_bits.fill(0);
                 for edge in &flow.edges[block_index] {
-                    let target = &flow.blocks[edge.target];
-                    for &register in &target.virtual_entry {
-                        let arg = flow.incoming_argument(function_index, edge, register)?;
-                        bit_set(&mut next_exit_bits, arg.0);
+                    let target_entry_bits = &virtual_entry_bits[edge.target];
+                    if edge.substitutions.is_empty() {
+                        for ((exit_w, &entry_w), &valid_w) in next_exit_bits
+                            .iter_mut()
+                            .zip(target_entry_bits)
+                            .zip(&flow.valid_register_bits)
+                        {
+                            if (entry_w & !valid_w) != 0 {
+                                return Err(mismatch());
+                            }
+                            *exit_w |= entry_w;
+                        }
+                    } else {
+                        for (((exit_w, &entry_w), &valid_w), &param_w) in next_exit_bits
+                            .iter_mut()
+                            .zip(target_entry_bits)
+                            .zip(&flow.valid_register_bits)
+                            .zip(&edge.param_bits)
+                        {
+                            if (entry_w & !valid_w) != 0 {
+                                return Err(mismatch());
+                            }
+                            *exit_w |= entry_w & !param_w;
+                        }
+                        for &(parameter, argument) in &edge.substitutions {
+                            if bit_test(target_entry_bits, parameter.0) {
+                                bit_set(&mut next_exit_bits, argument.0);
+                            }
+                        }
                     }
-                    unit_exit.extend(target.unit_entry.iter().copied());
+                    unit_exit.extend(flow.blocks[edge.target].unit_entry.iter().copied());
                 }
                 let transfer = &transfers[block_index];
                 let mut virtual_changed = false;
@@ -295,17 +294,6 @@ impl FunctionFlow {
                 let entry_changed = virtual_changed || state.unit_entry != unit_entry;
                 if virtual_changed {
                     virtual_entry_bits[block_index].copy_from_slice(&next_entry_bits);
-                    state.virtual_entry.clear();
-                    for (word_idx, &words) in next_entry_bits.iter().enumerate() {
-                        let mut bits = words;
-                        while bits != 0 {
-                            let bit = bits.trailing_zeros() as usize;
-                            bits &= bits - 1;
-                            state
-                                .virtual_entry
-                                .push(VirtualRegisterId((word_idx * 64 + bit) as u32));
-                        }
-                    }
                 }
                 state.unit_entry = unit_entry;
                 state.unit_exit = unit_exit;
@@ -344,10 +332,16 @@ impl FunctionFlow {
         }
         if include_virtual {
             for (block_index, state) in flow.blocks.iter_mut().enumerate() {
+                state.virtual_entry = bits_to_vregs(&virtual_entry_bits[block_index]);
                 state.virtual_exit = bits_to_vregs(&virtual_exit_bits[block_index]);
             }
         }
         Ok(flow)
+    }
+
+    #[inline]
+    pub(super) fn is_valid_register(&self, destination: VirtualRegisterId) -> bool {
+        bit_test(&self.valid_register_bits, destination.0)
     }
 
     pub(super) fn incoming_argument(
@@ -356,21 +350,10 @@ impl FunctionFlow {
         edge: &EdgeFlow,
         destination: VirtualRegisterId,
     ) -> Result<VirtualRegisterId, LivenessError> {
-        let mismatch = || LivenessError::FunctionMismatch {
-            function: function_index,
-        };
-        let register_index = self
-            .registers
-            .binary_search(&destination)
-            .map_err(|_| mismatch())?;
-        // Keep missing/duplicate live-register rejection, including non-parameters.
-        if register_index
-            .checked_sub(1)
-            .and_then(|previous| self.registers.get(previous))
-            == Some(&destination)
-            || self.registers.get(register_index + 1) == Some(&destination)
-        {
-            return Err(mismatch());
+        if !self.is_valid_register(destination) {
+            return Err(LivenessError::FunctionMismatch {
+                function: function_index,
+            });
         }
         Ok(edge
             .substitutions

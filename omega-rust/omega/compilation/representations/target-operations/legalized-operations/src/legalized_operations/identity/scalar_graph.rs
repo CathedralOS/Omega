@@ -566,6 +566,7 @@ pub(super) fn encode(
                                         (2, *index)
                                     }
                                     CanonicalStructuralPathSegment::Case(case) => (3, case.get()),
+                                    CanonicalStructuralPathSegment::Referent => (4, 0),
                                 };
                                 bytes.push(tag);
                                 crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());

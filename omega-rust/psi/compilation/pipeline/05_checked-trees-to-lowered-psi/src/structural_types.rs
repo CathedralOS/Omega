@@ -8,7 +8,7 @@ use checked_trees::types::PrimitiveType;
 use semantic_vocabulary::{IeeeFloatFormat, StructuralCaseId, StructuralTypeId};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralCaseDeclaration, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralFieldType, StructuralTypeDeclaration,
 };
 
 use crate::emission::scalar_types::terminal_scalar_type;
@@ -177,30 +177,4 @@ pub(crate) fn unique_declaration<'a>(
         return unsupported(ambiguous);
     }
     Ok(declaration)
-}
-
-/// The authored identity of one declared structural field. Field IDs are
-/// dense across the module's structural types, so the ID alone names it.
-pub(crate) fn field_identity(
-    structural_types: &[StructuralTypeDeclaration],
-    field: semantic_vocabulary::StructuralFieldId,
-) -> Result<terminal_psi::TerminalIdentityIndex, LoweringError> {
-    structural_types
-        .iter()
-        .flat_map(|declaration| match &declaration.shape {
-            StructuralTypeShape::Record { fields, .. } => fields.iter().collect::<Vec<_>>(),
-            StructuralTypeShape::Mixed { fields, cases } => fields
-                .iter()
-                .chain(cases.iter().flat_map(|case| case.fields.iter()))
-                .collect(),
-            StructuralTypeShape::Sum { cases } => {
-                cases.iter().flat_map(|case| case.fields.iter()).collect()
-            }
-            _ => Vec::new(),
-        })
-        .find(|declaration| declaration.id == field)
-        .map(|declaration| declaration.identity)
-        .ok_or(LoweringError::Unsupported(
-            "stored structural field has no declaration",
-        ))
 }

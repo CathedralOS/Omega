@@ -250,55 +250,60 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
             // later sibling mutation keeps its own facts; syntax/current storage
             // cannot replace that evaluated occurrence's evidence.
             let captured_satisfies = |selected: &[facts::PlaceSegment]| {
-                facts.flow.control.operands.is_valid(exit.returned_value)
-                    && crate::flow::captured_operand_values(
-                        program,
-                        &facts.flow,
-                        &facts.semantic,
-                        state_flow,
-                        facts.flow.control.operands.get(exit.returned_value),
-                        entry.return_type,
-                        selected,
-                    )
-                    .is_some_and(|values| {
-                        !values.is_empty()
-                            && values.iter().all(|captured| {
-                                let (source_state, source_statement) = captured
-                                    .producer_frontier(exit.state_symbol, exit.statement_index);
-                                let contexts = crate::flow::operand_contexts(
-                                    program,
-                                    &facts.flow.contexts,
-                                    &facts.flow.control,
-                                    &facts.semantic,
-                                    captured.operand,
-                                    captured.type_reference,
-                                    captured.producer_invocation(exit.entry_constraints),
-                                );
-                                crate::flow::captured_value_places(program, &facts.flow, captured)
-                                    .is_some_and(|places| {
-                                        !places.is_empty()
-                                            && places.iter().all(|place| {
-                                                crate::flow::place_cases_are_selected(
-                                                    program,
-                                                    &facts.semantic,
-                                                    &contexts,
-                                                    exit.machine_symbol,
-                                                    source_state,
-                                                    source_statement,
-                                                    &place.storage,
-                                                ) && (crate::flow::place_case_path_is_inactive(
-                                                    program,
-                                                    &facts.semantic,
-                                                    &contexts,
-                                                    exit.machine_symbol,
-                                                    source_state,
-                                                    source_statement,
-                                                    &place.projected,
-                                                ) || proves_in(&contexts, &place.projected))
-                                            })
-                                    })
-                            })
-                    })
+                let Some(capture) = crate::flow::CapturedOperand::recorded(
+                    &facts.flow.control,
+                    exit.returned_value,
+                ) else {
+                    return false;
+                };
+                crate::flow::captured_operand_values(
+                    program,
+                    &facts.flow,
+                    &facts.semantic,
+                    state_flow,
+                    capture,
+                    entry.return_type,
+                    selected,
+                )
+                .is_some_and(|values| {
+                    !values.is_empty()
+                        && values.iter().all(|captured| {
+                            let (source_state, source_statement) =
+                                captured.producer_frontier(exit.state_symbol, exit.statement_index);
+                            let contexts = crate::flow::operand_contexts(
+                                program,
+                                &facts.flow.contexts,
+                                &facts.flow.control,
+                                &facts.semantic,
+                                captured.operand.row(),
+                                captured.type_reference,
+                                captured.producer_invocation(exit.entry_constraints),
+                            );
+                            crate::flow::captured_value_places(program, &facts.flow, captured)
+                                .is_some_and(|places| {
+                                    !places.is_empty()
+                                        && places.iter().all(|place| {
+                                            crate::flow::place_cases_are_selected(
+                                                program,
+                                                &facts.semantic,
+                                                &contexts,
+                                                exit.machine_symbol,
+                                                source_state,
+                                                source_statement,
+                                                &place.storage,
+                                            ) && (crate::flow::place_case_path_is_inactive(
+                                                program,
+                                                &facts.semantic,
+                                                &contexts,
+                                                exit.machine_symbol,
+                                                source_state,
+                                                source_statement,
+                                                &place.projected,
+                                            ) || proves_in(&contexts, &place.projected))
+                                        })
+                                })
+                        })
+                })
             };
             // A completed owned value keeps its observations independently of
             // the source storage. Project the returned value, not the syntax of

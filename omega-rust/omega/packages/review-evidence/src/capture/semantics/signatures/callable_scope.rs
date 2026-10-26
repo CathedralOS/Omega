@@ -3,11 +3,12 @@
 
 use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
+use std::borrow::Cow;
 use typed_trees::{data::TypeParameter, machine::Machine, name::Identifier};
 
 pub(crate) struct CallableDeclarationScope<'a> {
-    pub(crate) type_parameters: &'a [TypeParameter],
-    pub(crate) lifetime_parameters: &'a [Identifier],
+    pub(crate) type_parameters: Cow<'a, [TypeParameter]>,
+    pub(crate) lifetime_parameters: Cow<'a, [Identifier]>,
     /// The table and source owner of handles inside this telescope.
     pub(crate) source: PackageReviewInput<'a>,
 }
@@ -30,9 +31,16 @@ pub(crate) fn callable_declaration_scope<'a>(
         ));
     }
     let Some(owner) = owner else {
+        // Ordinary members retain the complete accepted lexical telescope,
+        // including enclosing named implementations. Specialization captures
+        // are not new binders; this is the existing declaration-scope query.
+        let (type_parameters, lifetime_parameters) = compilation
+            .machine_declaration_scope(machine, |existing, parameter| {
+                existing.symbol == parameter.symbol
+            });
         return Ok(CallableDeclarationScope {
-            type_parameters: compilation.machine_type_parameters(machine),
-            lifetime_parameters: &machine.lifetime_parameters,
+            type_parameters: Cow::Owned(type_parameters),
+            lifetime_parameters: Cow::Owned(lifetime_parameters),
             source: *compilation,
         });
     };
@@ -69,8 +77,8 @@ pub(crate) fn callable_declaration_scope<'a>(
     // No lifetime is inferred from a receiver's spelling, and no captured
     // owner binder becomes a newly callable method parameter.
     Ok(CallableDeclarationScope {
-        type_parameters: checked_parameters,
-        lifetime_parameters: &checked_definition.lifetime_parameters,
+        type_parameters: Cow::Borrowed(checked_parameters),
+        lifetime_parameters: Cow::Borrowed(&checked_definition.lifetime_parameters),
         source: compilation.custody.into(),
     })
 }

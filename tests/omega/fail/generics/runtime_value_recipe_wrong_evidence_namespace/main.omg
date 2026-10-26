@@ -1,0 +1,4 @@
+trait Updating {machine update(slot:&mut u32);}
+trait Other {machine other(slot:&mut u32);}
+machine probe<Operations satisfies Other>() {let mut slot:u32=1; Operations::update(&mut slot);}
+machine main() {}

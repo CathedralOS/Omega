@@ -8,22 +8,34 @@ use crate::record::PackagePolicyTypeParameter;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-pub(super) fn type_parameters(
+/// The complete lexical telescope already accepted during source formation.
+/// Owner operands retain their resolved symbols; they are not inferred from
+/// type text or replaced by method-local binders with the same spelling.
+pub(super) struct CallableParameters {
+    pub binders: Vec<(SymbolHandle, String)>,
+    pub lifetime_parameters: Vec<typed_trees::name::Identifier>,
+    pub policy_type_parameters: Vec<PackagePolicyTypeParameter>,
+}
+
+pub(super) fn prepare(
     compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     subject: &str,
     public_nominals: bool,
-) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackagePolicyTypeParameter>), Vec<Diagnostic>> {
+) -> Result<CallableParameters, Vec<Diagnostic>> {
     let scope = callable_declaration_scope(compilation, machine)?;
-    let mut parameters = scope.type_parameters.to_vec();
+    let source_parameters = scope.type_parameters.as_ref();
+    let lifetime_parameters = scope.lifetime_parameters.as_ref();
+    let mut parameters = source_parameters.to_vec();
     if parameters.is_empty() {
-        return Ok((Vec::new(), Vec::new()));
+        return Ok(CallableParameters {
+            binders: Vec::new(),
+            lifetime_parameters: lifetime_parameters.to_vec(),
+            policy_type_parameters: Vec::new(),
+        });
     }
-    // Owner telescope handles belong to immutable checked custody. Equal
-    // candidate handles alone cannot authenticate their nested type/contracts.
     let mut projected = validation::CheckingProjection::new(scope.source.checking_input);
-    let lifetimes = scope
-        .lifetime_parameters
+    let lifetimes = lifetime_parameters
         .iter()
         .cloned()
         .map(|name| (name.clone(), name))
@@ -34,22 +46,27 @@ pub(super) fn type_parameters(
         &mut parameters,
         &[],
         &lifetimes,
-        scope.lifetime_parameters,
+        lifetime_parameters,
         &mut scopes,
         0,
     )?;
-    project_type_parameters(
+    let (binders, policy_type_parameters) = project_type_parameters(
         &projected,
         &scope.source,
         &parameters,
-        scope.type_parameters,
+        source_parameters,
         subject,
         &[],
         0,
-        scope.lifetime_parameters,
+        lifetime_parameters,
         &[],
         &scopes,
         public_nominals,
         crate::capture::contracts::facts::callable_contract_exposure(machine),
-    )
+    )?;
+    Ok(CallableParameters {
+        binders,
+        lifetime_parameters: lifetime_parameters.to_vec(),
+        policy_type_parameters,
+    })
 }

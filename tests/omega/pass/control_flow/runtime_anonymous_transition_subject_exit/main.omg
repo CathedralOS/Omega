@@ -1,0 +1,69 @@
+// The anonymous transition subject preserves the original exclusive writes and state-parameter local loan.
+// Expected exit: 0.
+// A `&mut` loan may name a plain local copied from a state parameter:
+// `fill(&mut held)` lends the local's claim — state parameters themselves
+// are read-only bindings, so the value moves through a local slot.
+data CapturedLocal { answer: u64; }
+
+machine CapturedLocal::fill(cell: &mut u64) {
+    cell = 70;
+}
+
+machine CapturedLocal::main(main: &mut CapturedLocal) {
+    transition 1 {
+        1 -> measure(main, 0)
+        _ -> miss(main)
+    }
+
+    state measure(main: &mut CapturedLocal, captured: u64) {
+        let held: u64 = captured;
+        CapturedLocal::fill(&mut held);
+        main.answer = held;
+    }
+
+    state miss(main: &mut CapturedLocal) { main.answer = 71; }
+}
+
+// A `&mut` loan survives the callee's own control flow: `fill` takes the
+// exclusive loan, dispatches on a literal, and writes the cell inside a
+// later state — the loan's write lands wherever the callee chooses.
+data ConditionalWrite {
+    cell: u64;
+    answer: u64;
+}
+
+machine ConditionalWrite::fill(cell: &mut u64) {
+    transition 1 {
+        1 -> mark(cell)
+        _ -> skip(cell)
+    }
+
+    state mark(cell: &mut u64) { cell = 5; }
+    state skip(cell: &mut u64) { cell = 6; }
+}
+
+machine ConditionalWrite::main(main: &mut ConditionalWrite) {
+    main.cell = 0;
+    ConditionalWrite::fill(&mut main.cell);
+    transition main.cell {
+        5 -> good(main)
+        _ -> bad(main)
+    }
+
+    state good(main: &mut ConditionalWrite) { main.answer = 70; }
+    state bad(main: &mut ConditionalWrite) { main.answer = 71; }
+}
+
+// Execute both original machine bodies; the checks observe their authored values.
+machine main() crashes Trap {
+    let mut captured: CapturedLocal = CapturedLocal { answer: 0 };
+    CapturedLocal::main(&mut captured);
+    let mut conditional: ConditionalWrite = ConditionalWrite { cell: 0, answer: 0 };
+    ConditionalWrite::main(&mut conditional);
+    transition captured.answer == 70 && conditional.cell == 5 && conditional.answer == 70 {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

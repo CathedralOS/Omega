@@ -25,7 +25,7 @@ use symbols::SymbolHandle;
 /// reference handle, the same declaration, or the same element reference —
 /// not type equality: two positions naming equal types through different
 /// stored rows do not join, because neither is evidence for the other.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(super) enum MemberPosition {
     Reference(typed_trees::types::TypeReferenceHandle),
     Declaration(SymbolHandle),
@@ -709,8 +709,30 @@ pub fn expression_place_type_reference(
     expression: ExpressionHandle,
     segments: &[facts::PlaceSegment],
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let position = expression_type_position(program, expression)?;
-    match member_position_after_segments(program, position, segments)? {
+    expression_place_type_reference_observing(program, expression, segments, &mut |_| Some(()))
+}
+
+pub(super) fn expression_place_type_reference_observing(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    segments: &[facts::PlaceSegment],
+    observe_prefix: &mut impl FnMut(Option<typed_trees::types::TypeReferenceHandle>) -> Option<()>,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let mut position = expression_type_position(program, expression)?;
+    observe_prefix(member_position_type_reference(program, position))?;
+    for segment in segments {
+        position =
+            member_position_after_segments(program, position, std::slice::from_ref(segment))?;
+        observe_prefix(member_position_type_reference(program, position))?;
+    }
+    member_position_type_reference(program, position)
+}
+
+fn member_position_type_reference(
+    program: &dyn crate::CheckingInput,
+    position: MemberPosition,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    match position {
         MemberPosition::Reference(reference) => Some(reference),
         MemberPosition::Declaration(symbol) => program
             .type_reference_table

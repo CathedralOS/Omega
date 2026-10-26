@@ -17,16 +17,20 @@ pub struct PackageReviewInput<'a> {
     /// Aggregate projection lends its invocation context; standalone projections
     /// use the bare program without discovering another projection's memos.
     pub(crate) checking_input: &'a dyn validation::CheckingInput,
+    /// Original checked trees have a separate immutable query namespace. A
+    /// supplied candidate's memo must never stand in for compiler custody.
+    pub(crate) custody_checking_input: &'a dyn validation::CheckingInput,
 }
 
 impl<'a> PackageReviewInput<'a> {
     /// Review an untrusted semantic candidate against immutable compiler custody.
     /// Results are review data only, never checked compiler or execution authority.
-    pub const fn supplied(program: &'a CheckedTrees, custody: &'a CheckedCompilation) -> Self {
+    pub fn supplied(program: &'a CheckedTrees, custody: &'a CheckedCompilation) -> Self {
         Self {
             program,
             custody,
             checking_input: program,
+            custody_checking_input: &**custody,
         }
     }
 

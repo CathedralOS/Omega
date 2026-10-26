@@ -54,7 +54,11 @@ pub(crate) enum PlaceAccessStep {
 
 impl PlaceAccessStep {
     fn is_referent(&self) -> bool {
-        matches!(self, Self::Runtime(StructuralPathSegment::Referent))
+        matches!(
+            self,
+            Self::Runtime(StructuralPathSegment::Referent)
+                | Self::Canonical(CanonicalStructuralPathSegment::Referent)
+        )
     }
 }
 
@@ -165,7 +169,12 @@ fn runtime_prefix(path: &[StructuralPathSegment]) -> Vec<PlaceAccessStep> {
 fn canonical_prefix(path: &[CanonicalStructuralPathSegment]) -> Vec<PlaceAccessStep> {
     path.iter()
         .copied()
-        .map(PlaceAccessStep::Canonical)
+        .map(|step| match step {
+            CanonicalStructuralPathSegment::Referent => {
+                PlaceAccessStep::Runtime(StructuralPathSegment::Referent)
+            }
+            step => PlaceAccessStep::Canonical(step),
+        })
         .collect()
 }
 

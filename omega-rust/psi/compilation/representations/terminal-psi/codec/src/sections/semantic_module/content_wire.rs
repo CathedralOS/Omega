@@ -111,8 +111,82 @@ pub(crate) fn encode_content_transformations(
                 encode_content_structural_place(writer, &binding.subject)?;
             }
         }
+        encode_content_transformation_custody(writer, &derived.custody)?;
     }
     Ok(())
+}
+
+fn encode_content_transformation_custody(
+    writer: &mut Writer,
+    custody: &terminal_psi::ContentTransformationCustody,
+) -> Result<(), CodecError> {
+    match custody {
+        terminal_psi::ContentTransformationCustody::Derived => writer.u8(0),
+        terminal_psi::ContentTransformationCustody::Boundary {
+            requirements,
+            addresses,
+        } => {
+            writer.u8(1);
+            writer.len("boundary body custody requirements", requirements.len())?;
+            for requirement in requirements {
+                writer.id(requirement.boundary);
+                encode_content_conservation_guarantee(writer, &requirement.guarantee)?;
+                writer.len(
+                    "boundary body substitutions",
+                    requirement.substitutions.len(),
+                )?;
+                for substitution in &requirement.substitutions {
+                    encode_content_term(writer, &substitution.source, 0)?;
+                    encode_content_term(writer, &substitution.target, 0)?;
+                }
+            }
+            writer.len("boundary body backing addresses", addresses.len())?;
+            for address in addresses {
+                for endpoint in [&address.input, &address.output] {
+                    writer.id(endpoint.claim);
+                    encode_content_structural_place(writer, &endpoint.subject)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn decode_content_transformation_custody(
+    reader: &mut Reader<'_>,
+) -> Result<terminal_psi::ContentTransformationCustody, CodecError> {
+    match reader.u8()? {
+        0 => Ok(terminal_psi::ContentTransformationCustody::Derived),
+        1 => Ok(terminal_psi::ContentTransformationCustody::Boundary {
+            requirements: decode_counted(reader, |reader| {
+                Ok(terminal_psi::ContentBoundaryBodyRequirement {
+                    boundary: reader.id("BoundaryMachineId")?,
+                    guarantee: decode_content_conservation_guarantee(reader)?,
+                    substitutions: decode_counted(reader, |reader| {
+                        Ok(terminal_psi::ContentBodyProjectionSubstitution {
+                            source: decode_content_term(reader, 0)?,
+                            target: decode_content_term(reader, 0)?,
+                        })
+                    })?,
+                })
+            })?,
+            addresses: decode_counted(reader, |reader| {
+                fn endpoint(
+                    reader: &mut Reader<'_>,
+                ) -> Result<terminal_psi::ContentClaimAddress, CodecError> {
+                    Ok(terminal_psi::ContentClaimAddress {
+                        claim: reader.id("ClaimId")?,
+                        subject: decode_content_structural_place(reader)?,
+                    })
+                }
+                Ok(terminal_psi::ContentBackingAddressTransport {
+                    input: endpoint(reader)?,
+                    output: endpoint(reader)?,
+                })
+            })?,
+        }),
+        tag => Err(CodecError::InvalidTag("ContentTransformationCustody", tag)),
+    }
 }
 
 pub(crate) fn decode_content_transformations(
@@ -145,6 +219,7 @@ pub(crate) fn decode_content_transformations(
             })?,
             inputs: bindings(reader)?,
             outputs: bindings(reader)?,
+            custody: decode_content_transformation_custody(reader)?,
         })
     })
 }

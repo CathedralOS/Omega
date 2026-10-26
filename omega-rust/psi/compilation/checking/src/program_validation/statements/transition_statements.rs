@@ -66,6 +66,7 @@ pub(super) fn validate(
         symbols,
         writable_roots,
         diagnostics,
+        &mut arithmetic_decisions.integer_range_obligations,
     );
 
     if transition.continuation.is_valid() {
@@ -80,6 +81,7 @@ pub(super) fn validate(
             symbols,
             writable_roots,
             diagnostics,
+            &mut arithmetic_decisions.integer_range_obligations,
         );
     }
 
@@ -168,6 +170,7 @@ pub(super) fn validate(
                     *return_expression,
                     state.return_type,
                     diagnostics,
+                    &mut arithmetic_decisions.integer_range_obligations,
                 );
                 let return_environment = transition_values
                     .for_target(target)

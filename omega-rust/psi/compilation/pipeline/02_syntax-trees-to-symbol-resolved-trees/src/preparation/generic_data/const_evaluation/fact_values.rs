@@ -250,14 +250,14 @@ fn evaluate_declared_integer_fact(
             }
             *left
         }
-        (ConstFactValue::DeclaredInteger { integer_type, .. }, ConstFactValue::Anonymous(_)) => {
-            *integer_type
-        }
-        (ConstFactValue::Anonymous(_), ConstFactValue::DeclaredInteger { integer_type, .. })
-            if !shift =>
-        {
-            *integer_type
-        }
+        (
+            ConstFactValue::DeclaredInteger { integer_type, .. },
+            ConstFactValue::Anonymous(_) | ConstFactValue::Integer(_),
+        ) => *integer_type,
+        (
+            ConstFactValue::Anonymous(_) | ConstFactValue::Integer(_),
+            ConstFactValue::DeclaredInteger { integer_type, .. },
+        ) if !shift => *integer_type,
         _ => {
             return Err(
                 "const fact integer operation requires retained declared carriers".to_owned(),
@@ -273,6 +273,7 @@ fn evaluate_declared_integer_fact(
             ConstFactValue::Anonymous(value) => {
                 (value.into_integer(syntax, warnings)?, integer_type)
             }
+            ConstFactValue::Integer(value) => (value, integer_type),
             _ => return Err("const fact integer operation lost its declared carrier".to_owned()),
         };
         // Shift counts have their own declared carrier. Their bounds and the

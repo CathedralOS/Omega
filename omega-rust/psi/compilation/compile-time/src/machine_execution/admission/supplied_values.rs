@@ -122,14 +122,26 @@ pub(crate) fn require_established_arguments(
             .machine_states(machine)
             .first()
             .ok_or("supplied-value construction lost its state")?;
-        validation::validate_value_construction(&checking, machine, state, expression).map_err(
-            |diagnostics| {
-                format!(
-                    "supplied policy arguments failed value establishment: {}",
-                    diagnostics::join_messages(&diagnostics)
-                )
-            },
-        )?;
+        let mut formation_obligations = Vec::new();
+        validation::validate_value_construction(
+            &checking,
+            machine,
+            state,
+            expression,
+            &mut formation_obligations,
+        )
+        .map_err(|diagnostics| {
+            format!(
+                "supplied policy arguments failed value establishment: {}",
+                diagnostics::join_messages(&diagnostics),
+            )
+        })?;
+        // This target-neutral host snapshot boundary has no selected model
+        // capsule. Conditional source formation is not admission to execute
+        // a supplied policy argument; the caller must establish it first.
+        if formation_obligations.iter().any(|row| row.is_pending()) {
+            return Err("supplied policy arguments require a closed selected address model before value establishment".into());
+        }
     }
     Ok(())
 }

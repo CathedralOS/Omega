@@ -34,6 +34,7 @@ pub fn compute_native_layout_plan_for_machine(
         &fields,
         fingerprint,
         selection,
+        &Default::default(),
     )
 }
 
@@ -46,6 +47,7 @@ pub(super) fn compute_native_layout_plan_with_schema(
     schema_fields: &[super::schema_reflection::SchemaFieldInfo],
     schema_report_fingerprint: u64,
     selection: Option<crate::AuthorizedSelection>,
+    accounting: &crate::evaluation_accounting::EvaluationAccounting,
 ) -> Result<NativeLayoutPlanReport, String> {
     let machine = typed
         .machine_by_symbol(machine_symbol)
@@ -63,11 +65,14 @@ pub(super) fn compute_native_layout_plan_with_schema(
         None => admission.require_common_floor(typed, machine)?,
     }
 
-    let evaluation = checked_interpreter::evaluate_build_time_machine(
-        typed,
-        super::policy_arguments::policy_request(typed, machine, vec![schema_value])?,
-    )
-    .map_err(|reason| format!("build-time evaluation of `{policy_machine}` failed: {reason}"))?;
+    let evaluation = accounting
+        .evaluate(
+            checked_interpreter::BuildMachineProgram::Typed(typed),
+            super::policy_arguments::policy_request(typed, machine, vec![schema_value])?,
+        )
+        .map_err(|reason| {
+            format!("build-time evaluation of `{policy_machine}` failed: {reason}")
+        })?;
 
     let layout = validate_plan(
         evaluation.value(),

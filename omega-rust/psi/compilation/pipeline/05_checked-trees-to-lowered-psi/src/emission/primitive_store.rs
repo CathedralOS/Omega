@@ -202,7 +202,19 @@ pub(crate) fn emit_assignment(
     };
     let logical_scalar = declared_restriction(logical, structural_types);
     let logical_restriction = receiving_restriction(logical, calls)?;
-    if logical_restriction != logical_scalar && !preserves_byte_memberships {
+    let byte_predicates = terminal_semantics::primitive_store_byte_predicates(
+        calls.structural_types.iter(),
+        calls.domain_declarations.iter(),
+        logical.root_type,
+        &logical.qualifications,
+        &logical.projected_qualifications,
+        &logical.path,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "primitive write lost its declared byte receiving component",
+    ))?;
+    let has_byte_predicates = byte_predicates.predicates().next().is_some();
+    if has_byte_predicates && logical_restriction != logical_scalar && !preserves_byte_memberships {
         return unsupported("primitive write lost its exact logical byte preservation judgment");
     }
     if let Some(StructuralFieldType::BoundedInteger(integer)) = &logical_scalar {
@@ -222,7 +234,7 @@ pub(crate) fn emit_assignment(
     let logical_proven = receiving_range
         .map(|range| StructuralFieldType::BoundedInteger(range.integer))
         .or_else(|| {
-            preserves_byte_memberships
+            (has_byte_predicates && preserves_byte_memberships)
                 .then(|| logical_restriction.clone())
                 .flatten()
         });
@@ -389,21 +401,13 @@ pub(crate) fn receiving_restriction(
     place: &ReceivingPlace,
     calls: &CallEmissionContext<'_>,
 ) -> Result<Option<StructuralFieldType>, LoweringError> {
-    let restriction = terminal_semantics::primitive_store_restriction_with_predicates(
+    let restriction = terminal_semantics::primitive_store_restriction(
         calls.structural_types.iter(),
+        calls.domain_declarations.iter(),
         place.root_type,
         &place.qualifications,
         &place.projected_qualifications,
         &place.path,
-        |carrier, domain| {
-            let binding = calls
-                .domain_ids
-                .iter()
-                .find(|row| row.carrier == carrier && row.domain == domain)?;
-            let mut predicates = terminal_psi::ByteSequencePredicateSet::EMPTY;
-            predicates.insert(binding.byte_predicate?);
-            Some(predicates)
-        },
     )
     .ok_or(LoweringError::Unsupported(
         "primitive write does not preserve enclosing qualifications",
@@ -418,17 +422,7 @@ pub(crate) fn receiving_restriction(
 }
 
 fn receiving_entails(proven: &StructuralFieldType, required: &StructuralFieldType) -> bool {
-    match (proven, required) {
-        (
-            StructuralFieldType::BoundedInteger(proven),
-            StructuralFieldType::BoundedInteger(required),
-        ) => {
-            proven.integer_type() == required.integer_type()
-                && required.minimum() <= proven.minimum()
-                && proven.maximum() <= required.maximum()
-        }
-        _ => false,
-    }
+    terminal_semantics::scalar_field_entails(proven, required)
 }
 
 /// Resolve a destination's complete storage projection against the emitted
@@ -442,8 +436,11 @@ pub(crate) fn lower_destination_path(
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
 ) -> Result<(Vec<ProjectionStep>, ScalarType), LoweringError> {
-    let (steps, walked) = walk_path(identities, structural_type, path, types)?;
-    let scalar_type = match walked {
+    let walked = walk_path(identities, structural_type, path, types)?;
+    if walked.selected_case.is_some() {
+        return unsupported("primitive projection ends at a case without its payload field");
+    }
+    let scalar_type = match walked.position {
         Walked::Declared(structural_type) => {
             let StructuralTypeShape::PrimitiveScalar(scalar_type) = unique_declaration(
                 types,
@@ -460,7 +457,7 @@ pub(crate) fn lower_destination_path(
         Walked::ByteElement => terminal_scalar_type(PrimitiveType::U8)?,
         Walked::ScalarField(scalar) => scalar,
     };
-    Ok((steps, scalar_type))
+    Ok((walked.steps, scalar_type))
 }
 
 /// A static projection to a primitive leaf, for observations that name no
@@ -475,8 +472,8 @@ pub(crate) fn lower_path(
         // Reads may observe declaration-constrained scalar fields through a
         // pointer. Such a field is not raw primitive store storage. Reuse the
         // carrier walk (including its bounds), then query read-only leaf typing.
-        let (steps, _) = walk_path(identities, structural_type, carrier, types)?;
-        let mut path = super::runtime_elements::static_segments(steps)?;
+        let walked = walk_path(identities, structural_type, carrier, types)?;
+        let mut path = super::runtime_elements::static_segments(walked.steps)?;
         path.push(terminal_psi::StructuralPathSegment::Field(
             identities.intern(&identity.spelling()),
         ));
@@ -509,8 +506,8 @@ pub(crate) fn indexed_element_scalar_type(
     if let Some((CheckedUnitStructuralPathSegment::Field(identity), carrier)) =
         element_path.split_last()
     {
-        let (_, walked) = walk_path(identities, element, carrier, types)?;
-        let Walked::Declared(record) = walked else {
+        let walked = walk_path(identities, element, carrier, types)?;
+        let Walked::Declared(record) = walked.position else {
             return unsupported("indexed field carrier is not a record");
         };
         let declaration = unique_declaration(
@@ -519,12 +516,15 @@ pub(crate) fn indexed_element_scalar_type(
             "primitive projection type is absent",
             "primitive projection type is ambiguous",
         )?;
-        let fields = declaration
-            .shape
-            .direct_fields()
-            .ok_or(LoweringError::Unsupported(
-                "indexed field carrier has no directly addressed fields",
-            ))?;
+        let fields = match walked.selected_case {
+            Some(case) => case.fields.as_slice(),
+            None => declaration
+                .shape
+                .direct_fields()
+                .ok_or(LoweringError::Unsupported(
+                    "indexed field carrier has no directly addressed fields",
+                ))?,
+        };
         let mut matching = fields
             .iter()
             .filter(|field| field.identity == identities.intern(&identity.spelling()));
@@ -554,8 +554,11 @@ pub(crate) fn indexed_element_scalar_type(
         };
         return Ok(scalar_type);
     }
-    let (_, walked) = walk_path(identities, element, element_path, types)?;
-    let scalar_type = match walked {
+    let walked = walk_path(identities, element, element_path, types)?;
+    if walked.selected_case.is_some() {
+        return unsupported("indexed element path ends at a case without its payload field");
+    }
+    let scalar_type = match walked.position {
         Walked::ScalarField(scalar_type) => scalar_type,
         Walked::Declared(identity) => match unique_declaration(
             types,
@@ -586,14 +589,24 @@ pub(crate) fn indexed_element_scalar_type(
 /// observations may additionally carry their scalar presentation directly.
 type Walked = terminal_semantics::Position;
 
-fn walk_path(
+/// A selected case is a payload namespace on the current sum, not a new
+/// structural type. Keep it until its field is consumed, including when a
+/// read resolves the scalar field separately from its carrier path.
+struct WalkedPath<'types> {
+    steps: Vec<ProjectionStep>,
+    position: Walked,
+    selected_case: Option<&'types terminal_psi::StructuralCaseDeclaration>,
+}
+
+fn walk_path<'types>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
-    types: &[StructuralTypeDeclaration],
-) -> Result<(Vec<ProjectionStep>, Walked), LoweringError> {
+    types: &'types [StructuralTypeDeclaration],
+) -> Result<WalkedPath<'types>, LoweringError> {
     use terminal_psi::StructuralPathSegment as Segment;
     let mut walked = Walked::Declared(structural_type);
+    let mut selected_case: Option<&terminal_psi::StructuralCaseDeclaration> = None;
     let mut result = Vec::with_capacity(path.len());
     for segment in path {
         let Walked::Declared(structural_type) = walked else {
@@ -605,7 +618,28 @@ fn walk_path(
             "primitive projection type is absent",
             "primitive projection type is ambiguous",
         )?;
+        if selected_case.is_some() && !matches!(segment, CheckedUnitStructuralPathSegment::Field(_))
+        {
+            return unsupported("primitive projection case must select its payload field");
+        }
         walked = match (segment, &declaration.shape) {
+            (
+                CheckedUnitStructuralPathSegment::Case(identity),
+                StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. },
+            ) => {
+                let mut matching = cases
+                    .iter()
+                    .filter(|case| case.identity == identities.intern(&identity.spelling()));
+                let case = matching.next().ok_or(LoweringError::Unsupported(
+                    "primitive projection case belongs to another source type",
+                ))?;
+                if matching.next().is_some() {
+                    return unsupported("primitive projection case identity is ambiguous");
+                }
+                selected_case = Some(case);
+                result.push(ProjectionStep::Static(Segment::Case(case.id)));
+                Walked::Declared(structural_type)
+            }
             (
                 CheckedUnitStructuralPathSegment::Referent,
                 StructuralTypeShape::Reference { referent, .. },
@@ -613,10 +647,14 @@ fn walk_path(
                 result.push(ProjectionStep::Static(Segment::Referent));
                 Walked::Declared(*referent)
             }
-            (
-                CheckedUnitStructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields, .. },
-            ) => {
+            (CheckedUnitStructuralPathSegment::Field(identity), shape) => {
+                let case = selected_case.take();
+                let fields = match case {
+                    Some(case) => case.fields.as_slice(),
+                    None => shape.direct_fields().ok_or(LoweringError::Unsupported(
+                        "primitive projection field requires its source record or selected case",
+                    ))?,
+                };
                 let Some(field) = live_field(fields, identities.intern(&identity.spelling()))
                 else {
                     return unsupported("primitive projection field is erased or ambiguous");
@@ -630,17 +668,29 @@ fn walk_path(
                     StructuralFieldType::IeeeFloat(format) => {
                         Walked::ScalarField(ScalarType::IeeeFloat(format))
                     }
-                    _ => Walked::Declared(
-                        terminal_semantics::runtime_structural_path_tip(
-                            types.iter(),
-                            structural_type,
-                            &[Segment::Field(field.identity)],
+                    _ => {
+                        let mut selection = [
+                            Segment::Field(field.identity),
+                            Segment::Field(field.identity),
+                        ];
+                        let selection = if let Some(case) = case {
+                            selection[0] = Segment::Case(case.id);
+                            &selection[..]
+                        } else {
+                            &selection[1..]
+                        };
+                        Walked::Declared(
+                            terminal_semantics::runtime_structural_path_tip(
+                                types.iter(),
+                                structural_type,
+                                selection,
+                            )
+                            .ok_or(LoweringError::Unsupported(
+                                "primitive projection field has no exact retained declaration",
+                            ))?
+                            .id,
                         )
-                        .ok_or(LoweringError::Unsupported(
-                            "primitive projection field has no exact retained declaration",
-                        ))?
-                        .id,
-                    ),
+                    }
                 }
             }
             (
@@ -662,5 +712,9 @@ fn walk_path(
             }
         };
     }
-    Ok((result, walked))
+    Ok(WalkedPath {
+        steps: result,
+        position: walked,
+        selected_case,
+    })
 }

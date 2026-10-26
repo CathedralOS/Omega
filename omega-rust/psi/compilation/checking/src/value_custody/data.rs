@@ -15,6 +15,7 @@ pub(crate) fn validate_data_field_types(
     program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     for data_definition in program.data_definitions() {
         // BUILTIN-NAME SHADOW FENCE (probed 2026-07-16): type lookup searches
@@ -49,6 +50,7 @@ pub(crate) fn validate_data_field_types(
                 lifetime_parameters: &data_definition.lifetime_parameters,
             },
             diagnostics,
+            formation_obligations,
         );
         validate_generic_instance_argument_bounds(program, data_definition, diagnostics);
         validate_data_member_names(data_definition, data_members, diagnostics);
@@ -80,6 +82,7 @@ pub(crate) fn validate_data_field_types(
                         type_parameters,
                         lifetime_parameters: &data_definition.lifetime_parameters,
                     },
+                    formation_obligations,
                 );
                 validate_stored_field_has_a_representation(
                     program,

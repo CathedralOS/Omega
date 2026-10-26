@@ -202,6 +202,7 @@ impl PreparedBuildMachineProgram {
         &self,
         entry: &PreparedBuildMachineEntry,
         operators: &[crate::SelectedBuildTimeBinaryOperator],
+        accounting: &crate::evaluation_accounting::EvaluationAccounting,
     ) -> Result<terminal_interpreter::TerminalExecutionResult, String> {
         let PreparedBuildMachineBody::Checked(program) = &self.program else {
             return Err("constant invocation requires a checked preparation".into());
@@ -210,49 +211,57 @@ impl PreparedBuildMachineProgram {
             .validate_entry(entry)
             .map_err(|error| error.to_string())?;
         super::selected_operators::validate_selected_operators(self.typed(), operators)?;
-        let toolchain_sources = source::source_identity::toolchain_source_identities(
-            program.checked.symbols.source_files(),
-        )?;
-        let artifact = psi_terminal_production::TerminalProductionRequest::new(
-            &program.checked,
-            psi_terminal_production::TerminalMachineSelection::Symbol(symbol),
-            &toolchain_sources,
+        accounting.evaluate_terminal(
+            self.interpreter_program(),
+            symbol,
+            operators,
+            |meter, retained_artifact| {
+                let toolchain_sources = source::source_identity::toolchain_source_identities(
+                    program.checked.symbols.source_files(),
+                )?;
+                let produced = psi_terminal_production::TerminalProductionRequest::new(
+                    &program.checked,
+                    psi_terminal_production::TerminalMachineSelection::Symbol(symbol),
+                    &toolchain_sources,
+                )
+                .produce(
+                    Default::default(),
+                    &mut psi_terminal_production::UnmeasuredProduction,
+                )
+                .map_err(|error| error.to_string())?;
+                *retained_artifact = Some(Arc::new(produced));
+                let artifact = retained_artifact.as_ref().ok_or_else(|| {
+                    "constant Terminal production lost its exact artifact".to_owned()
+                })?;
+                let program = terminal_interpreter::TerminalProgram::borrow(artifact.view());
+                let mut instance = program
+                    .instantiate(terminal_interpreter::TerminalInstantiation {
+                        scalar_arguments: &[],
+                        structural_inputs: Default::default(),
+                        ..Default::default()
+                    })
+                    .map_err(|error| error.to_string())?;
+                numeric_imports::install(&program, &mut instance, self.typed(), operators)?;
+                // The accounting owner supplies the finite Terminal semantic meter.
+                // Exhaustion refuses this constant; it never retries in another engine.
+                match instance
+                    .invoke(meter)
+                    .map_err(|error| format!("constant Terminal invocation failed: {error:?}"))?
+                {
+                    terminal_interpreter::TerminalExecutionStatus::Complete(value) => Ok(value),
+                    terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_) => Err(format!(
+                        "constant Terminal execution exhausted its fuel allowance after {} units",
+                        meter.usage().total_units(),
+                    )),
+                    terminal_interpreter::TerminalExecutionStatus::Crashed(crash) => {
+                        Err(format!("constant Terminal execution crashed: {crash:?}"))
+                    }
+                    terminal_interpreter::TerminalExecutionStatus::ExternalCompletion(completion) => Err(
+                        format!("constant Terminal execution completed externally: {completion:?}"),
+                    ),
+                }
+            },
         )
-        .produce(
-            Default::default(),
-            &mut psi_terminal_production::UnmeasuredProduction,
-        )
-        .map_err(|error| error.to_string())?
-        .into_artifact()
-        .map_err(|error| error.to_string())?;
-        let program = terminal_interpreter::TerminalProgram::borrow(artifact.view());
-        let mut instance = program
-            .instantiate(terminal_interpreter::TerminalInstantiation {
-                scalar_arguments: &[],
-                structural_inputs: Default::default(),
-                ..Default::default()
-            })
-            .map_err(|error| error.to_string())?;
-        numeric_imports::install(&program, &mut instance, self.typed(), operators)?;
-        // This is a Terminal semantic allowance, not a checked-tree step count.
-        // Exhaustion refuses this constant; it never retries in another engine.
-        let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(100_000);
-        match instance
-            .invoke(&mut meter)
-            .map_err(|error| format!("constant Terminal invocation failed: {error:?}"))?
-        {
-            terminal_interpreter::TerminalExecutionStatus::Complete(value) => Ok(value),
-            terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_) => Err(format!(
-                "constant Terminal execution exhausted its fuel allowance after {} units",
-                meter.usage().total_units(),
-            )),
-            terminal_interpreter::TerminalExecutionStatus::Crashed(crash) => {
-                Err(format!("constant Terminal execution crashed: {crash:?}"))
-            }
-            terminal_interpreter::TerminalExecutionStatus::ExternalCompletion(completion) => Err(
-                format!("constant Terminal execution completed externally: {completion:?}"),
-            ),
-        }
     }
 
     fn interpreter_program(&self) -> checked_interpreter::BuildMachineProgram<'_> {

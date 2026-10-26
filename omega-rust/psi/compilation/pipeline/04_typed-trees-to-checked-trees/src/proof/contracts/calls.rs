@@ -243,27 +243,13 @@ pub(crate) fn build_contract_exit_facts(
                                 | typed_trees::statement::TransitionTargetNode::Value(_) => true,
                                 typed_trees::statement::TransitionTargetNode::Named {
                                     path,
-                                    static_machine_parameter,
-                                    arguments,
-                                    evidence_arguments,
-                                    source_span,
-                                    authored_call_selection,
                                     ..
                                 } => {
-                                    let site = validation::CallSite::TransitionNamed {
-                                        path,
-                                        static_machine_parameter: *static_machine_parameter,
-                                        arguments: *arguments,
-                                        evidence_arguments,
-                                        source_span: *source_span,
-                                        authored_call_selection: *authored_call_selection,
-                                    };
-                                    // Recursive machine calls complete this
-                                    // invocation too. Only an actual internal
-                                    // arrival keeps its postconditions pending.
+                                    // Another machine returns to this invocation's
+                                    // caller. A state transfer within this machine
+                                    // keeps the invocation and its obligations live.
                                     contract_target_from_state_symbol(program, path.symbol)
-                                        .is_some()
-                                        && !site.is_internal_state_transfer(program, machine.symbol)
+                                        .is_some_and(|(owner, _)| owner != machine.symbol)
                                 }
                             };
                         if returns_from_machine {

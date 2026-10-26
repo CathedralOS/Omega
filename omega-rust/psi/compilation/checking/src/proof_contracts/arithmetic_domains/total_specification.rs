@@ -64,8 +64,7 @@ pub(crate) fn validate_total_specification_arithmetic(
         owner,
         true,
         &mut formation_diagnostics,
-    )
-    .value;
+    );
     // Runtime-only unconditional-Trapping warnings have no meaning in Prop;
     // the totality walker below emits the directed hard error instead.
     diagnostics.extend(
@@ -249,6 +248,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let entry_state = program.machine_states(machine).first();
     let mut machine_environment = ValueEnvironment::new();
@@ -269,6 +269,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                 &machine_prior_facts,
                 &owner,
                 diagnostics,
+                formation_obligations,
             );
             crate::proof_contracts::contract_entailment::validate_proof_fact_integer_formation(
                 program,
@@ -328,6 +329,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                 let diagnostics_before = diagnostics.len();
                 crate::proof_contracts::contract_entailment::validate_specification_call_requirements(
                     program, machine, Some(state), fact, &state_prior_facts, &owner, diagnostics,
+                    formation_obligations,
                 );
                 crate::proof_contracts::contract_entailment::validate_proof_fact_integer_formation(
                     program,
@@ -860,6 +862,7 @@ fn narrow_abstract_specification_environment(
 pub(crate) fn validate_abstract_total_specification_arithmetic(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     fn validate_facts(
         program: &dyn crate::CheckingInput,
@@ -871,6 +874,8 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         prior_facts: &mut Vec<ExpressionHandle>,
         seen: &mut Vec<ExpressionHandle>,
         diagnostics: &mut Vec<Diagnostic>,
+
+        formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
     ) {
         // The declaration's binders are real operands, not a fabricated
         // machine frame. Reuse their exact symbols for call substitution.
@@ -900,6 +905,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
             let diagnostics_before = diagnostics.len();
             crate::proof_contracts::contract_entailment::specification_calls::validate_declaration_call_requirements(
                 program, bindings.owner_symbol, &parameters, fact, prior_facts, owner, diagnostics,
+                formation_obligations,
             );
             crate::proof_contracts::contract_entailment::validate_proof_fact_integer_formation(
                 program,
@@ -1001,6 +1007,8 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         bindings: AbstractSpecificationBindings<'_>,
         seen: &mut Vec<ExpressionHandle>,
         diagnostics: &mut Vec<Diagnostic>,
+
+        formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
     ) {
         let mut environment = ValueEnvironment::new();
         let mut prior_facts = Vec::new();
@@ -1016,6 +1024,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 &mut prior_facts,
                 seen,
                 diagnostics,
+                formation_obligations,
             );
         }
     }
@@ -1039,6 +1048,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 &mut Vec::new(),
                 &mut seen,
                 diagnostics,
+                formation_obligations,
             );
         }
     }
@@ -1068,6 +1078,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                     &mut prior_facts,
                     &mut seen,
                     diagnostics,
+                    formation_obligations,
                 );
             };
             match formula {
@@ -1103,6 +1114,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
             &mut prior_facts,
             &mut seen,
             diagnostics,
+            formation_obligations,
         );
     }
 
@@ -1123,6 +1135,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
             &mut prior_facts,
             &mut seen,
             diagnostics,
+            formation_obligations,
         );
         for member in program.data_members(data) {
             let typed_trees::data::DataMember::Variant(variant) = member else {
@@ -1155,6 +1168,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 &mut prior_facts.clone(),
                 &mut seen,
                 diagnostics,
+                formation_obligations,
             );
         }
     }
@@ -1165,6 +1179,8 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         owner: String,
         seen: &mut Vec<ExpressionHandle>,
         diagnostics: &mut Vec<Diagnostic>,
+
+        formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
     ) {
         validate_contracts(
             program,
@@ -1181,6 +1197,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
             },
             seen,
             diagnostics,
+            formation_obligations,
         );
     }
 
@@ -1195,24 +1212,24 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 ),
                 &mut seen,
                 diagnostics,
+                formation_obligations,
             );
         }
     }
 
-    for (_, parameter) in program.data_type_parameters.iter() {
-        let typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
-            continue;
-        };
-        let Some(signature) = program.machine_parameter_contract_view(contract) else {
-            continue;
-        };
-        let signature = signature.signature();
+    // Backing arenas retain detached application scratch as well as live
+    // contracts. Formation and reserved-result typing must use the same
+    // reachable declaration telescopes, including their nested requirements.
+    for (parameter, signature) in
+        crate::proof_contracts::contract_results::machine_parameter_contract_signatures(program)
+    {
         validate_state_signature(
             program,
             signature,
             format!("machine-parameter requirement `{}`", parameter.name),
             &mut seen,
             diagnostics,
+            formation_obligations,
         );
     }
 
@@ -1233,6 +1250,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
             },
             &mut seen,
             diagnostics,
+            formation_obligations,
         );
     }
 }

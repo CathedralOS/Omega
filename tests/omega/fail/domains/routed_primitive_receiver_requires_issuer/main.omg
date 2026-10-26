@@ -1,0 +1,15 @@
+// Expected exit: 0
+// A complete replacement retains both the numeric predicate and exact issuer.
+use omega_language_std::console;
+domain u64::IssuedIndex(value) requires value < 2 established by issue;
+machine issue(value: u64) -> u64 in IssuedIndex requires value < 2 { value }
+machine replace(row: &mut u64 in IssuedIndex) {
+    row = 1;
+}
+machine main() reaches Console {
+    let mut row: u64 in IssuedIndex = issue(0);
+    replace(&mut row);
+    transition row { 1 -> done() _ -> wrong() }
+    state done() { Console::exit_process(0); }
+    state wrong() { Console::exit_process(71); }
+}

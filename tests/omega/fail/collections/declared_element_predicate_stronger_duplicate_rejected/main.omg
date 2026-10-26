@@ -1,0 +1,17 @@
+// A qualified scalar element view preserves its declared disjunction without gaining a stronger one.
+// Expected Source refusal: the observed element cannot establish Observed.
+
+domain i32::Declared(value) requires value < 1 || value < 2;
+domain i32::Observed(value) requires value < 1 || value < 1;
+
+machine observe(value: i32 in Observed) -> i32 { value }
+
+machine main() crashes Trap {
+    let mut items: [i32 in Declared; 1];
+    items[0] = 1;
+    let view: &[i32 in Declared] = &items[..];
+    let result: i32 = observe(view[0]);
+    transition result == 1 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

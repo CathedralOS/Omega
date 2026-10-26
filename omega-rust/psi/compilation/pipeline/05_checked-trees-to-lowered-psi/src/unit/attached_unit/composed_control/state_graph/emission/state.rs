@@ -19,7 +19,7 @@ use super::super::{CheckedStructuralControlSuccessorPlan, case_emission, ranking
 use super::StateGraphEmission;
 use crate::emission::boolean_control::LoweredBooleanDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
-use crate::emission::operation_emission::buffer::{CollectionLengthObservations, OperationBuffer};
+use crate::emission::operation_emission::buffer::{OperationBuffer, StorageObservations};
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
 use crate::proofs::crash_routes::{lower_checked_crash_exit, lower_structural_crash_predicates};
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
@@ -165,6 +165,7 @@ impl StateGraphEmission<'_, '_> {
         );
         let mut evaluation = crate::unit::attached_unit::argument_evaluation::Evaluation {
             completed_operand_scope: Vec::new(),
+            current_claims: Default::default(),
             shared_qualifications: self
                 .catalogs
                 .prepared_scalar_qualifications
@@ -176,10 +177,12 @@ impl StateGraphEmission<'_, '_> {
             qualification_coercions: Vec::new(),
             structural_types: std::sync::Arc::from([]),
             structural_value_owners: Vec::new(),
-            retired_structural_homes: Vec::new(),
             selection_cleanups: Vec::new(),
             computation_address_roots: Vec::new(),
             structural_locals: Vec::new(),
+            completed_cleanup_homes: Vec::new(),
+            retired_structural_bindings: Vec::new(),
+            retired_structural_homes: Vec::new(),
             view_locals: Vec::new(),
             element_views: std::collections::BTreeMap::new(),
             place_observations:
@@ -198,13 +201,6 @@ impl StateGraphEmission<'_, '_> {
                 &self.catalogs.structural_types,
             )?,
             literals: crate::scalar_lowering::computations::literals::prepare(
-                identities,
-                checked,
-                plan.machine,
-                &self.catalogs.structural_types,
-                &mut self.catalogs.next_place,
-            )?,
-            copies: crate::scalar_lowering::computations::copies::prepare(
                 identities,
                 checked,
                 plan.machine,
@@ -270,6 +266,15 @@ impl StateGraphEmission<'_, '_> {
             operation_start: 0,
             blocks: Vec::new(),
         };
+        let mut entry_names = self.claims.entry_claims.clone();
+        entry_names.extend(self.block_entry_claims.iter().cloned());
+        evaluation.current_claims.ingress(
+            state_parameters
+                .iter()
+                .filter(|parameter| parameter.access == terminal_psi::StructuralAccess::Owned)
+                .map(|parameter| parameter.place),
+            &entry_names,
+        )?;
         // A `&`-primitive state parameter arrives by edge argument: its
         // referent storage joins the state's primitive-storage table exactly
         // as a machine-level `&` parameter's does, so a bare referent read
@@ -294,7 +299,11 @@ impl StateGraphEmission<'_, '_> {
                 &state.scalar_parameters,
                 &values,
                 &self.catalogs.type_ids,
-                &self.catalogs.structural_types,
+                super::super::super::super::primitive_locals::PrimitiveStorageCatalog {
+                    types: &self.catalogs.structural_types,
+                    domains: self.catalogs.domain_declarations,
+                    scalars: self.catalogs.scalar_calls.scalar_qualifications(),
+                },
                 &mut self.catalogs.next_place,
                 &mut self.catalogs.scalar_calls.next_call_obligation,
                 &mut operations,
@@ -502,6 +511,7 @@ impl StateGraphEmission<'_, '_> {
             state.state,
             capture_boundary,
             &self.catalogs.structural_types,
+            self.catalogs.domain_declarations,
             &values,
             &mut self.catalogs.next_place,
             &mut next_value,
@@ -723,7 +733,7 @@ impl StateGraphEmission<'_, '_> {
             )?),
             None => None,
         };
-        let inherited_lengths = operations.length_observations.clone();
+        let inherited_lengths = operations.storage_observations.clone();
         // Ordered multi-arm guards: every later guard is observed inside its
         // own private block reached only along the previous decision's false
         // edge. Their evaluation drafts are staged before the successor-edge
@@ -1129,13 +1139,39 @@ impl StateGraphEmission<'_, '_> {
                 LoweringError::Unsupported("guarded structural emission absent"),
             )?,
             CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } => {
+                let source = match result.source {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    } => case_emission::result(state, binding_ordinal, &operations)?.place(),
+                    // A forwarded formal returns its own place: completion
+                    // forwards only an owned or shared-view formal whose
+                    // custody already carries the result's contract.
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index,
+                    } => {
+                        state_parameters
+                            .get(parameter_index as usize)
+                            .ok_or(LoweringError::Unsupported(
+                                "structural graph return parameter missing",
+                            ))?
+                            .place
+                    }
+                    _ => return unsupported("structural graph return needs a whole owned value"),
+                };
+                let source = terminal_psi::StructuralArgument {
+                    place: source,
+                    path: Vec::new(),
+                    access: terminal_psi::StructuralAccess::Owned,
+                };
                 let returned_claims = crate::unit::attached_unit::claims::lower_return_claims(
                     identities,
                     checked,
                     owner,
                     state.state,
                     result,
+                    &source,
                     &operations,
+                    &evaluation.current_claims,
                     &self.claims.source_claims,
                     crate::terminal_identities::lookup_type_id(
                         &self.catalogs.type_ids,
@@ -1157,28 +1193,9 @@ impl StateGraphEmission<'_, '_> {
                         "structural return lost its checked content identity guarantee",
                     );
                 }
-                let source = match result.source {
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal,
-                    } => case_emission::result(state, binding_ordinal, &operations)?.place(),
-                    // A forwarded formal returns its own place: completion
-                    // forwards only an owned or shared-view formal whose
-                    // custody already carries the result's contract.
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                        parameter_index,
-                    } => {
-                        state_parameters
-                            .get(parameter_index as usize)
-                            .ok_or(LoweringError::Unsupported(
-                                "structural graph return parameter missing",
-                            ))?
-                            .place
-                    }
-                    _ => return unsupported("structural graph return needs a whole owned value"),
-                };
                 Terminator::ReturnStructural {
                     edge: edge_id(allocate_dense(&mut next_edge)?),
-                    source,
+                    source: source.place,
                     returned_claims,
                     cleanup_actions: Vec::new(),
                 }
@@ -1659,7 +1676,7 @@ struct ShortCircuitFrame<'a> {
     current_rank: Option<semantic_vocabulary::ValueId>,
     /// The length observations the state held before any successor
     /// staging; the decision cannot reuse observations staged after it.
-    inherited_lengths: &'a CollectionLengthObservations,
+    inherited_lengths: &'a StorageObservations,
 }
 
 /// Lower one planned short-circuit guard whose outcomes take `when_true` and
@@ -1697,7 +1714,7 @@ fn emit_short_circuit_decision(
     // Successor staging runs only after selection. Its length observations
     // cannot be reused while evaluating the guard.
     operations
-        .length_observations
+        .storage_observations
         .clone_from(frame.inherited_lengths);
     let true_block = block_id(allocate_dense(next_block)?);
     let false_block = block_id(allocate_dense(next_block)?);

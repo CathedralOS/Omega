@@ -44,6 +44,12 @@ pub struct TerminalBoundaryScalarBuffer {
 }
 
 impl TerminalBoundaryScalarBuffer {
+    /// Invocation-private capture identity shared with the normal reference
+    /// output owner. It never exposes a guest storage address to the handler.
+    pub(crate) fn capture_identity(&self) -> Arc<()> {
+        Arc::clone(&self.identity)
+    }
+
     pub fn original_storage(
         &self,
     ) -> Option<&super::original_storage::TerminalOriginalStorageLoan> {

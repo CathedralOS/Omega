@@ -176,6 +176,7 @@ impl Builder<'_, '_> {
                 value,
                 alias,
                 place: CheckedUnitStructuralArgumentPlan {
+                    projection_evaluations: Default::default(),
                     source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                         expression: if alias.is_valid() {
                             alias

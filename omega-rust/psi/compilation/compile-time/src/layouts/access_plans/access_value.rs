@@ -25,11 +25,13 @@ pub(crate) fn compute_selected_placement_plan(
     typed: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     schema: &typed_trees::data::DataDefinition,
+    accounting: &crate::evaluation_accounting::EvaluationAccounting,
 ) -> Result<ValidatedPlacementPlan, String> {
     let policy_machine = machine.name.as_str();
     let (schema_fields, schema_report_fingerprint) = schema_fields_for(typed, schema)?;
     let schema_value = build_selected_schema_value(typed, schema, &schema_fields)?;
-    let plan = evaluate_selected_policy(typed, machine, vec![schema_value], "placement")?;
+    let plan =
+        evaluate_selected_policy(typed, machine, vec![schema_value], "placement", accounting)?;
     let fields = struct_fields(&plan).map_err(|reason| invalid(policy_machine, reason))?;
     let layout_value =
         named_field(fields, "layout").map_err(|reason| invalid(policy_machine, reason))?;

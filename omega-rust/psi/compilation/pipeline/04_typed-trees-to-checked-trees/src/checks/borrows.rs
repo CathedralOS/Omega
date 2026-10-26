@@ -28,6 +28,7 @@ mod retained_outputs;
 pub(crate) use retained_outputs::retained_outputs_are_attributed;
 mod reads;
 mod resources;
+mod selected_retirement;
 mod staged_values;
 mod statements;
 mod successor_cleanup;
@@ -36,11 +37,15 @@ mod successor_cleanup;
 // details.
 mod access_sources;
 mod aliases;
+mod completed_backings;
+mod shared_observations;
+pub(crate) use shared_observations::shared_reference_observation;
 mod details;
 mod overlap;
 mod place_access;
 pub(crate) use overlap::{
-    StorageSelectorFacts, captured_storage_index, captured_storage_paths_are_disjoint, storage_path_compatibility,
+    StorageSelectorFacts, captured_storage_index, captured_storage_paths_are_disjoint,
+    storage_path_compatibility,
 };
 mod simultaneous;
 

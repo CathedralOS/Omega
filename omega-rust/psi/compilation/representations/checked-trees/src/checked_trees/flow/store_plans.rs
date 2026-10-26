@@ -88,6 +88,7 @@ impl CheckedStorePlan {
             }
         };
         Some(CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source,
             path: self.destination.path.clone(),
             type_identity: type_identity.clone(),

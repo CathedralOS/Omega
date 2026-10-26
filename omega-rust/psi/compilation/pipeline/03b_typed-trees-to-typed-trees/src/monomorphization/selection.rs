@@ -15,8 +15,8 @@ mod selection_assembly;
 mod static_bindings;
 
 pub(crate) use callee_proposals::{
-    collect_machine_proposals_for_callee, contract_expression_handles, resolve_callee,
-    state_by_symbol,
+    ContractExpressionScope, collect_machine_proposals_for_callee, contract_expression_handles,
+    contract_expression_scopes, resolve_callee, state_by_symbol,
 };
 pub(crate) use proposals::{BindingContext, StaticProposals};
 pub(crate) use selection_assembly::{
@@ -192,6 +192,57 @@ pub(super) fn collect_call_proposals(
         }
     }
     ExplicitArgumentCapacity::WithinBounds
+}
+
+/// Complete logical applications share ordinary proposal and binding
+/// derivation. They are returned separately: retaining their source tuples is
+/// not an executable instance demand. Declaration predicates see no body locals.
+pub(super) fn collect_contract_call_selections(
+    program: &dyn ::validation::CheckingInput,
+    scopes: &[ContractExpressionScope<'_>],
+    candidates: &[Candidate],
+    callee_states: &[CalleeState],
+) -> Vec<CallSelection> {
+    let mut selections = Vec::new();
+    for occurrences in scopes.chunk_by(|left, right| left.expression == right.expression) {
+        let [scope] = occurrences else {
+            // One shared expression cannot acquire a tuple from another
+            // declaration telescope. Copies must retain their own occurrence.
+            continue;
+        };
+        let Some(state) = scope.state else {
+            // Bodyless declarations still contribute executable exclusion,
+            // but provide no state telescope for this ordinary call proposal.
+            continue;
+        };
+        let Some(call) = program.expression_table.call_node(scope.expression) else {
+            continue;
+        };
+        if typed_trees::operator::resolve_named_expression_call(program, call).is_some() {
+            continue;
+        }
+        if let Some(selection) = selection_assembly::selection_for_call_with_local_prefix(
+            program,
+            scope.machine,
+            state,
+            candidates,
+            callee_states,
+            CallSite::Expression(scope.expression),
+            call.target_symbol,
+            &call.machine_arguments,
+            program.expression_table.expression_handles(call.arguments),
+            None,
+            program
+                .typed_program()
+                .callable_body_has_open_parameters(scope.machine),
+            0,
+        ) && selection.is_complete()
+            && !const_arguments::has_pending_type_arguments(program, &selection.type_bindings)
+        {
+            upsert_selection(&mut selections, selection);
+        }
+    }
+    selections
 }
 
 pub(super) fn collect_call_selections(
@@ -384,18 +435,29 @@ pub(super) fn collect_call_selections(
             None,
             &mut proposals,
         );
+        let lexical_owner = typed_trees::references::StaticArgumentCall::Expression(handle, call)
+            .lexical_owner(program);
+        // Retained result/capture recipes keep their original lexical owner.
+        // A detached occurrence of an open caller's binder is still symbolic;
+        // lacking a runtime evaluation edge does not make that owner concrete.
+        // Ordinary executable clones are selected above with their real scope.
+        let caller_is_generic = program
+            .machine_by_symbol(lexical_owner)
+            .is_some_and(|owner| {
+                program
+                    .typed_program()
+                    .callable_body_has_open_parameters(owner)
+            });
         let mut selection = selection_from_proposals(
             program,
             CallSite::Expression(handle),
             callee,
             candidate,
-            false,
+            caller_is_generic,
             proposals,
         );
         selection.explicit_argument_overflow = explicit_arguments.is_err();
-        selection.lexical_owner =
-            typed_trees::references::StaticArgumentCall::Expression(handle, call)
-                .lexical_owner(program);
+        selection.lexical_owner = lexical_owner;
         upsert_selection(&mut selections, selection);
     }
 

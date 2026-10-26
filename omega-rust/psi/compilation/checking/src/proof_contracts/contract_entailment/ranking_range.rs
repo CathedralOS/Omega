@@ -104,7 +104,7 @@ pub fn captured_collection_length(
     machine: &Machine,
     state: &State,
     collection: ExpressionHandle,
-    mut observe: impl FnMut(&crate::CanonicalPlace) -> Option<BigInt>,
+    mut observe: impl FnMut(ExpressionHandle, &crate::CanonicalPlace) -> Option<BigInt>,
 ) -> Option<u64> {
     let mut engine = captured_integer_engine(program, machine, state, collection, &mut observe)?;
     lengths::actual(program, machine, state, collection, &[], &mut engine)?
@@ -120,7 +120,7 @@ pub fn captured_integer_value(
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-    mut observe: impl FnMut(&crate::CanonicalPlace) -> Option<BigInt>,
+    mut observe: impl FnMut(ExpressionHandle, &crate::CanonicalPlace) -> Option<BigInt>,
 ) -> Option<BigInt> {
     meanings::admitted_carrier(program, machine, state, expression, 0)?;
     let mut engine = captured_integer_engine(program, machine, state, expression, &mut observe)?;
@@ -132,7 +132,7 @@ fn captured_integer_engine<'program>(
     machine: &'program Machine,
     state: &State,
     root: ExpressionHandle,
-    observe: &mut impl FnMut(&crate::CanonicalPlace) -> Option<BigInt>,
+    observe: &mut impl FnMut(ExpressionHandle, &crate::CanonicalPlace) -> Option<BigInt>,
 ) -> Option<Engine<'program>> {
     let mut engine = Engine::strict(program, machine, &[]);
     let mut expressions = Vec::new();
@@ -141,7 +141,7 @@ fn captured_integer_engine<'program>(
         let Some(place) = crate::canonical_place_from_expression(program, expression) else {
             continue;
         };
-        let Some(value) = observe(&place) else {
+        let Some(value) = observe(expression, &place) else {
             continue;
         };
         if !engine.bind_captured_integer_place(machine, state, expression, value) {

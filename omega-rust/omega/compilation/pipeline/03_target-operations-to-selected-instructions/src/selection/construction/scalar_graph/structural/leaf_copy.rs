@@ -72,6 +72,19 @@ pub(super) fn copy(
                 .ok_or(invalid())?,
             )
         }
+        abstract_operations::StructuralCopyPath::Case(path) => {
+            let signature = function.structural.as_ref().ok_or(invalid())?;
+            let root =
+                crate::selection::reference_input::root_type(function, *source).ok_or(invalid())?;
+            Some(
+                crate::structural_inputs::structural_reference_input::case_projection(
+                    root,
+                    path,
+                    &signature.structural_types,
+                )
+                .ok_or(invalid())?,
+            )
+        }
         _ => None,
     };
     let pointer_slots = geometry

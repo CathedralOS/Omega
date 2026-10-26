@@ -23,7 +23,49 @@ pub(super) fn structural_carriers_match(
     ) else {
         return false;
     };
-    program.normalized_type_identity(returned) == program.normalized_type_identity(expected)
+    if program.normalized_type_identity(returned) == program.normalized_type_identity(expected) {
+        return true;
+    }
+    match (
+        program.type_reference_table.type_reference(returned),
+        program.type_reference_table.type_reference(expected),
+    ) {
+        (
+            TypeReferenceNode::Generic {
+                base_symbol: b1,
+                base_name: n1,
+                ..
+            },
+            TypeReferenceNode::Generic {
+                base_symbol: b2,
+                base_name: n2,
+                ..
+            },
+        ) => {
+            (b1.is_valid() && b2.is_valid() && b1 == b2)
+                || (!n1.as_str().is_empty() && n1.as_str() == n2.as_str())
+        }
+        (
+            TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                ..
+            },
+            TypeReferenceNode::Named { symbol, name, .. },
+        )
+        | (
+            TypeReferenceNode::Named { symbol, name, .. },
+            TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                ..
+            },
+        ) => {
+            (base_symbol.is_valid() && symbol.is_valid() && base_symbol == symbol)
+                || (!base_name.as_str().is_empty() && base_name.as_str() == name.as_str())
+        }
+        _ => false,
+    }
 }
 
 /// An omitted runtime field's zero value is admitted only for a

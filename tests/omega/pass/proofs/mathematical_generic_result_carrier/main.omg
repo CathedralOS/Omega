@@ -1,0 +1,10 @@
+let second<A: core::Type<0>, B: core::Type<0> >(left: A, right: B): B = right;
+
+machine observed(left: u8, right: u16)
+ensures second<u8, u16>(left, right) == right
+{}
+
+let fixed<const Limit: u64>(): u64 = 7u64;
+let forwarded<const Limit: u64>(): u64 = fixed<Limit>();
+
+machine main() {}

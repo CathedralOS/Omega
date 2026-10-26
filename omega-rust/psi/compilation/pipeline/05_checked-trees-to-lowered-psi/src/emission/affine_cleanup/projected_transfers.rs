@@ -197,6 +197,7 @@ pub(super) fn complete(
     while let Some(position) = ready.pop_front() {
         let mut frontier = incoming[position].clone().expect("queued frontier");
         for operation in &blocks[position].operations {
+            observe(&frontier, operation, &roots, types)?;
             for argument in operands(&operation.kind) {
                 transfer(&mut frontier, argument, &copied_roots)?;
             }
@@ -424,10 +425,102 @@ fn transfer(
     argument: &StructuralArgument,
     copied_roots: &BTreeSet<PlaceId>,
 ) -> Result<(), LoweringError> {
+    // Copying and borrowing require a present valid value even when neither
+    // transfers custody. Write-only presentation removes observation rights,
+    // not the supplied argument's independent validity obligation.
+    require_available(frontier, argument.place, &argument.path)?;
     if !transfers_custody(argument, copied_roots) {
         return Ok(());
     }
     remove_path(frontier, argument.place, &argument.path)
+}
+
+/// Tag selection and non-consuming structural copies have no owned operand,
+/// but still require their exact observed subtree to remain present.
+fn observe(
+    frontier: &Frontier,
+    operation: &terminal_psi::Operation,
+    roots: &[(PlaceId, StructuralTypeId)],
+    types: &[StructuralTypeDeclaration],
+) -> Result<(), LoweringError> {
+    let (result, kind) = match &operation.kind {
+        OperationKind::StructuralCaseMembership { source, path, .. } => (
+            require_available(frontier, *source, path),
+            "case membership",
+        ),
+        OperationKind::StructuralLeafCopy { source, path } => (
+            require_available(frontier, *source, path),
+            "whole structural copy",
+        ),
+        OperationKind::StructuralCaseLeafCopy { source, path } => {
+            let root = declared_root_type(roots, *source)?;
+            let observed =
+                terminal_semantics::canonical_structural_storage_path(types.iter(), root, path)
+                    .ok_or(LoweringError::Unsupported(
+                        "projected copy has no exact storage projection",
+                    ))?;
+            (
+                require_available(frontier, *source, &observed),
+                "projected structural copy",
+            )
+        }
+        _ => return Ok(()),
+    };
+    result.map_err(|mut error| {
+        if let LoweringError::OverlappingProjectedCustody {
+            place, observation, ..
+        } = &mut error
+        {
+            *observation = Some(Box::new(
+                crate::lowering_error::ProjectedCustodyObservation {
+                    operation: operation.id,
+                    kind,
+                    root_declarations: roots
+                        .iter()
+                        .filter(|(root, _)| root == place)
+                        .map(|(_, structural_type)| *structural_type)
+                        .collect(),
+                },
+            ));
+        }
+        error
+    })
+}
+
+fn require_available(
+    frontier: &Frontier,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+) -> Result<(), LoweringError> {
+    if let Some(earlier) = frontier
+        .iter()
+        .filter(|root| root.place == place)
+        .flat_map(|root| &root.paths)
+        .find(|earlier| terminal_semantics::structural_paths_may_overlap(earlier, path))
+    {
+        return Err(LoweringError::OverlappingProjectedCustody {
+            reason: "structural observation or cleanup overlaps an earlier transfer or release",
+            place,
+            earlier: earlier.clone(),
+            requested: path.to_vec(),
+            observation: None,
+        });
+    }
+    Ok(())
+}
+
+fn declared_root_type(
+    roots: &[(PlaceId, StructuralTypeId)],
+    place: PlaceId,
+) -> Result<StructuralTypeId, LoweringError> {
+    let mut matching = roots.iter().filter(|(root, _)| *root == place);
+    let (_, structural_type) = matching.next().ok_or(LoweringError::Unsupported(
+        "projected custody root has no exact declaration",
+    ))?;
+    if matching.any(|(_, other)| other != structural_type) {
+        return unsupported("projected custody root has inconsistent declarations");
+    }
+    Ok(*structural_type)
 }
 
 fn remove_path(
@@ -452,6 +545,7 @@ fn remove_path(
                 place,
                 earlier: earlier.clone(),
                 requested: path.to_vec(),
+                observation: None,
             });
         }
         root.paths.insert(path.to_vec());
@@ -538,6 +632,12 @@ fn complete_actions(
     let mut actions = Vec::new();
     let mut placeholders = BTreeSet::new();
     for action in cleanup_actions.iter() {
+        // A parent retaining its children still lends a whole valid subject
+        // to the hook. Authenticate before either form changes the frontier;
+        // only a no-code discard may complete a partial owned complement.
+        if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
+            require_available(frontier, cleanup.place, &cleanup.path)?;
+        }
         let first_new_action = actions.len();
         match action {
             TerminalAffineCleanupAction::DiscardRoot(place)
@@ -549,17 +649,11 @@ fn complete_actions(
                 let root = frontier.iter().find(|root| root.place == *place).ok_or(
                     LoweringError::Unsupported("scheduled partial cleanup root is absent"),
                 )?;
-                let mut matching = roots.iter().filter(|(root, _)| root == place);
-                let (_, structural_type) = matching.next().ok_or(LoweringError::Unsupported(
-                    "projected cleanup root has no exact declaration",
-                ))?;
-                if matching.any(|(_, other)| other != structural_type) {
-                    return unsupported("projected cleanup root has inconsistent declarations");
-                }
+                let structural_type = declared_root_type(roots, *place)?;
                 let selected = StructuralAffineDiscard {
                     place: *place,
                     path: Vec::new(),
-                    structural_type: *structural_type,
+                    structural_type,
                 };
                 actions.extend(
                     residuals(root, &selected, types)?

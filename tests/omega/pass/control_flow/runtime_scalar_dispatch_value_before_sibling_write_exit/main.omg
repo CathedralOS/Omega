@@ -1,0 +1,13 @@
+// Expected exit: 0
+// A scalar subject is an evaluated value, not a reference read after the next subject.
+use omega_language_std::console;
+machine replace(values: &mut [u64; 2]) -> bool { values[0] = 22; true }
+machine main() reaches Console {
+    let mut values: [u64; 2] = [11, 12];
+    transition (values[0], replace(&mut values)) {
+        (11, true) -> done()
+        _ -> wrong()
+    }
+    state done() { Console::exit_process(0); }
+    state wrong() { Console::exit_process(71); }
+}

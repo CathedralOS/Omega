@@ -146,7 +146,8 @@ pub(crate) fn validate_suffix_magnitudes(
 
 mod float_landing;
 pub use float_landing::land_float_literal_destinations;
-pub(crate) use float_landing::{validate_anonymous_bitwise, validate_anonymous_numeric_formation};
+pub(crate) use float_landing::validate_anonymous_bitwise;
+pub use float_landing::validate_anonymous_numeric_formation;
 mod constant_arrays;
 mod record_projection;
 pub use constant_arrays::builtin_constant_array_projection_type;

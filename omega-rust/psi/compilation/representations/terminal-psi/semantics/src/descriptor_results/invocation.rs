@@ -104,10 +104,12 @@ pub fn public_result_slots(
             (&leaf.kind, slot_kind),
             (
                 crate::BorrowedResultLeafKind::View,
-                DescriptorSlotKind::Views
+                DescriptorSlotKind::Views | DescriptorSlotKind::BorrowedStorage
             ) | (
                 crate::BorrowedResultLeafKind::Reference(_),
-                DescriptorSlotKind::References | DescriptorSlotKind::PlacedOrigins,
+                DescriptorSlotKind::References
+                    | DescriptorSlotKind::BorrowedStorage
+                    | DescriptorSlotKind::PlacedOrigins,
             )
         );
         if !selected_kind {

@@ -2,8 +2,9 @@
 //! binding of one placed view with its placement commitment.
 
 use super::super::CodecError;
+use super::super::structural_signature_wire::{decode_structural_access, encode_structural_access};
 use super::super::wire::{Reader, Writer, decode_canonical, decode_counted};
-use terminal_psi::{StructuralAccess, TerminalIdentityIndex, TerminalPlacedViewInput};
+use terminal_psi::{TerminalIdentityIndex, TerminalPlacedViewInput};
 
 /// Preserve exact formal demands independently of the carrier's storage shape.
 pub fn encode_placed_view_input_catalog(
@@ -38,12 +39,7 @@ pub(super) fn encode_placed_view_input(
     writer.u32(input.source_machine_identity.0);
     writer.u32(input.source_state_identity.0);
     writer.u32(input.source_parameter_identity.0);
-    writer.u8(match input.access {
-        StructuralAccess::Owned => 1,
-        StructuralAccess::SharedBorrow => 2,
-        StructuralAccess::MutableBorrow => 3,
-        StructuralAccess::WriteOnlyBorrow => 4,
-    });
+    encode_structural_access(writer, input.access);
     writer.boolean(input.binding_is_const);
     writer.boolean(input.binding_is_mutable);
     writer.u32(input.view_identity.0);
@@ -66,13 +62,7 @@ pub(super) fn decode_placed_view_input(
         source_machine_identity: TerminalIdentityIndex(reader.u32()?),
         source_state_identity: TerminalIdentityIndex(reader.u32()?),
         source_parameter_identity: TerminalIdentityIndex(reader.u32()?),
-        access: match reader.u8()? {
-            1 => StructuralAccess::Owned,
-            2 => StructuralAccess::SharedBorrow,
-            3 => StructuralAccess::MutableBorrow,
-            4 => StructuralAccess::WriteOnlyBorrow,
-            tag => return Err(CodecError::InvalidTag("StructuralAccess", tag)),
-        },
+        access: decode_structural_access(reader)?,
         binding_is_const: reader.boolean()?,
         binding_is_mutable: reader.boolean()?,
         view_identity: TerminalIdentityIndex(reader.u32()?),

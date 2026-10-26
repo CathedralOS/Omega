@@ -321,6 +321,17 @@ impl TerminalExecution<'_> {
                 .get(&leaf.structural_type)
                 .ok_or_else(malformed)?;
             match segment {
+                CanonicalStructuralPathSegment::Referent => {
+                    if case_fields.is_some() {
+                        return Err(malformed());
+                    }
+                    projection.push(StructuralPathSegment::Referent);
+                    leaf = self.resolve_live_projection(
+                        source,
+                        &projection,
+                        StructuralAccess::SharedBorrow,
+                    )?;
+                }
                 CanonicalStructuralPathSegment::Case(case) => {
                     if case_fields.is_some() {
                         return Err(malformed());

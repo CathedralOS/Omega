@@ -38,7 +38,7 @@ mod source_paths;
 pub use captured_returns::call_sources as call_return_sources;
 pub use captured_returns::returned_sources as captured_return_sources;
 pub use declared_returns::returned_sources as declared_return_sources;
-pub use source_paths::reference_origin_path;
+pub use source_paths::{parameter_reference_origin_path, reference_origin_path};
 
 // An owned formal has a compact type DAG but its returned-origin roster is
 // materialized by path. Bound that expansion before semantic classification or
@@ -285,11 +285,12 @@ pub fn initializer_source(
             return None;
         }
         return Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(position).ok()?,
             },
             path: Vec::new(),
-            type_identity: crate::structural_type_identity(program, referent, &[], &[]),
+            type_identity: crate::stored_structural_type_identity(program, referent, &[], &[]),
             access,
         });
     }
@@ -514,9 +515,10 @@ pub fn borrowed_initializer_source(
         return None;
     }
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source,
         path: segments,
-        type_identity: crate::structural_type_identity(program, referent, &[], &[]),
+        type_identity: crate::stored_structural_type_identity(program, referent, &[], &[]),
         access,
     })
 }
@@ -818,6 +820,7 @@ fn whole_reference_sources(
             return None;
         }
         let source = checked_trees::CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(parameter_index).ok()?,
             },
@@ -918,6 +921,7 @@ pub fn record_carrier_sources(
             Some(checked_trees::CheckedReferenceResultSourcePlan {
                 path,
                 source: checked_trees::CheckedUnitStructuralArgumentPlan {
+                    projection_evaluations: Default::default(),
                     source: carrier.clone(),
                     path: source_path,
                     type_identity: leaf.type_identity,
@@ -1938,6 +1942,7 @@ fn call_result_field_argument(
         path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
     }
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         },
@@ -2029,6 +2034,7 @@ pub fn record_argument(
         path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
     }
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         },
@@ -2195,6 +2201,37 @@ pub fn path_has_nominal_receiver(
             |reference| crate::nominal_cleanup_machine_for_type(program, reference, &[]).is_some(),
         )
     })
+}
+
+/// A stored value read can duplicate descriptor bytes without acquiring the
+/// referee. Owning/copying that value remains separate from result disposal.
+pub fn is_copyable_stored_value(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    reference.is_valid()
+        && crate::has_contents(
+            program,
+            reference,
+            &[],
+            crate::ContentsRequirement::StoredValue,
+        )
+        && crate::type_satisfies_declared_property(
+            program,
+            &[],
+            reference,
+            crate::DeclaredPropertyRequirement::Copy,
+        )
+}
+
+/// Reusable Source copies do not consume the source's custody. A materialized
+/// result can still have affine descriptor cleanup via result_multiplicity.
+pub fn source_value_is_copied(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    is_copyable_stored_value(program, reference)
+        && program.type_multiplicity(reference) == Multiplicity::Unrestricted
 }
 
 /// Custody of a structural binding that denotes the referent directly.
@@ -2498,13 +2535,28 @@ pub fn local_storage_loans(
     state: SymbolHandle,
     root: SymbolHandle,
 ) -> Option<Vec<arena::Handle<checked_trees::BorrowLoanFact>>> {
+    storage_loans(facts, machine, state, facts::PlaceRoot::Symbol(root))
+}
+
+/// The same captured backing relationship applies to anonymous owned homes.
+/// Descriptor suppliers name transport history; only the checked loan root
+/// identifies the storage whose disposal must wait for that holder. Only
+/// published statement resources own local retirement; invocation associations
+/// retain their supplier history without adding another independently live home.
+pub fn storage_loans(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    root: facts::PlaceRoot,
+) -> Option<Vec<arena::Handle<checked_trees::BorrowLoanFact>>> {
     let borrowing = facts.borrow.unique_state_borrow(machine, state)?;
     Some(
         facts
             .borrow
-            .loan_group(borrowing.loans)?
+            .statement_resource_loans(borrowing)?
             .filter_map(|(handle, loan)| {
-                (loan.root == facts::PlaceRoot::Symbol(root)).then_some(handle)
+                (facts.borrow.state_owns_loan(borrowing, handle) && loan.root == root)
+                    .then_some(handle)
             })
             .collect(),
     )

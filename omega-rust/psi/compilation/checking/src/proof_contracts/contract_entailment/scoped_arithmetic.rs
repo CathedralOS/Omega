@@ -28,6 +28,8 @@ use typed_trees::machine::Machine;
 /// value occurrence, or the synthetic `result` name for the returned value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScopedArithmeticBinder {
+    /// A declaration type binder, never an integer value symbol.
+    Type(symbols::SymbolHandle),
     Symbol(symbols::SymbolHandle),
     /// One exact value occurrence whose denotation the binding owner supplies.
     Occurrence(ExpressionHandle),
@@ -36,6 +38,8 @@ pub enum ScopedArithmeticBinder {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScopedArithmeticValue {
+    /// Actual supplying type metadata for a Type binder; not a polynomial.
+    TypeReference(typed_trees::types::TypeReferenceHandle),
     /// A private mathematical unknown. The identity is shared across every
     /// proposition of one implication; an unsigned atom carries `>= 0`.
     Atom { identity: String, unsigned: bool },
@@ -429,4 +433,54 @@ pub fn scoped_arithmetic_value_bounds(
         return None;
     }
     Some(engine.polynomial_interval(&engine.substituted(&value)))
+}
+
+/// Fit one independently formed operand under its declaration's exact scoped
+/// symbols. The caller supplies only preceding, already formed requirements;
+/// neither the consuming comparison nor its result is a hypothesis. Runtime
+/// callers instead normalize their completed occurrence at operation entry.
+pub(super) fn scoped_arithmetic_value_fits_for_declaration(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    hypotheses: &[ScopedArithmeticHypothesis],
+    value: &ScopedArithmeticValue,
+    target: typed_trees::types::PrimitiveType,
+) -> super::operand_fits::CarrierFit {
+    use super::operand_fits::CarrierFit;
+    let mut calls = calls::ScopedCalls::for_declaration(program, owner);
+    let Some(value) = calls.value(value) else {
+        return CarrierFit::Unknown;
+    };
+    let Some(hypotheses) = calls.hypotheses(hypotheses) else {
+        return CarrierFit::Unknown;
+    };
+    let mut engine = Engine::strict_for_declaration(program, owner);
+    let Some(value) = engine.normalize_scoped_value(&value) else {
+        return CarrierFit::Unknown;
+    };
+    let (minimum, maximum, exclusive) = if target == typed_trees::types::PrimitiveType::Addr {
+        let Some(bound) = engine.address_model_bound() else {
+            return CarrierFit::Unknown;
+        };
+        (super::BigInt::zero(), bound, true)
+    } else {
+        let Some((minimum, maximum)) = target.integer_bounds() else {
+            return CarrierFit::Unknown;
+        };
+        (
+            super::BigInt::from_i128(minimum),
+            Polynomial::constant(super::BigInt::from_i128(maximum)),
+            false,
+        )
+    };
+    if !install_hypotheses(program, &mut engine, &hypotheses) {
+        return CarrierFit::Unknown;
+    }
+    engine.integer_value_fit(
+        &value,
+        &minimum,
+        &maximum,
+        exclusive,
+        target == typed_trees::types::PrimitiveType::Addr,
+    )
 }

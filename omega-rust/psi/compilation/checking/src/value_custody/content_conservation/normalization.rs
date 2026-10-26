@@ -21,6 +21,7 @@ pub(super) struct NormalizationContext<'program, 'contracts> {
     pub(super) return_type: TypeReferenceHandle,
     pub(super) self_data: SymbolHandle,
     pub(super) contracts: &'contracts [&'contracts SignatureContract],
+    pub(super) boundary_subjects: &'contracts [crate::BoundaryQualificationObligation],
 }
 
 pub(super) fn normalize_equation(
@@ -236,6 +237,7 @@ fn normalize_projection_subject(
             projection.domain,
             projection.semantic_domain,
         )
+        && !boundary_postcondition_forms_domain(context, &subject, projection)
     {
         return Err(format!(
             "projection `{}` requires exact qualification `{}`, but `{}` is not qualified by its type or an ordinary callable contract",
@@ -245,6 +247,33 @@ fn normalize_projection_subject(
         ));
     }
     Ok(subject)
+}
+
+/// An exact authorized boundary postcondition may form its projection term
+/// before the admitted crossing exists. This forms only this declaration's
+/// operand; it proves no membership, conservation law or runtime supply.
+fn boundary_postcondition_forms_domain(
+    context: &NormalizationContext<'_, '_>,
+    subject: &ContentStructuralPlace,
+    projection: &ContentProjectionPlan,
+) -> bool {
+    if subject.version != ContentPlaceVersion::Current || !subject.segments.is_empty() {
+        return false;
+    }
+    context.boundary_subjects.iter().any(|obligation| {
+        obligation.requirement.is_valid()
+            && obligation.realization_state == context.callable
+            && obligation.realization_state.is_valid()
+            && obligation.domain == projection.domain
+            && obligation.semantic_domain.is_valid()
+            && obligation.semantic_domain == projection.semantic_domain
+            && match &subject.root {
+                ContentPlaceRoot::Result => !obligation.parameter.is_valid(),
+                ContentPlaceRoot::Parameter { symbol, .. } => {
+                    obligation.parameter.is_valid() && obligation.parameter == *symbol
+                }
+            }
+    })
 }
 
 fn collect_structural_place(

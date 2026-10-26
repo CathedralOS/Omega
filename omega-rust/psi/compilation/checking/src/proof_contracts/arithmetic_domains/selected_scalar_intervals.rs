@@ -165,6 +165,7 @@ fn integer(
             parameter_position,
             path,
             primitive_type,
+            ..
         } => (
             *primitive_type,
             source.structural_field(*parameter_position, path)?,
@@ -175,6 +176,7 @@ fn integer(
             index,
             element_path,
             primitive_type,
+            ..
         } => {
             let index = selected_scalar_interval(&index.expression, source);
             (

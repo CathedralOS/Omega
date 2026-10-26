@@ -17,6 +17,44 @@ struct ComputationVisit {
     completed: bool,
 }
 
+/// All consumers of one statement share exact computation occurrence custody.
+/// A retained value can be reached through several roles without executing its
+/// child twice. Different computations still cannot consume one captured call.
+#[derive(Default)]
+struct CallOccurrenceLedger {
+    calls: Vec<arena::Handle<checked_trees::FlowCallFact>>,
+    accounted_computations: Vec<AccountedComputation>,
+    pending_minima: Vec<Option<u32>>,
+}
+
+struct AccountedComputation {
+    state: SymbolHandle,
+    statement: usize,
+    computation: CheckedScalarComputationHandle,
+    /// Smallest actual Source-call ordinal in this exact immutable subtree.
+    /// Pure computations have no call ordinal to constrain a consumer.
+    minimum_call_ordinal: Option<u32>,
+}
+
+impl CallOccurrenceLedger {
+    fn record_minimum(&mut self, minimum: Option<u32>) {
+        if let Some(minimum) = minimum {
+            for pending in &mut self.pending_minima {
+                *pending = Some(pending.map_or(minimum, |prior| prior.min(minimum)));
+            }
+        }
+    }
+    fn contains(&self, call: &arena::Handle<checked_trees::FlowCallFact>) -> bool {
+        self.calls.contains(call)
+    }
+    fn push(&mut self, call: arena::Handle<checked_trees::FlowCallFact>) {
+        self.calls.push(call);
+    }
+    fn iter(&self) -> std::slice::Iter<'_, arena::Handle<checked_trees::FlowCallFact>> {
+        self.calls.iter()
+    }
+}
+
 /// An unconditional named machine invocation completes this Unit body after
 /// its ordinary call operation. Internal state destinations remain control
 /// edges; guarded invocations must not be hoisted into this linear sequence.

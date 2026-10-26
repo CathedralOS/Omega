@@ -12,7 +12,8 @@ use terminal_psi::{
 };
 use terminal_semantics::borrowed_storage::Projection;
 use terminal_semantics::descriptor_lifetimes::{
-    DescriptorFlowEdge, DescriptorFlowStep, DescriptorLocation, descriptor_location,
+    DescriptorFlowBinding, DescriptorFlowEdge, DescriptorFlowSource, DescriptorFlowStep,
+    DescriptorLocation, descriptor_location,
 };
 use terminal_semantics::descriptor_results::{
     self as kernel, DescriptorDefinition, DescriptorInvocation, DescriptorMachine, DescriptorPlace,
@@ -30,17 +31,12 @@ pub fn abstract_catalog_graph<'function, 'boundary>(
     types: &[StructuralTypeDeclaration],
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
 ) -> Option<Vec<DescriptorMachine>> {
-    let functions = functions
-        .into_iter()
-        .map(optimization_unit::reconstruct_psi_optimization_function_seed)
-        .collect::<Result<Vec<_>, _>>()
-        .ok()?;
-    optimized_catalog_graph(
-        functions.iter(),
+    abstract_graph_with_slots(
+        functions,
         boundaries,
         types,
         dynamic_dispatch,
-        |_, node| Some(Cow::Borrowed(&node.operation)),
+        kernel::DescriptorSlotKind::Views,
     )
 }
 
@@ -51,17 +47,53 @@ pub fn abstract_reference_catalog_graph<'function, 'boundary>(
     types: &[StructuralTypeDeclaration],
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
 ) -> Option<Vec<DescriptorMachine>> {
+    abstract_graph_with_slots(
+        functions,
+        boundaries,
+        types,
+        dynamic_dispatch,
+        kernel::DescriptorSlotKind::References,
+    )
+}
+
+/// The complete inventory for post-effect caller membership queries.
+pub fn optimized_borrowed_storage_catalog_graph<'function, 'boundary>(
+    functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
+    boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
+    types: &[StructuralTypeDeclaration],
+    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+) -> Option<Vec<DescriptorMachine>> {
+    catalog_graph(
+        functions,
+        boundaries,
+        types,
+        dynamic_dispatch,
+        |_, node| Some(Cow::Borrowed(&node.operation)),
+        kernel::DescriptorSlotKind::BorrowedStorage,
+        |_, _| false,
+    )
+}
+
+fn abstract_graph_with_slots<'function, 'boundary>(
+    functions: impl IntoIterator<Item = &'function abstract_operations::AbstractFunction>,
+    boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
+    types: &[StructuralTypeDeclaration],
+    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+    slot_kind: kernel::DescriptorSlotKind,
+) -> Option<Vec<DescriptorMachine>> {
     let functions = functions
         .into_iter()
         .map(optimization_unit::reconstruct_psi_optimization_function_seed)
         .collect::<Result<Vec<_>, _>>()
         .ok()?;
-    optimized_reference_catalog_graph(
+    catalog_graph(
         functions.iter(),
         boundaries,
         types,
         dynamic_dispatch,
         |_, node| Some(Cow::Borrowed(&node.operation)),
+        slot_kind,
+        |_, _| false,
     )
 }
 
@@ -314,6 +346,8 @@ fn adapt(
         places: Vec::new(),
         place_types: BTreeMap::new(),
         flow: BTreeMap::new(),
+        case_constructors: BTreeMap::new(),
+        case_successors: BTreeMap::new(),
         originations: BTreeMap::new(),
         projections: BTreeMap::new(),
         contents_queries: BTreeMap::new(),
@@ -349,7 +383,6 @@ fn adapt(
         payload_scalar_parameters: BTreeMap::new(),
         payload_edge_predicates: BTreeMap::new(),
         payload_scalar_bindings: BTreeMap::new(),
-        payload_arrivals: BTreeMap::new(),
         unresolved_contents_writes: BTreeSet::new(),
         storage_derivations: BTreeSet::new(),
         calls: BTreeMap::new(),
@@ -740,9 +773,7 @@ fn adapt(
                         },
                     ));
                 }
-                O::EstablishNativeCodeLayout { result, .. }
-                    if slot_kind == kernel::DescriptorSlotKind::Views =>
-                {
+                O::EstablishNativeCodeLayout { result, .. } if slot_kind.tracks_views() => {
                     let destination = kernel::native_code_layout_regions(types, result)?;
                     step.definitions.push(destination.clone());
                     graph.originations.entry(position).or_default().push((
@@ -770,7 +801,7 @@ fn adapt(
                     result,
                     correspondence,
                     ..
-                } if slot_kind == kernel::DescriptorSlotKind::References => {
+                } if slot_kind.tracks_references() => {
                     // A placed presentation is not a typed alias to the source
                     // schema. Retain its formation through reference transport
                     // without letting ordinary slot traversal reinterpret it.
@@ -835,7 +866,7 @@ fn adapt(
                         }
                     } else if let Some(source) = location(source.place, path, None) {
                         step.derivations.push((source.clone(), destination.clone()));
-                        if slot_kind == kernel::DescriptorSlotKind::References
+                        if slot_kind.tracks_references()
                             && matches!(operation, O::EstablishReference { .. })
                         {
                             graph.storage_derivations.insert((
@@ -1313,8 +1344,10 @@ fn adapt(
                             if result.structural_type != expected.structural_type
                                 || result.multiplicity != expected.multiplicity
                                 || result.qualifications != expected.qualifications
-                                || result.projected_qualifications
-                                    != expected.projected_qualifications
+                                || !expected
+                                    .projected_qualifications
+                                    .iter()
+                                    .all(|row| result.projected_qualifications.contains(row))
                             {
                                 return None;
                             }
@@ -1474,8 +1507,7 @@ fn adapt(
                         _ => false,
                     };
                     let preserved = preserved
-                        || (slot_kind == kernel::DescriptorSlotKind::References
-                            && preserves_boundary(function, node));
+                        || (slot_kind.tracks_references() && preserves_boundary(function, node));
                     if !preserved {
                         step.may_escape = true;
                         if structural_arguments.iter().any(|actual| {
@@ -1541,6 +1573,52 @@ fn adapt(
                     graph.normal_exits.push(position);
                 }
                 _ => {}
+            }
+            if let O::EstablishZeroedStructural { result, .. } = operation {
+                graph.case_constructors.insert(
+                    position,
+                    kernel::zeroed_case_predicates(types, result.place, result.structural_type),
+                );
+            }
+            if let O::EstablishCase {
+                result,
+                result_case,
+                ..
+            } = operation
+            {
+                graph.case_constructors.insert(
+                    position,
+                    vec![kernel::DescriptorCasePredicate {
+                        subject: DescriptorLocation::whole(result.place),
+                        case: *result_case,
+                    }],
+                );
+            }
+            if let O::StructuralCase {
+                source,
+                path,
+                cases,
+            } = operation
+            {
+                let subject = location(*source, path, None)?;
+                let predicates = node
+                    .successors
+                    .iter()
+                    .map(|edge| {
+                        let mut matching = cases.iter().filter(|case| {
+                            case.psi_edge == edge.psi_edge && case.target == edge.target
+                        });
+                        let case = matching.next()?;
+                        matching
+                            .next()
+                            .is_none()
+                            .then_some(kernel::DescriptorCasePredicate {
+                                subject: subject.clone(),
+                                case: case.case,
+                            })
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                graph.case_successors.insert(position, predicates);
             }
             step.authority_derivations = step.derivations.clone();
             if graph.normal_exits.contains(&position) {
@@ -1649,42 +1727,40 @@ fn adapt(
                         .map(|parameter| DescriptorLocation::whole(parameter.place))
                         .collect::<Vec<_>>();
                     let mut bindings = Vec::new();
-                    let mut payload_bindings = Vec::new();
                     for parameter in &target.structural_parameters {
                         let mut matching = edge
                             .structural_bindings
                             .iter()
                             .filter(|binding| binding.parameter == parameter.place);
                         let binding = matching.next()?;
-                        if matching.next().is_some() {
+                        if matching.next().is_some() || binding.argument.access != parameter.access
+                        {
                             return None;
                         }
-                        if let Some(source) =
+                        let source = if let Some(source) =
                             location(binding.argument.place, &binding.argument.path, None)
                         {
-                            bindings.push((source, DescriptorLocation::whole(parameter.place)));
+                            DescriptorFlowSource::Location(source)
                         } else {
-                            payload_bindings.push(kernel::PayloadMembershipBinding {
-                                parameter: parameter.place,
-                                source: kernel::descriptor_contents_query(
+                            step.may_escape = true;
+                            DescriptorFlowSource::from_query(
+                                binding.argument.place,
+                                kernel::descriptor_contents_query(
                                     types,
                                     binding.argument.place,
                                     *graph.place_types.get(&binding.argument.place)?,
                                     &binding.argument.path,
                                     None,
                                 ),
-                            });
-                            step.inputs
-                                .push(DescriptorLocation::whole(binding.argument.place));
-                            step.may_escape = true;
-                        }
-                    }
-                    step.inputs
-                        .extend(bindings.iter().map(|(source, _)| source.clone()));
-                    if !payload_bindings.is_empty() {
-                        let arrivals = graph.payload_arrivals.entry(position).or_default();
-                        arrivals.resize_with(step.successors.len() + 1, Vec::new);
-                        arrivals[step.successors.len()] = payload_bindings;
+                            )
+                        };
+                        step.inputs.push(source.observation());
+                        bindings.push(DescriptorFlowBinding::new(
+                            source,
+                            DescriptorLocation::whole(parameter.place),
+                            binding.argument.access,
+                            parameter.access,
+                        )?);
                     }
                     step.successors.push(DescriptorFlowEdge {
                         target: (edge.target, 0),
@@ -1891,7 +1967,7 @@ fn scalar_literal(
     })
 }
 
-fn scalar_expression(
+pub(crate) fn scalar_expression(
     function: &PsiOptimizationFunction,
     value: semantic_vocabulary::ValueId,
 ) -> Option<semantic_vocabulary::ScalarTerm> {

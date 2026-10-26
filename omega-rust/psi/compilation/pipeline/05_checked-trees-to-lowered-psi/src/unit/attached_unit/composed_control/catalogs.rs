@@ -37,7 +37,7 @@ pub(crate) struct ComposedCatalogs<'a> {
     /// Private constructor, join, and literal places; not authored result ordinals.
     pub(crate) temporary_places: Vec<StructuralPlaceDeclaration>,
     pub(crate) result_places: Vec<StructuralPlaceDeclaration>,
-    pub(crate) scalar_calls: scalar_calls::ComposedScalarCalls,
+    pub(crate) scalar_calls: scalar_calls::ComposedScalarCalls<'a>,
     pub(crate) root_crash_routes: Vec<checked_trees::CrashRouteBucket>,
     pub(crate) next_value: u64,
     pub(crate) next_block: u64,

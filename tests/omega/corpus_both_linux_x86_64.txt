@@ -701,8 +701,7 @@ pass/calls/runtime_authored_numeric_names_exit built 3194ms exit:0 interpreter-e
 pass/calls/runtime_boolean_result_across_console_exit built 5594ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @a92f16431042
 pass/calls/runtime_borrowed_binding_field_state_loan_exit built 5822ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @a92f16431042
 pass/calls/runtime_borrowed_float_formal_exchange_exit built 10110ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/calls/runtime_borrowed_parameter_ensures_issuer_exit rejected 1970ms interpreter:unchecked @a92f16431042
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "owned membership transport cannot establish routed authority", gap: None })
+pass/calls/runtime_borrowed_parameter_ensures_issuer_exit built 1970ms exit:0 interpreter-exit:0 interpreter:agrees @daf1a576211
 pass/calls/runtime_boundary_loop_projected_subslice_exit built 7437ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/runtime_boundary_projected_mutable_subslice_exit built 6901ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/runtime_call_carrier_partition_exit built 2431ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -2201,16 +2200,25 @@ pass/facts/checked_asm_arm_load_through_other_machine_exit built 2239ms exit:0 i
 pass/facts/checked_asm_arm_load_through_other_state_exit built 2233ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/checked_asm_arm_load_through_parameter_exit built 2222ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/checked_asm_arm_load_through_target_body_exit built 2220ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/checked_asm_countdown_through_call_result_exit built 1851ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/checked_asm_countdown_through_const_name_exit built 2333ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/checked_asm_countdown_through_field_exit built 2321ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_call_result_exit built 1594ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_const_name_exit built 1593ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_field_exit built 1511ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_local_exit built 1511ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_match_join_exit built 1587ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_other_machine_exit built 1575ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_other_state_exit built 1596ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_parameter_exit built 1584ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
+pass/facts/checked_asm_compare_preserves_ambient_capture_through_target_body_exit built 1400ms exit:0 interpreter-exit:0 interpreter:agrees @059b241231ea
+pass/facts/checked_asm_countdown_through_call_result_exit built 1384ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @69168130b1c6
+pass/facts/checked_asm_countdown_through_const_name_exit built 1384ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @69168130b1c6
+pass/facts/checked_asm_countdown_through_field_exit built 1332ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @69168130b1c6
 pass/asm/checked_countdown_literal_exit built 4024ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/checked_asm_countdown_through_local_exit built 2316ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/checked_asm_countdown_through_match_join_exit built 2335ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/checked_asm_countdown_through_other_machine_exit built 2332ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/checked_asm_countdown_through_other_state_exit built 2318ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/checked_asm_countdown_through_parameter_exit built 2315ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/checked_asm_countdown_through_target_body_exit built 2317ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/checked_asm_countdown_through_local_exit built 1332ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @69168130b1c6
+pass/facts/checked_asm_countdown_through_match_join_exit built 1391ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @69168130b1c6
+pass/facts/checked_asm_countdown_through_other_machine_exit built 1390ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @69168130b1c6
+pass/facts/checked_asm_countdown_through_other_state_exit built 1267ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @02dd96eebdad
+pass/facts/checked_asm_countdown_through_parameter_exit built 1255ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @02dd96eebdad
+pass/facts/checked_asm_countdown_through_target_body_exit built 1212ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @69168130b1c6
 pass/asm/scratch_exact_register_flag_clobbers_exit built 2288ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/asm/scratch_latest_zero_flag_exit built 2098ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/asm/scratch_subtract_modular_underflow_exit built 3863ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

@@ -263,6 +263,7 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                     judge.normal_operation_entries(
                         self.statement_index,
                         expression,
+                        super::structural_judgment::normal_returns::OperationOperandDemand::All,
                         environment,
                         (machine, state, state.return_type),
                     ),
@@ -288,6 +289,10 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
             self.valid = false;
         }
         for entry in entries {
+            let Some(arguments) = entry.observed_arguments() else {
+                self.valid = false;
+                continue;
+            };
             let value = match &self.request {
                 ProjectionRequest::IndexEquality {
                     position,
@@ -299,7 +304,7 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                     let mut bindings = self
                         .parameters
                         .iter()
-                        .zip(&entry.arguments)
+                        .zip(&arguments)
                         .map(|(parameter, value)| (parameter.symbol, value.clone()))
                         .collect::<Vec<_>>();
                     if let Some(selected) = super::specification_calls::selected_call_site_contract(
@@ -309,15 +314,12 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                     ) {
                         let Some(values) = super::specification_calls::call_scalar_substitution(
                             program,
+                            machine.symbol,
                             &selected,
                             self.call,
                             |subject| {
                                 entry.judge.completed_scalar_subject(
-                                    subject,
-                                    self.call,
-                                    &entry.arguments,
-                                    machine,
-                                    state,
+                                    subject, self.call, &arguments, machine, state,
                                 )
                             },
                         ) else {
@@ -330,7 +332,7 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                                 .map(|(parameter, value)| (parameter.symbol, value)),
                         );
                     }
-                    let actual = entry.arguments.get(*position).cloned().and_then(|value| {
+                    let actual = arguments.get(*position).cloned().and_then(|value| {
                         super::observed_projections::project_observed_value(
                             program,
                             *source_type,
@@ -358,8 +360,7 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                         ))
                     })
                 }
-                ProjectionRequest::Identity { position, path } => entry
-                    .arguments
+                ProjectionRequest::Identity { position, path } => arguments
                     .get(leading + position)
                     .and_then(|value| {
                         super::observed_projections::project_observed_value(
@@ -378,14 +379,14 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                         ))
                     }),
                 ProjectionRequest::Value { owner, argument } => {
-                    if entry.arguments.len() != self.parameters.len() {
+                    if arguments.len() != self.parameters.len() {
                         self.valid = false;
                         continue;
                     }
                     let bindings = self
                         .parameters
                         .iter()
-                        .zip(&entry.arguments)
+                        .zip(&arguments)
                         .map(|(parameter, value)| (parameter.symbol, value.clone()))
                         .collect::<Vec<_>>();
                     let (value, primitive) =

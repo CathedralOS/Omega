@@ -1,4 +1,4 @@
-//! Exact scalar record codecs, shared by by-value transport and borrowed views.
+//! Exact scalar-leaf record codecs, shared by value transport and borrowed views.
 //! Physical placement comes from the retained target layout. The semantic
 //! declaration independently authenticates the complete leaf roster and types.
 
@@ -12,7 +12,7 @@ use terminal_interpreter::{
     TerminalBoundaryStorageValue, TerminalEffectRejection, TerminalProgram,
     TerminalScalarAggregateValue, TerminalScalarValue, TerminalStorageContents,
 };
-use terminal_psi::{StructuralFieldType, StructuralRecordStorage, StructuralTypeShape};
+use terminal_psi::StructuralTypeShape;
 
 pub(super) struct ScalarField {
     pub path: Vec<Path>,
@@ -70,40 +70,15 @@ impl StorageCodec {
                 }],
             });
         }
-        let StructuralTypeShape::Record {
-            fields: semantic_fields,
-            storage,
-        } = &declaration.shape
-        else {
+        if !matches!(&declaration.shape, StructuralTypeShape::Record { .. }) {
             return Err(rejection(
                 "native import needs a supported complete scalar record codec",
             ));
-        };
-        if matches!(
-            storage,
-            StructuralRecordStorage::PlacedView(_)
-                | StructuralRecordStorage::PlacedAccessor(_)
-                | StructuralRecordStorage::TargetLayout(_)
-        ) {
-            return Err(rejection(
-                "native record codec is not resolved ordinary storage",
-            ));
         }
         let mut fields = Vec::new();
-        for field in semantic_fields
-            .iter()
-            .filter(|field| !field.relevance.is_erased())
-        {
-            let logical = match field.field_type {
-                StructuralFieldType::Scalar(scalar) => scalar,
-                StructuralFieldType::IeeeFloat(format) => ScalarType::IeeeFloat(format),
-                _ => {
-                    return Err(rejection(
-                        "native import needs a materialized non-scalar field codec",
-                    ));
-                }
-            };
-            let path = vec![Path::Field(field.id)];
+        for field in super::record_fields::scalar_fields(program, structural_type)? {
+            let path = field.path;
+            let logical = field.logical;
             let mut recipes = layout
                 .fields()
                 .iter()

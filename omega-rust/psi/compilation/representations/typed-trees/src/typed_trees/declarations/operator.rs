@@ -17,6 +17,7 @@ mod satisfied_operators;
 mod spellings;
 mod trait_operators;
 mod type_matching;
+pub use type_matching::closed_const_identity_from_type_reference as closed_const_identity_for_type_reference;
 
 pub use applications::{
     ClosedOperatorApplicationArgument, ClosedOperatorRealizationApplication,
@@ -43,16 +44,17 @@ pub use satisfied_operators::{
     resolve_specialized_checked_operator_application,
 };
 pub use spellings::{
-    OperandType, arithmetic_operator_spelling, binary_operator_spelling,
+    OperandType, OperatorOperandBindings, arithmetic_operator_spelling, binary_operator_spelling,
     comparison_operator_spelling, declared_domain_constraints,
-    has_builtin_spelled_expression_meaning, resolve_spelling, resolve_spelling_for_operand_types,
-    resolve_spelling_for_operands, scalar_operand_read_type,
+    has_builtin_spelled_expression_meaning, operator_operand_bindings, resolve_spelling,
+    resolve_spelling_for_operand_types, resolve_spelling_for_operands, scalar_operand_read_type,
 };
 pub use trait_operators::{
-    BoundTraitOperatorMeaning, SelectedTraitOperatorMeaning, bound_trait_operator_meanings,
-    selected_trait_operator_meaning_exists, selected_trait_operator_meanings,
-    trait_operator_matches_application, trait_operator_operand_signature,
-    trait_scope_operator_meaning_exists,
+    BoundTraitOperatorMeaning, ScopedTraitOperatorMeaning, SelectedTraitOperatorMeaning,
+    bound_trait_operator_meanings, selected_trait_operator_meaning_exists,
+    selected_trait_operator_meanings, trait_operator_matches_application,
+    trait_operator_operand_bindings, trait_operator_operand_signature,
+    trait_scope_operator_meaning_exists, trait_scope_operator_meanings,
 };
 
 use arena::HandleSpan;
@@ -65,9 +67,9 @@ use crate::domain::DomainDefinition;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct OperatorConstBinding {
-    symbol: SymbolHandle,
-    value: CanonicalConstIdentity,
+pub struct OperatorConstBinding {
+    pub symbol: SymbolHandle,
+    pub value: CanonicalConstIdentity,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

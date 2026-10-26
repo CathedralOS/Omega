@@ -169,8 +169,7 @@ fn matching_exit_return_call<'facts>(
                             == validation::call_target_state(program, path.symbol)
                                 .map_or(path.symbol, |state| state.symbol)
                         && crate::proof::contract_target_from_state_symbol(program, path.symbol)
-                            .is_some()
-                        && !site.is_internal_state_transfer(program, exit.machine_symbol)
+                            .is_some_and(|(owner, _)| owner != exit.machine_symbol)
                 }
                 _ => false,
             }

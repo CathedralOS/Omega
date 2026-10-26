@@ -171,38 +171,22 @@ pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) -> R
             .call_node(handle)
             .and_then(|call| call.native_code_layout.clone());
         if let Some(query) = &mut native_query
-            && fold_const_arguments(program, owner, std::slice::from_mut(&mut query.operand))?
+            && normalize_const_arguments(program, owner, std::slice::from_mut(&mut query.operand))?
             && let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
         {
             call.native_code_layout = native_query;
         }
-        let (mut arguments, applications) = {
-            let ExpressionNode::Call(call) = program.expression_table.expression(handle) else {
-                continue;
-            };
-            (
-                call.machine_arguments.clone(),
-                typed_trees::references::StaticArgumentCall::Expression(handle, call)
-                    .applications(),
-            )
-        };
-        if fold_const_arguments(program, owner, &mut arguments)? {
+        let mut arguments = program
+            .expression_table
+            .call_node(handle)
+            .expect("call roster")
+            .machine_arguments
+            .clone();
+        if normalize_const_arguments(program, owner, &mut arguments)? {
             let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
                 continue;
             };
             call.machine_arguments = arguments;
-        }
-        for application in applications {
-            let mut arguments = program
-                .expression_table
-                .static_machine_application_arguments(application)
-                .to_vec();
-            if fold_const_arguments(program, owner, &mut arguments)? {
-                program
-                    .expression_table
-                    .static_machine_application_arguments_mut(application)
-                    .clone_from_slice(&arguments);
-            }
         }
     }
     let state_spans = program
@@ -238,38 +222,27 @@ pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) -> R
         } else {
             SymbolHandle::invalid()
         };
-        let (mut arguments, applications) = {
-            let Some(call) = program.statement_table.statement(handle).as_call() else {
-                continue;
-            };
-            (
-                call.machine_arguments.clone(),
-                typed_trees::references::StaticArgumentCall::Statement(call).applications(),
-            )
-        };
-        if fold_const_arguments(program, owner, &mut arguments)? {
+        let mut arguments = program
+            .statement_table
+            .statement(handle)
+            .as_call()
+            .expect("call roster")
+            .machine_arguments
+            .clone();
+        if normalize_const_arguments(program, owner, &mut arguments)? {
             let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
                 continue;
             };
             call.machine_arguments = arguments;
         }
-        for application in applications {
-            let mut arguments = program
-                .expression_table
-                .static_machine_application_arguments(application)
-                .to_vec();
-            if fold_const_arguments(program, owner, &mut arguments)? {
-                program
-                    .expression_table
-                    .static_machine_application_arguments_mut(application)
-                    .clone_from_slice(&arguments);
-            }
-        }
     }
     Ok(())
 }
 
-fn fold_const_arguments(
+/// Normalize a derived operand list without replacing its authored application.
+/// Callers own the scratch list (or the live executable arguments); immutable
+/// checking still reads every original recipe and its formation obligations.
+pub(crate) fn normalize_const_arguments(
     program: &mut TypedTrees,
     owner: SymbolHandle,
     arguments: &mut [StaticMachineArgument],
@@ -283,7 +256,7 @@ fn fold_const_arguments(
                 .expect("nested static application")
                 .arguments
                 .clone();
-            if fold_const_arguments(program, owner, &mut nested)? {
+            if normalize_const_arguments(program, owner, &mut nested)? {
                 arguments[index]
                     .application
                     .as_mut()

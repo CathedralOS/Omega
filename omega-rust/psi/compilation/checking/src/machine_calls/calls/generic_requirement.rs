@@ -54,6 +54,21 @@ pub fn selected_requirement_signature(
     Some((application.declaration, signature))
 }
 
+/// An evidence binder qualifies its exact selected member without supplying
+/// runtime receiver storage. This classifies a namespace only; ordinary call
+/// admission still checks the owning bound, invocation and explicit operands.
+pub(crate) fn requirement_namespace_member(
+    program: &dyn crate::CheckingInput,
+    namespace: symbols::SymbolHandle,
+    target: symbols::SymbolHandle,
+) -> bool {
+    namespace.is_valid()
+        && target.is_valid()
+        && program.symbols.get(namespace).kind == symbols::SymbolKind::ConformanceParameter
+        && program.symbols.get(target).parent == namespace
+        && selected_requirement_signature(program, target).is_some()
+}
+
 /// Resolve one invocation's complete public logical contract. The target's
 /// nominal declaration alone cannot identify a substituted trait/member view.
 /// Source evidence binders retain their exact owning bound; rewritten private
@@ -115,6 +130,7 @@ pub(super) fn validate_requirement_call_arguments(
     requirement: &crate::declarations::traits::GenericBoundRequirement<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     validate_call_arguments(
         program,
@@ -159,6 +175,7 @@ pub(super) fn validate_requirement_call_arguments(
             argument_matches_call_carrier(program, machine.symbol, argument, required, &[])
         },
         diagnostics,
+        formation_obligations,
     );
 }
 
@@ -222,6 +239,7 @@ pub(super) fn validate_named_conformance_arguments(
     requirement: &crate::declarations::traits::GenericBoundRequirement<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     // The enclosing trait and the member's own invocation telescope are
     // simultaneous independent frames. Derive the latter from this exact call,
@@ -294,6 +312,7 @@ pub(super) fn validate_named_conformance_arguments(
         requirement,
         writable_roots,
         diagnostics,
+        formation_obligations,
     );
     for (argument, parameter) in arguments.iter().zip(&parameters) {
         let Some(actual) = declared_place_type(program, machine, state, *argument) else {

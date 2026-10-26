@@ -363,7 +363,12 @@ fn reference_call_matches(
         ),
         (
             "sig_pqual",
-            result.projected_qualifications == signature.projected_qualifications,
+            // Current-body validation separately authenticates caller-preserved
+            // extras; a public guarantee must still be present on every result.
+            signature
+                .projected_qualifications
+                .iter()
+                .all(|row| result.projected_qualifications.contains(row)),
         ),
         (
             "contains_ref",

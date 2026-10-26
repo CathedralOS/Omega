@@ -1,0 +1,6 @@
+// Expected exit: 0
+data Index<Limit:u32> [copy] {value:u32;}
+machine bound<const Count:u32>()->u32 {Count}
+machine choose<const Count:u32>()->Index<(bound<Count>())> {Index{value:8}}
+machine read(value:Index<9>)->u32 {value.value}
+machine main() crashes Trap {let indexed:Index<9> =choose<9>(); transition read(indexed)==8 {true->done() _->bad()} machine done(){} machine bad() crashes Trap {crash Trap;}}

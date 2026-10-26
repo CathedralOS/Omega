@@ -122,6 +122,7 @@ pub(in crate::execution::terminal_unit) fn scalar_capture_destination(
         }
     };
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source,
         path: projection.path,
         type_identity: shapes.add_stored_type(projection.type_reference, binders, &[])?,
@@ -378,6 +379,7 @@ fn runtime_index_expression(
             )?;
             Some(
                 checked_trees::CheckedScalarExpression::StructuralParameterField {
+                    observation: Default::default(),
                     parameter_position: selector.parameter_position,
                     path: selector.path.clone(),
                     primitive_type: program.primitive_type_reference(leaf)?,
@@ -823,6 +825,7 @@ fn case_field_store(
         field,
         statement_index,
         checked_trees::CheckedStoreValue::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(value_index).ok()?,
             },

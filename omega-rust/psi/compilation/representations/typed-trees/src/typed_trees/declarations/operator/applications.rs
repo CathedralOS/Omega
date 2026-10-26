@@ -62,6 +62,23 @@ pub fn closed_operator_application_from_bindings(
     if !operator.lifetime_parameters.is_empty() || parameters.len() != bindings.len() {
         return None;
     }
+    let types = parameters
+        .iter()
+        .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+        .map(|parameter| {
+            let mut selected = bindings
+                .iter()
+                .filter(|binding| binding.parameter == parameter.symbol);
+            let binding = selected.next()?;
+            if selected.next().is_some() {
+                return None;
+            }
+            let StaticMachineBindingValue::Type(actual) = binding.value else {
+                return None;
+            };
+            closed_boundary_application_type(program, actual).then_some((parameter.symbol, actual))
+        })
+        .collect::<Option<Vec<_>>>()?;
     parameters
         .iter()
         .map(|parameter| {
@@ -84,15 +101,20 @@ pub fn closed_operator_application_from_bindings(
                 (
                     TypeParameterKind::Const { type_reference },
                     StaticMachineBindingValue::Const(actual),
-                ) => Some(ClosedOperatorApplicationArgument::Const {
-                    binder_symbol: parameter.symbol,
-                    declared_carrier: *type_reference,
-                    value: super::type_matching::closed_const_identity_from_type_reference(
+                ) => {
+                    let carrier = crate::static_applications::project_type_operand(
                         program,
-                        *actual,
                         *type_reference,
-                    )?,
-                }),
+                        &types,
+                    );
+                    Some(ClosedOperatorApplicationArgument::Const {
+                        binder_symbol: parameter.symbol,
+                        declared_carrier: carrier,
+                        value: super::type_matching::closed_const_identity_from_type_reference(
+                            program, *actual, carrier,
+                        )?,
+                    })
+                }
                 _ => None,
             }
         })

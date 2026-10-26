@@ -429,6 +429,7 @@ pub(super) fn capture_assignment_destination(
             statement_index,
             destination_expression: target,
             destination: CheckedUnitStructuralArgumentPlan {
+                projection_evaluations: Default::default(),
                 source,
                 path,
                 // Capture the assigned storage, including a pointer when the
@@ -827,6 +828,7 @@ impl OpenWindows {
                 result: result.clone(),
                 expression,
                 source: CheckedUnitStructuralArgumentPlan {
+                    projection_evaluations: Default::default(),
                     source: place.source,
                     path: place.path,
                     type_identity,
@@ -1208,6 +1210,7 @@ impl OpenWindows {
             return None;
         }
         let place = CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source,
             path,
             type_identity: produced.type_identity.clone(),

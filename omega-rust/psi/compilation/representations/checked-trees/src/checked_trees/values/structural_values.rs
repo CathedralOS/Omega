@@ -33,6 +33,9 @@ pub type CheckedStructuralValueHandle = Handle<CheckedStructuralValue>;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedStructuralValueRoot {
+    /// A completed entry copy has its own producer, independently of an
+    /// authored read at the same expression occurrence. Zero names a read root.
+    pub captured_copy: Handle<crate::FlowCopiedValue>,
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub statement_ordinal: u32,
@@ -207,7 +210,15 @@ pub enum CheckedStructuralValueKind {
     /// `type_identity` is the projected carrier, not its containing owner's.
     Projection {
         source: CheckedStructuralValueHandle,
+        /// The declared logical backing when this path starts below a stored
+        /// reference root. Zero means the path already names published storage,
+        /// including whole-descriptor forwarding and saved physical projections.
+        /// This coordinate grants no access or ownership of the backing.
+        logical_root_type_identity: TypeIdentityId,
         path: Vec<crate::CheckedUnitStructuralPathSegment>,
+        /// Authored selector children in the scalar computation operand arena;
+        /// the canonical path remains the independent ownership coordinate.
+        projection_evaluations: arena::HandleSpan<crate::CheckedScalarComputationHandle>,
         type_identity: TypeIdentityId,
         /// A selected copy leaves its source's independent disposal debt live.
         /// Whole-value forwarding has no selection and does not copy here.
@@ -455,7 +466,8 @@ impl CheckedStructuralValuePlans {
                 .iter()
                 .map(|handle| self.roots.get(*handle))
                 .filter(|root| {
-                    root.state == state
+                    !root.captured_copy.is_valid()
+                        && root.state == state
                         && root.statement_ordinal == statement_ordinal
                         && root.expression == expression
                 });
@@ -472,6 +484,9 @@ impl CheckedStructuralValuePlans {
     /// execution nor dominance; scheduling must require an existing lexical
     /// completion before consuming a saved alias. Catalog-only readers may omit
     /// the statement, but still require a unique root within the state.
+    /// Captured-copy roots have their own completion identity and may share
+    /// this authored expression. Only root_for_captured_copy may select them;
+    /// an expression dependency selects the ordinary produced occurrence.
     pub fn completed_expression_dependency(
         &self,
         expressions: &typed_trees::expression::ExpressionTable,
@@ -506,7 +521,8 @@ impl CheckedStructuralValuePlans {
                             .iter()
                             .map(|handle| self.roots.get(*handle))
                             .filter(|root| {
-                                root.state == state
+                                !root.captured_copy.is_valid()
+                                    && root.state == state
                                     && root.expression == expression
                                     && statement
                                         .is_none_or(|statement| root.statement_ordinal == statement)
@@ -537,6 +553,49 @@ impl CheckedStructuralValuePlans {
         }
     }
 
+    pub fn root_for_captured_copy(
+        &self,
+        state: SymbolHandle,
+        statement: u32,
+        copy: Handle<crate::FlowCopiedValue>,
+    ) -> Option<&CheckedStructuralValueRoot> {
+        if !copy.is_valid() {
+            return None;
+        }
+        self.with_state_roots(state, |handles| {
+            let mut roots = handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter(|root| {
+                    root.state == state
+                        && root.statement_ordinal == statement
+                        && root.captured_copy == copy
+                });
+            let root = roots.next()?;
+            roots.next().is_none().then_some(root)
+        })
+    }
+
+    /// The checked producer handle, rather than its diagnostic source
+    /// occurrence, identifies a value independently of its eventual consumer.
+    pub fn root_for_value(
+        &self,
+        value: CheckedStructuralValueHandle,
+    ) -> Option<&CheckedStructuralValueRoot> {
+        if !self.nodes.is_valid(value) {
+            return None;
+        }
+        let node = self.nodes.get(value);
+        self.with_state_roots(node.state, |handles| {
+            let mut roots = handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter(|root| root.root == value);
+            let root = roots.next()?;
+            roots.next().is_none().then_some(root)
+        })
+    }
+
     pub fn root_at(
         &self,
         state: SymbolHandle,
@@ -546,7 +605,11 @@ impl CheckedStructuralValuePlans {
             let mut roots = handles
                 .iter()
                 .map(|handle| self.roots.get(*handle))
-                .filter(|root| root.state == state && root.statement_ordinal == statement_ordinal);
+                .filter(|root| {
+                    !root.captured_copy.is_valid()
+                        && root.state == state
+                        && root.statement_ordinal == statement_ordinal
+                });
             let root = roots.next()?;
             roots.next().is_none().then_some(root)
         })
