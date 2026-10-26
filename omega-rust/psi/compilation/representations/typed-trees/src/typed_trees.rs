@@ -562,6 +562,34 @@ fn proof_fact_source_span_index(handle: Handle<domain::ProofFact>) -> usize {
         .expect("proof fact source-span handle must be valid")
 }
 
+/// Project a selected constant's canonical value with its actual resolved
+/// carrier. The encoded aggregate labels remain schema consistency checks;
+/// they never select nominal ownership. Pending declarations have no value.
+pub fn canonical_const_declaration_value(
+    program: &TypedTrees,
+    symbol: symbols::SymbolHandle,
+) -> Option<language_semantics::const_value::CanonicalConstValue> {
+    use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+    let declaration = program.const_declaration_by_symbol(symbol)?;
+    let encoding = declaration.evaluated_value.as_ref()?.encoding()?;
+    let decoded = CanonicalConstValue::new("", encoding, "").decode_encoding()?;
+    let carrier = match decoded {
+        DecodedCanonicalConstValue::Integer { type_name, .. } => type_name,
+        DecodedCanonicalConstValue::Boolean(_) => "bool".to_owned(),
+        DecodedCanonicalConstValue::Array { .. }
+        | DecodedCanonicalConstValue::Record { .. }
+        | DecodedCanonicalConstValue::Variant { .. }
+        | DecodedCanonicalConstValue::Float { .. } => {
+            program.normalized_type_identity_text(declaration.declared_type)
+        }
+    };
+    Some(CanonicalConstValue::new(
+        carrier,
+        encoding,
+        program.symbols.name(symbol),
+    ))
+}
+
 /// The static const spelling one machine argument selects, mirroring the
 /// specialization pipeline's argument spelling exactly: decimal for integer
 /// literals and integer-valued const declarations, the canonical atom for
@@ -590,23 +618,13 @@ pub fn static_const_argument_spelling(
         );
     }
     if argument.symbol.is_valid() {
-        let declaration = program.const_declaration_by_symbol(argument.symbol)?;
-        let value = CanonicalConstValue::new(
-            program.display_type_reference(declaration.declared_type),
-            declaration.evaluated_value.as_ref()?.encoding()?.to_owned(),
-            argument.display_name(),
-        );
+        let value = canonical_const_declaration_value(program, argument.symbol)?;
         return Some(match value.decode_encoding()? {
             DecodedCanonicalConstValue::Integer { value, .. } => value.to_string(),
             DecodedCanonicalConstValue::Boolean(value) => {
                 CanonicalConstValue::boolean(value).atom()
             }
-            _ => CanonicalConstValue::new(
-                program.normalized_type_identity_text(declaration.declared_type),
-                value.encoding,
-                value.display,
-            )
-            .atom(),
+            _ => value.atom(),
         });
     }
     let [name] = argument.path.as_ref() else {

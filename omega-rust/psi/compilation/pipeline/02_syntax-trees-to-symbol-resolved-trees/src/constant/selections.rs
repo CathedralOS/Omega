@@ -181,10 +181,15 @@ pub(crate) fn finalize_const_argument_selections(
         let mut declarations = program.const_declarations.iter().filter(|declaration| {
             program.symbols.symbol_source_span(declaration.symbol) == Some(origin.declaration)
         });
-        let declaration = declarations.next().ok_or_else(|| {
-            Diagnostic::error("normalized constant argument lost its exact selected declaration")
+        let declaration = declarations
+            .next()
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "normalized constant argument lost its exact selected declaration",
+                )
                 .with_source_span(origin.reference)
-        })?;
+            })?
+            .clone();
         if declarations.next().is_some()
             || declaration.initializer_source_span != origin.initializer
             || declaration.evaluated_value.as_ref() != Some(&origin.evaluated_value)
@@ -203,7 +208,22 @@ pub(crate) fn finalize_const_argument_selections(
                     .evaluated_value
                     .encoding()
                     .is_some_and(carrier::encoding_has_nominal_carrier));
+        let structured_argument = selection.is_argument_value
+            && origin.evaluated_value.encoding().is_some_and(|encoding| {
+                use language_semantics::const_value::{
+                    CanonicalConstValue, DecodedCanonicalConstValue,
+                };
+                matches!(
+                    CanonicalConstValue::new("", encoding, "").decode_encoding(),
+                    Some(
+                        DecodedCanonicalConstValue::Array { .. }
+                            | DecodedCanonicalConstValue::Record { .. }
+                            | DecodedCanonicalConstValue::Variant { .. }
+                    )
+                )
+            });
         let mut matched = false;
+        let mut structured_arguments = Vec::new();
         for slot in slots
             .iter()
             .filter(|slot| slot.selection == selection_ordinal)
@@ -237,13 +257,17 @@ pub(crate) fn finalize_const_argument_selections(
                 );
             };
             if selection.is_argument_value
-                && (requires_nominal_slot || carrier::has_nominal_carrier(program, type_reference))
+                && (structured_argument
+                    || requires_nominal_slot
+                    || carrier::has_nominal_carrier(program, type_reference))
             {
-                if !carrier::same_resolved_carrier(
-                    program,
-                    &declaration.declared_type,
-                    type_reference,
-                ) {
+                if (requires_nominal_slot || carrier::has_nominal_carrier(program, type_reference))
+                    && !carrier::same_resolved_carrier(
+                        program,
+                        &declaration.declared_type,
+                        type_reference,
+                    )
+                {
                     return Err(Diagnostic::error("selected constant nominal carrier differs from its receiving generic parameter").with_source_span(origin.reference));
                 }
                 let symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } =
@@ -254,7 +278,7 @@ pub(crate) fn finalize_const_argument_selections(
                     )
                     .with_source_span(origin.reference));
                 };
-                if symbol.is_valid()
+                if (symbol.is_valid() && *symbol != declaration.symbol)
                     || !language_semantics::const_value::CanonicalConstValue::from_atom(
                         name.as_str(),
                     )
@@ -267,8 +291,35 @@ pub(crate) fn finalize_const_argument_selections(
                     )
                     .with_source_span(origin.reference));
                 }
+                structured_arguments.push(slot.arguments.handle_at(
+                    u32::try_from(slot.ordinal).map_err(|_| {
+                        Diagnostic::error("constant argument ordinal exceeds its retained span")
+                            .with_source_span(origin.reference)
+                    })?,
+                ));
             }
             matched = true;
+        }
+        // The atom's schema label does not identify a nominal carrier. Keep
+        // the authenticated actual declaration on the same argument row until
+        // typing can publish its resolved carrier identity.
+        for argument in structured_arguments {
+            let symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } = program
+                .tables
+                .declarations
+                .child_type_references
+                .get_mut(argument)
+            else {
+                return Err(Diagnostic::error(
+                    "constant argument changed before carrier retention",
+                )
+                .with_source_span(origin.reference));
+            };
+            *symbol = declaration.symbol;
+            *name = symbol_resolved_trees::name::DiagnosticName::from_str(
+                name.as_str(),
+                origin.reference,
+            );
         }
         if requires_nominal_slot && !matched {
             return Err(Diagnostic::error(

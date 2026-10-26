@@ -201,14 +201,19 @@ fn const_index_type_name(
 ) -> Result<String, Diagnostic> {
     use crate::types::{FixedArrayLength, TypeReferenceNode};
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { name, .. } => Ok(name.as_str().to_owned()),
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length: FixedArrayLength::Literal(length),
-        } => Ok(format!(
-            "[{}; {length}]",
-            const_index_type_name(program, *element_type)?
-        )),
+        TypeReferenceNode::Named { name, .. }
+            if program
+                .type_reference_table
+                .primitive_type(type_reference)
+                .is_some() =>
+        {
+            Ok(name.as_str().to_owned())
+        }
+        TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::Literal(_),
+            ..
+        } => Ok(program.normalized_type_identity_text(type_reference)),
         TypeReferenceNode::Constrained { base_type, .. } => {
             const_index_type_name(program, *base_type)
         }
@@ -261,6 +266,35 @@ fn closed_domain_argument_identity(
                 "indexed-domain const argument requires a type reference or exact subject",
             )),
         };
+    }
+    if let Some(value) = crate::typed_trees::canonical_const_declaration_value(program, *symbol) {
+        if value.type_name != expected {
+            return Err(Diagnostic::error(format!(
+                "indexed-domain selected constant has canonical type `{}`, expected `{expected}`",
+                value.type_name
+            )));
+        }
+        if let Some(retained) =
+            language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+            && retained.encoding != value.encoding
+        {
+            return Err(Diagnostic::error(
+                "indexed-domain constant differs from its selected declaration value",
+            ));
+        }
+        if let Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+            value,
+            ..
+        }) = value.decode_encoding()
+        {
+            return Ok(format!("integer:{expected}:{value}"));
+        }
+        return Ok(format!(
+            "const:{}:{}:{}",
+            value.type_name,
+            value.encoding.len(),
+            value.encoding
+        ));
     }
     if let Some(value) =
         language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())

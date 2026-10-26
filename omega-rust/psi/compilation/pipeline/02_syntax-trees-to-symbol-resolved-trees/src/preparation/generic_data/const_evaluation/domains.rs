@@ -463,6 +463,20 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
                             family_name
                         ))
                     })?;
+                // Structured values need the selected declaration's resolved
+                // carrier, which this lexical preparation does not own. Keep
+                // the authored name until ordinary resolution can retain it;
+                // typing publishes the canonical atom from that exact owner.
+                if matches!(
+                    value.decode_encoding(),
+                    Some(
+                        language_semantics::const_value::DecodedCanonicalConstValue::Array { .. }
+                            | language_semantics::const_value::DecodedCanonicalConstValue::Record { .. }
+                            | language_semantics::const_value::DecodedCanonicalConstValue::Variant { .. }
+                    )
+                ) {
+                    continue;
+                }
                 syntax.tables.type_references.replace_type_reference(
                     argument,
                     TypeReferenceNode::Named(Identifier::generated(value.atom())),
