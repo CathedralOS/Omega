@@ -1,0 +1,2 @@
+requires contract for call consume_record
+saved.length == 8

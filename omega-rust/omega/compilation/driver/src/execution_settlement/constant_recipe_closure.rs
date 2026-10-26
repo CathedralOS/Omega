@@ -60,7 +60,13 @@ pub(super) fn close_constant_recipes(
     {
         return Ok(Arc::clone(shared));
     }
+    let constant_inputs = query_inputs::PreparedInputs::new(shared);
+    let formation_owners: Vec<_> = constant_inputs.consumer_owners().collect();
     let mut closed_facts = shared.facts.clone();
+    let mut array_geometries: std::collections::HashMap<
+        typed_trees::type_identity::TypeIdentityId,
+        (target::TargetProfile, u64),
+    > = std::collections::HashMap::new();
     let mut proof_targets = vec![selected_target_profile];
     let predicate_rows = &shared.facts.constant_predicate_obligations;
     let range_rows = &shared.facts.integer_range_obligations;
@@ -69,6 +75,7 @@ pub(super) fn close_constant_recipes(
         || !range_rows.is_empty()
         || !shared.facts.constant_recipe_obligations.is_empty()
         || !materialized_entries.is_empty()
+        || !formation_owners.is_empty()
     {
         for machine in typed.machines() {
             if let Some(name) = typed.machine_authored_target(machine) {
@@ -105,6 +112,7 @@ pub(super) fn close_constant_recipes(
         .chain(range_rows.iter().map(|row| row.owner()))
         .chain(recipe_rows.iter().map(|row| row.owner))
         .chain(retained_constant_owners)
+        .chain(formation_owners)
         .chain(materialized_entries.iter().map(|root| root.owner))
         .collect();
     let mut capsules = Vec::new();
@@ -155,7 +163,6 @@ pub(super) fn close_constant_recipes(
         selected_provider_provenance,
         &guarded_owners,
     );
-    let constant_inputs = query_inputs::PreparedInputs::new(shared);
     let selected_inputs = constant_inputs.prepare(
         selected_target_profile,
         selected_provider_provenance,
@@ -230,6 +237,7 @@ pub(super) fn close_constant_recipes(
             && range_applications.is_empty()
             && recipe_applications.is_empty()
             && inputs.owners.is_empty()
+            && inputs.recipes.is_empty()
         {
             continue;
         }
@@ -314,6 +322,57 @@ pub(super) fn close_constant_recipes(
             inputs,
             &mut closed_facts.constant_layout_requirements,
         )?;
+        // Shared declarations take primary geometry. Private continuation
+        // entries can give sibling bodies distinct array identities; their
+        // exact formed carrier/application/consumer rows supply catalogue
+        // completion under that body's admitted capsule. Supplemental proof
+        // values never overwrite primary geometry or enter its expression arena.
+        if target == selected_target_profile {
+            for symbolic in &shared.facts.flow.terminal_unit_effects.structural_types {
+                let checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
+                    length: checked_trees::CheckedExtent::Recipe(recipe),
+                    ..
+                } = symbolic.shape
+                else {
+                    continue;
+                };
+                let Some(value) = program
+                    .closed_array_extent_value(recipe)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+                else {
+                    continue;
+                };
+                let length = value.to_u64().ok_or_else(|| vec![Diagnostic::error(
+                    "array declaration has no representable extent in its admitted target capsule",
+                )])?;
+                array_geometries.insert(symbolic.identity, (target, length));
+            }
+        }
+        for formation in &inputs.array_extent_uses {
+            let length = program
+                .closed_constant_recipe_value(formation.recipe)
+                .and_then(|value| value.to_u64())
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "formed array has no representable extent in its admitted target capsule",
+                    )]
+                })?;
+            if let Some((previous_target, previous_length)) =
+                array_geometries.get(&formation.identity)
+            {
+                if *previous_target == selected_target_profile && target != selected_target_profile
+                {
+                    continue;
+                }
+                if *previous_length != length {
+                    return Err(vec![Diagnostic::error(
+                        "array declaration needs distinct geometry in multiple non-primary capsules",
+                    )]);
+                }
+            } else {
+                array_geometries.insert(formation.identity, (target, length));
+            }
+        }
         if let Some(proof_program) = proof_program {
             closed_typed
                 .constant_recipe_closure
@@ -328,6 +387,14 @@ pub(super) fn close_constant_recipes(
         return Err(vec![Diagnostic::error(
             "retained proof obligation has no target application",
         )]);
+    }
+    for declaration in &mut closed_facts.flow.terminal_unit_effects.structural_types {
+        if let checked_trees::CheckedUnitStructuralTypeShape::FixedArray { length, .. } =
+            &mut declaration.shape
+            && let Some((_, value)) = array_geometries.get(&declaration.identity)
+        {
+            *length = checked_trees::CheckedExtent::Literal(*value);
+        }
     }
     let receipts = &mut closed_typed.constant_recipe_closure.receipts;
     closed_facts

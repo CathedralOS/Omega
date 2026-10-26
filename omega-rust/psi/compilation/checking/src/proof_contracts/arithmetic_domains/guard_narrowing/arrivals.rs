@@ -724,7 +724,7 @@ fn discover_normal_return_interval(
         let parameters = program.state_parameters(entry);
         let members = crate::machine_calls::calls::target_family_members(program, machine)?;
         let mut combined: Option<Interval> = None;
-        let mut combined_recipe: Option<checked_trees::IntegerRangeRecipe> = None;
+        let mut body_values = Vec::new();
         for member in members {
             let member_machine = program.machine(member.machine)?;
             let member_entry = program.machine_states(member_machine).first()?;
@@ -751,18 +751,12 @@ fn discover_normal_return_interval(
                 target_primitive,
                 &member_actuals,
             )?;
-            combined_recipe = if combined.is_none() {
-                recipe
-            } else {
-                combined_recipe
-                    .zip(recipe)
-                    .map(|(left, right)| left.union(&right))
-            };
+            body_values.push((member.machine, recipe?));
             combined = Some(combined.map_or(interval, |previous| previous.union(interval)));
         }
         let combined = combined?;
-        return (combined_recipe.is_some() || (combined.low.is_some() && combined.high.is_some()))
-            .then_some((combined, combined_recipe));
+        let recipe = checked_trees::IntegerRangeRecipe::target_choice(machine.symbol, body_values)?;
+        return Some((combined, Some(recipe)));
     }
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !crate::proof_contracts::contract_entailment::entailment_covers_all_exits(

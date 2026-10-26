@@ -51,6 +51,9 @@ pub struct CheckedUnitEffectPlans {
     /// One condition/path namespace for statement, computed-call and normal
     /// exit cleanup. Action spans never refer to a temporary collector's arena.
     pub cleanup_control: crate::CheckedCleanupControlPlans,
+    /// Actual body storage and evaluated producers, recorded before catalogue
+    /// retention. A description or attachment alone supplies no storage use.
+    pub stored_type_roots: Vec<(SymbolHandle, TypeIdentityId)>,
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
     pub structural_domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub boundary_machines: Vec<CheckedBoundaryMachinePlan>,
@@ -901,21 +904,53 @@ impl CheckedUnitEffectOperationPlan {
     /// Actual produced homes and evaluated structural arguments. Declaration
     /// attachments and qualification catalogues are not storage roots.
     pub fn stored_type_roots(&self) -> impl Iterator<Item = TypeIdentityId> + '_ {
-        let local = match self {
-            Self::EstablishLocal(
-                CheckedUnitLocalBindingPlan::TrivialAffine { type_identity, .. }
-                | CheckedUnitLocalBindingPlan::Primitive { type_identity, .. },
-            ) => Some(*type_identity),
-            _ => None,
-        };
-        self.structural_operands()
+        let mut roots = self
+            .structural_operands()
             .iter()
-            .map(|argument| argument.type_identity)
+            .flat_map(|argument| {
+                std::iter::once(argument.type_identity)
+                    .chain(argument.borrowed_root_type_identity())
+                    .chain(argument.subslice_root_type_identity())
+                    .chain(argument.subslice_storage_type_identity())
+            })
             .chain(
                 self.structural_result_binding()
                     .map(|result| result.type_identity),
             )
-            .chain(local)
+            .collect::<Vec<_>>();
+        match self {
+            Self::EstablishLocal(
+                CheckedUnitLocalBindingPlan::TrivialAffine { type_identity, .. }
+                | CheckedUnitLocalBindingPlan::Primitive { type_identity, .. },
+            ) => roots.push(*type_identity),
+            Self::AtomicAccess(access) => roots.push(access.receiver_root_type_identity),
+            Self::CaptureAssignmentDestination { destination, .. } => {
+                roots.push(destination.type_identity);
+            }
+            Self::EstablishReference { source, .. } | Self::MoveStructuralField { source, .. } => {
+                roots.push(source.type_identity)
+            }
+            Self::EstablishViewSubslice { source, .. } => {
+                roots.extend(source.subslice_root_type_identity());
+                roots.extend(source.subslice_storage_type_identity());
+            }
+            Self::Store(crate::CheckedStorePlan {
+                destination:
+                    crate::CheckedStoreDestination {
+                        leaf:
+                            crate::CheckedStoreLeaf::StructuralStore { type_identity, .. }
+                            | crate::CheckedStoreLeaf::OwnedRebind { type_identity },
+                        ..
+                    },
+                value: crate::CheckedStoreValue::Place(value),
+                ..
+            }) => {
+                roots.push(*type_identity);
+                roots.push(value.type_identity);
+            }
+            _ => {}
+        }
+        roots.into_iter()
     }
 
     /// The ordinary or boundary call this operation performs; `None` for
@@ -1148,11 +1183,14 @@ impl CheckedUnitEffectMachinePlan {
                     .iter()
                     .map(|parameter| parameter.type_identity),
             )
-            .chain(
-                self.trivial_affine_locals
-                    .iter()
-                    .map(|local| local.type_identity),
-            )
+            .chain(self.trivial_affine_locals.iter().flat_map(|local| {
+                std::iter::once(local.type_identity).chain(
+                    local
+                        .construction
+                        .as_ref()
+                        .map(|element| element.root_type_identity),
+                )
+            }))
             .chain(
                 self.structural_result
                     .as_ref()

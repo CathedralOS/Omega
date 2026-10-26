@@ -85,10 +85,24 @@ impl PreparedCalls {
 
     pub(super) fn operation_dependencies(
         &self,
-    ) -> impl Iterator<Item = &CheckedUnitEffectOperationPlan> {
-        self.rows
-            .iter()
-            .flat_map(PreparedRoot::operation_dependencies)
+    ) -> impl Iterator<Item = (symbols::SymbolHandle, &CheckedUnitEffectOperationPlan)> {
+        self.rows.iter().flat_map(|row| {
+            row.operation_dependencies()
+                .map(move |operation| (row.owner, operation))
+        })
+    }
+
+    /// Successful schedules retain their root even when it makes no calls.
+    /// The executable owner survives state fusion; the value keeps its meaning namespace.
+    pub(super) fn value_roots(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            symbols::SymbolHandle,
+            checked_trees::CheckedStructuralValueHandle,
+        ),
+    > + '_ {
+        self.rows.iter().map(|row| (row.owner, row.value))
     }
 
     pub(super) const EMPTY: Self = Self { rows: Vec::new() };

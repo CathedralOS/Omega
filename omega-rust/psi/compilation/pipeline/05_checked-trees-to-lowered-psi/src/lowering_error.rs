@@ -45,6 +45,14 @@ pub enum LoweringError {
     AmbiguousMachineName(String),
     /// A closure names storage absent from its retained type catalog.
     MissingUnitStructuralType(String),
+    /// Publication names the exact declaration and continuation that lost closure.
+    UnclosedArrayExtent {
+        identity: typed_trees::type_identity::TypeIdentityId,
+        recipe: typed_trees::constant_recipes::ConstantRecipeHandle,
+        application: String,
+        source_span: source::SourceSpan,
+        target_scope: String,
+    },
     MissingUnitStructuralDomainCarrier {
         domain: language_semantics::SemanticDomainId,
         carrier: semantic_vocabulary::StructuralTypeId,

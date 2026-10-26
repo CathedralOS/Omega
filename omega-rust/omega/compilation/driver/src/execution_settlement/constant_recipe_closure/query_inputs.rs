@@ -8,10 +8,19 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::references::{DeclarationSelection, StaticArgumentCall, TypedReferences};
 
+/// Exact formed carrier and the admitted source application that supplies its extent.
+#[derive(Clone, Copy)]
+pub(super) struct ArrayExtentUse {
+    pub owner: SymbolHandle,
+    pub identity: typed_trees::type_identity::TypeIdentityId,
+    pub recipe: typed_trees::constant_recipes::ConstantRecipeHandle,
+}
+
 pub(super) struct Inputs {
     pub applications: Vec<SymbolHandle>,
     pub work: DeclarationSelection,
     pub recipes: Vec<typed_trees::constant_recipes::ConstantRecipeHandle>,
+    pub array_extent_uses: Vec<ArrayExtentUse>,
     pub storage_roots: Vec<(SymbolHandle, typed_trees::type_identity::TypeIdentityId)>,
     pub recipe_consumers: Vec<(
         SymbolHandle,
@@ -30,6 +39,7 @@ pub(super) struct Roots {
 
 pub(super) struct PreparedInputs<'source> {
     checked: &'source CheckedTrees,
+    array_extent_uses: Vec<ArrayExtentUse>,
     storage_roots: Vec<(SymbolHandle, typed_trees::type_identity::TypeIdentityId)>,
     consumers: Vec<(
         SymbolHandle,
@@ -39,32 +49,18 @@ pub(super) struct PreparedInputs<'source> {
 
 impl<'source> PreparedInputs<'source> {
     pub(super) fn new(checked: &'source CheckedTrees) -> Self {
-        let storage_roots: Vec<_> = checked.facts.flow.stored_type_roots().collect();
+        let storage_roots = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .stored_type_roots
+            .clone();
+        let mut array_extent_uses = Vec::new();
         let mut consumers: Vec<_> = checked
             .facts
             .constant_recipe_obligations
             .iter()
             .map(|row| (row.owner, row.recipe))
-            .chain(
-                checked
-                    .facts
-                    .constant_predicate_obligations
-                    .iter()
-                    .flat_map(|row| {
-                        row.constant_dependencies()
-                            .map(|recipe| (row.caller(), recipe))
-                    }),
-            )
-            .chain(
-                checked
-                    .facts
-                    .integer_range_obligations
-                    .iter()
-                    .flat_map(|row| {
-                        row.constant_dependencies()
-                            .map(|recipe| (row.owner(), recipe))
-                    }),
-            )
             .collect();
         // Source formation records all recipe inputs below an actual body root.
         // Realization later excludes payload below a closed zero-length array.
@@ -84,6 +80,11 @@ impl<'source> PreparedInputs<'source> {
                 } = shape.shape
                 {
                     consumers.push((*owner, recipe));
+                    array_extent_uses.push(ArrayExtentUse {
+                        owner: *owner,
+                        identity,
+                        recipe,
+                    });
                 }
             }
         }
@@ -96,11 +97,20 @@ impl<'source> PreparedInputs<'source> {
             )
         });
         consumers.dedup();
+        let mut formed = HashSet::new();
+        array_extent_uses.retain(|formation| {
+            formed.insert((formation.owner, formation.identity, formation.recipe))
+        });
         Self {
             checked,
+            array_extent_uses,
             storage_roots,
             consumers,
         }
+    }
+
+    pub(super) fn consumer_owners(&self) -> impl Iterator<Item = SymbolHandle> + '_ {
+        self.consumers.iter().map(|(owner, _)| *owner)
     }
 
     pub(super) fn prepare(
@@ -111,7 +121,7 @@ impl<'source> PreparedInputs<'source> {
     ) -> Result<Inputs, Vec<Diagnostic>> {
         let checked = self.checked;
         let storage_roots = &self.storage_roots;
-        let consumers = &self.consumers;
+
         let materialized = materialized_entry_inputs(checked, Some(target.target_name()));
         for root in &materialized {
             if !applications.contains(&root.owner) {
@@ -119,6 +129,25 @@ impl<'source> PreparedInputs<'source> {
             }
         }
         loop {
+            let mut selected_proofs = Vec::new();
+            for row in &checked.facts.constant_predicate_obligations {
+                if applications.contains(&row.caller()) {
+                    selected_proofs.push((
+                        row.caller(),
+                        row.dependencies_for_target(&checked.typed, target.target_name())
+                            .map_err(|reason| vec![Diagnostic::error(reason)])?,
+                    ));
+                }
+            }
+            for row in &checked.facts.integer_range_obligations {
+                if applications.contains(&row.owner()) {
+                    selected_proofs.push((
+                        row.owner(),
+                        row.dependencies_for_target(&checked.typed, target.target_name())
+                            .map_err(|reason| vec![Diagnostic::error(reason)])?,
+                    ));
+                }
+            }
             let work = work(checked, &applications);
             let mut references = References::new(&checked.typed, Some(&work));
             references.visit_selected_declarations();
@@ -144,38 +173,91 @@ impl<'source> PreparedInputs<'source> {
                     selected.then_some(handle)
                 })
                 .collect();
-            for (owner, recipe) in consumers {
-                if applications.contains(owner) && !recipes.contains(recipe) {
-                    recipes.push(*recipe);
+            let mut recipe_consumers = Vec::new();
+            // Captured proof tapes retain exact selected occurrences. Storage
+            // shapes instead name canonical array applications: join those to
+            // every actual selected source position, never another body's site
+            // merely because the shape collector encountered it first.
+            for (owner, dependencies) in &selected_proofs {
+                for recipe in &dependencies.recipes {
+                    if !recipes.contains(recipe) {
+                        recipes.push(*recipe);
+                    }
+                    recipe_consumers.push((*owner, *recipe));
                 }
             }
-            let recipe_consumers: Vec<_> = consumers
-                .iter()
-                .copied()
-                .filter(|(owner, recipe)| applications.contains(owner) && recipes.contains(recipe))
-                .collect();
+            for (owner, recipe) in &self.consumers {
+                if !applications.contains(owner) {
+                    continue;
+                }
+                if let Some(application) = checked.typed.array_extent_application(*recipe) {
+                    let mut found = false;
+                    for selected in &recipes {
+                        if checked.typed.array_extent_application(*selected) == Some(application) {
+                            recipe_consumers.push((*owner, *selected));
+                            found = true;
+                        }
+                    }
+                    if !found {
+                        return Err(vec![Diagnostic::error(
+                            "selected storage extent has no admitted authored application position",
+                        )]);
+                    }
+                } else {
+                    if !recipes.contains(recipe) {
+                        recipes.push(*recipe);
+                    }
+                    recipe_consumers.push((*owner, *recipe));
+                }
+            }
+            recipe_consumers.sort_by_key(|(owner, recipe)| {
+                (
+                    owner.arena_index(),
+                    owner.generation(),
+                    recipe.arena_index(),
+                    recipe.generation(),
+                )
+            });
+            recipe_consumers.dedup();
+            let mut array_extent_uses = Vec::new();
+            for formation in &self.array_extent_uses {
+                if !applications.contains(&formation.owner) {
+                    continue;
+                }
+                let application = checked
+                    .typed
+                    .array_extent_application(formation.recipe)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "formed array lost its checked extent application",
+                        )]
+                    })?;
+                for (owner, recipe) in &recipe_consumers {
+                    if *owner == formation.owner
+                        && checked.typed.array_extent_application(*recipe) == Some(application)
+                    {
+                        array_extent_uses.push(ArrayExtentUse {
+                            recipe: *recipe,
+                            ..*formation
+                        });
+                    }
+                }
+            }
+            let mut formed = HashSet::new();
+            array_extent_uses.retain(|formation| {
+                formed.insert((formation.owner, formation.identity, formation.recipe))
+            });
             let mut roots = materialized.clone();
-            for row in &checked.facts.constant_predicate_obligations {
-                if applications.contains(&row.caller()) {
-                    append_roots(
-                        &mut roots,
-                        row.caller(),
-                        row.observation_dependencies()
-                            .map(|(expression, _)| expression),
-                        [],
-                    );
-                }
-            }
-            for row in &checked.facts.integer_range_obligations {
-                if applications.contains(&row.owner()) {
-                    append_roots(
-                        &mut roots,
-                        row.owner(),
-                        row.observation_dependencies()
-                            .map(|(expression, _)| expression),
-                        [],
-                    );
-                }
+            for (owner, dependencies) in &selected_proofs {
+                append_roots(
+                    &mut roots,
+                    *owner,
+                    dependencies
+                        .observations
+                        .iter()
+                        .map(|(expression, _)| *expression),
+                    [],
+                );
             }
             // A symbolic type position consumes its helper just as a retained
             // scalar does. The recipe roster records that exact application even
@@ -255,6 +337,7 @@ impl<'source> PreparedInputs<'source> {
                 applications,
                 work,
                 recipes,
+                array_extent_uses,
                 recipe_consumers,
                 storage_roots: selected_storage_roots,
                 queries,

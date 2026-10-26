@@ -1,0 +1,8 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "requires contract for call consume_record",
+    "saved.length == 8"
+  ]
+}

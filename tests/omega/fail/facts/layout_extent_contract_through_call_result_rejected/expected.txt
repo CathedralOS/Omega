@@ -1,0 +1,2 @@
+requires contract for call
+observed == 8

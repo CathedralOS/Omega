@@ -107,32 +107,3 @@ impl<'a> CheckedUnitPlan<'a> {
         rows > 1
     }
 }
-
-impl FlowFacts {
-    /// Keep the body association while enumerating actual structural homes,
-    /// parameters and returned values across the existing plan families.
-    pub fn stored_type_roots(&self) -> impl Iterator<Item = (SymbolHandle, TypeIdentityId)> + '_ {
-        self.terminal_unit_effects
-            .machines
-            .iter()
-            .chain(
-                self.terminal_partial_affine_unit_cleanups
-                    .machines
-                    .iter()
-                    .map(|plan| &plan.machine),
-            )
-            .flat_map(|plan| {
-                plan.stored_type_roots()
-                    .map(move |identity| (plan.machine, identity))
-            })
-            .chain(
-                self.terminal_unit_effects
-                    .composed_machines
-                    .iter()
-                    .flat_map(|plan| {
-                        plan.stored_type_roots()
-                            .map(move |identity| (plan.machine, identity))
-                    }),
-            )
-    }
-}

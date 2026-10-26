@@ -34,7 +34,7 @@ enum CapturedComparison {
 }
 
 impl CapturedComparison {
-    fn closed_value(&self, program: &TypedTrees) -> Option<bool> {
+    fn closed_value(&self, program: &TypedTrees, target: &str) -> Option<bool> {
         let Self::Integer {
             operator,
             left,
@@ -43,8 +43,8 @@ impl CapturedComparison {
         else {
             return None;
         };
-        let (left_low, left_high) = left.closed_bounds(program).ok()?;
-        let (right_low, right_high) = right.closed_bounds(program).ok()?;
+        let (left_low, left_high) = left.closed_bounds(program, target).ok()?;
+        let (right_low, right_high) = right.closed_bounds(program, target).ok()?;
         match operator {
             BinaryOperator::Equal if left_low == left_high && right_low == right_high => {
                 Some(left_low == right_low)
@@ -69,7 +69,6 @@ pub struct ConstantPredicateObligation {
     owner: symbols::SymbolHandle,
     caller: symbols::SymbolHandle,
     observation_dependencies: Vec<(ExpressionHandle, symbols::SymbolHandle)>,
-    constant_dependencies: Vec<typed_trees::constant_recipes::ConstantRecipeHandle>,
     value: PredicateValue,
     discharged_target: Option<typed_trees::name::Identifier>,
 }
@@ -129,7 +128,6 @@ impl ConstantPredicateObligation {
             owner,
             caller,
             observation_dependencies,
-            constant_dependencies: Vec::new(),
             value: PredicateValue::Authored,
             discharged_target: None,
         })
@@ -157,7 +155,6 @@ impl ConstantPredicateObligation {
         }
         let mut captured = Arena::new();
         let mut observations = Vec::new();
-        let mut constants = Vec::new();
         for (operator, left, right) in comparisons {
             if !matches!(
                 operator,
@@ -174,8 +171,6 @@ impl ConstantPredicateObligation {
             // predicate leaves use the predicate's owner through the old lane.
             observations.extend(left.observation_dependencies());
             observations.extend(right.observation_dependencies());
-            constants.extend(left.constant_dependencies());
-            constants.extend(right.constant_dependencies());
             captured.insert(CapturedComparison::Integer {
                 operator,
                 left: left.retain(),
@@ -188,7 +183,6 @@ impl ConstantPredicateObligation {
             caller,
             description,
             observation_dependencies: observations,
-            constant_dependencies: constants,
             value: PredicateValue::Captured(captured),
             discharged_target: None,
         })
@@ -213,10 +207,30 @@ impl ConstantPredicateObligation {
         self.observation_dependencies.iter().copied()
     }
 
-    pub fn constant_dependencies(
+    pub fn dependencies_for_target(
         &self,
-    ) -> impl Iterator<Item = typed_trees::constant_recipes::ConstantRecipeHandle> + '_ {
-        self.constant_dependencies.iter().copied()
+        program: &TypedTrees,
+        target: &str,
+    ) -> Result<super::IntegerRangeDependencies, String> {
+        let mut dependencies = super::IntegerRangeDependencies::default();
+        match &self.value {
+            PredicateValue::Authored => dependencies
+                .observations
+                .extend(self.observation_dependencies.iter().copied()),
+            PredicateValue::Captured(comparisons) => {
+                for (_, comparison) in comparisons.iter() {
+                    let CapturedComparison::Integer { left, right, .. } = comparison else {
+                        return Err("captured predicate lost its integer comparison".to_owned());
+                    };
+                    for value in [left, right] {
+                        let selected = value.dependencies_for_target(program, target)?;
+                        dependencies.recipes.extend(selected.recipes);
+                        dependencies.observations.extend(selected.observations);
+                    }
+                }
+            }
+        }
+        Ok(dependencies)
     }
 
     /// Consume the target's already closed observations. Unknown and false
@@ -240,7 +254,7 @@ impl ConstantPredicateObligation {
                     PredicateValue::Captured(comparisons) => {
                         let mut result = Some(true);
                         for (_, comparison) in comparisons.iter() {
-                            match comparison.closed_value(program) {
+                            match comparison.closed_value(program, target) {
                                 Some(false) => { result = Some(false); break; }
                                 None => result = None,
                                 Some(true) => {},

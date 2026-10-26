@@ -22,28 +22,32 @@ pub(super) fn retain(
         Vec<typed_trees::type_identity::TypeIdentityId>,
     > = std::collections::HashMap::new();
     for (owner, root) in &inputs.storage_roots {
-        let mut missing_extent = false;
+        let mut extent_failure = None;
         let types = shared
             .facts
             .flow
             .terminal_unit_effects
             .stored_type_closure(*root, |length| match length {
                 checked_trees::CheckedExtent::Literal(length) => length != 0,
-                checked_trees::CheckedExtent::Recipe(recipe) => match closed
-                    .closed_constant_recipe_value(recipe)
-                    .and_then(|value| value.to_u64())
-                {
-                    Some(length) => length != 0,
-                    None => {
-                        missing_extent = true;
-                        false
+                checked_trees::CheckedExtent::Recipe(recipe) => {
+                    match closed.closed_array_extent_value(recipe) {
+                        Ok(Some(value)) => match value.to_u64() {
+                            Some(length) => length != 0,
+                            None => {
+                                extent_failure = Some("materialized storage has a non-u64 array extent");
+                                false
+                            }
+                        },
+                        Ok(None) => {
+                            extent_failure = Some("materialized storage lost its closed array extent in the selected target context");
+                            false
+                        }
+                        Err(reason) => { extent_failure = Some(reason); false }
                     }
-                },
+                }
             });
-        if missing_extent {
-            return Err(vec![Diagnostic::error(
-                "materialized storage lost its closed array extent in the selected target context",
-            )]);
+        if let Some(reason) = extent_failure {
+            return Err(vec![Diagnostic::error(reason)]);
         }
         storage_types.entry(*owner).or_default().extend(types);
     }
@@ -126,31 +130,23 @@ pub(super) fn retain(
                     );
                 }
             }
-            for shape in &shared.facts.flow.terminal_unit_effects.structural_types {
-                if matches!(shape.shape,
-                    checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
-                        length: checked_trees::CheckedExtent::Recipe(handle), ..
-                    } if handle == *recipe)
+            for formation in &inputs.array_extent_uses {
+                if formation.recipe != *recipe {
+                    continue;
+                }
+                if storage_types
+                    .get(&formation.owner)
+                    .is_some_and(|types| types.contains(&formation.identity))
                 {
-                    for (owner, consumed) in &inputs.recipe_consumers {
-                        if *consumed == *recipe {
-                            let stored = storage_types
-                                .get(owner)
-                                .is_some_and(|types| types.contains(&shape.identity));
-                            if !stored {
-                                continue;
-                            }
-                            append(
-                                requirements,
-                                *proof_owner,
-                                CheckedLayoutOwner::Structural {
-                                    machine: *owner,
-                                    identity: shape.identity,
-                                },
-                                &alternative,
-                            );
-                        }
-                    }
+                    append(
+                        requirements,
+                        *proof_owner,
+                        CheckedLayoutOwner::Structural {
+                            machine: formation.owner,
+                            identity: formation.identity,
+                        },
+                        &alternative,
+                    );
                 }
             }
         }

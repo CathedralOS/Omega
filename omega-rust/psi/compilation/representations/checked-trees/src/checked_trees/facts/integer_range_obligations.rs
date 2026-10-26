@@ -28,6 +28,14 @@ enum RangeStep {
         owner: SymbolHandle,
     },
     ConstantRecipe(typed_trees::constant_recipes::ConstantRecipeHandle),
+    TargetChoice {
+        family: SymbolHandle,
+        arms: u32,
+    },
+    TargetArm {
+        body: SymbolHandle,
+        steps: u32,
+    },
     Add,
     Subtract,
     Multiply,
@@ -68,12 +76,27 @@ impl IntegerRangeRecipe {
         }
     }
 
-    pub fn constant_dependencies(
-        &self,
-    ) -> impl Iterator<Item = typed_trees::constant_recipes::ConstantRecipeHandle> + '_ {
-        self.steps.iter().filter_map(|step| match step {
-            RangeStep::ConstantRecipe(recipe) => Some(*recipe),
-            _ => None,
+    /// A declaration family chooses one implementation in a target context.
+    /// This is not a union of runtime paths: every arm retains its exact body.
+    pub fn target_choice(family: SymbolHandle, arms: Vec<(SymbolHandle, Self)>) -> Option<Self> {
+        if arms.is_empty() {
+            return None;
+        }
+        let mut steps = vec![RangeStep::TargetChoice {
+            family,
+            arms: u32::try_from(arms.len()).ok()?,
+        }];
+        for (body, value) in arms {
+            let count = u32::try_from(value.steps.len()).ok()?;
+            if count == 0 {
+                return None;
+            }
+            steps.push(RangeStep::TargetArm { body, steps: count });
+            steps.extend(value.steps);
+        }
+        Some(Self {
+            steps,
+            target_dependent: true,
         })
     }
 
@@ -84,10 +107,6 @@ impl IntegerRangeRecipe {
             RangeStep::Observation { expression, owner } => Some((*expression, *owner)),
             _ => None,
         })
-    }
-
-    pub fn closed_bounds(&self, program: &TypedTrees) -> Result<(BigInt, BigInt), String> {
-        evaluate(&self.steps, program)
     }
 
     pub(super) fn retain(self) -> RetainedIntegerRange {
@@ -150,23 +169,37 @@ impl RetainedIntegerRange {
             })
     }
 
-    pub(super) fn constant_dependencies(
+    pub(super) fn dependencies_for_target(
         &self,
-    ) -> impl Iterator<Item = typed_trees::constant_recipes::ConstantRecipeHandle> + '_ {
-        self.steps
-            .span_or_empty(self.recipe)
-            .iter()
-            .filter_map(|step| match step {
-                RangeStep::ConstantRecipe(recipe) => Some(*recipe),
-                _ => None,
-            })
+        program: &TypedTrees,
+        target: &str,
+    ) -> Result<IntegerRangeDependencies, String> {
+        let steps = self
+            .steps
+            .span(self.recipe)
+            .ok_or_else(|| "retained integer range has no recipe storage".to_owned())?;
+        let mut dependencies = IntegerRangeDependencies::default();
+        for step in SelectedSteps::new(steps, program, target) {
+            match step? {
+                RangeStep::Observation { expression, owner } => {
+                    dependencies.observations.push((*expression, *owner))
+                }
+                RangeStep::ConstantRecipe(recipe) => dependencies.recipes.push(*recipe),
+                _ => {}
+            }
+        }
+        Ok(dependencies)
     }
 
-    pub(super) fn closed_bounds(&self, program: &TypedTrees) -> Result<(BigInt, BigInt), String> {
+    pub(super) fn closed_bounds(
+        &self,
+        program: &TypedTrees,
+        target: &str,
+    ) -> Result<(BigInt, BigInt), String> {
         self.steps
             .span(self.recipe)
             .ok_or_else(|| "retained integer range has no recipe storage".to_owned())
-            .and_then(|steps| evaluate(steps, program))
+            .and_then(|steps| evaluate(steps, program, target))
     }
 }
 
@@ -279,10 +312,12 @@ impl IntegerRangeObligation {
         self.recipe.observation_dependencies()
     }
 
-    pub fn constant_dependencies(
+    pub fn dependencies_for_target(
         &self,
-    ) -> impl Iterator<Item = typed_trees::constant_recipes::ConstantRecipeHandle> + '_ {
-        self.recipe.constant_dependencies()
+        program: &TypedTrees,
+        target: &str,
+    ) -> Result<IntegerRangeDependencies, String> {
+        self.recipe.dependencies_for_target(program, target)
     }
 
     pub fn discharge(
@@ -306,18 +341,21 @@ impl IntegerRangeObligation {
                     )
                 }),
         };
-        let result = self.recipe.closed_bounds(program).and_then(|(low, high)| {
-            let (minimum, maximum) = limits
-                .as_ref()
-                .ok_or_else(|| "selected address model is not closed".to_owned())?;
-            if minimum <= &low && &high <= maximum {
-                Ok(())
-            } else {
-                Err(format!(
-                    "bounds [{low}, {high}] lie outside [{minimum}, {maximum}]"
-                ))
-            }
-        });
+        let result = self
+            .recipe
+            .closed_bounds(program, target)
+            .and_then(|(low, high)| {
+                let (minimum, maximum) = limits
+                    .as_ref()
+                    .ok_or_else(|| "selected address model is not closed".to_owned())?;
+                if minimum <= &low && &high <= maximum {
+                    Ok(())
+                } else {
+                    Err(format!(
+                        "bounds [{low}, {high}] lie outside [{minimum}, {maximum}]"
+                    ))
+                }
+            });
         match result {
             Ok(()) => {
                 self.discharged_target = Some(typed_trees::name::Identifier::generated(target));
@@ -335,10 +373,14 @@ impl IntegerRangeObligation {
     }
 }
 
-fn evaluate(steps: &[RangeStep], program: &TypedTrees) -> Result<(BigInt, BigInt), String> {
+fn evaluate(
+    steps: &[RangeStep],
+    program: &TypedTrees,
+    target: &str,
+) -> Result<(BigInt, BigInt), String> {
     let mut values: Vec<(BigInt, BigInt)> = Vec::new();
-    for step in steps {
-        match step {
+    for step in SelectedSteps::new(steps, program, target) {
+        match step? {
             RangeStep::Missing => return Err("missing integer bound step".to_owned()),
             RangeStep::Bounds { low, high } => {
                 if low > high {
@@ -401,4 +443,123 @@ fn evaluate(steps: &[RangeStep], program: &TypedTrees) -> Result<(BigInt, BigInt
     values
         .pop()
         .ok_or_else(|| "integer range recipe has no result".to_owned())
+}
+
+/// Exact inputs of the chosen value branch. Source retention may inventory
+/// all arms; selected execution and receiving conditions use this same walk.
+#[derive(Default)]
+pub struct IntegerRangeDependencies {
+    pub observations: Vec<(ExpressionHandle, SymbolHandle)>,
+    pub recipes: Vec<typed_trees::constant_recipes::ConstantRecipeHandle>,
+}
+
+struct SelectedSteps<'a> {
+    program: &'a TypedTrees,
+    target: &'a str,
+    pending: Vec<&'a [RangeStep]>,
+}
+
+impl<'a> SelectedSteps<'a> {
+    fn new(steps: &'a [RangeStep], program: &'a TypedTrees, target: &'a str) -> Self {
+        Self {
+            program,
+            target,
+            pending: vec![steps],
+        }
+    }
+}
+
+impl<'a> Iterator for SelectedSteps<'a> {
+    type Item = Result<&'a RangeStep, String>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let frame = self.pending.pop()?;
+            let Some((step, rest)) = frame.split_first() else {
+                continue;
+            };
+            match step {
+                RangeStep::TargetChoice { family, arms } => {
+                    match selected_arm(self.program, self.target, *family, *arms, rest) {
+                        Ok((selected, remaining)) => {
+                            self.pending.push(remaining);
+                            self.pending.push(selected);
+                        }
+                        Err(reason) => {
+                            self.pending.clear();
+                            return Some(Err(reason));
+                        }
+                    }
+                }
+                RangeStep::TargetArm { .. } => {
+                    self.pending.clear();
+                    return Some(Err("target-body arm has no owning family choice".to_owned()));
+                }
+                _ => {
+                    self.pending.push(rest);
+                    return Some(Ok(step));
+                }
+            }
+        }
+    }
+}
+
+fn selected_arm<'a>(
+    program: &TypedTrees,
+    target: &str,
+    family: SymbolHandle,
+    arm_count: u32,
+    mut remaining: &'a [RangeStep],
+) -> Result<(&'a [RangeStep], &'a [RangeStep]), String> {
+    let refuse =
+        || "retained target-body choice lost its complete exact declaration roster".to_owned();
+    let mut families = program
+        .target_machine_families
+        .iter()
+        .filter(|row| row.canonical == family);
+    let row = families.next().ok_or_else(refuse)?;
+    if families.next().is_some()
+        || row.members.len() != arm_count as usize
+        || arm_count == 0
+        || !program
+            .machine_by_symbol(family)
+            .is_some_and(|machine| machine.target_family_interface)
+    {
+        return Err(refuse());
+    }
+    let mut seen = Vec::new();
+    let mut selected = None;
+    for _ in 0..arm_count {
+        let Some((RangeStep::TargetArm { body, steps }, rest)) = remaining.split_first() else {
+            return Err(refuse());
+        };
+        let mut members = row.members.iter().filter(|member| member.machine == *body);
+        let member = members.next().ok_or_else(refuse)?;
+        let machine = program.machine_by_symbol(*body).ok_or_else(refuse)?;
+        if members.next().is_some()
+            || row
+                .members
+                .iter()
+                .any(|peer| peer.machine != member.machine && peer.target == member.target)
+            || seen.contains(body)
+            || machine.target_family_interface
+            || machine.authored_target.as_ref() != Some(&member.target)
+            || machine.body_status != typed_trees::machine::MachineBodyStatus::Complete
+            || *steps == 0
+            || *steps as usize > rest.len()
+        {
+            return Err(refuse());
+        }
+        seen.push(*body);
+        let (child, tail) = rest.split_at(*steps as usize);
+        if member.target.as_str() == target {
+            if selected.replace(child).is_some() {
+                return Err(refuse());
+            }
+        }
+        remaining = tail;
+    }
+    let selected = selected
+        .ok_or_else(|| format!("retained target-body choice has no body for `{target}`"))?;
+    Ok((selected, remaining))
 }

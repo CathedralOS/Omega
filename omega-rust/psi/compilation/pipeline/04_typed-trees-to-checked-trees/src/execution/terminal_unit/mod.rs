@@ -601,29 +601,80 @@ pub(crate) fn build_checked_unit_effect_plans(
                 .iter()
                 .copied()
         });
+    // Broad scalar discovery retains descriptions only. Successful body
+    // schedules below supply executable ownership, including call-free roots.
+    let catalogue_value_roots = scalar_value_roots
+        .map(|value| {
+            (
+                facts.values.structural_values.nodes.get(value).machine,
+                value,
+            )
+        })
+        .collect();
+    let catalogue_value_types =
+        retain_value_types(program, facts, &mut shapes, catalogue_value_roots);
     let value_roots = candidates
         .iter()
         .chain(partial_affine_machines.iter().map(|plan| &plan.machine))
-        .flat_map(|plan| plan.operations.iter())
-        .chain(
-            composed_machines
+        .flat_map(|plan| {
+            plan.operations
                 .iter()
-                .flat_map(|plan| plan.states.iter())
-                .flat_map(|state| state.operation_dependencies()),
-        )
-        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-        .filter_map(|operation| match operation {
+                .map(move |operation| (plan.machine, operation))
+        })
+        .chain(composed_machines.iter().flat_map(|plan| {
+            plan.states.iter().flat_map(move |state| {
+                state
+                    .operation_dependencies()
+                    .map(move |operation| (plan.machine, operation))
+            })
+        }))
+        .flat_map(|(owner, operation)| {
+            operation
+                .with_value_calls()
+                .map(move |operation| (owner, operation))
+        })
+        .filter_map(|(owner, operation)| match operation {
             CheckedUnitEffectOperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
-            ) => Some(*value),
+            ) => Some((owner, *value)),
             _ => None,
         })
-        .chain(scalar_value_roots)
+        .chain(prepared_calls.value_roots())
         .collect::<Vec<_>>();
-    let value_type_identities = retain_value_types(program, facts, &mut shapes, value_roots);
-    let mut retained_type_identities = boundary_machines
+    let mut stored_type_roots = retain_value_types(program, facts, &mut shapes, value_roots);
+    stored_type_roots.extend(
+        candidates
+            .iter()
+            .chain(partial_affine_machines.iter().map(|plan| &plan.machine))
+            .flat_map(|plan| {
+                plan.stored_type_roots()
+                    .map(move |identity| (plan.machine, identity))
+            })
+            .chain(composed_machines.iter().flat_map(|plan| {
+                plan.stored_type_roots()
+                    .map(move |identity| (plan.machine, identity))
+            }))
+            .chain(
+                prepared_calls
+                    .operation_dependencies()
+                    .flat_map(|(owner, operation)| {
+                        operation.with_value_calls().flat_map(move |operation| {
+                            operation
+                                .stored_type_roots()
+                                .map(move |identity| (owner, identity))
+                        })
+                    }),
+            ),
+    );
+    stored_type_roots.sort_by_key(|(owner, identity)| (symbol_key(*owner), *identity));
+    stored_type_roots.dedup();
+    // Catalogue descriptions and cleanup vocabulary survive independently of
+    // actual storage. Consumers receive the producer's body/root association;
+    // they must not infer ownership from membership in this broader catalogue.
+    let mut retained_type_identities = stored_type_roots
         .iter()
-        .flat_map(|plan| {
+        .map(|(_, identity)| *identity)
+        .chain(boundary_machines.iter().flat_map(|plan| {
             plan.attachment_type_identity
                 .iter()
                 .copied()
@@ -633,284 +684,44 @@ pub(crate) fn build_checked_unit_effect_plans(
                         .map(|parameter| parameter.type_identity),
                 )
                 .chain(plan.result.structural_identity())
-        })
+        }))
         .chain(dynamic_slots.iter().flat_map(|plan| {
             plan.structural_parameters
                 .iter()
                 .map(|parameter| parameter.type_identity)
                 .chain(plan.result.structural_identity())
         }))
-        .chain(candidates.iter().chain(partial_affine_machines.iter().map(|plan| &plan.machine)).flat_map(|plan| {
-            plan.attachment_type_identity
+        .chain(
+            candidates
                 .iter()
-                .copied()
-                .chain(
-                    plan.structural_parameters
-                        .iter()
-                        .map(|parameter| parameter.type_identity),
-                )
-                .chain(
-                    plan.parameter_storage
-                        .iter()
-                        .map(|storage| storage.type_identity),
-                )
-                .chain(
-                    shapes.cleanup_control.normal_actions(plan.normal_exit_cleanups).map(|action| action.type_identity()),
-                )
-                .chain(
-                    plan.trivial_affine_locals
-                        .iter()
-                        .map(|local| local.type_identity),
-                )
-                .chain(
-                    plan.trivial_affine_locals
-                        .iter()
-                        .filter_map(|local| local.construction.as_ref())
-                        .map(|element| element.root_type_identity),
-                )
-                .chain(
-                    plan.operations
-                        .iter()
-                        .filter_map(|operation| match operation {
-                            CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Primitive {
-                                type_identity,
-                                ..
-                            }) => Some(*type_identity),
-                            _ => None,
-                        }),
-                )
-        }))
+                .chain(partial_affine_machines.iter().map(|plan| &plan.machine))
+                .flat_map(|plan| {
+                    plan.attachment_type_identity.iter().copied().chain(
+                        shapes
+                            .cleanup_control
+                            .normal_actions(plan.normal_exit_cleanups)
+                            .map(|action| action.type_identity()),
+                    )
+                }),
+        )
         .chain(composed_machines.iter().flat_map(|plan| {
-            plan.attachment_type_identity
-                .iter()
-                .copied()
-                .into_iter()
-                .chain(plan.result.structural_identity())
-                .chain(
-                    plan.states
-                        .iter()
-                        .flat_map(|state| &state.structural_parameters)
-                        .map(|parameter| parameter.type_identity),
-                )
-                .chain(
-                    plan.states
-                        .iter()
-                        .flat_map(|state| &state.parameter_storage)
-                        .map(|storage| storage.type_identity),
-                )
-                .chain(plan.states.iter().flat_map(|state| shapes.cleanup_control.normal_actions(state.normal_exit_cleanups)).map(|action| match action {
-                        checked_trees::CheckedNormalCleanupAction::Discard(discard) => discard.type_identity,
-                        checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => cleanup.type_identity,
-                        checked_trees::CheckedNormalCleanupAction::RetireHome { type_identity, .. } => *type_identity,
-                    }))
-                .chain(plan.states.iter().flat_map(|state| {
-                    state
-                        .operation_dependencies()
-                        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-                        .flat_map(|operation| {
-                            // A call's structural argument carriers — a
-                            // copied `&T` leaf or a `&[T]` view — name
-                            // `ref(...)`/view identities that no result type
-                            // reaches; retain them with the operation.
-                            let mut seeded: Vec<typed_trees::type_identity::TypeIdentityId> = operation
-                                .structural_operands()
-                                .iter()
-                                .flat_map(|argument| {
-                                    std::iter::once(argument.type_identity)
-                                        .chain(argument.borrowed_root_type_identity())
-                                })
-                                .collect();
-                            match operation {
-                                CheckedUnitEffectOperationPlan::EstablishReference { result, source, .. } => {
-                                    seeded.push(result.type_identity);
-                                    seeded.push(source.type_identity);
-                                }
-                                CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Primitive {
-                                    type_identity,
-                                    ..
-                                }) => {
-                                    seeded.push(*type_identity);
-                                }
-                                // Any call with a structural result, ordinary
-                                // or boundary.
-                                CheckedUnitEffectOperationPlan::Call(call) => {
-                                    seeded.extend(
-                                        call.structural_result()
-                                            .map(|result| result.type_identity),
-                                    );
-                                }
-                                // A state's view subslice may own its view
-                                // type alone: a range over a fixed-array
-                                // field narrows no view an earlier binding
-                                // declared.
-                                CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::ByteSequence {
-                                    result,
-                                    ..
-                                })
-                                | CheckedUnitEffectOperationPlan::EstablishViewSubslice {
-                                    result,
-                                    ..
-                                }
-                                | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Structural {
-                                    result,
-                                    ..
-                                })
-                                // A state's closed scalar-array local owns its
-                                // array type alone, exactly as the ordinary
-                                // unit route retains it below.
-                                | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
-                                    result,
-                                    ..
-                                }) => {
-                                    seeded.push(result.type_identity);
-                                }
-                                CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
-                                    result,
-                                    ..
-                                }) => {
-                                    seeded.push(result.type_identity);
-                                }
-                                CheckedUnitEffectOperationPlan::Store(
-                                    checked_trees::CheckedStorePlan {
-                                        destination:
-                                            checked_trees::CheckedStoreDestination {
-                                                leaf:
-                                                    checked_trees::CheckedStoreLeaf::StructuralStore {
-                                                        type_identity,
-                                                        ..
-                                                    },
-                                                ..
-                                            },
-                                        value: checked_trees::CheckedStoreValue::Place(value),
-                                        ..
-                                    },
-                                ) => {
-                                    seeded.push(*type_identity);
-                                    seeded.push(value.type_identity);
-                                }
-                                CheckedUnitEffectOperationPlan::MoveStructuralField {
-                                    result,
-                                    source,
-                                    ..
-                                } => {
-                                    seeded.push(result.type_identity);
-                                    seeded.push(source.type_identity);
-                                }
-                                _ => {}
-                            }
-                            seeded
-                        })
-                }))
+            plan.attachment_type_identity.iter().copied().chain(
+                plan.states
+                    .iter()
+                    .flat_map(|state| {
+                        shapes
+                            .cleanup_control
+                            .normal_actions(state.normal_exit_cleanups)
+                    })
+                    .map(|action| action.type_identity()),
+            )
         }))
         .collect::<BTreeSet<_>>();
-    retained_type_identities.extend(value_type_identities);
-    // Ordinary and composed bodies name the same operation dependencies.
-    // In particular a captured destination can be the sole user of a scalar
-    // storage declaration; do not prune it merely because no value binding or
-    // signature names that type.
-    for operation in candidates
-        .iter()
-        .chain(partial_affine_machines.iter().map(|plan| &plan.machine))
-        .flat_map(|plan| &plan.operations)
-        .chain(composed_machines.iter().flat_map(|plan| {
-            plan.states
-                .iter()
-                .flat_map(|state| state.operation_dependencies())
-        }))
-        .chain(prepared_calls.operation_dependencies())
-        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-    {
-        // Every structural argument carrier — a copied `&T` leaf, a `&[T]`
-        // view, a moved source or a stored destination — names an identity
-        // that no result type reaches; retain each with its operation. A
-        // subslice additionally names the storage it borrows: a constrained
-        // field carrier enrolls its backing type under the peeled carrier
-        // identity, which no record field spelling ever reaches.
-        for argument in operation.structural_operands() {
-            retained_type_identities.insert(argument.type_identity);
-            retained_type_identities.extend(argument.borrowed_root_type_identity());
-            retained_type_identities.extend(argument.subslice_root_type_identity());
-            if let Some(storage_type_identity) = argument.subslice_storage_type_identity() {
-                retained_type_identities.insert(storage_type_identity);
-            }
-        }
-        match operation {
-            CheckedUnitEffectOperationPlan::AtomicAccess(access) => {
-                retained_type_identities.insert(access.receiver_root_type_identity);
-                if let Some(result) = &access.structural_result {
-                    retained_type_identities.insert(result.type_identity);
-                }
-            }
-            CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
-                destination, ..
-            } => {
-                retained_type_identities.insert(destination.type_identity);
-            }
-            // A boundary result retains its own type; an ordinary structural
-            // result's types belong to its callee's Unit body.
-            CheckedUnitEffectOperationPlan::Call(call) => match (call.route(), call.result()) {
-                (
-                    CheckedUnitCallRoute::Boundary,
-                    CheckedUnitCallResult::Structural {
-                        binding: result, ..
-                    },
-                ) => {
-                    retained_type_identities.insert(result.type_identity);
-                }
-                _ => {}
-            },
-            CheckedUnitEffectOperationPlan::EstablishReference { result, source, .. } => {
-                // A materialized view and its original scalar backing need not
-                // occur in any signature; both are operation dependencies.
-                retained_type_identities.insert(result.type_identity);
-                retained_type_identities.insert(source.type_identity);
-            }
-            CheckedUnitEffectOperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::ByteSequence { result, .. },
-            )
-            | CheckedUnitEffectOperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::Structural { result, .. },
-            )
-            | CheckedUnitEffectOperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { result, .. },
-            ) => {
-                retained_type_identities.insert(result.type_identity);
-            }
-            CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source } => {
-                retained_type_identities.insert(result.type_identity);
-                retained_type_identities.extend(source.subslice_root_type_identity());
-                // The subslice's borrowed storage carries its own identity
-                // beside the bound view's — a constrained field carrier
-                // enrolls it under the peeled spelling no record field
-                // reaches, exactly as it does for a call argument.
-                if let Some(storage_type_identity) = source.subslice_storage_type_identity() {
-                    retained_type_identities.insert(storage_type_identity);
-                }
-            }
-            CheckedUnitEffectOperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, .. },
-            ) => {
-                retained_type_identities.insert(result.type_identity);
-            }
-            CheckedUnitEffectOperationPlan::Store(checked_trees::CheckedStorePlan {
-                destination:
-                    checked_trees::CheckedStoreDestination {
-                        leaf: checked_trees::CheckedStoreLeaf::StructuralStore { type_identity, .. },
-                        ..
-                    },
-                value: checked_trees::CheckedStoreValue::Place(value),
-                ..
-            }) => {
-                retained_type_identities.insert(*type_identity);
-                retained_type_identities.insert(value.type_identity);
-            }
-            CheckedUnitEffectOperationPlan::MoveStructuralField { result, source, .. } => {
-                retained_type_identities.insert(result.type_identity);
-                retained_type_identities.insert(source.type_identity);
-            }
-            _ => {}
-        }
-    }
+    retained_type_identities.extend(
+        catalogue_value_types
+            .into_iter()
+            .map(|(_, identity)| identity),
+    );
     // A local loan's referee may have no signature or operation root.
     // Publish its complete storage type, including scalar restrictions, so
     // observations rejoin the same exact identity requested by lowering.
@@ -1152,6 +963,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     (
         CheckedUnitEffectPlans {
             cleanup_control: shapes.cleanup_control,
+            stored_type_roots,
             structural_types: shapes.types.into_values().collect(),
             structural_domains: {
                 shapes.domains.sort_by_key(|domain| domain.domain.0);
@@ -1368,17 +1180,17 @@ fn retain_value_types(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut types::ShapeCollector<'_>,
-    mut pending: Vec<checked_trees::CheckedStructuralValueHandle>,
-) -> Vec<typed_trees::type_identity::TypeIdentityId> {
+    mut pending: Vec<(SymbolHandle, checked_trees::CheckedStructuralValueHandle)>,
+) -> Vec<(SymbolHandle, typed_trees::type_identity::TypeIdentityId)> {
     let plans = &facts.values.structural_values;
     let mut identities = Vec::new();
     let mut visited = Vec::new();
-    while let Some(node) = pending.pop() {
-        if visited.contains(&node) {
+    while let Some((owner, handle)) = pending.pop() {
+        if visited.contains(&(owner, handle)) {
             continue;
         }
-        visited.push(node);
-        let node = plans.nodes.get(node);
+        visited.push((owner, handle));
+        let node = plans.nodes.get(handle);
         let binders = program
             .machine_by_symbol(node.machine)
             .map(|machine| types::machine_binders(program, machine))
@@ -1386,34 +1198,34 @@ fn retain_value_types(
         if node.type_reference.is_valid()
             && let Some(identity) = shapes.add_stored_type(node.type_reference, &binders, &[])
         {
-            identities.push(identity);
+            identities.push((owner, identity));
         }
         match &node.kind {
             checked_trees::CheckedStructuralValueKind::Place(source) => {
-                identities.push(source.type_identity);
+                identities.push((owner, source.type_identity));
             }
             checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. }
             | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source, .. }
             | checked_trees::CheckedStructuralValueKind::MutableSliceView { source, .. } => {
-                identities.push(source.type_identity);
+                identities.push((owner, source.type_identity));
             }
             checked_trees::CheckedStructuralValueKind::Reference {
                 source,
                 source_value,
                 ..
             } => {
-                identities.push(source.type_identity);
+                identities.push((owner, source.type_identity));
                 if source_value.is_valid() {
-                    pending.push(*source_value);
+                    pending.push((owner, *source_value));
                 }
             }
             checked_trees::CheckedStructuralValueKind::Projection { source, .. }
             | checked_trees::CheckedStructuralValueKind::ViewSubslice { source, .. }
             | checked_trees::CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
-                pending.push(*source);
+                pending.push((owner, *source));
             }
             checked_trees::CheckedStructuralValueKind::QuotientCall { arguments, .. } => {
-                pending.extend(arguments.iter().copied());
+                pending.extend(arguments.iter().map(|value| (owner, *value)));
             }
             checked_trees::CheckedStructuralValueKind::Record { fields, .. }
             | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
@@ -1421,12 +1233,12 @@ fn retain_value_types(
                     if let checked_trees::CheckedStructuralRecordFieldValue::Structural(nested) =
                         field.value
                     {
-                        pending.push(nested);
+                        pending.push((owner, nested));
                     }
                 }
             }
             checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
-                pending.extend(elements.iter().copied());
+                pending.extend(elements.iter().map(|value| (owner, *value)));
             }
             checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
                 pending.extend(
@@ -1434,7 +1246,7 @@ fn retain_value_types(
                         .dispatch_arms
                         .span_or_empty(*arms)
                         .iter()
-                        .map(|arm| arm.value),
+                        .map(|arm| (owner, arm.value)),
                 );
             }
             _ => {}

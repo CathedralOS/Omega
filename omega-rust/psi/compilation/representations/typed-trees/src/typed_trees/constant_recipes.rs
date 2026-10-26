@@ -223,6 +223,51 @@ impl crate::TypedTrees {
         })
     }
 
+    /// Canonical nullary application of an authored array extent. Source
+    /// positions remain distinct formation obligations; array type identity
+    /// names this exact resolved application rather than its source occurrence.
+    /// Generic argument recipes can contain larger expressions and do not share
+    /// this equivalence, even when one dependency names the same machine.
+    pub fn array_extent_application(&self, recipe: ConstantRecipeHandle) -> Option<SymbolHandle> {
+        if !self.constant_recipes.is_valid(recipe) {
+            return None;
+        }
+        let recipe = self.constant_recipes.get(recipe);
+        let RetainedConstantPosition::ArrayLength(site) = recipe.position else {
+            return None;
+        };
+        match self.type_reference_table.type_reference(site) {
+            TypeReferenceNode::FixedArray {
+                length: FixedArrayLength::ConstCall { machine, .. },
+                ..
+            } if machine.is_valid() && *machine == recipe.machine => Some(*machine),
+            _ => None,
+        }
+    }
+
+    /// Geometry of an equivalent array application in this admitted capsule.
+    /// Only already-closed sites participate; this lookup grants no visibility,
+    /// schedules no evaluation, and never combines values from other capsules.
+    pub fn closed_array_extent_value(
+        &self,
+        recipe: ConstantRecipeHandle,
+    ) -> Result<Option<&BigInt>, &'static str> {
+        let application = self
+            .array_extent_application(recipe)
+            .ok_or("array extent lost its checked nullary application")?;
+        let mut value = None;
+        for closed in &self.constant_recipe_closure.values {
+            if self.array_extent_application(closed.recipe) != Some(application) {
+                continue;
+            }
+            if value.is_some_and(|previous| previous != &closed.value) {
+                return Err("equivalent array extent applications disagree in one target capsule");
+            }
+            value = Some(&closed.value);
+        }
+        Ok(value)
+    }
+
     /// The closed value of `recipe` in this program copy, if it carries a closure.
     pub fn closed_constant_recipe_value(&self, recipe: ConstantRecipeHandle) -> Option<&BigInt> {
         if !recipe.is_valid() {

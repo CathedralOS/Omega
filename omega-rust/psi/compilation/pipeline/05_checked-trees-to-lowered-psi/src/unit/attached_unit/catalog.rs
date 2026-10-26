@@ -977,11 +977,25 @@ pub(crate) fn lower_unit_structural_type_roots(
                 element: lookup_type_id(&type_ids, element_type_identity)?,
                 // Terminal production runs on a closed program copy: every
                 // recipe extent carries its value under this target capsule.
-                length: length
-                    .closed(&checked.typed)
-                    .ok_or(LoweringError::Unsupported(
-                        "fixed array extent is a constant recipe the target capsule has not closed",
-                    ))?,
+                length: length.closed(&checked.typed).ok_or_else(|| match length {
+                    checked_trees::CheckedExtent::Recipe(handle) => {
+                        let recipe = checked.typed.constant_recipes.get(*handle);
+                        LoweringError::UnclosedArrayExtent {
+                            identity: plan.identity,
+                            recipe: *handle,
+                            application: checked.symbols.display_path(recipe.machine, "::"),
+                            source_span: recipe.source_span,
+                            target_scope: checked
+                                .typed
+                                .constant_recipe_closure
+                                .target_scope
+                                .clone(),
+                        }
+                    }
+                    checked_trees::CheckedExtent::Literal(_) => {
+                        LoweringError::Unsupported("literal array extent did not retain its value")
+                    }
+                })?,
             },
             CheckedUnitStructuralTypeShape::Sum { cases } => {
                 let mut case_identities = BTreeSet::new();

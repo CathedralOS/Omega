@@ -1,0 +1,25 @@
+// Fact: a fixed-array length retains its layout-derived extent through value transport and satisfies the invoked length-eight contract.
+// Expected exit: 0
+use omega::language::core::layout;
+data Policy {}
+data Payload [copy] { value: u32; }
+data View { payload: Policy<Payload>; }
+machine Policy::plan(schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 4 }
+}
+machine extent() -> u64 { size_of<View>() }
+machine good() {}
+machine consume(length: u64) requires length == 8u64 {}
+machine bad() crashes Trap { crash Trap; }
+data Inspector {}
+machine Inspector::measure(length: u64) -> u64 { length }
+machine program() crashes Trap {
+    let mut view: View;
+    view.payload.value = 51u32;
+    let mut bytes: [u32; extent()];
+    let observed: u64 = Inspector::measure(bytes.len);
+    consume(observed);
+    transition observed == 8u64 { true -> good() false -> bad() }
+}
