@@ -131,10 +131,8 @@ impl TerminalIdentityTable {
             .map(|(position, entry)| (entry.clone(), position as u32))
             .collect();
         TerminalIdentityTableBuilder {
-            entries: self.entries,
+            table: self,
             positions,
-            invocation: self.invocation,
-            invocation_local: self.invocation_local,
         }
     }
 }
@@ -144,10 +142,8 @@ impl TerminalIdentityTable {
 /// field is the plain `entries` vector.
 #[derive(Debug)]
 pub struct TerminalIdentityTableBuilder {
-    entries: Vec<String>,
+    table: TerminalIdentityTable,
     positions: std::collections::HashMap<String, u32>,
-    invocation: Option<InvocationCodeScope>,
-    invocation_local: Vec<TerminalIdentityIndex>,
 }
 
 /// A fresh builder already holds entry 0 so the first real identity indexes
@@ -155,10 +151,8 @@ pub struct TerminalIdentityTableBuilder {
 impl Default for TerminalIdentityTableBuilder {
     fn default() -> Self {
         Self {
-            entries: vec![String::new()],
+            table: TerminalIdentityTable::default(),
             positions: [(String::new(), 0)].into_iter().collect(),
-            invocation: None,
-            invocation_local: Vec::new(),
         }
     }
 }
@@ -168,13 +162,16 @@ impl TerminalIdentityTableBuilder {
     /// and grants no host authority; ordinary source admission remains required.
     pub fn for_invocation() -> Self {
         Self {
-            invocation: Some(InvocationCodeScope(std::sync::Arc::new(()))),
+            table: TerminalIdentityTable {
+                invocation: Some(InvocationCodeScope(std::sync::Arc::new(()))),
+                ..TerminalIdentityTable::default()
+            },
             ..Self::default()
         }
     }
 
     pub fn is_invocation_scoped(&self) -> bool {
-        self.invocation.is_some()
+        self.table.invocation.is_some()
     }
 
     /// Retain a checked declaration's local coordinate without inventing a
@@ -183,19 +180,19 @@ impl TerminalIdentityTableBuilder {
         &mut self,
         coordinate: &str,
     ) -> Result<TerminalIdentityIndex, &'static str> {
-        if self.invocation.is_none() {
+        if self.table.invocation.is_none() {
             return Err(
                 "portable Terminal identities cannot contain invocation-local declarations",
             );
         }
         if let Some(identity) = self.index_of(coordinate) {
-            if !self.invocation_local.contains(&identity) {
+            if !self.table.invocation_local.contains(&identity) {
                 return Err("invocation-local coordinate collides with a portable identity");
             }
             return Ok(identity);
         }
         let identity = self.intern(coordinate);
-        self.invocation_local.push(identity);
+        self.table.invocation_local.push(identity);
         Ok(identity)
     }
 
@@ -205,10 +202,10 @@ impl TerminalIdentityTableBuilder {
         if let Some(&position) = self.positions.get(text) {
             return TerminalIdentityIndex(position);
         }
-        let position = u32::try_from(self.entries.len())
+        let position = u32::try_from(self.table.entries.len())
             .expect("terminal identity table overflowed u32 entries");
         self.positions.insert(text.to_owned(), position);
-        self.entries.push(text.to_owned());
+        self.table.entries.push(text.to_owned());
         TerminalIdentityIndex(position)
     }
 
@@ -220,28 +217,25 @@ impl TerminalIdentityTableBuilder {
 
     /// The text an interned index carries. Read-only.
     pub fn text(&self, index: TerminalIdentityIndex) -> Option<&str> {
-        self.entries.get(index.0 as usize).map(String::as_str)
+        self.table.text(index)
+    }
+
+    /// Borrow the interned prefix without cloning the entries vector.
+    pub fn as_table(&self) -> &TerminalIdentityTable {
+        &self.table
     }
 
     /// A read-side view of the interned prefix. Fingerprint and commitment
     /// helpers take `&TerminalIdentityTable`; the producer borrows one
     /// mid-construction rather than rebuilding interned text.
     pub fn snapshot(&self) -> TerminalIdentityTable {
-        TerminalIdentityTable {
-            entries: self.entries.clone(),
-            invocation: self.invocation.clone(),
-            invocation_local: self.invocation_local.clone(),
-        }
+        self.table.clone()
     }
 
     /// The finished table. `build` runs no deduplication: `intern` already
     /// assigned each distinct text exactly one entry.
     pub fn build(self) -> TerminalIdentityTable {
-        TerminalIdentityTable {
-            entries: self.entries,
-            invocation: self.invocation,
-            invocation_local: self.invocation_local,
-        }
+        self.table
     }
 }
 

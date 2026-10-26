@@ -129,6 +129,36 @@ impl BoundedProcessPrepared {
         &self.retained_descriptors
     }
 
+    /// Transfer an explicitly owned private channel endpoint to this launch.
+    /// Its parent-assigned number survives exec; every other ambient descriptor
+    /// still closes. The command owns it until spawn has completed, so neither a
+    /// dropped caller nor a recycled descriptor number can replace this endpoint.
+    #[cfg(unix)]
+    pub fn retain_descriptor(
+        &mut self,
+        descriptor: std::os::fd::OwnedFd,
+    ) -> io::Result<std::os::fd::RawFd> {
+        use std::os::fd::AsRawFd;
+        use std::os::unix::process::CommandExt;
+        let raw = descriptor.as_raw_fd();
+        if raw < 3 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "retained private descriptors must be separate from standard streams",
+            ));
+        }
+        self.retained_descriptors.push(raw);
+        // Only borrow the captured owner after fork; its lifetime in Command
+        // keeps the same open file description alive through the exec setup.
+        unsafe {
+            self.command.pre_exec(move || {
+                let _keep_alive = &descriptor;
+                Ok(())
+            });
+        }
+        Ok(raw)
+    }
+
     pub fn get_program(&self) -> &OsStr {
         self.command.get_program()
     }

@@ -782,6 +782,17 @@ pass/facts/borrowed_content_partition_through_other_machine_exit built 10634ms e
 pass/facts/borrowed_content_partition_through_other_state_exit built 8971ms exit:0 interpreter-exit:0 interpreter:agrees @0559d33e69da+wt
 pass/facts/borrowed_content_partition_through_parameter_exit built 8373ms exit:0 interpreter-exit:0 interpreter:agrees @0559d33e69da+wt
 pass/facts/borrowed_content_partition_through_target_body_exit built 10485ms exit:0 interpreter-exit:0 interpreter:agrees @0559d33e69da+wt
+pass/facts/borrowed_holder_extent_through_call_result_exit built 1581ms exit:0 interpreter-exit:0 interpreter:agrees @cf1ad27d8642+wt
+pass/facts/borrowed_holder_extent_through_const_name_exit built 2065ms exit:0 interpreter-exit:0 interpreter:agrees @cf1ad27d8642+wt
+pass/facts/borrowed_holder_extent_through_field_exit built 1879ms exit:0 interpreter-exit:0 interpreter:agrees @cf1ad27d8642+wt
+pass/facts/borrowed_holder_extent_through_local_exit built 1972ms exit:0 interpreter-exit:0 interpreter:agrees @cf1ad27d8642+wt
+pass/facts/borrowed_holder_extent_through_match_join_exit built 2242ms exit:0 interpreter-exit:0 interpreter:agrees @cf1ad27d8642+wt
+pass/facts/borrowed_holder_extent_through_other_machine_exit built 1682ms exit:0 interpreter-exit:0 interpreter:agrees @cf1ad27d8642+wt
+pass/facts/borrowed_holder_extent_through_other_state_exit built 1784ms exit:0 interpreter-exit:0 interpreter:agrees @cf1ad27d8642+wt
+pass/facts/borrowed_holder_extent_through_parameter_exit built 2340ms exit:0 interpreter-exit:0 interpreter:agrees @cf1ad27d8642+wt
+pass/facts/borrowed_holder_extent_through_target_body_exit built 2427ms exit:0 interpreter-exit:0 interpreter:agrees @cf1ad27d8642+wt
+pass/facts/borrowed_holder_selected_replacement_exit built 2156ms exit:0 interpreter-exit:0 interpreter:agrees @cf1ad27d8642+wt
+pass/facts/borrowed_holder_shared_exit built 1027ms exit:0 interpreter-exit:0 interpreter:agrees @cf1ad27d8642+wt
 pass/facts/borrowed_projection_cleanup_through_call_result_exit built 1068ms exit:0 interpreter-exit:0 interpreter:agrees @daf76df20a9d+wt
 pass/facts/borrowed_projection_cleanup_through_const_name_exit built 976ms exit:0 interpreter-exit:0 interpreter:agrees @daf76df20a9d+wt
 pass/facts/borrowed_projection_cleanup_through_field_exit built 978ms exit:0 interpreter-exit:0 interpreter:agrees @daf76df20a9d+wt

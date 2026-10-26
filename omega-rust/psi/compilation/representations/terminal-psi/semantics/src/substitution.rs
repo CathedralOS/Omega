@@ -770,6 +770,9 @@ pub(super) fn substitute_scalar_term_values(
                     semantic_vocabulary::ScalarReadProjection::Referent => {
                         semantic_vocabulary::ScalarReadProjection::Referent
                     }
+                    semantic_vocabulary::ScalarReadProjection::Extent => {
+                        semantic_vocabulary::ScalarReadProjection::Extent
+                    }
                     semantic_vocabulary::ScalarReadProjection::Static(segment) => {
                         semantic_vocabulary::ScalarReadProjection::Static(*segment)
                     }

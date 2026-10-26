@@ -193,18 +193,6 @@ pub(crate) fn prove_ranking_range_call(
         &mut engine,
         &expressions,
     )?;
-    // Saved caller observations ride the same site scope: a state-local
-    // `let` the saved-observation bar admits denotes the exact value its
-    // initializer produced, so an actual or guard spelling the local
-    // normalizes to the bound polynomial rather than an unknown atom. A
-    // written or exclusively exposed binding never joins the roster.
-    saved_arguments::install(
-        program,
-        caller.machine,
-        source,
-        &length_bindings,
-        &mut engine,
-    );
     // A field-view member's rank is its record's exact projection coordinate:
     // a fresh atom per carrier formal, shared with every authored
     // `record.field` chain the site can read. Resolve the measure's chain on
@@ -348,6 +336,17 @@ pub(crate) fn prove_ranking_range_call(
         )?;
         Some(coordinates)
     };
+    // Saved observations consume the complete caller coordinate roster.
+    // In particular, a saved Boolean over a field must see that field's
+    // exact atom before its comparison is captured. Written or exclusively
+    // exposed bindings remain excluded by the saved-observation owner.
+    saved_arguments::install(
+        program,
+        caller.machine,
+        source,
+        &length_bindings,
+        &mut engine,
+    );
     let mut comparisons = if at_entry {
         entry_comparisons(program, caller.machine, source, &mut engine, &bindings)?
     } else {
@@ -1125,6 +1124,18 @@ fn installation_expressions(
     }
     expressions.extend(arguments.iter().copied());
     expressions.extend(guards.iter().map(|(guard, _)| *guard));
+    // Occurrence bindings are exact: a field read inside a saved predicate
+    // is distinct from another spelling of that field in a call actual.
+    // Install the admitted initializer's coordinates before capturing it.
+    expressions.extend(
+        program
+            .statement_table
+            .statements(source.statement_nodes)
+            .iter()
+            .filter_map(|statement| statement.as_local_data())
+            .filter(|local| saved_arguments::saved(program, source, local.symbol).is_some())
+            .map(|local| local.initial_value),
+    );
     expressions.extend(projections::entry_expressions(
         program,
         caller.machine,

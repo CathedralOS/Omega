@@ -393,9 +393,10 @@ pub(crate) fn resolve_structural_parameter_path(
 
 /// Admit total entry observations through the ordinary declaration walk.
 /// Geometry alone can peel references or select a view element; an entry
-/// predicate must retain readable root custody and cannot hide dereferences or
-/// a dynamic bounds obligation inside its static path. Case validity remains
-/// the ordinary contract checker's obligation.
+/// predicate retains readable custody at every reference crossing; lowering
+/// records those crossings explicitly. Static selectors still require fixed
+/// arrays, so no dynamic bounds obligation hides inside this declaration walk.
+/// Case validity remains the ordinary contract checker's obligation.
 pub(crate) fn readable_entry_parameter_path(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
@@ -407,7 +408,6 @@ pub(crate) fn readable_entry_parameter_path(
     if parameter.is_const || parameter.relevance.is_erased() || path.len() >= 64 {
         return None;
     }
-    let mut at_root = true;
     let (_, selected_type, _) = resolve_structural_path(
         program,
         parameter.type_reference,
@@ -426,7 +426,7 @@ pub(crate) fn readable_entry_parameter_path(
                     TypeReferenceNode::Constrained { base_type, .. } => receiver = *base_type,
                     TypeReferenceNode::Reference {
                         referee, access, ..
-                    } if at_root && *access != language_core::ReferenceAccess::WriteOnly => {
+                    } if *access != language_core::ReferenceAccess::WriteOnly => {
                         receiver = *referee
                     }
                     TypeReferenceNode::Reference { .. } => return None,
@@ -458,15 +458,6 @@ pub(crate) fn readable_entry_parameter_path(
                             {
                                 return None;
                             }
-                        }
-                        if matches!(
-                            segment,
-                            Some(
-                                CheckedStructuralPredicatePathSegment::Field(_)
-                                    | CheckedStructuralPredicatePathSegment::FixedIndex(_)
-                            )
-                        ) {
-                            at_root = false;
                         }
                         return Some(());
                     }

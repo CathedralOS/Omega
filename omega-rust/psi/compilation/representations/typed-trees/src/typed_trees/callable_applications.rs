@@ -9,6 +9,7 @@
 
 mod closed_operands;
 mod conformance_scopes;
+mod domain_scopes;
 mod machine_selections;
 mod payloads;
 mod requirement_instances;

@@ -418,8 +418,8 @@ defines the complete product bar.
     `pass/calls/runtime_*_reference_*_result_exit`, and
     `fail/calls/terminal_call_result_type_mismatch_rejected`) at their oracles.
   - **Aggregate construction, replacement, and claim-bearing results:** finish
-    remaining runtime/case compositions and opaque incoming referents lacking
-    retained inner-loan evidence, preserving `samples/cli/facts/replaced_field_loan`,
+    remaining runtime/case compositions and additional inner-loan capture or
+    escape through opaque incoming referents, preserving `samples/cli/facts/replaced_field_loan`,
     `samples/cli/facts/case_payload_stored_loan`,
     `samples/cli/facts/descriptor_replacement_order`, and
     `samples/cli/facts/stored_exclusive_byte_view` across all nine places, plus
@@ -1661,11 +1661,12 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     The [Linear continuation](samples/cli/facts/opaque_closed_carrier_exchange/independent_linear/README.md)
     carries actual whole ownership claims through independent inputs and returns
     across all nine places on all four targets.
-  - Connect stage 05 `retention/retained_borrow_custody.rs` and native
-    marshaling to installed-provider custody and default Terminal adapters for
-    moved, lifetime-borrowed, and permitted-snapshot boundaries so all nine
-    places of `samples/cli/facts/foreign_retained_shared_borrow` pass `omega run
-    --both`.
+  - Complete installed-provider custody and native marshaling for moved
+    backing, mutable retention, permitted snapshots and the wider resident/view
+    codecs those boundaries require. Preserve the complete lifetime, range and
+    revision/lease records through stage 05
+    `retention/retained_borrow_custody.rs` and the selected provider; private
+    per-call captures cannot supply original backing.
 
   Acceptance: `samples/cli/facts/opaque_closed_carrier_exchange`,
   `samples/cli/facts/foreign_retained_shared_borrow`, and the `providers/foreign_*`
@@ -2057,6 +2058,13 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   and `tests/omega/pass/generics/{omitted_data_binder_range_equation,runtime_generic_carrier_equation_exit}`
   pass `omega run --both`, while repeated/explicit conflicts, missing indices,
   occurs cycles, kind mismatches, and unmet conformances reject.
+
+  Closed mixed callback/value/conformance selections now complete the
+  `inferred_array_equation_call/mixed_binders` nine-place row on Windows x86-64,
+  with explicit-capacity conflicts and lexical/kind/carrier controls. The same
+  selected value index composes through formal and result types. This covers
+  closed mixed selections only; the broader alternatives above and matching
+  native observations on the other hosted targets remain open.
 
 - **FINITE-GENERIC-DISPATCH.** Select a finite generic instance at runtime end
   to end (`Psi 02–07` and `Omega 00–09`) under the

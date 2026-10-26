@@ -349,8 +349,7 @@ fn root_type(
         }
     };
     let owner = operation_block(function, operation)?;
-    (result.claims.is_empty()
-        && result.multiplicity != StructuralMultiplicity::Linear
+    (result.multiplicity != StructuralMultiplicity::Linear
         && (owner == block || dominates(function, owner, block)))
     .then_some(result.structural_type)
 }

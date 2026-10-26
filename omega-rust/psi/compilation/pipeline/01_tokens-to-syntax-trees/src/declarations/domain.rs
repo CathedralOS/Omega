@@ -90,6 +90,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         (None, input)
     };
     let ((classification, classification_token_count), input) = parse_domain_classification(input)?;
+    let (cleanup_selection, input) = parse_cleanup_selection(syntax_trees, input)?;
     // A chained declaration is authored at the last segment and carries the
     // leading subject membership proposition its refinement semantics imply;
     // the parent path spells the chain's own prefix so a bracketed target
@@ -218,6 +219,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
             is_public: false,
             alias,
             authored_routes,
+            cleanup_selection,
             classification,
             predicate_body,
             facts,
@@ -472,4 +474,32 @@ fn parse_authored_route<'tokens, 'source>(
     // length, distinguishes an exact machine from a trait requirement and
     // rejects ambiguous or ineligible declarations.
     Ok((route, input))
+}
+
+/// A cleanup clause selects a declaration, never a runtime call or receiver.
+/// Reuse static-application grammar so nested generic arguments retain their
+/// own telescope instead of being reparsed as diagnostic text downstream.
+pub(super) fn parse_cleanup_selection<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Option<syntax_trees::expression::StaticMachineArgument>> {
+    if !input.at_contextual("dropped") {
+        return Ok((None, input));
+    }
+    let input = input.take_contextual("dropped")?.take_contextual("by")?;
+    let (path, input) = parse_authored_route(input)?;
+    let (application, input) = match crate::expressions::parse_postfix::try_parse_static_symbol_application(syntax_trees, input)? {
+        Some((application, input)) => (Some(application), input),
+        None if input.at_punctuation(PunctuationKind::Less) => {
+            return Err(input.error_here("dropped by requires a complete static machine application"));
+        }
+        None => (None, input),
+    };
+    Ok((Some(syntax_trees::expression::StaticMachineArgument {
+        type_reference: Default::default(),
+        path: path.into_boxed_slice(),
+        application,
+        const_literal: None,
+        evidence_projection: None,
+    }), input))
 }

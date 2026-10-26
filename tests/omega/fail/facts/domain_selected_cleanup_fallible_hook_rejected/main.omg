@@ -1,0 +1,3 @@
+data Owner dropped by finish { value: u64; }
+machine finish(value: &mut Owner) -> u64 { 0 }
+machine main() { let value: Owner = Owner { value: 0 }; }

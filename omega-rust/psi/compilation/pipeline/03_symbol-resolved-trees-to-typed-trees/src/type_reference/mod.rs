@@ -251,18 +251,34 @@ pub(crate) fn retain_path_selection(
     kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
     context: &str,
 ) -> Result<(), Diagnostic> {
+    retain_path_selection_occurrence(typed_trees, path, symbol, exposure, kind, context).map(|_| ())
+}
+
+pub(crate) fn retain_path_selection_occurrence(
+    typed_trees: &mut typed::TypedTrees,
+    path: &[resolved::name::DiagnosticName],
+    symbol: symbols::SymbolHandle,
+    exposure: impl Into<
+        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
+    >,
+    kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
+    context: &str,
+) -> Result<
+    Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
+    Diagnostic,
+> {
     let Some(exposure) = exposure.into() else {
-        return Ok(());
+        return Ok(None);
     };
     if !symbol.is_valid() {
-        return Ok(());
+        return Ok(None);
     }
     let authored = path
         .iter()
         .filter(|member| member.is_source_backed())
         .collect::<Vec<_>>();
     let (Some(first), Some(last)) = (authored.first(), authored.last()) else {
-        return Ok(());
+        return Ok(None);
     };
     if first.source_span().source_id != last.source_span().source_id {
         return Err(Diagnostic::error(format!(
@@ -276,7 +292,7 @@ pub(crate) fn retain_path_selection(
     );
     typed_trees
         .record_resolved_authored_declaration_selection_once(source_span, exposure, kind, symbol)
-        .map(|_| ())
+        .map(Some)
         .map_err(|error| {
             Diagnostic::error(format!(
                 "failed to retain authored {context} selection: {error:?}"

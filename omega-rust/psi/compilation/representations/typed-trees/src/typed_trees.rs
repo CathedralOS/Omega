@@ -146,6 +146,9 @@ pub struct TypedTrees {
     /// STR4 checked plans, slice 1: the semantic-domain interner, copied
     /// verbatim from the resolved trees.
     pub semantic_domains: language_semantics::SemanticDomainTable,
+    /// Substituted declaration theories keyed by exact closed index instances.
+    /// They are views of authored domains, not new declarations or authority.
+    pub applied_domain_applications: Vec<domain::AppliedDomainApplication>,
     /// Exact structured identities for external realization bindings. Typed
     /// conformance and supply rows retain ids into this table, so downstream
     /// consumers never need to rescan source syntax to recover the binding.
@@ -496,6 +499,7 @@ impl TypedTrees {
             service_reach_rows: language_semantics::ServiceReachRowTable::default(),
             authored_service_reach_rows: Vec::new(),
             semantic_domains: language_semantics::SemanticDomainTable::default(),
+            applied_domain_applications: Vec::new(),
             external_bindings: language_semantics::ExternalBindingTable::default(),
             plan_laid_layouts: Vec::new(),
             plan_laid_target_layouts: Arena::new(),

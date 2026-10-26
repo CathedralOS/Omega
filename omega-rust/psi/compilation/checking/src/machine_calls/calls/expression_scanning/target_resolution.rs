@@ -66,13 +66,6 @@ pub(super) fn named_type_reference_name(
     program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<&str> {
-    if let Some(requirement) =
-        typed_trees::service::service_requirement_declaration(program, handle)
-    {
-        return program
-            .trait_definition_by_symbol(requirement)
-            .map(|definition| definition.name.as_str());
-    }
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Reference { referee, .. } => {
             named_type_reference_name(program, *referee)

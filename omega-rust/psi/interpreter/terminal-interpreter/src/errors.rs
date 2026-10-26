@@ -29,6 +29,9 @@ pub enum TerminalInterpretError {
     /// A well-formed semantic case this implementation cannot yet execute.
     /// Invalid operation contracts must retain their malformed-error variants.
     UnsupportedSemanticVariant(&'static str),
+    /// An established original storage home failed; no detached local value
+    /// may substitute for a faulted or retired resident.
+    ResidentStorage(TerminalEffectRejection),
     /// The artifact's exact affine cleanup transaction does not match the
     /// interpreter's live ownership paths.
     AffineFrontierMismatch,

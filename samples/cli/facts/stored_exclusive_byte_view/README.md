@@ -8,6 +8,13 @@ and reads: nested byte observations below exclusive descriptor arrays.
 This is the missing stored fat-descriptor observation mechanism, not another
 array-size row or permission to copy exclusive access.
 
+The holder production adds a borrowed record field around the descriptor array.
+Its callee observes the original view through both pointer layers. The same
+one-byte extent and byte-19 operation survive each transport place, including
+a mutable match destination and a returned holder. Calls retain the storage
+cut after all operands complete; lifetimes and element types alone establish
+no descriptor count.
+
 The root witness reads the exact stored view's length and first byte before
 testing its authored exit-zero oracle. It does not use a caller equality guard
 to establish an indexing proof. Canonical contracts retain the complete
@@ -25,15 +32,15 @@ and [fail fixtures](../../../../tests/omega/fail/facts/) as
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| Local | [program](local/main.omg) | [empty view](local/invalid/main.omg) |
-| Field | [program](field/main.omg) | [empty view](field/invalid/main.omg) |
-| Parameter | [program](parameter/main.omg) | [empty view](parameter/invalid/main.omg) |
-| Call result | [program](call_result/main.omg) | [empty view](call_result/invalid/main.omg) |
-| Match join | [program](match_join/main.omg) | [empty view](match_join/invalid/main.omg) |
-| Const name | [program](const_name/main.omg) | [empty view](const_name/invalid/main.omg) |
-| A nested machine | [program](other_state/main.omg) | [empty view](other_state/invalid/main.omg) |
-| Another machine | [program](other_machine/main.omg) | [empty view](other_machine/invalid/main.omg) |
-| Another target body | [program](target_body/main.omg) | [empty view](target_body/invalid/main.omg) |
+| Local | [program](local/main.omg), [holder](local/borrowed_holder/main.omg) | [empty view](local/invalid/main.omg), [empty held view](local/borrowed_holder/invalid/main.omg) |
+| Field | [program](field/main.omg), [holder](field/borrowed_holder/main.omg) | [empty view](field/invalid/main.omg), [empty held view](field/borrowed_holder/invalid/main.omg) |
+| Parameter | [program](parameter/main.omg), [holder](parameter/borrowed_holder/main.omg) | [empty view](parameter/invalid/main.omg), [empty held view](parameter/borrowed_holder/invalid/main.omg) |
+| Call result | [program](call_result/main.omg), [holder](call_result/borrowed_holder/main.omg) | [empty view](call_result/invalid/main.omg), [empty held view](call_result/borrowed_holder/invalid/main.omg) |
+| Match join | [program](match_join/main.omg), [holder](match_join/borrowed_holder/main.omg) | [empty view](match_join/invalid/main.omg), [empty held view](match_join/borrowed_holder/invalid/main.omg) |
+| Const name | [program](const_name/main.omg), [holder](const_name/borrowed_holder/main.omg) | [empty view](const_name/invalid/main.omg), [empty held view](const_name/borrowed_holder/invalid/main.omg) |
+| A nested machine | [program](other_state/main.omg), [holder](other_state/borrowed_holder/main.omg) | [empty view](other_state/invalid/main.omg), [empty held view](other_state/borrowed_holder/invalid/main.omg) |
+| Another machine | [program](other_machine/main.omg), [holder](other_machine/borrowed_holder/main.omg) | [empty view](other_machine/invalid/main.omg), [empty held view](other_machine/borrowed_holder/invalid/main.omg) |
+| Another target body | [program](target_body/main.omg), [holder](target_body/borrowed_holder/main.omg) | [empty view](target_body/invalid/main.omg), [empty held view](target_body/borrowed_holder/invalid/main.omg) |
 
 The [root](main.omg) and [root reject](invalid/main.omg) retain the initial
 observation. After ordinary project preparation, run each positive with
@@ -63,6 +70,12 @@ observation. After ordinary project preparation, run each positive with
   [shared copying](controls/shared_copy/main.omg) and
   [direct reborrowing](controls/direct_reborrow/main.omg) remain valid. This
   grants no new loan authority, mathematical equality or termination rule.
+  [Unknown incoming extents](controls/borrowed_holder_unknown_extent/main.omg),
+  [replaced extents](controls/borrowed_holder_stale_extent/main.omg), and
+  [selected replacement extents](controls/borrowed_holder_selected_stale_extent/main.omg)
+  still reject. [Shared holder observation](controls/borrowed_holder_shared/main.omg)
+  and [selected-holder replacement](controls/borrowed_holder_selected_replacement/main.omg)
+  exercise access attenuation and the current receiving generation.
 - **Checked-to-Terminal Psi (`Psi 05–07`):** byte observations retain complete
   array/reference paths and independently proved bounds. Canonical artifact
   inspection admits the portable product; `run --both` executes its semantics.
@@ -86,7 +99,10 @@ observation. After ordinary project preparation, run each positive with
   original-backing controls exercise realized storage, not exhaustive register
   pressure, frame-bound or instruction coverage.
 - **Encoding and native images (`Omega 07–09` and emission):** emitted host images
-  execute the authored oracle and agree with Terminal. No codec format changes;
+  execute the authored oracle and agree with Terminal. Scalar-read projection
+  tag `6` retains a descriptor extent after explicit reference crossings; the
+  receiver validates the complete declared path and readable carrier. Neither
+  the projection nor its type supplies truth, bounds or loan authority;
   not every relaxation or relocation boundary is exercised by this row.
 
 ## Evidence and remaining scope
@@ -103,6 +119,7 @@ not Windows or Linux execution evidence. Windows native execution is explicitly
 deferred by the owner to a later Windows agent. Other hosted native runs remain
 unverified.
 
-The parent capability remains open: opaque incoming referents still need retained
-inner-loan evidence. This row does not close arbitrary partial-owner/cyclic
+The parent capability remains open for additional inner-loan capture and escape
+through opaque incoming referents. Observing a retained descriptor does not grant
+those operations. This row does not close arbitrary partial-owner/cyclic
 composition or the whole compiler release matrix.

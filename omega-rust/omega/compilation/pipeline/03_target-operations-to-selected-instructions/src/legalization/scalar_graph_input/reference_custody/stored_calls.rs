@@ -758,7 +758,28 @@ pub(super) fn stage(
             }
             let mut leaf = leaf.clone();
             if source != destination {
-                if moved.contains_key(&source) {
+                if access == StructuralAccess::SharedBorrow {
+                    // Shared output slots hold independent copies even when
+                    // their input carrier was consumed. A callee may also
+                    // return that pointer; only an exclusive output transfers
+                    // the incoming permission occurrence itself.
+                    if !leaf_type(types, leaf.contract.structural_type(), &leaf.identity.path)
+                        .and_then(|ty| find_structural_type(types, ty))
+                        .is_some_and(|declaration| {
+                            matches!(
+                                declaration.shape,
+                                StructuralTypeShape::Reference {
+                                    access: StructuralAccess::SharedBorrow,
+                                    ..
+                                }
+                            )
+                        })
+                    {
+                        return Err(invalid());
+                    }
+                    receiving_identity(function, &destination, operation, &mut leaf)?;
+                    staged.established.insert(destination.clone());
+                } else if moved.contains_key(&source) {
                     if staged
                         .relocations
                         .insert(source.clone(), destination.clone())
@@ -767,11 +788,7 @@ pub(super) fn stage(
                         return Err(invalid());
                     }
                 } else {
-                    if access != StructuralAccess::SharedBorrow {
-                        return Err(invalid());
-                    }
-                    receiving_identity(function, &destination, operation, &mut leaf)?;
-                    staged.established.insert(destination.clone());
+                    return Err(invalid());
                 }
             }
             candidates.push(leaf);

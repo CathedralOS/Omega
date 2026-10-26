@@ -39,7 +39,9 @@ mod application_lifetimes;
 mod applications;
 mod candidate;
 mod captured_rows;
+mod cleanup_applications;
 mod contextual_calls;
+mod domain_applications;
 mod explicit_arguments;
 mod native_query_lifetimes;
 mod placed_primitives;
@@ -220,7 +222,12 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         let unavailable = crate::constructed_results::retain_constructed_result_types(program);
         changed_owners.extend(result_locals::refresh(program, &unavailable)?);
         changed_owners.extend(result_locals::materialize_reference_observations(program)?);
+        domain_applications::materialize(program)?;
+        // Closing domain theories can produce new static cleanup operands.
+        // Inventory their literal/binder payloads before tuple selection, just
+        // as for operands already present on ordinary source calls.
         materialize_static_argument_types(program);
+        changed_owners.extend(cleanup_applications::materialize(program)?);
         native_query_lifetimes::retain(program)?;
         crate::preparation::elaborate_projected_receivers(program)?;
         changed_owners.extend(contextual_calls::close(program)?);
@@ -459,6 +466,17 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
                 }
             }
         }
+    }
+    // Declaration-owned cleanup applications have no ordinary source-call node.
+    for (handle, _) in program.expression_table.static_machine_applications() {
+        collect(
+            program,
+            program
+                .expression_table
+                .static_machine_application_arguments(handle),
+            &mut literals,
+            &mut types,
+        );
     }
     literals.extend(
         program

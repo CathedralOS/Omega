@@ -138,6 +138,11 @@ impl Builder<'_, '_> {
                 // separate; no source-shape roster decides what a value is.
                 if !parameter.is_const {
                     self.retain_structural_argument(*argument, parameter.type_reference);
+                    // Formation may already have retained an effectful selector.
+                    // The call consumes that completed DAG value; rebuilding it
+                    // would attempt to claim the same source occurrence twice.
+                    let retained_selectors =
+                        self.projection_selector_evaluations(*argument, *argument);
                     if let Some(place) = validation::canonical_place_from_expression_in_state(
                         self.program,
                         self.state,
@@ -152,7 +157,14 @@ impl Builder<'_, '_> {
                                     expression,
                                 };
                                 if self.plans.root_at(self.state, statement, role).is_none()
-                                    && let Some(root) = self.index_selector(expression)
+                                    && let Some(root) = retained_selectors
+                                        .as_ref()
+                                        .and_then(|selectors| {
+                                            selectors.iter().find_map(|(source, root)| {
+                                                (*source == expression).then_some(*root)
+                                            })
+                                        })
+                                        .or_else(|| self.index_selector(expression))
                                 {
                                     self.push_scalar_root(role, root);
                                 }
@@ -336,6 +348,7 @@ impl Builder<'_, '_> {
             crate::execution::terminal_unit::calls::computed_call_claim_transfers(
                 self.program,
                 self.flow,
+                self.plans,
                 self.machine,
                 self.state,
                 self.flow.control.calls.get(source_call),

@@ -8,7 +8,6 @@
 
 use crate::TypedTrees;
 use crate::machine::Machine;
-use crate::service::inspect_service_parameter_contract;
 use crate::signature::{
     AuthoredInvocation, AuthoredInvocationTarget, StateParameter, StateSignature,
 };
@@ -60,22 +59,15 @@ pub fn machine_entry_parameters<'a>(
         .unwrap_or_default()
 }
 
-/// The service a call-target roster entry names: a parameter's exact bound
-/// service requirement, falling back to its type's head symbol.
+/// The exact type head named by a call-target roster entry.
 pub fn boundary_requirement_symbol(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> SymbolHandle {
-    inspect_service_parameter_contract(program, type_reference)
-        .ok()
-        .flatten()
-        .map(|parameter| parameter.carrier.requirement)
-        .unwrap_or_else(|| {
-            program
-                .type_reference_table
-                .type_reference(type_reference)
-                .type_symbol(&program.type_reference_table)
-        })
+    program
+        .type_reference_table
+        .type_reference(type_reference)
+        .type_symbol(&program.type_reference_table)
 }
 
 /// The boundary service `type_reference` resolves to, when it names one.

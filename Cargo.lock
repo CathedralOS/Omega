@@ -1261,6 +1261,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "native-provider-runtime"
+version = "0.1.0"
+dependencies = [
+ "bounded-process",
+ "calling-conventions",
+ "image-emission",
+ "libc",
+ "machine-emission",
+ "native-artifact",
+ "runtime-abi",
+ "sha2",
+ "target",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "new087-terminal-validation"
 version = "0.1.0"
 dependencies = [
@@ -2433,6 +2449,7 @@ dependencies = [
  "backend-plan",
  "calling-conventions",
  "native-artifact",
+ "native-provider-runtime",
  "numerics",
  "runtime-abi",
  "semantic-vocabulary",

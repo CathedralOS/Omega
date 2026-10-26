@@ -1,0 +1,6 @@
+{
+  "role": "intended-invalid",
+  "rejection_contains": [
+    "executable statements cannot follow nested machine declarations"
+  ]
+}

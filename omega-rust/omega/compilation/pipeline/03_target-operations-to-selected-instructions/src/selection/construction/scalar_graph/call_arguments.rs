@@ -175,6 +175,7 @@ pub(super) fn structural_argument(
             argument_index,
             semantic,
             target,
+            indices,
             builder,
         );
     }
@@ -211,6 +212,7 @@ pub(super) fn structural_argument(
             operation,
             argument_index,
             target,
+            &[],
             Some(pointer.pointer),
             target.source_byte_offset,
             pointer.descriptor_words,

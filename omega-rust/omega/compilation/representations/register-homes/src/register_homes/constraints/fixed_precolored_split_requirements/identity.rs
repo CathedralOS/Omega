@@ -1,7 +1,5 @@
 use crate::identity::encode_fixed_constraint_site_identity;
 
-use target::{Architecture, ObjectFormat};
-
 use crate::{
     FixedPrecoloredSourceSegmentOpening, FixedPrecoloredSplitRequirementPlan,
     FixedPrecoloredSplitRequirementPlanIdentity, FixedPrecoloredSplitRequirementPolicy,
@@ -19,20 +17,7 @@ pub fn fixed_precolored_split_requirement_plan_identity(
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
     crate::codec_bytes::push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
-    bytes.push(match plan.target.architecture {
-        Architecture::X86_64 => 0,
-        Architecture::Aarch64 => 1,
-    });
-    bytes.push(match plan.target.object_format {
-        ObjectFormat::Elf => 0,
-        ObjectFormat::MachO => 1,
-        ObjectFormat::Coff => 2,
-    });
-    crate::codec_bytes::push_encoded(&mut bytes, (plan.target.pointer_size as u64).to_le_bytes());
-    crate::codec_bytes::push_encoded(
-        &mut bytes,
-        (plan.target.pointer_alignment as u64).to_le_bytes(),
-    );
+    crate::codec_bytes::encode_target(&mut bytes, plan.target);
     bytes.push(match plan.policy {
         FixedPrecoloredSplitRequirementPolicy::FixedUseBoundaryRequirementsV1 => 0,
     });
@@ -112,9 +97,5 @@ fn encode_connector(bytes: &mut Vec<u8>, connector: selected_instructions::LiveR
 }
 
 fn length(bytes: &mut Vec<u8>, value: usize) {
-    bytes.extend_from_slice(
-        &u64::try_from(value)
-            .expect("fixed/precolored split requirement length fits u64")
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::length(bytes, value, "fixed/precolored split requirement");
 }

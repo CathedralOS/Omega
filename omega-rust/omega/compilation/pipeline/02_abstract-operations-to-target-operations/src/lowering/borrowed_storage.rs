@@ -23,18 +23,60 @@ pub(super) fn capture(plan: &AbstractOperationPlan) -> Vec<NativeBorrowedStorage
         .iter()
         .map(|row| (row.id, row))
         .collect();
-    let requested: BTreeSet<_> = plan
+    // Native value codecs need owned argument and result layouts even when no
+    // unrelated boundary in this module borrows storage. Original allocation
+    // geometry additionally needs the complete actual owned roots below.
+    let mut requested: BTreeSet<_> = plan
+        .boundary_machines
+        .iter()
+        .flat_map(|boundary| {
+            boundary
+                .structural_parameters
+                .iter()
+                .map(|parameter| parameter.structural_type)
+                .chain(match &boundary.result {
+                    terminal_psi::BoundaryMachineResult::Structural(result) => {
+                        Some(result.structural_type)
+                    }
+                    _ => None,
+                })
+        })
+        .collect();
+    let needs_original_roots = plan
         .boundary_machines
         .iter()
         .flat_map(|boundary| &boundary.structural_parameters)
-        .filter(|parameter| {
+        .any(|parameter| {
             matches!(
                 parameter.access,
                 terminal_psi::reading_borrow_pair_pattern!()
             )
-        })
-        .map(|parameter| parameter.structural_type)
-        .collect();
+        });
+    if needs_original_roots {
+        // A boundary may first borrow a nested field. Its formal supplies
+        // only that field's view, never the containing allocation's extent,
+        // alignment or field offsets. Retain layouts for the actual owned
+        // allocations in this produced program before lowering consumes them.
+        // Runtime custody still selects the original owner, and unsupported
+        // layouts remain absent rather than fabricating a smaller home.
+        for function in &plan.functions {
+            requested.extend(
+                function
+                    .structural_parameters
+                    .iter()
+                    .chain(function.block_structural_parameters())
+                    .filter(|parameter| parameter.access == terminal_psi::StructuralAccess::Owned)
+                    .map(|parameter| parameter.structural_type),
+            );
+            requested.extend(
+                function
+                    .operations
+                    .iter()
+                    .filter_map(|operation| operation.materialized_structural_result())
+                    .map(|(_, result)| result.structural_type),
+            );
+        }
+    }
     requested
         .into_iter()
         .filter_map(|root| capture_declared_type(root, &declarations))

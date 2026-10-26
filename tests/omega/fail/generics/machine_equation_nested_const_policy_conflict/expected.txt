@@ -1,1 +1,1 @@
-constrained const declarations require declaration-site proof checking
+machine equation application has a constructor argument with a different declared carrier

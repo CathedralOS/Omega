@@ -1,0 +1,3 @@
+cannot prove asm `requires` fact at block entry in move_selected state `entry` (statement 5): output == 7
+cannot prove asm `ensures` fact at block exit in move_selected state `entry` (statement 6): output == selected.length && output == 7
+cannot prove ensures contract for exit from move_selected at statement 7: result == 7

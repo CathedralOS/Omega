@@ -2,6 +2,9 @@
 //! operands, not static coordinates: their bounds and the root's live access
 //! are independent obligations. This walker never supplies observation truth.
 
+#[cfg(test)]
+mod tests;
+
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Static, IntegerSign, IntegerType, ScalarReadProjection,
     ScalarType, StructuralTypeId,
@@ -38,6 +41,34 @@ pub fn structural_read_scalar_type<'a>(
     let mut case_fields: Option<&[StructuralFieldDeclaration]> = None;
     for projection in path {
         match projection {
+            ScalarReadProjection::Extent => {
+                if case_fields.is_some() {
+                    return None;
+                }
+                let carrier = match target {
+                    Target::Declaration(root) => match declaration(root)?.shape {
+                        StructuralTypeShape::ElementView { access, .. } => {
+                            if access == Some(StructuralAccess::WriteOnlyBorrow) {
+                                return None;
+                            }
+                            None
+                        }
+                        StructuralTypeShape::ByteSequence(carrier) => Some(carrier),
+                        _ => return None,
+                    },
+                    Target::Bytes(carrier) => Some(carrier),
+                    Target::Scalar(_) => return None,
+                };
+                if matches!(carrier, Some(
+                    ByteSequenceCarrier::BorrowedView { access: Some(StructuralAccess::WriteOnlyBorrow) }
+                    | ByteSequenceCarrier::BoundedView { access: Some(StructuralAccess::WriteOnlyBorrow), .. }
+                )) {
+                    return None;
+                }
+                target = Target::Scalar(ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).ok()?,
+                ));
+            }
             ScalarReadProjection::Referent => {
                 if case_fields.is_some() {
                     return None;

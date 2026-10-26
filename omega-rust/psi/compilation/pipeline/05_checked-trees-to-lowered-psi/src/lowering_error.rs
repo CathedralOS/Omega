@@ -43,7 +43,6 @@ pub enum LoweringError {    MachineNotFound(String),
     DebugSemanticCodec(terminal_codec::CodecError),
     InvalidDebugMap(terminal_codec::DebugMapError),
     InvalidControlGraph(terminal_semantics::control_graph::ControlGraphError),
-    InvalidServiceParameterShape(checked_trees::CheckedServiceParameterError),
     InvalidServiceIdentity(String),
     /// Preserve the declaration and provenance reason from source identity closure.
     InvalidDeclarationIdentity(String),

@@ -1,8 +1,10 @@
 //! Explicit host bindings for exact admitted native host operation slots.
 //! A slot's realization selects semantics; its complete declaration selects
-//! the typed adapter. Every family's offer first passes the shared
-//! `admit_exact_foreign_call` premise; the family then owns its own shape
-//! rules. No source-name dispatch or stdout-driven exit exists.
+//! the typed adapter. Modeled services pass the shared
+//! `admit_exact_foreign_call` premise and their exact shape rules. A separately
+//! sponsored native provider joins the complete produced ABI and original
+//! homes, with semantic completion still owned by Psi. No source-name
+//! dispatch or stdout-driven exit exists.
 //! Output stays buffered; input consumes only the caller's finite replay stream
 //! with an instance-private cursor. Checked compound operations remain guest code.
 
@@ -28,9 +30,11 @@ mod descriptor_io;
 mod descriptor_mode;
 mod integer_absolute;
 mod integer_division;
+mod native_provider;
 mod native_word;
 mod network_address;
 mod numeric;
+mod scalar_codec;
 mod scalar_record;
 mod standard_input;
 
@@ -199,14 +203,22 @@ pub(super) struct HostContext<'host> {
     input: Option<std::sync::Arc<std::sync::Mutex<Box<dyn std::io::Read + Send + 'host>>>>,
     clock: Option<std::sync::Arc<std::sync::Mutex<clock::TerminalClockSnapshot>>>,
     addresses: std::sync::Arc<std::sync::Mutex<network_address::AddressValues>>,
+    native: native_provider::NativeContext,
     allocations: std::sync::Arc<std::sync::Mutex<allocation::AllocationValues>>,
 }
 impl<'host> HostContext<'host> {
+    pub(super) fn finish_native_provider(&self) -> Result<(), TerminalRuntimeError> {
+        self.native.finish().map_err(|error| {
+            TerminalRuntimeError::missing("native-provider-retirement", error.reason)
+        })
+    }
     pub(super) fn new(
         input: Option<Box<dyn std::io::Read + Send + 'host>>,
         clock: Option<clock::TerminalClockSnapshot>,
+        native_provider: Option<std::process::Command>,
     ) -> Self {
         Self {
+            native: native_provider::NativeContext::new(native_provider),
             output: buffered_output::BufferedStreams::new(),
             input: input.map(|reader| std::sync::Arc::new(std::sync::Mutex::new(reader))),
             clock: clock.map(|snapshot| std::sync::Arc::new(std::sync::Mutex::new(snapshot))),
@@ -413,16 +425,26 @@ pub(super) fn bind<'host>(
                     instance.bind_import(*slot, adapter)?;
                     continue;
                 }
-                let Some(adapter) =
+                if let Some(adapter) =
                     descriptor_mode::DescriptorModeImport::admit(declaration, binding)?
-                else {
-                    return Err(TerminalRuntimeError::missing(
-                        "runtime-host-import-bindings",
-                        "no trusted host implementation matches this exact foreign binding",
-                    ));
-                };
-                instance.bind_import(*slot, adapter)?;
-                continue;
+                {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
+                if let Some(adapter) = native_provider::NativeImport::admit(
+                    program,
+                    declaration,
+                    binding,
+                    provisions,
+                    &context.native,
+                )? {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
+                return Err(TerminalRuntimeError::missing(
+                    "runtime-host-import-bindings",
+                    "no trusted host implementation matches this exact foreign binding",
+                ));
             }
             _ => {
                 return Err(TerminalRuntimeError::missing(

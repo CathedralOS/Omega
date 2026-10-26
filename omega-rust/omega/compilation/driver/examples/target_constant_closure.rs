@@ -168,6 +168,7 @@ fn main() {
         .retained_native_artifact()
         .expect("Windows native emission");
     let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+        native_provider: None,
         x86_flags: None,
         provider_proposal: None,
         artifact: artifact.psi_artifact(),

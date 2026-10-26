@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from check_native_boundary import NATIVE_ROOT, RUNTIME_ROOT, RUNTIME_OWNERS, dependency_violations
+from check_native_boundary import NATIVE_ROOT, RUNTIME_ROOT, RUNTIME_OWNERS, NATIVE_PROVIDER_RUNTIME_ROOT, NATIVE_PROVIDER_RUNTIME_OWNERS, dependency_violations
 
 
 class NativeBoundaryTests(unittest.TestCase):
@@ -95,6 +95,16 @@ class NativeBoundaryTests(unittest.TestCase):
         runtime = self.package("terminal-runtime", RUNTIME_ROOT)
         self.edge(runtime, self.native)
         self.assertEqual(len(dependency_violations(self.metadata, RUNTIME_ROOT, RUNTIME_OWNERS)), 1)
+
+    def test_native_worker_consumes_artifacts_without_a_compiler(self):
+        worker = self.package("native-provider-runtime", NATIVE_PROVIDER_RUNTIME_ROOT)
+        artifacts = self.package("native-artifact", "omega-rust/omega/compilation/backend/artifacts/native-artifact")
+        self.edge(worker, artifacts)
+        self.assertEqual(dependency_violations(self.metadata, NATIVE_PROVIDER_RUNTIME_ROOT, NATIVE_PROVIDER_RUNTIME_OWNERS), [])
+        self.edge(artifacts, self.native, optional=True, target='cfg(windows)')
+        failures = dependency_violations(self.metadata, NATIVE_PROVIDER_RUNTIME_ROOT, NATIVE_PROVIDER_RUNTIME_OWNERS)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("native-provider-runtime -> native-artifact -> native-production", failures[0])
 
 
 if __name__ == "__main__":

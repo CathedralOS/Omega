@@ -401,12 +401,13 @@ pub(super) fn validate<'a, 'p>(
                 && diagnostics.len() == before
                 && let (Some(state), Some(target_type)) =
                     (current_state, assignment_target_type_raw)
-                && let Some(decision) = checked_integer_assignment(
+                && let Some(decision) = super::integer_establishment::checked_integer_establishment(
                     program,
                     machine,
                     state,
                     scope.statement_index,
-                    assignment,
+                    assignment.target,
+                    assignment.value,
                     target_type,
                     stated,
                 )
@@ -565,43 +566,4 @@ fn assignment_root_symbol(
         return symbols::SymbolHandle::default();
     }
     symbol
-}
-
-fn checked_integer_assignment(
-    program: &dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    assignment: &typed_trees::statement::TableAssignment,
-    target_type: typed_trees::types::TypeReferenceHandle,
-    stated: arithmetic_domains::Interval,
-) -> Option<checked_trees::CheckedIntegerAssignmentDecision> {
-    let primitive = program.primitive_type_reference(target_type)?;
-    let (mut minimum, mut maximum) =
-        crate::proof_contracts::proof_embeddings::primitive_range(primitive)?;
-    for interval in std::iter::once(stated).chain(arithmetic_domains::enforced_declared_range(
-        program,
-        target_type,
-    )) {
-        if let Some(lower) = interval.low() {
-            minimum = minimum.max(numerics::bignum::BigInt::from_i64(lower));
-        }
-        if let Some(upper) = interval.high() {
-            maximum = maximum.min(numerics::bignum::BigInt::from_i64(upper));
-        }
-    }
-    (minimum <= maximum).then_some(checked_trees::CheckedIntegerAssignmentDecision {
-        atomic_resident: crate::value_custody::atomic_operations::atomic_assignment_carrier(
-            program, assignment,
-        )
-        .is_some(),
-        machine: machine.symbol,
-        state: state.symbol,
-        statement_index,
-        target: assignment.target,
-        value: assignment.value,
-        target_type,
-        minimum,
-        maximum,
-    })
 }

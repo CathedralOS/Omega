@@ -35,6 +35,7 @@ pub fn execute_report(report: compiler::CompileReport, output: &std::path::Path)
     let reloaded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
         .expect("named Product publishes portable Terminal");
     let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+        native_provider: None,
         x86_flags: None,
         provider_proposal: None,
         artifact: &reloaded,

@@ -10,7 +10,7 @@ use super::ProviderStorageBinding;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
-use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
+use crate::values::StructuralRuntimePlace;
 use std::collections::BTreeSet;
 use terminal_psi::{
     BoundaryMachineDeclaration, Operation, OperationKind, StructuralAffineDiscard,
@@ -131,7 +131,7 @@ impl TerminalExecution<'_> {
         }
         let (allocation, profile, base) =
             self.provider_storage.live_provider_allocation(&binding)?;
-        if !self.provider_storage_geometry_matches(&home, &plan.storage, base, binding.length) {
+        if !self.provider_storage_geometry_matches(&home, &plan.storage, base, binding.length)? {
             return Err(TerminalInterpretError::ContentTransformationMismatch(
                 "extraction changed the original allocation geometry",
             ));
@@ -192,12 +192,7 @@ impl TerminalExecution<'_> {
             .and_then(|end| usize::try_from(end).ok())
             .ok_or_else(malformed)?;
         let image = allocation.bytes.get(start..end).ok_or_else(malformed)?;
-        let mut value = TerminalStructuralValue::minted(
-            self.local_structural_identities
-                .allocate_staged(&mut identity_cursor)?,
-            result.structural_type,
-            Vec::new(),
-        );
+        let mut value = self.mint_staged(&mut identity_cursor, result.structural_type)?;
         let extent_path = vec![
             StructuralPathSegment::Case(moved.id),
             StructuralPathSegment::Field(extent_field.identity),
