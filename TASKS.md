@@ -1955,6 +1955,13 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     and instantiate composite/constrained result shells and scoped
     captured-subject identities for indexed predicates/theorems.
 
+  Predicate-domain selection: `samples/cli/facts/domain_pattern_match_bound`
+  carries the selected `>= 73` bound into exact subtraction through all nine
+  places, with threshold-only twins and authority/carrier/invalidation controls.
+  Linux native/Terminal agreement and four-target Terminal interpretation are
+  retained by claim `3cb73abd75a24eecaa6e25fddfe08b5a`; foreign native execution
+  and the remaining custody/join/provenance acceptance below remain open.
+
   Acceptance: corpus and fact witnesses for owned call-product arms,
   interleaved/projected sources, linear child carriers, borrowed joins, and
   [float Match customers](wiki/drafts/reference/float_realization.md#operation-and-control-custody)

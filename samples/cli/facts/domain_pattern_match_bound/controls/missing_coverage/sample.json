@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "not exhaustive"
+    "match does not cover its subject"
   ]
 }

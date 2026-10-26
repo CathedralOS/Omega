@@ -1,0 +1,3 @@
+cannot prove requires contract for call accept from Main::main: main.items[0] in Item::Valid
+invalidated by prior mutation of main.items[
+main.items[0].value is part of Item::Valid
