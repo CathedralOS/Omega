@@ -751,12 +751,11 @@ impl StateGraphEmission<'_, '_> {
                         }),
                     };
                     if let Some(index) = parameter
-                        && state
-                            .structural_parameters
-                            .get(index as usize)
-                            .is_some_and(|parameter| {
+                        && state.structural_parameters.get(index as usize).is_some_and(
+                            |parameter| {
                                 parameter.access == checked_trees::CheckedStructuralAccess::Owned
-                            })
+                            },
+                        )
                     {
                         let home = state_parameters
                             .get(index as usize)
