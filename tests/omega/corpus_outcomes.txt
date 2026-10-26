@@ -4655,6 +4655,12 @@ fail/facts/atomic_bounded_resident/const_name rejected 516ms expected @036605466
 	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/atomic_bounded_resident/field rejected 454ms expected @036605466510+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/atomic_bounded_resident/load_bound_is_not_current_value rejected 1198ms expected @2e70a865669c+wt
+	cannot prove ensures contract for exit from observe at statement 1: result == 41
+fail/facts/atomic_bounded_resident/load_field_goal_is_not_premise rejected 540ms expected @2e70a865669c+wt
+	data `Held` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/atomic_bounded_resident/load_result_goal_is_not_premise rejected 1254ms expected @2e70a865669c+wt
+	cannot prove ensures contract for exit from observe at statement 0: result <= 100
 fail/facts/atomic_bounded_resident/local rejected 488ms expected @036605466510+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/atomic_bounded_resident/match_join rejected 482ms expected @036605466510+wt
