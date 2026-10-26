@@ -20,6 +20,7 @@ impl TerminalExecution<'_> {
                 &self.program.structural_types(),
                 self.structural_cases.as_map(),
                 &self.program.machines(),
+                self.program.verified_machine(self.current_machine)?,
                 &mut self.structural_values,
                 &mut self.reference_referents,
                 &mut self.structural_element_view_fields,

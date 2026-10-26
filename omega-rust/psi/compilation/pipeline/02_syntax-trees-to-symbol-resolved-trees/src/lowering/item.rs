@@ -27,6 +27,7 @@ pub(crate) fn lower_item(
     let inputs = crate::resolution::type_inputs::TypeInputScope::new(lowerer);
     let item = syntax_trees.root_item(declaration);
     let conformance_ordinal = lowerer.symbol_resolved_trees.conformances.len();
+    let data_ordinal = lowerer.symbol_resolved_trees.data_definitions.len();
     lowerer.with_authored_expression_exposure(item_expression_exposure(item), |lowerer| {
         lower_item_with_exposure(lowerer, syntax_trees, item)
     })?;
@@ -34,6 +35,11 @@ pub(crate) fn lower_item(
         lowerer
             .conformance_inputs
             .push((declaration, conformance_ordinal));
+    }
+    if matches!(item, syntax::item::Item::Data(_))
+        && let Some(sources) = &mut lowerer.equation_sources
+    {
+        sources.data_declarations.push((declaration, data_ordinal));
     }
     inputs.finish(lowerer, symbols::SymbolHandle::invalid());
     Ok(())
@@ -232,7 +238,7 @@ fn lower_item_with_exposure(
         // later resolution continuations, not as runtime constant storage.
         syntax::item::Item::Const(definition) => {
             let pending = lowerer.const_resolution_mode
-                == crate::resolution::lowerer::ConstResolutionMode::InitializerSelection
+                != crate::resolution::lowerer::ConstResolutionMode::Complete
                 && crate::constant::requires_const_initializer_evaluation(syntax_trees, definition)
                 && !crate::constant::pending_const_initializer_leaves(
                     syntax_trees,
@@ -250,7 +256,7 @@ fn lower_item_with_exposure(
                 })?
                 .is_empty();
             if lowerer.const_resolution_mode
-                != crate::resolution::lowerer::ConstResolutionMode::InitializerSelection
+                == crate::resolution::lowerer::ConstResolutionMode::Complete
             {
                 // The private dependency frontier selects identities and types,
                 // not value predicates whose declared geometry may be pending.
@@ -269,7 +275,7 @@ fn lower_item_with_exposure(
                 None
             } else if definition.is_public
                 && lowerer.const_resolution_mode
-                    != crate::resolution::lowerer::ConstResolutionMode::InitializerSelection
+                    == crate::resolution::lowerer::ConstResolutionMode::Complete
             {
                 Some(
                     crate::constant::evaluated_declaration_value(

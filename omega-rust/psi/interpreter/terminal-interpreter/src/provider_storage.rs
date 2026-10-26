@@ -14,10 +14,14 @@
 //! claim before writing, then transfer the complete source value before
 //! publishing Resident. No method here issues a qualification or source claim.
 
+use crate::errors::{TerminalInterpretError, malformed};
+use crate::execution::TerminalExecution;
+use crate::record::owned_value::StagedOwnedValue;
 use crate::runtime_rows::RuntimeRows;
-use access_plans::AdmittedResourceProfile;
+use access_plans::{AdmittedResourceProfile, InitializationResourceCompatibility};
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use extents::Extent;
+use terminal_psi::TerminalPlacementLifecyclePlan;
 
 mod entry;
 mod extraction;
@@ -120,6 +124,66 @@ impl RuntimeProviderStorage {
             }
         }
         true
+    }
+
+    /// The live allocation slot a binding names, with the profile admitted for
+    /// its supply and the absolute base of its window. Geometry, loans and
+    /// authority checks stay with each caller's operation.
+    pub(crate) fn live_provider_allocation(
+        &self,
+        binding: &ProviderStorageBinding,
+    ) -> Result<(&ProviderByteAllocation, &AdmittedResourceProfile, u64), TerminalInterpretError>
+    {
+        let ProviderStorageSlot::Live {
+            allocation,
+            profile,
+            ..
+        } = self.allocations.get(binding.allocation)
+        else {
+            return Err(malformed());
+        };
+        let base = allocation
+            .extent
+            .base()
+            .checked_add(binding.offset)
+            .ok_or_else(malformed)?;
+        Ok((allocation, profile, base))
+    }
+}
+
+impl TerminalExecution<'_> {
+    /// The live resident custody a binding names, with the lifecycle plan row
+    /// its initialization boundary declares. Each caller compares the plan and
+    /// custody against its own operation's contract; a retired slot or an
+    /// unknown initialization boundary is malformed private runtime state.
+    pub(crate) fn live_resident_custody(
+        &self,
+        resident: arena::Handle<ResidentStorageSlot>,
+    ) -> Result<
+        (
+            &TerminalPlacementLifecyclePlan,
+            &StagedOwnedValue,
+            &InitializationResourceCompatibility,
+        ),
+        TerminalInterpretError,
+    > {
+        let ResidentStorageSlot::Live {
+            initialized_by,
+            custody,
+            compatibility,
+            ..
+        } = self.provider_storage.residents.get(resident)
+        else {
+            return Err(malformed());
+        };
+        let initialized = self
+            .program
+            .catalogs
+            .placement_lifecycle_plans
+            .iter()
+            .find(|plan| plan.boundary == *initialized_by)
+            .ok_or_else(malformed)?;
+        Ok((initialized, custody, compatibility))
     }
 }
 

@@ -68,25 +68,26 @@ pub(super) fn append(
             continue;
         };
         let fact = program.proof_facts.get(fact.fact).clone();
-        let ProofFact::Expression(expression) = &fact else {
+        let ProofFact::Expression(expression_root) = &fact else {
             continue;
         };
         let mut expressions = Vec::new();
         validation::expression_traversal::collect_expression_tree(
             program,
-            *expression,
+            *expression_root,
             &mut expressions,
         );
         let mut observes_capture = false;
         let mut escapes_frame = false;
         for expression in expressions {
-            // Saved-subject definitions have their own custody; ordinary name
-            // remapping deliberately does not move those capture identities.
-            // Keep their source assertion, but do not export an ambient snapshot.
+            // Closed copies retain their own capture definition, anchor and
+            // pattern dependencies. Ambient captures need real value transport;
+            // a producer-expression chase cannot establish their custody.
             if matches!(
                 program.expression_table.expression(expression),
                 ExpressionNode::SavedSubject(_)
-            ) {
+            ) && !validation::expression_has_closed_value_captures(program, *expression_root)
+            {
                 escapes_frame = true;
             }
             if let ExpressionNode::Name(path) = program.expression_table.expression(expression) {

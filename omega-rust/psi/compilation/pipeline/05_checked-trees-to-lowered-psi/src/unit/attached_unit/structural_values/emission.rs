@@ -1122,10 +1122,17 @@ fn prepare_owners(
             })
             && available(local.symbol, local.statement_index)?
             && !owners.iter().any(|owner| owner.symbol == local.symbol)
+            && !evaluation.retired_structural_homes.iter().any(|retired| {
+                retired.symbol == local.symbol && retired.statement == local.statement_index
+            })
         {
-            return unsupported(
-                "selection transport requires a typed frontier entry for every live owned local",
-            );
+            return Err(LoweringError::MissingSelectionFrontier {
+                machine: checked.symbols.display_path(machine, "::"),
+                state: checked.symbols.display_path(state, "::"),
+                statement_index: statement,
+                local: checked.symbols.display_path(local.symbol, "::"),
+                formation_statement: local.statement_index,
+            });
         }
     }
     Ok(owners)

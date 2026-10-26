@@ -6,8 +6,8 @@ use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, PlaceId};
 
-use crate::OptimizationUnitValidationError;
 use crate::unit_validation::derived_metadata::dominators;
+use crate::{OperationSite, OptimizationUnitValidationError};
 
 pub(crate) fn validate_structural_place_availability(
     function: &PsiOptimizationFunction,
@@ -61,12 +61,10 @@ pub(crate) fn validate_structural_place_availability(
                             .is_some_and(|set| set.contains(producer_block)));
                 if !available {
                     return Err(
-                        OptimizationUnitValidationError::StructuralPlaceNotAvailable {
-                            machine: function.machine,
-                            block: block.id,
-                            node: node_index,
+                        OptimizationUnitValidationError::StructuralPlaceNotAvailable(
+                            OperationSite::new(function.machine, block.id, node_index),
                             place,
-                        },
+                        ),
                     );
                 }
             }

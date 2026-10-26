@@ -138,6 +138,23 @@ pub struct ExpressionTableCapacity {
 
 impl ExpressionTableCapacity {}
 
+/// The per-kind `Option<&_>` readers over this table's expression nodes,
+/// one line per kind: each entry expands to the single-variant match and the
+/// `_` arm a sibling would otherwise spell out by hand.
+macro_rules! expression_node_accessors {
+    ($($(#[$doc:meta])* $name:ident($variant:ident) -> $node_type:ty;)*) => {
+        $(
+            $(#[$doc])*
+            pub fn $name(&self, handle: ExpressionHandle) -> Option<&$node_type> {
+                match self.expression(handle) {
+                    ExpressionNode::$variant(node) => Some(node),
+                    _ => None,
+                }
+            }
+        )*
+    };
+}
+
 impl ExpressionTable {
     pub fn insert_match_arms(
         &mut self,
@@ -952,44 +969,50 @@ impl ExpressionTable {
         self.expression(self.peeled_expression_handle(handle))
     }
 
-    /// The typed `Name` node, or `None` for every other kind.
-    pub fn name_path_node(&self, handle: ExpressionHandle) -> Option<&TableNamePath> {
-        match self.expression(handle) {
-            ExpressionNode::Name(node) => Some(node),
-            _ => None,
-        }
-    }
+    expression_node_accessors! {
+        /// The typed `Name` node, or `None` for every other kind.
+        name_path_node(Name) -> TableNamePath;
 
-    /// The typed `Range` node, or `None` for every other kind.
-    pub fn range_node(&self, handle: ExpressionHandle) -> Option<&TableRangeExpression> {
-        match self.expression(handle) {
-            ExpressionNode::Range(node) => Some(node),
-            _ => None,
-        }
-    }
+        /// The typed `Range` node, or `None` for every other kind.
+        range_node(Range) -> TableRangeExpression;
 
-    /// The typed `Call` node, or `None` for every other kind.
-    pub fn call_node(&self, handle: ExpressionHandle) -> Option<&TableCallExpression> {
-        match self.expression(handle) {
-            ExpressionNode::Call(node) => Some(node),
-            _ => None,
-        }
-    }
+        /// The typed `Call` node, or `None` for every other kind.
+        call_node(Call) -> TableCallExpression;
 
-    /// The typed `Member` node, or `None` for every other kind.
-    pub fn member_node(&self, handle: ExpressionHandle) -> Option<&TableMemberExpression> {
-        match self.expression(handle) {
-            ExpressionNode::Member(node) => Some(node),
-            _ => None,
-        }
-    }
+        /// The typed `Member` node, or `None` for every other kind.
+        member_node(Member) -> TableMemberExpression;
 
-    /// The typed `Indexed` node, or `None` for every other kind.
-    pub fn indexed_node(&self, handle: ExpressionHandle) -> Option<&TableIndexedExpression> {
-        match self.expression(handle) {
-            ExpressionNode::Indexed(node) => Some(node),
-            _ => None,
-        }
+        /// The typed `Indexed` node, or `None` for every other kind.
+        indexed_node(Indexed) -> TableIndexedExpression;
+
+        /// The typed `Cast` node, or `None` for every other kind.
+        cast_node(Cast) -> TableCastExpression;
+
+        /// The typed binary application node, or `None` for every other kind.
+        /// Recursive walks open with this check on every expression they visit.
+        binary_node(Binary) -> TableBinaryExpression;
+
+        /// The typed `Boolean` node, or `None` for every other kind.
+        boolean_node(Boolean) -> bool;
+
+        /// The typed `Match` node, or `None` for every other kind.
+        match_node(Match) -> TableMatchExpression;
+
+        /// The typed array literal handle span, or `None` for every other kind.
+        array_literal_node(ArrayLiteral) -> HandleSpan<ExpressionHandle>;
+
+        /// The typed `StructLiteral` node, or `None` for every other kind.
+        struct_literal_node(StructLiteral) -> TableStructLiteral;
+
+        /// The typed `String` node, or `None` for every other kind.
+        string_node(String) -> source::SourceBytes;
+
+        /// The typed `Unary` node, or `None` for every other kind.
+        unary_node(Unary) -> TableUnaryExpression;
+
+        /// The typed `Integer` node, or `None` for every other kind.
+        integer_node(Integer) -> IntegerLiteral;
+
     }
 
     /// Whether the indexed expression's index operand is a `Range` — a range
@@ -997,82 +1020,6 @@ impl ExpressionTable {
     /// gates on identically.
     pub fn indexed_on_range(&self, indexed: &TableIndexedExpression) -> bool {
         matches!(self.expression(indexed.index), ExpressionNode::Range(_))
-    }
-
-    /// The typed `Cast` node, or `None` for every other kind.
-    pub fn cast_node(&self, handle: ExpressionHandle) -> Option<&TableCastExpression> {
-        match self.expression(handle) {
-            ExpressionNode::Cast(node) => Some(node),
-            _ => None,
-        }
-    }
-
-    /// The typed binary application node, or `None` for every other kind.
-    /// Recursive walks open with this check on every expression they visit.
-    pub fn binary_node(&self, handle: ExpressionHandle) -> Option<&TableBinaryExpression> {
-        match self.expression(handle) {
-            ExpressionNode::Binary(binary) => Some(binary),
-            _ => None,
-        }
-    }
-
-    /// The typed `Boolean` node, or `None` for every other kind.
-    pub fn boolean_node(&self, handle: ExpressionHandle) -> Option<&bool> {
-        match self.expression(handle) {
-            ExpressionNode::Boolean(node) => Some(node),
-            _ => None,
-        }
-    }
-
-    /// The typed `Match` node, or `None` for every other kind.
-    pub fn match_node(&self, handle: ExpressionHandle) -> Option<&TableMatchExpression> {
-        match self.expression(handle) {
-            ExpressionNode::Match(node) => Some(node),
-            _ => None,
-        }
-    }
-
-    /// The typed array literal handle span, or `None` for every other kind.
-    pub fn array_literal_node(
-        &self,
-        handle: ExpressionHandle,
-    ) -> Option<&HandleSpan<ExpressionHandle>> {
-        match self.expression(handle) {
-            ExpressionNode::ArrayLiteral(node) => Some(node),
-            _ => None,
-        }
-    }
-
-    /// The typed `StructLiteral` node, or `None` for every other kind.
-    pub fn struct_literal_node(&self, handle: ExpressionHandle) -> Option<&TableStructLiteral> {
-        match self.expression(handle) {
-            ExpressionNode::StructLiteral(node) => Some(node),
-            _ => None,
-        }
-    }
-
-    /// The typed `String` node, or `None` for every other kind.
-    pub fn string_node(&self, handle: ExpressionHandle) -> Option<&source::SourceBytes> {
-        match self.expression(handle) {
-            ExpressionNode::String(node) => Some(node),
-            _ => None,
-        }
-    }
-
-    /// The typed `Unary` node, or `None` for every other kind.
-    pub fn unary_node(&self, handle: ExpressionHandle) -> Option<&TableUnaryExpression> {
-        match self.expression(handle) {
-            ExpressionNode::Unary(node) => Some(node),
-            _ => None,
-        }
-    }
-
-    /// The typed `Integer` node, or `None` for every other kind.
-    pub fn integer_node(&self, handle: ExpressionHandle) -> Option<&IntegerLiteral> {
-        match self.expression(handle) {
-            ExpressionNode::Integer(node) => Some(node),
-            _ => None,
-        }
     }
 
     /// Whether an exact generational handle still names a live expression.

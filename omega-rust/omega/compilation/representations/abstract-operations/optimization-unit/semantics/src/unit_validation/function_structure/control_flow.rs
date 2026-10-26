@@ -1,9 +1,9 @@
 //! Block indexing, node metadata, edge indexing, and total-CFG validation.
-use crate::OptimizationUnitValidationError;
 use crate::unit_validation::derived_metadata::{
     expected_definitions, expected_ownership, expected_uses, is_terminator,
     provenance_matches_operation, successors_match_operation,
 };
+use crate::{OperationSite, OptimizationUnitValidationError};
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, MachineId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -87,11 +87,9 @@ pub(super) fn validate_nodes_and_edges<'a>(
                 || !successors_match_operation(&node.operation, &node.successors)
                 || node.ownership != expected_ownership(&node.operation)
             {
-                return Err(OptimizationUnitValidationError::OperationMetadataMismatch {
-                    machine: function.machine,
-                    block: block.id,
-                    node: node_index,
-                });
+                return Err(OptimizationUnitValidationError::OperationMetadataMismatch(
+                    OperationSite::new(function.machine, block.id, node_index),
+                ));
             }
             let terminal = is_terminator(&node.operation);
             if terminal && index + 1 != block.nodes.len() {

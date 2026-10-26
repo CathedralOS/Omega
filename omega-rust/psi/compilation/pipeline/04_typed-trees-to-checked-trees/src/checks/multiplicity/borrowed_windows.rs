@@ -46,89 +46,167 @@ mod arm_windows;
 mod boundary_checks;
 mod windows;
 
-/// The join-agreement comparison: two arms carry the same resolved debts,
-/// regardless of the order their moves recorded them in.
-fn same_place_set(
-    program: &dyn ::validation::CheckingInput,
-    captures: StorageSelectorFacts<'_>,
-    left: &[(facts::PlaceRoot, Vec<facts::PlaceSegment>)],
-    right: &[(facts::PlaceRoot, Vec<facts::PlaceSegment>)],
-) -> bool {
-    left.len() == right.len()
-        && left.iter().all(|place| {
-            right.iter().any(|candidate| {
-                same_storage_debt(
-                    program,
-                    captures,
-                    (place.0, &place.1),
-                    (candidate.0, &candidate.1),
-                )
-            })
-        })
+/// The shared storage-resolution walk context: the program, the machine/state
+/// pair under evaluation, and that state's statement list. Every resolution
+/// helper restated this tuple at its call site, and each window owner restated
+/// it again on every method; the walk carries it once.
+pub(in crate::checks::multiplicity) struct StorageWalk<'a> {
+    program: &'a dyn ::validation::CheckingInput,
+    machine: &'a typed_trees::machine::Machine,
+    state: &'a typed_trees::state::State,
+    statements: &'a [StatementNode],
 }
 
-fn same_storage_debt(
-    program: &dyn ::validation::CheckingInput,
-    captures: StorageSelectorFacts<'_>,
-    left: (facts::PlaceRoot, &[facts::PlaceSegment]),
-    right: (facts::PlaceRoot, &[facts::PlaceSegment]),
-) -> bool {
-    left.0 == right.0
-        && crate::checks::borrows::storage_path_compatibility(program, captures, left.1, right.1).1
-            == checked_trees::CapturedPlaceContainment::Same
-}
-
-/// Rebase a place written through a `&mut`-typed local onto the referent
-/// storage it borrows. `let r = &mut self.f` makes `r.g` and `self.f.g` name
-/// the same absent subtree; the loop also follows plain reference copies
-/// (`let s = r`), recast chains, and later reassignments of the reference
-/// local to the source the route currently captures.
-fn resolve_storage_place(
-    program: &dyn ::validation::CheckingInput,
-    _machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statements: &[StatementNode],
-    statement_index: usize,
-    root_symbol: SymbolHandle,
-    path: &[facts::PlaceSegment],
-) -> (facts::PlaceRoot, Vec<facts::PlaceSegment>) {
-    let mut root = facts::PlaceRoot::Symbol(root_symbol);
-    let mut segments = path.to_vec();
-    for _ in 0..16 {
-        let Some(symbol) = root.as_symbol() else {
-            break;
-        };
-        let Some(source) = crate::flow::reference_route_source(
+impl<'a> StorageWalk<'a> {
+    pub(in crate::checks::multiplicity) fn new(
+        program: &'a dyn ::validation::CheckingInput,
+        machine: &'a typed_trees::machine::Machine,
+        state: &'a typed_trees::state::State,
+        statements: &'a [StatementNode],
+    ) -> Self {
+        Self {
             program,
+            machine,
             state,
             statements,
-            statement_index,
-            symbol,
-        ) else {
-            break;
-        };
-        let Some(source) =
-            crate::flow::reference_source_place(program, state.symbol, statement_index, source)
-        else {
-            break;
-        };
-        let facts::PlaceRoot::Symbol(..) = source.root else {
-            break;
-        };
-        let mut rebased = source.segments;
-        rebased.extend_from_slice(&segments);
-        root = source.root;
-        let rebased_place = CanonicalPlace {
-            root,
-            segments: rebased,
-        };
-        // A `&mut self.f` capture may record the attached field itself as the
-        // root; join it with its receiver storage so it keys like `self.f`.
-
-        root = rebased_place.root;
-        segments = rebased_place.segments;
+        }
     }
-    (root, segments)
+
+    /// The join-agreement comparison: two arms carry the same resolved debts,
+    /// regardless of the order their moves recorded them in.
+    fn same_place_set(
+        &self,
+        captures: StorageSelectorFacts<'_>,
+        left: &[(facts::PlaceRoot, Vec<facts::PlaceSegment>)],
+        right: &[(facts::PlaceRoot, Vec<facts::PlaceSegment>)],
+    ) -> bool {
+        left.len() == right.len()
+            && left.iter().all(|place| {
+                right.iter().any(|candidate| {
+                    self.same_storage_debt(
+                        captures,
+                        (place.0, &place.1),
+                        (candidate.0, &candidate.1),
+                    )
+                })
+            })
+    }
+
+    fn same_storage_debt(
+        &self,
+        captures: StorageSelectorFacts<'_>,
+        left: (facts::PlaceRoot, &[facts::PlaceSegment]),
+        right: (facts::PlaceRoot, &[facts::PlaceSegment]),
+    ) -> bool {
+        left.0 == right.0
+            && crate::checks::borrows::storage_path_compatibility(
+                self.program,
+                captures,
+                left.1,
+                right.1,
+            )
+            .1 == checked_trees::CapturedPlaceContainment::Same
+    }
+
+    /// Rebase a place written through a `&mut`-typed local onto the referent
+    /// storage it borrows. `let r = &mut self.f` makes `r.g` and `self.f.g` name
+    /// the same absent subtree; the loop also follows plain reference copies
+    /// (`let s = r`), recast chains, and later reassignments of the reference
+    /// local to the source the route currently captures.
+    pub(super) fn resolve_storage_place(
+        &self,
+        statement_index: usize,
+        root_symbol: SymbolHandle,
+        path: &[facts::PlaceSegment],
+    ) -> (facts::PlaceRoot, Vec<facts::PlaceSegment>) {
+        let mut root = facts::PlaceRoot::Symbol(root_symbol);
+        let mut segments = path.to_vec();
+        for _ in 0..16 {
+            let Some(symbol) = root.as_symbol() else {
+                break;
+            };
+            let Some(source) = crate::flow::reference_route_source(
+                self.program,
+                self.state,
+                self.statements,
+                statement_index,
+                symbol,
+            ) else {
+                break;
+            };
+            let Some(source) = crate::flow::reference_source_place(
+                self.program,
+                self.state.symbol,
+                statement_index,
+                source,
+            ) else {
+                break;
+            };
+            let facts::PlaceRoot::Symbol(..) = source.root else {
+                break;
+            };
+            let mut rebased = source.segments;
+            rebased.extend_from_slice(&segments);
+            root = source.root;
+            let rebased_place = CanonicalPlace {
+                root,
+                segments: rebased,
+            };
+            // A `&mut self.f` capture may record the attached field itself as the
+            // root; join it with its receiver storage so it keys like `self.f`.
+
+            root = rebased_place.root;
+            segments = rebased_place.segments;
+        }
+        (root, segments)
+    }
+
+    /// Every reference crossed by the extracted place must be `&mut`: the `self`
+    /// receiver for machine-rooted storage, then each proper prefix of the path
+    /// (a `&mut` parameter root, a `&mut` field inside owned storage, a `&mut`
+    /// local the window resolved through). Shared or write-only links cannot
+    /// carry a restoration window.
+    fn exclusive_storage_chain(
+        &self,
+        statement_index: usize,
+        root: facts::PlaceRoot,
+        path: &[facts::PlaceSegment],
+    ) -> bool {
+        if root == facts::PlaceRoot::Symbol(self.machine.symbol) {
+            return false;
+        }
+        (0..=path.len()).all(|length| {
+            let prefix = CanonicalPlace {
+                root,
+                segments: path[..length].to_vec(),
+            };
+            validation::canonical_place_type_reference(
+                self.program,
+                self.state.symbol,
+                statement_index,
+                &prefix,
+            )
+            .and_then(|type_reference| reference_access(self.program, type_reference))
+            .is_none_or(|access| access == ReferenceAccess::Mutable)
+        })
+    }
+}
+
+/// The frame-scan context: the program and the checked operator facts the
+/// nested arm frames are collected under. The recursive frame walk restated
+/// this pair at every step; the owner carries it once.
+pub(in crate::checks::multiplicity) struct FrameWalk<'a> {
+    program: &'a dyn ::validation::CheckingInput,
+    operators: &'a checked_trees::CheckedOperatorFacts,
+}
+
+impl<'a> FrameWalk<'a> {
+    pub(in crate::checks::multiplicity) fn new(
+        program: &'a dyn ::validation::CheckingInput,
+        operators: &'a checked_trees::CheckedOperatorFacts,
+    ) -> Self {
+        Self { program, operators }
+    }
 }
 
 /// The access of a possibly-constrained reference type.
@@ -143,40 +221,11 @@ fn reference_access(
     }
 }
 
-/// Every reference crossed by the extracted place must be `&mut`: the `self`
-/// receiver for machine-rooted storage, then each proper prefix of the path
-/// (a `&mut` parameter root, a `&mut` field inside owned storage, a `&mut`
-/// local the window resolved through). Shared or write-only links cannot
-/// carry a restoration window.
-fn exclusive_storage_chain(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    root: facts::PlaceRoot,
-    path: &[facts::PlaceSegment],
-) -> bool {
-    if root == facts::PlaceRoot::Symbol(machine.symbol) {
-        return false;
-    }
-    (0..=path.len()).all(|length| {
-        let prefix = CanonicalPlace {
-            root,
-            segments: path[..length].to_vec(),
-        };
-        validation::canonical_place_type_reference(program, state.symbol, statement_index, &prefix)
-            .and_then(|type_reference| reference_access(program, type_reference))
-            .is_none_or(|access| access == ReferenceAccess::Mutable)
-    })
-}
-
 /// An authored-facing name for a resolved storage place: `self`-rooted
 /// storage spells through the receiver, other roots spell their own symbol,
 /// and segments spell as field/index/case projections.
 pub(super) fn place_spelling(
     program: &dyn ::validation::CheckingInput,
-    _machine: &typed_trees::machine::Machine,
-    _state: &typed_trees::state::State,
     root: facts::PlaceRoot,
     path: &[facts::PlaceSegment],
 ) -> String {

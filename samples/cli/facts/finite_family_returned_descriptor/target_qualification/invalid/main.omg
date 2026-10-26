@@ -1,0 +1,27 @@
+// Expected exit: 0
+trait Windowing {
+ machine window<Width: u32>(source: &[u8]) -> &[u8]
+ where Width == 16 || Width == 32;
+}
+Header satisfies Windowing {
+ machine window<Width: u32>(source: &[u8]) -> &[u8]
+ where Width == 16 || Width == 32 { target_only(source) }
+}
+machine dispatch(selected: dyn Windowing, source: &[u8], width: u32) -> &[u8]
+requires width == 16 || width == 32 {
+ Windowing::window<width>(selected, source)
+}
+machine main() crashes Trap {
+ let source: [u8; 3] = [11, 22, 33];
+ let selected: dyn Windowing = Header as dyn Windowing;
+ let bytes: &[u8] = dispatch(selected, &source[..], 16);
+ transition bytes.len == 3 { true -> read(bytes) false -> bad() }
+ state read(bytes: &[u8]) requires bytes.len == 3
+ {
+  transition bytes[0] == 11 { true -> done() false -> bad() }
+ }
+ state done() {}
+ state bad() { crash Trap; }
+}
+
+linux_arm64 machine target_only(source: &[u8]) -> &[u8] { source }

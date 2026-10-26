@@ -358,6 +358,7 @@ fn routed_scalar_specialization_retains_exact_authored_issuer() {
     let declaration = module.machines[0].declaration.as_mut().unwrap();
     declaration.callable = TerminalIdentityIndex(2);
     declaration.specialization = Some(terminal_psi::CheckedMachineSpecialization {
+                capture: None,
         template: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
         template_callable: TerminalIdentityIndex(3),
         commitment: [9; 32],

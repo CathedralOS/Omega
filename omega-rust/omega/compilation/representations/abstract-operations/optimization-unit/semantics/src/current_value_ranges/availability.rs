@@ -1,7 +1,7 @@
 //! Current-operation applicability from scope and value availability.
-use crate::OptimizationUnitValidationError;
 use crate::candidates::global_value_numbering::independent_reachable_dominators;
 use crate::candidates::sparse_conditional_constant_propagation::scalar_value_definition;
+use crate::{OperationSite, OptimizationUnitValidationError};
 use optimization_unit::{
     PsiOptimizationFunction, PsiOptimizationUnit, ValueDefinitionSite, ValueRangeFact,
     ValueRangeScope,
@@ -16,18 +16,14 @@ pub(super) fn validate_current_value_range_fact_at(
     node: u32,
 ) -> Result<(), OptimizationUnitValidationError> {
     let function = unit.function(machine).ok_or(
-        OptimizationUnitValidationError::CurrentValueRangeFactNotApplicable {
-            machine,
-            block,
-            node,
-        },
+        OptimizationUnitValidationError::CurrentValueRangeFactNotApplicable(OperationSite::new(
+            machine, block, node,
+        )),
     )?;
     let query_block = function.block(block).ok_or(
-        OptimizationUnitValidationError::CurrentValueRangeFactNotApplicable {
-            machine,
-            block,
-            node,
-        },
+        OptimizationUnitValidationError::CurrentValueRangeFactNotApplicable(OperationSite::new(
+            machine, block, node,
+        )),
     )?;
     if usize::try_from(node)
         .ok()
@@ -42,11 +38,9 @@ pub(super) fn validate_current_value_range_fact_at(
         )
     {
         return Err(
-            OptimizationUnitValidationError::CurrentValueRangeFactNotApplicable {
-                machine,
-                block,
-                node,
-            },
+            OptimizationUnitValidationError::CurrentValueRangeFactNotApplicable(
+                OperationSite::new(machine, block, node),
+            ),
         );
     }
     Ok(())

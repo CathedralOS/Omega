@@ -14,7 +14,15 @@ pub(crate) fn parse_body<'tokens, 'source>(
     entry_name: Option<Identifier>,
     machine_parameters: HandleSpan<StateParameterHandle>,
     machine_return_type: TypeReferenceHandle,
-) -> ParseResult<'tokens, 'source, (HandleSpan<StateHandle>, bool)> {
+) -> ParseResult<
+    'tokens,
+    'source,
+    (
+        HandleSpan<StateHandle>,
+        bool,
+        Vec<syntax_trees::item::Machine>,
+    ),
+> {
     if input.at_punctuation(PunctuationKind::Semicolon) {
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         let entry_state = State {
@@ -26,11 +34,12 @@ pub(crate) fn parse_body<'tokens, 'source>(
         };
         let state = syntax_trees.items.insert_state(&entry_state);
         let state = syntax_trees.items.append_state_handle(state);
-        return Ok(((HandleSpan::from_parts(state, 1), true), input));
+        return Ok(((HandleSpan::from_parts(state, 1), true, Vec::new()), input));
     }
 
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut states = crate::handle_spans::HandleSpanBuilder::new();
+    let mut nested_machines = Vec::new();
     let implicit_entry_name = entry_name
         .clone()
         .unwrap_or_else(|| Identifier::generated("entry"));
@@ -41,7 +50,8 @@ pub(crate) fn parse_body<'tokens, 'source>(
         // An otherwise empty body is still the checked implementation of a
         // zero-argument, Unit-returning callable. Preserve its implicit entry
         // so overload identity and contract ownership survive downstream.
-        || input.at_punctuation(PunctuationKind::RightBrace);
+        || input.at_punctuation(PunctuationKind::RightBrace)
+        || input.at_keyword(KeywordKind::Machine);
 
     if parse_implicit_entry {
         let (state, rest) = parse_implicit_entry_state(
@@ -57,6 +67,19 @@ pub(crate) fn parse_body<'tokens, 'source>(
     }
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
+        if input.at_keyword(KeywordKind::Machine) {
+            let declaration = input.take_keyword(KeywordKind::Machine, "machine")?;
+            let (nested, rest) =
+                crate::declarations::machines::parse_machine(syntax_trees, declaration)?;
+            nested_machines.push(nested);
+            input = rest;
+            continue;
+        }
+        if !nested_machines.is_empty() {
+            return Err(
+                input.error_here("executable statements cannot follow nested machine declarations")
+            );
+        }
         if starts_retired_entry_member(input)
             || (input.at_keyword(KeywordKind::Public)
                 && input
@@ -92,12 +115,13 @@ pub(crate) fn parse_body<'tokens, 'source>(
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
     let states = states.finish();
 
-    Ok(((states, false), input))
+    Ok(((states, false, nested_machines), input))
 }
 
 fn starts_implicit_entry_body(input: Input<'_, '_>) -> bool {
     !input.at_punctuation(PunctuationKind::RightBrace)
         && !input.at_keyword(KeywordKind::Public)
+        && !input.at_keyword(KeywordKind::Machine)
         && !starts_retired_entry_member(input)
         && !starts_state_member(input)
         && !starts_retired_invariant_member(input)
@@ -106,6 +130,7 @@ fn starts_implicit_entry_body(input: Input<'_, '_>) -> bool {
 pub(super) fn starts_machine_member(input: Input<'_, '_>) -> bool {
     input.at_punctuation(PunctuationKind::RightBrace)
         || input.at_keyword(KeywordKind::Public)
+        || input.at_keyword(KeywordKind::Machine)
         || starts_retired_entry_member(input)
         || starts_state_member(input)
         || starts_retired_invariant_member(input)

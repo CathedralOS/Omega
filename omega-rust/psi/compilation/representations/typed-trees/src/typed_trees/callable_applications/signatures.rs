@@ -110,7 +110,7 @@ impl CallableApplication {
             }
             // Mint the complete local scope before copying any payload: later
             // binders and value subjects may occur in earlier bounds or predicates.
-            for (symbol, name) in type_parameters
+            let pending = type_parameters
                 .iter()
                 .map(|parameter| (parameter.symbol, parameter.name.as_str()))
                 .chain(
@@ -118,23 +118,37 @@ impl CallableApplication {
                         .iter()
                         .map(|parameter| (parameter.symbol, parameter.name.as_str())),
                 )
-            {
-                if symbol.is_valid() {
-                    // A supplied binder is replaced simultaneously by its caller
-                    // operand. Freshening it first would disconnect expression
-                    // payloads from that exact substitution.
-                    if self.types.iter().any(|(parameter, _)| *parameter == symbol)
-                        || self
+                .filter(|(symbol, _)| {
+                    symbol.is_valid()
+                        && !self.types.iter().any(|(parameter, _)| parameter == symbol)
+                        && !self
                             .static_arguments
                             .iter()
-                            .any(|(parameter, _)| *parameter == symbol)
-                    {
-                        continue;
-                    }
-                    let kind = program.symbols.get(symbol).kind;
+                            .any(|(parameter, _)| parameter == symbol)
+                })
+                .map(|(symbol, name)| (symbol, program.symbols.get(symbol).kind, name.to_owned()))
+                .collect::<Vec<_>>();
+            let owner = self.symbol(declared.symbol);
+            if owner.is_valid() && owner == self.owned_signature {
+                // Only the producer of a fresh executable signature owns this
+                // hierarchy range. Logical checking views deliberately reuse
+                // declaration identities and cannot replace authored children.
+                // Install the complete telescope once, preserving simultaneous
+                // substitution and each binder's independent provenance.
+                let children = program.symbols.insert_generated_children_from(
+                    owner,
+                    pending
+                        .iter()
+                        .map(|(symbol, kind, name)| (*symbol, *kind, name.as_str())),
+                );
+                for (offset, (symbol, _, _)) in (0u32..).zip(pending.iter()) {
+                    self.symbols.push((*symbol, children.handle_at(offset)));
+                }
+            } else {
+                for (symbol, kind, name) in pending {
                     let fresh = program
                         .symbols
-                        .insert_generated_root_from(symbol, kind, name);
+                        .insert_generated_root_from(symbol, kind, &name);
                     self.symbols.push((symbol, fresh));
                 }
             }

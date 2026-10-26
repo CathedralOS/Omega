@@ -669,9 +669,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 .unwrap_or_default()
         };
         if binds_view {
-            if let Some(retention) = completed.retention {
-                capture.retention = retention;
-            } else if let Some(retention) = self.stored_operand_retention(expression) {
+            if let Some(retention) =
+                self.captured_reference_retention(&capture, completed.retention)
+            {
                 capture.retention = retention;
             }
         } else {
@@ -799,9 +799,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         capture.value_source = completed.value_source;
         capture.type_reference = reference;
         if expression != self.reference_slot_target && produces_view {
-            if let Some(retention) = completed.retention {
-                capture.retention = retention;
-            } else if let Some(retention) = self.stored_operand_retention(expression) {
+            if let Some(retention) =
+                self.captured_reference_retention(&capture, completed.retention)
+            {
                 capture.retention = retention;
             }
         } else {

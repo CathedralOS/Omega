@@ -256,7 +256,7 @@ pub fn static_machine_call_binding_bytes(
     operational: &OperationalPlan,
     specialization: &typed_trees::typed_trees::MachineSpecialization,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = b"omega.static-machine-call-bindings.v1\0".to_vec();
+    let mut bytes = b"omega.static-machine-call-bindings.v2\0".to_vec();
     let mut owners = operational
         .machines()
         .iter()
@@ -284,14 +284,23 @@ pub fn static_machine_call_binding_bytes(
             if !call.static_machine_parameter.is_valid() {
                 continue;
             }
-            let Some(binder_ordinal) = parameters
-                .iter()
-                .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Machine { .. }))
-                .position(|parameter| parameter.symbol == call.static_machine_parameter)
-            else {
-                return Err(Diagnostic::error(
-                    "static machine binding footprint lost its binder",
-                ));
+            let local = typed_trees::data::type_parameter_position(
+                parameters, call.static_machine_parameter,
+            );
+            let capture = program.captured_machine_applications.iter()
+                .filter(|(_, capture)| capture.instance == specialization.template)
+                .map(|(_, capture)| capture).collect::<Vec<_>>();
+            let scoped_binder = if let Some(position) = local {
+                (0_u8, position)
+            } else if let [capture] = capture.as_slice() {
+                let declaration = program.conformance_by_symbol(capture.conformance_application.declaration)
+                    .ok_or_else(|| Diagnostic::error("static call lost its capture declaration"))?;
+                let position = typed_trees::data::type_parameter_position(
+                    program.conformance_type_parameters(declaration), call.static_machine_parameter,
+                ).ok_or_else(|| Diagnostic::error("static machine binding footprint lost its captured binder"))?;
+                (1_u8, position)
+            } else {
+                return Err(Diagnostic::error("static machine binding footprint lost its binder"));
             };
             let Some((_, selected)) =
                 crate::declarations::transitions::resolved_transition_target_state(
@@ -306,7 +315,8 @@ pub fn static_machine_call_binding_bytes(
             bytes.extend((state_ordinal as u64).to_le_bytes());
             bytes.extend((call.statement_index as u64).to_le_bytes());
             bytes.extend((call.call_ordinal as u64).to_le_bytes());
-            bytes.extend((binder_ordinal as u64).to_le_bytes());
+            bytes.push(scoped_binder.0);
+            bytes.extend((scoped_binder.1 as u64).to_le_bytes());
             encode_declaration(program, selected.symbol, &mut bytes);
         }
     }

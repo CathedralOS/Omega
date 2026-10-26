@@ -236,9 +236,7 @@ impl SelectedCleanup {
                 else {
                     return Err(unsupported(program, event, message));
                 };
-                let spelling = super::borrowed_windows::place_spelling(
-                    program, machine, state, event.root, &path,
-                );
+                let spelling = super::borrowed_windows::place_spelling(program, event.root, &path);
                 let reason = if reserved {
                     format!(
                         "cannot use `{spelling}`: this selected region was transferred or has not been established"
@@ -556,6 +554,16 @@ impl SelectedCleanup {
             }
         }
         for (index, owner) in self.owners.iter().enumerate() {
+            let captured_home = owner.selection.is_valid()
+                && program.type_multiplicity(
+                    ownership
+                        .owned_selections
+                        .get(owner.selection)
+                        .type_reference,
+                ) != language_semantics::Multiplicity::Linear;
+            if !captured_home && remaining.definitely_transferred(owner.root, &owner.path) {
+                continue;
+            }
             let mut template = owner.origin.clone();
             template.source = PermissionEventSource::StateExit;
             template.expression = Default::default();

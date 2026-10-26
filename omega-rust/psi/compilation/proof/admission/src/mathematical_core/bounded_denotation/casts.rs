@@ -12,29 +12,13 @@
 //! instance fallback — the relation check already re-decided it, so the
 //! fallback remains a checked judgment.
 
-use semantic_vocabulary::{IntegerType, IntegerValue, Proposition, ScalarTerm};
+use semantic_vocabulary::{Proposition, ScalarTerm};
 
 use crate::CheckedIntegerCastChain;
+use crate::integer_rules::fixed_integer::fixed_native_interval;
 
 use super::integer_operations::IntegerOperation;
 use super::{BoundedDenotationError, Denotation, Term, TermHandle};
-
-/// `(minimum, maximum)` of one fixed native carrier, matching the chain
-/// checker's own interval gate — addresses and non-{8,16,32,64} widths
-/// have no representable interval.
-fn carrier_interval(integer_type: IntegerType) -> Option<(i128, i128)> {
-    if integer_type.is_address() || !matches!(integer_type.bits(), 8 | 16 | 32 | 64) {
-        return None;
-    }
-    let as_i128 = |value: IntegerValue| match value {
-        IntegerValue::Signed(value) => Some(value),
-        IntegerValue::Unsigned(value) => i128::try_from(value).ok(),
-    };
-    Some((
-        as_i128(integer_type.minimum_value())?,
-        as_i128(integer_type.maximum_value())?,
-    ))
-}
 
 /// One checked chain edge in denoted form: the `next` value and its
 /// exact-cast definition, with the operation identity the identity law
@@ -234,7 +218,7 @@ impl Denotation {
             let mut selected: Option<usize> = None;
             let mut selected_bound = 0i128;
             for (index, carrier) in chain.carriers().iter().enumerate() {
-                let Some((minimum, maximum)) = carrier_interval(*carrier) else {
+                let Some((minimum, maximum)) = fixed_native_interval(*carrier) else {
                     return Ok(None);
                 };
                 let candidate = if lower { minimum } else { maximum };

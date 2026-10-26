@@ -37,7 +37,7 @@ pub struct BlockEntry {
     block: SelectedBlock,
     digest: OnceLock<[u8; 32]>,
     encoding: OnceLock<Arc<CachedBlockEncoding>>,
-    previous_encoding: Option<(Arc<CachedBlockEncoding>, usize)>,
+    previous_encoding: Option<(Arc<CachedBlockEncoding>, usize, usize)>,
     lookup: OnceLock<BlockLookup>,
     slot_summary: OnceLock<BlockSlotSummary>,
 }
@@ -122,7 +122,7 @@ impl BlockEntry {
     }
     fn new_with_previous_encoding(
         block: SelectedBlock,
-        previous_encoding: Option<(Arc<CachedBlockEncoding>, usize)>,
+        previous_encoding: Option<(Arc<CachedBlockEncoding>, usize, usize)>,
     ) -> Arc<Self> {
         Arc::new(Self {
             block,
@@ -139,7 +139,7 @@ impl BlockEntry {
                 &self.block,
                 self.previous_encoding
                     .as_ref()
-                    .map(|(enc, prefix)| (enc.as_ref(), *prefix)),
+                    .map(|(enc, prefix, suffix)| (enc.as_ref(), *prefix, *suffix)),
             );
             let _ = self.encoding.set(encoding);
             digest
@@ -658,6 +658,14 @@ impl SelectedBlocks {
             total.checked_add(entry.lookup().transport_count?)
         })
     }
+    /// Maximum 64-bit word count of referenced register bitsets across all blocks.
+    pub fn max_referenced_register_word_count(&self) -> usize {
+        self.0
+            .iter()
+            .map(|entry| entry.lookup().referenced_register_bits.len())
+            .max()
+            .unwrap_or(0)
+    }
     /// Inclusive `(first_instruction_index, last_instruction_index)` in `block_index`'s
     /// body instructions where `register` appears as an operand, or `None` when no
     /// body instruction in `block_index` references `register`.
@@ -695,22 +703,26 @@ impl SelectedBlocks {
     }
     /// Replace `index`'s instructions and terminator without cloning the old
     /// `SelectedBlock` when the entry is shared, optionally retaining the first
-    /// `unchanged_instruction_prefix` instructions' pre-encoded digest pages.
+    /// `unchanged_instruction_prefix` and last `unchanged_instruction_suffix`
+    /// instructions' pre-encoded digest chunks.
     pub fn replace_block_contents(
         &mut self,
         index: usize,
         instructions: Vec<SelectedInstruction>,
         terminator: SelectedTerminator,
         unchanged_instruction_prefix: usize,
+        unchanged_instruction_suffix: usize,
     ) {
         let entry = &self.0[index];
         let id = entry.block.id;
         let origin = entry.block.origin;
-        let previous_encoding = entry
-            .encoding
-            .get()
-            .cloned()
-            .map(|enc| (enc, unchanged_instruction_prefix));
+        let previous_encoding = entry.encoding.get().cloned().map(|enc| {
+            (
+                enc,
+                unchanged_instruction_prefix,
+                unchanged_instruction_suffix,
+            )
+        });
         self.0[index] = BlockEntry::new_with_previous_encoding(
             SelectedBlock {
                 id,

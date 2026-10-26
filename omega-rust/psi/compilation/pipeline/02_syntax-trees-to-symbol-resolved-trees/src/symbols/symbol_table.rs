@@ -72,6 +72,9 @@ pub(super) fn extend_symbol_table(
     }
     for index in roots.machines..program.machines.len() {
         let machine = program.machines[index].clone();
+        if machine.lexical_parent.is_some() {
+            continue;
+        }
         let symbol = extension.insert_top_level([machine_symbol_seed(&machine, has_sources)])[0];
         program.machines[index].symbol = symbol;
     }
@@ -219,6 +222,7 @@ pub(super) fn build_symbol_table(
                 program
                     .machines
                     .iter()
+                    .filter(|machine| machine.lexical_parent.is_none())
                     .map(|machine| machine_symbol_seed(machine, has_sources)),
             )
             .chain(program.propositions.iter().map(|proposition| {
@@ -318,7 +322,11 @@ pub(super) fn build_symbol_table(
     }
     // Machine children require namespace-aware attachment selection. Their root
     // headers already exist; publish children after the namespace is installed.
-    for _ in &program.machines {
+    for _ in program
+        .machines
+        .iter()
+        .filter(|machine| machine.lexical_parent.is_none())
+    {
         let _ = root_children.next();
     }
     for proposition in &program.propositions {
@@ -388,16 +396,23 @@ pub(super) fn insert_selected_machine_children(
         .into_iter()
         .flatten()
         .filter(|handle| table.get(*handle).kind == SymbolKind::Machine)
-        .zip(program.machines.iter())
-        .skip(first_machine)
+        .zip(
+            program
+                .machines
+                .iter()
+                .enumerate()
+                .filter(|(_, machine)| machine.lexical_parent.is_none()),
+        )
+        .filter(|(_, (ordinal, _))| *ordinal >= first_machine)
         .collect::<Vec<_>>();
     let mut extension = table.begin_extension(sources.clone(), Vec::new());
-    for (symbol, machine) in selections {
+    for (symbol, (ordinal, machine)) in selections {
         insert_machine_symbol_children(
             &mut extension,
             program,
             symbol,
             machine,
+            ordinal,
             has_sources,
             sources.as_deref(),
         );

@@ -41,16 +41,12 @@ pub struct FixedPrecoloredIntervalValidationReceipt {
 }
 
 impl FixedPrecoloredIntervalValidationReceipt {
-    pub const fn identity(self) -> FixedPrecoloredIntervalPlanIdentity {
-        self.identity
-    }
+    receipt_accessor_rows!(FixedPrecoloredIntervalValidationReceipt {
+        identity: FixedPrecoloredIntervalPlanIdentity,
+        policy: FixedPrecoloredIntervalPolicy,
+        usage: OptimizationWorkUsage,
+    });
     shared_analysis_identity_accessors!(pub);
-    pub const fn policy(self) -> FixedPrecoloredIntervalPolicy {
-        self.policy
-    }
-    pub const fn usage(self) -> OptimizationWorkUsage {
-        self.usage
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,9 +59,9 @@ impl ValidatedFixedPrecoloredIntervals {
     pub const fn plan(&self) -> &FixedPrecoloredIntervalPlan {
         &self.plan
     }
-    pub const fn receipt(&self) -> FixedPrecoloredIntervalValidationReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(ref ValidatedFixedPrecoloredIntervals {
+        receipt: FixedPrecoloredIntervalValidationReceipt,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -81,6 +81,7 @@ mod call_views;
 pub(super) struct StatementBorrowLoan {
     pub(super) incoming_origin: Option<checked_trees::IncomingReferenceIdentity>,
     pub(super) formation_expression: ExpressionHandle,
+    pub(super) formation_owner_path: Option<Vec<BorrowOwnerSegment>>,
     pub(super) owner_symbol: SymbolHandle,
     pub(super) storage_owner: facts::PlaceRoot,
     pub(super) owner_name: Identifier,

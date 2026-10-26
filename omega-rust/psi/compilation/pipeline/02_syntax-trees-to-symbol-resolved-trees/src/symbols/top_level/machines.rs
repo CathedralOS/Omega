@@ -187,14 +187,9 @@ pub(super) fn assign_machine_symbols(
         }
         // Machine evidence lives in a separate telescope. Retain those exact
         // lexical binders in the local selection context for trait arguments.
-        local_type_parameters.extend(machine.conformance_bounds.iter().map(|bound| {
-            symbol_resolved_trees::data::TypeParameter {
-                symbol: bound.binder,
-                name: bound.binder_name.clone(),
-                kind: symbol_resolved_trees::data::TypeParameterKind::Implementation,
-                bounds: Default::default(),
-            }
-        }));
+        local_type_parameters.extend(crate::symbols::scope::evidence_type_parameters(
+            &machine.conformance_bounds,
+        ));
 
         // MP1: machine-parameter contracts are real signature data, not
         // parser-only text. Resolve their parameter/result type references in

@@ -28,12 +28,16 @@ mod value_foundations;
 use crate::codec_error::{CodecError, malformed};
 use terminal_psi::TerminalIdentityIndex;
 
-use semantic_vocabulary::{ClaimId, ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId};
+use semantic_vocabulary::{
+    ClaimId, ScalarDomainId, ScalarQualificationSetId, ScalarType, ServiceId, StructuralPlaceKind,
+    StructuralTypeId,
+};
 use std::collections::BTreeSet;
 use terminal_psi::{
-    Operation, OperationKind, OperationResult, StructuralArgument, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeShape, TerminalMachine, TerminalModule, Terminator, find_structural_case,
+    Operation, OperationKind, OperationResult, ScalarDomainDeclaration, StructuralArgument,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralTypeShape, TerminalMachine, TerminalModule, Terminator,
+    ValueDeclaration, find_structural_case,
 };
 
 /// The declared scalar type of a value anywhere it may be declared on the
@@ -56,6 +60,51 @@ pub(super) fn declared_scalar_type(
         }))
         .find(|declaration| declaration.id == value)
         .map(|declaration| declaration.scalar_type)
+}
+
+/// The domain members a qualification set names, or `None` when no retained
+/// row declares the set. An empty set names no members without a row.
+pub(super) fn qualification_domains(
+    module: &TerminalModule,
+    set: ScalarQualificationSetId,
+) -> Option<&[ScalarDomainId]> {
+    if set.is_empty() {
+        return Some(&[]);
+    }
+    module
+        .scalar_qualifications
+        .sets
+        .iter()
+        .find(|row| row.id == set)
+        .map(|row| row.domains.as_slice())
+}
+
+/// The declaration a scalar domain id names, or `None` when this module
+/// declares no such domain.
+pub(super) fn scalar_domain(
+    module: &TerminalModule,
+    id: ScalarDomainId,
+) -> Option<&ScalarDomainDeclaration> {
+    module
+        .scalar_qualifications
+        .domains
+        .iter()
+        .find(|domain| domain.id == id)
+}
+
+/// Every value a machine declares: machine parameters, block parameters and
+/// operation scalar results, in machine order. Consumers resolving a `ValueId`
+/// read this roster instead of rebuilding the walk.
+pub(super) fn values(machine: &TerminalMachine) -> impl Iterator<Item = &ValueDeclaration> {
+    machine
+        .parameters
+        .iter()
+        .chain(machine.block_parameters())
+        .chain(
+            machine
+                .operations()
+                .filter_map(|operation| operation.result.scalar_ref()),
+        )
 }
 
 /// Validate the closed representation foundation needed before the independent

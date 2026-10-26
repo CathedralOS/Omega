@@ -304,12 +304,8 @@ fn bounded_bitwise_sibling<'a>(
             if left != mask {
                 return None;
             }
-            let (value_type, value) = right.integer_value()?;
-            let upper = match value {
-                IntegerValue::Signed(value) => value,
-                IntegerValue::Unsigned(value) => i128::try_from(value).ok()?,
-            };
-            (value_type == integer_type && upper >= 0).then_some(upper)
+            let upper = fixed_integer_as_i128(right, integer_type).filter(|upper| *upper >= 0)?;
+            Some(upper)
         }) else {
             continue;
         };

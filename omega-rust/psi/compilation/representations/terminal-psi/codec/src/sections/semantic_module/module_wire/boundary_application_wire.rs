@@ -78,6 +78,7 @@ mod tests {
         for specialization in [
             None,
             Some(terminal_psi::CheckedMachineSpecialization {
+                capture: None,
                 template: nominal("owner::template"),
                 template_callable: TerminalIdentityIndex(8),
                 commitment: [4; 32],

@@ -25,6 +25,9 @@ pub struct CheckedDynamicSlotPlan {
     pub requirement: SymbolHandle,
     /// Normalized requirement identity, the key of the slot's table row.
     pub requirement_identity: CallableIdentityId,
+    /// Exact canonical local tuple; empty for a nongeneric row or the raw
+    /// runtime-call helper. Only concrete tuple rows enter a family table.
+    pub family_tuple: Vec<String>,
     /// Structural formals after the selector, positioned in the call's
     /// operand order (the selector is operand 0).
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,

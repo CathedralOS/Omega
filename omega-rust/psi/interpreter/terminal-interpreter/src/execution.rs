@@ -233,6 +233,36 @@ pub(crate) struct LiveClaim {
     pub(crate) multiplicity: Option<StructuralMultiplicity>,
 }
 
+impl LiveClaim {
+    /// The multiplicity a claim carried at `path` takes from a binding
+    /// declared at `declared`: a non-empty path already resolves the claim to
+    /// exactly one value, so it always carries Linear multiplicity.
+    pub(crate) fn path_multiplicity(
+        path: &[StructuralPathSegment],
+        declared: StructuralMultiplicity,
+    ) -> StructuralMultiplicity {
+        if path.is_empty() {
+            declared
+        } else {
+            StructuralMultiplicity::Linear
+        }
+    }
+
+    /// Bind one claim at `place`, taking its multiplicity from its path.
+    pub(crate) fn at(
+        place: PlaceId,
+        path: Vec<StructuralPathSegment>,
+        declared: StructuralMultiplicity,
+    ) -> Self {
+        let multiplicity = Self::path_multiplicity(&path, declared);
+        Self {
+            place: Some(place),
+            path,
+            multiplicity: Some(multiplicity),
+        }
+    }
+}
+
 /// Where the claims a structural call result binds come from on return.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ResultClaimOrigin {

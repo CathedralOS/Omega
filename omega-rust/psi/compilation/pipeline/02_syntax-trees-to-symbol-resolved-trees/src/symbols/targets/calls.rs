@@ -290,6 +290,9 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         return proposition_parameter;
     }
 
+    if let Some(entry) = lexical_machine_entry(symbols, machine.symbol, target.as_str()) {
+        return entry;
+    }
     resolve_free_call_target_symbol(symbols, target)
 }
 
@@ -420,6 +423,9 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
             .unwrap_or_else(SymbolHandle::invalid);
         if concrete_type.is_valid() {
             return concrete_type;
+        }
+        if let Some(entry) = lexical_machine_entry(symbols, machine_symbol, target.as_str()) {
+            return entry;
         }
         return resolve_free_machine_entry_state_symbol(symbols, target);
     }
@@ -731,4 +737,36 @@ pub(in crate::symbols) fn resolve_proposition_binder_argument_symbol(
         return concrete_type;
     }
     resolve_static_machine_argument_symbol(symbols, scope_symbol, path)
+}
+
+/// Independent nested declarations live in the source symbol tree. Search
+/// lexical Machine scopes only: enclosing entry parameters and locals belong
+/// to State scopes and cannot become captured operands of another invocation.
+fn lexical_machine_entry(
+    symbols: &SymbolTable,
+    mut scope: SymbolHandle,
+    target: &str,
+) -> Option<SymbolHandle> {
+    while scope.is_valid() && symbols.get(scope).kind != SymbolKind::Root {
+        if symbols.get(scope).kind == SymbolKind::Machine {
+            let candidates = symbols
+                .child_handles(scope)
+                .into_iter()
+                .flatten()
+                .filter(|symbol| {
+                    symbols.get(*symbol).kind == SymbolKind::Machine
+                        && symbols.name(*symbol) == target
+                })
+                .collect::<Vec<_>>();
+            if !candidates.is_empty() {
+                return Some(if let [machine] = candidates.as_slice() {
+                    machine_entry_symbol(symbols, *machine, target)
+                } else {
+                    SymbolHandle::invalid()
+                });
+            }
+        }
+        scope = symbols.get(scope).parent;
+    }
+    None
 }

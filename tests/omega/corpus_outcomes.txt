@@ -587,64 +587,64 @@ fail/asm/wrong_label_entry_fact rejected 1353ms expected @a92f16431042
 	cannot prove asm `requires` fact at block entry in Main::main state `main` (statement 8): main.output == 99
 fail/asm/wrong_label_exit_fact rejected 1649ms expected @a92f16431042
 	cannot prove asm `ensures` fact at block exit in Main::main state `main` (statement 10): main.output == 99
-fail/atomics/atomic_boolean_expected rejected 703ms expected @2e70a865669c+wt
+fail/atomics/atomic_boolean_expected rejected 463ms expected @036605466510+wt
 	machine `replace` state `entry` assignment stores a boolean into a `u32` place, which holds a numeric value
-fail/atomics/atomic_boolean_fetch rejected 681ms expected @2e70a865669c+wt
+fail/atomics/atomic_boolean_fetch rejected 385ms expected @036605466510+wt
 	machine `update` state `entry` assignment stores a boolean into a `u32` place, which holds a numeric value
-fail/atomics/atomic_boolean_loaded_cell_reference rejected 703ms expected @2e70a865669c+wt
+fail/atomics/atomic_boolean_loaded_cell_reference rejected 667ms expected @036605466510+wt
 	argument `value` for state `entry` expects `&AtomicBool`, got `member access`
-fail/atomics/atomic_boolean_loaded_mutable_reference rejected 614ms expected @2e70a865669c+wt
+fail/atomics/atomic_boolean_loaded_mutable_reference rejected 675ms expected @036605466510+wt
 	argument `value` for state `entry` is declared `&mut` (`&mut bool`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/atomics/atomic_boolean_ordinary_bool_load rejected 673ms expected @2e70a865669c+wt
+fail/atomics/atomic_boolean_ordinary_bool_load rejected 851ms expected @036605466510+wt
 	atomic load in machine `main` state `entry` requires dedicated atomic storage or an admitted placed atomic accessor
-fail/atomics/atomic_boolean_ordinary_mutable_store rejected 835ms expected @2e70a865669c+wt
+fail/atomics/atomic_boolean_ordinary_mutable_store rejected 722ms expected @036605466510+wt
 	machine `publish` state `entry` assignment requires dedicated atomic storage or an admitted placed atomic accessor; ordinary write authority does not authorize an atomic event
-fail/atomics/atomic_boolean_replacement rejected 601ms expected @2e70a865669c+wt
+fail/atomics/atomic_boolean_replacement rejected 572ms expected @036605466510+wt
 	machine `replace` state `entry` assignment stores a boolean into a `u32` place, which holds a numeric value
-fail/atomics/atomic_boolean_store rejected 594ms expected @2e70a865669c+wt
+fail/atomics/atomic_boolean_store rejected 479ms expected @036605466510+wt
 	machine `update` state `entry` assignment stores a boolean into a `u32` place, which holds a numeric value
-fail/atomics/atomic_boolean_swap rejected 604ms expected @2e70a865669c+wt
+fail/atomics/atomic_boolean_swap rejected 635ms expected @036605466510+wt
 	machine `update` state `entry` assignment stores a boolean into a `u32` place, which holds a numeric value
-fail/atomics/atomic_compare_exchange_failure_stronger_rejected rejected 5ms expected @2e70a865669c+wt
+fail/atomics/atomic_compare_exchange_failure_stronger_rejected rejected 4ms expected @036605466510+wt
 	tests/omega/fail/atomics/atomic_compare_exchange_failure_stronger_rejected/main.omg:1:1: atomic compare_exchange failure ordering `GlobalOrder` is invalid for success ordering `Receive`; failure cannot publish or be stronger than success
-fail/atomics/atomic_load_publish_ordering_rejected rejected 4ms expected @2e70a865669c+wt
+fail/atomics/atomic_load_publish_ordering_rejected rejected 2ms expected @036605466510+wt
 	tests/omega/fail/atomics/atomic_load_publish_ordering_rejected/main.omg:7:40: atomic load cannot use `Publish` ordering; use `NoOrdering`, `Receive`, or `GlobalOrder`
-fail/atomics/atomic_operand_boolean_arithmetic rejected 552ms expected @2e70a865669c+wt
+fail/atomics/atomic_operand_boolean_arithmetic rejected 443ms expected @036605466510+wt
 	machine `replace` state `entry` applies an operator to a boolean and a numeric value -- Omega does not coerce a boolean to a number -- compare booleans directly (`b == true`) or convert a number explicitly (`n != 0`)
-fail/atomics/atomic_operand_call_argument rejected 556ms expected @2e70a865669c+wt
+fail/atomics/atomic_operand_call_argument rejected 503ms expected @036605466510+wt
 	argument `value` for state `entry` expects `bool`, got `integer literal`
-fail/atomics/atomic_operand_implicit_narrowing rejected 517ms expected @2e70a865669c+wt
+fail/atomics/atomic_operand_implicit_narrowing rejected 444ms expected @036605466510+wt
 	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
 	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
 	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
-fail/atomics/atomic_record_shared_replacement rejected 481ms expected @2e70a865669c+wt
+fail/atomics/atomic_record_shared_replacement rejected 420ms expected @036605466510+wt
 	machine `reset` state `entry` assignment cannot write `word` because it is not mutable in this state (if `word` is undeclared -- a typo -- no such field or local exists)
-fail/atomics/atomic_store_receive_ordering_rejected rejected 2ms expected @2e70a865669c+wt
+fail/atomics/atomic_store_receive_ordering_rejected rejected 2ms expected @036605466510+wt
 	tests/omega/fail/atomics/atomic_store_receive_ordering_rejected/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
-fail/atomics/case_payload_non_event_write rejected 520ms expected @2e70a865669c+wt
+fail/atomics/case_payload_non_event_write rejected 547ms expected @036605466510+wt
 	machine `overwrite` state `entry` assignment cannot write `choice` because it is not mutable in this state (if `choice` is undeclared -- a typo -- no such field or local exists)
-fail/atomics/fence_authored_bodyless_lookalike rejected 41ms expected @2e70a865669c+wt
+fail/atomics/fence_authored_bodyless_lookalike rejected 27ms expected @036605466510+wt
 	`Atomic::fence` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `Atomic::fence` grants no primitive implementation or proof authority
-fail/atomics/fence_does_not_identify_observations rejected 1242ms expected @2e70a865669c+wt
+fail/atomics/fence_does_not_identify_observations rejected 1489ms expected @036605466510+wt
 	cannot prove requires contract for call same from observe: before == after (needs fact `before == after` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/atomics/fence_false_result_case rejected 1207ms expected @2e70a865669c+wt
+fail/atomics/fence_false_result_case rejected 1450ms expected @036605466510+wt
 	Atomic::fence requires one proof-static FenceOrdering case at operand completion: ordering case proof is ambiguous
 	cannot prove ensures contract for exit from wrong at statement 0: result == FenceOrdering::Publish
-fail/atomics/fence_no_ordering rejected 935ms expected @2e70a865669c+wt
+fail/atomics/fence_no_ordering rejected 799ms expected @036605466510+wt
 	machine `fence_invalid` state `entry` uses `NoOrdering`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/atomics/fence_returned_view_case_invalidated rejected 1259ms expected @2e70a865669c+wt
+fail/atomics/fence_returned_view_case_invalidated rejected 1343ms expected @036605466510+wt
 	Atomic::fence requires one proof-static FenceOrdering case at operand completion: no live ordering case is proved
-fail/atomics/fence_runtime_ordering rejected 1237ms expected @2e70a865669c+wt
+fail/atomics/fence_runtime_ordering rejected 1256ms expected @036605466510+wt
 	Atomic::fence requires one proof-static FenceOrdering case at operand completion: no live ordering case is proved
-fail/atomics/fence_stale_ordering_case rejected 1259ms expected @2e70a865669c+wt
+fail/atomics/fence_stale_ordering_case rejected 1331ms expected @036605466510+wt
 	Atomic::fence requires one proof-static FenceOrdering case at operand completion: no live ordering case is proved
-fail/atomics/placed_atomic_load_denied rejected 920ms expected @2e70a865669c+wt
+fail/atomics/placed_atomic_load_denied rejected 1015ms expected @036605466510+wt
 	placed atomic field `value` does not admit `load`
-fail/atomics/placed_atomic_store_denied rejected 818ms expected @2e70a865669c+wt
+fail/atomics/placed_atomic_store_denied rejected 948ms expected @036605466510+wt
 	placed atomic field `value` does not admit `store`
-fail/atomics/shared_receiver_plain_field_write rejected 504ms expected @2e70a865669c+wt
+fail/atomics/shared_receiver_plain_field_write rejected 455ms expected @036605466510+wt
 	machine `Counter::bump` state `bump` assignment cannot write `counter` because it is not mutable in this state (if `counter` is undeclared -- a typo -- no such field or local exists)
-fail/atomics/stored_reference_non_atomic_shared_store rejected 474ms expected @2e70a865669c+wt
+fail/atomics/stored_reference_non_atomic_shared_store rejected 438ms expected @036605466510+wt
 	machine `reject` state `entry` assignment cannot write `packet` because it is not mutable in this state (if `packet` is undeclared -- a typo -- no such field or local exists)
 	machine `reject` state `entry` assignment requires dedicated atomic storage or an admitted placed atomic accessor; ordinary write authority does not authorize an atomic event
 fail/blockexec/blocking_executor_ticket_scope_loss rejected 3324ms expected @a92f16431042
@@ -3330,7 +3330,7 @@ fail/dependent/applied_default_domain_wrapping_is_not_integer_subtraction reject
 	data `Counter`'s default domain is still FALSE at state exit: the invariant window opened on `counter` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/dependent/borrowed_coupled_invalid_zero rejected 1213ms expected @a92f16431042
 	data `Coupled` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/dependent/borrowed_coupled_unrestored_count rejected 741ms expected @2e70a865669c+wt
+fail/dependent/borrowed_coupled_unrestored_count rejected 1208ms expected @a92f16431042
 	data `Coupled`'s default domain is still FALSE at state exit: the invariant window opened on `record` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/dependent/case_where_payload_write_exit_open rejected 715ms expected @a92f16431042
 	data `Interval`'s default domain is still FALSE at state exit: the invariant window opened on `main.interval` in a predecessor state must close first -- restore the `where` facts before this consumption point (ch11 window transport)
@@ -3369,24 +3369,23 @@ fail/dependent/computed_slice_index_changed_parameter rejected 1645ms expected @
 	cannot prove index `selected` is within unknown slice length of `cells` in invalid::entry
 fail/dependent/computed_slice_index_wrong_descriptor rejected 1724ms expected @a92f16431042
 	cannot prove index `selected` is within unknown slice length of `cells` in invalid::entry
-fail/dependent/data_where_call_frame_invalidates_written_valuation_rejected rejected 489ms expected @2e70a865669c+wt
+fail/dependent/data_where_call_frame_invalidates_written_valuation_rejected rejected 677ms expected @a92f16431042
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `main.pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/dependent/data_where_invariant_window_unclosed_rejected rejected 501ms expected @2e70a865669c+wt
+fail/dependent/data_where_invariant_window_unclosed_rejected rejected 678ms expected @a92f16431042
 	data `Main`'s default domain is still FALSE at a call: the invariant window opened on `main` must close first -- restore the `where` facts before this consumption point (ch11)
 	data `Main`'s default domain is still FALSE at state exit: the invariant window opened on `main` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/dependent/data_where_literal_violates rejected 973ms expected @2e70a865669c+wt
+fail/dependent/data_where_literal_violates rejected 1100ms expected @a92f16431042
 	data `Player` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/dependent/data_where_live_borrow_pins_witness_rejected rejected 626ms unexpected @a92f16431042
 	machine `Main::main` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/dependent/data_where_param_write_unproven rejected 889ms expected @2e70a865669c+wt
+fail/dependent/data_where_param_write_unproven rejected 1105ms expected @a92f16431042
 	data `Tally`'s default domain is still FALSE at state exit: the invariant window opened on `target` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/dependent/data_where_read_before_establish rejected 689ms expected @2e70a865669c+wt
-	machine `entry_start` state `entry` statement 1: reading `entry_storage.<whole value>` crosses an open default-domain invariant window before data `Main` is established: the zeroed representation is not yet a `Main` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
-fail/dependent/data_where_two_data_parameters_have_no_data_binding rejected 470ms expected @2e70a865669c+wt
+fail/dependent/data_where_read_before_establish rejected 554ms expected @a92f16431042
+	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
+fail/dependent/data_where_two_data_parameters_have_no_data_binding rejected 503ms expected @a92f16431042
 	data `Main`'s default domain is still FALSE at state exit: the invariant window opened on `first` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/dependent/data_where_whole_read_during_window_rejected rejected 522ms expected @2e70a865669c+wt
-	machine `Map::leak` state `leak` statement 1: reading `map` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Map`
-	machine `Map::leak` state `leak` statement 1: the next whole-value read of `map` occurs inside an OPEN invariant window: a prior write left data `Map`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+fail/dependent/data_where_whole_read_during_window_rejected rejected 500ms expected @a92f16431042
+	the next whole-value read of `map` occurs inside an OPEN invariant window: a prior write left data `Map`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 fail/dependent/dependent_arg_unrelated_rejected rejected 2744ms expected @a92f16431042
 	cannot prove requires contract for call read from Main::main: main.j <= main.count (needs fact `i <= main.count` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/dependent/dependent_forward_after_write_rejected rejected 5062ms expected @a92f16431042
@@ -4632,51 +4631,51 @@ fail/facts/assumed_binding_result_bound_through_target_body_rejected rejected 12
 	cannot prove index `Required.get()` is within length 2 in exercise::entry
 	cannot prove index `Required.get()` is within length 2 in exercise::entry
 	cannot prove index `Required.get()` is within length 2 in exercise::entry
-fail/facts/atomic_boolean_store/call_result rejected 1ms expected @2e70a865669c+wt
+fail/facts/atomic_boolean_store/call_result rejected 1ms expected @036605466510+wt
 	tests/omega/fail/facts/atomic_boolean_store/call_result/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
-fail/facts/atomic_boolean_store/const_name rejected 1ms expected @2e70a865669c+wt
+fail/facts/atomic_boolean_store/const_name rejected 1ms expected @036605466510+wt
 	tests/omega/fail/facts/atomic_boolean_store/const_name/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
-fail/facts/atomic_boolean_store/field rejected 0ms expected @2e70a865669c+wt
+fail/facts/atomic_boolean_store/field rejected 0ms expected @036605466510+wt
 	tests/omega/fail/facts/atomic_boolean_store/field/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
-fail/facts/atomic_boolean_store/local rejected 1ms expected @2e70a865669c+wt
+fail/facts/atomic_boolean_store/local rejected 0ms expected @036605466510+wt
 	tests/omega/fail/facts/atomic_boolean_store/local/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
-fail/facts/atomic_boolean_store/match_join rejected 0ms expected @2e70a865669c+wt
+fail/facts/atomic_boolean_store/match_join rejected 0ms expected @036605466510+wt
 	tests/omega/fail/facts/atomic_boolean_store/match_join/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
-fail/facts/atomic_boolean_store/other_machine rejected 0ms expected @2e70a865669c+wt
+fail/facts/atomic_boolean_store/other_machine rejected 1ms expected @036605466510+wt
 	tests/omega/fail/facts/atomic_boolean_store/other_machine/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
-fail/facts/atomic_boolean_store/other_state rejected 0ms expected @2e70a865669c+wt
+fail/facts/atomic_boolean_store/other_state rejected 1ms expected @036605466510+wt
 	tests/omega/fail/facts/atomic_boolean_store/other_state/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
-fail/facts/atomic_boolean_store/parameter rejected 1ms expected @2e70a865669c+wt
+fail/facts/atomic_boolean_store/parameter rejected 1ms expected @036605466510+wt
 	tests/omega/fail/facts/atomic_boolean_store/parameter/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
-fail/facts/atomic_boolean_store/target_body rejected 1ms expected @2e70a865669c+wt
+fail/facts/atomic_boolean_store/target_body rejected 1ms expected @036605466510+wt
 	tests/omega/fail/facts/atomic_boolean_store/target_body/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
-fail/facts/atomic_bounded_resident/call_result rejected 494ms expected @2e70a865669c+wt
+fail/facts/atomic_bounded_resident/call_result rejected 496ms expected @036605466510+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/atomic_bounded_resident/const_name rejected 504ms expected @2e70a865669c+wt
+fail/facts/atomic_bounded_resident/const_name rejected 516ms expected @036605466510+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/atomic_bounded_resident/field rejected 507ms expected @2e70a865669c+wt
+fail/facts/atomic_bounded_resident/field rejected 454ms expected @036605466510+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/atomic_bounded_resident/load_bound_is_not_current_value rejected 1382ms expected @2e70a865669c+wt
+fail/facts/atomic_bounded_resident/load_bound_is_not_current_value rejected 1198ms expected @2e70a865669c+wt
 	cannot prove ensures contract for exit from observe at statement 1: result == 41
-fail/facts/atomic_bounded_resident/load_field_goal_is_not_premise rejected 514ms expected @2e70a865669c+wt
+fail/facts/atomic_bounded_resident/load_field_goal_is_not_premise rejected 540ms expected @2e70a865669c+wt
 	data `Held` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/atomic_bounded_resident/load_result_goal_is_not_premise rejected 1177ms expected @2e70a865669c+wt
+fail/facts/atomic_bounded_resident/load_result_goal_is_not_premise rejected 1254ms expected @2e70a865669c+wt
 	cannot prove ensures contract for exit from observe at statement 0: result <= 100
-fail/facts/atomic_bounded_resident/local rejected 495ms expected @2e70a865669c+wt
+fail/facts/atomic_bounded_resident/local rejected 488ms expected @036605466510+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/atomic_bounded_resident/match_join rejected 504ms expected @2e70a865669c+wt
+fail/facts/atomic_bounded_resident/match_join rejected 482ms expected @036605466510+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/atomic_bounded_resident/other_machine rejected 456ms expected @2e70a865669c+wt
+fail/facts/atomic_bounded_resident/other_machine rejected 502ms expected @036605466510+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/atomic_bounded_resident/other_state rejected 525ms expected @2e70a865669c+wt
+fail/facts/atomic_bounded_resident/other_state rejected 639ms expected @036605466510+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/atomic_bounded_resident/parameter rejected 503ms expected @2e70a865669c+wt
+fail/facts/atomic_bounded_resident/parameter rejected 635ms expected @036605466510+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/atomic_bounded_resident/prior_before_event rejected 464ms expected @2e70a865669c+wt
+fail/facts/atomic_bounded_resident/prior_before_event rejected 429ms expected @036605466510+wt
 	machine `reject` state `entry` local `prior` cannot consume its atomic result before the event completes
-fail/facts/atomic_bounded_resident/prior_is_not_zero rejected 520ms expected @2e70a865669c+wt
+fail/facts/atomic_bounded_resident/prior_is_not_zero rejected 411ms expected @036605466510+wt
 	exact arithmetic in machine `reject` state `entry` local `invalid` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/atomic_bounded_resident/target_body rejected 624ms expected @2e70a865669c+wt
+fail/facts/atomic_bounded_resident/target_body rejected 464ms expected @036605466510+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/atomic_compare_exchange_once_bounded/call_result rejected 573ms expected @2e70a865669c+wt
 	machine `attempt` state `entry` local `outcome` stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
@@ -4714,42 +4713,42 @@ fail/facts/atomic_compare_exchange_once_bounded/target_body rejected 719ms expec
 	machine `attempt` state `entry` local `outcome` stores a value not provably within its data's `where` facts at replacement completion
 fail/facts/atomic_compare_exchange_once_bounded/unrestored_helper rejected 529ms expected @2e70a865669c+wt
 	machine `break_invariant` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/atomic_compare_exchange_once_composition_rejected rejected 17ms expected @2e70a865669c+wt
+fail/facts/atomic_compare_exchange_once_composition_rejected rejected 2ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_composition_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_forged_outcome_rejected rejected 638ms expected @2e70a865669c+wt
+fail/facts/atomic_compare_exchange_once_forged_outcome_rejected rejected 942ms expected @a92f16431042
 	machine `probe` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
 	machine `mismatch` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
-fail/facts/atomic_compare_exchange_once_high_bit_rejected rejected 1ms expected @2e70a865669c+wt
+fail/facts/atomic_compare_exchange_once_high_bit_rejected rejected 1ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_high_bit_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_local_rejected rejected 0ms expected @2e70a865669c+wt
+fail/facts/atomic_compare_exchange_once_local_rejected rejected 2ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_local_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_operand_effect_rejected rejected 1ms expected @2e70a865669c+wt
+fail/facts/atomic_compare_exchange_once_operand_effect_rejected rejected 2ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_operand_effect_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_stronger_failure_rejected rejected 1ms expected @2e70a865669c+wt
+fail/facts/atomic_compare_exchange_once_stronger_failure_rejected rejected 2ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_stronger_failure_rejected/main.omg:1:1: atomic compare_exchange failure ordering `GlobalOrder` is invalid for success ordering `Receive`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_target_body_rejected rejected 1ms expected @2e70a865669c+wt
+fail/facts/atomic_compare_exchange_once_target_body_rejected rejected 1ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_target_body_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_through_call_result_rejected rejected 0ms expected @2e70a865669c+wt
+fail/facts/atomic_compare_exchange_once_through_call_result_rejected rejected 1ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_through_call_result_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_through_const_name_rejected rejected 1ms expected @2e70a865669c+wt
+fail/facts/atomic_compare_exchange_once_through_const_name_rejected rejected 1ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_through_const_name_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_through_field_rejected rejected 1ms expected @2e70a865669c+wt
+fail/facts/atomic_compare_exchange_once_through_field_rejected rejected 1ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_through_field_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_through_local_rejected rejected 1ms expected @2e70a865669c+wt
+fail/facts/atomic_compare_exchange_once_through_local_rejected rejected 1ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_through_local_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_through_match_join_rejected rejected 1ms expected @2e70a865669c+wt
+fail/facts/atomic_compare_exchange_once_through_match_join_rejected rejected 1ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_through_match_join_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_through_other_machine_rejected rejected 1ms expected @2e70a865669c+wt
+fail/facts/atomic_compare_exchange_once_through_other_machine_rejected rejected 1ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_through_other_machine_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_through_other_state_rejected rejected 1ms expected @2e70a865669c+wt
+fail/facts/atomic_compare_exchange_once_through_other_state_rejected rejected 2ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_through_other_state_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_through_parameter_rejected rejected 1ms expected @2e70a865669c+wt
+fail/facts/atomic_compare_exchange_once_through_parameter_rejected rejected 1ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_through_parameter_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_through_target_body_rejected rejected 1ms expected @2e70a865669c+wt
+fail/facts/atomic_compare_exchange_once_through_target_body_rejected rejected 2ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_through_target_body_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_wide_rejected rejected 1ms expected @2e70a865669c+wt
+fail/facts/atomic_compare_exchange_once_wide_rejected rejected 1ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_wide_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_wrong_resident_rejected rejected 772ms expected @2e70a865669c+wt
+fail/facts/atomic_compare_exchange_once_wrong_resident_rejected rejected 665ms expected @a92f16431042
 	machine `probe` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
 fail/facts/body_bearing_comparison_case_fields_rejected rejected 10386ms expected @a92f16431042
 	cannot prove requires contract for call hold from main: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
@@ -13496,6 +13495,22 @@ fail/facts/state_transition_ranking_bound_through_target_body_rejected rejected 
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `ranked_loop(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `ranked_loop(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `ranked_loop(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/static_callback_reach_boundary_schema rejected 1437ms expected @3c1b7104e4f6+wt
+	machine `TraversalCode::traverse$specialized$e7faf60c2b169585$0` state `traverse` value call to `quiet` violates required fact `value <= 37 && Count <= 37`: the instantiated fact is structurally false (`value <= 37 && 38 <= 37`)
+fail/facts/static_callback_reach_captured_schema rejected 830ms expected @3c1b7104e4f6+wt
+	machine argument `quiet` for `Selected` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+fail/facts/static_callback_reach_captured_scope rejected 996ms expected @3c1b7104e4f6+wt
+	machine argument `quiet` for `Selected` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+fail/facts/static_callback_reach_captured_selection rejected 739ms expected @3c1b7104e4f6+wt
+	machine argument `quiet` for `Selected` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+fail/facts/static_callback_reach_captured_shadow rejected 913ms expected @3c1b7104e4f6+wt
+	generic machine `choose` cannot bind `Operations` to conformance `Selected`: expected a complete `Getter` implementation with the instantiated trait arguments
+fail/facts/static_callback_reach_captured_unused rejected 639ms expected @3c1b7104e4f6+wt
+	machine argument `quiet` for `Selected` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+fail/facts/static_callback_reach_evidence_scope rejected 799ms expected @3c1b7104e4f6+wt
+	static machine argument `quiet` for nominal parameter `Step` retains 0 authored satisfaction row(s) for exact requirement `StepContract::step`; exactly one is required and structural coincidence establishes none; required operands [Operations], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(nominal\\\\(package-owner\\\\(32:0101010101010101010101010101010101010101010101010101010101010101\\\\)\\\\,path\\\\(MarkerCode\\\\)\\\\)))"), required Some("named(name(nominal\\\\(package-owner\\\\(32:0101010101010101010101010101010101010101010101010101010101010101\\\\)\\\\,path\\\\(OtherMarkerCode\\\\)\\\\)))")
+fail/facts/static_callback_reach_private_helper rejected 1778ms expected @3c1b7104e4f6+wt
+	machine `note_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Console`
 fail/facts/static_callback_reach_recursive_component rejected 2258ms expected @3353916f9430+wt
 	terminating machine traverse: cannot prove strict rank decrease on a recurrent arrival: the transition from `traverse` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	terminating machine traverse$specialized$1a9069ef08e7f8c1$0: cannot prove strict rank decrease on a recurrent arrival: the transition from `traverse$specialized$1a9069ef08e7f8c1$0` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
@@ -13508,6 +13523,12 @@ fail/facts/static_callback_reach_recursive_terminal_rank rejected 1381ms expecte
 	terminating machine traverse$specialized$1a9069ef08e7f8c1$0: cannot prove strict rank decrease on a recurrent arrival: the transition from `traverse$specialized$1a9069ef08e7f8c1$0` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `traverse$specialized$1a9069ef08e7f8c1$0` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 	machine call cycle: `traverse` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/facts/static_callback_reach_requirement_telescope_proposition rejected 551ms expected @3c1b7104e4f6+wt
+	static machine argument `quiet` for nominal parameter `Step` retains 0 authored satisfaction row(s) for exact requirement `StepContract::step`; exactly one is required and structural coincidence establishes none; required operands [bounded, Anchor::anchor], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(nominal\\\\(package-owner\\\\(32:0101010101010101010101010101010101010101010101010101010101010101\\\\)\\\\,path\\\\(alternate\\\\)\\\\)))"), required Some("named(name(nominal\\\\(package-owner\\\\(32:0101010101010101010101010101010101010101010101010101010101010101\\\\)\\\\,path\\\\(bounded\\\\)\\\\)))")
+fail/facts/static_callback_reach_requirement_telescope_requirement rejected 855ms expected @3c1b7104e4f6+wt
+	static machine argument `quiet` for nominal parameter `Step` retains 0 authored satisfaction row(s) for exact requirement `StepContract::step`; exactly one is required and structural coincidence establishes none; required operands [bounded, Anchor::anchor], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(nominal\\\\(package-owner\\\\(32:0101010101010101010101010101010101010101010101010101010101010101\\\\)\\\\,path\\\\(OtherAnchor::anchor\\\\)\\\\)))"), required Some("named(name(nominal\\\\(package-owner\\\\(32:0101010101010101010101010101010101010101010101010101010101010101\\\\)\\\\,path\\\\(Anchor::anchor\\\\)\\\\)))")
+fail/facts/static_callback_reach_requirement_telescope_shadow rejected 709ms expected @3c1b7104e4f6+wt
+	static machine argument `quiet` for nominal parameter `Step` retains 0 authored satisfaction row(s) for exact requirement `StepContract::step`; exactly one is required and structural coincidence establishes none; required operands [bounded, Anchor::anchor], provider [], caller [traverse::bounded=u64], contextual demand true, operand mismatch actual index/type identity Some("named(name(nominal\\\\(package-owner\\\\(32:0101010101010101010101010101010101010101010101010101010101010101\\\\)\\\\,path\\\\(bounded\\\\)\\\\)))"), required Some("named(name(u64))")
 fail/facts/static_callback_reach_selected_schema rejected 1695ms expected @3353916f9430+wt
 	machine `TraversalCode::traverse$specialized$e7faf60c2b169585$0` state `traverse` value call to `quiet` violates required fact `value <= 37 && Count <= 37`: the instantiated fact is structurally false (`first <= 37 && 38 <= 37`)
 	machine `ordinary$specialized$3051a3ac972a47e8$0` state `entry` value call to `quiet` violates required fact `value <= 37 && Count <= 37`: the instantiated fact is structurally false (`first <= 37 && 38 <= 37`)
@@ -16830,6 +16851,12 @@ fail/generics/core_slice_for_each_callback_termination rejected 1711ms expected 
 	terminating machine does_not_finish contains a recursive cycle but carries no ranking witness -- spell one with `terminates by <subjects> [-> View];` (decision 23)
 fail/generics/data_equation_constructor_binder_carrier_domain rejected 41ms expected @a92f16431042
 	generic data `Box` where type equation constructor const binder has a different declared carrier
+fail/generics/dependent_callback_result_index_mismatch rejected 317ms expected @bdeccd2c2ec4+wt
+	machine argument `snapshot` for `through_callback` does not refine `Callback`: expected return `Counted<const <expression>>`, got `Counted<end>`
+fail/generics/dependent_callback_result_needs_public_order rejected 337ms expected @bdeccd2c2ec4+wt
+	exact arithmetic in value argument `Count` of `Counted` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in value argument `Count` of `Counted` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	machine argument `snapshot` for `through_callback` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/generics/dependent_const_array_extent rejected 1388ms expected @a92f16431042
 	const parameter `Selected` of `Pick` has an invalid named value: named constant `Short` has type `[u8; 1]`, expected `[u8; 2]`
 fail/generics/dependent_const_array_named_carrier rejected 1340ms expected @a92f16431042
@@ -16960,8 +16987,8 @@ fail/generics/generic_selected_extent_qualified_binder rejected 634ms expected @
 	data `Wrong` field `values` uses unresolved fixed-array length `Counts::FOUR`; a symbolic array length must name an in-scope `const` parameter
 fail/generics/generic_selected_extent_type_binder rejected 549ms expected @a92f16431042
 	data `Wrong` field `values` uses type parameter `Count` as a fixed-array length; array lengths must name a `const` parameter
-fail/generics/grouped_decimal_const_fraction_rejected rejected 257ms expected @a92f16431042
-	const argument expression for `FixedBuffer` is invalid for `u64`: exact anonymous value `25/8` cannot land in an integer const argument; type an operand if typed integer division was intended
+fail/generics/grouped_decimal_const_fraction_rejected rejected 213ms expected @264fd279a7bb+wt
+	const argument expression: exact anonymous value `25/8` cannot land in an integer const argument
 fail/generics/grouped_decimal_const_suffix_rejected rejected 1842ms unexpected @a92f16431042
 	const parameter `N` of `FixedBuffer` requires an integer literal argument
 fail/generics/grouped_decimal_const_zero_division_rejected rejected 245ms expected @a92f16431042
@@ -16986,6 +17013,24 @@ fail/generics/inferred_equation_deferred_callee_requires_rejected rejected 570ms
 	machine `main` state `entry` value call to `forward` violates required fact `okay`: the instantiated fact is structurally false
 fail/generics/inferred_equation_explicit_forward_conflict_rejected rejected 579ms expected @036605466510+wt
 	argument `value` for state `entry` expects `[u8; 3]`, got `named value`
+fail/generics/inferred_equation_typed_const_call_result_conflict rejected 95ms expected @264fd279a7bb+wt
+	generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/generics/inferred_equation_typed_const_const_name_conflict rejected 89ms expected @264fd279a7bb+wt
+	generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/generics/inferred_equation_typed_const_field_conflict rejected 72ms expected @264fd279a7bb+wt
+	generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/generics/inferred_equation_typed_const_local_conflict rejected 86ms expected @264fd279a7bb+wt
+	generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/generics/inferred_equation_typed_const_match_join_conflict rejected 92ms expected @264fd279a7bb+wt
+	generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/generics/inferred_equation_typed_const_other_machine_conflict rejected 81ms expected @264fd279a7bb+wt
+	generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/generics/inferred_equation_typed_const_other_state_conflict rejected 76ms expected @264fd279a7bb+wt
+	generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/generics/inferred_equation_typed_const_parameter_conflict rejected 102ms expected @264fd279a7bb+wt
+	generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/generics/inferred_equation_typed_const_target_body_conflict rejected 87ms expected @264fd279a7bb+wt
+	generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3
 fail/generics/inferred_machine_array_equation_constructor_identity_rejected rejected 436ms expected @a92f16431042
 	generic machine `capacity` where type equation requires the same fixed-array constructor
 fail/generics/inferred_machine_array_equation_copy_bound_rejected rejected 888ms expected @a92f16431042
@@ -17029,6 +17074,11 @@ fail/generics/local_generic_result_parameter_mismatch rejected 563ms expected @a
 	machine `wrong` state `entry` local `received` expects `Output`, but the value is delivered as `Input`
 fail/generics/local_slice_result_element_mismatch rejected 563ms expected @a92f16431042
 	machine `wrong` state `entry` local `viewed` expects `&[Output]`, but the value is delivered as `&[Input]`
+fail/generics/local_value_index_drops_written_order rejected 384ms expected @bdeccd2c2ec4+wt
+	data `Counted` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	exact arithmetic in construction of `Counted` field `Count` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in value argument `Count` of `Counted` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `invalid` state `entry` local `value` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/generics/machine_bound_violated_at_call rejected 444ms expected @a92f16431042
 	generic machine `Main::copy_it` has a concrete specialization tuple that does not satisfy its authored type bounds
 fail/generics/machine_equation_constructor_binder_carrier_constructed rejected 292ms expected @a92f16431042
@@ -17317,6 +17367,14 @@ fail/generics/type_index_distinct_binders rejected 1692ms expected @a92f16431042
 fail/generics/type_index_wrong_telescope rejected 1691ms expected @a92f16431042
 	index compatibility condition `index-equality:Pair:wrong::entry:call-0-0:Pair<Left, Right>==Pair<Left, Right>` is not established: actual `Pair<Left, Right>` and expected `Pair<Left, Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 	index compatibility condition `index-equality:Pair:wrong::entry:statement-0:Pair<Left, Right>==Pair<Left, Right>` is not established: actual `Pair<Left, Right>` and expected `Pair<Left, Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/generics/typed_const_probe_false_extent_requires rejected 64ms expected @264fd279a7bb+wt
+	const-generic application evaluation failed: constant invocation of `extent` failed checking: machine `@const-invocation` state `@const-invocation` value call to `extent` violates required fact `false`: the instantiated fact is structurally false
+fail/generics/typed_const_probe_trapping_extent rejected 73ms expected @264fd279a7bb+wt
+	const-generic application evaluation failed: constant invocation of `extent` retains unhandled [Trap] routes at its concrete arguments
+fail/generics/typed_const_probe_unused_bad_scalar rejected 90ms expected @264fd279a7bb+wt
+	scalar constant `BAD` is invalid: const value `300` does not fit `u8`
+fail/generics/typed_const_probe_unused_public_bad_array rejected 105ms expected @264fd279a7bb+wt
+	array constant `BAD` is invalid: fixed-array const value requires 2 elements but has 3
 fail/generics/unused_selected_value_is_not_const rejected 480ms expected @a92f16431042
 	const parameter `Index` of `read` cannot accept runtime-capable Value binder `Index`
 	retained requirement tuple lost its exact source call application: call `read` in `unused` binds declaration Handle { arena_index: 764, generation: 1 }, but its retained targets are [(Handle { arena_index: 892, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
@@ -18272,7 +18330,7 @@ fail/proofs/completed_case_guarantee_keeps_common_fields_unknown rejected 1776ms
 fail/proofs/completed_entry_domain_after_write rejected 1352ms expected @a92f16431042
 	cannot prove default-domain field requirement for return from invalid, state entry, at statement 1: Captured requires Captured::One
 	construction value is not proven in domain `Captured::One` in invalid state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
-fail/proofs/completed_poststate_sibling_overwrite rejected 1127ms expected @2e70a865669c+wt
+fail/proofs/completed_poststate_sibling_overwrite rejected 1345ms expected @a92f16431042
 	cannot prove default-domain field requirement for return from invalid, state entry, at statement 3: Captured requires Captured::Both
 	construction value is not proven in domain `Captured::Both` in invalid state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 fail/proofs/completed_qualified_membership_after_write rejected 1752ms expected @a92f16431042
@@ -20697,30 +20755,30 @@ pass/asm/scratch_subtract_modular_underflow_exit checked 3148ms check-target:lin
 pass/asm/scratch_target_sibling_capture_identity_exit checked 3079ms check-target:linux_x86_64 @a92f16431042
 pass/asm/scratch_zero_flag_survives_move_exit checked 3084ms check-target:linux_x86_64 @a92f16431042
 pass/asm/state_fact_transfers_exit checked 3120ms check-target:linux_x86_64 @a92f16431042
-pass/atomics/atomic_global_order_operations checked 1834ms @2e70a865669c+wt
-pass/atomics/atomic_order_surface checked 2214ms @2e70a865669c+wt
-pass/atomics/placed_atomic_load checked 2458ms @2e70a865669c+wt
-pass/atomics/placed_atomic_shared_store checked 2454ms @2e70a865669c+wt
-pass/atomics/runtime_atomic_after_quoted_write_exit checked 8169ms check-target:macos_arm64 @2e70a865669c+wt
-pass/atomics/runtime_atomic_bitwise_widths_exit checked 9720ms check-target:macos_arm64 @2e70a865669c+wt
-pass/atomics/runtime_atomic_boolean_orderings_exit checked 2208ms check-target:macos_arm64 @2e70a865669c+wt
-pass/atomics/runtime_atomic_case_field_state_exit checked 2292ms check-target:macos_arm64 @2e70a865669c+wt
-pass/atomics/runtime_atomic_compare_exchange_exit checked 11133ms check-target:macos_arm64 @2e70a865669c+wt
-pass/atomics/runtime_atomic_computed_operands_exit checked 2091ms check-target:macos_arm64 @2e70a865669c+wt
-pass/atomics/runtime_atomic_computed_updates_exit checked 2057ms check-target:macos_arm64 @2e70a865669c+wt
-pass/atomics/runtime_atomic_fence_captured_ordering_exit checked 1924ms check-target:macos_arm64 @2e70a865669c+wt
-pass/atomics/runtime_atomic_fences_exit checked 2502ms check-target:macos_arm64 @2e70a865669c+wt
-pass/atomics/runtime_atomic_fetch_add_exit checked 17992ms check-target:macos_arm64 @2e70a865669c+wt
-pass/atomics/runtime_atomic_operand_order_exit checked 4698ms check-target:macos_arm64 @2e70a865669c+wt
-pass/atomics/runtime_authored_fence_name_exit checked 4132ms check-target:macos_arm64 @2e70a865669c+wt
-pass/atomics/runtime_case_payload_atomic_events_exit checked 4269ms check-target:macos_arm64 @2e70a865669c+wt
-pass/atomics/runtime_mixed_common_atomic_cell_exit checked 5519ms check-target:macos_arm64 @2e70a865669c+wt
-pass/atomics/runtime_nested_case_payload_atomic_event_exit checked 4189ms check-target:macos_arm64 @2e70a865669c+wt
-pass/atomics/runtime_projected_state_operands_exit checked 5025ms check-target:macos_arm64 @2e70a865669c+wt
-pass/atomics/runtime_shared_case_waived_atomic_exit checked 17661ms check-target:macos_arm64 @2e70a865669c+wt
-pass/atomics/runtime_stored_reference_atomic_events_exit checked 5048ms check-target:macos_arm64 @2e70a865669c+wt
-pass/atomics/selected_reference_atomic_provider checked 4496ms check-target:linux_x86_64 @2e70a865669c+wt
-pass/atomics/shared_receiver_atomic_store checked 19188ms check-target:macos_arm64 @2e70a865669c+wt
+pass/atomics/atomic_global_order_operations checked 1339ms @036605466510+wt
+pass/atomics/atomic_order_surface checked 1746ms @036605466510+wt
+pass/atomics/placed_atomic_load checked 1791ms @036605466510+wt
+pass/atomics/placed_atomic_shared_store checked 1820ms @036605466510+wt
+pass/atomics/runtime_atomic_after_quoted_write_exit checked 7091ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_bitwise_widths_exit checked 7683ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_boolean_orderings_exit checked 1748ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_case_field_state_exit checked 1830ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_compare_exchange_exit checked 7512ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_computed_operands_exit checked 1763ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_computed_updates_exit checked 1916ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_fence_captured_ordering_exit checked 2040ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_fences_exit checked 1767ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_fetch_add_exit checked 8154ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_operand_order_exit checked 1715ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_authored_fence_name_exit checked 1943ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_case_payload_atomic_events_exit checked 1916ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_mixed_common_atomic_cell_exit checked 1825ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_nested_case_payload_atomic_event_exit checked 1838ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_projected_state_operands_exit checked 1897ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_shared_case_waived_atomic_exit checked 8543ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_stored_reference_atomic_events_exit checked 1938ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/selected_reference_atomic_provider checked 2513ms check-target:linux_x86_64 @036605466510+wt
+pass/atomics/shared_receiver_atomic_store checked 8902ms check-target:macos_arm64 @036605466510+wt
 pass/blockexec/blocking_executor_custody_claims_compile checked 3895ms check-target:macos_arm64 @a92f16431042
 pass/blockexec/runtime_selected_worker_body_exit checked 2459ms check-target:macos_arm64 @a92f16431042
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 2612ms @a92f16431042
@@ -20949,6 +21007,8 @@ pass/borrows/runtime_copied_byte_predicate_snapshot_exit checked 2198ms check-ta
 pass/borrows/runtime_copied_range_record_domains_exit checked 2254ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_copyable_carrier_retirement_exit checked 2258ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_cyclic_field_loan_release_exit checked 5940ms check-target:macos_arm64 @a92f16431042
+pass/borrows/runtime_dependent_callback_window_byte_exit checked 974ms check-target:macos_arm64 @bdeccd2c2ec4+wt
+pass/borrows/runtime_dependent_forwarded_window_exit checked 945ms check-target:macos_arm64 @bdeccd2c2ec4+wt
 pass/borrows/runtime_dependent_window_byte_payload_exit checked 934ms check-target:macos_arm64 @c0a374fa75ca+wt
 pass/borrows/runtime_dependent_window_image_sibling_exit checked 1717ms check-target:macos_arm64 @c0a374fa75ca+wt
 pass/borrows/runtime_dependent_window_region_disjoint_write_exit checked 1518ms check-target:macos_arm64 @c0a374fa75ca+wt
@@ -21704,7 +21764,7 @@ pass/collections/runtime_narrow_computed_selector_read_exit checked 2768ms check
 pass/collections/runtime_nested_array_view_call_write_exit checked 2680ms check-target:macos_arm64 @a92f16431042
 pass/collections/runtime_nested_const_row_indexed_read_exit checked 8920ms check-target:macos_arm64 @a92f16431042
 pass/collections/runtime_nested_fixed_array_projected_write_exit checked 9005ms check-target:macos_arm64 @a92f16431042
-pass/collections/runtime_nested_record_element_window_store_exit checked 2923ms check-target:macos_arm64 @a92f16431042
+pass/collections/runtime_nested_record_element_window_store_exit checked 2210ms check-target:macos_arm64 @036605466510+wt
 pass/collections/runtime_nested_selected_element_extents_exit checked 3786ms check-target:macos_arm64 @a92f16431042
 pass/collections/runtime_offset_view_case_observation_exit checked 4142ms check-target:macos_arm64 @a92f16431042
 pass/collections/runtime_ordered_computed_selector_reads_exit checked 3249ms check-target:macos_arm64 @a92f16431042
@@ -21865,8 +21925,8 @@ pass/contracts/runtime_generic_component_window_tick_exit checked 10314ms check-
 pass/contracts/runtime_indexed_element_requirements_exit checked 3210ms check-target:macos_arm64 @a92f16431042
 pass/contracts/runtime_later_arm_call_requires_exit checked 9219ms check-target:macos_arm64 @a92f16431042
 pass/contracts/runtime_literal_view_extent_calls_exit checked 3990ms check-target:macos_arm64 @a92f16431042
-pass/contracts/runtime_mutable_owned_call_poststate_exit checked 5225ms check-target:macos_arm64 @2e70a865669c+wt
-pass/contracts/runtime_mutable_owned_collection_poststate_exit checked 5485ms check-target:macos_arm64 @2e70a865669c+wt
+pass/contracts/runtime_mutable_owned_call_poststate_exit checked 3841ms check-target:macos_arm64 @a92f16431042
+pass/contracts/runtime_mutable_owned_collection_poststate_exit checked 3658ms check-target:macos_arm64 @a92f16431042
 pass/contracts/runtime_nested_call_post_storage_exit checked 3428ms check-target:macos_arm64 @a92f16431042
 pass/contracts/runtime_postcall_storage_identity_exit checked 3667ms check-target:macos_arm64 @a92f16431042
 pass/contracts/runtime_projected_element_requirements_exit checked 3282ms check-target:macos_arm64 @a92f16431042
@@ -22193,7 +22253,7 @@ pass/dependent/data_where_narrow_signed_bound_compile checked 1821ms @a92f164310
 pass/dependent/data_where_negation_bound_compile checked 1501ms @a92f16431042
 pass/dependent/data_where_per_field_bounds_compile checked 1501ms @a92f16431042
 pass/dependent/data_where_ranged_param_constructs checked 6013ms check-target:macos_arm64 @a92f16431042
-pass/dependent/data_where_relational_callee_restored_exit checked 20362ms check-target:macos_arm64 @2e70a865669c+wt
+pass/dependent/data_where_relational_callee_restored_exit checked 6377ms check-target:macos_arm64 @a92f16431042
 pass/dependent/data_where_relational_fields_compile checked 1975ms @a92f16431042
 pass/dependent/data_where_reversed_interval_compile checked 1481ms @a92f16431042
 pass/dependent/data_where_scaled_bound_compile checked 1656ms @a92f16431042
@@ -22771,25 +22831,25 @@ pass/facts/assumed_binding_result_bound_through_other_machine_exit checked 4512m
 pass/facts/assumed_binding_result_bound_through_other_state_exit checked 4620ms check-target:macos_arm64 @a92f16431042
 pass/facts/assumed_binding_result_bound_through_parameter_exit checked 4491ms check-target:macos_arm64 @a92f16431042
 pass/facts/assumed_binding_result_bound_through_target_body_exit checked 4511ms check-target:macos_arm64 @a92f16431042
-pass/facts/atomic_boolean_store/call_result checked 6754ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_boolean_store/const_name checked 5089ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_boolean_store/field checked 5463ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_boolean_store/local checked 5225ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_boolean_store/match_join checked 4759ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_boolean_store/other_machine checked 4127ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_boolean_store/other_state checked 4994ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_boolean_store/parameter checked 4434ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_boolean_store/target_body checked 4267ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_bounded_resident/call_result checked 6577ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_bounded_resident/composition checked 4734ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_bounded_resident/const_name checked 5260ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_bounded_resident/field checked 5886ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_bounded_resident/local checked 5388ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_bounded_resident/match_join checked 5937ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_bounded_resident/other_machine checked 5332ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_bounded_resident/other_state checked 5407ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_bounded_resident/parameter checked 5400ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_bounded_resident/target_body checked 4391ms check-target:macos_arm64 @2e70a865669c+wt
+pass/facts/atomic_boolean_store/call_result checked 2321ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_boolean_store/const_name checked 2338ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_boolean_store/field checked 1943ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_boolean_store/local checked 2084ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_boolean_store/match_join checked 2107ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_boolean_store/other_machine checked 2014ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_boolean_store/other_state checked 2247ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_boolean_store/parameter checked 2111ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_boolean_store/target_body checked 1989ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/call_result checked 2017ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/composition checked 2171ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/const_name checked 2039ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/field checked 2133ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/local checked 2044ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/match_join checked 2035ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/other_machine checked 1942ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/other_state checked 2284ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/parameter checked 1995ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/target_body checked 2546ms check-target:macos_arm64 @036605466510+wt
 pass/facts/atomic_compare_exchange_once_bounded/call_result checked 4436ms check-target:macos_arm64 @2e70a865669c+wt
 pass/facts/atomic_compare_exchange_once_bounded/const_name checked 4839ms check-target:macos_arm64 @2e70a865669c+wt
 pass/facts/atomic_compare_exchange_once_bounded/dynamic_replacement checked 3275ms check-target:macos_arm64 @2e70a865669c+wt
@@ -22804,21 +22864,21 @@ pass/facts/atomic_compare_exchange_once_bounded/parameter checked 2082ms check-t
 pass/facts/atomic_compare_exchange_once_bounded/replacement_left_snapshot checked 2587ms check-target:macos_arm64 @2e70a865669c+wt
 pass/facts/atomic_compare_exchange_once_bounded/replacement_right_snapshot checked 2122ms check-target:macos_arm64 @2e70a865669c+wt
 pass/facts/atomic_compare_exchange_once_bounded/target_body checked 2083ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_compare_exchange_once_composition_exit checked 1993ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_compare_exchange_once_high_bit_exit checked 2143ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_compare_exchange_once_local_exit checked 1931ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_compare_exchange_once_operand_effect_exit checked 2594ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_compare_exchange_once_target_body_exit checked 2170ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_compare_exchange_once_through_call_result_exit checked 2047ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_compare_exchange_once_through_const_name_exit checked 2456ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_compare_exchange_once_through_field_exit checked 2236ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_compare_exchange_once_through_local_exit checked 2253ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_compare_exchange_once_through_match_join_exit checked 2136ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_compare_exchange_once_through_other_machine_exit checked 1991ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_compare_exchange_once_through_other_state_exit checked 1728ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_compare_exchange_once_through_parameter_exit checked 2283ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_compare_exchange_once_through_target_body_exit checked 2716ms check-target:macos_arm64 @2e70a865669c+wt
-pass/facts/atomic_compare_exchange_once_wide_exit checked 2320ms check-target:macos_arm64 @2e70a865669c+wt
+pass/facts/atomic_compare_exchange_once_composition_exit checked 4403ms check-target:macos_arm64 @a92f16431042
+pass/facts/atomic_compare_exchange_once_high_bit_exit checked 4369ms check-target:macos_arm64 @a92f16431042
+pass/facts/atomic_compare_exchange_once_local_exit checked 4033ms check-target:macos_arm64 @a92f16431042
+pass/facts/atomic_compare_exchange_once_operand_effect_exit checked 3413ms check-target:macos_arm64 @a92f16431042
+pass/facts/atomic_compare_exchange_once_target_body_exit checked 3397ms check-target:macos_arm64 @a92f16431042
+pass/facts/atomic_compare_exchange_once_through_call_result_exit checked 3323ms check-target:macos_arm64 @a92f16431042
+pass/facts/atomic_compare_exchange_once_through_const_name_exit checked 3398ms check-target:macos_arm64 @a92f16431042
+pass/facts/atomic_compare_exchange_once_through_field_exit checked 3382ms check-target:macos_arm64 @a92f16431042
+pass/facts/atomic_compare_exchange_once_through_local_exit checked 3329ms check-target:macos_arm64 @a92f16431042
+pass/facts/atomic_compare_exchange_once_through_match_join_exit checked 3293ms check-target:macos_arm64 @a92f16431042
+pass/facts/atomic_compare_exchange_once_through_other_machine_exit checked 3280ms check-target:macos_arm64 @a92f16431042
+pass/facts/atomic_compare_exchange_once_through_other_state_exit checked 2618ms check-target:macos_arm64 @a92f16431042
+pass/facts/atomic_compare_exchange_once_through_parameter_exit checked 2611ms check-target:macos_arm64 @a92f16431042
+pass/facts/atomic_compare_exchange_once_through_target_body_exit checked 2610ms check-target:macos_arm64 @a92f16431042
+pass/facts/atomic_compare_exchange_once_wide_exit checked 2785ms check-target:macos_arm64 @a92f16431042
 pass/facts/body_bearing_comparison_case_fields_exit checked 35642ms check-target:macos_arm64 terminal-inspections:match @a92f16431042
 pass/facts/body_bearing_comparison_default_fields_exit checked 29761ms check-target:macos_arm64 terminal-inspections:match @a92f16431042
 pass/facts/body_bearing_comparison_ordered_field_calls_exit checked 36128ms check-target:macos_arm64 terminal-inspections:match @a92f16431042
@@ -23189,7 +23249,7 @@ pass/facts/computed_nested_state_loan_through_other_state_exit checked 2813ms ch
 pass/facts/computed_nested_state_loan_through_parameter_exit checked 2706ms check-target:macos_arm64 @a92f16431042
 pass/facts/computed_nested_state_loan_through_target_body_exit checked 2235ms check-target:macos_arm64 @a92f16431042
 pass/facts/computed_record_window_mixed_lifecycle_exit checked 14790ms check-target:macos_arm64 @a92f16431042
-pass/facts/computed_record_window_original_exit checked 15052ms check-target:macos_arm64 @a92f16431042
+pass/facts/computed_record_window_original_exit checked 5396ms check-target:macos_arm64 @036605466510+wt
 pass/facts/computed_record_window_through_call_result_exit checked 14698ms check-target:macos_arm64 @a92f16431042
 pass/facts/computed_record_window_through_const_name_exit checked 14938ms check-target:macos_arm64 @a92f16431042
 pass/facts/computed_record_window_through_field_exit checked 15035ms check-target:macos_arm64 @a92f16431042
@@ -26429,8 +26489,17 @@ pass/facts/state_transition_ranking_bound_through_other_machine_exit checked 268
 pass/facts/state_transition_ranking_bound_through_other_state_exit checked 2738ms check-target:macos_arm64 @a92f16431042
 pass/facts/state_transition_ranking_bound_through_parameter_exit checked 2660ms check-target:macos_arm64 @a92f16431042
 pass/facts/state_transition_ranking_bound_through_target_body_exit checked 2656ms check-target:macos_arm64 @a92f16431042
+pass/facts/static_callback_reach_boundary_schema checked 14438ms check-target:macos_arm64 terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_captured_schema checked 18696ms check-target:macos_arm64 terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_captured_scope checked 19743ms check-target:macos_arm64 terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_captured_selection checked 20698ms check-target:macos_arm64 terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_captured_shadow checked 20448ms check-target:macos_arm64 terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_captured_unused checked 12739ms check-target:macos_arm64 terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_evidence_scope checked 12820ms check-target:macos_arm64 terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_private_helper checked 13306ms check-target:macos_arm64 terminal-inspections:match @3c1b7104e4f6+wt
 pass/facts/static_callback_reach_recursive_component checked 6066ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
 pass/facts/static_callback_reach_recursive_terminal checked 5442ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_requirement_telescope checked 10377ms check-target:macos_arm64 terminal-inspections:match @3c1b7104e4f6+wt
 pass/facts/static_callback_reach_selected_schema checked 6599ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
 pass/facts/static_callback_reach_terminal_binder checked 6378ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
 pass/facts/static_callback_reach_through_call_result checked 9674ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
@@ -27816,11 +27885,21 @@ pass/generics/generic_result_parameter_receipt checked 1711ms @a92f16431042
 pass/generics/generic_seq_consuming_map_filter checked 1485ms @a92f16431042
 pass/generics/generic_seq_map_filter checked 1919ms @a92f16431042
 pass/generics/higher_order_schema checked 2033ms @a92f16431042
+pass/generics/inferred_equation_generic_result_projection_exit checked 1769ms check-target:macos_arm64 @264fd279a7bb+wt
 pass/generics/inferred_equation_inferred_array_result_exit checked 1927ms check-target:macos_arm64 @036605466510+wt
 pass/generics/inferred_equation_machine_binder_context_exit checked 2541ms check-target:macos_arm64 @036605466510+wt
 pass/generics/inferred_equation_nested_forwarding_exit checked 2167ms check-target:macos_arm64 @036605466510+wt
 pass/generics/inferred_equation_outer_context_exit checked 2366ms check-target:macos_arm64 @036605466510+wt
 pass/generics/inferred_equation_reference_compatibility_exit checked 2289ms check-target:macos_arm64 @036605466510+wt
+pass/generics/inferred_equation_typed_const_call_result_exit checked 1870ms check-target:macos_arm64 @264fd279a7bb+wt
+pass/generics/inferred_equation_typed_const_const_name_exit checked 1829ms check-target:macos_arm64 @264fd279a7bb+wt
+pass/generics/inferred_equation_typed_const_field_exit checked 1857ms check-target:macos_arm64 @264fd279a7bb+wt
+pass/generics/inferred_equation_typed_const_local_exit checked 1756ms check-target:macos_arm64 @264fd279a7bb+wt
+pass/generics/inferred_equation_typed_const_match_join_exit checked 1775ms check-target:macos_arm64 @264fd279a7bb+wt
+pass/generics/inferred_equation_typed_const_other_machine_exit checked 1793ms check-target:macos_arm64 @264fd279a7bb+wt
+pass/generics/inferred_equation_typed_const_other_state_exit checked 1914ms check-target:macos_arm64 @264fd279a7bb+wt
+pass/generics/inferred_equation_typed_const_parameter_exit checked 1854ms check-target:macos_arm64 @264fd279a7bb+wt
+pass/generics/inferred_equation_typed_const_target_body_exit checked 1836ms check-target:macos_arm64 @264fd279a7bb+wt
 pass/generics/inferred_machine_array_equation_deferred_bodies_exit checked 2000ms check-target:macos_arm64 @a92f16431042
 pass/generics/inferred_machine_array_equation_generic_owner_field_exit checked 2903ms check-target:macos_arm64 @a92f16431042
 pass/generics/inferred_machine_array_equation_named_extent_exit checked 2001ms check-target:macos_arm64 @a92f16431042
@@ -27861,8 +27940,7 @@ pass/generics/owned_member_applied_ceiling checked 5882ms check-target:macos_arm
 pass/generics/owned_member_applied_result checked 2389ms check-target:macos_arm64 @a92f16431042
 pass/generics/owned_member_static_type_operand checked 2404ms check-target:macos_arm64 @a92f16431042
 pass/generics/ranged_const_parameter_attached_shape checked 5778ms check-target:macos_arm64 @a92f16431042
-pass/generics/record_const_named_literal_equivalence rejected 1546ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
+pass/generics/record_const_named_literal_equivalence checked 1748ms check-target:macos_arm64 @264fd279a7bb+wt
 pass/generics/runtime_applied_implementation_qualifier_exit rejected 898ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	call `read` has an invalid argument correspondence: selected call has no admitted public application
 	call `own` has an invalid argument correspondence: selected call has no admitted public application
@@ -27909,6 +27987,7 @@ pass/generics/runtime_const_extent_origin_exit checked 6102ms check-target:macos
 pass/generics/runtime_constructor_equation_binder_carriers_exit checked 3057ms check-target:macos_arm64 @a92f16431042
 pass/generics/runtime_container_setter_matrix_exit checked 5593ms check-target:macos_arm64 @a92f16431042
 pass/generics/runtime_copied_indexed_case_subject_exit checked 7527ms check-target:macos_arm64 @a92f16431042
+pass/generics/runtime_dependent_callback_renamed_formals_exit checked 970ms check-target:macos_arm64 @bdeccd2c2ec4+wt
 pass/generics/runtime_dependent_window_parameter_index_exit checked 1563ms check-target:macos_arm64 @c0a374fa75ca+wt
 pass/generics/runtime_equation_constructor_selected_const_exit checked 1988ms check-target:macos_arm64 @a92f16431042
 pass/generics/runtime_equation_named_array_actual_exit checked 1961ms check-target:macos_arm64 @a92f16431042
@@ -27961,6 +28040,7 @@ pass/generics/runtime_inherited_composite_requirement_exit checked 2046ms check-
 pass/generics/runtime_linear_constructor_instances_exit rejected 1525ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	linear state-call result scalar in main::entry at statement 2 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping
 	linear state-call result array in main::entry at statement 3 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping
+pass/generics/runtime_local_value_index_observes_write_exit checked 900ms check-target:macos_arm64 @bdeccd2c2ec4+wt
 pass/generics/runtime_machine_equation_nested_boolean_exit checked 1860ms check-target:macos_arm64 @a92f16431042
 pass/generics/runtime_machine_equation_nested_const_exit checked 2416ms check-target:macos_arm64 @a92f16431042
 pass/generics/runtime_machine_equation_selected_boolean_exit checked 2418ms check-target:macos_arm64 @a92f16431042
@@ -27988,6 +28068,7 @@ pass/generics/static_machine_borrowed_parameter_refines_after_substitution check
 pass/generics/swapped_type_parameter_result checked 2319ms @a92f16431042
 pass/generics/type_index_forwarding_exit rejected 2834ms check-target:macos_arm64 @a92f16431042
 	terminal-artifact production failed: Lowering(Unsupported("scalar entry membership has no exact primitive application"))
+pass/generics/typed_const_equation_helper_body_exit checked 2210ms check-target:macos_arm64 @264fd279a7bb+wt
 pass/generics/unused_selected_value_carrier checked 2091ms @a92f16431042
 pass/generics/unused_selected_value_proved_where checked 1524ms @a92f16431042
 pass/host/console_exit_process_exit checked 6213ms check-target:macos_arm64 @a92f16431042
@@ -28560,10 +28641,11 @@ pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit checked 6184ms check
 pass/ownership/runtime_borrowed_carried_loan_transform_exit checked 5634ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_borrowed_carrier_repeated_repair_exit checked 6222ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_borrowed_case_inventory_insert_exit checked 5396ms check-target:macos_arm64 @a92f16431042
-pass/ownership/runtime_borrowed_case_restore_variants_exit checked 2447ms check-target:macos_arm64 @a92f16431042
+pass/ownership/runtime_borrowed_case_restore_variants_exit checked 2563ms check-target:macos_arm64 @036605466510+wt
 pass/ownership/runtime_borrowed_case_result_restore_exit checked 2421ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_borrowed_content_partition_exit checked 2428ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_borrowed_content_partition_nested_reverse_exit checked 2665ms check-target:macos_arm64 @a92f16431042
+pass/ownership/runtime_borrowed_match_repeated_repair_exit checked 2898ms check-target:macos_arm64 @036605466510+wt
 pass/ownership/runtime_borrowed_operand_order_exit checked 2064ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_borrowed_projected_claim_transform_exit checked 5709ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_borrowed_projected_linear_return_exit checked 2607ms check-target:macos_arm64 @a92f16431042
@@ -28584,8 +28666,7 @@ pass/ownership/runtime_captured_selector_call_exit checked 2456ms check-target:m
 pass/ownership/runtime_captured_selector_partial_cleanup_exit rejected 2001ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "selection pass-through of partially moved roots requires retained residual frontier correspondence", gap: None })
 pass/ownership/runtime_carried_loan_field_replacement_exit checked 5994ms check-target:macos_arm64 @a92f16431042
-pass/ownership/runtime_case_alternative_custody_exit incomplete 2797ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
-	`apply` has no executable body: this compiler does not lower its declaration of it yet (reference result has no complete captured origin paths)
+pass/ownership/runtime_case_alternative_custody_exit checked 2375ms check-target:macos_arm64 @036605466510+wt
 pass/ownership/runtime_complete_array_reference_store_exit checked 1904ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_computed_selector_snapshot_window_exit checked 1954ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_declared_linear_local_assignment_exit checked 5610ms check-target:macos_arm64 @a92f16431042
@@ -30132,8 +30213,7 @@ run/slices/folded_window_endpoint_effects checked 3019ms check-target:macos_arm6
 run/slices/matched_computed_window_end checked 3107ms check-target:macos_arm64 @a92f16431042
 run/slices/matched_record_window_lower_bound incomplete 2976ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	`main` has no executable body: this compiler does not lower a state of it yet (normal-exit cleanup); in state `main::entry`
-run/slices/mutable_window_call_argument incomplete 3250ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
-	`main` has no executable body: this compiler does not lower a call of it yet (state graph: structural result has duplicate dispositions); in state `main::entry`, statement 1
+run/slices/mutable_window_call_argument checked 1778ms check-target:macos_arm64 @036605466510+wt
 run/slices/returned_record_fixed_array_window checked 2756ms check-target:macos_arm64 @a92f16431042
 run/slices/returned_record_parameter_length checked 2992ms check-target:macos_arm64 @a92f16431042
 run/state_owned_nested_borrow checked 2417ms check-target:macos_arm64 @a92f16431042

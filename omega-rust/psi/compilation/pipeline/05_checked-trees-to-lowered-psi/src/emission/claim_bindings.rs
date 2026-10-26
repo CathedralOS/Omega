@@ -411,7 +411,23 @@ pub(crate) fn prepare_establishment_claims(
     structural_type: semantic_vocabulary::StructuralTypeId,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedClaim>, LoweringError> {
-    let (root, receiving_path) = receiving_claim_place(checked, machine, state, statement, root)?;
+    // A computed RHS owns its result before the receiving store. Its selection
+    // receipt binds that exact expression, independently of the borrowed or
+    // projected place the following store will restore.
+    let selection_result = checked
+        .facts
+        .flow
+        .ownership
+        .owned_selection_at(state, statement as u32)
+        .is_some_and(|(_, receipt)| {
+            !receipt.destination.is_valid()
+                && root == facts::PlaceRoot::Expression(receipt.expression)
+        });
+    let (root, receiving_path) = if selection_result {
+        (root, Vec::new())
+    } else {
+        receiving_claim_place(checked, machine, state, statement, root)?
+    };
     if let Some((_, receipt)) = checked
         .facts
         .flow

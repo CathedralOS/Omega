@@ -247,6 +247,9 @@ pub struct CapturedMachineApplication {
     pub normalized_template_identity: String,
     pub accepted_template_commitment: Option<String>,
     pub states: HandleSpan<CapturedMachineState>,
+    /// Authored method-local type and evidence binders and their exact cloned counterparts.
+    /// Capture binders remain owned by the selecting conformance instead.
+    pub parameters: Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

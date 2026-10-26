@@ -13,6 +13,7 @@
 //! formation and the returned live association own its placement authority.
 //! Forwarded descriptors still retain their exact existing interpretation.
 
+mod descriptor_sources;
 mod incoming_origins;
 mod named_returns;
 mod presence;
@@ -539,11 +540,9 @@ impl Captures<'_> {
             if !reference_access_can_supply(incoming_leaf.access, leaf.source.access) {
                 return None;
             }
-            if stored_loan_parts(self.program, parameter.type_reference).is_some() {
-                path.push(CheckedReferenceOriginProjection::Exact(
-                    CheckedUnitStructuralPathSegment::Referent,
-                ));
-            }
+            // Parameter-relative origins start at the storage the structural
+            // formal presents, just as the public declared-return contract
+            // does. Only a stored leaf below that root crosses a descriptor.
             let incoming_path = selected_incoming.segments;
             selected =
                 crate::project_type_reference_from_segments(self.program, carrier, &incoming_path)?;
