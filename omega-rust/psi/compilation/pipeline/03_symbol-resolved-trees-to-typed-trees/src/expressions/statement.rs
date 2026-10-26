@@ -122,7 +122,7 @@ fn lower_statement_node(
                     private_layout_operation: None,
                     layout_query: None,
                     native_code_layout: Some(request),
-                    root_binding: Default::default(),
+                    build_selection: Default::default(),
                     arguments: Default::default(),
                     evidence_arguments: Box::default(),
                     operational_acknowledgement: call.operational_acknowledgement,
@@ -138,9 +138,7 @@ fn lower_statement_node(
                 .set_source_span(expression, call.target.source_span());
             Ok(typed::statement::StatementNode::Expression(expression))
         }
-        resolved::statement::StatementNode::Call(call) => Ok(
-            typed::statement::StatementNode::Call(lower_call_statement(lowerer, call)?),
-        ),
+        resolved::statement::StatementNode::Call(call) => lower_call_statement(lowerer, call),
         resolved::statement::StatementNode::ProofOutputBindingStatement(_) => {
             unreachable!("evidence packages are classified out before runtime statement lowering")
         }

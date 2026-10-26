@@ -7,6 +7,77 @@
 //! the product join resolves them under that source's authority.
 //! These are in-process source selections, not serialized Terminal identities.
 
+/// Compiler-issued context for one ordinary Build selection call. Entry slots
+/// and declaration choices share activation custody, while retaining their
+/// distinct Product admission obligations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BuildSelectionRequest {
+    Entry(RootBindingRequest),
+    Declaration(std::sync::Arc<ProductDeclarationRequest>),
+}
+
+impl Default for BuildSelectionRequest {
+    fn default() -> Self {
+        Self::Entry(RootBindingRequest::default())
+    }
+}
+
+impl BuildSelectionRequest {
+    pub fn source_span(&self) -> source::SourceSpan {
+        match self {
+            Self::Entry(request) => request.source_span,
+            Self::Declaration(request) => request.source_span,
+        }
+    }
+
+    pub fn entry(&self) -> Option<&RootBindingRequest> {
+        match self {
+            Self::Entry(request) => Some(request),
+            Self::Declaration(_) => None,
+        }
+    }
+}
+
+/// Source-authorized locators until the Product join admits their exact roles.
+/// Neither these strings nor a copied request grants declaration visibility.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProductDeclarationRequest {
+    pub source_span: source::SourceSpan,
+    pub operation: super::BuildOperation,
+    pub operands: Box<[ProductDeclarationOperand]>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProductDeclarationOperand {
+    pub path: String,
+    pub source_span: source::SourceSpan,
+}
+
+/// The ordinary provider composition choice, independent of declaration or
+/// target identity. Omission at the source surface means Fused.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CompositionMode {
+    #[default]
+    Fused,
+    Independent,
+}
+
+/// One reached operation authenticated against its original Build activation.
+/// Capturing a potential call does not mint an execution event.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExecutedBuildSelection {
+    Entry(ExecutedRootBinding),
+    Declaration(ExecutedProductSelection),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutedProductSelection {
+    pub request: std::sync::Arc<ProductDeclarationRequest>,
+    /// Provider choices retain the actual evaluated mode. Representation
+    /// choices carry no composition argument.
+    pub composition: Option<CompositionMode>,
+}
+
 /// Inert designated operands retained under their authored lexical scope.
 /// They are not executable arguments or authority to publish a product.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

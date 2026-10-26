@@ -146,6 +146,9 @@ impl SymbolTable {
             {
                 continue;
             }
+            if !self.source_reference_can_describe_product_symbol(occurrence, symbol) {
+                continue;
+            }
             let exact = self.display_path(symbol, "::") == declaration_path;
             if !exact && (dependency.is_some() || self.name(symbol) != declaration_path) {
                 continue;
@@ -171,6 +174,21 @@ impl SymbolTable {
             }
         }
         if ambiguous { None } else { selected }
+    }
+
+    /// A designated Product bridge keeps the ordinary temporal/stratum policy
+    /// while its caller separately admits exact Product package visibility.
+    pub fn source_reference_can_describe_product_symbol(
+        &self,
+        reference: SourceSpan,
+        symbol: SymbolHandle,
+    ) -> bool {
+        match (&self.sources, self.symbol_provenance_source_span(symbol)) {
+            (Some(sources), Some(declaration)) => {
+                sources.reference_can_see_stratum(reference, declaration)
+            }
+            _ => !self.has_source_metadata(),
+        }
     }
 
     /// Compare declaration provenance at the lexical package boundary: the

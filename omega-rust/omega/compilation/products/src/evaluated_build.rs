@@ -124,6 +124,13 @@ pub struct ComputedBuildConfig {
     /// exist under their final owners. Build execution does not select Product
     /// symbols from its private checking context.
     pub root_binding_requests: Vec<language_semantics::declaration_selection::ExecutedRootBinding>,
+    /// Immutable formation roster from checked Build source, independent of
+    /// optimizer reach or actual execution.
+    pub declared_product_selections:
+        Vec<std::sync::Arc<language_semantics::declaration_selection::ProductDeclarationRequest>>,
+    /// Only reached, activation-authenticated choices activate Product rows.
+    pub product_selection_requests:
+        Vec<language_semantics::declaration_selection::ExecutedProductSelection>,
     pub project_declaration: Option<build_declarations::BuildDeclaration>,
     pub optimization_report_request: optimization_core::OptimizationReportRequest,
     pub evaluation_usage: Option<package_compilation::BuildEvaluationUsage>,

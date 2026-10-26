@@ -96,8 +96,10 @@ jobs:
       - name: Execute retained original foreign backing with rejection controls
         if: inputs.foreign_records
         run: python tools/ci/compiler_retained_foreign.py
+      # These cohorts are independent. Retain an earlier failed observation
+      # while still measuring the scalar/opaque rows on this matching host.
       - name: Execute foreign scalar-record results with rejection controls
-        if: ${{ inputs.foreign_records && !inputs.runtime_value_generics }}
+        if: ${{ inputs.foreign_records && !inputs.runtime_value_generics && !cancelled() }}
         run: python tools/ci/compiler_foreign_records.py
       - name: Execute runtime Value data indices with rejection controls
         if: inputs.runtime_value_generics
