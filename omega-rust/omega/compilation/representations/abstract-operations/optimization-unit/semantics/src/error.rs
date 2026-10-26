@@ -8,6 +8,27 @@ use semantic_vocabulary::{
     StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 
+/// The operation row a validation error is about: the machine whose function
+/// was rejected, the block inside it, and the index of the node in that block.
+/// One payload row owner keeps the site spelled once for every error family
+/// whose subject is an operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OperationSite {
+    pub machine: MachineId,
+    pub block: BlockId,
+    pub node: u32,
+}
+
+impl OperationSite {
+    pub const fn new(machine: MachineId, block: BlockId, node: u32) -> Self {
+        Self {
+            machine,
+            block,
+            node,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationUnitValidationError {
     InvalidActivationStorage {
@@ -58,11 +79,7 @@ pub enum OptimizationUnitValidationError {
         boundary: BoundaryMachineId,
         candidate: MachineId,
     },
-    OperationServiceContractMismatch {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
+    OperationServiceContractMismatch(OperationSite),
     InvalidRootConcreteServiceReach,
     InvalidRootInstallationReachDependency(usize),
     NonCanonicalRootInstallationReachDependencies,
@@ -112,31 +129,14 @@ pub enum OptimizationUnitValidationError {
         place: PlaceId,
     },
     TrivialAffineLocalEstablishmentMismatch(MachineId),
-    StructuralReturnTrivialAffineLocalsMismatch {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
-    StructuralReturnTrivialAffineShapeMismatch {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
-    StructuralReturnAffineDiscardsMismatch {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
+    StructuralReturnTrivialAffineLocalsMismatch(OperationSite),
+    StructuralReturnTrivialAffineShapeMismatch(OperationSite),
+    StructuralReturnAffineDiscardsMismatch(OperationSite),
     StructuralEdgeAffineDiscardsMismatch {
         machine: MachineId,
         edge: EdgeId,
     },
-    StructuralReturnHiddenLocalCustodyMismatch {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-        operation: OperationId,
-    },
+    StructuralReturnHiddenLocalCustodyMismatch(OperationSite, OperationId),
     StructuralCatalogMismatch {
         machine: Option<MachineId>,
     },
@@ -144,67 +144,18 @@ pub enum OptimizationUnitValidationError {
         machine: MachineId,
         kind: StructuralPlaceKind,
     },
-    InvalidStructuralScalarFieldRead {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
-    InvalidPrimitiveLocal {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
-    InvalidWriteOnlyPrimitiveStore {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
-    InvalidStructuralScalarFieldStore {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
-    InvalidByteSequenceRead {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
-    InvalidByteSequenceWrite {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
-    InvalidByteSequenceSubslice {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
-    InvalidByteSequenceLength {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
-    StructuralReturnSourceContractMismatch {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
-    ScalarOperationContractMismatch {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
-    AtomicEventCoherenceMismatch {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-        violation: AtomicCoherenceViolation,
-    },
-    StructuralCallContractMismatch {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
+    InvalidStructuralScalarFieldRead(OperationSite),
+    InvalidPrimitiveLocal(OperationSite),
+    InvalidWriteOnlyPrimitiveStore(OperationSite),
+    InvalidStructuralScalarFieldStore(OperationSite),
+    InvalidByteSequenceRead(OperationSite),
+    InvalidByteSequenceWrite(OperationSite),
+    InvalidByteSequenceSubslice(OperationSite),
+    InvalidByteSequenceLength(OperationSite),
+    StructuralReturnSourceContractMismatch(OperationSite),
+    ScalarOperationContractMismatch(OperationSite),
+    AtomicEventCoherenceMismatch(OperationSite, AtomicCoherenceViolation),
+    StructuralCallContractMismatch(OperationSite),
     MissingEntryBlock {
         machine: MachineId,
         block: BlockId,
@@ -262,22 +213,10 @@ pub enum OptimizationUnitValidationError {
     DuplicateEdge(EdgeId),
     DuplicateProvenance(PsiProvenance),
     CoExecutableProvenanceOccurrences(PsiProvenance),
-    IncompleteProvenance {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
-    FuelDoesNotMatchProvenance {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
+    IncompleteProvenance(OperationSite),
+    FuelDoesNotMatchProvenance(OperationSite),
     DuplicateFuelSettlement(PsiProvenance),
-    OperationMetadataMismatch {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
+    OperationMetadataMismatch(OperationSite),
     FactIndexMismatch(MachineId),
     BrokenEffectChain {
         machine: MachineId,
@@ -319,12 +258,7 @@ pub enum OptimizationUnitValidationError {
         place: PlaceId,
     },
     ByteSequenceLiteralEstablishmentMismatch(MachineId),
-    StructuralPlaceNotAvailable {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-        place: PlaceId,
-    },
+    StructuralPlaceNotAvailable(OperationSite, PlaceId),
     UnknownClaim {
         machine: MachineId,
         claim: ClaimId,
@@ -333,18 +267,8 @@ pub enum OptimizationUnitValidationError {
         machine: MachineId,
         block: BlockId,
     },
-    CurrentClaimNotLive {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-        claim: ClaimId,
-    },
-    CurrentClaimAlreadyLive {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-        claim: ClaimId,
-    },
+    CurrentClaimNotLive(OperationSite, ClaimId),
+    CurrentClaimAlreadyLive(OperationSite, ClaimId),
     CurrentLinearClaimAtReturn {
         machine: MachineId,
         block: BlockId,
@@ -367,32 +291,12 @@ pub enum OptimizationUnitValidationError {
         machine: MachineId,
         block: BlockId,
     },
-    CurrentOwnedPlaceNotLive {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-        place: PlaceId,
-    },
-    CurrentWholePlacePartiallyMoved {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-        place: PlaceId,
-    },
-    CurrentProjectedMoveOverlap {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-        place: PlaceId,
-    },
+    CurrentOwnedPlaceNotLive(OperationSite, PlaceId),
+    CurrentWholePlacePartiallyMoved(OperationSite, PlaceId),
+    CurrentProjectedMoveOverlap(OperationSite, PlaceId),
     /// A root lent to a shared address join was moved, released, written,
     /// exclusively borrowed or discarded while the join could observe it.
-    CurrentSharedJoinOriginDisturbed {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-        place: PlaceId,
-    },
+    CurrentSharedJoinOriginDisturbed(OperationSite, PlaceId),
     CurrentCleanupMismatch {
         machine: MachineId,
         block: BlockId,
@@ -423,11 +327,7 @@ pub enum OptimizationUnitValidationError {
     ProofQuestionIndexMismatch,
     OwnershipFrontierFactIndexMismatch,
     CurrentValueRangeFactMismatch,
-    CurrentValueRangeFactNotApplicable {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
+    CurrentValueRangeFactNotApplicable(OperationSite),
     CandidateAcceptedObligationFactMismatch,
     MissingStructuralFrontierMachine(MachineId),
     MissingStructuralOperationFrontier {

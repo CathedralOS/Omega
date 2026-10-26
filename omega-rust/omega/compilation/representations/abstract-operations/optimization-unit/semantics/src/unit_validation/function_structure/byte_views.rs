@@ -14,7 +14,7 @@ use terminal_psi::{
     StructuralTypeDeclaration, StructuralTypeShape, live_field_by_id,
 };
 
-use crate::OptimizationUnitValidationError;
+use crate::{OperationSite, OptimizationUnitValidationError};
 
 /// Resolve the bounded field from the exact writable destination declaration.
 /// Replacement source validity and indexed-store freshness are checked separately.
@@ -491,29 +491,29 @@ pub(super) fn validate_source(
     if !valid || !exact_length || !valid_result || !writable {
         return Err(
             if matches!(operation, AbstractOperation::ByteSequenceSubslice { .. }) {
-                OptimizationUnitValidationError::InvalidByteSequenceSubslice {
-                    machine: function.machine,
+                OptimizationUnitValidationError::InvalidByteSequenceSubslice(OperationSite::new(
+                    function.machine,
                     block,
                     node,
-                }
+                ))
             } else if matches!(operation, AbstractOperation::ByteSequenceWrite { .. }) {
-                OptimizationUnitValidationError::InvalidByteSequenceWrite {
-                    machine: function.machine,
+                OptimizationUnitValidationError::InvalidByteSequenceWrite(OperationSite::new(
+                    function.machine,
                     block,
                     node,
-                }
+                ))
             } else if length.is_some() {
-                OptimizationUnitValidationError::InvalidByteSequenceRead {
-                    machine: function.machine,
+                OptimizationUnitValidationError::InvalidByteSequenceRead(OperationSite::new(
+                    function.machine,
                     block,
                     node,
-                }
+                ))
             } else {
-                OptimizationUnitValidationError::InvalidByteSequenceLength {
-                    machine: function.machine,
+                OptimizationUnitValidationError::InvalidByteSequenceLength(OperationSite::new(
+                    function.machine,
                     block,
                     node,
-                }
+                ))
             },
         );
     }
