@@ -1080,6 +1080,7 @@ mod tests {
         CallSiteOwner, MachineId, NativeTarget, ObjectError, SemanticCodeAttribution,
         SemanticCodeSite, validate_foreign_scalar_arguments,
     };
+    use crate::object_artifact::test_support::empty_machine_code_function;
     use machine_code::{
         ForeignCallRelocation, MachineCodeFunction, ProviderExecutionRecord, UnitCallStackEvidence,
     };
@@ -1191,49 +1192,19 @@ mod tests {
             same_stack_contribution,
         };
         let function = MachineCodeFunction {
-            machine: machine(),
-            attachment: None,
-            nominal_cleanup_subject: None,
-            scalar_abi: None,
-            mixed_structural_scalar_abi: None,
-            structural_call_scalar_return: None,
-            parameter_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![operation()],
                 edges: vec![edge()],
             },
             bytes,
-            x86_floating_control: None,
-            unit_stack: None,
-            unit_parameter_homes: Vec::new(),
-            unit_parameters: Vec::new(),
-            scalar_stack: None,
-            internal_calls: Vec::new(),
             foreign_calls: vec![call.clone()],
-            internal_unit_calls: Vec::new(),
-            internal_unit_scalar_calls: Vec::new(),
-            installed_provider_unit_scalar_calls: Vec::new(),
-            unit_scalar_homes: Vec::new(),
-            unit_integer_constants: Vec::new(),
-            unit_affine_scalar_records: Vec::new(),
-            unit_structural_scalar_field_stores: Vec::new(),
-            unit_write_only_primitive_stores: Vec::new(),
-            scalar_structural_scalar_field_stores: Vec::new(),
-            unit_affine_cleanup: None,
-            unit_continuations: Vec::new(),
-            scalar_affine_cleanup: None,
-            scalar_control_affine_cleanups: Vec::new(),
-            scalar_structural_parameters: Vec::new(),
-            scalar_structural_parameter_homes: Vec::new(),
             semantic_code_attribution: vec![SemanticCodeAttribution {
                 site: SemanticCodeSite::Operation(operation()),
                 operation_ordinal: 0,
                 code_offset: 0,
                 byte_count: 13,
             }],
-            port_effects: Vec::new(),
-            boundary_settlements: Vec::new(),
-            structural_return: None,
+            ..empty_machine_code_function(machine())
         };
         (function, call)
     }
