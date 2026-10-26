@@ -206,7 +206,7 @@ pub struct PureTerminalEvaluationReceipt {
     source_program: Arc<PureEvaluationProgram>,
     machine: symbols::SymbolHandle,
     operators: Vec<SelectedBuildTimeBinaryOperator>,
-    program: Option<Arc<psi_terminal_production::ProducedTerminalArtifact>>,
+    program: Option<Arc<psi_terminal_production::ProducedTerminalProgram>>,
     outcome: PureTerminalEvaluationOutcome,
     usage: terminal_fuel::TerminalFuelUsage,
     fuel_ceiling: u64,
@@ -235,7 +235,7 @@ impl PureTerminalEvaluationReceipt {
         &self.operators
     }
 
-    pub fn program(&self) -> Option<&psi_terminal_production::ProducedTerminalArtifact> {
+    pub fn program(&self) -> Option<&psi_terminal_production::ProducedTerminalProgram> {
         self.program.as_deref()
     }
 
@@ -409,7 +409,7 @@ impl EvaluationAccounting {
         operators: &[SelectedBuildTimeBinaryOperator],
         execute: impl FnOnce(
             &mut terminal_fuel::TerminalFuelMeter,
-            &mut Option<Arc<psi_terminal_production::ProducedTerminalArtifact>>,
+            &mut Option<Arc<psi_terminal_production::ProducedTerminalProgram>>,
         ) -> Result<terminal_interpreter::TerminalExecutionResult, String>,
     ) -> Result<terminal_interpreter::TerminalExecutionResult, String> {
         if !matches!(

@@ -233,7 +233,7 @@ impl PreparedBuildMachineProgram {
                 let artifact = retained_artifact.as_ref().ok_or_else(|| {
                     "constant Terminal production lost its exact artifact".to_owned()
                 })?;
-                let program = terminal_interpreter::TerminalProgram::borrow(artifact.artifact().view());
+                let program = terminal_interpreter::TerminalProgram::borrow(artifact.view());
                 let mut instance = program
                     .instantiate(terminal_interpreter::TerminalInstantiation {
                         scalar_arguments: &[],
