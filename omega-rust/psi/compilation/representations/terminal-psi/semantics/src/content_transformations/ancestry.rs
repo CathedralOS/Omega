@@ -11,6 +11,7 @@ use terminal_psi::{
     TerminalModule,
 };
 
+mod arrivals;
 mod retirement;
 
 type OriginKey = (MachineId, ClaimId, ContentProjectionIdentity);
@@ -297,7 +298,7 @@ fn local_roots(
     }
     traversal.active.push(key);
     let result = (|| {
-        let mut roots: Option<Vec<ClaimId>> = None;
+        let mut roots = arrivals::roots(module, machine, claim, projection, traversal)?;
         for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
             traversal.visit()?;
             let mut candidates = Vec::new();

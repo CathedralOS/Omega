@@ -153,3 +153,8 @@ the uniquely designated leaf cleanup at the current typed storage. Home retireme
 retaining hooks, unaccounted descendants and opaque custody exits do not establish
 disposal. Qualification therefore checks canonical reload of every retained
 Terminal artifact in addition to both execution engines.
+
+The wrapped match also requires canonical ancestry to substitute each joined
+block claim through every predecessor's exact owned argument position and path.
+All incoming alternatives must justify the same complete input roots; a block
+parameter cannot establish a new root or combine unrelated branch facts.
