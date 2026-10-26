@@ -591,6 +591,47 @@ pub(in crate::legalization) fn window_regions(
     path: &[StructuralPathSegment],
     access: StructuralAccess,
 ) -> Result<Vec<(PlaceId, Vec<StructuralPathSegment>)>, LegalizationError> {
+    // A borrowed block parameter already transports an address. Substitute
+    // its captured storage before interpreting relative selectors: `.field`
+    // through that parameter must update the original slot, not temporary
+    // parameter storage that disappears at the next control-flow join.
+    let sources = borrowed_arrivals::flatten(
+        function,
+        custody,
+        types,
+        &StructuralArgument {
+            place,
+            path: path.to_vec(),
+            access,
+        },
+    )
+    .ok_or_else(|| invalid())?;
+    let mut regions = Vec::new();
+    for source in sources {
+        for region in window_regions_in_storage(
+            function,
+            custody,
+            types,
+            source.place,
+            &source.path,
+            source.access,
+        )? {
+            if !regions.contains(&region) {
+                regions.push(region);
+            }
+        }
+    }
+    Ok(regions)
+}
+
+fn window_regions_in_storage(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    access: StructuralAccess,
+) -> Result<Vec<(PlaceId, Vec<StructuralPathSegment>)>, LegalizationError> {
     let Some(crossing) = path
         .iter()
         .rposition(|segment| *segment == StructuralPathSegment::Referent)

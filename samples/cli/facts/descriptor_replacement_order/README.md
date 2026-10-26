@@ -151,7 +151,11 @@ leaf's backing never becomes the address of its replacement. Field moves also
 retain their exact named result owner through call-plan validation. Target
 families join all checked result origins and descriptor effects by formal
 position; they never select a representative target body. Closed dynamic
-suppliers use the same descriptor-effect join.
+suppliers use the same descriptor-effect join. The independent target audit
+follows each borrowed arrival's exact granting ancestors. Reference formation
+remains a reborrow even when an owned aggregate contains only one reference
+leaf; only an explicit move operation transfers that permission. The former
+sole-leaf transfer heuristic is removed.
 
 The [target-alternatives control](controls/target_alternatives/main.omg)
 returns one backing on macOS and another on the other hosted targets. Its
