@@ -103,8 +103,9 @@ pub(super) struct PreparedPackageInvocation {
 }
 
 impl PreparedPackageInvocation {
-    pub(super) fn join_package_inputs(
+    pub(super) fn join_product_context(
         &mut self,
+        target: target::TargetProfile,
         inputs: PackageCompilationInputs,
     ) -> Result<(), CompileFailure> {
         if let Some(original) = &self.inputs
@@ -115,6 +116,13 @@ impl PreparedPackageInvocation {
             )]
             .into());
         }
+        if self.inputs.is_some() && self.target != target {
+            return Err(vec![Diagnostic::error(
+                "Build invocation cannot replace its admitted Product target",
+            )]
+            .into());
+        }
+        self.target = target;
         self.inputs = Some(inputs);
         Ok(())
     }
@@ -132,7 +140,9 @@ impl PreparedPackageInvocation {
                 "Build completion requires joined package source custody",
             )]
         })?;
-        let prepared = self.source.complete(returned, Some(&inputs))?;
+        let prepared = self
+            .source
+            .complete(returned, Some(&inputs), Some(self.target))?;
         let base_sources = prepared.built.base_sources.clone();
         PreparedPackageBuild::seal(
             self.root,
@@ -292,7 +302,7 @@ fn prepare_build_source(
     } else {
         None
     };
-    invocation.complete(returned, None)
+    invocation.complete(returned, None, None)
 }
 
 fn prepare_build_source_invocation(

@@ -45,14 +45,16 @@ impl ResolvedPackageBuild {
     }
 
     /// Complete the original invocation after package admission has joined
-    /// generated inputs and any accepted policy. Compiler completion compares
-    /// the graph with its executed request receipt before Product typing.
+    /// generated inputs and any accepted policy. The Product target is chosen
+    /// here, independently of the discovery/Build host. Compiler completion
+    /// compares the graph with its executed receipt before Product typing.
     pub fn complete(
         mut self,
         compiler: &mut CompilationSession,
+        target: TargetProfile,
         inputs: PackageCompilationInputs,
     ) -> Result<PackageBuild, CompileFailure> {
-        self.build.invocation.join_package_inputs(inputs)?;
+        self.build.invocation.join_product_context(target, inputs)?;
         self.build.complete(compiler)
     }
 }

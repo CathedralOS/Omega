@@ -40,14 +40,15 @@ pub struct PackageBuildInvocation {
 }
 
 impl PackageBuildInvocation {
-    /// Supply the package owner's final custody after Build has declared its
-    /// identity. Completion compares it with the original acquired capture and
-    /// executed role; this cannot replace inputs supplied before Build.
-    pub fn join_package_inputs(
+    /// Join the final Product target and package custody after Build declares
+    /// its identity. Completion compares the original acquired capture and
+    /// executed role; a context admitted before Build remains fixed.
+    pub fn join_product_context(
         &mut self,
+        target: target::TargetProfile,
         inputs: package_compilation::PackageCompilationInputs,
     ) -> Result<(), CompileFailure> {
-        self.source.join_package_inputs(inputs)
+        self.source.join_product_context(target, inputs)
     }
 
     pub fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {

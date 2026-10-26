@@ -246,6 +246,15 @@ Build return joins all requests before product completion. Product bindings are
 inert during Build. Generated source cannot change admitted authored meaning.
 Ordinary Build helpers need Psi execution, not native product compilation.
 
+Execution preparation and Product completion carry different inputs. Source
+inventories, named inputs, required outputs, resource sponsors and restricted
+grants must join the activation before its effects. A returned Build does not
+discharge a later execution request merely because its source graph matches.
+After return, the coordinator joins final source custody and chooses Product
+targets; it must not discard execution obligations while converting occurrence
+plans into retained Product work. Build's execution profile remains independent
+of those targets.
+
 Each compiler entrance shows named representations and actual stage calls in
 execution order. A separate `pipeline.rs` is justified only if it owns meaningful
 sequencing rather than forwarding. Use ordinary locals, loops and matches for

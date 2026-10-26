@@ -1145,7 +1145,13 @@ narrows realization only.
   execution and focused review/preparation checks pass; transaction exclusion
   and refusal ordering remain enforced. Production CLI discovery still consumes the
   static graph; it must consume these retained Builds across review and target
-  occurrences. Ordinary one-shot compiler calls still own their execution loop.
+  occurrences. Final Product context now chooses its target at source join;
+  the SDK completes a foreign-target dependency graph after host discovery,
+  then selects and executes the host product. Pre-admitted targets remain fixed.
+  Before wiring retained scheduling, separate execution-time snapshots, outputs,
+  sponsors and grants from post-return Product work; none may be dropped from
+  an old occurrence request. Terminal filesystem adapters are still uninstalled.
+  Ordinary one-shot compiler calls still own their execution loop.
   Extend pinned Git/workspace acquisition and preserve
   review/lock/offline recovery while replacing static Build projection,
   provider readiness/resumption, and demanded Product-description queries; this

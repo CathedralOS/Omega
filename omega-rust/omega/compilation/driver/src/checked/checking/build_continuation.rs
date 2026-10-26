@@ -112,6 +112,7 @@ impl BuildSourceInvocation {
         self,
         returned: Option<build_evaluation::ReturnedBuild>,
         joined_inputs: Option<&PackageCompilationInputs>,
+        product_target: Option<target::TargetProfile>,
     ) -> Result<compilation_products::PreparedBuild, CompileFailure> {
         let Self {
             frontier,
@@ -131,6 +132,11 @@ impl BuildSourceInvocation {
             .into());
         }
         let initially_unbound = package_inputs.is_none();
+        let selected_target_profile = if initially_unbound {
+            product_target.or(selected_target_profile)
+        } else {
+            selected_target_profile
+        };
         let package_inputs = joined_inputs.or(package_inputs.as_ref());
         if initially_unbound && let Some(inputs) = package_inputs {
             inputs.validate_execution_context(selected_target_profile, build_execution_profile)?;

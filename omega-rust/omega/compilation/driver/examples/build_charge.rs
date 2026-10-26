@@ -365,7 +365,7 @@ fn unbound_build_invocation(project_name: &str) {
     )
     .expect("named root inputs; this Build issued no dependencies");
     invocation
-        .join_package_inputs(inputs)
+        .join_product_context(target::TargetProfile::host_if_supported().unwrap(), inputs)
         .expect("join exact source owner");
     let build = compiler
         .complete_package_build(invocation, returned)
@@ -450,7 +450,10 @@ fn unbound_build_invocation(project_name: &str) {
         let returned = return_build(&mut invocation);
         if let Some(inputs) = inputs {
             invocation
-                .join_package_inputs(inputs)
+                .join_product_context(
+                    target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap(),
+                    inputs,
+                )
                 .expect("supply control join");
         }
         let failure = session
@@ -556,16 +559,38 @@ fn application_source_resolution(project: &str, private_call: bool) {
         }
     }
     let mut builds = resolved.builds;
+    // Product placement is chosen after discovery. Its dependency bundles
+    // carry that target, while the Build execution profile remains the host.
+    let linux = target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap();
+    let product_target = if profile == linux {
+        target::TargetProfile::from_omega_target_name(Some("windows_x86_64")).unwrap()
+    } else {
+        linux
+    };
     let child = builds.pop().unwrap();
     let inputs = child.package_inputs().clone();
-    let child = child.complete(session.compiler(), inputs).unwrap();
+    let child = child
+        .complete(session.compiler(), product_target, inputs.clone())
+        .unwrap();
+    assert_eq!(child.generated_source_bundle().target(), product_target);
+    let host_child = child.select_target(profile, inputs).unwrap();
     let root = builds.pop().unwrap();
     let inputs = root
         .package_inputs()
         .clone()
         .with_complete_dependency_generated_sources(vec![child.generated_source_bundle().clone()])
         .unwrap();
-    let root = root.complete(session.compiler(), inputs).unwrap();
+    let root = root
+        .complete(session.compiler(), product_target, inputs)
+        .unwrap();
+    let host_inputs = root
+        .package_inputs()
+        .clone()
+        .with_complete_dependency_generated_sources(vec![
+            host_child.generated_source_bundle().clone(),
+        ])
+        .unwrap();
+    let root = root.select_target(profile, host_inputs).unwrap();
     let result = execute_joined_product(session.compiler(), root, &temporary.path().join("output"));
     if private_call {
         let diagnostics = result
@@ -722,7 +747,7 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
             inputs.canonical_source_metadata(identity).is_some(),
             "selected root gains its own captured Build view"
         );
-        invocation.join_package_inputs(inputs).unwrap();
+        invocation.join_product_context(profile, inputs).unwrap();
         let build = compiler
             .complete_package_build(invocation, Some(returned))
             .unwrap_or_else(|error| panic!("child completion: {:?}", error.into_diagnostics()));
@@ -801,7 +826,9 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
             .canonical_live_root()
             .join("main.omg")
     );
-    root_invocation.join_package_inputs(inputs).unwrap();
+    root_invocation
+        .join_product_context(profile, inputs)
+        .unwrap();
     let build = compiler
         .complete_package_build(root_invocation, Some(root_return))
         .unwrap_or_else(|error| panic!("joined root completion: {:?}", error.into_diagnostics()));
@@ -1024,7 +1051,9 @@ fn completed_build_target_fanout() {
         omega_build::resolve_project_sources(&mut session, preparation, host).unwrap();
     let build = resolved.builds.pop().unwrap();
     let inputs = build.package_inputs().clone();
-    let build = build.complete(session.compiler(), inputs.clone()).unwrap();
+    let build = build
+        .complete(session.compiler(), host, inputs.clone())
+        .unwrap();
     for name in ["main.omg", "build.omg"] {
         std::fs::remove_file(project.join(name)).unwrap();
     }
@@ -1184,6 +1213,19 @@ fn interleaved_build_invocations() {
         .expect("first admission");
     assert_eq!(counters::build_execution_count(), before);
     assert_eq!(counters::product_source_completion_count(), products_before);
+    let refused = first
+        .join_product_context(
+            target::TargetProfile::from_omega_target_name(Some("windows_x86_64")).unwrap(),
+            request().package_inputs.unwrap(),
+        )
+        .err()
+        .expect("a pre-admitted occurrence cannot replace its Product target");
+    assert!(refused.into_diagnostics().iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot replace its admitted Product target")
+    }));
+    assert_eq!(counters::build_execution_count(), before);
     let first_returned = {
         let mut host = first
             .execution()
