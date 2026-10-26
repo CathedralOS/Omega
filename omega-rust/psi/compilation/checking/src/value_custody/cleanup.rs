@@ -36,15 +36,36 @@ pub fn has_plain_contents_without_nominal_cleanup(
     )
 }
 
-/// Copyable use alone does not retire materialized loan descriptors. Combine
-/// exact result custody with the complete original contents/cleanup judgment.
-pub fn has_no_owned_cleanup_obligations(
+/// A whole affine claim remains at the subject, outside every case namespace.
+/// Only complete, ordinary copy payloads prove that no descendant cleanup state
+/// depends on the tag. Missing payload rows or erased subjects stay opaque.
+pub fn case_payloads_have_no_owned_cleanup(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
-    crate::reference_result_custody::result_multiplicity(program, reference)
-        == Multiplicity::Unrestricted
-        && has_plain_contents_without_nominal_cleanup(program, reference)
+    if !has_plain_contents_without_nominal_cleanup(program, reference) {
+        return false;
+    }
+    let Some(data) = program.closed_data_definition(reference) else {
+        return false;
+    };
+    let members = program.data_members(data);
+    members.len() == data.members.count() as usize
+        && members.iter().all(|member| {
+            let DataMember::Variant(variant) = member else {
+                return true;
+            };
+            let fields = program.data_payload_fields(variant);
+            fields.len() == variant.payload.count() as usize
+                && fields.iter().all(|field| {
+                    !field.relevance.is_erased()
+                        && crate::reference_result_custody::result_multiplicity(
+                            program,
+                            field.type_reference,
+                        ) == Multiplicity::Unrestricted
+                        && has_plain_contents_without_nominal_cleanup(program, field.type_reference)
+                })
+        })
 }
 
 pub fn type_graph_requires_nominal_drop(
