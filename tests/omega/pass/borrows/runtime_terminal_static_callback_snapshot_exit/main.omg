@@ -1,0 +1,32 @@
+// The selected value of a copied first argument remains 7 when the second argument replaces its former descriptor home with a view of 9.
+// Expected exit: 0
+data View<'storage> [copy] { bytes: &'storage [u8]; sibling: &'storage [u8]; }
+machine overwrite<'storage>(slot: &mut View<'storage>, replacement: &'storage [u8]) -> u64 { slot.bytes = replacement; 0 }
+data Counter { called: bool; }
+machine keep<'storage>(source: View<'storage>, counter: &mut Counter) -> View<'storage>
+ensures result.bytes.len == source.bytes.len, result.sibling.len == source.sibling.len
+{ counter.called = !counter.called; let held: View = source; held }
+machine apply<'storage, machine Callback>(source: View<'storage>, counter: &mut Counter, first: bool) -> View<'storage>
+where machine Callback<'fresh>(source: View<'fresh>, counter: &mut Counter) -> View<'fresh>
+ensures result.bytes.len == source.bytes.len, result.sibling.len == source.sibling.len;
+ensures result.bytes.len == source.bytes.len, result.sibling.len == source.sibling.len
+{ transition first { true -> Callback(source, counter) false -> Callback(source, counter) } }
+machine receive<'storage>(selected: View<'storage>, ignored: u64) -> u64
+requires selected.bytes.len == 7
+ensures result == 7
+{ selected.bytes.len }
+machine main() crashes Trap {
+    let mut counter: Counter = Counter { called: false };
+    let storage: [u8; 7] = [49, 50, 51, 52, 53, 54, 55];
+    let mut original: View = View { bytes: &storage[..], sibling: "tail" };
+    let observed: u64 = receive(apply<keep>(original, &mut counter, true), overwrite(&mut original, "123456789"));
+    let mut other_counter: Counter = Counter { called: false };
+    let mut other: View = View { bytes: &storage[..], sibling: "tail" };
+    let other_observed: u64 = receive(apply<keep>(other, &mut other_counter, false), overwrite(&mut other, "123456789"));
+    let other_difference: u64 = other_observed - 7;
+    let difference: u64 = observed - 7;
+    transition counter.called && other_counter.called && other_difference == 0 && other.bytes.len == 9 && other.sibling.len == 4 && difference == 0 && original.bytes.len == 9 && original.sibling.len == 4 {
+        true -> done() false -> wrong()
+    }
+    machine done() {} machine wrong() crashes Trap { crash Trap; }
+}
