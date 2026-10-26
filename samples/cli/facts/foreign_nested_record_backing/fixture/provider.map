@@ -1,1 +1,1 @@
-RETAIN_1.0 { global: nestlease_acquire; nestlease_register; nestlease_complete; nestlease_release; nestlease_same; local: *; };
+RETAIN_1.0 { global: nestlease_acquire; nestlease_register; nestlease_register_repeated; nestlease_complete; nestlease_release; nestlease_same; local: *; };

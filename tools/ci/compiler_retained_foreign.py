@@ -23,6 +23,7 @@ FACTS = (
      ("shared_aliases", "resident_whole_move", "enclosing_allocation"), ()),
     ("foreign_retained_mutable_borrow", ("reverse_completion", "mixed_issuers"),
      ("stale_completion_fact", "other_registration_live", "overlapping_registration", "mixed_issuers_live")),
+    ("foreign_nested_record_backing", ("repeated_child_type",), ("repeated_child_type_live",)),
 )
 
 

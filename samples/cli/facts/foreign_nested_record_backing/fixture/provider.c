@@ -7,13 +7,27 @@
 #endif
 struct cell { uint64_t value; };
 struct buffer { uint64_t marker; struct cell cell; };
+struct repeated_buffer { struct cell marker; struct cell cell; };
 _Static_assert(sizeof(struct cell) == 8, "nested cell must use its ordinary u64 layout");
 _Static_assert(sizeof(struct buffer) == 16, "Buffer is marker followed by a nested cell");
 _Static_assert(offsetof(struct buffer, marker) == 0 && offsetof(struct buffer, cell) == 8,
                "C must use the same nested record field offsets");
 _Static_assert(offsetof(struct cell, value) == 0, "nested scalar starts at cell offset zero");
+_Static_assert(sizeof(struct repeated_buffer) == 16,
+               "two occurrences of Cell retain the ordinary 16-byte record layout");
+_Static_assert(offsetof(struct repeated_buffer, marker) == 0
+               && offsetof(struct repeated_buffer, cell) == 8,
+               "each repeated Cell field has its own parent path and layout offset");
 enum state { VACANT, CAPACITY, REGISTERED };
-static struct slot { enum state state; uint64_t capacity_generation; uint64_t registration_generation; struct buffer *root; } slots[2];
+enum retained_kind { NO_ROOT, ORIGINAL_ROOT, REPEATED_ROOT };
+union retained_root { struct buffer *original; struct repeated_buffer *repeated; };
+static struct slot {
+    enum state state;
+    uint64_t capacity_generation;
+    uint64_t registration_generation;
+    enum retained_kind kind;
+    union retained_root root;
+} slots[2];
 static void invalid(void) { __builtin_trap(); }
 static struct slot *lookup(uint64_t token, enum state state) {
     uint64_t index = token & 3;
@@ -41,17 +55,41 @@ RETENTION_EXPORT uint64_t nestlease_register(uint64_t capacity, struct buffer *r
     if (slot->registration_generation == (UINT64_MAX >> 2)) invalid();
     slot->registration_generation++;
     root->cell.value = 41;
-    slot->root = root;
+    slot->root.original = root;
+    slot->kind = ORIGINAL_ROOT;
+    slot->state = REGISTERED;
+    return (slot->registration_generation << 2) | (capacity & 3);
+}
+RETENTION_EXPORT uint64_t nestlease_register_repeated(uint64_t capacity, struct repeated_buffer *root) {
+    struct slot *slot = lookup(capacity, CAPACITY);
+    if (root == NULL || root->marker.value != 91) invalid();
+    if (slot->registration_generation == (UINT64_MAX >> 2)) invalid();
+    slot->registration_generation++;
+    root->cell.value = 41;
+    slot->root.repeated = root;
+    slot->kind = REPEATED_ROOT;
     slot->state = REGISTERED;
     return (slot->registration_generation << 2) | (capacity & 3);
 }
 RETENTION_EXPORT uint64_t nestlease_complete(uint64_t pending, uint64_t *observed) {
     struct slot *slot = lookup(pending, REGISTERED);
     if (observed == NULL) invalid();
-    if (slot->root->marker != 91) invalid();
-    slot->root->cell.value = 73;
-    *observed = slot->root->cell.value;
-    slot->root = NULL;
+    switch (slot->kind) {
+    case ORIGINAL_ROOT:
+        if (slot->root.original->marker != 91) invalid();
+        slot->root.original->cell.value = 73;
+        *observed = slot->root.original->cell.value;
+        break;
+    case REPEATED_ROOT:
+        if (slot->root.repeated->marker.value != 91) invalid();
+        slot->root.repeated->cell.value = 73;
+        *observed = slot->root.repeated->cell.value;
+        break;
+    default:
+        invalid();
+    }
+    slot->root.original = NULL;
+    slot->kind = NO_ROOT;
     slot->state = CAPACITY;
     return (slot->capacity_generation << 2) | (pending & 3);
 }
@@ -96,6 +134,26 @@ static int invalid_control(const char *name) {
     }
     return 1; /* Neither an unknown case nor a normal return proves a trap. */
 }
+static void repeated_selftest(void) {
+    uint64_t first_capacity = nestlease_acquire(), second_capacity = nestlease_acquire();
+    struct buffer original = {91, {37}};
+    struct repeated_buffer repeated = {{91}, {37}};
+    uint64_t observed = 0;
+    uint64_t first = nestlease_register(first_capacity, &original);
+    uint64_t second = nestlease_register_repeated(second_capacity, &repeated);
+    assert(original.marker == 91 && original.cell.value == 41);
+    assert(repeated.marker.value == 91 && repeated.cell.value == 41);
+    assert(nestlease_complete(second, &observed) == second_capacity && observed == 73);
+    assert(repeated.marker.value == 91 && repeated.cell.value == 73);
+    assert(original.marker == 91 && original.cell.value == 41);
+    assert(nestlease_complete(first, &observed) == first_capacity && observed == 73);
+    uint64_t next = nestlease_register_repeated(first_capacity, &repeated);
+    assert(next != first && repeated.marker.value == 91 && repeated.cell.value == 41);
+    assert(nestlease_complete(next, &observed) == first_capacity && observed == 73);
+    assert(repeated.marker.value == 91 && repeated.cell.value == 73);
+    nestlease_release(first_capacity);
+    nestlease_release(second_capacity);
+}
 int main(int argc, char **argv) {
 #if defined(_WIN32)
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
@@ -122,6 +180,7 @@ int main(int argc, char **argv) {
     uint64_t c = nestlease_acquire();
     assert(c != a && c != b);
     nestlease_release(c);
+    repeated_selftest();
     return 0;
 }
 #endif
