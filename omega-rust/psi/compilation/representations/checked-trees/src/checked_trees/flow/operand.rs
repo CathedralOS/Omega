@@ -144,6 +144,9 @@ pub struct FlowOperandFact {
     pub completion: FlowOperandCompletion,
     /// Actual receiver or source descriptor dependency, independently of value identity.
     pub backing: Handle<FlowOperandFact>,
+    /// Completed selectors and strict computation operands in evaluation order.
+    /// These inputs are neither stored children nor additional backing loans.
+    pub evaluated_inputs: HandleSpan<FlowOperandFact>,
     /// Earlier whole value supplying an identity-preserving read; not custody.
     pub value_source: Handle<FlowOperandFact>,
     /// Writes already evaluated in this statement when the operand completed.

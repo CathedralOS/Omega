@@ -83,8 +83,9 @@ impl MissingDependencyEdge {
 impl ReconciledPackageImportRequest {
     pub fn physical_source(
         &self,
-        filesystem: &source::SourceFileSystem,
+        packages: &PackageCompilationInputs,
     ) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
+        let filesystem = packages.source_filesystem();
         if !source_import_candidates(&self.relative_path)
             .into_iter()
             .any(|candidate| filesystem.is_file(&self.expected_root.join(candidate)))
@@ -97,6 +98,7 @@ impl ReconciledPackageImportRequest {
             "package",
             filesystem,
         )?;
+        self.reject_foreign_source_owner(&resolved, packages)?;
         self.reject_dependency_build_import(&resolved)?;
         Ok(Some(resolved))
     }
@@ -145,16 +147,32 @@ impl ReconciledPackageImportRequest {
                 {
                     return Err(vec![missing_edge.diagnostic(&self.requesting_source)]);
                 }
-                resolve_reconciled_relative_import(
+                let resolved = resolve_reconciled_relative_import(
                     self.expected_root.clone(),
                     &self.relative_path,
                     "package",
                     filesystem,
-                )?
+                )?;
+                self.reject_foreign_source_owner(&resolved, packages)?;
+                resolved
             }
         };
         self.reject_dependency_build_import(&resolved)?;
         Ok(resolved)
+    }
+
+    fn reject_foreign_source_owner(
+        &self,
+        resolved: &Path,
+        packages: &PackageCompilationInputs,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if packages.package_for_source(resolved) != Some(self.package) {
+            return Err(vec![Diagnostic::error(format!(
+                "package source {} belongs to a different reconciled package than the import requested",
+                resolved.display(),
+            ))]);
+        }
+        Ok(())
     }
 
     fn reject_dependency_build_import(&self, resolved: &Path) -> Result<(), Vec<Diagnostic>> {

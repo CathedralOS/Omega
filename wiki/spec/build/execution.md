@@ -10,15 +10,17 @@ explicit opt-in. It is not the hermetic evaluator used for constants and proofs.
 The order is:
 
 1. Check package-local Build source against `omega::core` and every pre-known
-  requirement used by `Build::await_provider<R>`; surface and admit its own
+  requirement used by `Build::await_provider<R, Backing>`; retain the backing as
+  an inert designated reference, surface and admit the root's own
   restricted requests, then produce one prepared Terminal entry.
 2. Interpret that entry once. Each dependency declaration mutates the same
   `Build` and submits an immutable purpose-qualified request without suspending
   the Build continuation.
 3. For each request, the application coordinator asks package management to
-  resolve and review source, recursively activates the dependency Build, and
-  asks Psi to compile and admit any implementation requested through
-  `Build::await_provider<R>`.
+  resolve and review source, recursively activates the dependency Build,
+  resolves the exact qualified backing named by
+  `Build::await_provider<R, Backing>`, and asks Psi to compile and admit that
+  implementation against `R`. No satisfier search or default chooses it.
 4. When provider readiness encounters an implementation that is not yet
   installed, the Terminal interpreter suspends that exact continuation. After
   package coordination installs the admitted implementation into the exact

@@ -120,6 +120,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
             terminal_authority_permission_policy: Some(permission_policy),
             image_request,
             imports: &[],
+            components: &[],
         },
     )
     .unwrap_or_else(|(_, diagnostics)| {

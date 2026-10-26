@@ -819,7 +819,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   and Psi compile-time admission.
   - Connect admitted Build operations, remaining live-storage accounting,
     remaining host operations (including an admitted loan-carrier interface for
-    explicit host loan returns), and `suspend Build::await_provider<R>(builder, alias)`
+    explicit host loan returns), and `suspend Build::await_provider<R, Backing>(builder)`
     park/resume to the production Build scheduler, replacing checked-tree Build
     evaluation and static syntax projection in
     `omega-rust/omega/packages/build-declarations`.
@@ -902,14 +902,20 @@ narrows realization only.
   - Complete accepted-lock round-trip qualification, provider readiness/resumption,
     and demanded
     Product-description queries while replacing static Build projection.
+    Implement [explicit Build provider backing](wiki/spec/build/provider_selection.md#build-provider-readiness):
+    resolve the qualified backing from the requested Build dependency, check exact
+    satisfaction/admission, and install that static slot without ordinary import
+    leakage, default selection, satisfier search, or effect replay. Cover multiple
+    exported backings and rejection of missing/private/wrong-requirement/unadmitted
+    selections; retain namespace and exact-owner identity through park/resume.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in
     `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega
     `00–09` and emission once per requested target without
-    checked-tree/lowered-Psi sidecars. The default `package_batch_sources`
-    measurement currently observes three source completions for two distinct
-    source cohorts; restore its existing two-completion oracle while preserving
-    each occurrence's Build receipts and exact Product admission.
+    checked-tree/lowered-Psi sidecars. Preserve source-cohort sharing across
+    package occurrences while completing provider readiness/resumption and
+    dependency input settlement; each occurrence keeps its Build receipts and
+    exact Product admission.
   - Enforce via `cargo metadata` and source guards that Psi never depends on
     Omega, Omega pipeline/realization never depends on source/typed/checked Psi
     or interpreters, numbered stages are called only inside the Psi/Omega
@@ -1585,8 +1591,7 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   checked value continuations, Terminal production, and
   `omega-rust/omega/packages/review-evidence/src/capture/contracts/expressions/projection/`.
   - Carry affine custody through branch-local calls/receivers, effectful
-    subjects, projected fields inside record-construction arms, heterogeneous
-    residual custody, and claim-bearing body plans.
+    subjects, heterogeneous residual custody, and claim-bearing body plans.
   - Extend borrowed joins in
     `omega-rust/omega/compilation/representations/abstract-operations/src/abstract_operations/control_flow/address_joins.rs`
     and `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/address_joins.rs`
@@ -1597,8 +1602,8 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     `omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/control.rs`
     and instantiate composite/constrained result shells and scoped
     captured-subject identities for indexed predicates/theorems.
-  Acceptance: corpus and fact witnesses for owned call-product arms,
-  interleaved/projected sources, linear child carriers, borrowed joins, and
+  Acceptance: corpus and fact witnesses for interleaved/projected sources,
+  linear child carriers, borrowed joins, and
   [float Match customers](wiki/drafts/reference/float_realization.md#operation-and-control-custody)
   execute via `omega run --both` (keeping
   `tests/omega/pass/expressions/{match_anonymous_result_landing,numeric_operand_destinations}`

@@ -25,6 +25,7 @@ pub(super) fn encode(
     if let Some(specialization) = &body.specialization {
         writer.u32(specialization.template.identity().0);
         writer.u32(specialization.template_callable.0);
+        writer.u32(specialization.template_semantic_declaration.0);
         writer.bytes(&specialization.commitment);
         writer.boolean(specialization.capture.is_some());
         if let Some(capture) = &specialization.capture {
@@ -49,6 +50,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<CheckedMachineDeclaratio
         Some(CheckedMachineSpecialization {
             template: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
             template_callable: TerminalIdentityIndex(reader.u32()?),
+            template_semantic_declaration: TerminalIdentityIndex(reader.u32()?),
             commitment: reader.array()?,
             capture: if reader.boolean()? {
                 Some(terminal_psi::CheckedMachineCapture {
@@ -56,7 +58,9 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<CheckedMachineDeclaratio
                     template_commitment: reader.array()?,
                     specialization_commitment: reader.array()?,
                 })
-            } else { None },
+            } else {
+                None
+            },
         })
     } else {
         None
@@ -77,14 +81,16 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<CheckedMachineDeclaratio
 
 fn validate(body: &CheckedMachineDeclaration) -> Result<(), CodecError> {
     if body.contract == [0; 32]
-        || body
-            .specialization
-            .as_ref()
-            .is_some_and(|row| row.commitment == [0; 32] || row.template_callable.is_absent()
+        || body.specialization.as_ref().is_some_and(|row| {
+            row.commitment == [0; 32]
+                || row.template_callable.is_absent()
+                || row.template_semantic_declaration.is_absent()
                 || row.capture.as_ref().is_some_and(|capture| {
-                    capture.template_identity.is_absent() || capture.template_commitment == [0; 32]
+                    capture.template_identity.is_absent()
+                        || capture.template_commitment == [0; 32]
                         || capture.specialization_commitment == [0; 32]
-                }))
+                })
+        })
     {
         return Err(CodecError::MalformedStructuralFoundation(
             "empty checked machine commitment",

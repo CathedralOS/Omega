@@ -9907,6 +9907,32 @@ fail/facts/match_primitive_local_origin_through_target_body_rejected rejected 23
 	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/match_projected_product_custody_through_call_result_rejected rejected 3120ms expected @e203b5fd18b8
+	cannot use `result` in machine `choose` state `entry` (statement 2) after `result` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
+fail/facts/match_projected_product_custody_through_const_name_rejected rejected 2980ms expected @e203b5fd18b8
+	cannot use `result` in machine `choose` state `entry` (statement 3) after `result` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
+fail/facts/match_projected_product_custody_through_controls_bypass_with_sibling_rejected rejected 3003ms expected @e203b5fd18b8
+	cannot use `pair.first` in machine `consume` state `entry` (statement 1) after `pair.first` was transferred or consumed: it holds no value; read what is needed before the transfer or assign a whole value to `pair.first` first
+fail/facts/match_projected_product_custody_through_controls_earlier_partial_with_sibling_rejected rejected 3036ms expected @e203b5fd18b8
+	cannot use `source.earlier` in machine `consume` state `entry` (statement 2) after `source.earlier` was transferred or consumed: it holds no value; read what is needed before the transfer or assign a whole value to `source.earlier` first
+fail/facts/match_projected_product_custody_through_controls_record_arm_rejected rejected 3050ms expected @e203b5fd18b8
+	cannot use `result` in machine `choose` state `entry` (statement 4) after `result` was transferred or consumed at statement 3: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
+fail/facts/match_projected_product_custody_through_controls_two_sources_rejected rejected 3052ms expected @e203b5fd18b8
+	cannot use `result` in machine `choose` state `entry` (statement 4) after `result` was transferred or consumed at statement 3: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
+fail/facts/match_projected_product_custody_through_field_rejected rejected 3040ms expected @e203b5fd18b8
+	cannot use `result` in machine `choose` state `entry` (statement 4) after `result` was transferred or consumed at statement 3: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
+fail/facts/match_projected_product_custody_through_local_rejected rejected 3115ms expected @e203b5fd18b8
+	cannot use `result` in machine `choose` state `entry` (statement 3) after `result` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
+fail/facts/match_projected_product_custody_through_match_join_rejected rejected 3069ms expected @e203b5fd18b8
+	cannot use `result` in machine `choose` state `entry` (statement 4) after `result` was transferred or consumed at statement 3: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
+fail/facts/match_projected_product_custody_through_other_machine_rejected rejected 3485ms expected @e203b5fd18b8
+	cannot use `result` in machine `choose` state `entry` (statement 2) after `result` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
+fail/facts/match_projected_product_custody_through_other_state_rejected rejected 3046ms expected @e203b5fd18b8
+	cannot use `result` in machine `consume` state `entry` (statement 1) after `result` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
+fail/facts/match_projected_product_custody_through_parameter_rejected rejected 3026ms expected @e203b5fd18b8
+	cannot use `result` in machine `consume` state `entry` (statement 2) after `result` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
+fail/facts/match_projected_product_custody_through_target_body_rejected rejected 3015ms expected @e203b5fd18b8
+	cannot use `result` in machine `choose` state `entry` (statement 2) after `result` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
 fail/facts/match_reference_referent_through_call_result_rejected rejected 2147ms unexpected @a92f16431042
 	cannot prove requires contract for call read_through from main: match choose() { true => spare_ref, false => chosen_ref } == 17 (authored requirement `joined == 17`; needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/match_reference_referent_through_const_name_rejected rejected 2347ms unexpected @a92f16431042
@@ -17307,6 +17333,30 @@ fail/facts/write_only_checked_adapter_opaque_call rejected 458ms expected @a92f1
 	machine `opaque` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 	machine `lend` state `entry` calls `opaque` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
 	bodyless boundary symbol `opaque` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+fail/facts/write_only_indexed_reborrow_cast_selector_rejected rejected 1136ms expected @8eca68666797
+	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+fail/facts/write_only_indexed_reborrow_selector_expression_rejected rejected 1151ms expected @8eca68666797
+	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+fail/facts/write_only_indexed_reborrow_through_call_result_rejected rejected 1117ms expected @8eca68666797
+	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+fail/facts/write_only_indexed_reborrow_through_const_name_rejected rejected 1141ms expected @8eca68666797
+	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+fail/facts/write_only_indexed_reborrow_through_field_rejected rejected 1151ms expected @8eca68666797
+	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+fail/facts/write_only_indexed_reborrow_through_local_rejected rejected 1175ms expected @8eca68666797
+	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+fail/facts/write_only_indexed_reborrow_through_match_join_rejected rejected 1188ms expected @8eca68666797
+	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+fail/facts/write_only_indexed_reborrow_through_other_machine_rejected rejected 1141ms expected @8eca68666797
+	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+fail/facts/write_only_indexed_reborrow_through_other_state_rejected rejected 1161ms expected @8eca68666797
+	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+fail/facts/write_only_indexed_reborrow_through_parameter_rejected rejected 1133ms expected @8eca68666797
+	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+fail/facts/write_only_indexed_reborrow_through_target_body_rejected rejected 1148ms expected @8eca68666797
+	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+fail/facts/write_only_indexed_reborrow_unary_selector_rejected rejected 1161ms expected @8eca68666797
+	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 fail/facts/write_only_recast_through_call_result_rejected rejected 907ms expected @a92f16431042
 	machine `alias` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
 	machine `alias` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
@@ -25837,6 +25887,19 @@ pass/facts/match_primitive_local_origin_through_other_machine_exit checked 2400m
 pass/facts/match_primitive_local_origin_through_other_state_exit checked 2412ms check-target:macos_arm64 @a92f16431042
 pass/facts/match_primitive_local_origin_through_parameter_exit checked 2318ms check-target:macos_arm64 @a92f16431042
 pass/facts/match_primitive_local_origin_through_target_body_exit checked 1707ms check-target:macos_arm64 @a92f16431042
+pass/facts/match_projected_product_custody_through_call_result_exit checked 4410ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @e203b5fd18b8
+pass/facts/match_projected_product_custody_through_const_name_exit checked 4409ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @e203b5fd18b8
+pass/facts/match_projected_product_custody_through_controls_bypass_with_sibling_exit checked 4378ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @e203b5fd18b8
+pass/facts/match_projected_product_custody_through_controls_earlier_partial_with_sibling_exit checked 4374ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @e203b5fd18b8
+pass/facts/match_projected_product_custody_through_controls_record_arm_exit checked 4304ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @e203b5fd18b8
+pass/facts/match_projected_product_custody_through_controls_two_sources_exit checked 4301ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @e203b5fd18b8
+pass/facts/match_projected_product_custody_through_field_exit checked 4355ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @e203b5fd18b8
+pass/facts/match_projected_product_custody_through_local_exit checked 4340ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @e203b5fd18b8
+pass/facts/match_projected_product_custody_through_match_join_exit checked 4283ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @e203b5fd18b8
+pass/facts/match_projected_product_custody_through_other_machine_exit checked 4278ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @e203b5fd18b8
+pass/facts/match_projected_product_custody_through_other_state_exit checked 4102ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @e203b5fd18b8
+pass/facts/match_projected_product_custody_through_parameter_exit checked 4092ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @e203b5fd18b8
+pass/facts/match_projected_product_custody_through_target_body_exit checked 4297ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @e203b5fd18b8
 pass/facts/match_reference_referent_through_call_result_exit checked 1976ms check-target:macos_arm64 @a92f16431042
 pass/facts/match_reference_referent_through_const_name_exit checked 2121ms check-target:macos_arm64 @a92f16431042
 pass/facts/match_reference_referent_through_field_exit checked 2976ms check-target:macos_arm64 @a92f16431042
@@ -28938,6 +29001,18 @@ pass/facts/write_only_borrow_struct_destination_through_other_state_exit checked
 pass/facts/write_only_borrow_struct_destination_through_parameter_exit checked 2826ms check-target:macos_arm64 @a92f16431042
 pass/facts/write_only_borrow_struct_destination_through_target_body_exit checked 2889ms check-target:macos_arm64 @a92f16431042
 pass/facts/write_only_checked_adapter_exit checked 2839ms check-target:macos_arm64 @a92f16431042
+pass/facts/write_only_indexed_reborrow_cast_selector_exit checked 2596ms check-target:macos_arm64 @8eca68666797
+pass/facts/write_only_indexed_reborrow_selector_expression_exit checked 2580ms check-target:macos_arm64 @8eca68666797
+pass/facts/write_only_indexed_reborrow_through_call_result_exit checked 2362ms check-target:macos_arm64 @8eca68666797
+pass/facts/write_only_indexed_reborrow_through_const_name_exit checked 2667ms check-target:macos_arm64 @8eca68666797
+pass/facts/write_only_indexed_reborrow_through_field_exit checked 2469ms check-target:macos_arm64 @8eca68666797
+pass/facts/write_only_indexed_reborrow_through_local_exit checked 2549ms check-target:macos_arm64 @8eca68666797
+pass/facts/write_only_indexed_reborrow_through_match_join_exit checked 2634ms check-target:macos_arm64 @8eca68666797
+pass/facts/write_only_indexed_reborrow_through_other_machine_exit checked 2626ms check-target:macos_arm64 @8eca68666797
+pass/facts/write_only_indexed_reborrow_through_other_state_exit checked 2514ms check-target:macos_arm64 @8eca68666797
+pass/facts/write_only_indexed_reborrow_through_parameter_exit checked 2603ms check-target:macos_arm64 @8eca68666797
+pass/facts/write_only_indexed_reborrow_through_target_body_exit checked 2631ms check-target:macos_arm64 @8eca68666797
+pass/facts/write_only_indexed_reborrow_unary_selector_exit checked 2525ms check-target:macos_arm64 @8eca68666797
 pass/facts/write_only_recast_through_call_result_exit checked 2898ms check-target:macos_arm64 @a92f16431042
 pass/facts/write_only_recast_through_const_name_exit checked 2850ms check-target:macos_arm64 @a92f16431042
 pass/facts/write_only_recast_through_field_exit checked 3502ms check-target:macos_arm64 @a92f16431042

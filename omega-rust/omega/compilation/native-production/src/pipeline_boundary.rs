@@ -1,6 +1,18 @@
 //! Guard shared native stage sequencing without running another compiler.
 
 #[test]
+fn component_calls_are_request_data_not_an_alternate_compile_entrance() {
+    let compiler = include_str!("compiler.rs");
+    let request = include_str!("request.rs");
+    let exports = include_str!("lib.rs");
+    assert_eq!(compiler.matches("pub fn compile(").count(), 1);
+    assert_eq!(compiler.matches("pub fn ").count(), 1);
+    assert!(compiler.contains("let components = request.components;"));
+    assert!(request.contains("pub components:"));
+    assert!(exports.contains("pub use compiler::compile;"));
+}
+
+#[test]
 fn applications_and_callables_use_the_same_body_pipeline() {
     for caller in [
         include_str!("realization/object_emission.rs"),

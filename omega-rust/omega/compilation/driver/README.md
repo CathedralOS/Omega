@@ -480,7 +480,7 @@ inputs. Its public contracts are [boundary realization](../../../../wiki/spec/te
 Start at [compiler.rs](../native-production/src/compiler.rs):
 validate scope and entry, obtain the abstract input, admit providers, emit the
 object, and assemble the image. One `NativeCompileRequest` carries the image
-request, optimization selections, admitted imports and authority policies.
+request, optimization selections, admitted imports, component calls and authority policies.
 The retained Terminal proposal supplies target and provider evidence. Those
 inputs do not select alternate API entrypoints.
 
