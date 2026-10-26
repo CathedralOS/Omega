@@ -98,6 +98,69 @@ class DispatchTests(unittest.TestCase):
                                 env=self.environment, capture_output=True, text=True, check=True)
         return json.loads(result.stdout)
 
+    def board_packet(self):
+        (self.a / 'TASKS.md').write_text(
+            '- **OUTCOME.**\nComplete the original fact.\n\n- **OTHER.**\nOther original work.\n')
+        kit.git(self, self.a, 'add', 'TASKS.md')
+        kit.git(self, self.a, 'commit', '-m', 'record open board outcomes')
+        kit.git(self, self.a, 'push', 'origin', 'main')
+        kit.git(self, self.b, 'pull', '--ff-only', 'origin', 'main')
+        self.base = kit.git(self, self.a, 'rev-parse', 'HEAD')
+        packet = self.packet(names=('first',), sessions=('one',))
+        row = packet['candidates'][0]
+        row.update(item='OUTCOME', board='TASKS.md')
+        row['source_inputs'] = self.module.qualification.source_inputs(
+            self.a, self.base, ['TASKS.md', 'wiki/spec/contract.md'])
+        stream = self.root / 'board-failure.log'
+        stream.write_text('original fact fails on this exact producer\n')
+        binding = dict(path=str(stream), sha256=hashlib.sha256(stream.read_bytes()).hexdigest())
+        row['failure'] = self.binding(self.root / 'board-failure.json',
+            dict(revision=self.base, exit=1, invalidations=[], source_inputs=row['source_inputs'],
+                 stdout=binding, stderr=binding))
+        row['failure_review'] = 'simulated parent confirms the original fact fails'
+        return packet
+
+    def publish_board(self, content):
+        (self.b / 'TASKS.md').write_text(content)
+        kit.git(self, self.b, 'add', 'TASKS.md')
+        kit.git(self, self.b, 'commit', '-m', 'update remaining board acceptance')
+        kit.git(self, self.b, 'push', 'origin', 'main')
+
+    def test_selection_skips_an_outcome_closed_after_qualification(self):
+        packet = self.board_packet()
+        self.publish_board('- **OTHER.**\nOther original work.\n')
+        _, record = self.reserve(packet=packet)
+        self.assertEqual(record['phase'], 'no_work')
+        self.assertIn('closed', record['skipped'][0]['reason'])
+        self.assertEqual(self.registry()['claims'], [])
+
+    def test_selection_skips_changed_acceptance_without_rebuilding(self):
+        packet = self.board_packet()
+        self.publish_board('- **OUTCOME.**\nA different remaining fact.\n\n- **OTHER.**\nOther original work.\n')
+        _, record = self.reserve(packet=packet)
+        self.assertEqual(record['phase'], 'no_work')
+        self.assertIn('acceptance changed', record['skipped'][0]['reason'])
+        self.assertEqual(self.registry()['claims'], [])
+
+    def test_selection_ignores_unrelated_board_changes(self):
+        packet = self.board_packet()
+        self.publish_board('- **OUTCOME.**\nComplete the original fact.\n\n- **OTHER.**\nOther new work.\n')
+        _, record = self.reserve(packet=packet)
+        self.assertEqual(record['phase'], 'reserved')
+        self.assertEqual(record['base'], self.base)
+        self.assertEqual(record['skipped'], [])
+
+    def test_selection_skips_changed_selected_fact_or_contract(self):
+        packet = self.packet(names=('first',), sessions=('one',))
+        (self.b / 'wiki/spec/contract.md').write_text('The canonical rule has changed.\n')
+        kit.git(self, self.b, 'add', '.')
+        kit.git(self, self.b, 'commit', '-m', 'change selected contract')
+        kit.git(self, self.b, 'push', 'origin', 'main')
+        _, record = self.reserve(packet=packet)
+        self.assertEqual(record['phase'], 'no_work')
+        self.assertIn('canonical contract changed', record['skipped'][0]['reason'])
+        self.assertEqual(self.registry()['claims'], [])
+
     def test_concurrent_selection_dispatches_distinct_outcomes_and_sessions(self):
         packet_path = self.root / 'packet.json'
         self.binding(packet_path, self.packet())

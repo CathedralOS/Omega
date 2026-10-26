@@ -89,6 +89,41 @@ def unfinished(repository, base, row):
     return dict(kind='reviewed_failure', receipt=row['failure'], review=row['failure_review'])
 
 
+def board_acceptance(text, item):
+    markers = list(claims.ITEM_MARKER.finditer(text))
+    for index, marker in enumerate(markers):
+        if item not in [name.strip() for name in marker.group(1).split('/')]:
+            continue
+        start = text.rfind('\n', 0, marker.start()) + 1
+        end = (text.rfind('\n', 0, markers[index + 1].start()) + 1
+               if index + 1 < len(markers) else len(text))
+        # Section headings and the next item's bullet are not this acceptance.
+        return text[start:end].split('\n## ', 1)[0].strip()
+    return None
+
+
+def selection_change(repository, base, selection_main, row):
+    # Keep evidence on its real producer, but do not acquire obsolete work.
+    # These are selection inputs, not a request to rebuild for compiler changes
+    # elsewhere in main; the normal merge queue integrates the eventual repair.
+    if row.get('board'):
+        board = row['board']
+        if not qualification.source_inputs(repository, selection_main, [board])[board]:
+            return 'selected board no longer exists on fetched main'
+        current = board_acceptance(git(repository, 'show', selection_main + ':' + board), row['item'])
+        previous = board_acceptance(git(repository, 'show', base + ':' + board), row['item'])
+        if current is None:
+            return 'selected outcome closed on fetched main'
+        if current != previous:
+            return 'selected acceptance changed on fetched main; review remaining work'
+    paths = set(row['specs'])
+    paths.update(path for path in row['source_inputs'] if path.startswith('samples/cli/facts/'))
+    current_inputs = qualification.source_inputs(repository, selection_main, paths)
+    if any(current_inputs[path] != row['source_inputs'][path] for path in paths):
+        return 'selected fact or canonical contract changed on fetched main; review remaining work'
+    return None
+
+
 def probe(repository, caches, runtime_id=None, initialize=False):
     def identity(path):
         path = Path(path).resolve()
@@ -174,11 +209,16 @@ def reserve(repository, packet, attempt, owner, allow_create=False):
         sessions.append(dict(action='create', cache_continuity=False))
     require(sessions, 'no available completed session; inspect runtime or explicitly authorize creation')
     record = dict(base=base, selection_main=selection_main, ticket=None, owner=owner,
-                  phase='selecting', tries=[])
+                  phase='selecting', tries=[], skipped=[])
     atomic_json(attempt, record)
     for row in packet['candidates']:
         gap = unfinished(repository, base, row)
         if gap is None:
+            continue
+        changed = selection_change(repository, base, selection_main, row)
+        if changed:
+            record['skipped'].append(dict(item=row['item'], reason=changed))
+            atomic_json(attempt, record)
             continue
         for session in sessions:
             record.update(candidate=row, gap=gap, session=session, ticket=None, phase='reserving')

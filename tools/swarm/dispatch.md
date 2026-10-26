@@ -40,6 +40,9 @@ recorded identity for reconciliation rather than allocating a replacement.
    source and producer there. `selection_main` records the newer fetched head
    separately. Descendant publication during qualification does not require a
    new producer or relabel an old observation. The tool skips
+   outcomes removed from the current board and selections whose own acceptance,
+   canonical contracts or fact inputs changed; its `skipped` reasons request
+   focused selection review without rebuilding unrelated inputs. It also skips
    rows with no remaining measured gap, and tries candidates in supplied priority
    order. CAS collisions recheck outcome and session ownership in the common
    registry. Exit 0 with `phase: reserved` is required; `no_work` is not permission
