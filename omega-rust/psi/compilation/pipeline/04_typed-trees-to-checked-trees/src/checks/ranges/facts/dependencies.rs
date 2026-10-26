@@ -12,7 +12,7 @@ mod place_aliases;
 mod reads;
 mod state_transport;
 
-use reads::collect_reads;
+use reads::ReadWalk;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -165,20 +165,20 @@ impl<'field> RangeFacts<'field> {
             return None;
         }
         let mut reads = Vec::new();
-        let bound_lookup = self.bound_lookup();
-        if !collect_reads(
-            program,
-            machine,
-            state,
-            self.statement_index,
-            expression,
-            self.checked_calls,
-            self.checked_operators,
-            &mut reads,
-            0,
-            bound_lookup,
-        ) || reads.len() != 1
-        {
+        let complete = {
+            let mut walk = ReadWalk::new(
+                program,
+                machine,
+                state,
+                self.statement_index,
+                self.checked_calls,
+                self.checked_operators,
+                &mut reads,
+                self.bound_lookup(),
+            );
+            walk.collect_reads(expression, 0)
+        };
+        if !complete || reads.len() != 1 {
             return None;
         }
         reads[0] = crate::flow::rebase_exact_local_place(
@@ -446,18 +446,19 @@ impl<'field> RangeFacts<'field> {
         let length = self.capture_length(program, machine, state, source);
         let mut reads = Vec::new();
         let value = (captures::has_scalar_snapshot_meaning(program, machine, state, source, 0)
-            && collect_reads(
-                program,
-                machine,
-                state,
-                self.statement_index,
-                source,
-                self.checked_calls,
-                self.checked_operators,
-                &mut reads,
-                0,
-                self.bound_lookup(),
-            )
+            && {
+                let mut walk = ReadWalk::new(
+                    program,
+                    machine,
+                    state,
+                    self.statement_index,
+                    self.checked_calls,
+                    self.checked_operators,
+                    &mut reads,
+                    self.bound_lookup(),
+                );
+                walk.collect_reads(source, 0)
+            }
             && !reads
                 .iter()
                 .any(|read| places_overlap(program, read, &place)))
@@ -579,20 +580,23 @@ impl<'field> RangeFacts<'field> {
             collection,
         )?;
         let mut reads = Vec::new();
-        if !collect_reads(
-            program,
-            machine,
-            state,
-            self.statement_index,
-            collection,
-            self.checked_calls,
-            self.checked_operators,
-            &mut reads,
-            0,
-            self.bound_lookup(),
-        ) || !reads
-            .iter()
-            .any(|read| crate::flow::canonical_places_agree(program, read, &descriptor))
+        let complete = {
+            let mut walk = ReadWalk::new(
+                program,
+                machine,
+                state,
+                self.statement_index,
+                self.checked_calls,
+                self.checked_operators,
+                &mut reads,
+                self.bound_lookup(),
+            );
+            walk.collect_reads(collection, 0)
+        };
+        if !complete
+            || !reads
+                .iter()
+                .any(|read| crate::flow::canonical_places_agree(program, read, &descriptor))
         {
             return None;
         }
@@ -766,19 +770,17 @@ impl<'field> RangeFacts<'field> {
             Some(scope.evaluation),
             expression,
         ) && {
-            let bound_lookup = self.bound_lookup();
-            collect_reads(
+            let mut walk = ReadWalk::new(
                 program,
                 machine,
                 scope.evaluation,
                 self.statement_index,
-                expression,
                 self.checked_calls,
                 self.checked_operators,
                 &mut reads,
-                0,
-                bound_lookup,
-            )
+                self.bound_lookup(),
+            );
+            walk.collect_reads(expression, 0)
         };
         let descriptor_read = validation::collection_length_receiver(
             program,
