@@ -774,7 +774,7 @@ impl Captures<'_> {
                                     candidate.statement_index,
                                     candidate.formation_expression,
                                     candidate.incoming_reference,
-                                    candidate.kind,
+                                    &candidate.kind,
                                     self.facts
                                         .borrow
                                         .owner_segments
