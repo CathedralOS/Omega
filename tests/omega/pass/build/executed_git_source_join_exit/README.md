@@ -30,7 +30,9 @@ the existing `fail/build/executed_dependency_private_call/main.omg`.
 program oracle. The shared Build SDK separately retains local acquisition,
 generator outputs, target fanout and mandatory dependency joins.
 
-The generic corpus/production CLI still needs the retained-Build scheduling
-cutover. Accepted-lock round-trip qualification, named workspace selection,
-Git-relative Path navigation, and provider/query suspension remain open; this
-journey does not establish those requirements.
+Ordinary CLI build/check/run/inspection now uses retained-Build scheduling.
+The same SDK also drives the ordinary Build facade through
+`tests/omega/packages/executed-workspace`: named members, registered Git-relative
+Path navigation, repeated aliases and unrelated-member isolation. Accepted-lock
+round-trip qualification, install/update/audit migration and provider/query
+suspension remain open; this journey does not establish those requirements.

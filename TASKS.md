@@ -896,17 +896,14 @@ narrows realization only.
   `omega-rust/psi/compilation/driver/`,
   `omega-rust/omega/compilation/native-production/`, and workspace architecture
   gates (`tools/check_native_boundary.py` and `cargo metadata` guards).
-  - Cut over production CLI discovery to consume retained Builds across review
-    and target occurrences rather than the static graph.
-  - Cut over production admission scheduling to issue `BuildExecutionInputs`
-    before Build without dropping them when converting occurrence requests to
-    post-return Product work, and unify ordinary one-shot compiler execution
-    loops with the shared session.
+  - Migrate install/update/audit source discovery and review from static graphs
+    and fresh Build requests to the same retained lifecycle, remove superseded
+    routes, and unify ordinary one-shot execution loops with the shared session.
   - Implement pre-execution dependency input assignment and shared-node conflict
     checks at dependency activation admission without inheriting the root's
     slots (keeping required-output path byte results refused).
-  - Complete accepted-lock round-trip qualification, named workspace and
-    Git-relative Path acquisition, provider readiness/resumption, and demanded
+  - Complete accepted-lock round-trip qualification, provider readiness/resumption,
+    and demanded
     Product-description queries while replacing static Build projection.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in

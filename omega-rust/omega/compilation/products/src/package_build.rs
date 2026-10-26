@@ -15,6 +15,7 @@ use package_compilation::{
 use std::path::PathBuf;
 use target::TargetProfile;
 
+#[derive(Clone)]
 pub struct PreparedPackageBuild {
     root_path: PathBuf,
     target: TargetProfile,
@@ -26,6 +27,26 @@ pub struct PreparedPackageBuild {
 }
 
 impl PreparedPackageBuild {
+    /// Equality of a complete Product source admission, not target authority.
+    /// A matching context may share typing/checking; each target still admits
+    /// its generated bundles and supplies its own realization permissions.
+    pub fn has_source_admission(
+        &self,
+        inputs: &PackageCompilationInputs,
+        rollback: &OptimizationRollback,
+    ) -> bool {
+        self.rollback == *rollback && self.same_source_inputs(inputs)
+    }
+
+    fn same_source_inputs(&self, inputs: &PackageCompilationInputs) -> bool {
+        let execution = self.prepared.build_sources.build_execution_profile;
+        package_compilation::SourceAssemblyInputs::new(Some(inputs), execution)
+            == package_compilation::SourceAssemblyInputs::new(Some(&self.inputs), execution)
+            && inputs.semantic_role_discovery() == self.inputs.semantic_role_discovery()
+            && inputs
+                .accepted_semantic_bindings()
+                .eq(self.inputs.accepted_semantic_bindings())
+    }
     /// Select a realization context from one completed Build. The source
     /// continuation, executed effects and charges remain shared. Target-local
     /// permissions are supplied by the product request, never copied here.
@@ -36,13 +57,7 @@ impl PreparedPackageBuild {
     ) -> Result<Self, Vec<Diagnostic>> {
         let execution = self.prepared.build_sources.build_execution_profile;
         inputs.validate_execution_context(Some(target), execution)?;
-        if package_compilation::SourceAssemblyInputs::new(Some(&inputs), execution)
-            != package_compilation::SourceAssemblyInputs::new(Some(&self.inputs), execution)
-            || inputs.semantic_role_discovery() != self.inputs.semantic_role_discovery()
-            || !inputs
-                .accepted_semantic_bindings()
-                .eq(self.inputs.accepted_semantic_bindings())
-        {
+        if !self.same_source_inputs(&inputs) {
             return Err(vec![Diagnostic::error(
                 "completed Build target selection cannot change its source or semantic admission",
             )]);

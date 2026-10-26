@@ -24,7 +24,9 @@ impl SourceRootRole {
 }
 
 mod acquisition;
+mod workspace_acquisition;
 pub use acquisition::{AcquiredBuildSource, BuildSourceAcquisitionError, BuildSourceAcquisitions};
+pub use workspace_acquisition::{AcquiredWorkspaceBuild, AcquiredWorkspaceMembers};
 mod build_resolution;
 mod custody;
 pub use build_resolution::{

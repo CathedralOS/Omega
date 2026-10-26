@@ -5,6 +5,14 @@ use crate::PackageCompilationInputs;
 use std::path::PathBuf;
 use target::TargetProfile;
 
+/// The source inventory and obligations supplied before one Build executes.
+/// Comparing this record does not issue grants or authorize another execution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildExecutionContract {
+    pub profile: Option<TargetProfile>,
+    pub snapshot: Option<BuildSnapshotRequest>,
+}
+
 /// Pre-effect inputs for one activation. Move this value through preparation
 /// intact: source identity and Product target joins cannot replace its sponsors,
 /// consent, selected inventory, named inputs, or required outputs after execution.
@@ -25,6 +33,12 @@ pub struct BuildExecutionInputs {
 }
 
 impl BuildExecutionInputs {
+    pub fn contract(&self) -> BuildExecutionContract {
+        BuildExecutionContract {
+            profile: self.profile,
+            snapshot: self.snapshot.clone(),
+        }
+    }
     /// Resolve compilation defaults once before frontend admission. Explicit
     /// snapshot custody always wins; no failed admission falls back to defaults.
     pub fn resolve_compilation_defaults(

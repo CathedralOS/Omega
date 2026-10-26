@@ -39,20 +39,87 @@ pub struct PackageBuildInvocation {
     source: super::checking::PreparedPackageInvocation,
 }
 
+/// An exact acquired source's observed declaration, not a successful Build or
+/// Product. A workspace catalog may inspect names without building unrelated
+/// member dependency closures. Selected Builds still owe their full final join.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceBuildDeclaration {
+    capture: package_compilation::CapturedLocalSource,
+    declaration: build_declarations::BuildDeclaration,
+    settled: bool,
+}
+
+impl SourceBuildDeclaration {
+    pub(super) fn new(
+        capture: package_compilation::CapturedLocalSource,
+        declaration: build_declarations::BuildDeclaration,
+    ) -> Self {
+        Self {
+            capture,
+            declaration,
+            settled: false,
+        }
+    }
+
+    pub fn declaration(&self) -> &build_declarations::BuildDeclaration {
+        &self.declaration
+    }
+
+    pub fn source_capture(&self) -> &package_compilation::CapturedLocalSource {
+        &self.capture
+    }
+
+    pub fn is_settled(&self) -> bool {
+        self.settled
+    }
+
+    pub(super) fn settled(
+        capture: package_compilation::CapturedLocalSource,
+        declaration: build_declarations::BuildDeclaration,
+    ) -> Self {
+        Self {
+            capture,
+            declaration,
+            settled: true,
+        }
+    }
+}
+
 /// Settled Build effects and captured source, before Product preparation.
 /// Independent Product admissions borrow this output; none can replay Build or
 /// replace its source graph, execution inputs, output bytes or observations.
 pub struct CompletedBuild {
     source: compilation_products::SettledPackageBuild,
+    products: Vec<PreparedPackageBuild>,
 }
 
 impl CompletedBuild {
     pub fn package_inputs(&self) -> &package_compilation::PackageCompilationInputs {
         &self.source.inputs
     }
+
+    /// A Product demand cannot retroactively add inputs or required outputs to
+    /// an execution. Its contract must be the one supplied before effects.
+    pub fn require_execution_contract(
+        &self,
+        required: &package_compilation::build_execution::BuildExecutionContract,
+    ) -> Result<(), CompileFailure> {
+        if &self.source.source.execution_contract != required {
+            return Err(vec![Diagnostic::error(
+                "Product preparation requires different Build execution inputs or output obligations",
+            )].into());
+        }
+        Ok(())
+    }
 }
 
 impl PackageBuildInvocation {
+    pub fn observe_declaration(
+        &self,
+        returned: &build_evaluation::ReturnedBuild,
+    ) -> Result<SourceBuildDeclaration, CompileFailure> {
+        self.source.observe_declaration(returned)
+    }
     /// Join the final Product target and package custody after Build declares
     /// its identity. Completion compares the original acquired capture and
     /// executed role; a context admitted before Build remains fixed.
@@ -124,6 +191,15 @@ pub struct PreparedPackageProduct {
 }
 
 impl CompilationSession {
+    /// Finish a workspace catalog, which has no Product owner or dependency
+    /// closure of its own. Output duties and exact-return custody still settle.
+    pub fn settle_source_catalog(
+        &mut self,
+        invocation: PackageBuildInvocation,
+        returned: build_evaluation::ReturnedBuild,
+    ) -> Result<SourceBuildDeclaration, CompileFailure> {
+        super::run_on_compile_thread(|| invocation.source.settle_catalog(returned))
+    }
     /// Consume the exact activation return and settle all source/output duties.
     /// Authored Product source remains deferred; later admissions are separate
     /// judgments even when default Build already prepared a source prefix.
@@ -134,7 +210,10 @@ impl CompilationSession {
     ) -> Result<CompletedBuild, CompileFailure> {
         super::run_on_compile_thread(|| {
             self.settle_build(invocation.source, returned)
-                .map(|source| CompletedBuild { source })
+                .map(|source| CompletedBuild {
+                    source,
+                    products: Vec::new(),
+                })
         })
     }
 
@@ -146,14 +225,24 @@ impl CompilationSession {
         completed: &mut CompletedBuild,
         target: target::TargetProfile,
         inputs: package_compilation::PackageCompilationInputs,
+        optimization_rollback: optimization_core::OptimizationRollback,
     ) -> Result<PackageBuild, CompileFailure> {
         super::run_on_compile_thread(|| {
-            super::checking::prepare_settled_package_product(
-                completed.source.fork(),
-                target,
-                inputs,
-            )
-            .map(|source| PackageBuild { source })
+            if let Some(prepared) = completed
+                .products
+                .iter()
+                .find(|prepared| prepared.has_source_admission(&inputs, &optimization_rollback))
+            {
+                return prepared
+                    .select_target(target, inputs)
+                    .map(|source| PackageBuild { source })
+                    .map_err(CompileFailure::from);
+            }
+            let mut source = completed.source.fork();
+            source.rollback = optimization_rollback;
+            let source = super::checking::prepare_settled_package_product(source, target, inputs)?;
+            completed.products.push(source.clone());
+            Ok(PackageBuild { source })
         })
     }
 

@@ -36,8 +36,9 @@ pub use crate::checked::{
     IndependentComponentDiscovery, IndependentComponentSelection, OptimizationRollback,
     OptimizationRollbackInputError, PackageBuild, PackageBuildInvocation,
     PackageCompilationRequest, PackageCompileFailure, PreparedPackageProduct,
-    RestrictedBuildGrants, checked_compilation_call_count, preliminary_check_totals,
-    settled_check_totals, source_assembly_invocation_count, typed_frontier_reuse_count,
+    RestrictedBuildGrants, SourceBuildDeclaration, checked_compilation_call_count,
+    preliminary_check_totals, settled_check_totals, source_assembly_invocation_count,
+    typed_frontier_reuse_count,
 };
 pub use build_evaluation::BuildSnapshotRequest;
 pub use checked::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
@@ -52,6 +53,7 @@ pub use compilation_products::{
 pub use compiler::compile;
 pub use compiler::package::publish_checked_component;
 pub use package_compilation::BuildExecutionInputs;
+pub use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
 pub use product_execution::{CompilationOutput, CompilationProduct, CompilationProductError};
 pub use target::ExplicitTargetSet;
 pub use terminal_psi_to_abstract_operations::provider_admission::SourceEvaluatedImportSettlement;

@@ -20,8 +20,9 @@ mod publication;
 mod stage_build_edit;
 
 pub use accepted_compilation::{
-    AdmittedProjectCompilation, ProjectCompilationAdmissionRequest, ProjectCompilationCompletion,
-    ProjectCompilationError, ProjectCompilationOutcome, admit_project_compilation,
+    AdmittedProjectCompilation, PackageProductCompilationRequest, PackageProductSourceRequest,
+    ProjectCompilationAdmissionRequest, ProjectCompilationCompletion, ProjectCompilationError,
+    ProjectCompilationOutcome, admit_project_compilation, admit_project_products,
 };
 pub use inspect_packages::{
     PackageInspectionError, PackageInspectionOptions, PackageInspectionOutcome,
