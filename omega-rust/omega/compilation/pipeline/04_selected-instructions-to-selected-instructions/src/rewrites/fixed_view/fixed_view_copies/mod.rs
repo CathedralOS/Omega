@@ -105,9 +105,9 @@ pub struct StagedOptimizedFixedViewCopyCustodyReceipt {
 impl StagedOptimizedFixedViewCopyCustodyReceipt {
     target_operations_to_selected_instructions::staging_custody_core_accessors!();
 
-    pub const fn allocator_availability(self) -> register_homes::AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
+    receipt_accessor_rows!(StagedOptimizedFixedViewCopyCustodyReceipt {
+        allocator_availability: register_homes::AllocatorAvailabilityIdentity,
+    });
     receipt_accessor_rows!(StagedOptimizedFixedViewCopyCustodyReceipt {
         source_selected: SelectedInstructionPlanIdentity,
         source_liveness: selected_instructions::LivenessIdentity,

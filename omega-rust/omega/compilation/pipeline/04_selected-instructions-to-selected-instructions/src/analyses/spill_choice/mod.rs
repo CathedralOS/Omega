@@ -61,18 +61,12 @@ impl SpillChoiceValidationReceipt {
     pub const fn identity(self) -> SpillChoiceIdentity {
         self.identity
     }
-    pub const fn legality(self) -> AllocationLegalityIdentity {
-        self.legality
-    }
-    pub const fn ranges(self) -> LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
+    receipt_accessor_rows!(SpillChoiceValidationReceipt {
+        legality: AllocationLegalityIdentity,
+        ranges: LiveRangeIdentity,
+        register_environment: TargetRegisterEnvironmentIdentity,
+        allocator_availability: AllocatorAvailabilityIdentity,
+    });
     pub const fn policy(self) -> SpillChoicePolicy {
         self.policy
     }

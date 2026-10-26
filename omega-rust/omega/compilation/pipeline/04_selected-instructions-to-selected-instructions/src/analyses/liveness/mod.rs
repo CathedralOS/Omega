@@ -57,13 +57,10 @@ impl LivenessValidationReceipt {
         self.selected
     }
 
-    pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
-        self.optimization_unit
-    }
-
-    pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
-        self.fuel_schedule
-    }
+    receipt_accessor_rows!(LivenessValidationReceipt {
+        optimization_unit: OptimizationUnitIdentity,
+        fuel_schedule: FuelScheduleIdentity,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

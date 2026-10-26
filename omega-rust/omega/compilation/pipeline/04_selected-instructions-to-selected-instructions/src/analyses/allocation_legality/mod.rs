@@ -88,15 +88,11 @@ impl AllocationLegalityValidationReceipt {
     pub const fn identity(self) -> AllocationLegalityIdentity {
         self.identity
     }
-    pub const fn ranges(self) -> LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
+    receipt_accessor_rows!(AllocationLegalityValidationReceipt {
+        ranges: LiveRangeIdentity,
+        register_environment: TargetRegisterEnvironmentIdentity,
+        allocator_availability: AllocatorAvailabilityIdentity,
+    });
     pub const fn virtual_register_count(self) -> usize {
         self.virtual_register_count
     }

@@ -778,28 +778,11 @@ impl LiteralFoldValidationReceipt {
     pub const fn recovery_classifications(self) -> RecoveryClassificationIdentity {
         self.recovery_classifications
     }
-    pub const fn ranges(self) -> LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn legality(self) -> AllocationLegalityIdentity {
-        self.legality
-    }
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
+    shared_analysis_identity_accessors!(pub);
     /// The validated machine-effect catalog identity the fold's producer and
     /// independent replay both bound.
     pub const fn machine_effect_catalog(self) -> MachineEffectCatalogIdentity {
         self.machine_effect_catalog
-    }
-    pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
-        self.optimization_unit
-    }
-    pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
-        self.fuel_schedule
     }
     pub const fn policy(self) -> LiteralFoldPolicy {
         self.policy

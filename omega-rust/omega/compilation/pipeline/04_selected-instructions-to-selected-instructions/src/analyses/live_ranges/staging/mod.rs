@@ -106,9 +106,9 @@ impl StagedOptimizedLiveRangeCustodyReceipt {
         self.liveness
     }
 
-    pub const fn ranges(self) -> LiveRangeIdentity {
-        self.ranges
-    }
+    receipt_accessor_rows!(StagedOptimizedLiveRangeCustodyReceipt {
+        ranges: LiveRangeIdentity,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

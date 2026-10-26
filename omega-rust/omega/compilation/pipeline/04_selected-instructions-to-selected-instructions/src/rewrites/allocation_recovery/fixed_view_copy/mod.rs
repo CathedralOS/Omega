@@ -95,20 +95,14 @@ impl FixedViewCopyValidationReceipt {
         source_legality: AllocationLegalityIdentity,
         transformed_selected: SelectedInstructionPlanIdentity,
     });
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
+    receipt_accessor_rows!(FixedViewCopyValidationReceipt {
+        register_environment: TargetRegisterEnvironmentIdentity,
+        allocator_availability: AllocatorAvailabilityIdentity,
+        optimization_unit: optimization_core::OptimizationUnitIdentity,
+        fuel_schedule: semantic_vocabulary::FuelScheduleIdentity,
+    });
     pub const fn source_evidence(self) -> FixedViewCopySourceEvidence {
         self.source_evidence
-    }
-    pub const fn optimization_unit(self) -> optimization_core::OptimizationUnitIdentity {
-        self.optimization_unit
-    }
-    pub const fn fuel_schedule(self) -> semantic_vocabulary::FuelScheduleIdentity {
-        self.fuel_schedule
     }
     pub const fn policy(self) -> FixedViewCopyPolicy {
         self.policy

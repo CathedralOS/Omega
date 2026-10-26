@@ -78,12 +78,10 @@ impl LiveRangeValidationReceipt {
     pub const fn liveness(self) -> LivenessIdentity {
         self.liveness
     }
-    pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
-        self.optimization_unit
-    }
-    pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
-        self.fuel_schedule
-    }
+    receipt_accessor_rows!(LiveRangeValidationReceipt {
+        optimization_unit: OptimizationUnitIdentity,
+        fuel_schedule: FuelScheduleIdentity,
+    });
     pub const fn virtual_register_count(self) -> usize {
         self.virtual_register_count
     }

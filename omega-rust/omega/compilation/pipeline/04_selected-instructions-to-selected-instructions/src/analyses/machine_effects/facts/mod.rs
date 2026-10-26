@@ -60,9 +60,9 @@ impl PreAllocationMachineEffectReceipt {
     pub const fn selected(self) -> SelectedInstructionPlanIdentity {
         self.selected
     }
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
+    receipt_accessor_rows!(PreAllocationMachineEffectReceipt {
+        register_environment: TargetRegisterEnvironmentIdentity,
+    });
     pub const fn machine_effect_catalog(self) -> MachineEffectCatalogIdentity {
         self.machine_effect_catalog
     }

@@ -48,9 +48,9 @@ impl AllocatorAvailabilityValidationReceipt {
         self.identity
     }
 
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
+    receipt_accessor_rows!(AllocatorAvailabilityValidationReceipt {
+        register_environment: TargetRegisterEnvironmentIdentity,
+    });
 
     pub const fn physical(self) -> PhysicalRegisterModelIdentity {
         self.physical

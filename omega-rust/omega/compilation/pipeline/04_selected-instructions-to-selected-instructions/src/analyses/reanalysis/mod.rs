@@ -99,9 +99,9 @@ impl StagedOptimizedSelectedReanalysisCustodyReceipt {
         transformed_ranges: selected_instructions::LiveRangeIdentity,
         transformed_legality: register_homes::AllocationLegalityIdentity,
     });
-    pub const fn allocator_availability(self) -> register_homes::AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
+    receipt_accessor_rows!(StagedOptimizedSelectedReanalysisCustodyReceipt {
+        allocator_availability: register_homes::AllocatorAvailabilityIdentity,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

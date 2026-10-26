@@ -92,24 +92,7 @@ impl FixedPrecoloredSegmentHomeValidationReceipt {
     pub const fn fixed_intervals(self) -> FixedPrecoloredIntervalPlanIdentity {
         self.fixed_intervals
     }
-    pub const fn ranges(self) -> LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn legality(self) -> AllocationLegalityIdentity {
-        self.legality
-    }
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
-    pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
-        self.optimization_unit
-    }
-    pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
-        self.fuel_schedule
-    }
+    shared_analysis_identity_accessors!(pub);
     pub const fn target(self) -> NativeTarget {
         self.target
     }
