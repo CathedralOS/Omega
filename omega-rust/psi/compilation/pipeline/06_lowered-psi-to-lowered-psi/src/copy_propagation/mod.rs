@@ -9,19 +9,9 @@
 //! a ranked machine keeps the covered cyclic components' parameter tables and
 //! every use reaching into them exact while ordinary regions still collapse.
 //!
-//! A retained join invariant is carried instead of frozen: when a copy
-//! parameter its predicate names collapses, the predicate is rewritten with
-//! the same resolved source, which is exactly the substitution the verifier's
-//! reconstructed-question transport applies on the other side. If that
-//! transport fails anyway, the stage retries with the named values retained —
-//! the earlier unconditional boundary — before recording a refusal.
-//!
-//! Inside a proof-bearing module the independently checked copy relation
-//! transports the same goals and ordered requirements, then remaps existing
-//! certificate citations to reconstructed output axioms. Kernel replay of both
-//! bundles is required; a vanished material premise refuses rather than being
-//! re-proved. The refusal is recorded on the stage result.
-//!
+//! A join invariant's predicate is a proof question scoped to its destination
+//! header, and a parameter the predicate names is retained like any other
+//! record-named identity: the predicate keeps the exact question it asked.
 //! Resolution proposes substitutions; the independent verifier checks the
 //! exact before/after relation and proof questions.
 
@@ -31,40 +21,25 @@ use crate::PsiOptimizationStageError;
 use lowered_psi::LoweredPsi;
 
 pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
-    // One proposal, two treatments of the retained join invariants: the
-    // rewriting attempt lets a copy parameter a predicate names collapse
-    // while rewriting the predicate to the resolved source; the retained
-    // attempt keeps every named value, which is the boundary this stage held
-    // before join transport existed. The retained attempt only runs when
-    // transport cannot carry a rewritten predicate, so a rewrite that was
-    // clean before cannot regress into a refusal.
-    let propose = |rewrite_invariants: bool| {
-        let mut after = before.clone();
-        // These are semantic uses even when no executable operand reads the
-        // value: proof projections, retained suspension frontiers, and
-        // recorded source-call operand joins keep their exact identities.
-        let mut retained_values =
-            crate::retained_identities::record_named_rows(&after.semantic_module).values;
-        if !rewrite_invariants {
-            for invariant in &after.semantic_module.scalar_block_invariants {
-                invariant.predicate.visit_value_ids(|value| {
-                    retained_values.insert(value);
-                });
-            }
-        }
-        let module = &mut after.semantic_module;
-        let invariants = &mut module.scalar_block_invariants;
-        for machine in &mut module.machines {
-            copies::propagate(
-                machine,
-                invariants,
-                &before.source_call_occurrences,
-                &mut retained_values,
-            );
-        }
-        after
-    };
-    let mut after = propose(false);
+    let mut after = before.clone();
+    // These are semantic uses even when no executable operand reads the
+    // value: proof projections, retained suspension frontiers, recorded
+    // source-call operand joins, and the values a retained join invariant's
+    // predicate names keep their exact identities.
+    let mut retained_values =
+        crate::retained_identities::record_named_rows(&after.semantic_module).values;
+    for invariant in &after.semantic_module.scalar_block_invariants {
+        invariant.predicate.visit_value_ids(|value| {
+            retained_values.insert(value);
+        });
+    }
+    for machine in &mut after.semantic_module.machines {
+        copies::propagate(
+            machine,
+            &before.source_call_occurrences,
+            &mut retained_values,
+        );
+    }
     crate::retained_identities::prune_debug_map(&before, &mut after)?;
     Ok(after)
 }

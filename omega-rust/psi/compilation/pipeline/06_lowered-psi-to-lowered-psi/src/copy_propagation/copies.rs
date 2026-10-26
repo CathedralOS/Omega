@@ -5,15 +5,10 @@
 //! name value identities without listing direct uses, so every value they can
 //! mention is retained before resolution begins.
 //!
-//! A retained join invariant is different: its predicate is a proof question
-//! the verifier already knows how to transport through the copy relation, so
-//! a copy parameter it names can collapse — the predicate is rewritten with
-//! the same substitution and keeps answering the same question about the
-//! value now bound there. The one limit is scope: the predicate may only name
-//! invocation formals and the destination's own surviving parameters. When a
-//! resolved source cannot stand in that telescope (a predecessor-local value
-//! every edge happens to share), the named parameter stays retained rather
-//! than rewriting the question into one the scope would reject.
+//! A retained join invariant's predicate is a proof question scoped to its
+//! destination header: a parameter the predicate names stays retained exactly
+//! as the caller's record inventory already retains it, so the stored
+//! predicate keeps the question it already asked.
 
 use crate::edge_arguments::drop_removed_positions;
 use crate::retained_identities::proof_values::{
@@ -22,11 +17,10 @@ use crate::retained_identities::proof_values::{
 };
 use semantic_vocabulary::{BlockId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi::{ScalarBlockInvariant, TerminalMachine, Terminator, ValueDeclaration};
+use terminal_psi::{TerminalMachine, Terminator, ValueDeclaration};
 
 pub(super) fn propagate(
     machine: &mut TerminalMachine,
-    invariants: &mut [ScalarBlockInvariant],
     source_calls: &[lowered_psi::LoweredSourceCallOccurrence],
     retained_values: &mut BTreeSet<ValueId>,
 ) {
@@ -161,56 +155,8 @@ pub(super) fn propagate(
             collapse.insert(*parameter, source);
         }
     }
-    // A retained join invariant's predicate may name a copy parameter of its
-    // destination block. Collapse carries that name to the resolved source and
-    // rewrites the predicate with it below — but only when the source still
-    // stands in the destination telescope: invocation formals and that
-    // header's own parameters. `resolve` ends on a lattice fixed point, so a
-    // source is never itself collapsing. A narrower source (for example an
-    // operation result two edges of one conditional happen to share) cannot
-    // be named there; the parameter stays retained and the predicate keeps
-    // the question it already asked.
-    for invariant in invariants
-        .iter()
-        .filter(|invariant| invariant.machine == machine.id)
-    {
-        let Some(header) = machine.block(&invariant.header) else {
-            continue;
-        };
-        let telescope = machine
-            .parameters
-            .iter()
-            .chain(&machine.contract.erased_scalar_formals)
-            .chain(&header.parameters)
-            .chain(&header.erased_scalar_formals)
-            .map(|parameter| parameter.id)
-            .collect::<BTreeSet<_>>();
-        let mut named = BTreeSet::new();
-        invariant.predicate.visit_value_ids(|value| {
-            named.insert(value);
-        });
-        for value in named {
-            let Some(source) = collapse.get(&value).copied() else {
-                continue;
-            };
-            if !telescope.contains(&source) {
-                collapse.remove(&value);
-            }
-        }
-    }
     if collapse.is_empty() {
         return;
-    }
-    // The predicate stays the same proof question: transport substitutes the
-    // removed parameter with this same resolved source on the reconstructed
-    // side, so rewriting the stored row is what keeps the questions equal.
-    for invariant in invariants
-        .iter_mut()
-        .filter(|invariant| invariant.machine == machine.id)
-    {
-        invariant
-            .predicate
-            .remap_value_ids(|value| collapse.get(&value).copied().unwrap_or(value));
     }
     let mut removed_positions: BTreeMap<BlockId, Vec<usize>> = BTreeMap::new();
     for block in &mut machine.blocks {
