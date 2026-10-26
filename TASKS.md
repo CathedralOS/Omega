@@ -1969,6 +1969,13 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   pass `omega run --both`, while repeated/explicit conflicts, missing indices,
   occurs cycles, kind mismatches, and unmet conformances reject.
 
+  Closed mixed callback/value/conformance selections now complete the
+  `inferred_array_equation_call/mixed_binders` nine-place row on Windows x86-64,
+  with explicit-capacity conflicts and lexical/kind/carrier controls. The same
+  selected value index composes through formal and result types. This covers
+  closed mixed selections only; the broader alternatives above and matching
+  native observations on the other hosted targets remain open.
+
 - **FINITE-GENERIC-DISPATCH.** Select a finite generic instance at runtime end
   to end (`Psi 02–07` and `Omega 00–09`) under the
   [finite specialization contract](wiki/spec/language/generics.md#finite-specialization-boundary)
