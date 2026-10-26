@@ -1,0 +1,29 @@
+// Expected exit: 0
+// Rebinding a shared byte-view parameter retains its declared descriptor identity and observes replacement backing without mutating either backing.
+machine identity<'storage>(view: &'storage [u8]) -> &'storage [u8] requires view.len == 1 ensures result.len == 1 { view }
+machine replace(mut selected: &[u8], replacement: &[u8]) -> u8
+requires selected.len == 1 && replacement.len == 1 {
+    selected = replacement;
+    selected = replacement;
+    selected[0]
+}
+machine finish(observed: u8, original: &[u8], replacement: &[u8]) crashes Trap
+requires original.len == 1 && replacement.len == 1 {
+    transition observed == 29 && original[0] == 5 && replacement[0] == 29 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+data Carrier<'storage> { selected: &'storage [u8]; marker: u64; }
+machine main() crashes Trap {
+    let original: [u8; 1] = [5];
+    let replacement: [u8; 1] = [29];
+    let carrier: Carrier = Carrier { selected: &original[..], marker: 73 };
+    let observed: u8 = replace(carrier.selected, &replacement[..]);
+    let retained: bool = carrier.selected[0] == 5 && carrier.marker == 73;
+    transition retained { true -> verify(observed, &original[..], &replacement[..]) _ -> bad() }
+    state verify(observed: u8, original: &[u8], replacement: &[u8]) requires original.len == 1 && replacement.len == 1 { finish(observed, original, replacement); }
+    state bad() { crash Trap; }
+}
