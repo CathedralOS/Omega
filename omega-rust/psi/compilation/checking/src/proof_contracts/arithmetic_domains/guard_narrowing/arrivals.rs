@@ -103,6 +103,30 @@ pub fn occurrence_integer_expression_recipe(
     .recipe
 }
 
+/// The evaluated integer children emitted by one aggregate construction.
+/// A postwrite consumer reads this roster instead of reconstructing earlier
+/// fields from the statement's final storage environment.
+pub(crate) fn occurrence_integer_child_values(
+    program: &dyn crate::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<Vec<super::super::expression_analysis::CheckedIntegerValue>> {
+    Some(
+        expression_observation(
+            program,
+            machine_symbol,
+            state_symbol,
+            Some(statement_index),
+            expression,
+        )?
+        .completed_children
+        .into_values()
+        .collect(),
+    )
+}
+
 pub fn occurrence_integer_expressions_bounds(
     program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
@@ -393,6 +417,7 @@ fn expression_observations(
             expression,
             interval: None,
             environment: None,
+            completed_children: Default::default(),
         })
         .collect();
     if let Some(statement) = single_target {
@@ -774,6 +799,7 @@ fn discover_normal_return_interval(
                     expression,
                     interval: None,
                     environment: None,
+                    completed_children: Default::default(),
                 }],
                 completed_children: Default::default(),
                 infer_call_bodies: false,
@@ -803,6 +829,10 @@ struct ExpressionObservation {
     expression: ExpressionHandle,
     interval: Option<Interval>,
     environment: Option<ValueEnvironment>,
+    completed_children: std::collections::BTreeMap<
+        (u32, u32),
+        super::super::expression_analysis::CheckedIntegerValue,
+    >,
 }
 
 impl ExpressionObservation {
@@ -813,6 +843,7 @@ impl ExpressionObservation {
             expression,
             interval: None,
             environment: None,
+            completed_children: Default::default(),
         }
     }
 }
@@ -1723,6 +1754,25 @@ impl ArrivalWalk<'_, '_> {
                     .range_recipe(self.program, self.machine.symbol, expression)
             });
             let observation = &mut self.observations[position];
+            if include_bounds
+                && matches!(
+                    self.program.expression_table.expression(expression),
+                    ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
+                )
+            {
+                for (key, value) in &self.completed_children {
+                    if let Some(previous) = observation.completed_children.get_mut(key) {
+                        previous.interval = previous.interval.union(value.interval);
+                        previous.recipe = previous
+                            .recipe
+                            .take()
+                            .zip(value.recipe.clone())
+                            .map(|(left, right)| left.union(&right));
+                    } else {
+                        observation.completed_children.insert(*key, value.clone());
+                    }
+                }
+            }
             if include_bounds {
                 observation.recipe = if observation.interval.is_none() {
                     recipe

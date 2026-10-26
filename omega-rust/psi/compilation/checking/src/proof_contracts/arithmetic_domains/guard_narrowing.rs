@@ -25,8 +25,8 @@ mod predicate_facts;
 pub(super) mod projected_facts;
 mod requirements;
 pub(crate) use arrivals::{
-    OccurrenceValueEnvironments, inferred_normal_return_interval, occurrence_value_environment,
-    occurrence_value_environments,
+    OccurrenceValueEnvironments, inferred_normal_return_interval, occurrence_integer_child_values,
+    occurrence_value_environment, occurrence_value_environments,
 };
 pub use arrivals::{
     arrival_integer_expression_bounds, occurrence_collection_footprint_fits,

@@ -92,7 +92,8 @@ pub use selected_scalar_intervals::{
 pub(crate) use slice_lengths::{carried_slice_length, publish_slice_length};
 mod stored_integer_writes;
 pub(crate) use guard_narrowing::{
-    OccurrenceValueEnvironments, occurrence_value_environment, occurrence_value_environments,
+    OccurrenceValueEnvironments, occurrence_integer_child_values, occurrence_value_environment,
+    occurrence_value_environments,
 };
 mod total_specification;
 mod unsigned_representability;
