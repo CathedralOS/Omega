@@ -1973,8 +1973,7 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     and `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/evidence.rs`
     to static callable/evidence arguments, generic dispatch, calls in abstract
     signatures, domain/default predicates, receiver/projection terms, and
-    citation/induction guarantees, and preserve callable selection through
-    constant evaluation (`const DIRECT: bool = apply<witness>(true)`).
+    citation/induction guarantees.
   - Extend `OpenIndexOperationSelection` in
     `omega-rust/psi/compilation/checking/src/value_custody/type_references/open_index_expressions.rs`
     with distributivity and zero/one law evidence surviving

@@ -1,4 +1,9 @@
 //! Rejoin a scalar initializer with its complete selected ordinary call closure.
+//!
+//! Static callable operands keep the binder's logical source selection beside
+//! the selected body's dependencies. Receiving replay rejoins that binder to
+//! this invocation's exact substitution; a matching signature or result value
+//! cannot replace the authored selection.
 
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
@@ -578,6 +583,14 @@ impl<'program> Collector<'program> {
         if authored == self.authored_target(target, context.initializer)? {
             return Ok(true);
         }
+        if call_selections::static_callable_matches(
+            self.program,
+            context.machine.symbol,
+            site,
+            authored,
+        )? {
+            return Ok(true);
+        }
         call_selections::logical_requirement_matches(
             self.program,
             context.machine.symbol,
@@ -603,7 +616,15 @@ impl<'program> Collector<'program> {
         // Retain the source's abstract dependency pair. It supplies no body;
         // the independently checked dispatch identifies the private closure.
         self.call(authored, reference, context.initializer)?;
-        if self.expand_callees && site.static_requirement_dispatch().is_some() {
+        if self.expand_callees
+            && (site.static_requirement_dispatch().is_some()
+                || call_selections::static_callable_matches(
+                    self.program,
+                    context.machine.symbol,
+                    site,
+                    authored,
+                )?)
+        {
             let machine = self
                 .program
                 .machine_holding_state(target)
@@ -676,7 +697,11 @@ impl<'program> Collector<'program> {
             && symbol.parent.is_valid()
             && self.program.symbols.get(symbol.parent).kind == SymbolKind::ConformanceParameter
             && validation::selected_requirement_signature(self.program, target).is_some();
-        if symbol.kind == SymbolKind::Operator || bound_requirement {
+        if matches!(
+            symbol.kind,
+            SymbolKind::Operator | SymbolKind::MachineParameter
+        ) || bound_requirement
+        {
             // An abstract bound call retains the exact public declaration
             // selected by its authored template. It owns no body to evaluate.
             // The ordinary checked specialization/dispatch and interpreter still
@@ -1043,6 +1068,17 @@ impl<'program> Collector<'program> {
         let children = expression_children(program, expression)?;
         match table.expression(expression) {
             ExpressionNode::Call(call) => {
+                self.static_arguments(&call.machine_arguments);
+                if call.authored_machine_application.is_valid() {
+                    self.static_arguments(
+                        table.static_machine_application_arguments(
+                            call.authored_machine_application,
+                        ),
+                    );
+                    self.static_arguments(table.static_machine_application_selected_machines(
+                        call.authored_machine_application,
+                    ));
+                }
                 let site = validation::CallSite::Expression { expression, call };
                 let mut selections = Vec::new();
                 for occurrence in table.authored_selection_occurrences(expression) {
@@ -1200,6 +1236,23 @@ impl<'program> Collector<'program> {
                         expressions.extend([assignment.target, assignment.value])
                     }
                     StatementNode::Call(call) => {
+                        self.static_arguments(&call.machine_arguments);
+                        if call.authored_machine_application.is_valid() {
+                            self.static_arguments(
+                                program
+                                    .expression_table
+                                    .static_machine_application_arguments(
+                                        call.authored_machine_application,
+                                    ),
+                            );
+                            self.static_arguments(
+                                program
+                                    .expression_table
+                                    .static_machine_application_selected_machines(
+                                        call.authored_machine_application,
+                                    ),
+                            );
+                        }
                         self.selected_retained_call(
                             validation::CallSite::Statement(call),
                             context,
@@ -1256,5 +1309,26 @@ impl<'program> Collector<'program> {
             }
         }
         Ok(())
+    }
+
+    fn static_arguments(&mut self, arguments: &[typed_trees::expression::StaticMachineArgument]) {
+        if !self.expand_callees {
+            return;
+        }
+        for argument in arguments {
+            let selected = self.program.symbols.get(argument.symbol);
+            match selected.kind {
+                SymbolKind::Machine => self.machines.push(argument.symbol),
+                SymbolKind::State
+                    if self.program.symbols.get(selected.parent).kind == SymbolKind::Machine =>
+                {
+                    self.machines.push(selected.parent);
+                }
+                _ => {}
+            }
+            if let Some(application) = &argument.application {
+                self.static_arguments(&application.arguments);
+            }
+        }
     }
 }

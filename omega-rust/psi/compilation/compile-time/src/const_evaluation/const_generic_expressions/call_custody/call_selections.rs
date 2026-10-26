@@ -169,6 +169,48 @@ pub(super) fn retained_target(site: &CallSite<'_>) -> SymbolHandle {
     }
 }
 
+/// A rewritten direct call must still select this exact source binder and the
+/// entry supplied by this invocation's substitution. Equal signatures or a
+/// same-template callback from another application do not establish custody.
+pub(super) fn static_callable_matches(
+    program: &TypedTrees,
+    mut owner: SymbolHandle,
+    site: &CallSite<'_>,
+    authored: SymbolHandle,
+) -> Result<bool, String> {
+    let parameter = match site {
+        CallSite::Statement(call) => call.static_machine_parameter,
+        CallSite::Expression { call, .. } => call.static_machine_parameter,
+        CallSite::TransitionNamed { .. } => return Ok(false),
+    };
+    if parameter != authored || program.retained_static_machine_contract(authored).is_none() {
+        return Ok(false);
+    }
+    let mut visited = Vec::new();
+    loop {
+        if visited.contains(&owner) {
+            return Err("constant static call has cyclic invocation ownership".into());
+        }
+        visited.push(owner);
+        let mut instances = program
+            .machine_specializations
+            .iter()
+            .filter(|instance| instance.instance == owner);
+        let Some(instance) = instances.next() else {
+            return Ok(false);
+        };
+        if instances.next().is_some() {
+            return Err("constant static call has ambiguous invocation ownership".into());
+        }
+        if let Some(StaticMachineBindingValue::Machine(argument)) =
+            program.specialization_binding(instance, authored)
+        {
+            return Ok(argument.application.is_none() && argument.symbol == retained_target(site));
+        }
+        owner = instance.template;
+    }
+}
+
 pub(super) fn logical_requirement_matches(
     program: &TypedTrees,
     owner: SymbolHandle,

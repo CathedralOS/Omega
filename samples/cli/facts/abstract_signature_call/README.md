@@ -41,6 +41,92 @@ transport of the premise subject and its read changes.
 The row has no root `main.omg`; `local` is its canonical local witness. The
 landed local plus twin came from the item's pin commit `49bf309359c`.
 
+## Constant-initializer production
+
+The same fact also originates in the closed application
+`const DIRECT: bool = apply<witness>(true)`. The
+[`constant_initializer/main.omg`](constant_initializer/main.omg) root preserves
+its frozen authored source, including `hold(DIRECT)` through its local read;
+its [twin](constant_initializer/invalid/main.omg) changes only `premise`'s result
+to `false`. Source SHA-256:
+`63c626098e6ab12f1f0b5d4e887202f43fe1b6df2895350878b1b45605e83555`.
+
+This production carries the resulting value through the same nine places.
+Each positive and twin keeps the exact constant application, selected `witness`
+body, abstract signature premise, and `hold` operation. Parameter and relay
+contracts transport the exact `direct == true` obligation; they do not add a
+caller guard. Nested machines declare their own crash routes explicitly.
+
+| Place | Positive | Reject twin |
+| --- | --- | --- |
+| local | [`constant_initializer/local/main.omg`](constant_initializer/local/main.omg) | [`constant_initializer/local/invalid/main.omg`](constant_initializer/local/invalid/main.omg) |
+| field | [`constant_initializer/field/main.omg`](constant_initializer/field/main.omg) | [`constant_initializer/field/invalid/main.omg`](constant_initializer/field/invalid/main.omg) |
+| parameter | [`constant_initializer/parameter/main.omg`](constant_initializer/parameter/main.omg) | [`constant_initializer/parameter/invalid/main.omg`](constant_initializer/parameter/invalid/main.omg) |
+| call_result | [`constant_initializer/call_result/main.omg`](constant_initializer/call_result/main.omg) | [`constant_initializer/call_result/invalid/main.omg`](constant_initializer/call_result/invalid/main.omg) |
+| match_join | [`constant_initializer/match_join/main.omg`](constant_initializer/match_join/main.omg) | [`constant_initializer/match_join/invalid/main.omg`](constant_initializer/match_join/invalid/main.omg) |
+| const_name | [`constant_initializer/const_name/main.omg`](constant_initializer/const_name/main.omg) | [`constant_initializer/const_name/invalid/main.omg`](constant_initializer/const_name/invalid/main.omg) |
+| other_state | [`constant_initializer/other_state/main.omg`](constant_initializer/other_state/main.omg) | [`constant_initializer/other_state/invalid/main.omg`](constant_initializer/other_state/invalid/main.omg) |
+| other_machine | [`constant_initializer/other_machine/main.omg`](constant_initializer/other_machine/main.omg) | [`constant_initializer/other_machine/invalid/main.omg`](constant_initializer/other_machine/invalid/main.omg) |
+| target_body | [`constant_initializer/target_body/main.omg`](constant_initializer/target_body/main.omg) | [`constant_initializer/target_body/invalid/main.omg`](constant_initializer/target_body/invalid/main.omg) |
+
+The nine places are pinned as
+`tests/omega/{pass,fail}/facts/abstract_signature_call_constant_initializer_through_<place>_{exit,rejected}`;
+the unchanged root is pinned by the corresponding
+`abstract_signature_call_constant_initializer_{exit,rejected}` fixtures. The
+positive fixtures author exit 0, and the rejects require `structurally false`
+and `premise(kept)`.
+
+The fixed baseline `aa202339cb2f513fbf478efa46f212a6d94680fd` refuses the
+unchanged root before execution with
+`constant initializer call has no exact ordinary machine declaration: selected MachineParameter`.
+The optimized baseline CLI digest is
+`c17e6b7a283b3e6898b975a7f8b596d17422dc1132f0fe8d4907bb8fca1e7c45`;
+qualification receipt `cec7a06e6adb4037aa71cf85c2ba67d7` retains exit 1,
+the source/oracle hashes, and no invalidations. No baseline runtime is claimed.
+
+### Callable composition controls
+
+[`forwarded`](constant_initializer/forwarded/main.omg) passes the selected
+callback through another static binder before evaluating the same application.
+[`selected_entries`](constant_initializer/selected_entries/main.omg) evaluates
+both `apply<witness>(true)` and `apply<alternate>(true)`: their signatures agree,
+but their bodies return opposite values, and `hold`/`hold_false` consume those
+exact results. Both have premise-false twins and corpus pins. The
+[`wrong_result`](constant_initializer/wrong_result/main.omg) control instead
+keeps the premise true and changes only the selected `witness` result to false;
+it must refuse `hold`'s `direct == true` contract. This checks the oracle and
+selected body independently of the premise refusal.
+
+### Requirement accounting for this production
+
+- **Establishment:** the closed invocation evaluates only after ordinary checked
+  specialization and concrete premise/failure admission. `premise(kept)` is an
+  obligation before the result exists; it never establishes itself.
+- **Identity and lifetime:** dependency discovery records the source binder and
+  explicit callback body separately. Replay rejoins the original binder to the
+  exact entry in its owning specialization. The constants are immutable value
+  snapshots; the composition controls distinguish equal ABI signatures.
+- **Composition:** the same computed result reaches `hold` through all nine
+  places. Parameters and relay contracts prove arrival under the actual
+  constant substitution; joins keep the same result in both arms. No caller
+  guard replaces the carried fact.
+- **Soundness boundaries:** every premise-false twin refuses its own obligation,
+  and the wrong-result control refuses the consumer's required result. These
+  closed Boolean computations acquire no authority, borrow no storage, and
+  introduce no runtime service reach; other custody modes remain outside this
+  row's evidence.
+- **Psi 05–07:** constant evaluation retains and validates authored call custody
+  before materializing the Boolean. The resulting program lowers through
+  Terminal Psi, whose interpreter must observe exit 0 beside native execution.
+- **Omega 00–02:** all positives retain the four hosted `ProgramEntry` bindings
+  and add `macos_x86_64` for this host. Static callback binders are erased; the
+  result uses the ordinary Boolean carrier and call placement.
+- **Omega 03–06:** the Intel host exercises scalar/record homes, calls, joins,
+  nested-machine arrivals, and the consumer's success/crash control flow.
+- **Omega 07–09 and emission:** actual host Mach-O execution must agree with
+  Terminal Psi. The other four authored targets have no runtime observation
+  on this Intel host and remain outside this run's platform qualification.
+
 ## Execution
 
 Every positive place binds `ProgramEntry` for all four hosted targets
@@ -175,7 +261,7 @@ and no fixture key or diagnostic continuation line was lost.
 7. **Instruction selection, register homes, and activation frame realization
    (`Omega 03–06`):** the executed images select the call/return path for the
    selected `witness` body and assign register homes and disjoint frame slots
-   for the entry machine and its helpers, with the `true` arm routed to the
+   for the entry machine and its helpers, with the `true` arm routed to `done()` and the other arm to the
    `bad()` trap.
 8. **Form encoding, branch relaxation, relocations, and native image emission
    (`Omega 07–09` + emission):** the emitted host image executes and agrees with
@@ -190,5 +276,5 @@ and no fixture key or diagnostic continuation line was lost.
   retirement.
 - Native execution on the four authored hosted targets is measured through the
   host the run executes (macOS arm64 here); `macos_arm64::ProgramEntry` is one
-  of the four bindings, and the other three remain realized-by-binding, not
-  executed on this host.
+  of the four bindings, and the other three bindings are authored but have no execution
+  observation on that host.

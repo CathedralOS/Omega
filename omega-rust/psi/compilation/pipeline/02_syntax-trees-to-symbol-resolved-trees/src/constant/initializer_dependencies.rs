@@ -1,4 +1,9 @@
 //! Declaration-owned dependency discovery before provisional values exist.
+//!
+//! A static callable has two independent dependencies: its authored binder is
+//! the call's logical selection, and its explicit operand supplies the body
+//! that specialization may execute. Retain both without treating an abstract
+//! binder as an ordinary body or granting execution from source readiness.
 
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
@@ -734,7 +739,11 @@ impl<'program> Collector<'program> {
                 .symbols
                 .child_handles(symbol.parent)
                 .is_some_and(|mut children| children.any(|child| child == target));
-        if symbol.kind == SymbolKind::Operator || bound_requirement {
+        if matches!(
+            symbol.kind,
+            SymbolKind::Operator | SymbolKind::MachineParameter
+        ) || bound_requirement
+        {
             // A logical requirement is an exact authored selection, not an
             // ordinary body. Evidence-binder children were installed from this
             // machine's explicit bound; the typed invocation must independently
