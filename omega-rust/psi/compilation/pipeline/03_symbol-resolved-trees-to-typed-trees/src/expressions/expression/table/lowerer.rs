@@ -415,6 +415,41 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 if let Some(lowered) = synthesized? {
                     return Ok(lowered);
                 }
+                if let Some(program) = self.program {
+                    let namespace = if call.receiver.is_valid() {
+                        match self.source.expression(call.receiver) {
+                            resolved::expression::ExpressionNode::Name(path) => path.symbol,
+                            _ => symbols::SymbolHandle::invalid(),
+                        }
+                    } else {
+                        symbols::SymbolHandle::invalid()
+                    };
+                    if let Some(request) = crate::expressions::product_selections::request(
+                        program,
+                        namespace,
+                        call.target_symbol,
+                        call.target.as_str(),
+                        &call.machine_arguments,
+                        call.arguments.len(),
+                        call.evidence_arguments.len(),
+                        self.source.source_span(expression),
+                    )? {
+                        let arguments = self
+                            .source
+                            .expression_handles(call.arguments)
+                            .to_vec()
+                            .into_iter()
+                            .map(|argument| self.lower_value(argument))
+                            .collect::<Result<Vec<_>, Diagnostic>>()?;
+                        return crate::expressions::build_selections::lower(
+                            program,
+                            self.target_trees,
+                            request,
+                            arguments,
+                            call.operational_acknowledgement,
+                        );
+                    }
+                }
                 let quotient_operation = self.lower_quotient_operation_request(call)?;
                 let private_layout_operation = self.lower_private_layout_operation_request(call)?;
                 let layout_query = self.lower_data_layout_query(expression, call)?;

@@ -138,9 +138,7 @@ fn lower_statement_node(
                 .set_source_span(expression, call.target.source_span());
             Ok(typed::statement::StatementNode::Expression(expression))
         }
-        resolved::statement::StatementNode::Call(call) => Ok(
-            typed::statement::StatementNode::Call(lower_call_statement(lowerer, call)?),
-        ),
+        resolved::statement::StatementNode::Call(call) => lower_call_statement(lowerer, call),
         resolved::statement::StatementNode::ProofOutputBindingStatement(_) => {
             unreachable!("evidence packages are classified out before runtime statement lowering")
         }

@@ -3,9 +3,10 @@ use symbols::SymbolHandle;
 
 mod product;
 pub use product::{
-    BuildSelectionRequest, DescribedProductEntry, DescribedProductProvider, DescribedProductSchema,
-    ExecutedRootBinding, ProductDeclarationOperand, ProductDeclarationRequest, RootBindingOperand,
-    RootBindingRequest, RootBindingSelection,
+    BuildSelectionRequest, CompositionMode, DescribedProductEntry, DescribedProductProvider,
+    DescribedProductSchema, ExecutedBuildSelection, ExecutedProductSelection, ExecutedRootBinding,
+    ProductDeclarationOperand, ProductDeclarationRequest, RootBindingOperand, RootBindingRequest,
+    RootBindingSelection,
 };
 
 /// Whether an authored declaration selection contributes only to an

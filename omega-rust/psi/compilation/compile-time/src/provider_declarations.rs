@@ -6,8 +6,10 @@
 //! independently rejoins retained choices without rerunning Build. Native schema,
 //! ABI and provider-plan construction belong to Omega and are not dependencies.
 
+mod admission;
 mod context;
 mod identities;
+mod product_requests;
 mod selection;
 
 use crate::is_exact_toolchain_build_prelude_data;
@@ -15,6 +17,7 @@ use checked_trees::typed_trees::TypedTrees;
 pub use context::ProviderPlanningContext;
 use diagnostics::Diagnostic;
 pub use identities::{eligible, is_named_provider, named_requirement_lifetime_arguments};
+pub use product_requests::{collect_product_provider_selections, form_product_provider_request};
 pub use selection::{
     CompositionMode, ProviderOperatorFamilySelection, ProviderSelection, ProviderSelectionIdentity,
     ProviderSelectionSubject,
@@ -280,110 +283,18 @@ fn collect_provider_selections<'a>(
                 return;
             }
         };
-        let subject = if boundary_identity.symbol.is_valid()
-            && typed.symbols.get(boundary_identity.symbol).kind == SymbolKind::Trait
-            && typed.traits().iter().any(|definition| {
-                definition.symbol == boundary_identity.symbol && definition.is_boundary
-            }) {
-            ProviderSelectionSubject::BoundaryTrait(boundary_identity)
-        } else if boundary_identity.symbol.is_valid()
-            && typed.symbols.get(boundary_identity.symbol).kind == SymbolKind::Machine
-            && typed.machines().iter().any(|requirement| {
-                requirement.symbol == boundary_identity.symbol
-                    && requirement.spelling.is_none()
-                    && requirement.supply_mode
-                        == language_semantics::MachineSupplyMode::TopLevelRequirement
-            })
-        {
-            ProviderSelectionSubject::BoundaryRequirement(boundary_identity)
-        } else if boundary_identity.symbol.is_valid()
-            && (typed.symbols.get(boundary_identity.symbol).kind == SymbolKind::Operator
-                || typed.machine_token_bindings().iter().any(|binding| {
-                    binding.is_boundary && binding.symbol == boundary_identity.symbol
-                }))
-        {
-            // One resolved overload symbol names its complete package-
-            // qualified family; provider-planning derives the canonical
-            // roster so harvest and later replay share one definition.
-            match ProviderOperatorFamilySelection::derive(
-                context,
-                boundary_identity.symbol,
-                boundary_identity.authored_path,
-            ) {
-                Ok(family) => ProviderSelectionSubject::BoundaryOperatorFamily(family),
-                Err(reason) => {
-                    diagnostics.push(Diagnostic::error(reason));
-                    return;
-                }
-            }
-        } else {
-            diagnostics.push(Diagnostic::error(format!(
-                "provider selection subject `{}` does not resolve to an exact boundary trait, top-level boundary requirement, or boundary-operator family",
-                boundary_identity.authored_path
-            )));
-            return;
-        };
-        if !provider_type.symbol.is_valid()
-            || (typed.symbols.get(provider_type.symbol).kind != SymbolKind::Data
-                && !identities::is_named_provider(typed, provider_type.symbol))
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "provider selection type `{}` does not resolve to an exact provider data declaration or named implementation",
-                provider_type.authored_path
-            )));
-            return;
-        }
-        if let Some(implementation) = typed.conformances().iter().find(|implementation| {
-            implementation.symbol == provider_type.symbol && identities::eligible(implementation)
-        }) {
-            for row in &implementation.rows {
-                if identities::named_requirement_lifetime_arguments(
-                    typed,
-                    implementation,
-                    row.declaring_trait,
-                )
-                .is_none()
-                {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "named provider `{}` requires an unsupported inherited declaring-trait lifetime application for `{}`; the exact parent substitution is not retained",
-                        provider_type.authored_path,
-                        row.requirement_name,
-                    )));
-                    return;
-                }
-            }
-        }
-        if let Some(existing) = selections
-            .iter()
-            .find(|selection| selection.subject.same_declaration_as(&subject))
-        {
-            if existing.provider_type.symbol != provider_type.symbol {
-                diagnostics.push(Diagnostic::error(format!(
-                    "build selects two provider types for slot `{}`: `{}` and `{}`",
-                    subject.canonical_path(),
-                    existing.provider_type.canonical_path,
-                    provider_type.canonical_path,
-                )));
-                return;
-            }
-            if existing.composition_mode != composition_mode {
-                diagnostics.push(Diagnostic::error(format!(
-                    "build selects provider `{}` for slot `{}` with conflicting composition modes {:?} and {:?}",
-                    provider_type.canonical_path,
-                    subject.canonical_path(),
-                    existing.composition_mode,
-                    composition_mode,
-                )));
-                return;
-            }
-        }
-        selections.push(ProviderSelection {
-            subject,
+        match admission::admit(
+            context,
+            boundary_identity,
             provider_type,
             composition_mode,
-            selecting_machine: machine,
+            machine,
             source_span,
-        });
+            &selections,
+        ) {
+            Ok(selection) => selections.push(selection),
+            Err(diagnostic) => diagnostics.push(diagnostic.with_source_span(source_span)),
+        }
     };
     for request in requests {
         record(request);

@@ -13,7 +13,7 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BuildSelectionRequest {
     Entry(RootBindingRequest),
-    Declaration(ProductDeclarationRequest),
+    Declaration(std::sync::Arc<ProductDeclarationRequest>),
 }
 
 impl Default for BuildSelectionRequest {
@@ -51,6 +51,31 @@ pub struct ProductDeclarationRequest {
 pub struct ProductDeclarationOperand {
     pub path: String,
     pub source_span: source::SourceSpan,
+}
+
+/// The ordinary provider composition choice, independent of declaration or
+/// target identity. Omission at the source surface means Fused.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CompositionMode {
+    #[default]
+    Fused,
+    Independent,
+}
+
+/// One reached operation authenticated against its original Build activation.
+/// Capturing a potential call does not mint an execution event.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExecutedBuildSelection {
+    Entry(ExecutedRootBinding),
+    Declaration(ExecutedProductSelection),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutedProductSelection {
+    pub request: std::sync::Arc<ProductDeclarationRequest>,
+    /// Provider choices retain the actual evaluated mode. Representation
+    /// choices carry no composition argument.
+    pub composition: Option<CompositionMode>,
 }
 
 /// Inert designated operands retained under their authored lexical scope.
