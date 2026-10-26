@@ -55,15 +55,17 @@ The nine standard places and these controls have source pins under
 `tests/omega/{pass,fail}/facts/domain_selected_cleanup_*`; focused corpus
 qualification and golden registration remain pending.
 
-The current extension frontier is indexed-domain theory transport. Candidate 22
-rejects both intended indexed positive productions at construction. Subsequent
-source repairs carry applied predicates into completed-value checking and retain
-exact inherited instances; their runtime qualification is pending. Nested helpers
-beneath distinct result overloads also have a reproduced identity collision and
-a pending runtime-validated repair. Enclosing generic/lifetime telescopes,
+Integrated candidate 28 passes the direct indexed, indexed predicate and computed
+index productions in both engines. It also passes nested helpers beneath distinct
+result overloads and explicit predicate erasure that retains a default cleanup
+application. All sixteen conflict, authority, effect, erasure and scope controls
+reject on their intended obligations. The inherited indexed production still
+fails because its retained const-expression argument has no applied theory view;
+that repair is in progress. Enclosing generic/lifetime telescopes,
 general erased-interface transport, product-producer parity, source retirement,
 and the whole item's required applications/corpus/host results remain open.
-No TASKS acceptance has been subtracted and nothing has been published.
+No TASKS acceptance has been subtracted. Reviewed source is published in draft
+PR [165](https://github.com/CathedralOS/Omega/pull/165); nothing has landed.
 
 Immutable producers, source manifests, exact commands and raw logs live in this
 worktree's ignored `build/slot3-evidence/`. Durable private source checkpoints
