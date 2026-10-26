@@ -124,7 +124,7 @@ fn record_expression_owner(
 mod transition_calls;
 
 pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    transition_calls::normalize_boundary_transition_calls(program);
+    transition_calls::normalize_terminal_transition_calls(program);
     let expected_calls = collect_expected_expression_calls(program);
     let expression_owner_source_spans = expression_owner_source_spans(program);
     let machine_overloads = MachineOverloadIndex::new(program);

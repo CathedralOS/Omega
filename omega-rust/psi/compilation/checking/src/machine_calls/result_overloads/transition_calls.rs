@@ -1,5 +1,5 @@
-//! Named boundary transitions are terminal value calls, not machine-state
-//! jumps. Normalize their complete declaration path into the ordinary call
+//! Named terminal invocations use ordinary call results, while local states remain
+//! control edges. Normalize the complete declaration path into the ordinary call
 //! representation before result-overload selection. Operand checks, effects,
 //! requires contracts, result compatibility and provider selection then share
 //! the expression path; a qualified name alone never admits execution.
@@ -11,7 +11,7 @@ use typed_trees::expression::{
 };
 use typed_trees::statement::TransitionTargetNode;
 
-pub(super) fn normalize_boundary_transition_calls(program: &mut TypedTrees) {
+pub(super) fn normalize_terminal_transition_calls(program: &mut TypedTrees) {
     let mut targets = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -25,13 +25,29 @@ pub(super) fn normalize_boundary_transition_calls(program: &mut TypedTrees) {
                     else {
                         continue;
                     };
-                    // An already resolved machine/state identity stays a jump.
+                    let members = program.statement_table.name_path_members(path.members);
+                    if members.is_empty() {
+                        continue;
+                    }
+                    let callable =
+                        crate::terminal_callable_target(program, machine, path.symbol).is_some();
+                    // Attached machines require an explicit value-call spelling
+                    // for a bare foreign-machine name. Keep that independent
+                    // source-admission refusal visible to its validator.
+                    if callable
+                        && machine.attached_data.is_some()
+                        && members.len() == 1
+                        && (program.machine_by_symbol(path.symbol).is_some()
+                            || program.machine_holding_state(path.symbol).is_some())
+                    {
+                        continue;
+                    }
                     if path.symbol.is_valid()
+                        && !callable
                         && program.operator_definition_by_symbol(path.symbol).is_none()
                     {
                         continue;
                     }
-                    let members = program.statement_table.name_path_members(path.members);
                     // A resolved value head is not a declaration namespace, even
                     // if its source spelling matches a boundary family.
                     if members.len() > 1
@@ -44,15 +60,19 @@ pub(super) fn normalize_boundary_transition_calls(program: &mut TypedTrees) {
                                 | SymbolKind::Domain
                                 | SymbolKind::Machine
                                 | SymbolKind::Trait
+                                | SymbolKind::Conformance
+                                | SymbolKind::ConformanceParameter
                         )
                     {
                         continue;
                     }
-                    if program.operators().iter().any(|operator| {
-                        operator.is_boundary
-                            && operator.spelling.is_none()
-                            && program.operator_path_members(operator.name) == members
-                    }) && !targets.contains(&target)
+                    if (callable
+                        || program.operators().iter().any(|operator| {
+                            operator.is_boundary
+                                && operator.spelling.is_none()
+                                && program.operator_path_members(operator.name) == members
+                        }))
+                        && !targets.contains(&target)
                     {
                         targets.push(target);
                     }

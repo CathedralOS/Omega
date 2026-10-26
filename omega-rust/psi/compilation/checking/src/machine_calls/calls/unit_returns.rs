@@ -46,16 +46,22 @@ pub fn unit_return_call_is_admitted(
     state: &State,
     expression: ExpressionHandle,
 ) -> bool {
-    if !unit_type(program, state.return_type)
-        || !program.expression_table.expression_is_valid(expression)
-        || !matches!(
-            program.statement_table.statements(state.statement_nodes).last(),
-            Some(typed_trees::statement::StatementNode::Expression(tail)) if *tail == expression
-        )
-    {
-        return false;
-    }
-    call_returns_unit(program, machine, expression)
+    matches!(program.statement_table.statements(state.statement_nodes).last(),
+        Some(typed_trees::statement::StatementNode::Expression(tail)) if *tail == expression)
+        && call_completes_unit_state(program, machine, state, expression)
+}
+
+/// Signature compatibility for a direct Unit completion. The caller supplies
+/// the actual statement/terminal position; nested operands never inherit it.
+pub(crate) fn call_completes_unit_state(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    unit_type(program, state.return_type)
+        && program.expression_table.expression_is_valid(expression)
+        && call_returns_unit(program, machine, expression)
 }
 
 pub(in crate::machine_calls::calls) fn call_returns_unit(

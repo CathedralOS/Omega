@@ -58,6 +58,7 @@ mod unit_returns;
 mod write_frames;
 pub(crate) use write_frames::provider_completion_covers_writable_slots;
 
+pub(crate) use unit_returns::call_completes_unit_state;
 pub use unit_returns::machine_has_unit_result;
 pub use unit_returns::{unit_return_call_is_admitted, unit_statement_call_is_admitted};
 
