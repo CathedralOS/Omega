@@ -61,14 +61,10 @@ impl PackagePolicyTypeParameter {
 }
 impl PackagePolicyMachineParameterContract {}
 impl PackagePolicyMachineParameterSignature {
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-    pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.type_parameters
-    }
-    pub fn parameters(&self) -> &[PackageReviewSignatureParameter] {
-        &self.parameters
-    }
+    crate::record::accessors::record_accessors!(
+        lifetime_parameter_count,
+        type_parameters,
+        parameters
+    );
     crate::record::accessors::package_policy_callable_signature_accessors!();
 }

@@ -35,6 +35,7 @@ pub struct PackagePolicyServiceMethod {
 }
 
 impl PackagePolicyServiceMethod {
+    crate::record::accessors::record_accessors!(requirement);
     pub fn completion(&self) -> semantic_vocabulary::BoundaryCompletion {
         self.completion
     }
@@ -50,10 +51,6 @@ impl PackagePolicyServiceMethod {
 
     pub fn requirement_owner(&self) -> &PackageReviewNominalIdentity {
         &self.requirement_owner
-    }
-
-    pub fn requirement(&self) -> &PackageReviewNominalIdentity {
-        &self.requirement
     }
 
     pub fn parameter_count(&self) -> usize {
