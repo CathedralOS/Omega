@@ -117,13 +117,8 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
             symbols.get(target_symbol).kind,
             SymbolKind::MachineParameter | SymbolKind::State
         ) {
-            // Callable lookup names a machine's entry for its signature.
-            // A terminal invocation retains the machine identity: reusing
-            // its entry state would turn recursion into an internal arrival
-            // and erase the enclosing invocation's return obligations.
-            let invocation = terminal_call_target(symbols, target_symbol);
-            named.head_symbol = invocation;
-            named.symbol = invocation;
+            named.head_symbol = target_symbol;
+            named.symbol = target_symbol;
             return;
         }
     }
@@ -166,7 +161,7 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
                     diagnostic_path_source_span(&path[..path.len() - 1]),
                 )
                 .unwrap_or_else(SymbolHandle::invalid);
-            named.symbol = terminal_call_target(symbols, target_symbol);
+            named.symbol = target_symbol;
             return;
         }
     }
@@ -183,18 +178,6 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
             named.symbol = target_symbol;
             return;
         }
-    }
-}
-
-/// Callable entry coordinates supply a signature, while the owning machine
-/// supplies invocation identity. Private state arrivals bypass this conversion.
-fn terminal_call_target(symbols: &SymbolTable, target: SymbolHandle) -> SymbolHandle {
-    if symbols.get(target).kind == SymbolKind::State
-        && symbols.get(symbols.get(target).parent).kind == SymbolKind::Machine
-    {
-        symbols.get(target).parent
-    } else {
-        target
     }
 }
 
