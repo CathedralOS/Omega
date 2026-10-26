@@ -231,6 +231,7 @@ pub(super) fn check_flow_call_contracts(
                     &content_plans,
                     call_frames,
                     &mut cyclic_headers,
+                    &mut recipe_obligations,
                     &mut diagnostics,
                 )
             });

@@ -22,6 +22,8 @@ pub enum ConstantRecipeRequirement {
     AtLeast(BigInt),
     /// `recipe <= bound`: a membership lower bound against an upper endpoint.
     AtMost(BigInt),
+    /// Both closed operands must independently form and agree in this target.
+    EqualRecipe(ConstantRecipeHandle),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -89,16 +91,32 @@ impl ConstantRecipeObligation {
                 );
                 continue;
             };
+            if let ConstantRecipeRequirement::EqualRecipe(other) = &obligation.requirement {
+                let other_value = program.closed_constant_recipe_value(*other);
+                if other_value != Some(value) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{}: contract endpoint equality requires both admitted recipe values to agree; selected values are {} and {:?}",
+                        obligation.description, value, other_value,
+                    )).with_source_span(obligation.source_span));
+                }
+                continue;
+            }
             let (holds, relation) = match &obligation.requirement {
                 ConstantRecipeRequirement::ExceedsBound(bound) => (bound < value, "<"),
                 ConstantRecipeRequirement::AtLeast(bound) => (bound <= value, "<="),
                 ConstantRecipeRequirement::AtMost(bound) => (value <= bound, ">="),
+                ConstantRecipeRequirement::EqualRecipe(_) => {
+                    unreachable!("handled both-recipe relation above")
+                }
             };
             if !holds {
                 let bound = match &obligation.requirement {
                     ConstantRecipeRequirement::ExceedsBound(bound)
                     | ConstantRecipeRequirement::AtLeast(bound)
                     | ConstantRecipeRequirement::AtMost(bound) => bound,
+                    ConstantRecipeRequirement::EqualRecipe(_) => {
+                        unreachable!("handled both-recipe relation above")
+                    }
                 };
                 diagnostics.push(
                     Diagnostic::error(format!(

@@ -17,6 +17,8 @@ use super::super::{
 use crate::flow::canonical_place_from_symbol;
 
 mod admitted_domains;
+mod deferred_recipes;
+pub(super) use deferred_recipes::proves_with_recipe_conditions;
 mod boolean_results;
 pub(in crate::checks::contracts) use admitted_domains::BoundaryRefutations;
 pub(crate) mod calls;
@@ -475,6 +477,34 @@ impl ExitScalars<'_, '_> {
             spelling,
             &types,
         ) {
+            return false;
+        }
+        self.returned_immutable_parameter(parameter.symbol)
+    }
+
+    /// Exact return identity from the retained state-edge origin; no storage
+    /// replay or source initializer can establish this correspondence.
+    fn returned_immutable_parameter(&self, symbol: symbols::SymbolHandle) -> bool {
+        use typed_trees::expression::ExpressionNode;
+        let Some(entry) = self.program.machine_states(self.machine).first() else {
+            return false;
+        };
+        let Some(parameter) = self.program.state_parameter_by_symbol(entry, symbol) else {
+            return false;
+        };
+        if parameter.is_mutable
+            || parameter.is_const
+            || !self
+                .program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some_and(|primitive| {
+                    primitive.is_integer() || primitive == typed_trees::types::PrimitiveType::Bool
+                })
+            || self
+                .program
+                .primitive_type_reference(parameter.type_reference)
+                != self.program.primitive_type_reference(entry.return_type)
+        {
             return false;
         }
         let Some(origin) = self

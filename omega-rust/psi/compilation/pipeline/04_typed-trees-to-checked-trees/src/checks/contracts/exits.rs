@@ -136,6 +136,7 @@ pub(super) fn check_exit_ensures(
     content_plans: &[validation::ContentConservationSourcePlan],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     cyclic_headers: &mut CyclicHeaderInvariants,
+    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let entry_contexts: Vec<_> = facts
@@ -334,6 +335,20 @@ pub(super) fn check_exit_ensures(
                 // itself at the header and needs no origin.
                 || cyclic_headers.proves(program, facts, exit_flow, fact);
 
+            if !satisfied
+                && missing_origins.is_empty()
+                && let Some(conditions) = scalars::proves_with_recipe_conditions(
+                    program,
+                    facts,
+                    exit_flow,
+                    &entry_contexts,
+                    fact,
+                    call_frames,
+                )
+            {
+                recipe_obligations.extend(conditions);
+                continue;
+            }
             if !satisfied {
                 let origin_diagnostic = if missing_origins.is_empty() {
                     String::new()
