@@ -195,8 +195,8 @@ pub(super) fn bind(
 /// A borrowed arrival carries authority from its exact captured occurrences,
 /// not from equal storage geometry. Every possible incoming source must grant
 /// this access through the same parent; missing predecessors stay unknown.
-/// This exempts only that parent from ordinary backing interference, never a
-/// descendant or a separate loan, and does not discharge lifetime debts.
+/// Captured authority also traverses that parent's exact ancestry. Descendants
+/// and separate loans still interfere; lifetime debts remain independent.
 pub(super) fn lends_from(
     custody: &Custody,
     place: PlaceId,
@@ -210,7 +210,29 @@ pub(super) fn lends_from(
         .is_some_and(|sources| {
             !sources.is_empty()
                 && sources.iter().all(|source| {
-                    requested.admits(source.access) && source.parents.contains(parent)
+                    if !requested.admits(source.access) {
+                        return false;
+                    }
+                    let mut pending = source.parents.iter().collect::<Vec<_>>();
+                    let mut visited = BTreeSet::new();
+                    while let Some(ancestor) = pending.pop() {
+                        if ancestor == parent {
+                            return true;
+                        }
+                        if !visited.insert(ancestor) {
+                            continue;
+                        }
+                        for leaf in custody
+                            .leaves
+                            .values()
+                            .chain(custody.retired.values().map(|retired| &retired.leaf))
+                        {
+                            if &leaf.identity == ancestor {
+                                pending.extend(&leaf.parents);
+                            }
+                        }
+                    }
+                    false
                 })
         })
 }
@@ -351,6 +373,76 @@ mod tests {
             place,
             &parent,
             StructuralAccess::MutableBorrow
+        ));
+    }
+
+    #[test]
+    fn borrowed_arrival_traverses_exact_live_and_retired_ancestors() {
+        let place = PlaceId::new(2).unwrap();
+        let parent = occurrence(3);
+        let result = StructuralOperationResult {
+            place: PlaceId::new(4).unwrap(),
+            structural_type: StructuralTypeId::new(1).unwrap(),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        };
+        let operation = OperationId::new(7).unwrap();
+        let child = Leaf::formed(
+            (result.place, Vec::new()),
+            Root::Place(parent.place),
+            vec![parent.clone()],
+            operation,
+            &result,
+            result.structural_type,
+        );
+        let mut custody = Custody::default();
+        std::sync::Arc::make_mut(&mut custody.borrowed_sources).insert(
+            place,
+            Some(vec![source(
+                child.identity.clone(),
+                StructuralAccess::WriteOnlyBorrow,
+            )]),
+        );
+        custody
+            .leaves
+            .insert((result.place, Vec::new()), child.clone());
+        assert!(lends_from(
+            &custody,
+            place,
+            &parent,
+            StructuralAccess::WriteOnlyBorrow
+        ));
+        assert!(!lends_from(
+            &custody,
+            place,
+            &occurrence(5),
+            StructuralAccess::WriteOnlyBorrow
+        ));
+        assert!(!lends_from(
+            &custody,
+            place,
+            &parent,
+            StructuralAccess::SharedBorrow
+        ));
+        custody.leaves.clear();
+        custody
+            .retire(child, retirements::DisposalEvent::Operation(operation))
+            .unwrap();
+        assert!(lends_from(
+            &custody,
+            place,
+            &parent,
+            StructuralAccess::WriteOnlyBorrow
+        ));
+        custody.retired.clear();
+        assert!(!lends_from(
+            &custody,
+            place,
+            &parent,
+            StructuralAccess::WriteOnlyBorrow
         ));
     }
 
