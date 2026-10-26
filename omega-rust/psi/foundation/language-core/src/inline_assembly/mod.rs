@@ -30,6 +30,11 @@ pub enum AsmInstructionShape {
     /// decoded destination and arithmetic status flags. Other flag views
     /// remain unavailable until their complete state semantics are modeled.
     Subtract,
+    /// AArch64 SUBS over W-registers: destination, left input, and a matching
+    /// register or encodable immediate right input. The destination need not
+    /// be initialized and is not an input. Subtract modulo 2^32 and establish
+    /// NZCV; this cohort exposes the result's zero condition to local edges.
+    SubtractThreeOperand,
     /// Modular, destination-width x86 addition; establishes arithmetic flags.
     /// Decode a 32-bit GPR read/write and a 32-bit GPR or fitting immediate.
     /// Add modulo 2^32. Carry is the unsigned overflow of that sum. Signed
@@ -1131,6 +1136,14 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             flags_data_flow: AsmFlagsDataFlow::ArithmeticResult,
             clobbers: &["rflags"],
             ..AsmInstructionContract::without_side_effects(AsmInstructionShape::Subtract, X86_64)
+        }),
+        "subs" => Contract(AsmInstructionContract {
+            flags_data_flow: AsmFlagsDataFlow::ArithmeticResult,
+            clobbers: &["nzcv"],
+            ..AsmInstructionContract::without_side_effects(
+                AsmInstructionShape::SubtractThreeOperand,
+                Aarch64,
+            )
         }),
         // The structured register operands select x86 RFLAGS or AArch64 NZCV.
         "cmp" => Contract(AsmInstructionContract {

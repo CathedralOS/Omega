@@ -1,19 +1,85 @@
 // Expected exit: 0.
 // The checked seed-2 mov/sub/jnz CFG falls through with eax == 0 and stores output == 0.
+linux_x86_64 machine countdown(seed: u32) -> u32 requires seed == 2 ensures result == 0 {
+    let mut output: u32 = 99;
+    asm where clobbers rax, rflags {
+    entry:
+        mov eax, seed;
+        jmp loop;
+    loop requires eax > 0:
+        sub eax, 1;
+        jnz loop;
+    done requires eax == 0 ensures output == 0:
+        mov output, eax
+    }
+    output
+}
+
+windows_x86_64 machine countdown(seed: u32) -> u32 requires seed == 2 ensures result == 0 {
+    let mut output: u32 = 99;
+    asm where clobbers rax, rflags {
+    entry:
+        mov eax, seed;
+        jmp loop;
+    loop requires eax > 0:
+        sub eax, 1;
+        jnz loop;
+    done requires eax == 0 ensures output == 0:
+        mov output, eax
+    }
+    output
+}
+
+macos_x86_64 machine countdown(seed: u32) -> u32 requires seed == 2 ensures result == 0 {
+    let mut output: u32 = 99;
+    asm where clobbers rax, rflags {
+    entry:
+        mov eax, seed;
+        jmp loop;
+    loop requires eax > 0:
+        sub eax, 1;
+        jnz loop;
+    done requires eax == 0 ensures output == 0:
+        mov output, eax
+    }
+    output
+}
+
+linux_arm64 machine countdown(seed: u32) -> u32 requires seed == 2 ensures result == 0 {
+    let mut output: u32 = 99;
+    asm where clobbers x0, x1, nzcv {
+    entry:
+        mov w0, seed;
+        b loop;
+    loop requires w0 > 0:
+        subs w1, w0, 1;
+        mov w0, w1;
+        b.ne loop;
+    done requires w0 == 0 ensures output == 0:
+        mov output, w0
+    }
+    output
+}
+
+macos_arm64 machine countdown(seed: u32) -> u32 requires seed == 2 ensures result == 0 {
+    let mut output: u32 = 99;
+    asm where clobbers x0, x1, nzcv {
+    entry:
+        mov w0, seed;
+        b loop;
+    loop requires w0 > 0:
+        subs w1, w0, 1;
+        mov w0, w1;
+        b.ne loop;
+    done requires w0 == 0 ensures output == 0:
+        mov output, w0
+    }
+    output
+}
+
+machine finished() {}
+machine failed() crashes Trap { crash Trap; }
 machine main() crashes Trap {
- let seed: u32 = 2;
- let mut output: u32 = 99;
- asm {
- entry:
-  mov eax, seed;
-  jmp loop;
- loop requires eax > 0:
-  sub eax, 1;
-  jnz loop;
- done requires eax == 0:
-  mov output, eax
- }
- transition output == 0 { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+    let value: u32 = countdown(2);
+    transition value == 0 { true -> finished() false -> failed() }
 }
