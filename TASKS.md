@@ -404,6 +404,19 @@ defines the complete product bar.
     `samples/cli/facts/copied_call_argument_snapshot` including
     `copied_call_argument_snapshot/*/{indexed_byte_view,inferred_indexed_byte_view,post_write_indexed_byte_view,public_post_write_indexed_byte_view,ranked_indexed_byte_view,computed_ranked_indexed_byte_view,captured_window_indices}`
     and `samples/cli/facts/matched_field_windows` across all nine places).
+    - **Const-argument recipe boundary (red on main):** since `a600523a236`
+      (#91) stage 01 retains every generic value argument as a
+      `ConstExpression` recipe without parser-side evaluation, so a layout built
+      from raw 01→03b output degrades a generic-capacity field to `Unit` and the
+      layout crate's two `full_width_*_rejects_placement_instead_of_panicking`
+      tests are red on main (bisected 2026-10-26; red at every base since #91,
+      including `79804c48963`-good → `a600523a236`-bad). The value closes in the
+      driver's execution settlement
+      (`omega/compilation/driver/src/execution_settlement/constant_recipe_closure.rs`),
+      whose fold rewrites application sites to canonical literal spellings —
+      the representation the layout build consumes at realization. Any 01→03b
+      consumer that needs closed extents (the layout tests included) must be
+      migrated to that closed representation or have its contract restated.
   - **Loan locals and projected storage (REFERENCE-LOCAL-BINDING-ROUTES):**
     reference-valued locals from every admitted producer keep their loan
     identity, backing, and access through reads, calls, and explicit state
