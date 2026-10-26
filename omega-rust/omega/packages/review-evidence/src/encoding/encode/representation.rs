@@ -3,7 +3,7 @@
 use super::{
     PackageReviewEncodingError, calling,
     declarations::encode_representation_target,
-    encoder::Encoder,
+    encoder::{Encoder, encode_canonical_component},
     public_api::conformance_shape as encode_conformance_shape,
     values::{
         conformance_policy,
@@ -68,16 +68,11 @@ macro_rules! encode_opaque_representation_fields {
 pub(super) use encode_opaque_representation_fields;
 
 impl PackagePolicyRepresentation {
-    /// Complete representation-policy meaning, without compiler/native
-    /// receipts or any assertion of project acceptance.
-    pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
-        Encoder::policy_bytes(
-            REPRESENTATION_POLICY_MAGIC,
-            PACKAGE_REPRESENTATION_POLICY_VERSION,
-            self,
-            policy,
-        )
-    }
+    encode_canonical_component!(
+        REPRESENTATION_POLICY_MAGIC,
+        PACKAGE_REPRESENTATION_POLICY_VERSION,
+        policy,
+    );
 }
 
 pub(super) fn policy(

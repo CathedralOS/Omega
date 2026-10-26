@@ -3,7 +3,7 @@
 mod locator;
 mod signatures;
 use super::identity::encode_nominal;
-use crate::encoding::encode::encoder::Encoder;
+use crate::encoding::encode::encoder::{Encoder, encode_canonical_component};
 use crate::encoding::{
     EXTERNAL_SUPPLY_POLICY_MAGIC, PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION,
     PackageReviewEncodingError,
@@ -14,25 +14,12 @@ use crate::record::{
 };
 pub(crate) use locator::encode_locator;
 
-const MAXIMUM_BYTES: usize = 4 * 1024 * 1024;
-
 impl PackagePolicyExternalExecutableSupply {
-    /// Bounded component-schema bytes for policy comparison. They contain no
-    /// acceptance decision, evaluation receipt or executable authority.
-    pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
-        encode(self, MAXIMUM_BYTES)
-    }
-}
-
-fn encode(
-    supply: &PackagePolicyExternalExecutableSupply,
-    maximum_bytes: usize,
-) -> Result<Vec<u8>, PackageReviewEncodingError> {
-    let mut encoder = Encoder::policy_bounded(maximum_bytes);
-    encoder.fixed_bytes(EXTERNAL_SUPPLY_POLICY_MAGIC);
-    encoder.u16(PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION);
-    policy(&mut encoder, supply)?;
-    encoder.finish()
+    encode_canonical_component!(
+        EXTERNAL_SUPPLY_POLICY_MAGIC,
+        PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION,
+        policy,
+    );
 }
 
 pub(in crate::encoding::encode) fn policy(

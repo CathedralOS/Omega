@@ -1,3 +1,4 @@
+use super::super::encoder::encode_canonical_component;
 use super::{Encoder, PackageReviewEncodingError, callbacks, opaque, ordinal, type_identity};
 use crate::encoding::encode::declarations::{
     encode_boundary_shape_graph, encode_representation_target,
@@ -9,16 +10,11 @@ use crate::encoding::{CALLING_POLICY_MAGIC, PACKAGE_CALLING_POLICY_VERSION};
 use crate::record::{PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin};
 
 impl PackagePolicyCallingPlan {
-    /// Complete normalized calling-policy bytes. Native/compiler identities,
-    /// realization receipts, and acceptance decisions do not enter this record.
-    pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
-        Encoder::policy_bytes(
-            CALLING_POLICY_MAGIC,
-            PACKAGE_CALLING_POLICY_VERSION,
-            self,
-            encode_application,
-        )
-    }
+    encode_canonical_component!(
+        CALLING_POLICY_MAGIC,
+        PACKAGE_CALLING_POLICY_VERSION,
+        encode_application
+    );
 }
 
 /// Inner semantic fields share their enclosing component's writer budget.
