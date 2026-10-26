@@ -232,6 +232,20 @@ pub(crate) struct SourceQuotientAdaptation {
 pub(crate) struct ComputedValueBinding {
     pub(crate) argument: terminal_psi::StructuralArgument,
     pub(crate) structural_type: semantic_vocabulary::StructuralTypeId,
+    /// Original observation namespace, captured before producing the value can
+    /// retire or replace its source. Failure matters only to an observation.
+    pub(crate) observation: Result<ComputedValueObservation, LoweringError>,
+}
+
+/// Geometry only: the exact computed-value key and completed argument retain
+/// physical birth/custody. A prefix may revisit the same type through Referent.
+#[derive(Clone, Debug)]
+pub(crate) struct ComputedValueObservation {
+    pub(crate) root_type: semantic_vocabulary::StructuralTypeId,
+    pub(crate) path: Vec<
+        crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment,
+    >,
+    pub(crate) access: terminal_psi::StructuralAccess,
 }
 
 /// A physical home's checked birth, independent of its later source aliases.

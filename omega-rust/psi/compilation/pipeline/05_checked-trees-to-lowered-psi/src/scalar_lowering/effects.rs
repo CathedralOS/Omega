@@ -58,12 +58,9 @@ pub(crate) fn emit(
                         atomic_ordering,
                         ..
                     } => crate::scalar_lowering::computations::fields::emitted_observation(
-                        identities,
-                        checked,
                         &evaluation.record_fields,
                         &evaluation.contextual_bindings(),
                         calls.structural_types,
-                        *value,
                         *receiver_value,
                         subject,
                         *field,

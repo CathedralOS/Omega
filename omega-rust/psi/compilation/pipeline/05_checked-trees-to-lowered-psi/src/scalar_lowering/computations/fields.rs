@@ -1382,12 +1382,9 @@ pub(crate) fn type_roots(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emitted_observation(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    checked: &CheckedTrees,
     fields: &[Binding],
     bindings: &storage::ScalarBindings,
     types: &[StructuralTypeDeclaration],
-    value: checked_trees::CheckedStructuralValueHandle,
     receiver: checked_trees::CheckedStructuralValueHandle,
     subject: &CheckedUnitStructuralArgumentPlan,
     field: symbols::SymbolHandle,
@@ -1404,30 +1401,8 @@ pub(crate) fn emitted_observation(
         let binding = field_binding(fields, subject, field, primitive)?;
         return observe(binding, bindings, argument, None, atomic_ordering);
     }
-    let node = checked.facts.values.structural_values.nodes.get(value);
-    let original = match &node.kind {
-        checked_trees::CheckedStructuralValueKind::Place(source)
-        | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => source,
-        _ => return unsupported("captured field observation lost its established source"),
-    };
-    let (_, state) = crate::declarations::state_declaration(checked, node.state)?;
-    let home = bindings.borrowed_structural_home(original, checked.state_parameters(state))?;
-    let root_type = bindings
-        .structural_argument_type(&home)
-        .ok_or(LoweringError::Unsupported(
-            "captured field observation lost its established carrier",
-        ))?;
-    let mut source =
-        crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(
-            home,
-            Some(root_type),
-        )?;
-    source.path.extend(
-        crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
-            identities, checked, original, root_type, types,
-        )?,
-    );
-    copied_observation(
+    let coordinate = completed.observation.as_ref().map_err(Clone::clone)?;
+    completed_observation(
         fields,
         bindings,
         types,
@@ -1436,7 +1411,7 @@ pub(crate) fn emitted_observation(
         primitive,
         argument,
         completed.structural_type,
-        &source,
+        coordinate,
         atomic_ordering,
     )
 }
@@ -1456,6 +1431,40 @@ fn copied_observation(
     source: &crate::emission::operation_emission::calls::PreparedStructuralArgument,
     atomic_ordering: Option<terminal_psi::MemoryOrdering>,
 ) -> Result<LoweredDirectExpression, LoweringError> {
+    let coordinate = crate::emission::operation_emission::buffer::ComputedValueObservation {
+        root_type: source.root_type.ok_or(LoweringError::Unsupported(
+            "captured field observation lost its source carrier",
+        ))?,
+        path: source.path.clone(),
+        access: source.access,
+    };
+    completed_observation(
+        fields,
+        bindings,
+        types,
+        subject,
+        field,
+        primitive,
+        source_binding,
+        structural_type,
+        &coordinate,
+        atomic_ordering,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn completed_observation(
+    fields: &[Binding],
+    bindings: &storage::ScalarBindings,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    subject: &CheckedUnitStructuralArgumentPlan,
+    field: symbols::SymbolHandle,
+    primitive: PrimitiveType,
+    source_binding: terminal_psi::StructuralArgument,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    source: &crate::emission::operation_emission::buffer::ComputedValueObservation,
+    atomic_ordering: Option<terminal_psi::MemoryOrdering>,
+) -> Result<LoweredDirectExpression, LoweringError> {
     use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment;
     if !terminal_psi::StructuralAccess::SharedBorrow.admits(source.access) {
         return unsupported("captured field observation requires readable source custody");
@@ -1471,9 +1480,7 @@ fn copied_observation(
             )),
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let root_type = source.root_type.ok_or(LoweringError::Unsupported(
-        "captured field observation lost its source carrier",
-    ))?;
+    let root_type = source.root_type;
     let (canonical_prefix, selected_type) =
         terminal_semantics::canonical_static_projection(types.iter(), root_type, &prefix).ok_or(
             LoweringError::Unsupported("captured field observation lost its source projection"),
