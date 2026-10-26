@@ -285,9 +285,13 @@ selection settles the actual workspace catalog and observes member declarations
 from authenticated subtrees. Those observations are not completed Builds or
 Products: only selected members join their dependencies and prepare Products,
 using their original returned activations. Relative Paths stay within registered
-member navigation at the frozen repository resolution. Install,
-update and audit still need their static acquisition/review paths migrated; the
-full ownership outcome remains open.
+member navigation at the frozen repository resolution. Install/update/resume
+execute their staged candidates through the same discovery loop and retain the
+settled Builds across review passes and targets. Proposal identity, original
+local dependency bases, execution inventories, review decisions and accepted-pair
+publication remain package-owned. Discovery tolerance is part of Product
+judgment reuse, never copied into a bound admission. Audit still needs its static
+acquisition/review path migrated; the full ownership outcome remains open.
 
 Each compiler entrance shows named representations and actual stage calls in
 execution order. A separate `pipeline.rs` is justified only if it owns meaningful

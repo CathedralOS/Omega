@@ -30,6 +30,7 @@ pub fn inspect_packages(
                         &mut session.compiler,
                         packages,
                         bindings,
+                        crate::package_review::ReviewBuilds::Execute,
                     )
                 },
             )?;

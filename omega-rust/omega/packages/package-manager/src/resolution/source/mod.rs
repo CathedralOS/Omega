@@ -67,9 +67,7 @@ pub(crate) use git::GitPackageSourceRequest;
 pub(crate) use git::resolve_selected_git_source_at_revision_in_lanes;
 pub(crate) use git::resolve_selected_git_source_from_pin_in_lanes;
 pub(crate) use git::workspace::{GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence};
-pub(crate) use local::{
-    bind_staged_external_local_project_source, resolve_external_local_project_source,
-};
+pub(crate) use local::resolve_external_local_project_source;
 pub(crate) use local::{
     capture_external_local_project_source, recover_cached_external_local_source,
     resolve_external_local_source_in_lane,

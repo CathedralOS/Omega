@@ -35,8 +35,7 @@ pub(super) fn install(
     let proposed = proposed(edit, before)?;
     Ok(Plan {
         kind: PackageCommandKind::Install,
-        replacement: BuildFileReplacement::from_sources(build_path, before, proposed)
-            .map_err(failure)?,
+        replacement: BuildFileReplacement::from_sources(build_path, before, proposed),
         updates: Some(Vec::new()),
     })
 }
@@ -122,8 +121,7 @@ pub(super) fn update(
     }
     Ok(Plan {
         kind: PackageCommandKind::Update,
-        replacement: BuildFileReplacement::from_sources(build_path, before, proposed_source)
-            .map_err(failure)?,
+        replacement: BuildFileReplacement::from_sources(build_path, before, proposed_source),
         updates,
     })
 }

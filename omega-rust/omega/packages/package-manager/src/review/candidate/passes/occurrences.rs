@@ -6,7 +6,7 @@
 //! contract drives production, lock comparison and independent reconstruction.
 
 use crate::build_session::{PackageBuildSession, dependency_first_package_order};
-use compilation_products::{CheckedCompileRequest, CompileFailure};
+use compilation_products::CompileFailure;
 
 use super::super::semantic_bindings::projection_error;
 use super::super::{
@@ -372,7 +372,6 @@ impl<'pass> PackageReviewRound<'pass> {
     pub fn admit_occurrence<'occurrence>(
         &mut self,
         occurrence: PackageReviewOccurrence<'occurrence>,
-        session: &mut PackageBuildSession,
     ) -> Result<Option<PackageReviewWork<'occurrence>>, CompileResolvedPackageReviewsError>
     where
         'pass: 'occurrence,
@@ -381,22 +380,17 @@ impl<'pass> PackageReviewRound<'pass> {
         if self.carry_prior_compile(&occurrence, &inputs, &assembled)? {
             return Ok(None);
         }
-        let request = CheckedCompileRequest {
-            package_inputs: Some(inputs),
-            build: package_compilation::BuildExecutionInputs {
+        let request = PackageReviewRequest {
+            inputs,
+            execution: package_compilation::build_execution::BuildExecutionContract {
                 profile: self.execution_profile,
-                filesystem_sponsor: Some(session.filesystem_sponsor().clone()),
-                evaluation_sponsor: Some(session.evaluation_sponsor().clone()),
                 snapshot: Some(assembled.build_snapshot.clone()),
-                ..Default::default()
             },
             collect_timings: self.source_bindings.collect_timings,
             permit_unsettled_fused_service_fields: self.discovery
                 == TargetEntryDiscovery::Dependencies,
-            ..CheckedCompileRequest::new(
-                &assembled.entry,
-                Some(occurrence.checked_target.target_name()),
-            )
+            entry: assembled.entry.clone(),
+            target: occurrence.checked_target,
         };
         Ok(Some(PackageReviewWork {
             request,
@@ -1050,9 +1044,49 @@ impl<'pass> PackageReviewRound<'pass> {
 /// Whole-occurrence work admitted by package policy, with its completion
 /// context retained alongside the compiler request.
 pub struct PackageReviewWork<'occurrence> {
-    pub request: CheckedCompileRequest,
+    pub request: PackageReviewRequest,
     pub completion: PackageReviewCompletion<'occurrence>,
     pub maximum_policy_canonical_bytes: usize,
+}
+
+/// An admitted Product judgment and the execution obligations it consumes.
+/// No resource grant is issued here: retained Builds must satisfy the contract,
+/// while callers still migrating to this lifecycle explicitly execute it.
+pub struct PackageReviewRequest {
+    pub inputs: PackageCompilationInputs,
+    pub execution: package_compilation::build_execution::BuildExecutionContract,
+    pub target: target::TargetProfile,
+    pub entry: std::path::PathBuf,
+    pub collect_timings: bool,
+    pub permit_unsettled_fused_service_fields: bool,
+}
+
+impl PackageReviewRequest {
+    /// Issue sponsors only for a caller that really needs a fresh activation.
+    /// Retained review never calls this or reserves another staging directory.
+    pub fn into_execution_request(
+        self,
+        session: &PackageBuildSession,
+        directory: std::path::PathBuf,
+    ) -> compilation_products::CheckedCompileRequest {
+        compilation_products::CheckedCompileRequest {
+            package_inputs: Some(self.inputs),
+            build: package_compilation::BuildExecutionInputs {
+                profile: self.execution.profile,
+                snapshot: self.execution.snapshot,
+                directory: Some(directory),
+                filesystem_sponsor: Some(session.filesystem_sponsor().clone()),
+                evaluation_sponsor: Some(session.evaluation_sponsor().clone()),
+                ..Default::default()
+            },
+            permit_unsettled_fused_service_fields: self.permit_unsettled_fused_service_fields,
+            collect_timings: self.collect_timings,
+            ..compilation_products::CheckedCompileRequest::new(
+                &self.entry,
+                Some(self.target.target_name()),
+            )
+        }
+    }
 }
 
 pub struct PackageReviewCompletion<'occurrence> {

@@ -203,8 +203,10 @@ impl PendingBuildSource {
                 .fail("workspace requests require their registered source acquisition")
                 .to_string());
         };
-        let root = match super::external_local_dependency_root(requester.snapshot_root(), location)
-        {
+        let root = match super::external_local_dependency_root(
+            lineage.canonical_absolute_path(),
+            location,
+        ) {
             Ok(root) => root,
             Err(error) => return Err(self.request.fail(error).to_string()),
         };
@@ -274,6 +276,40 @@ impl std::fmt::Display for BuildSourceAcquisitionError {
 impl std::error::Error for BuildSourceAcquisitionError {}
 
 impl AcquiredBuildSource {
+    /// Capture proposed bytes without changing the original package lineage or
+    /// the base used by relative dependency requests. The staging owner retains
+    /// the live-source comparison required before publication.
+    pub(crate) fn capture_staged(
+        stage: &package_source::local::staging::StagedLocalSnapshot,
+        context: ExternalSourceContext,
+    ) -> Result<Self, String> {
+        let mut acquired = Self::capture_local(
+            stage.snapshot_root(),
+            LocalSourceLimits::default(),
+            context.clone(),
+        )
+        .map_err(|error| error.to_string())?;
+        if acquired.capture.normalized().content_identity != stage.normalized().content_identity {
+            return Err("captured candidate differs from its staged source".into());
+        }
+        acquired.lineage = SourceLineage::ExternalLocal(
+            ExternalLocalLineage::canonicalize(stage.canonical_live_root(), context.clone())
+                .map_err(|error| error.to_string())?,
+        );
+        acquired.root_request = PackageRootSourceRequest::ExternalLocal {
+            requested_root: stage.requested_root().to_path_buf(),
+            source_context: context,
+        };
+        Ok(acquired)
+    }
+
+    pub fn entry_path(&self) -> std::path::PathBuf {
+        super::package_entry(
+            self.capture.canonical_live_root(),
+            Some(self.capture.tree()),
+        )
+    }
+
     /// Capture local source once. The enclosing package operation owns recovery
     /// and lock policy; capture itself grants no review or execution authority.
     pub fn capture_local(

@@ -86,6 +86,7 @@ fn package_commands_schedule_work_outside_package_policy() {
     for operation in [
         "PackageCommandTransaction::open(options)",
         "transaction.prepare(command, None)",
+        "resolve_command_sources(preparation, session)",
         "for request in prepared.review_requests()",
         "request.review(",
         "prepared.complete(reviews, &mut session.packages)",

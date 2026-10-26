@@ -8,7 +8,6 @@ use super::{
 };
 use crate::declarations::PackageKey;
 use package_source::local::operations::resolve_local_source_snapshot_in_lane;
-use package_source::local::staging::StagedLocalSnapshot;
 use package_source::storage::RetainedStorageLane;
 use package_source::{
     ExternalLocalLineage, ExternalSourceContext, ImmutableSourceResolution, SourceContentDigest,
@@ -67,41 +66,6 @@ pub(crate) fn capture_external_local_project_source(
         declaration.dependencies,
     )
     .with_captured_source(std::sync::Arc::clone(captured.tree())))
-}
-
-/// Bind a proposed project tree to its original live path and consuming context.
-/// The caller retains the stage for later transaction checks and publication.
-pub(crate) fn bind_staged_external_local_project_source(
-    stage: &StagedLocalSnapshot,
-    limits: LocalSourceLimits,
-    source_context: ExternalSourceContext,
-) -> Result<ResolvedPackageSource<&StagedLocalSnapshot>, ResolvePackageSourceError> {
-    // Binding reads nothing. The stage's snapshot was hashed when it was
-    // published, in this same invocation, and the live tree it came from was
-    // read once to produce it. The live-edit comparison belongs to the
-    // operations that then write the project's declaration files.
-    let limits = limits.compiler_bounded();
-    let content = SourceContentDigest::derive(stage.normalized().content_identity.as_bytes());
-    let result = (|| {
-        let lineage = SourceLineage::ExternalLocal(ExternalLocalLineage::canonicalize(
-            stage.canonical_live_root(),
-            source_context,
-        )?);
-        let declaration = project_package_build(stage.snapshot_root(), SourceRootRole::Project)?;
-        Ok(ResolvedPackageSource::from_resolved_parts(
-            PackageKey::new(declaration.name, lineage),
-            declaration.role,
-            ImmutableSourceResolution::external_local(content),
-            super::PackageSourceMaterialization::from_local(stage.normalized()),
-            stage.snapshot_root().to_path_buf(),
-            super::PackageSourceNavigation::Root,
-            super::PackageSourceSelectionEvidence::Root,
-            limits,
-            declaration.dependencies,
-            stage,
-        ))
-    })();
-    result
 }
 
 /// Resolve one declared external-local source in a retained lane.
