@@ -27,13 +27,12 @@ pub fn execute_package_command(
         let review = request.review(
             &mut session.packages,
             &mut source_bindings,
-            &mut |plan, packages, bindings| {
+            &mut |plan, bindings| {
                 crate::package_review::execute_pass(
                     plan,
                     &mut session.compiler,
-                    packages,
                     bindings,
-                    crate::package_review::ReviewBuilds::Retained(&mut completed),
+                    &mut completed,
                 )
             },
         )?;
@@ -72,13 +71,12 @@ fn resolve_command_sources<'workspace, 'storage>(
     .map_err(|error| PackageCommandError::from(error.to_string()))?;
     drop(acquisitions);
     let prepared = preparation.complete_source_resolution(resolved)?;
-    let mut completed = Vec::with_capacity(builds.len());
-    for build in builds {
-        let inputs = build.package_inputs().clone();
-        completed.push(build.settle(&mut session.compiler, profile, inputs)
-            .map_err(|error| PackageCommandError::from(
-                crate::build_execution::source_resolution::ProjectSourceResolutionError::Compilation(error).to_string()))?);
-    }
+    let completed = crate::build_execution::source_resolution::settle_source_builds(
+        builds,
+        &mut session.compiler,
+        profile,
+    )
+    .map_err(|error| PackageCommandError::from(error.to_string()))?;
     Ok((prepared, completed))
 }
 
@@ -224,13 +222,12 @@ mod tests {
                     .review(
                         &mut session.packages,
                         &mut bindings,
-                        &mut |plan, packages, bindings| {
+                        &mut |plan, bindings| {
                             crate::package_review::execute_pass(
                                 plan,
                                 &mut session.compiler,
-                                packages,
                                 bindings,
-                                crate::package_review::ReviewBuilds::Retained(&mut completed),
+                                &mut completed,
                             )
                         },
                     )
@@ -285,13 +282,12 @@ mod tests {
                     .review(
                         &mut session.packages,
                         &mut bindings,
-                        &mut |plan, packages, bindings| {
+                        &mut |plan, bindings| {
                             crate::package_review::execute_pass(
                                 plan,
                                 &mut session.compiler,
-                                packages,
                                 bindings,
-                                crate::package_review::ReviewBuilds::Retained(&mut completed),
+                                &mut completed,
                             )
                         },
                     )
@@ -326,13 +322,12 @@ mod tests {
                         .review(
                             &mut session.packages,
                             &mut bindings,
-                            &mut |plan, packages, bindings| {
+                            &mut |plan, bindings| {
                                 crate::package_review::execute_pass(
                                     plan,
                                     &mut session.compiler,
-                                    packages,
                                     bindings,
-                                    crate::package_review::ReviewBuilds::Retained(&mut completed),
+                                    &mut completed,
                                 )
                             },
                         )

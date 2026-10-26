@@ -4,7 +4,9 @@ use super::build_resolution::{
     AcquiredBuildDependency, BuildSourceAcquisition, ExecutedSourceResolution, PendingBuildSource,
 };
 use crate::declarations::dependencies::read::{DependencySourceRequest, PackageSelection};
-use crate::resolution::graph::GitResolutionOptions;
+use crate::resolution::graph::{
+    CanonicalSourceClosureSubject, GitResolutionOptions, admit_locked_source_request,
+};
 use package_source::{GitSourceRequest, SourceResolver};
 
 use super::{DeclaredBuildSource, GitPackageSourceRequest, PackageSourceCustody};
@@ -23,6 +25,7 @@ pub struct BuildSourceAcquisitions<'operation> {
     storage: &'operation SourceResolver,
     options: GitResolutionOptions<'operation>,
     root_request: PackageRootSourceRequest,
+    locked_source: Option<&'operation CanonicalSourceClosureSubject>,
     git_sources: Vec<(GitSourceRequest, ResolvedGitSource)>,
     pub(super) workspaces: Vec<super::workspace_acquisition::ExecutedWorkspace>,
 }
@@ -37,9 +40,19 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             storage,
             options,
             root_request,
+            locked_source: None,
             git_sources: Vec::new(),
             workspaces: Vec::new(),
         }
+    }
+
+    /// Observational inspection may reacquire accepted edges, never discover
+    /// a changed selector or new local source before reporting a graph mismatch.
+    pub(crate) fn require_locked_graph(
+        &mut self,
+        source: &'operation CanonicalSourceClosureSubject,
+    ) {
+        self.locked_source = Some(source);
     }
 
     /// Acquire only the source requested by the executed ledger. This owns no
@@ -53,6 +66,11 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
                 .request
                 .fail("source acquisition policy belongs to another project request")
                 .to_string());
+        }
+        if let Some(source) = self.locked_source
+            && let Err(error) = admit_locked_source_request(source, &pending.request)
+        {
+            return Err(pending.request.fail(error).to_string());
         }
         let (selected, selection) = match pending.request.source() {
             DependencySourceRequest::Path { location, .. } => {

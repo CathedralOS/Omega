@@ -290,8 +290,13 @@ execute their staged candidates through the same discovery loop and retain the
 settled Builds across review passes and targets. Proposal identity, original
 local dependency bases, execution inventories, review decisions and accepted-pair
 publication remain package-owned. Discovery tolerance is part of Product
-judgment reuse, never copied into a bound admission. Audit still needs its static
-acquisition/review path migrated; the full ownership outcome remains open.
+judgment reuse, never copied into a bound admission. Observational audit uses
+the same executed source roster and retained Product review. Its accepted graph
+admits dependency requests before acquisition, preserves exact Git pins, and
+permits only root-content changes; per-target findings never recover proposals
+or publish acceptance. Source failure remains unavailable findings for every
+requested target. Review has no fresh-execution or sponsor-issuing route.
+Provider suspension and one-shot execution unification remain open.
 
 Each compiler entrance shows named representations and actual stage calls in
 execution order. A separate `pipeline.rs` is justified only if it owns meaningful

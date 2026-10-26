@@ -14,4 +14,6 @@ mod locked;
 pub(crate) use errors::{ResolveDependencySourceError, ResolveExternalLocalPackageClosureError};
 pub(crate) use external_local::resolve_external_local_project_closure;
 pub(crate) use git_pins::{GitDependencyPins, GitResolutionOptions};
-pub(crate) use locked::resolve_locked_local_project_closure;
+pub(crate) use locked::{
+    admit_locked_source_request, mutable_local_graph_matches, resolve_locked_local_project_closure,
+};
