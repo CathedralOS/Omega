@@ -213,3 +213,14 @@ crossings and other predicate control forms retain their own admission and
 validity obligations. Immutable formals have write restrictions distinct from
 owned local contents; caller facts use captured value/storage epochs rather
 than replaying an immutable local's aggregate initializer.
+
+An actual PR291 conflict with main `e4d9c74577f9ed221697b73113b045220364f9de`
+was resolved at `a0a9721ff70b7998760011d1e6feaf0c59ac62ed`, retaining the
+predicate-subject export and all incoming exports. All ten implementation blobs
+of this repair remain identical to the previously reviewed source. A fresh
+optimized integrated producer repeats all 105 public observations, all 104
+checking outcomes and all 45 native/Terminal agreements successfully, with no
+golden moves. The five fixed-baseline comparisons and ranked theorem-core
+checking also pass. Earlier producer observations retain their historical
+identities; this integrated validation covers the incoming compiler, library,
+readiness and native-pipeline changes.
