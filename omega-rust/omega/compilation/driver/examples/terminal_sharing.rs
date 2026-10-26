@@ -6,6 +6,7 @@
 //! Optional arguments select another corpus root followed by its target names.
 //! Prefix `--check` or `--terminal` to measure those stops. `--reject TARGET`
 //! expects that target to refuse while its siblings still produce their outputs.
+//! `--reason TEXT` pins a different refusal than the default missing ProgramEntry.
 
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
@@ -17,6 +18,7 @@ fn main() {
     let mut arguments = std::env::args().skip(1).peekable();
     let mut product = RequestedCompileProduct::NativeArtifact;
     let mut rejected_target = None;
+    let mut rejection_reason = "ProgramEntry".to_owned();
     while arguments
         .peek()
         .is_some_and(|argument| argument.starts_with("--"))
@@ -25,6 +27,7 @@ fn main() {
             Some("--check") => product = RequestedCompileProduct::Check,
             Some("--terminal") => product = RequestedCompileProduct::TerminalArtifact,
             Some("--reject") => rejected_target = Some(arguments.next().expect("rejected target")),
+            Some("--reason") => rejection_reason = arguments.next().expect("refusal diagnostic"),
             flag => panic!("unknown measurement flag: {flag:?}"),
         }
     }
@@ -86,12 +89,15 @@ fn main() {
         );
         let result = outcome.into_result();
         if rejected_target.as_ref() == Some(name) {
-            let diagnostics = result.expect_err("target must refuse");
+            let diagnostics = match result {
+                Err(diagnostics) => diagnostics,
+                Ok(_) => panic!("target {name} must refuse with {rejection_reason:?}"),
+            };
             assert!(
                 diagnostics
                     .iter()
-                    .any(|diagnostic| diagnostic.message.contains("ProgramEntry")),
-                "expected missing-entry refusal, got {diagnostics:?}"
+                    .any(|diagnostic| diagnostic.message.contains(&rejection_reason)),
+                "expected {rejection_reason:?} refusal, got {diagnostics:?}"
             );
             rejections += 1;
         } else {

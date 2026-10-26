@@ -7,6 +7,7 @@
 //! owns boundary-application and comparison settlement from authored occurrences
 //! to selected provider evidence.
 
+mod behavior_exclusions;
 mod native_proposal;
 mod terminal_artifact;
 

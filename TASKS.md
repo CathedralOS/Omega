@@ -1391,6 +1391,13 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   Cover generated entries and remaining dispatch forms, and join the exclusion
   policy union to the exact semantic/target/provider selection through
   legalization, image emission, and component replacement.
+  First restore executed exclusion selections in the Terminal Build return:
+  `fail/targets/distinct_roots_exclusion_selected_body` currently publishes its
+  trapping macOS target despite `Build::exclude_crash(Trap)` (reproduced with
+  unchanged production source at `0151502e000`). The retained policy consumer
+  cannot enforce a selection the Build result omitted. Preserve evaluated
+  arguments, original receiver custody and untaken-branch behavior; do not
+  recover exclusions by scanning authored calls.
   Acceptance: `tests/omega/{pass,fail}/build/{crash_exclusion_*,*service_exclusion*}`
   (`no-op-app` and `quiet-logger-app` using `tests/omega/packages/{assert-kit,logger-kit}`)
   pass `python3 tools/corpus_gate.py --both` with optimization off and on across

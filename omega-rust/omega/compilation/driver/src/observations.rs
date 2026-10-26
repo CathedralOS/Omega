@@ -8,12 +8,12 @@ use artifacts::compile_timings::{CompileTimings, StageMeta};
 use psi_compiler::{PsiCompilationObserver, PsiCompilationStage};
 
 /// Borrow the existing recorder instead of importing host reporting into Psi.
-pub struct PsiStageTimings<'a> {
+pub(crate) struct PsiStageTimings<'a> {
     timings: &'a mut CompileTimings,
 }
 
 impl<'a> PsiStageTimings<'a> {
-    pub fn new(timings: &'a mut CompileTimings) -> Self {
+    pub(crate) fn new(timings: &'a mut CompileTimings) -> Self {
         Self { timings }
     }
 }
@@ -24,6 +24,11 @@ impl PsiCompilationObserver for PsiStageTimings<'_> {
         stage: PsiCompilationStage,
         operation: impl FnOnce() -> Result<Value, Error>,
     ) -> Result<Value, Error> {
+        // The first lowering leg is one product production attempt, including
+        // attempts that refuse. The observer records work; it never drives it.
+        if stage == PsiCompilationStage::Lowering {
+            artifacts::compile_timings::counters::record_terminal_production();
+        }
         let (name, input, output) = stage.observation_labels();
         self.timings
             .record_result(StageMeta::new(name, input, output), operation)

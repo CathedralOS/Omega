@@ -375,7 +375,7 @@ library APIs; they do not introduce another compiler driver.
 | Terminal Psi loading, supplied-binding installation and execution | Psi interpreter facade under `interpreter/` |
 | Target-aware interpreter host adapters | Omega-owned host integration outside Psi, reusing independent backend ABI/mechanism libraries; not a compiler driver |
 | Compile-time interpretation and result elaboration | Psi `compilation/compile-time/` |
-| Checked program → published Terminal artifact | Psi compiler facade; current Rust migration adapter: `omega/compilation/driver/terminal-production/` |
+| Checked program → published Terminal artifact | `psi/compilation/driver/terminal-production/`, called directly with consumer-owned policy and observation |
 | Ordinary library reference implementations | `library/`, outside the compiler halves |
 
 ### Program families and support packages
@@ -545,8 +545,9 @@ jobs use the Terminal program/instance lifecycle; the remaining compile-time and
 Build consumers still use the checked interpreter.
 `psi/compilation/driver/terminal-production/` owns the one checked-program
 lowering, optimization and publication sequence, below the source facade so
-early jobs do not depend back on their source coordinator. The Omega adapter
-supplies product policy and reporting. Stage 05 owns input-ledger validation;
+early jobs do not depend back on their source coordinator. Product consumers
+call this operation directly with their policy and reporting observer; no Omega
+production wrapper remains. Stage 05 owns input-ledger validation;
 stage 07 owns entry receipts and source-correspondence judgments. This shared
 operation is neither another Psi stage nor a second complete compiler driver.
 Exact consumed-source and toolchain identities belong to the shared
@@ -796,8 +797,8 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   `codec/`, `semantics/` and `fuel/`.
   Representation data and candidate production remain independent of checking.
 - Psi `compilation/driver/terminal-production/` — sequences stages 05–07 through
-  publication. Omega `compilation/driver/terminal-production/` supplies product
-  policy and reporting; it does not assemble the stages. Exclusion admission
+  publication. Omega consumers supply product policy and reporting directly;
+  they do not assemble the stages or wrap this production entrance. Exclusion admission
   borrows the unoptimized Terminal composition inside that sequence, without
   exporting or cloning its checked-source lowering.
 - Psi `compilation/compile-time/` — evaluation admission and result elaboration.

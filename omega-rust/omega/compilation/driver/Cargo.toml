@@ -18,7 +18,6 @@ native-production = { path = "../native-production" }
 compilation-products = { path = "../products" }
 component-description = { path = "../backend/artifacts/component-description" }
 lowered-psi = { path = "../../../psi/compilation/representations/lowered-psi" }
-terminal-production = { path = "terminal-production" }
 build-declarations = { path = "../../packages/build-declarations" }
 build-evaluation = { path = "../build-evaluation" }
 build-output = { path = "../../packages/build-output" }

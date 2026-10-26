@@ -7,13 +7,11 @@ use std::time::Instant;
 use proof_admission::{
     Budget, DEFAULT_CONVERSION_STEPS, MathematicalCertificate, Term, TermArena, TermHandle,
 };
+use psi_compiler::{TerminalMachineSelection, TerminalProductionRequest, UnmeasuredProduction};
 use terminal_codec::{
     CanonicalTerminalArtifact, MathematicalProofActualError, decode_mathematical_certificate,
     encode_mathematical_certificate, mathematical_carrier_key, verify_indexed_theorem_roots,
     verify_module_mathematical_actuals,
-};
-use terminal_production::{
-    TerminalMachineSelection, TerminalProductionRequest, produce_terminal_artifact,
 };
 use terminal_psi::TerminalModule;
 
@@ -234,16 +232,12 @@ pub(super) fn produce(
     .map_err(|error| format!("retained source Nil child: {error:?}"))?;
     let nil_certificate = encode_mathematical_certificate(&signature.arena, &nil_judgment)
         .map_err(|error| format!("source Nil certificate: {error:?}"))?;
-    let mut timings = Default::default();
-    let artifact = produce_terminal_artifact(
-        TerminalProductionRequest::new(
-            program,
-            TerminalMachineSelection::Name(machine),
-            checked.sources().exact_toolchain_sources(),
-        ),
-        &[],
-        &mut timings,
+    let artifact = TerminalProductionRequest::new(
+        program,
+        TerminalMachineSelection::Name(machine),
+        checked.sources().exact_toolchain_sources(),
     )
+    .produce(Default::default(), &mut UnmeasuredProduction)
     .map_err(|error| format!("indexed inspection Terminal production: {error:?}"))?
     .into_artifact()
     .map_err(|error| error.to_string())?;
