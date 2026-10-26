@@ -42,6 +42,7 @@ pub(super) fn observe(
                 provisions,
                 provider_proposal: None,
                 target,
+                memory_ordering: None,
                 x86_flags: target
                     .map(terminal_runtime::capture_host_x86_flags)
                     .transpose()

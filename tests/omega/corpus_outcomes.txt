@@ -538,6 +538,31 @@ fail/asm/checked_asm_saved_nested_field_wrong rejected 2408ms expected @fef74f78
 	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { Envelope { inner } => match <saved subject #13:1>.inner { Holder { value } => <saved subject #14:1>.value == 38 } }
 	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { Envelope { inner } => match <saved subject #17:1>.inner { Holder { value } => <saved subject #18:1>.value == 38 } }
 	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { Envelope { inner } => match <saved subject #21:1>.inner { Holder { value } => <saved subject #22:1>.value == 38 } }
+fail/asm/checked_fence_aarch64_in_x86_body rejected 723ms expected @56fe2cadbf91
+	assembly catalog target requirement conflicts with the authored target body
+fail/asm/checked_fence_arm_invented_clobber rejected 505ms expected @56fe2cadbf91
+	tests/omega/fail/asm/checked_fence_arm_invented_clobber/main.omg:31:5: asm where `clobbers` must exactly match the realized instruction contract: not clobbered `x0`
+fail/asm/checked_fence_dmb_extra_operand rejected 677ms expected @56fe2cadbf91
+	tests/omega/fail/asm/checked_fence_dmb_extra_operand/main.omg:27:15: multiple asm instructions must be separated by `;`
+fail/asm/checked_fence_dmb_missing_option rejected 485ms expected @56fe2cadbf91
+	tests/omega/fail/asm/checked_fence_dmb_missing_option/main.omg:27:12: expected identifier, found punctuation `;`
+fail/asm/checked_fence_dmb_numeric_option rejected 480ms expected @56fe2cadbf91
+	tests/omega/fail/asm/checked_fence_dmb_numeric_option/main.omg:27:13: expected identifier, found numeric literal `15`
+fail/asm/checked_fence_dmb_register_operand rejected 480ms expected @56fe2cadbf91
+	tests/omega/fail/asm/checked_fence_dmb_register_operand/main.omg:27:13: dmb requires an explicit supported full-system option: ld, st, or sy
+fail/asm/checked_fence_dmb_scope rejected 493ms expected @56fe2cadbf91
+	tests/omega/fail/asm/checked_fence_dmb_scope/main.omg:27:13: dmb requires an explicit supported full-system option: ld, st, or sy
+fail/asm/checked_fence_false_ensures rejected 4042ms expected @56fe2cadbf91
+	cannot prove asm `ensures` fact at block exit in ordered state `entry` (statement 6): input == 38
+	cannot prove asm `ensures` fact at block exit in ordered state `entry` (statement 6): input == 38
+	cannot prove asm `ensures` fact at block exit in ordered state `entry` (statement 6): input == 38
+	cannot prove asm `ensures` fact at block exit in ordered state `entry` (statement 6): input == 38
+fail/asm/checked_fence_fence_operand rejected 808ms expected @56fe2cadbf91
+	tests/omega/fail/asm/checked_fence_fence_operand/main.omg:7:16: multiple asm instructions must be separated by `;`
+fail/asm/checked_fence_wrong_target rejected 469ms expected @56fe2cadbf91
+	tests/omega/fail/asm/checked_fence_wrong_target/main.omg:8:9: assembly body mixes incompatible catalog targets
+fail/asm/checked_fence_x86_in_aarch64_body rejected 724ms expected @56fe2cadbf91
+	assembly catalog target requirement conflicts with the authored target body
 fail/asm/cyclic_label rejected 326ms expected @a92f16431042
 	cyclic assembly label control in `Main::main` state `main` requires checked loop invariants; this control domain is not yet implemented
 fail/asm/duplicate_label rejected 15ms expected @a92f16431042
@@ -5841,6 +5866,26 @@ fail/facts/checked_asm_countdown_through_target_body_rejected rejected 969ms exp
 	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
 	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
+fail/facts/checked_asm_fence_contracts_through_call_result_rejected rejected 513ms expected @56fe2cadbf91
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_call_result_rejected/main.omg:11:5: asm where `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_const_name_rejected rejected 536ms expected @56fe2cadbf91
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_const_name_rejected/main.omg:11:5: asm where `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_field_rejected rejected 528ms expected @56fe2cadbf91
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_field_rejected/main.omg:11:5: asm where `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_local_rejected rejected 562ms expected @56fe2cadbf91
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_local_rejected/main.omg:11:5: asm where `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_match_join_rejected rejected 529ms expected @56fe2cadbf91
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_match_join_rejected/main.omg:11:5: asm where `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_other_machine_rejected rejected 542ms expected @56fe2cadbf91
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_other_machine_rejected/main.omg:11:5: asm where `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_other_state_rejected rejected 543ms expected @56fe2cadbf91
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_other_state_rejected/main.omg:11:5: asm where `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_parameter_rejected rejected 484ms expected @56fe2cadbf91
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_parameter_rejected/main.omg:11:5: asm where `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_root_rejected rejected 484ms expected @56fe2cadbf91
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_root_rejected/main.omg:11:5: asm where `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_target_body_rejected rejected 476ms expected @56fe2cadbf91
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_target_body_rejected/main.omg:11:5: asm where `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
 fail/facts/checked_asm_flag_restore_through_call_result_rejected rejected 559ms expected @a92f16431042
 	asm instruction `popfq` operand `saved flags` requires target register `rflags` constraint `u64`; integer literal `0` is outside that operand class
 fail/facts/checked_asm_flag_restore_through_const_name_rejected rejected 569ms expected @a92f16431042
@@ -23856,15 +23901,15 @@ pass/facts/checked_asm_add_carry_through_other_machine_exit checked 2966ms check
 pass/facts/checked_asm_add_carry_through_other_state_exit checked 2978ms check-target:linux_x86_64 @a92f16431042
 pass/facts/checked_asm_add_carry_through_parameter_exit checked 2898ms check-target:linux_x86_64 @a92f16431042
 pass/facts/checked_asm_add_carry_through_target_body_exit checked 2893ms check-target:linux_x86_64 @a92f16431042
-pass/facts/checked_asm_arm_load_through_call_result_exit checked 2899ms check-target:macos_arm64 @a92f16431042
-pass/facts/checked_asm_arm_load_through_const_name_exit checked 2886ms check-target:macos_arm64 @a92f16431042
-pass/facts/checked_asm_arm_load_through_field_exit checked 2891ms check-target:macos_arm64 @a92f16431042
-pass/facts/checked_asm_arm_load_through_local_exit checked 2885ms check-target:macos_arm64 @a92f16431042
-pass/facts/checked_asm_arm_load_through_match_join_exit checked 2850ms check-target:macos_arm64 @a92f16431042
-pass/facts/checked_asm_arm_load_through_other_machine_exit checked 2833ms check-target:macos_arm64 @a92f16431042
-pass/facts/checked_asm_arm_load_through_other_state_exit checked 2927ms check-target:macos_arm64 @a92f16431042
-pass/facts/checked_asm_arm_load_through_parameter_exit checked 2813ms check-target:macos_arm64 @a92f16431042
-pass/facts/checked_asm_arm_load_through_target_body_exit checked 2818ms check-target:macos_arm64 @a92f16431042
+pass/facts/checked_asm_arm_load_through_call_result_exit checked 4245ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @56fe2cadbf91
+pass/facts/checked_asm_arm_load_through_const_name_exit checked 4304ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @56fe2cadbf91
+pass/facts/checked_asm_arm_load_through_field_exit checked 4393ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @56fe2cadbf91
+pass/facts/checked_asm_arm_load_through_local_exit checked 4315ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @56fe2cadbf91
+pass/facts/checked_asm_arm_load_through_match_join_exit checked 4465ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @56fe2cadbf91
+pass/facts/checked_asm_arm_load_through_other_machine_exit checked 4425ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @56fe2cadbf91
+pass/facts/checked_asm_arm_load_through_other_state_exit checked 4391ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @56fe2cadbf91
+pass/facts/checked_asm_arm_load_through_parameter_exit checked 4374ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @56fe2cadbf91
+pass/facts/checked_asm_arm_load_through_target_body_exit checked 4666ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @56fe2cadbf91
 pass/facts/checked_asm_compare_preserves_ambient_capture_through_call_result_exit checked 1657ms check-target:macos_arm64 @059b241231ea
 pass/facts/checked_asm_compare_preserves_ambient_capture_through_const_name_exit checked 1656ms check-target:macos_arm64 @059b241231ea
 pass/facts/checked_asm_compare_preserves_ambient_capture_through_field_exit checked 1622ms check-target:macos_arm64 @059b241231ea
@@ -23901,6 +23946,16 @@ pass/facts/checked_asm_countdown_through_other_machine_exit checked 1371ms check
 pass/facts/checked_asm_countdown_through_other_state_exit checked 1239ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
 pass/facts/checked_asm_countdown_through_parameter_exit checked 1239ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
 pass/facts/checked_asm_countdown_through_target_body_exit checked 1350ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @69168130b1c6
+pass/facts/checked_asm_fence_contracts_through_call_result_exit checked 4657ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @56fe2cadbf91
+pass/facts/checked_asm_fence_contracts_through_const_name_exit checked 4321ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @56fe2cadbf91
+pass/facts/checked_asm_fence_contracts_through_field_exit checked 4316ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @56fe2cadbf91
+pass/facts/checked_asm_fence_contracts_through_local_exit checked 4365ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @56fe2cadbf91
+pass/facts/checked_asm_fence_contracts_through_match_join_exit checked 4369ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence,lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence,lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy,dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy,dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @56fe2cadbf91
+pass/facts/checked_asm_fence_contracts_through_other_machine_exit checked 4284ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @56fe2cadbf91
+pass/facts/checked_asm_fence_contracts_through_other_state_exit checked 4285ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @56fe2cadbf91
+pass/facts/checked_asm_fence_contracts_through_parameter_exit checked 4440ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @56fe2cadbf91
+pass/facts/checked_asm_fence_contracts_through_root_exit checked 4467ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @56fe2cadbf91
+pass/facts/checked_asm_fence_contracts_through_target_body_exit checked 4578ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @56fe2cadbf91
 pass/facts/checked_asm_flag_restore_through_call_result_exit checked 2969ms check-target:linux_x86_64 @a92f16431042
 pass/facts/checked_asm_flag_restore_through_const_name_exit checked 2926ms check-target:linux_x86_64 @a92f16431042
 pass/facts/checked_asm_flag_restore_through_field_exit checked 2951ms check-target:linux_x86_64 @a92f16431042
@@ -28980,7 +29035,7 @@ pass/inline_asm/asm_exact_clobbers checked 1717ms @a92f16431042
 pass/inline_asm/asm_interrupt_control_compositions_compile checked 2947ms check-target:linux_x86_64 @a92f16431042
 pass/inline_asm/asm_machine_control_wrapper_reach checked 3002ms @a92f16431042
 pass/inline_asm/asm_memory_transfer checked 2986ms @a92f16431042
-pass/inline_asm/asm_memory_transfer_compile checked 2381ms check-target:macos_arm64 @a92f16431042
+pass/inline_asm/asm_memory_transfer_compile checked 4522ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @56fe2cadbf91
 pass/inline_asm/asm_msr_multi checked 2885ms @a92f16431042
 pass/inline_asm/asm_port_contract checked 2620ms @a92f16431042
 pass/inline_asm/asm_port_immediate checked 5069ms @a92f16431042

@@ -62,6 +62,11 @@ pub fn x86_64_machine_effect_catalog(
             .declaration_keys()
             .into_iter()
             .map(|(semantic, constraint)| {
+                if semantic == MachineSemanticKind::MemoryFence {
+                    return Ok(crate::selected_form_encoding::memory_fence::declaration(
+                        constraint,
+                    ));
+                }
                 if let Some(operation) =
                     crate::selected_form_encoding::register_access::operation(semantic)
                 {
@@ -256,6 +261,7 @@ pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         model_specific_write: Some(crate::X86_64_MODEL_SPECIFIC_WRITE),
         processor_halt: Some(crate::X86_64_PROCESSOR_HALT),
         interrupt_control: Some(crate::X86_64_INTERRUPT_CONTROL),
+        memory_fence: Some(crate::X86_64_MEMORY_FENCE),
         atomic_fence: Some(crate::X86_64_ATOMIC_FENCE),
         // LOCK is architectural on every x86-64 target; no feature custody
         // gates the family the way AArch64's LSE does.
@@ -651,6 +657,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         MachineSemanticKind::PortWrite => {
             return crate::selected_form_encoding::port_write::effects();
         }
+        MachineSemanticKind::MemoryFence => return MachineEncodedEffects::catalog_fence_v1(),
         MachineSemanticKind::AtomicFence => return MachineEncodedEffects::atomic_fence_v1(),
         MachineSemanticKind::FloatResultPolicy(form) => {
             return crate::selected_form_encoding::float_result_policy::effects(form);
@@ -962,6 +969,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             MachineSizeKnowledge::ExactBytes(x86_encoding::IMMEDIATE_PORT_WRITE_WIDTH as u16)
         }
         MachineSemanticKind::AtomicFence => MachineSizeKnowledge::ExactBytes(3),
+        MachineSemanticKind::MemoryFence => MachineSizeKnowledge::ExactBytes(3),
         MachineSemanticKind::ProcessorHalt => MachineSizeKnowledge::ExactBytes(1),
         MachineSemanticKind::InterruptControl => MachineSizeKnowledge::ExactBytes(1),
         MachineSemanticKind::FloatResultPolicy(form) => {

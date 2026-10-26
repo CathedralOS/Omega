@@ -11,6 +11,7 @@ pub(super) fn prepare<'host, 'artifact>(
     component: &'artifact native_artifact::NativeComponentProduct,
     context: &host_imports::HostContext<'host>,
     x86_flags: Option<terminal_interpreter::TerminalX86FlagsEnvironment>,
+    memory_ordering: Option<terminal_interpreter::TerminalMemoryOrderingEnvironment>,
 ) -> Result<TerminalComponentBinding<'host, 'artifact>, TerminalRuntimeError> {
     let artifact = component.artifact().view();
     let program = TerminalProgram::borrow(artifact);
@@ -53,6 +54,7 @@ pub(super) fn prepare<'host, 'artifact>(
     let supplies = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags,
+            memory_ordering,
             entry: Some(terminal_psi::TargetMachineCallable::Machine(
                 runtime.entry(),
             )),

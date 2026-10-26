@@ -170,3 +170,14 @@ rows. `ldr` itself is catalog-admitted on the two arm64 targets only, so
 binding the x86_64 hosted targets here is the four-hosted-target form of this
 row's program: they are bound and checked, and their realization is the
 ordinary place-read assignment rather than an arm64 memory transfer.
+## Catalog-target migration
+
+The fence repair now retains the ISA demand of every catalog instruction,
+including place loads that lower to ordinary checked assignment. Each load
+producer below therefore has explicit target bodies: AArch64 bodies retain
+`ldr`, while x86 bodies author the corresponding `mov` place read. The exact
+source place, value 37, destination and following Omega use are unchanged.
+Bracketed-address twins retain their same unauthorized-memory obligation in
+each body. The historical run record above describes its original producer
+and host; it is not a claim that an x86 body executes an AArch64 mnemonic.
+Fresh migration observations are retained with the fence qualification.

@@ -83,6 +83,14 @@ impl CompilerIntrinsicExecutionIdentity {
         use terminal_psi::{RegisterOperation as O, SystemRegister as R};
         let function = match operation {
             O::ProcessorHalt => B::AsmHlt,
+            O::MemoryFence(kind) => match kind {
+                terminal_psi::MemoryFenceKind::Load => B::AsmLoadFence,
+                terminal_psi::MemoryFenceKind::Store => B::AsmStoreFence,
+                terminal_psi::MemoryFenceKind::Full => B::AsmFullFence,
+                terminal_psi::MemoryFenceKind::Aarch64Load => B::AsmAarch64LoadFence,
+                terminal_psi::MemoryFenceKind::Aarch64Store => B::AsmAarch64StoreFence,
+                terminal_psi::MemoryFenceKind::Aarch64Full => B::AsmAarch64FullFence,
+            },
             O::InterruptControl(
                 language_core::inline_assembly::AsmInterruptControlKind::Disable,
             ) => B::AsmDisableInterrupts,

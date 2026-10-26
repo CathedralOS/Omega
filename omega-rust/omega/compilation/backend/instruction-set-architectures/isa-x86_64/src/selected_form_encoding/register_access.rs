@@ -34,6 +34,11 @@ pub(crate) fn semantic(operation: Operation) -> Option<Semantic> {
         Operation::PortWrite => Semantic::PortRegisterWrite,
         Operation::ModelSpecificRead => Semantic::ModelSpecificRead,
         Operation::ModelSpecificWrite => Semantic::ModelSpecificWrite,
+        Operation::MemoryFence(kind)
+            if kind.target() == selected_instructions::RegisterTargetApplicability::X86_64 =>
+        {
+            Semantic::MemoryFence
+        }
         Operation::ProcessorHalt => Semantic::ProcessorHalt,
         Operation::InterruptControl(_) => Semantic::InterruptControl,
         Operation::SystemRead(selected_instructions::SystemRegister::Rflags) => {
@@ -62,6 +67,9 @@ pub(crate) fn operation(semantic: Semantic) -> Option<Operation> {
         Semantic::PortRegisterWrite => Operation::PortWrite,
         Semantic::ModelSpecificRead => Operation::ModelSpecificRead,
         Semantic::ModelSpecificWrite => Operation::ModelSpecificWrite,
+        Semantic::MemoryFence => {
+            Operation::MemoryFence(selected_instructions::MemoryFenceKind::Full)
+        }
         Semantic::ProcessorHalt => Operation::ProcessorHalt,
         Semantic::InterruptControl => {
             Operation::InterruptControl(selected_instructions::InterruptControlKind::Disable)
@@ -98,6 +106,9 @@ fn scratch(operation: Operation) -> &'static [&'static str] {
 }
 
 pub(crate) fn effects(operation: Operation) -> MachineEncodedEffects {
+    if matches!(operation, Operation::MemoryFence(_)) {
+        return MachineEncodedEffects::catalog_fence_v1();
+    }
     let physical = crate::x86_64_physical_register_model_ref();
     let mut clobbers = scratch(operation)
         .iter()
@@ -171,6 +182,9 @@ pub(crate) fn declaration(
     operation: Operation,
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
+    if matches!(operation, Operation::MemoryFence(_)) {
+        return super::memory_fence::declaration(constraint);
+    }
     MachineEffectDeclaration {
         semantic: semantic(operation).expect("x86 register operation"),
         constraint,
@@ -226,6 +240,12 @@ fn swap_bytes(bytes: &mut Vec<u8>, register: u8, wide: bool) {
 }
 
 pub(crate) fn encode(operation: Operation, registers: &[u8]) -> Result<Vec<u8>, Error> {
+    if let Operation::MemoryFence(kind) = operation {
+        if !registers.is_empty() {
+            return Err(Error::OperandCountMismatch);
+        }
+        return super::memory_fence::encode(kind).ok_or(Error::AlternativeMismatch);
+    }
     family(operation)?;
     if let Operation::SystemRead(SystemRegister::Control(control))
     | Operation::SystemWrite(SystemRegister::Control(control)) = operation
@@ -546,6 +566,11 @@ fn decode(bytes: &[u8]) -> Option<Vec<Decoded>> {
 // hardware result have separate identities. Aliased input operands therefore
 // retain the exact same value instead of inventing independent source words.
 fn validate_bits(operation: Operation, registers: &[u8], bytes: &[u8]) -> Option<()> {
+    if let Operation::MemoryFence(kind) = operation {
+        return (registers.is_empty() && super::memory_fence::decode(bytes) == Some(kind))
+            .then_some(());
+    }
+
     if let Operation::SystemRead(SystemRegister::Control(control))
     | Operation::SystemWrite(SystemRegister::Control(control)) = operation
     {

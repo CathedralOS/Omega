@@ -30,6 +30,7 @@ pub(super) fn emit(
         RegisterOperation::ModelSpecificWrite => keys.model_specific_write,
         RegisterOperation::ProcessorHalt => keys.processor_halt,
         RegisterOperation::InterruptControl(_) => keys.interrupt_control,
+        RegisterOperation::MemoryFence(_) => keys.memory_fence,
     }
     .ok_or_else(|| SelectedInstructionError::unsupported_shape(function))?;
     let matches_carrier = |scalar, bits| {
