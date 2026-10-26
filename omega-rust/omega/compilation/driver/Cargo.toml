@@ -112,6 +112,10 @@ path = "tests/placed_view_calls.rs"
 name = "terminal_entry_writeback"
 path = "tests/terminal_entry_writeback.rs"
 
+[[test]]
+name = "terminal_behavior_exclusions"
+path = "tests/terminal_behavior_exclusions.rs"
+
 # Loose roots intentionally have no fixture-supplied package owner. This
 # boundary test derives that owner, reloads its artifact and runs consumers
 # against the exact supplied identity; ordinary corpus setup masks this path.

@@ -13,6 +13,7 @@ pub enum TerminalBuildBindingOperation {
     Bind,
     Select,
     SelectMode,
+    Exclude,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -21,6 +22,7 @@ pub struct TerminalBuildBindingCall {
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub action: TerminalBuildBindingOperation,
     pub request: BuildSelectionRequest,
+    pub selecting_machine: source::SourceSpan,
 }
 
 /// Source-issued context bound to exact Terminal semantics and, for private
@@ -99,6 +101,7 @@ pub(super) fn capture(
             "bind" | "bind_description" => TerminalBuildBindingOperation::Bind,
             "select" => TerminalBuildBindingOperation::Select,
             "select_mode" => TerminalBuildBindingOperation::SelectMode,
+            "exclude" => TerminalBuildBindingOperation::Exclude,
             _ => {
                 return Err(diagnostics::Diagnostic::error(
                     "checked Build binding has no admitted operation",
@@ -106,11 +109,27 @@ pub(super) fn capture(
             }
         };
         let boundary = emitted_boundary(lowered, operation)?;
+        let selecting_machine = checked
+            .machines()
+            .iter()
+            .find(|machine| {
+                checked
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == occurrence.source_state)
+            })
+            .and_then(|machine| checked.symbols.symbol_source_span(machine.symbol))
+            .ok_or_else(|| {
+                diagnostics::Diagnostic::error(
+                    "Build selection lost its authored machine coordinate",
+                )
+            })?;
         calls.push(TerminalBuildBindingCall {
             operation,
             boundary,
             action,
             request: request.clone(),
+            selecting_machine,
         });
     }
     Ok(calls)

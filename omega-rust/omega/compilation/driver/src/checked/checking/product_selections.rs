@@ -27,5 +27,12 @@ pub(super) fn admit(
         )?;
     computed.config.opaque_representation_selections = representations;
     computed.config.provider_selections = providers;
+    computed.config.behavior_exclusions = trust_model::harvest_behavior_exclusions(
+        typed,
+        computed.selected_build_machine_symbol,
+        &computed.declared_product_selections,
+        &computed.product_selection_requests,
+        &computed.behavior_exclusion_requests,
+    )?;
     Ok(())
 }

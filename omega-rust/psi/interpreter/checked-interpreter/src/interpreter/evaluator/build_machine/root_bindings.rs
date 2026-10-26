@@ -71,7 +71,9 @@ impl<'program> Evaluator<'program> {
         if !call.build_selection.is_valid() {
             if matches!(
                 protocol,
-                Some("prepare" | "bind" | "bind_description" | "select" | "select_mode")
+                Some(
+                    "prepare" | "bind" | "bind_description" | "select" | "select_mode" | "exclude"
+                )
             ) {
                 return trap(
                     "Build binding protocol requires source-issued designated product operands",
@@ -88,6 +90,7 @@ impl<'program> Evaluator<'program> {
             })?
             .clone();
         let operation = match &binding {
+            BuildSelectionRequest::Exclusion(_) => "exclude",
             BuildSelectionRequest::Entry(binding) => match binding.implementation {
                 RootBindingOperand::AuthoredPath(_) => "bind",
                 RootBindingOperand::Description => "bind_description",
@@ -156,6 +159,35 @@ impl<'program> Evaluator<'program> {
             );
         }
         let selection = match binding {
+            BuildSelectionRequest::Exclusion(request) => {
+                let [_, value] = arguments else {
+                    return trap("behavior exclusion requires its evaluated code");
+                };
+                let Value::Int(code) = self.eval_expression(*value, frame)? else {
+                    return trap("behavior exclusion code is not an integer");
+                };
+                let code = u64::try_from(code)
+                    .map_err(|_| Halt::Trap("invalid behavior exclusion code".into()))?;
+                if code >= request.vocabulary.cases().len() as u64 {
+                    return trap("behavior exclusion code is outside its vocabulary");
+                }
+                SourceBuildSelection::Exclusion(
+                    language_semantics::declaration_selection::ExecutedEnumExclusion {
+                        request,
+                        code,
+                        selecting_machine: self
+                            .program
+                            .symbols
+                            .symbol_source_span(frame.machine_symbol)
+                            .ok_or_else(|| {
+                                Halt::Trap(
+                                    "behavior exclusion lost its authored machine coordinate"
+                                        .into(),
+                                )
+                            })?,
+                    },
+                )
+            }
             BuildSelectionRequest::Entry(binding) => {
                 let implementation = match binding.implementation {
                     RootBindingOperand::Description => {
@@ -197,7 +229,11 @@ impl<'program> Evaluator<'program> {
                     } else {
                         CompositionMode::Fused
                     }),
-                    BuildOperation::RepresentationSelection if independent.is_none() => None,
+                    BuildOperation::RepresentationSelection | BuildOperation::ServiceExclusion
+                        if independent.is_none() =>
+                    {
+                        None
+                    }
                     _ => {
                         return trap(
                             "Product selection operation disagrees with its ordinary arguments",
@@ -207,6 +243,15 @@ impl<'program> Evaluator<'program> {
                 SourceBuildSelection::Declaration(ExecutedProductSelection {
                     request,
                     composition,
+                    selecting_machine: self
+                        .program
+                        .symbols
+                        .symbol_source_span(frame.machine_symbol)
+                        .ok_or_else(|| {
+                            Halt::Trap(
+                                "Product selection lost its authored machine coordinate".into(),
+                            )
+                        })?,
                 })
             }
         };
