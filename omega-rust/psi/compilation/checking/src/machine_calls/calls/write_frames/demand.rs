@@ -842,14 +842,24 @@ impl<'program> CallFrameResolver<'program> {
         state: SymbolHandle,
     ) -> Option<Vec<ReferenceResultLeafOrigin>> {
         memoized(&self.caches.reference_result_leaves, state, || {
-            self.reference_result_transports(state)?
+            self.reference_result_transports(state).or_else(|| {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!("CHECKSITE returned-origin-flat-refusal stage=full-transports state={:?}", state);
+                }
+                None
+            })?
                 .into_iter()
                 .map(|transport| match transport {
                     super::ReferenceResultTransport::Reference(leaf) => Some(leaf),
                     // Flat consumers cannot choose the active payload of an
                     // opaque moved value. Capture-aware consumers use the
                     // transport relation and retain that input identity.
-                    super::ReferenceResultTransport::Value { .. } => None,
+                    super::ReferenceResultTransport::Value { result_path, source, type_reference } => {
+                        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                            eprintln!("CHECKSITE returned-origin-flat-refusal stage=whole-value state={:?} type={:?} result_path_count={} source_root={:?} source_path_count={} source_prefix={:?}", state, type_reference, result_path.len(), source.root, source.segments.len(), &source.segments[..source.segments.len().min(16)]);
+                        }
+                        None
+                    },
                 })
                 .collect()
         })

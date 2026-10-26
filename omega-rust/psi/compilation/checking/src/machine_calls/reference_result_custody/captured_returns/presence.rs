@@ -15,7 +15,12 @@ impl Captures<'_> {
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<Vec<CheckedUnitStructuralPathSegment>>> {
         let parameters = crate::call_target_parameters(self.program, call.target_symbol)?;
-        let sources = self.target_sources(call.target_symbol, active)?;
+        let sources = self.target_sources(call.target_symbol, active).or_else(|| {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!("CHECKSITE returned-origin-presence-refusal stage=target-summary target={:?} call={:?} statement={} actual_count={} active={:?}", call.target_symbol, call.authored_expression, call.statement_index, call.argument_operands().count(), active.iter().take(8).collect::<Vec<_>>());
+            }
+            None
+        })?;
         let operands = self
             .facts
             .flow
@@ -72,7 +77,12 @@ impl Captures<'_> {
                     &path,
                     Some(operand),
                     active,
-                )?
+                ).or_else(|| {
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!("CHECKSITE returned-origin-presence-refusal stage=input-leaf target={:?} call={:?} statement={} position={} parameter={:?} operand_expression={:?} operand_type={:?} snapshot={:?} leaf_path_count={}", call.target_symbol, call.authored_expression, call.statement_index, position, parameter.symbol, operand.expression, operand.type_reference, operand.storage_snapshot, path.len());
+                    }
+                    None
+                })?
             };
             if present && !paths.contains(&source.path) {
                 paths.push(source.path);

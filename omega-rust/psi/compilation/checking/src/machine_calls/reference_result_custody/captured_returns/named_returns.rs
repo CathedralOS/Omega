@@ -26,7 +26,12 @@ impl Captures<'_> {
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
         let target = crate::call_target_state(self.program, call.target_symbol)?;
         let frames = crate::CallFrameResolver::new(self.program)?;
-        let transports = frames.reference_result_transports(target.symbol)?;
+        let transports = frames.reference_result_transports(target.symbol).or_else(|| {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!("CHECKSITE returned-origin-named-refusal stage=full-transports state={:?} statement={} target={:?} call={:?}", state.symbol, call.statement_index, target.symbol, call.authored_expression);
+            }
+            None
+        })?;
         let mut relative = Vec::new();
         for transport in transports {
             match transport {
@@ -92,13 +97,19 @@ impl Captures<'_> {
             {
                 return None;
             }
+            let operand_handle = call.argument_operands().handles().nth(position)?;
             for source in self.captured_input_sources(
                 state,
                 parameter.type_reference,
-                call.argument_operands().handles().nth(position)?,
+                operand_handle,
                 &candidate.source,
                 active,
-            )? {
+            ).or_else(|| {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!("CHECKSITE returned-origin-named-refusal stage=captured-input state={:?} statement={} target={:?} call={:?} parameter={:?} parameter_type={:?} operand={:?} expression={:?} type={:?} snapshot={:?} references={} source_root={:?} source_path_count={} source_prefix={:?}", state.symbol, call.statement_index, target.symbol, call.authored_expression, parameter.symbol, parameter.type_reference, operand_handle, operand.expression, operand.type_reference, operand.storage_snapshot, operand.reference_leaves.count(), candidate.source.root, candidate.source.segments.len(), &candidate.source.segments[..candidate.source.segments.len().min(16)]);
+                }
+                None
+            })? {
                 let origin = crate::ReferenceResultLeafOrigin {
                     result_path: result_path.clone(),
                     source,
