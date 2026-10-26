@@ -228,11 +228,12 @@ pub(crate) fn filter_reassigned_borrow_loans(
             FlowConstraintKind::BorrowIncomingReference { identity } => {
                 let incoming = borrow.incoming_references.get(identity);
                 let owner = borrow.owner_segments.span_or_empty(incoming.owner_path);
-                destination.incoming_reference.is_valid()
-                    || destination.root != facts::PlaceRoot::Symbol(incoming.parameter_symbol())
+                // Canonical roots retain opaque invocation referent/output
+                // namespaces; only this parameter's descriptor slot can die.
+                destination.root != facts::PlaceRoot::Symbol(incoming.parameter_symbol())
                     || (writes_referent
-                        && destination == &target
-                        && owner.len() == target.segments.len())
+                        && authored_carrier.as_ref() == Some(&destination)
+                        && owner.len() == destination.segments.len())
                     || !crate::borrow::place_path_covers_owner(
                         program,
                         &destination.segments,
