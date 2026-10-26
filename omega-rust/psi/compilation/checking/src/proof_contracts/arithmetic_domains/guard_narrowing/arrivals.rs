@@ -312,6 +312,7 @@ pub(crate) fn occurrence_value_environments(
             .into_iter()
             .map(ExpressionObservation::environment)
             .collect(),
+        completed_children: Vec::new(),
         infer_call_bodies: true,
         collect_arrivals: false,
     };
@@ -373,6 +374,7 @@ fn expression_observations(
         frames: frames.as_ref(),
         arrivals: Vec::new(),
         observations: Vec::new(),
+        completed_children: Vec::new(),
         infer_call_bodies: true,
         collect_arrivals: false,
     };
@@ -528,6 +530,7 @@ pub(super) fn incoming_environments(
                     frames,
                     arrivals: Vec::new(),
                     observations: Vec::new(),
+                    completed_children: Vec::new(),
                     infer_call_bodies: invocation.is_none(),
                     collect_arrivals: true,
                 };
@@ -772,6 +775,7 @@ fn discover_normal_return_interval(
                     interval: None,
                     environment: None,
                 }],
+                completed_children: Vec::new(),
                 infer_call_bodies: false,
                 collect_arrivals: false,
             };
@@ -820,6 +824,7 @@ struct ArrivalWalk<'program, 'frames> {
     /// Each arrival this walk delivers, by target state position, in order.
     arrivals: Vec<(usize, ValueEnvironment)>,
     observations: Vec<ExpressionObservation>,
+    completed_children: Vec<super::super::expression_analysis::CheckedIntegerValue>,
     infer_call_bodies: bool,
     collect_arrivals: bool,
 }
@@ -844,23 +849,86 @@ impl ArrivalWalk<'_, '_> {
         environment: &ValueEnvironment,
     ) -> EvaluatedValue {
         match self.checked_value(source, expression, environment) {
-            Some(analysis) => EvaluatedValue {
-                interval: analysis.value.interval,
-                copied: CopiedIntegerValue::capture(
-                    self.program,
-                    self.machine,
-                    Some(source),
-                    expression,
-                    declared_place_type_raw(self.program, self.machine, Some(source), expression)
+            Some(analysis) => {
+                let mut values = analysis.decisions.expression_values;
+                // The end environment can no longer name an earlier child
+                // after a sibling write. Its completed snapshot owns that
+                // payload; post-environment reconstruction cannot overwrite it.
+                values.retain(|value| {
+                    !self
+                        .completed_children
+                        .iter()
+                        .any(|captured| captured.expression == value.expression)
+                });
+                values.extend(self.completed_children.iter().cloned());
+                EvaluatedValue {
+                    interval: analysis.value.interval,
+                    copied: CopiedIntegerValue::capture(
+                        self.program,
+                        self.machine,
+                        Some(source),
+                        expression,
+                        declared_place_type_raw(
+                            self.program,
+                            self.machine,
+                            Some(source),
+                            expression,
+                        )
                         .unwrap_or_default(),
-                    environment,
-                    &analysis.decisions.expression_values,
-                ),
-            },
+                        environment,
+                        &values,
+                    ),
+                }
+            }
             None => EvaluatedValue {
                 interval: Interval::UNBOUNDED,
                 copied: CopiedIntegerValue::default(),
             },
+        }
+    }
+
+    /// The existing child sequence emits its integer snapshot before the next
+    /// sibling executes. Repeated source handles conservatively join every
+    /// visit, including a missing enclosure; no last-visit overwrite is allowed.
+    fn capture_completed_child(
+        &mut self,
+        source: &State,
+        expression: ExpressionHandle,
+        environment: &ValueEnvironment,
+    ) {
+        let primitive =
+            crate::expression_result_type_reference(self.program, self.machine, source, expression)
+                .and_then(|reference| self.program.primitive_type_reference(reference));
+        if !primitive.is_some_and(|primitive| primitive.is_fixed_integer()) {
+            return;
+        }
+        let analyzed = self.checked_value(source, expression, environment);
+        let interval = analyzed
+            .as_ref()
+            .map_or(Interval::UNBOUNDED, |value| value.value.interval);
+        let recipe = analyzed.and_then(|value| {
+            value
+                .value
+                .range_recipe(self.program, self.machine.symbol, expression)
+        });
+        if let Some(previous) = self
+            .completed_children
+            .iter_mut()
+            .find(|previous| previous.expression == expression)
+        {
+            previous.interval = previous.interval.union(interval);
+            previous.recipe = previous
+                .recipe
+                .take()
+                .zip(recipe)
+                .map(|(left, right)| left.union(&right));
+        } else {
+            self.completed_children
+                .push(super::super::expression_analysis::CheckedIntegerValue {
+                    expression,
+                    interval,
+                    recipe,
+                });
         }
     }
 
@@ -1106,6 +1174,7 @@ impl ArrivalWalk<'_, '_> {
         environment: &mut ValueEnvironment,
     ) -> bool {
         for statement in statements {
+            self.completed_children.clear();
             match statement {
                 StatementNode::Transition(transition) => {
                     let target_needs_walk = transition.target.is_valid()
@@ -1478,6 +1547,7 @@ impl ArrivalWalk<'_, '_> {
         statement: &StatementNode,
         environment: &mut ValueEnvironment,
     ) {
+        self.completed_children.clear();
         match statement {
             StatementNode::Transition(_) => {
                 self.statements(source, std::iter::once(statement), environment);
@@ -1602,11 +1672,13 @@ impl ArrivalWalk<'_, '_> {
             ExpressionNode::ArrayLiteral(values) => {
                 for value in self.program.expression_table.expression_handles(*values) {
                     self.expression(source, *value, environment);
+                    self.capture_completed_child(source, *value, environment);
                 }
             }
             ExpressionNode::StructLiteral(literal) => {
                 for field in self.program.expression_table.struct_fields(literal.fields) {
                     self.expression(source, field.value, environment);
+                    self.capture_completed_child(source, field.value, environment);
                 }
             }
             ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
