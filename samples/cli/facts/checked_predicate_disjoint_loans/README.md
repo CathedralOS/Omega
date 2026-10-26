@@ -20,15 +20,15 @@ That weaker fact permits equal indices and must reject the same loans.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [program](local/main.omg), [exclusive call](local/exclusive_call/main.omg) | [insufficient predicate](local/invalid/main.omg), [call twin](local/exclusive_call/invalid/main.omg) |
-| field | [program](field/main.omg), [exclusive call](field/exclusive_call/main.omg) | [insufficient predicate](field/invalid/main.omg), [call twin](field/exclusive_call/invalid/main.omg) |
-| parameter | [program](parameter/main.omg), [exclusive call](parameter/exclusive_call/main.omg) | [insufficient predicate](parameter/invalid/main.omg), [call twin](parameter/exclusive_call/invalid/main.omg) |
-| call_result | [program](call_result/main.omg), [exclusive call](call_result/exclusive_call/main.omg) | [insufficient predicate](call_result/invalid/main.omg), [call twin](call_result/exclusive_call/invalid/main.omg) |
-| match_join | [program](match_join/main.omg), [exclusive call](match_join/exclusive_call/main.omg) | [insufficient predicate](match_join/invalid/main.omg), [call twin](match_join/exclusive_call/invalid/main.omg) |
-| const_name | [program](const_name/main.omg), [exclusive call](const_name/exclusive_call/main.omg) | [insufficient predicate](const_name/invalid/main.omg), [call twin](const_name/exclusive_call/invalid/main.omg) |
-| other_state | [program](other_state/main.omg), [exclusive call](other_state/exclusive_call/main.omg) | [insufficient predicate](other_state/invalid/main.omg), [call twin](other_state/exclusive_call/invalid/main.omg) |
-| other_machine | [program](other_machine/main.omg), [exclusive call](other_machine/exclusive_call/main.omg) | [insufficient predicate](other_machine/invalid/main.omg), [call twin](other_machine/exclusive_call/invalid/main.omg) |
-| target_body | [program](target_body/main.omg), [exclusive call](target_body/exclusive_call/main.omg) | [insufficient predicate](target_body/invalid/main.omg), [call twin](target_body/exclusive_call/invalid/main.omg) |
+| local | [program](local/main.omg), [exclusive call](local/exclusive_call/main.omg), [record predicate](local/record_predicate/main.omg) | [insufficient predicate](local/invalid/main.omg), [call twin](local/exclusive_call/invalid/main.omg), [record twin](local/record_predicate/invalid/main.omg) |
+| field | [program](field/main.omg), [exclusive call](field/exclusive_call/main.omg), [record predicate](field/record_predicate/main.omg) | [insufficient predicate](field/invalid/main.omg), [call twin](field/exclusive_call/invalid/main.omg), [record twin](field/record_predicate/invalid/main.omg) |
+| parameter | [program](parameter/main.omg), [exclusive call](parameter/exclusive_call/main.omg), [record predicate](parameter/record_predicate/main.omg) | [insufficient predicate](parameter/invalid/main.omg), [call twin](parameter/exclusive_call/invalid/main.omg), [record twin](parameter/record_predicate/invalid/main.omg) |
+| call_result | [program](call_result/main.omg), [exclusive call](call_result/exclusive_call/main.omg), [record predicate](call_result/record_predicate/main.omg) | [insufficient predicate](call_result/invalid/main.omg), [call twin](call_result/exclusive_call/invalid/main.omg), [record twin](call_result/record_predicate/invalid/main.omg) |
+| match_join | [program](match_join/main.omg), [exclusive call](match_join/exclusive_call/main.omg), [record predicate](match_join/record_predicate/main.omg) | [insufficient predicate](match_join/invalid/main.omg), [call twin](match_join/exclusive_call/invalid/main.omg), [record twin](match_join/record_predicate/invalid/main.omg) |
+| const_name | [program](const_name/main.omg), [exclusive call](const_name/exclusive_call/main.omg), [record predicate](const_name/record_predicate/main.omg) | [insufficient predicate](const_name/invalid/main.omg), [call twin](const_name/exclusive_call/invalid/main.omg), [record twin](const_name/record_predicate/invalid/main.omg) |
+| other_state | [program](other_state/main.omg), [exclusive call](other_state/exclusive_call/main.omg), [record predicate](other_state/record_predicate/main.omg) | [insufficient predicate](other_state/invalid/main.omg), [call twin](other_state/exclusive_call/invalid/main.omg), [record twin](other_state/record_predicate/invalid/main.omg) |
+| other_machine | [program](other_machine/main.omg), [exclusive call](other_machine/exclusive_call/main.omg), [record predicate](other_machine/record_predicate/main.omg) | [insufficient predicate](other_machine/invalid/main.omg), [call twin](other_machine/exclusive_call/invalid/main.omg), [record twin](other_machine/record_predicate/invalid/main.omg) |
+| target_body | [program](target_body/main.omg), [exclusive call](target_body/exclusive_call/main.omg), [record predicate](target_body/record_predicate/main.omg) | [insufficient predicate](target_body/invalid/main.omg), [call twin](target_body/exclusive_call/invalid/main.omg), [record twin](target_body/record_predicate/invalid/main.omg) |
 
 Each place also contains an `exclusive_call/` production with the same
 predicate, indices, writes and oracle. Instead of retaining local element
@@ -46,6 +46,18 @@ admits zero and therefore cannot justify the same two loans. These pairs pin
 `_through_<place>_unary_predicate_{exit,rejected}`. Necessary interval hulls
 never replace an authored public contract: exact envelope conversion retains
 its independent converse check.
+
+The `record_predicate/` production passes a shared `Indices` record to the
+ordinary checked predicate. Its two scalar fields retain their exact record
+identity and complete typed projection paths; another record with the same field
+names supplies no relation. All nine places carry that record into the same two
+loan writes, and each twin weakens only `!=` to `<=`. Predicate consequences do
+not authorize stored-reference traversal or mutable observation replay. Caller
+establishment uses a complete equivalent scalar formula and the existing
+source-ordered captured operands; a necessary relation alone cannot establish
+the predicate. These pairs are pinned as
+`_through_<place>_record_predicate_{exit,rejected}`. Execution qualification of
+this production is tracked separately from the earlier scalar observations.
 
 The pairs are pinned under `tests/omega/{pass,fail}/facts/` as
 `checked_predicate_disjoint_loans_through_<place>_{exit,rejected}`.
