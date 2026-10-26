@@ -1,5 +1,5 @@
 //! Retained edge-cleanup and hidden-establishment affine authority.
-use crate::OptimizationUnitValidationError;
+use crate::{OperationSite, OptimizationUnitValidationError};
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{
     OwnershipFrontierOwnedPlace, OwnershipFrontierSite, OwnershipFrontierSnapshot,
@@ -99,12 +99,10 @@ pub(super) fn validate_retained_ownership_authority(
                 };
                 for (operation, place, _) in trivial_affine_locals {
                     let mismatch = || {
-                        OptimizationUnitValidationError::StructuralReturnHiddenLocalCustodyMismatch {
-                            machine: function.machine,
-                            block: block.id,
-                            node: node_index,
-                            operation: *operation,
-                        }
+                        OptimizationUnitValidationError::StructuralReturnHiddenLocalCustodyMismatch(
+                            OperationSite::new(function.machine, block.id, node_index),
+                            *operation,
+                        )
                     };
                     let entry = frontiers
                         .get(&(

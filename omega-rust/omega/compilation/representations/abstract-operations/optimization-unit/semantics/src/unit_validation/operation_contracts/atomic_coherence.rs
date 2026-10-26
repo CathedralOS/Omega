@@ -16,7 +16,7 @@
 //! the concurrent-execution route.
 use abstract_operations::{AbstractOperation, happens_before_atomic_coherence_violation};
 
-use crate::OptimizationUnitValidationError;
+use crate::{OperationSite, OptimizationUnitValidationError};
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::BlockId;
 use std::collections::{BTreeMap, BTreeSet};
@@ -94,12 +94,10 @@ pub(crate) fn validate_function_atomic_coherence(
         },
     ) {
         Some((block, node, violation)) => Err(
-            OptimizationUnitValidationError::AtomicEventCoherenceMismatch {
-                machine: function.machine,
-                block,
-                node: node as u32,
+            OptimizationUnitValidationError::AtomicEventCoherenceMismatch(
+                OperationSite::new(function.machine, block, node as u32),
                 violation,
-            },
+            ),
         ),
         None => Ok(()),
     }
