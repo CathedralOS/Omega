@@ -225,6 +225,7 @@ fn argument_capture(
         if value.backing.is_valid() {
             pending.push(value.backing);
         }
+        pending.extend(value.evaluated_inputs.handles());
         match value.completion {
             checked_trees::FlowOperandCompletion::Constructed(children) => {
                 pending.extend(

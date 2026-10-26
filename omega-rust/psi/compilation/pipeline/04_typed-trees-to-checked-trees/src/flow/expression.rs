@@ -85,6 +85,7 @@ struct CompletedValue {
     /// independently of the projected value's reference leaves. Scalar value
     /// snapshots do not consume this place-only relationship.
     backing: Handle<checked_trees::FlowOperandFact>,
+    evaluated_inputs: HandleSpan<checked_trees::FlowOperandFact>,
     referents: Option<HandleSpan<checked_trees::FlowOperandReferent>>,
     retention: Option<Handle<checked_trees::FlowOperandRetention>>,
     /// Descriptor contents substituted after operands, before callee writes.
@@ -790,6 +791,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         capture.case_access = completed.case_access;
         capture.completion = completed.completion;
         capture.value_source = completed.value_source;
+        capture.evaluated_inputs = completed.evaluated_inputs;
         capture.backing = if observed_descriptor.is_valid() {
             observed_descriptor
         } else {
@@ -1003,6 +1005,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         capture.case_access = completed.case_access;
         capture.completion = completed.completion;
         capture.value_source = completed.value_source;
+        capture.evaluated_inputs = completed.evaluated_inputs;
         capture.backing = completed.backing;
         capture.type_reference = reference;
         if let Some(leaves) = completed.reference_leaves {
@@ -1113,6 +1116,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             type_reference: TypeReferenceHandle::invalid(),
             completion: checked_trees::FlowOperandCompletion::Observation,
             backing: Handle::invalid(),
+            evaluated_inputs: HandleSpan::empty(),
             value_source: Handle::invalid(),
             entry_origin_writes: self.entry_origin_writes,
             entry_origin_unknown_write: self.entry_origin_unknown_write,
@@ -1447,6 +1451,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             completion,
             value_source,
             backing,
+            evaluated_inputs,
             referents,
             retention,
             reference_leaves,
@@ -1572,6 +1577,13 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 let right_operand = self
                     .evaluated_operand(binary.right, contexts, constraints)
                     .capture;
+                if !case_observation {
+                    *evaluated_inputs = self
+                        .context
+                        .control
+                        .operands
+                        .insert_many([left_operand, right_operand]);
+                }
                 self.record_operator_invocation(
                     expression,
                     checked_trees::CheckedOperatorOccurrence::Expression,
@@ -1866,6 +1878,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     let end_operand = self
                         .evaluated_operand(range.end, contexts, constraints)
                         .capture;
+                    *evaluated_inputs = self
+                        .context
+                        .control
+                        .operands
+                        .insert_many([start_operand, end_operand]);
                     *referents = Some(self.capture_indexed_referents(
                         expression,
                         &collection_operand,
@@ -1887,6 +1904,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     let index_operand = self
                         .evaluated_operand(indexed.index, contexts, constraints)
                         .capture;
+                    *evaluated_inputs = self.context.control.operands.insert_many([index_operand]);
                     *retention = Some(self.capture_indexed_retention(
                         expression,
                         &collection_operand,
@@ -2005,6 +2023,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 } else {
                     evaluated.capture.retention
                 });
+                *evaluated_inputs = self
+                    .context
+                    .control
+                    .operands
+                    .insert_many([evaluated.capture]);
                 // A qualification/erasure that preserves the value also keeps
                 // its selected Boolean completion, not a joined source replay.
                 if validation::value_preserving_cast_operand(
@@ -2028,20 +2051,16 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 *retention = Some(self.formed_view_retention(&evaluated.capture));
             }
             ExpressionNode::Unary(unary) => {
-                let (operand, completed_operand) = self.expression_result(
-                    unary.operand,
-                    TypeReferenceHandle::invalid(),
-                    contexts,
-                    constraints,
-                );
+                let operand = self.evaluated_operand(unary.operand, contexts, constraints);
+                *evaluated_inputs = self.context.control.operands.insert_many([operand.capture]);
                 if unary.operator == UnaryOperator::LogicalNot
                     && crate::values::operator_is_builtin(self.context.operators, expression)
                 {
                     // Use the result at its evaluation point, including a
                     // short-circuit child that contains unresolved runtime names.
                     *boolean_completion =
-                        self.negated_boolean_completion(completed_operand.boolean_completion);
-                    return operand.map(|value| !value);
+                        self.negated_boolean_completion(operand.boolean_completion);
+                    return operand.boolean.map(|value| !value);
                 }
             }
             ExpressionNode::String(_) => {
