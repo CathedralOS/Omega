@@ -83,6 +83,15 @@ impl AcquiredLocalSource {
         &self,
         returned: &build_evaluation::ReturnedBuild,
     ) -> Result<package_compilation::PackageSourceBinding, String> {
+        self.declare_build(returned)?.source_binding()
+    }
+
+    /// Bind the executed role and complete dependency ledger to these acquired
+    /// bytes. Compilation still authenticates the original activation at join.
+    pub fn declare_build(
+        &self,
+        returned: &build_evaluation::ReturnedBuild,
+    ) -> Result<super::DeclaredBuildSource, String> {
         let name = match returned.declaration() {
             build_declarations::BuildDeclaration::Package(package) => &package.name,
             build_declarations::BuildDeclaration::Application(application) => &application.name,
@@ -91,13 +100,50 @@ impl AcquiredLocalSource {
             }
         };
         let key = PackageKey::new(name.clone().into(), self.lineage.clone());
-        package_compilation::PackageSourceBinding::new(
-            key.identity(),
-            key.name().as_str(),
+        let SourceLineage::ExternalLocal(lineage) = &self.lineage else {
+            return Err("local acquisition lost its external source lineage".into());
+        };
+        let requests =
+            crate::declarations::dependencies::read::DependencyProjections::from_executed_requests(
+                returned.requests().iter().map(|issued| issued.request()),
+            )?;
+        let custody = super::PackageSourceCustody::from_resolved_parts(
+            key,
+            returned.declaration().kind(),
+            ImmutableSourceResolution::external_local(SourceContentDigest::derive(
+                self.capture.normalized().content_identity.as_bytes(),
+            )),
+            super::PackageSourceMaterialization::from_local(self.capture.normalized()),
             self.capture.canonical_live_root().to_path_buf(),
+            super::PackageSourceNavigation::Root,
+            super::PackageSourceSelectionEvidence::Root,
+            self.limits,
+            requests,
         )
-        .with_captured_source(std::sync::Arc::clone(self.capture.tree()))
+        .with_captured_source(std::sync::Arc::clone(self.capture.tree()));
+        Ok(super::DeclaredBuildSource {
+            custody,
+            root_request: crate::resolution::graph::PackageRootSourceRequest::ExternalLocal {
+                requested_root: self.capture.requested_root().to_path_buf(),
+                source_context: lineage.source_context().clone(),
+            },
+        })
     }
+}
+
+pub(crate) fn external_local_dependency_root(
+    requester_root: &Path,
+    location: &str,
+) -> Result<std::path::PathBuf, String> {
+    if location.is_empty() || location.bytes().any(|byte| byte.is_ascii_control()) {
+        return Err("external-local path must be nonempty and contain no control bytes".into());
+    }
+    let authored = Path::new(location);
+    Ok(if authored.is_absolute() {
+        authored.to_path_buf()
+    } else {
+        requester_root.join(authored)
+    })
 }
 
 /// Ordinary local compilation owns a closed in-memory capture. Transaction

@@ -175,7 +175,9 @@ impl SourceStorage {
             .map_err(|reason| refuse(reason.to_owned()))?;
         self.filesystem = filesystem;
         self.default_package_identity = Some(inputs.root());
-        self.register_reconciled_package_root(self.default_package_root.clone(), inputs.root());
+        for (identity, root) in inputs.packages() {
+            self.register_reconciled_package_root(root.to_path_buf(), identity);
+        }
         self.sources
             .retain_product_dependency_scope(inputs.dependencies());
         self.anonymous_capture = None;

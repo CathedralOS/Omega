@@ -6,6 +6,8 @@
 //! a pause never reconstructs the instance or replays earlier effects.
 
 mod project;
+mod source_join;
+pub use source_join::BuildDependencySelection;
 
 use build_time_evaluation::BuildTimeValue;
 use evaluation_accounting::EvaluationInvocationAccount;
@@ -35,6 +37,8 @@ pub(crate) fn measurement() -> evaluation_accounting::EvaluationMeasurementIdent
 pub struct ReturnedBuild {
     pub(crate) identity: terminal_codec::TerminalExecutionIdentity,
     pub(crate) declaration: build_declarations::BuildDeclaration,
+    pub(crate) source_join:
+        Option<std::sync::Arc<package_compilation::PackageCompilationSourceInputs>>,
     pub(crate) requests: Vec<IssuedBuildRequest>,
     pub(crate) settings: EvaluatedBuildSettings,
     pub(crate) optimization_report: optimization_core::OptimizationReportRequest,
@@ -244,6 +248,7 @@ impl TerminalBuildActivation<'_, '_> {
         Ok(ReturnedBuild {
             identity: self.host.produced.view().custody_identity(),
             declaration,
+            source_join: None,
             requests: self.requests,
             settings,
             optimization_report,

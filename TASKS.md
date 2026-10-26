@@ -1136,15 +1136,19 @@ narrows realization only.
   lineage without a syntax projection or provisional key. The SDK runs a
   helper-computed declaration through native and Terminal execution after live
   source deletion, with an unselected missing dependency never requested.
-  The join still refuses new dependency custody
-  without executed-request settlement; package management still projects the graph
-  statically. Its shared graph reconciliation now retains an owned outstanding
-  source request until the selected source's declaration is available; synchronous
-  acquisition drives that same traversal, preserving scope/alias/cycle/limit checks.
-  Application execution must still supply those declarations and consume the joined
-  graph. Ordinary one-shot compiler calls still own their execution loop. The
-  application still needs executed-request acquisition
-  and final joining in place of package management's static Build projection,
+  Actual returned dependency requests now drive package management's retained
+  source traversal. The two-package SDK witness acquires and executes only the
+  selected local dependency, joins both captured source owners and completes
+  native/Terminal execution after live-source deletion without replay. Missing,
+  wrong-scope/ordinal/package selections, substituted graphs and repeated joins
+  reject; private dependency machines remain inaccessible. Captured dependency
+  bytes no longer imply root-only Build metadata authority. Reconciliation keeps
+  its scope/alias/cycle/limit checks; compiler completion refuses any unjoined
+  request. This is not the production CLI route yet: application preparation
+  still consumes package management's static graph, and ordinary one-shot
+  compiler calls still own their execution loop. The application must consume
+  the executed traversal, extend pinned Git/workspace acquisition and preserve
+  review/lock/offline recovery while replacing static Build projection,
   provider readiness/resumption, and demanded Product-description queries; this
   is not yet the completed production cutover.
   - **One Build evaluation and one Psi chain per compilation

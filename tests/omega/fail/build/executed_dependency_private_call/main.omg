@@ -1,0 +1,11 @@
+use selected;
+
+machine main() crashes Trap {
+    transition selected::private_answer() == 73u32 {
+        true -> done()
+        false -> bad()
+    }
+}
+
+machine done() { }
+machine bad() crashes Trap { crash Trap; }

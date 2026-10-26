@@ -124,6 +124,7 @@ pub use provider_planning::program_entry::{
 };
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
 pub use terminal_execution::{
-    ReturnedBuild, TerminalBuildActivation, TerminalBuildHost, TerminalBuildStep,
+    BuildDependencySelection, ReturnedBuild, TerminalBuildActivation, TerminalBuildHost,
+    TerminalBuildStep,
 };
 pub use trust_model::AuthoredComponentAssumptionAcceptance;

@@ -23,10 +23,16 @@ impl SourceRootRole {
     }
 }
 
+mod build_resolution;
 mod custody;
+pub use build_resolution::{
+    AcquiredBuildDependency, DeclaredBuildSource, ExecutedSourceResolution, PendingBuildSource,
+    ResolvedBuildSources,
+};
 mod error;
 pub(crate) mod git;
 mod local;
+pub(crate) use local::external_local_dependency_root;
 pub use local::{AcquiredLocalSource, LocalSourceAcquisitionError};
 mod materialization;
 mod navigation;

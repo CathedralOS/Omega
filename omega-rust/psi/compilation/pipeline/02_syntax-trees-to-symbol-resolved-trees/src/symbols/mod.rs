@@ -42,14 +42,14 @@ use domain_facts::assign_domain_fact_symbols;
 use statements::{assign_machine_signature_reference_symbols, assign_statement_reference_symbols};
 use top_level::assign_top_level_symbols;
 
-/// The exact call target a `module::member` spelling denotes, or `None` when
-/// the receiver names no top-level module and the call stays on the ordinary
-/// route. The member selects one of the source call kinds; a machine stands
+/// Resolve an authored static path through ordinary source-owned selection.
+/// A package alias need not have a Module symbol: its loader-certified import
+/// already selects the exact declaration owner. A machine stands
 /// for its callable `entry` state, while an unresolved member still claims the
 /// call with an invalid target so later passes see a selection, not a spelling.
 /// Both statement and expression occurrences apply this one law: keeping the
 /// lookup in one place is what stops the two carriers from drifting apart.
-fn module_call_target(
+fn static_call_target(
     symbols: &symbols::SymbolTable,
     receiver_name: &str,
     name: &str,
@@ -60,7 +60,9 @@ fn module_call_target(
         &[SymbolKind::Module],
         reference,
     );
-    if !namespace.is_some_and(|symbol| symbols.get(symbol).kind == SymbolKind::Module) {
+    if !namespace.is_some_and(|symbol| symbols.get(symbol).kind == SymbolKind::Module)
+        && !symbols.is_source_package_qualifier(reference, receiver_name)
+    {
         return None;
     }
     Some(
@@ -128,7 +130,7 @@ pub(crate) fn normalize_static_module_calls(
             }
             continue;
         }
-        let Some(selected) = module_call_target(&program.symbols, &receiver_name, &name, reference)
+        let Some(selected) = static_call_target(&program.symbols, &receiver_name, &name, reference)
         else {
             continue;
         };
@@ -203,7 +205,7 @@ pub(crate) fn normalize_static_module_calls(
             let receiver_name = receiver.joined_path();
             let reference = lookup::diagnostic_path_source_span(path);
             let name = format!("{receiver_name}::{}", target.as_str());
-            let Some(selected) = module_call_target(symbols, &receiver_name, &name, reference)
+            let Some(selected) = static_call_target(symbols, &receiver_name, &name, reference)
             else {
                 return;
             };

@@ -114,14 +114,16 @@ impl PreparedBuildExecution {
             return Err(self.refuse("Build completion belongs to another invocation"));
         }
         let declaration = &completed.declaration;
-        // No Product may consume an outstanding edge. This refusal remains until
-        // the application coordinator installs the real request/join protocol.
-        if completed.requests.iter().any(|issued| {
-            matches!(
-                issued.request(),
-                build_declarations::BuildRequest::Dependency { .. }
-            )
-        }) {
+        // A graph is not settlement by itself. The retained return must carry
+        // the exact join of its issued requests and acquired selections.
+        if completed.source_join.is_none()
+            && completed.requests.iter().any(|issued| {
+                matches!(
+                    issued.request(),
+                    build_declarations::BuildRequest::Dependency { .. }
+                )
+            })
+        {
             return Err(self.refuse(
                 "dependency requests require coordinator settlement before Product compilation",
             ));

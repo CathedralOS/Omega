@@ -136,6 +136,11 @@ impl BuildSourceInvocation {
             inputs.validate_execution_context(selected_target_profile, build_execution_profile)?;
         }
         let initial_sources = frontier.base_sources.clone();
+        if let Some(returned) = &returned {
+            returned
+                .validate_source_join(package_inputs, initially_unbound)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        }
         let evaluated = evaluation.complete(returned).map_err(|failure| {
             super::attribute_failure(failure, &initial_sources, package_inputs)
         })?;

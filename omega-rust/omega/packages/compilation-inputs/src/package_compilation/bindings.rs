@@ -48,7 +48,7 @@ impl PackageSourceBinding {
         tree: Arc<source::CapturedSourceTree>,
     ) -> Result<Self, String> {
         let input = source_snapshot::retained_source_input(&tree)?;
-        self.canonical_source_metadata = Some(input.canonical_source_metadata().clone());
+        self.canonical_source_metadata = None;
         self.captured_source = Some(tree);
         self.captured_build_source = Some(input);
         Ok(self)
@@ -98,7 +98,11 @@ impl PackageSourceBinding {
     }
 
     pub fn canonical_source_metadata(&self) -> Option<&CanonicalFilesystemMetadataIndex> {
-        self.canonical_source_metadata.as_ref()
+        self.canonical_source_metadata.as_ref().or_else(|| {
+            self.captured_build_source
+                .as_ref()
+                .map(|input| input.canonical_source_metadata())
+        })
     }
 }
 

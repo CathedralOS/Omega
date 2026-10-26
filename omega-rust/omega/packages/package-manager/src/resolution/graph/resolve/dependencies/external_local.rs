@@ -39,20 +39,11 @@ pub(super) fn resolve_external_dependency_from_root(
     local_cache: SourceCacheLane<'_>,
     source_limits: LocalSourceLimits,
 ) -> Result<PackageSourceCustody, ResolveDependencySourceError> {
-    if location.is_empty() || location.bytes().any(|byte| byte.is_ascii_control()) {
-        return Err(super::path::invalid_path(
-            location,
-            "external-local path must be nonempty and contain no control bytes",
-        ));
-    }
+    let target =
+        crate::resolution::source::external_local_dependency_root(requester_root, location)
+            .map_err(|reason| super::path::invalid_path(location, &reason))?;
     let source_context =
         external_context.ok_or(ResolveDependencySourceError::MissingExternalSourceContext)?;
-    let authored = Path::new(location);
-    let target = if authored.is_absolute() {
-        authored.to_path_buf()
-    } else {
-        requester_root.join(authored)
-    };
     let resolved = resolve_external_local_package_from_cache(
         target,
         local_cache,

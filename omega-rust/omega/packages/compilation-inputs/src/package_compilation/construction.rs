@@ -49,6 +49,14 @@ impl PackageCompilationInputs {
                     name: package.canonical_name.clone(),
                 });
             }
+            // Acquired bytes may belong to any package. Only the selected root
+            // exposes their metadata through this invocation's Build::Source.
+            // Explicit root metadata on a foreign binding still refuses above.
+            let canonical_source_metadata = if package.identity == root {
+                package.canonical_source_metadata().cloned()
+            } else {
+                None
+            };
             let canonical_root = match if package.captured_source.is_some() {
                 if package.source_root.is_absolute() {
                     Ok(package.source_root.clone())
@@ -74,7 +82,7 @@ impl PackageCompilationInputs {
                     PackageCompilationSourceRecord {
                         source_root: canonical_root.clone(),
                         canonical_name: package.canonical_name,
-                        canonical_source_metadata: package.canonical_source_metadata,
+                        canonical_source_metadata,
                         captured_source: package.captured_source,
                         captured_build_source: package.captured_build_source,
                         dependencies: BTreeMap::new(),

@@ -1,4 +1,6 @@
-//! Hermetic projection of literal dependency requests from `build.omg`.
+//! Ordered dependency request records and legacy literal projection adapters.
+//! Executed Build ledgers supply the records directly; static extraction remains
+//! only until production package preparation migrates to that executed route.
 
 mod aliases;
 mod error;
@@ -36,7 +38,7 @@ pub enum PackageSelection {
     Named(PackageName),
 }
 
-/// One source request projected without evaluating `build.omg`.
+/// One source request, retaining its exact locator and explicit alias.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum DependencySourceRequest {
     Path {
@@ -51,8 +53,7 @@ pub(crate) enum DependencySourceRequest {
     },
 }
 
-/// The one ordered set of unconditional direct dependency rows within a
-/// single purpose scope.
+/// The ordered direct dependency requests within one purpose scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ProjectedDependencies {
     authored_dependencies: Vec<DependencySourceRequest>,
@@ -93,6 +94,54 @@ pub(crate) struct DependencyProjections {
 }
 
 impl DependencyProjections {
+    /// Retain exactly the issued dependency ledger, preserving ordinal order
+    /// within each purpose. No source syntax or unselected branch contributes.
+    pub(crate) fn from_executed_requests<'request>(
+        requests: impl IntoIterator<Item = &'request build_declarations::BuildRequest>,
+    ) -> Result<Self, String> {
+        use build_declarations::{BuildDependencySource, BuildRequest};
+        let mut product = Vec::new();
+        let mut build = Vec::new();
+        for request in requests {
+            let BuildRequest::Dependency {
+                purpose,
+                alias,
+                source,
+            } = request
+            else {
+                continue;
+            };
+            let explicit_alias = alias
+                .as_ref()
+                .map(|name| AliasName::parse(name.as_str()))
+                .transpose()?;
+            let request = match source {
+                BuildDependencySource::Path(location) => DependencySourceRequest::Path {
+                    explicit_alias,
+                    location: location.clone(),
+                },
+                BuildDependencySource::Git {
+                    repository,
+                    revision,
+                    package,
+                } => DependencySourceRequest::Git {
+                    explicit_alias,
+                    repository: repository.clone(),
+                    revision: revision.clone(),
+                    selection: match package {
+                        Some(name) => PackageSelection::Named(name.clone().into()),
+                        None => PackageSelection::Root,
+                    },
+                },
+            };
+            match purpose {
+                DependencyPurpose::Product => product.push(request),
+                DependencyPurpose::Build => build.push(request),
+            }
+        }
+        Ok(Self::new(product.into(), build.into()))
+    }
+
     pub fn new(product: ProjectedDependencies, build: ProjectedDependencies) -> Self {
         Self { product, build }
     }

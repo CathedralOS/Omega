@@ -33,6 +33,8 @@ fn main() {
     deferred_product_uses_captured_imports();
     unbound_build_invocation("separate_build_product_imports_exit");
     unbound_build_invocation("executed_project_identity_exit");
+    executed_dependency_source_join(false);
+    executed_dependency_source_join(true);
     interleaved_build_invocations();
     foreign_build_return_refuses();
     ignored_build_request_still_requires_join();
@@ -362,69 +364,8 @@ fn unbound_build_invocation(project_name: &str) {
     let build = compiler
         .complete_package_build(invocation, returned)
         .unwrap_or_else(|failure| panic!("unbound completion: {:?}", failure.into_diagnostics()));
-    let product = compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
-        private_entry_ram: Vec::new(),
-        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
-        terminal_authority_permission_policy: None,
-        optimization_rollback: Default::default(),
-    });
-    let mut outcomes = compiler
-        .complete_package_products(vec![(
-            (),
-            compiler::PreparedPackageProduct {
-                build,
-                product,
-                permissions: None,
-            },
-        )])
-        .expect("joined Product batch");
-    let (_, outcome) = outcomes.pop().expect("one Product outcome");
-    let report = outcome
-        .and_then(compiler::CompilationOutput::into_report)
-        .unwrap_or_else(|error| panic!("joined native Product: {:?}", error.into_diagnostics()));
-    let artifact = report
-        .retained_native_artifact()
-        .expect("native product")
-        .psi_artifact();
-    let reloaded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
-        .expect("named Product publishes portable Terminal");
-    let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
-        x86_flags: None,
-        provider_proposal: None,
-        artifact: &reloaded,
-        target: Some(
-            target::TargetProfile::host_if_supported()
-                .unwrap()
-                .target_name(),
-        ),
-        provisions: report.runtime_provisions(),
-        fuel_allowance: 100_000,
-        domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
-        standard_input: None,
-        clock: None,
-    })
-    .expect("execute joined Terminal Product");
-    assert!(
-        matches!(
-            observation.status,
-            terminal_interpreter::TerminalExecutionStatus::Complete(
-                terminal_interpreter::TerminalExecutionResult::Unit
-            )
-        ),
-        "{:?}",
-        observation.status
-    );
-    let output = temporary.path().join("output");
-    let published = compilation_products::publication::publish_compilation(report, &output)
-        .expect("publish native Product");
-    let observed = std::process::Command::new(
-        published
-            .checked_native_executable_path()
-            .expect("native executable"),
-    )
-    .output()
-    .expect("execute joined native Product");
-    assert_eq!(observed.status.code(), Some(0), "{observed:?}");
+    execute_joined_product(&mut compiler, build, &temporary.path().join("output"))
+        .unwrap_or_else(|failure| panic!("joined Product: {:?}", failure.into_diagnostics()));
     assert_eq!(counters::build_execution_count(), before + 1);
     println!(
         "{project_name}: acquired_unbound_build_joined_named_product_native_and_terminal_exit0_without_live_source_or_replay"
@@ -544,6 +485,286 @@ fn unbound_build_invocation(project_name: &str) {
             ))
     );
     assert_eq!(counters::build_execution_count(), before);
+}
+
+fn executed_dependency_source_join(private_call: bool) {
+    use package_manager::resolution::source::ExecutedSourceResolution;
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "executed-source-graph",
+        false,
+    )
+    .expect("exclusive source graph workspace");
+    let fixtures = fixture_package_inputs::repo_root().join("tests/omega/pass/build");
+    for package in [
+        "executed_dependency_source_join_exit",
+        "executed_dependency_source_library",
+    ] {
+        std::fs::create_dir(temporary.path().join(package)).unwrap();
+        for name in ["main.omg", "build.omg"] {
+            std::fs::copy(
+                fixtures.join(package).join(name),
+                temporary.path().join(package).join(name),
+            )
+            .unwrap();
+        }
+    }
+    if private_call {
+        std::fs::copy(
+            fixture_package_inputs::repo_root()
+                .join("tests/omega/fail/build/executed_dependency_private_call/main.omg"),
+            temporary
+                .path()
+                .join("executed_dependency_source_join_exit/main.omg"),
+        )
+        .unwrap();
+    }
+    let acquired = package_manager::resolution::source::AcquiredLocalSource::capture(
+        &temporary
+            .path()
+            .join("executed_dependency_source_join_exit"),
+        package_source::LocalSourceLimits::default(),
+        package_source::ExternalSourceContext::derive(b"executed-graph-sdk"),
+    )
+    .expect("capture root before declaration");
+    let mut compiler = CompilationSession::default();
+    let target = target::TargetProfile::host_if_supported()
+        .unwrap()
+        .target_name();
+    let request = |capture: &package_compilation::CapturedLocalSource| CheckedCompileRequest {
+        source_capture: Some(capture.clone()),
+        ..CheckedCompileRequest::new(
+            &capture.canonical_live_root().join("main.omg"),
+            Some(target),
+        )
+    };
+    let before = counters::build_execution_count();
+    let mut root_invocation = compiler
+        .begin_package_build(request(acquired.source_capture()))
+        .unwrap();
+    let mut root_return = return_build(&mut root_invocation).unwrap();
+    let mut resolution = acquired
+        .declare_build(&root_return)
+        .unwrap()
+        .resolve()
+        .unwrap();
+    let mut children = Vec::new();
+    let resolved = loop {
+        match resolution {
+            ExecutedSourceResolution::Complete(resolved) => break resolved,
+            ExecutedSourceResolution::Request(pending) => {
+                let acquired = pending
+                    .capture_local_source()
+                    .expect("acquire only the selected dependency");
+                let capture = acquired.source_capture().clone();
+                for name in ["main.omg", "build.omg"] {
+                    std::fs::remove_file(capture.canonical_live_root().join(name)).unwrap();
+                }
+                let mut invocation = compiler.begin_package_build(request(&capture)).unwrap();
+                let returned = return_build(&mut invocation).unwrap();
+                resolution = acquired
+                    .complete(&returned)
+                    .expect("join actual child declaration");
+                children.push((
+                    capture.canonical_live_root().to_path_buf(),
+                    invocation,
+                    returned,
+                ));
+            }
+        }
+    };
+    assert_eq!(
+        children.len(),
+        1,
+        "unselected request must not acquire work"
+    );
+    for name in ["main.omg", "build.omg"] {
+        std::fs::remove_file(acquired.source_capture().canonical_live_root().join(name)).unwrap();
+    }
+    let preview = resolved
+        .compilation_inputs(resolved.root())
+        .expect("all packages retain captured bytes");
+    assert_eq!(preview.packages().count(), 2);
+    let mut generated = Vec::new();
+    for (path, mut invocation, mut returned) in children {
+        let identity = preview
+            .packages()
+            .find(|(_, root)| *root == path)
+            .unwrap()
+            .0;
+        assert!(
+            preview.canonical_source_metadata(identity).is_none(),
+            "foreign package has no root Build metadata view"
+        );
+        let inputs = resolved.join_build(identity, &mut returned).unwrap();
+        assert!(
+            inputs.canonical_source_metadata(identity).is_some(),
+            "selected root gains its own captured Build view"
+        );
+        invocation.join_package_inputs(inputs).unwrap();
+        let build = compiler
+            .complete_package_build(invocation, Some(returned))
+            .unwrap_or_else(|error| panic!("child completion: {:?}", error.into_diagnostics()));
+        generated.push(build.generated_source_bundle().clone());
+    }
+    assert!(
+        root_return.join_dependency_sources(&preview, &[]).is_err(),
+        "missing selection must refuse"
+    );
+    let selected = preview
+        .direct_dependencies(build_declarations::DependencyPurpose::Product)
+        .next()
+        .unwrap()
+        .1;
+    for (purpose, request_ordinal, package, reason) in [
+        (
+            build_declarations::DependencyPurpose::Product,
+            1,
+            selected,
+            "request order",
+        ),
+        (
+            build_declarations::DependencyPurpose::Build,
+            0,
+            selected,
+            "no acquired selection",
+        ),
+        (
+            build_declarations::DependencyPurpose::Product,
+            0,
+            preview.root(),
+            "alias and purpose",
+        ),
+    ] {
+        let failure = root_return
+            .join_dependency_sources(
+                &preview,
+                &[build_evaluation::BuildDependencySelection {
+                    purpose,
+                    request_ordinal,
+                    package,
+                }],
+            )
+            .expect_err("incorrect source selection must refuse");
+        assert!(failure.contains(reason), "{failure}");
+    }
+    let inputs = resolved
+        .join_build(resolved.root(), &mut root_return)
+        .unwrap()
+        .with_complete_dependency_generated_sources(generated)
+        .unwrap();
+    let changed_graph = unbound_join_inputs(
+        acquired.source_capture(),
+        acquired.source_capture().tree().clone(),
+        "executed_dependency_source_join_exit",
+    );
+    assert!(
+        root_return
+            .validate_source_join(Some(&changed_graph), true)
+            .expect_err("completion cannot substitute a different graph")
+            .contains("differs from its executed request join")
+    );
+    assert!(
+        resolved
+            .join_build(resolved.root(), &mut root_return)
+            .is_err(),
+        "request join is single-use"
+    );
+    root_invocation.join_package_inputs(inputs).unwrap();
+    let build = compiler
+        .complete_package_build(root_invocation, Some(root_return))
+        .unwrap_or_else(|error| panic!("joined root completion: {:?}", error.into_diagnostics()));
+    let outcome = execute_joined_product(&mut compiler, build, &temporary.path().join("output"));
+    if private_call {
+        let diagnostics = outcome
+            .expect_err("package join cannot expose private machines")
+            .into_diagnostics();
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("selects private machine `private_answer::entry`")),
+            "{diagnostics:?}"
+        );
+        println!("executed_dependency_join_preserved_private_machine_rejection");
+    } else {
+        outcome
+            .unwrap_or_else(|failure| panic!("joined Product: {:?}", failure.into_diagnostics()));
+        println!(
+            "executed_dependency_graph_joined_captured_child_native_and_terminal_exit0_without_replay"
+        );
+    }
+    assert_eq!(
+        counters::build_execution_count(),
+        before + 2,
+        "one root and one dependency activation, no replay"
+    );
+}
+
+fn execute_joined_product(
+    compiler: &mut CompilationSession,
+    build: compiler::PackageBuild,
+    output: &std::path::Path,
+) -> Result<(), compiler::CompilationProductError> {
+    let product = compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+        private_entry_ram: Vec::new(),
+        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None,
+        optimization_rollback: Default::default(),
+    });
+    let mut outcomes = compiler
+        .complete_package_products(vec![(
+            (),
+            compiler::PreparedPackageProduct {
+                build,
+                product,
+                permissions: None,
+            },
+        )])
+        .expect("joined Product batch");
+    let (_, outcome) = outcomes.pop().expect("one Product outcome");
+    let report = outcome.and_then(compiler::CompilationOutput::into_report)?;
+    let artifact = report
+        .retained_native_artifact()
+        .expect("native product")
+        .psi_artifact();
+    let reloaded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+        .expect("named Product publishes portable Terminal");
+    let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+        x86_flags: None,
+        provider_proposal: None,
+        artifact: &reloaded,
+        target: Some(
+            target::TargetProfile::host_if_supported()
+                .unwrap()
+                .target_name(),
+        ),
+        provisions: report.runtime_provisions(),
+        fuel_allowance: 100_000,
+        domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
+        standard_input: None,
+        clock: None,
+    })
+    .expect("execute joined Terminal Product");
+    assert!(
+        matches!(
+            observation.status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Unit
+            )
+        ),
+        "{:?}",
+        observation.status
+    );
+    let published = compilation_products::publication::publish_compilation(report, output)
+        .expect("publish native Product");
+    let observed = std::process::Command::new(
+        published
+            .checked_native_executable_path()
+            .expect("native executable"),
+    )
+    .output()
+    .expect("execute joined native Product");
+    assert_eq!(observed.status.code(), Some(0), "{observed:?}");
+    Ok(())
 }
 
 fn unbound_join_inputs(

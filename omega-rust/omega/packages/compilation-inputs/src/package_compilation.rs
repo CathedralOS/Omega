@@ -129,8 +129,8 @@ impl PackageCompilationInputs {
             .map_err(diagnostics)
     }
 
-    /// Admit ownership after an initially unbound Build. Until executed request
-    /// settlement supplies dependency receipts, only the empty roster can join.
+    /// Retain the original root bytes when final ownership joins. Executed
+    /// request settlement is checked by the Build continuation before assembly.
     pub(crate) fn validate_unbound_source_join(
         &self,
         root: &Path,
@@ -143,12 +143,6 @@ impl PackageCompilationInputs {
             .ok_or("joined package inputs lost their root")?;
         if record.source_root != root || record.captured_source.as_deref() != Some(capture) {
             return Err("joined package source differs from the original Build capture".into());
-        }
-        if self.source.packages.len() != 1
-            || !record.dependencies.is_empty()
-            || !record.build_dependencies.is_empty()
-        {
-            return Err("joined package dependencies require executed-request settlement".into());
         }
         Ok(())
     }

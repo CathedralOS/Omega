@@ -112,6 +112,27 @@ impl PackageDependencyClosure {
 }
 
 impl PackageCompilationInputs {
+    /// Direct aliases in one root execution scope. Build aliases never fall
+    /// back to Product aliases, including during the final request join.
+    pub fn direct_dependencies(
+        &self,
+        purpose: DependencyPurpose,
+    ) -> impl Iterator<Item = (&str, PackageKeyIdentity)> {
+        self.source
+            .packages
+            .get(&self.source.root)
+            .into_iter()
+            .flat_map(move |root| {
+                let dependencies = match purpose {
+                    DependencyPurpose::Product => &root.dependencies,
+                    DependencyPurpose::Build => &root.build_dependencies,
+                };
+                dependencies
+                    .iter()
+                    .map(|(alias, target)| (alias.as_str(), *target))
+            })
+    }
+
     /// Whether this reconciled graph contains the exact dependency
     /// occurrence — requester, purpose, alias, and target all naming one
     /// edge. Inputs keyed to a coordinate that is not an occurrence reject
@@ -208,7 +229,7 @@ impl PackageCompilationInputs {
     /// Scopes never fall back to each other: a miss here does not license
     /// probing the other scope.
     #[doc(hidden)]
-    pub(crate) fn dependency_target_for_purpose(
+    pub fn dependency_target_for_purpose(
         &self,
         requester: PackageKeyIdentity,
         purpose: DependencyPurpose,
