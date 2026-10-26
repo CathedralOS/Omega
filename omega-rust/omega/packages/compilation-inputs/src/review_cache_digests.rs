@@ -14,7 +14,7 @@ use crate::review_record_encoding::{
     authority_class_tag, declaration_kind_tag, purpose_tag, semantic_binding_role_tag,
 };
 use crate::{
-    AcceptedSemanticBinding, BuildDependencyOccurrence, BuildSnapshotCapture, BuildSnapshotRequest,
+    AcceptedSemanticBinding, BuildSnapshotCapture, BuildSnapshotRequest,
     BuildSourceCaptureObligation, IndependentComponentDescription, PackageCompilationInputs,
     PackageDependencyClosure, PackageGeneratedSourceBundle,
 };
@@ -95,14 +95,6 @@ pub fn review_cache_snapshot_digest(snapshot: &BuildSnapshotRequest) -> [u8; 32]
         digest.bytes(name);
         hash_captured_input(&mut digest, input);
     }
-    for (occurrence, inputs) in snapshot.dependency_inputs() {
-        hash_dependency_occurrence(&mut digest, occurrence);
-        digest.u64(inputs.len() as u64);
-        for (name, input) in inputs {
-            digest.bytes(name);
-            hash_captured_input(&mut digest, input);
-        }
-    }
     digest.finish()
 }
 
@@ -162,16 +154,6 @@ fn hash_captured_input(digest: &mut DomainDigestEncoder, input: &CapturedBuildSo
             }
         };
     }
-}
-
-fn hash_dependency_occurrence(
-    digest: &mut DomainDigestEncoder,
-    occurrence: &BuildDependencyOccurrence,
-) {
-    digest.raw(&occurrence.requester().digest());
-    digest.byte(purpose_tag(occurrence.purpose()));
-    digest.bytes(occurrence.alias().as_bytes());
-    digest.raw(&occurrence.target().digest());
 }
 
 fn hash_dependency_closure(digest: &mut DomainDigestEncoder, closure: &PackageDependencyClosure) {

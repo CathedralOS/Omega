@@ -40,6 +40,8 @@ fn review_policy_admits_work_and_application_executes_it() {
     );
     for forbidden in [
         ".prepare_package_build(",
+        ".begin_package_build(",
+        ".complete_package_build(",
         ".review_package_build(",
         ".publish_component(",
         "PendingReviewBuild",
@@ -55,7 +57,7 @@ fn review_policy_admits_work_and_application_executes_it() {
         "plan.begin_round(",
         "plan.occurrences()",
         "round.admit_occurrence(",
-        ".prepare_package_build(",
+        "crate::build_execution::execute_package_build(",
         ".review_package_build(",
         ".publish_component(",
         "round.retain(",
@@ -182,13 +184,13 @@ fn ordinary_package_operations_admit_instead_of_execute() {
     }
     let execution = include_str!("project_compilation.rs");
     let admit = execution
-        .find("admit_project_compilation(request)")
+        .find("admit_project_compilation(request, &mut session)")
         .unwrap();
     let compile = execution
-        .find("crate::compile_packages(&mut compiler, admitted.requests)")
+        .find("crate::compile_packages(session.compiler(), admitted.requests)")
         .unwrap();
     let reconcile = execution
-        .find("admitted.completion.complete(products)")
+        .find("admitted.completion.complete(products, session)")
         .unwrap();
     assert!(admit < compile && compile < reconcile);
 }
@@ -198,9 +200,16 @@ fn application_schedules_dependencies_without_opening_source_continuations() {
     let execution = include_str!("build_execution.rs");
     assert!(execution.contains("while !frontiers.is_empty()"));
     assert!(execution.contains("join_generated_sources(occurrence, &frontier.products)"));
-    assert!(execution.contains("compiler.prepare_package_build(occurrence)"));
+    assert!(execution.contains("execute_package_build(compiler, occurrence)"));
+    assert!(execution.contains("compiler.begin_package_build(request)"));
+    assert!(execution.contains("activation.advance(1024)"));
+    assert!(execution.contains("compiler.complete_package_build(invocation, returned)"));
     assert!(execution.contains("compiler.complete_package_components(builds)"));
-    for source in [execution, include_str!("package_compilation.rs")] {
+    for source in [
+        execution,
+        include_str!("package_compilation.rs"),
+        include_str!("build_execution/source_resolution.rs"),
+    ] {
         for forbidden in [
             "CheckedCompilation",
             "PreparedPackageBuild",

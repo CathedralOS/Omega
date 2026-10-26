@@ -62,9 +62,7 @@ impl CompletedPureBuildInputs {
         if artifact_only
             || !scope.required_outputs().is_empty()
             || snapshot.is_some_and(|snapshot| {
-                !snapshot.inputs().is_empty()
-                    || !snapshot.required_outputs().is_empty()
-                    || snapshot.dependency_inputs().next().is_some()
+                !snapshot.inputs().is_empty() || !snapshot.required_outputs().is_empty()
             })
         {
             return None;

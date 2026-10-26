@@ -84,7 +84,7 @@ fn complete_occurrence(
         )
     })?;
     let entry = request.root_path.clone();
-    let snapshot = request.build_snapshot.clone();
+    let snapshot = request.build.snapshot.clone();
     let pending = pending_builds
         .iter()
         .position(|pending| {
@@ -101,10 +101,8 @@ fn complete_occurrence(
     let build = match pending {
         Some(pending) => pending.build,
         None => {
-            request.build_dir = Some(completion.reserve_build_directory(session)?);
-            session
-                .compiler()
-                .prepare_package_build(request)
+            request.build.directory = Some(completion.reserve_build_directory(session)?);
+            crate::build_execution::execute_package_build(session.compiler(), request)
                 .map_err(|failure| completion.compilation_failure(failure))?
         }
     };

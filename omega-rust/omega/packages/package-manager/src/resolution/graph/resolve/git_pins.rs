@@ -20,6 +20,40 @@ pub(crate) struct GitResolutionOptions<'a> {
     pub offline: bool,
 }
 
+pub(crate) struct RecordedGitSource<'a> {
+    pub resolution: &'a ImmutableSourceResolution,
+    pub acquisition: GitExactRevisionAcquisition,
+}
+
+impl<'a> GitResolutionOptions<'a> {
+    /// Select accepted immutable objects, or permit ordinary selector resolution.
+    /// Both executed and transitional static acquisition consume this policy.
+    pub(crate) fn recorded(
+        &self,
+        request: &GitSourceRequest,
+    ) -> Result<Option<RecordedGitSource<'a>>, ResolvePackageSourceError> {
+        if let Some(policy) = &self.pins
+            && let Some(resolution) = policy.resolution(request)?
+        {
+            return Ok(Some(RecordedGitSource {
+                resolution,
+                acquisition: if self.offline {
+                    GitExactRevisionAcquisition::Offline
+                } else {
+                    policy.acquisition
+                },
+            }));
+        }
+        if self.offline {
+            return Err(pin_error(
+                request,
+                "offline resolution forbids new or refreshed Git selection; an unchanged recorded pin is required",
+            ));
+        }
+        Ok(None)
+    }
+}
+
 /// A borrowed resolution policy, not an acceptance or compiler-review result.
 ///
 /// Unchanged locator/revision requests retain their recorded commit and tree.
@@ -66,14 +100,10 @@ impl<'a> GitDependencyPins<'a> {
         self.accepted
     }
 
-    pub(super) fn acquisition(&self) -> GitExactRevisionAcquisition {
-        self.acquisition
-    }
-
-    pub(super) fn resolution(
+    fn resolution(
         &self,
         request: &GitSourceRequest,
-    ) -> Result<Option<&ImmutableSourceResolution>, ResolvePackageSourceError> {
+    ) -> Result<Option<&'a ImmutableSourceResolution>, ResolvePackageSourceError> {
         if self
             .updates
             .iter()

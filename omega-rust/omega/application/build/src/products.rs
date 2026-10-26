@@ -84,7 +84,7 @@ pub(crate) fn compile(
                         .then_some(profile.target_name());
                     let mut source =
                         compiler::CheckedCompileRequest::new(&request.root_path, target);
-                    source.build_dir = Some(directory.to_path_buf());
+                    source.build.directory = Some(directory.to_path_buf());
                     compiler::CompilationSession::default()
                         .produce(
                             source,

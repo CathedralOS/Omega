@@ -1102,6 +1102,96 @@ narrows realization only.
   `omega-rust/psi/compilation/driver/`,
   `omega-rust/omega/compilation/native-production/`, and workspace architecture
   gates (`tools/check_native_boundary.py` and `cargo metadata` guards).
+  Current migration frontier: authored Build prepares its own import closure
+  before Product imports, retaining the captured namespace and parse prefix for
+  a distinct post-join Product context. Application package compilation and review
+  now begin, step and complete opaque Build invocations without holding a compiler
+  session borrow; interleaved compilation preserves the paused activation. The
+  activation retains its full request ledger and completion checks its exact code
+  owner. Acquired unbound source can now run Build before package identity exists,
+  then join a matching named owner before Product typing. Normal return retains
+  the executed declaration; package management binds its name to captured source
+  lineage without a syntax projection or provisional key. The SDK runs a
+  helper-computed declaration through native and Terminal execution after live
+  source deletion, with an unselected missing dependency never requested.
+  Actual returned dependency requests now drive package management's retained
+  source traversal. The two-package SDK witness acquires and executes only the
+  selected local dependency, joins both captured source owners and completes
+  native/Terminal execution after live-source deletion without replay. Missing,
+  wrong-scope/ordinal/package selections, substituted graphs and repeated joins
+  reject; private dependency machines remain inaccessible. Captured dependency
+  bytes no longer imply root-only Build metadata authority. Reconciliation keeps
+  its scope/alias/cycle/limit checks; compiler completion refuses any unjoined
+  request. Project preparation now retains transaction recovery, lock selection
+  and concurrent-edit checks across application-owned source execution; its
+  begin/finish boundary accepts the actual acquired graph without parsing Build
+  declarations. Application source discovery now drives the executed traversal
+  through the same execution loop as compilation/review, retaining invocations
+  for final completion rather than replay. Repeated local requests reuse their
+  first acquired source and Build while every graph edge still reconciles. The
+  SDK proves two aliases share one dependency activation, including after its
+  live files are deleted, and runs the application route through native/Terminal
+  completion with private-call rejection. Discovery and production admission
+  now use one application-owned package session, compiler and aggregate sponsors;
+  source work cannot replenish a spent result allowance or start after closure.
+  The captured executed graph passes subsequent admission with the same sponsor
+  identity after live deletion. Completed Builds can select multiple targets
+  with equal source/semantic inputs, retaining the completed configuration and
+  each occurrence's execution observations. The SDK proves one Build and one
+  Product source completion produce two portable targets plus host native/Terminal
+  execution, isolating a missing-entry target refusal. Ordinary application
+  execution and focused review/preparation checks pass; transaction exclusion
+  and refusal ordering remain enforced. Production CLI discovery still consumes the
+  static graph; it must consume these retained Builds across review and target
+  occurrences. Final Product context now chooses its target at source join;
+  the SDK completes a foreign-target dependency graph after host discovery,
+  then selects and executes the host product. Pre-admitted targets remain fixed.
+  Execution-time profile, staging, snapshots/outputs, sponsors and grant guards
+  now travel as one owned `BuildExecutionInputs` from package admission through
+  the compiler facade into Build evaluation; repeated field-by-field forwarding
+  is removed and compilation defaults resolve in one place. The sliced generator
+  retains its refusing grant guard through normal return and releases it only
+  after settlement, before Product checking. Production admission still needs
+  the retained scheduling cutover: issue those inputs before Build, never drop
+  them while converting old occurrence requests to post-return Product work.
+  Terminal Build now executes captured Source reads,
+  private Output writes/sealing, required-output completion and generated-source
+  handoff through source-issued ordinary boundary calls. The generator SDK
+  retains exact bytes and six I/O observations across fuel pauses; forged facets,
+  unsealed outputs and pre-effect budget exhaustion refuse. Filesystem vocabulary
+  and output records no longer belong to the checked-tree interpreter, and
+  filesystem reach follows the exact protocol rather than helper-name guesses.
+  Anonymous source custody now survives frontend preparation into Build's
+  execution scope, without a provisional declaration owner or a second live
+  capture. The same generator executes after its live source files are deleted,
+  then joins its executed package declaration and checks Product source. Explicit
+  narrowing still excludes unselected members and refuses an omitted requested
+  root or Build import before effects; caller-required outputs remain mandatory
+  at settlement.
+  The application source-resolution route retains this generator through Product
+  completion without replay. Its single request now carries the root snapshot
+  before execution, preserving scoped source selection, named immutable inputs
+  and caller-required outputs. Missing slots and omitted outputs still refuse.
+  Dependency input assignment remains unimplemented: the removed edge-map carrier
+  had no writer or constructor input, so its routing and validation only ever
+  processed empty maps. Implement the specified pre-execution assignment and
+  shared-node conflict checks at actual dependency activation admission; never
+  inherit the root's slots. Required-output path byte results remain explicitly
+  refused.
+  Ordinary one-shot compiler calls still own their execution loop.
+  Root Git requests now use package-owned acquisition before executing their
+  declarations, retaining authenticated lineage/commit/tree rather than treating
+  snapshots as external-local packages. Acquisition policy belongs to its exact
+  originating project request; two aliases share the first Git source and Build.
+  The Git SDK executes native/Terminal exit 0 after moving the selector and
+  deleting the live project sources, with offline-unaccepted, foreign-policy and
+  private-call refusal controls. Executed and transitional static acquisition
+  now share the accepted-pin/offline selection rule. Complete accepted-lock
+  round-trip qualification, named workspace and Git-relative Path acquisition;
+  preserve
+  review/lock/offline recovery while replacing static Build projection,
+  provider readiness/resumption, and demanded Product-description queries; this
+  is not yet the completed production cutover.
   - **One Build evaluation and one Psi chain per compilation
     (BUILD-EVALUATES-ONCE, ONE-DRIVER-PER-STAGE):** `build.omg` evaluates once
     per compilation, observes no realized target, and produces checked rows for

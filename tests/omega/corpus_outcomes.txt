@@ -1777,8 +1777,8 @@ fail/build/acquired_generator_output_final_check_refused rejected 2342ms expecte
 	scalar constant `GENERATED` is invalid: const value `-1` does not fit `u32`
 fail/build/artifact_only_rollback_overlay_refused rejected 7040ms expected published:none @a92f16431042
 	artifact-only builds execute no product optimization stages to roll back
-fail/build/artifact_only_unsealed_output_refused rejected 576ms expected published:none @a92f16431042
-	required output `manifest.txt` of `build` failed: staged output never sealed
+fail/build/artifact_only_unsealed_output_refused rejected 145ms expected published:none @acc76df3c390
+	Terminal Build failed: required output `manifest.txt` of `build` failed: staged output never sealed at OperationId(54) in MachineId(12)/BlockId(33) at Some(OperationId(54))
 fail/build/authored_resolution_source_location rejected 22ms expected @a92f16431042
 	machine `selected` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
 fail/build/boundary_acceptance_fabricated_activation rejected 268ms expected @a92f16431042
@@ -1803,10 +1803,10 @@ fail/build/calling_policy_missing_target_member rejected 9834ms expected @a92f16
 	boundary trait `LocalEntry` cannot evaluate Calling<Policy>: calling policy realization `TargetPolicy::plan` has no body for target `linux_x86_64`
 fail/build/calling_policy_unproved_helper rejected 6162ms expected @a92f16431042
 	cannot prove requires contract for call bounded from LocalPolicy::plan: signature.parameter_count <= 1 (needs fact `value <= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `plan`
-fail/build/captured_named_input_missing_slot rejected 520ms expected published:none @a92f16431042
-	build-time evaluation of `build` failed: named build input `absent` is not assigned to this activation
-fail/build/captured_source_write_grant_refused rejected 3257ms expected published:none @a92f16431042
-	required output `admitted.txt` of `build` failed: captured source write grant denied
+fail/build/captured_named_input_missing_slot rejected 122ms expected published:none @4076567f6da1
+	Terminal Build failed: named build input `absent` is not assigned to this activation at OperationId(26) in MachineId(6)/BlockId(17) at Some(OperationId(26))
+fail/build/captured_source_write_grant_refused rejected 147ms expected published:none @acc76df3c390
+	Terminal Build failed: required output `admitted.txt` of `build` failed: captured source write grant denied at OperationId(59) in MachineId(11)/BlockId(55) at Some(OperationId(59))
 fail/build/component_assumption_malformed rejected 930ms expected @a92f16431042
 	component assumption acceptance takes one digest spelled as 64 hexadecimal characters
 fail/build/component_assumption_other_builder rejected 1718ms expected @a92f16431042
@@ -1843,8 +1843,8 @@ fail/build/generated_source_base_reference_refused rejected 8961ms expected publ
 	machine `Main::main` state `main` uses `ANSWER`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/build/generated_source_undeclared_call_refused rejected 2131ms expected published:none @a92f16431042
 	machine `generated_check` state `later`: value call `generated_missing(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
-fail/build/generated_source_unsealed_handoff_refused rejected 1285ms expected published:none @a92f16431042
-	build-time evaluation of `build` failed: filesystem staging sponsor rejected operation: staging entry is not sealed: output/generated.omg; partial non-admission filesystem evidence: 2 call(s), 0 evaluator-halted, 0 grant refusal(s), 1 logical-handle operand(s)
+fail/build/generated_source_unsealed_handoff_refused rejected 144ms expected published:none @acc76df3c390
+	Terminal Build failed: staging entry is not sealed: generated source still has a live writer or was never created at OperationId(31) in MachineId(7)/BlockId(23) at Some(OperationId(31))
 fail/build/generic_const_zero_context_requires_establishment rejected 1086ms expected @a92f16431042
 	entry machine `main` requests a provisioned `Context` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
 fail/build/generic_zero_context_requires_establishment rejected 633ms expected @a92f16431042
@@ -2002,6 +2002,10 @@ fail/build/static_service_exclusion_relayed rejected 3977ms expected @a92f164310
 	the selected composition retains service `Sink` through Terminal machine 5, reached through machine `Main::main` (Terminal machine 1) declared here
 fail/build/structural_equation_conflicting_argument rejected 108ms expected @a92f16431042
 	generic machine `capacity` where equation binds `Capacity` to 8 but its explicit argument is 7
+fail/build/terminal_build_forged_output rejected 86ms expected @acc76df3c390
+	Terminal Build failed: BuildOutput operation requires the original compiler-issued output facet at OperationId(18) in MachineId(4)/BlockId(10) at Some(OperationId(18))
+fail/build/terminal_build_forged_path rejected 86ms expected @acc76df3c390
+	Terminal Build failed: Build filesystem value was not issued by this activation at OperationId(10) in MachineId(2)/BlockId(5) at Some(OperationId(10))
 fail/build/uefi_context_cleanup_service_excluded rejected 30951ms expected @a92f16431042
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: service `CleanupAudit` is reachable in Terminal machine 6 at call to boundary `named-callable(path(CleanupAudit::finish),parameters(),result-dispatch())` (block 12, operation 17)

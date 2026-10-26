@@ -224,6 +224,17 @@ Target/Build companion inputs travel explicitly; consumers cannot reopen checked
 source. Matching compilation inputs may share work; host Build and product
 contexts are not interchangeable merely because source bytes match.
 
+An anonymous Build runs before its final source graph has a declaration owner.
+The Psi production request therefore distinguishes invocation-only code from
+portable publication, using the same stages, Terminal representation and
+interpreter. Invocation-local coordinates retain their live code owner; neither
+artifact encoding nor native production accepts that private product. Build
+companions require both exact code semantics and the same invocation owner.
+After the dependency join, package coordination must establish the final owner
+before Product resolution and typing, as required by
+[anonymous owner identity](../wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity).
+Retagging already-typed declarations or replaying Build is not that transition.
+
 ### Visible execution
 
 The Build entrance shows request admission, activation preparation, dependency
@@ -235,6 +246,15 @@ while Build runs; waiting resumes the same activation without replaying effects.
 Build return joins all requests before product completion. Product bindings are
 inert during Build. Generated source cannot change admitted authored meaning.
 Ordinary Build helpers need Psi execution, not native product compilation.
+
+Execution preparation and Product completion carry different inputs. Source
+inventories, named inputs, required outputs, resource sponsors and restricted
+grants must join the activation before its effects. A returned Build does not
+discharge a later execution request merely because its source graph matches.
+After return, the coordinator joins final source custody and chooses Product
+targets; it must not discard execution obligations while converting occurrence
+plans into retained Product work. Build's execution profile remains independent
+of those targets.
 
 Each compiler entrance shows named representations and actual stage calls in
 execution order. A separate `pipeline.rs` is justified only if it owns meaningful

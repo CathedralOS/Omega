@@ -17,6 +17,9 @@ use crate::resolution::source::PackageSourceCustody;
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Clone)]
 enum CustodyOrigin {
     Root,
@@ -70,6 +73,79 @@ where
         &DependencySourceRequest,
     ) -> Result<PackageSourceCustody, E>,
 {
+    let mut step = begin_source_closure(root_request, root, limits)?;
+    loop {
+        let request = match step {
+            SourceClosureStep::Complete(closure) => return Ok(closure),
+            SourceClosureStep::Request(request) => request,
+        };
+        let dependency = resolve_dependency(
+            request.requester(),
+            request.purpose(),
+            request.dependency_index(),
+            request.source(),
+        );
+        step = match dependency {
+            Ok(dependency) => request.complete(dependency)?,
+            Err(error) => return Err(request.fail(error)),
+        };
+    }
+}
+
+/// A request owns the traversal until its selected source has a declaration.
+/// Acquisition can therefore yield to application-owned Build execution without
+/// a compiler callback, a provisional key, or a second graph reconciliation.
+pub(crate) enum SourceClosureStep {
+    Request(PendingSourceResolution),
+    Complete(ResolvedPackageSourceClosure),
+}
+
+struct SourceClosureTraversal {
+    root_request: PackageRootSourceRequest,
+    root_key: PackageKey,
+    root_role: BuildDeclarationKind,
+    limits: PackageSourceClosureLimits,
+    accepted: BTreeMap<PackageKey, PackageSourceCustody>,
+    // Acquisition identity exists before the Build-produced package name.
+    // Executed-source adapters reuse their invocation's first capture; graph
+    // reconciliation still validates every alias, role, edge and cycle.
+    acquired: BTreeMap<package_source::SourceLineage, PackageSourceCustody>,
+    observed: BTreeMap<PackageKey, Vec<ObservedCustody>>,
+    dependencies: BTreeMap<PackageKey, Vec<ResolvedDependency>>,
+    depths: BTreeMap<PackageKey, usize>,
+    dependency_request_count: usize,
+    pending: VecDeque<PackageKey>,
+}
+
+struct SelectedDependency {
+    purpose: DependencyPurpose,
+    dependency_index: usize,
+    custody: PackageSourceCustody,
+    alias: AliasName,
+    depth: usize,
+}
+
+struct RequesterResolution {
+    traversal: SourceClosureTraversal,
+    requester: PackageSourceCustody,
+    depth: usize,
+    selected: Vec<SelectedDependency>,
+}
+
+/// The exact outstanding occurrence and its continuation. Consuming this value
+/// supplies one result or fails the traversal; observing a request cannot skip it.
+pub(crate) struct PendingSourceResolution {
+    owner: RequesterResolution,
+    purpose: DependencyPurpose,
+    dependency_index: usize,
+    dependency_depth: usize,
+}
+
+pub(crate) fn begin_source_closure<E>(
+    root_request: PackageRootSourceRequest,
+    root: PackageSourceCustody,
+    limits: PackageSourceClosureLimits,
+) -> Result<SourceClosureStep, PackageSourceClosureResolutionError<E>> {
     if limits.max_packages == 0 {
         return Err(PackageSourceClosureResolutionError::LimitExceeded {
             kind: PackageSourceClosureLimitKind::Packages,
@@ -78,88 +154,211 @@ where
     }
     let root_key = root.key().clone();
     let root_role = root.role();
-    let mut accepted = BTreeMap::<PackageKey, PackageSourceCustody>::new();
-    accepted.insert(root_key.clone(), root.clone());
-
-    let mut observed = BTreeMap::<PackageKey, Vec<ObservedCustody>>::new();
-    observed.insert(
+    let accepted = BTreeMap::from([(root_key.clone(), root.clone())]);
+    let acquired = BTreeMap::from([(root_key.source_lineage().clone(), root.clone())]);
+    let observed = BTreeMap::from([(
         root_key.clone(),
         vec![ObservedCustody {
             custody: root,
             origins: vec![CustodyOrigin::Root],
         }],
-    );
+    )]);
+    SourceClosureTraversal {
+        root_request,
+        root_key: root_key.clone(),
+        root_role,
+        limits,
+        accepted,
+        acquired,
+        observed,
+        dependencies: BTreeMap::new(),
+        depths: BTreeMap::from([(root_key.clone(), 0)]),
+        dependency_request_count: 0,
+        pending: VecDeque::from([root_key]),
+    }
+    .advance()
+}
 
-    let mut dependencies = BTreeMap::<PackageKey, Vec<ResolvedDependency>>::new();
-    let mut depths = BTreeMap::from([(root_key.clone(), 0usize)]);
-    let mut dependency_request_count = 0usize;
-    let mut pending = VecDeque::from([root_key.clone()]);
+impl PendingSourceResolution {
+    pub(crate) fn root_request(&self) -> &PackageRootSourceRequest {
+        &self.owner.traversal.root_request
+    }
 
-    while let Some(requester_key) = pending.pop_front() {
-        let requester = accepted
-            .get(&requester_key)
-            .expect("only accepted package custody enters the traversal queue")
-            .clone();
-        let requester_depth = depths[&requester_key];
+    pub(crate) fn acquired_source(
+        &self,
+        lineage: &package_source::SourceLineage,
+    ) -> Option<&PackageSourceCustody> {
+        self.owner.traversal.acquired.get(lineage)
+    }
 
-        // Acquisition retains each package's authored scopes. Activation
-        // scheduling and compilation authority are checked by their consumers.
-        let mut selected_dependencies =
-            Vec::with_capacity(requester.dependency_projections().authored_request_count());
+    pub(crate) const fn purpose(&self) -> DependencyPurpose {
+        self.purpose
+    }
 
-        for purpose in DependencyPurpose::ALL {
-            for (dependency_index, request) in
-                requester.dependency_requests(purpose).iter().enumerate()
-            {
-                dependency_request_count = dependency_request_count.saturating_add(1);
-                if dependency_request_count > limits.max_dependency_requests {
-                    return Err(PackageSourceClosureResolutionError::LimitExceeded {
-                        kind: PackageSourceClosureLimitKind::DependencyRequests,
-                        limit: limits.max_dependency_requests,
-                    });
-                }
-                let dependency_depth = requester_depth.saturating_add(1);
-                if dependency_depth > limits.max_depth {
-                    return Err(PackageSourceClosureResolutionError::LimitExceeded {
-                        kind: PackageSourceClosureLimitKind::Depth,
-                        limit: limits.max_depth,
-                    });
-                }
-                let dependency = resolve_dependency(&requester, purpose, dependency_index, request)
-                    .map_err(|error| PackageSourceClosureResolutionError::Adapter {
-                        requester: requester_key.clone(),
-                        purpose,
-                        dependency_index,
-                        request: request.clone(),
-                        error,
-                    })?;
-                if dependency.role() != BuildDeclarationKind::Package {
-                    return Err(PackageSourceClosureResolutionError::InvalidDependencyRole {
-                        requester: requester_key.clone(),
-                        purpose,
-                        dependency_index,
-                        selected: dependency.key().clone(),
-                        role: dependency.role(),
-                    });
-                }
-                let alias = request.resolved_alias(dependency.key().name());
-                selected_dependencies.push((
-                    purpose,
-                    dependency_index,
-                    dependency,
-                    alias,
-                    dependency_depth,
-                ));
-            }
+    pub(crate) const fn dependency_index(&self) -> usize {
+        self.dependency_index
+    }
+
+    pub(crate) fn requester(&self) -> &PackageSourceCustody {
+        &self.owner.requester
+    }
+
+    pub(crate) fn source(&self) -> &DependencySourceRequest {
+        &self.owner.requester.dependency_requests(self.purpose)[self.dependency_index]
+    }
+
+    pub(crate) fn fail<E>(self, error: E) -> PackageSourceClosureResolutionError<E> {
+        PackageSourceClosureResolutionError::Adapter {
+            requester: self.owner.requester.key().clone(),
+            purpose: self.purpose,
+            dependency_index: self.dependency_index,
+            request: self.source().clone(),
+            error,
         }
+    }
 
+    pub(crate) fn complete<E>(
+        mut self,
+        dependency: PackageSourceCustody,
+    ) -> Result<SourceClosureStep, PackageSourceClosureResolutionError<E>> {
+        if dependency.role() != BuildDeclarationKind::Package {
+            return Err(PackageSourceClosureResolutionError::InvalidDependencyRole {
+                requester: self.owner.requester.key().clone(),
+                purpose: self.purpose,
+                dependency_index: self.dependency_index,
+                selected: dependency.key().clone(),
+                role: dependency.role(),
+            });
+        }
+        let alias = self.source().resolved_alias(dependency.key().name());
+        self.owner
+            .traversal
+            .acquired
+            .entry(dependency.key().source_lineage().clone())
+            .or_insert_with(|| dependency.clone());
+        self.owner.selected.push(SelectedDependency {
+            purpose: self.purpose,
+            dependency_index: self.dependency_index,
+            custody: dependency,
+            alias,
+            depth: self.dependency_depth,
+        });
+        self.owner.advance()
+    }
+}
+
+impl SourceClosureTraversal {
+    fn advance<E>(mut self) -> Result<SourceClosureStep, PackageSourceClosureResolutionError<E>> {
+        while let Some(requester_key) = self.pending.pop_front() {
+            let requester = self.accepted[&requester_key].clone();
+            let depth = self.depths[&requester_key];
+            let count = requester.dependency_projections().authored_request_count();
+            let requester = RequesterResolution {
+                traversal: self,
+                requester,
+                depth,
+                selected: Vec::with_capacity(count),
+            };
+            if count != 0 {
+                return requester.advance();
+            }
+            // Empty rosters need no external work. Drain them iteratively;
+            // a wide frontier must not become a chain of recursive resumes.
+            self = requester.join()?;
+        }
+        self.finish().map(SourceClosureStep::Complete)
+    }
+
+    fn finish<E>(
+        self,
+    ) -> Result<ResolvedPackageSourceClosure, PackageSourceClosureResolutionError<E>> {
+        let conflicts = collect_conflicts(
+            &self.root_key,
+            &self.observed,
+            &self.dependencies,
+            &self.accepted,
+        );
+        if !conflicts.is_empty() {
+            return Err(PackageSourceClosureResolutionError::ConflictingCustody { conflicts });
+        }
+        let nodes = self
+            .accepted
+            .values()
+            .map(|custody| {
+                ResolvedPackageNode::new(
+                    ResolvedSourceIdentity::from_validated_parts(
+                        custody.key().clone(),
+                        custody.resolution().clone(),
+                    ),
+                    self.dependencies
+                        .get(custody.key())
+                        .cloned()
+                        .unwrap_or_default(),
+                )
+            })
+            .collect();
+        let graph = ResolvedPackageClosure::new(self.root_key, self.root_role, nodes)
+            .map_err(|errors| PackageSourceClosureResolutionError::InvalidClosure { errors })?;
+        let custodies: Vec<_> = self.accepted.into_values().collect();
+        let custody_indices = custodies
+            .iter()
+            .enumerate()
+            .map(|(position, custody)| (custody.key().clone(), position))
+            .collect();
+        Ok(ResolvedPackageSourceClosure {
+            root_request: self.root_request,
+            graph,
+            custodies,
+            custody_indices,
+        })
+    }
+}
+
+impl RequesterResolution {
+    fn advance<E>(mut self) -> Result<SourceClosureStep, PackageSourceClosureResolutionError<E>> {
+        let mut position = self.selected.len();
         for purpose in DependencyPurpose::ALL {
-            let selected_package_names = selected_dependencies
+            let count = self.requester.dependency_requests(purpose).len();
+            if position >= count {
+                position -= count;
+                continue;
+            }
+            self.traversal.dependency_request_count =
+                self.traversal.dependency_request_count.saturating_add(1);
+            let limits = self.traversal.limits;
+            if self.traversal.dependency_request_count > limits.max_dependency_requests {
+                return Err(PackageSourceClosureResolutionError::LimitExceeded {
+                    kind: PackageSourceClosureLimitKind::DependencyRequests,
+                    limit: limits.max_dependency_requests,
+                });
+            }
+            let dependency_depth = self.depth.saturating_add(1);
+            if dependency_depth > limits.max_depth {
+                return Err(PackageSourceClosureResolutionError::LimitExceeded {
+                    kind: PackageSourceClosureLimitKind::Depth,
+                    limit: limits.max_depth,
+                });
+            }
+            return Ok(SourceClosureStep::Request(PendingSourceResolution {
+                owner: self,
+                purpose,
+                dependency_index: position,
+                dependency_depth,
+            }));
+        }
+        self.join()?.advance()
+    }
+
+    fn join<E>(mut self) -> Result<SourceClosureTraversal, PackageSourceClosureResolutionError<E>> {
+        let requester_key = self.requester.key().clone();
+        for purpose in DependencyPurpose::ALL {
+            let selected_package_names = self
+                .selected
                 .iter()
-                .filter(|(edge_purpose, _, _, _, _)| *edge_purpose == purpose)
-                .map(|(_, _, dependency, _, _)| dependency.key().name().clone())
+                .filter(|dependency| dependency.purpose == purpose)
+                .map(|dependency| dependency.custody.key().name().clone())
                 .collect::<Vec<_>>();
-            requester
+            self.requester
                 .dependency_projections()
                 .validate_aliases(purpose, &selected_package_names)
                 .map_err(
@@ -170,87 +369,50 @@ where
                     },
                 )?;
         }
-
-        let mut resolved_dependencies = Vec::with_capacity(selected_dependencies.len());
-        for (purpose, dependency_index, dependency, alias, dependency_depth) in
-            selected_dependencies
-        {
-            let target = dependency.key().clone();
-            resolved_dependencies.push(ResolvedDependency::new(
-                purpose,
-                dependency_index,
-                alias.clone(),
+        let mut resolved = Vec::with_capacity(self.selected.len());
+        for selected in self.selected {
+            let target = selected.custody.key().clone();
+            resolved.push(ResolvedDependency::new(
+                selected.purpose,
+                selected.dependency_index,
+                selected.alias.clone(),
                 target.clone(),
             ));
-
             let origin = CustodyOrigin::Dependency {
                 requester: requester_key.clone(),
-                purpose,
-                dependency_index,
-                alias,
+                purpose: selected.purpose,
+                dependency_index: selected.dependency_index,
+                alias: selected.alias,
             };
-            let candidates = observed.entry(target.clone()).or_default();
+            let candidates = self.traversal.observed.entry(target.clone()).or_default();
             if let Some(candidate) = candidates
                 .iter_mut()
-                .find(|candidate| candidate.custody.semantically_equivalent(&dependency))
+                .find(|candidate| candidate.custody.semantically_equivalent(&selected.custody))
             {
                 candidate.origins.push(origin);
             } else {
                 candidates.push(ObservedCustody {
-                    custody: dependency.clone(),
+                    custody: selected.custody.clone(),
                     origins: vec![origin],
                 });
             }
-
-            if !accepted.contains_key(&target) {
-                if accepted.len() >= limits.max_packages {
+            if !self.traversal.accepted.contains_key(&target) {
+                if self.traversal.accepted.len() >= self.traversal.limits.max_packages {
                     return Err(PackageSourceClosureResolutionError::LimitExceeded {
                         kind: PackageSourceClosureLimitKind::Packages,
-                        limit: limits.max_packages,
+                        limit: self.traversal.limits.max_packages,
                     });
                 }
-                accepted.insert(target.clone(), dependency);
-                depths.insert(target.clone(), dependency_depth);
-                pending.push_back(target);
+                self.traversal
+                    .accepted
+                    .insert(target.clone(), selected.custody);
+                self.traversal.depths.insert(target.clone(), selected.depth);
+                self.traversal.pending.push_back(target);
             }
         }
-
-        dependencies.insert(requester_key, resolved_dependencies);
+        self.traversal.dependencies.insert(requester_key, resolved);
+        Ok(self.traversal)
     }
-
-    let conflicts = collect_conflicts(&root_key, &observed, &dependencies, &accepted);
-    if !conflicts.is_empty() {
-        return Err(PackageSourceClosureResolutionError::ConflictingCustody { conflicts });
-    }
-
-    let nodes = accepted
-        .values()
-        .map(|custody| {
-            ResolvedPackageNode::new(
-                ResolvedSourceIdentity::from_validated_parts(
-                    custody.key().clone(),
-                    custody.resolution().clone(),
-                ),
-                dependencies.get(custody.key()).cloned().unwrap_or_default(),
-            )
-        })
-        .collect();
-    let graph = ResolvedPackageClosure::new(root_key, root_role, nodes)
-        .map_err(|errors| PackageSourceClosureResolutionError::InvalidClosure { errors })?;
-
-    let custodies: Vec<_> = accepted.into_values().collect();
-    let custody_indices = custodies
-        .iter()
-        .enumerate()
-        .map(|(index, custody)| (custody.key().clone(), index))
-        .collect();
-
-    Ok(ResolvedPackageSourceClosure {
-        root_request,
-        graph,
-        custodies,
-        custody_indices,
-    })
 }
 
 fn collect_conflicts(

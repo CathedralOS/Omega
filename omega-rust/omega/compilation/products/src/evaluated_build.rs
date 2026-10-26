@@ -108,6 +108,11 @@ impl BuildConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComputedBuildConfig {
     pub config: BuildConfig,
+    /// Executed, source-issued choices remain inert until Product declarations
+    /// exist under their final owners. Build execution does not select Product
+    /// symbols from its private checking context.
+    pub root_binding_requests: Vec<language_semantics::declaration_selection::ExecutedRootBinding>,
+    pub project_declaration: Option<build_declarations::BuildDeclaration>,
     pub optimization_report_request: optimization_core::OptimizationReportRequest,
     pub evaluation_usage: Option<package_compilation::BuildEvaluationUsage>,
     pub observation_summary: Option<package_compilation::BuildObservationSummary>,
@@ -204,6 +209,19 @@ pub struct IndependentComponentDiscovery {
 }
 
 impl ComputedBuildConfig {
+    /// Keep the entire configuration produced by source completion, including
+    /// resolved binding identities. Only observations of the independently
+    /// admitted execution belong to the consuming occurrence. Replacing this
+    /// product with its earlier evaluated configuration would lose completed
+    /// source requirements whenever several targets share one source judgment.
+    pub fn with_execution_observation(&self, execution: &Self) -> Self {
+        let mut application = self.clone();
+        application.evaluation_usage = execution.evaluation_usage;
+        application.observation_summary = execution.observation_summary.clone();
+        application.optimization_report_request = execution.optimization_report_request.clone();
+        application
+    }
+
     pub fn observation_identity(&self) -> Option<package_compilation::BuildObservationIdentity> {
         self.observation_summary
             .as_ref()
