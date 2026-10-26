@@ -41,11 +41,16 @@ The acceptance traces these requirements:
 - Emission: matching PE/ELF/Mach-O execution must return the authored zero and
   agree with Terminal; each positive binds all four hosted targets.
 
-The local staged precursor passes checking but refuses native admission with
+The published-base checkpoint `c130b63b954` passes all nine source checks; its
+issuer-omission twins reject their missing default-domain return requirement.
+The local actual run refuses native admission with
 `cannot establish result provenance owned by another issuer; a checked provider
-must return the qualified value` under the recorded7942 producer. The current
-published-base baseline and remaining lowering/runtime failures will be recorded
-before compiler changes. This witness remains unfinished until those failures
+must return the qualified value` under the optimized producer based on `35b424c99c4`.
+The [raw host result](controls/raw_native_result/main.omg) and
+[checked-component laundering](controls/component_launders_raw_result/main.omg)
+controls both type-check but must reject native admission at
+`UncheckedFactory::make`: that real C leaf is not the existing issuer.
+Native, Terminal and matching-host execution remain to be repaired. This witness remains unfinished until those failures
 are repaired, applicable places and rejects are pinned, and matching-host
 execution and exact composition controls pass. Qualified input, multiplicity,
 carrier drift and retention regressions remain authoritative controls.
