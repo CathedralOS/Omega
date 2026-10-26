@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "exact_sub_guard_match_join_invalid");
-}

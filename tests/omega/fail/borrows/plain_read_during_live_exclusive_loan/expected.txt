@@ -1,4 +1,0 @@
-statement 3 reads `view[3]` while local borrow `middle` is still active
-statement 2 reads `items[2]` while local borrow `middle` is still active
-statement 2 reads `value` while local borrow `borrowed` is still active
-statement 2 reads `cell.value` while local borrow `selection` is still active

@@ -1,3 +1,0 @@
-public machine declared_value() -> i32 {
-    0
-}

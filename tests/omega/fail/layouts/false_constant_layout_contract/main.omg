@@ -1,4 +1,0 @@
-data Cell { code: u64; tag: u64; }
-const BYTES: u64 = size_of<Cell>();
-machine impossible() requires BYTES < align_of<Cell>() {}
-machine program() { impossible(); }

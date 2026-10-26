@@ -1,7 +1,0 @@
-// A runtime index does not allocate a nested inline fixed array.
-data Inner<Width: u64> { bytes: [u8; Width]; }
-data Outer<Width: u64> { inner: Inner<Width>; }
-machine escape(width: u64) -> Outer<width> {
-    Outer { Width: width, inner: Inner { Width: width } }
-}
-machine main() {}

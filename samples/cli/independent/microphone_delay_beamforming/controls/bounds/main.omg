@@ -1,5 +1,0 @@
-// Intended invalid: the second microphone has only eight recorded samples.
-data Main { microphones: [[i64; 8]; 3]; }
-machine Main::main(context: &mut Main) {
-    context.microphones[1][8] = 2;
-}

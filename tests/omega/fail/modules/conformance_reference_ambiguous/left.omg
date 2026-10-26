@@ -1,3 +1,0 @@
-module left;
-public data Reader {}
-public machine Reader::read() -> u64 { 11u64 }

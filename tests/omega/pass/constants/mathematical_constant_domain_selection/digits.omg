@@ -1,4 +1,0 @@
-module digits;
-public data Digit [copy] { value: i32; }
-public let is_digit(value: i32): core::Strict<0> = value >= 0 && value <= 9;
-public domain Digit::Decimal(digit) requires is_digit(digit.value);

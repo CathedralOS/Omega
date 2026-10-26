@@ -1,9 +1,0 @@
-domain i32::Selected(value) requires value == 0 || value == 38;
-machine copy(items: &[i32 in Selected]) -> i32 in Selected requires items.len > 1 { items[1] }
-machine main() crashes Trap {
- let mut items: [i32 in Selected; 3]; items[0]=0; items[1]=38; items[2]=0;
- let view: &[i32 in Selected] = &items[..];
- let chosen: i32 in Selected = copy(view); items[1]=0;
- transition chosen==38 && items[0]==0 && items[1]==0 && items[2]==0 { true -> done() _ -> bad() }
- state done() {} state bad() { crash Trap; }
-}

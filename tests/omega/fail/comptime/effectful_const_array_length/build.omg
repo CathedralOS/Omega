@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "effectful_const_array_length");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

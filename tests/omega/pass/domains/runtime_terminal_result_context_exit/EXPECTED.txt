@@ -1,1 +1,0 @@
-Frozen before execution: milliseconds 2500 convert to seconds 2.5, offset units 25; the unselected alternate yields 4 only when selected. Empty result context selects raw2500. Typed locals, implicit final calls, final match arms, named states, terminal transitions, fields and arguments agree. Native and captured Terminal must print the authored line and exit0.

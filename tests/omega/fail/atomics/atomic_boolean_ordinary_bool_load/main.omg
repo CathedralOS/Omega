@@ -1,6 +1,0 @@
-// An ordinary Boolean cell supplies no atomic observation authority.
-data Cell { value: bool; }
-machine main() {
-    let cell: Cell;
-    let observed: bool = cell.value.load(Receive);
-}

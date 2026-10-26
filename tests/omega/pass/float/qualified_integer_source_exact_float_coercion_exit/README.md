@@ -1,1 +1,0 @@
-An exact integer-to-float coercion consumes the already-evaluated integer policy result. The raw selected conversion carries no inherited integer result adapter; the authored cast owns its exact result. All three nested calls must execute once and return the expected finite payload.

@@ -1,3 +1,0 @@
-domain i64::Positive(value) requires value > 0 {}
-let positive_identity(value: i64 in Positive): i64 in Positive = value;
-let bad(): i64 in Positive = positive_identity(0);

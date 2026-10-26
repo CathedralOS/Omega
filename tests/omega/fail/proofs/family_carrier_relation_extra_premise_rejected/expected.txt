@@ -1,1 +1,0 @@
-realizes `Symmetric::symmetric` but requires `ordered`, which the requirement does not imply

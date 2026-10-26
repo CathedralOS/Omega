@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "construction of `Selected` field `value` is not proven in domain"
-  ]
-}

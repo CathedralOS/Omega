@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `invalid_output_fail` with 1 diagnostic(s)
-  error: required output `out.bin` of `build` failed: deliberate failure probe

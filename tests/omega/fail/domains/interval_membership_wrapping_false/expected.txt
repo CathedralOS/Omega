@@ -1,1 +1,0 @@
-cannot prove requires contract for call keep from main: 11 in u8::Small

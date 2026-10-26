@@ -1,3 +1,0 @@
-module settings;
-public data Value [copy] { value: u64; }
-public const VALUE: Value = Value { value: 1 };

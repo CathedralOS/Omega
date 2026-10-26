@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "private_array_extent");
-    Build::depend_as(builder, "values", Source::Path { location: "values" });
-}

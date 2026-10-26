@@ -1,8 +1,0 @@
-maze_flood: BFS shortest distances flooding a 5x5 maze (## = wall)
- 0  1  2  3  4  
-## ## ## ##  5  
-10  9  8  7  6  
-11 ## ## ## ##  
-12 13 14 15 16  
-PASS: distance map rendered, far corner is 16 away (exit 0)
-[press Enter to close]

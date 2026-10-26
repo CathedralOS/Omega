@@ -1,3 +1,0 @@
-module models;
-public data Token [copy] { value: u64; }
-public const COUNT: u64 = 4;

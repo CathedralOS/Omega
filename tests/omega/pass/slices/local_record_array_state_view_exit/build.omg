@@ -1,8 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "local_record_array_state_view_exit");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-}

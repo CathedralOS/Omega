@@ -1,9 +1,0 @@
-// Multiplication has the selected u8 Wrapping payload. At value 128, twice
-// that value is zero modulo 256, while returning value still produces 128.
-// Cancelling the noninvertible factor two would invent an integer equality.
-machine claimed_zero(value: u8 in Wrapping) -> u8 in Wrapping
-requires value * 2 == 0
-ensures result == 0 {
-    value
-}
-machine main() {}

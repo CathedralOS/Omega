@@ -1,2 +1,0 @@
-cannot prove published termination
-without a usable termination guarantee

@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "resident_content_mutation_transport");
-}

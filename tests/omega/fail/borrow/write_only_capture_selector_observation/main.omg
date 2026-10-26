@@ -1,6 +1,0 @@
-data Cell [copy] { value: u64; }
-machine replace(cell: &write Cell) { cell.value = 7; }
-machine select(cells: &write [Cell; 3]) {
-    let leaf: &write Cell = &write cells[cells[0].value];
-    replace(&write leaf);
-}

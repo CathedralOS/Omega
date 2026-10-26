@@ -1,1 +1,0 @@
-implementation `CounterResettable` has 2 rows named `reset` (`LeftReset::reset`, `RightReset::reset`)

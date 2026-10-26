@@ -1,7 +1,0 @@
-use kit::main;
-machine build(builder: &mut Build) {
-    Build::application(builder, "build_scope_deps");
-    builder.freestanding = true;
-    Build::build_depend_as(builder, "kit", Source::Path { location: "dep" });
-    let x: i32 = v();
-}

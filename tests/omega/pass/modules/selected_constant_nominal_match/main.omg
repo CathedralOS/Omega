@@ -1,4 +1,0 @@
-use foreign::SELECTED;
-data Token [copy] {value:u64;}
-const ALIAS:foreign::Token=match true {true->SELECTED,false->foreign::Token{value:7}};
-machine main(){}

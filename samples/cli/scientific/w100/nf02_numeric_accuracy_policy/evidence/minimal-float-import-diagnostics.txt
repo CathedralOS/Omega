@@ -1,1 +1,0 @@
-compiled 25 source file(s) from samples/cli/scientific/w100/nf02_numeric_accuracy_policy/evidence/import_float_providers.omg; wrote_output=false

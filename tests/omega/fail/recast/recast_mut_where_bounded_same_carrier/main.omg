@@ -1,5 +1,0 @@
-// Same-carrier identity cannot bypass the enclosing field's validity bound.
-data Main where byte >= 0 && byte <= 1 { byte: u8; }
-machine Main::main(main: &mut Main) {
-    let bits: &mut u8 = &mut main.byte as &mut u8;
-}

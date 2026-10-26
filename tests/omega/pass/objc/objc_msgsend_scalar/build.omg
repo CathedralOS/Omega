@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "objc_msgsend_scalar");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

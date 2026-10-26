@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "same_target_internal");
-    builder.freestanding = true;
-}

@@ -1,3 +1,0 @@
-data Choice [copy] { case Empty; case Selected(value: u64) where value <= 7; }
-const INVALID: Choice = Choice::Selected { value: 8 };
-machine main() -> u64 { 0 }

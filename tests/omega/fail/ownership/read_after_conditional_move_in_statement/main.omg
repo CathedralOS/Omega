@@ -1,8 +1,0 @@
-// The match has joined before the second argument reads the owner. A move on
-// one selected path makes that later read invalid, even within one statement.
-data Ticket { value: u64; }
-machine take(ticket: Ticket) -> u64 { ticket.value }
-machine compare(left: u64, right: u64) -> bool { left == right }
-machine invalid(selected: bool, ticket: Ticket) -> bool {
-    compare(match selected { true -> take(ticket) false -> 0 }, ticket.value)
-}

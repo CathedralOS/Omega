@@ -1,5 +1,0 @@
-data Counter<const Limit: u64> [copy] where value <= Limit { value: u64; }
-const VALID: Counter<7> = Counter { value: 7 };
-data Indexed<const Value: Counter<7> > [copy] { marker: u64; }
-data Main { indexed: Indexed<VALID>; }
-machine Main::main(main: &mut Main) {}

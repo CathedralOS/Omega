@@ -1,1 +1,0 @@
-infeasible witness bounds+edges=1110 count=0

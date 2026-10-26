@@ -1,1 +1,0 @@
-The selected source value has the right array and scalar carrier, but its element is 3. The receiving carrier requires elements[0] <= 2; an unused alias must prove that independent obligation before materialization.

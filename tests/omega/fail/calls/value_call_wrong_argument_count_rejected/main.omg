@@ -1,8 +1,0 @@
-// A value-position call (`let r = Main::pick(1)`) with the wrong number of
-// arguments used to compile silently -- only the statement-position path checked
-// arity, so a missing arg then read its ZII default at runtime. Now both paths
-// share the same arity check.
-use omega_language_std::console;
-data Main { }
-machine Main::pick(a: i32, b: i32) -> i32 { 42 }
-machine Main::main(main: &mut Main) { let r: i32 = Main::pick(1); Console::exit_process(r); }

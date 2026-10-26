@@ -1,4 +1,0 @@
-use kit::main as k;
-machine entry() -> i32 {
-    0
-}

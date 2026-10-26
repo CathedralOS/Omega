@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "inline_member_unedged_data_rejected");
-    Build::select_provider<Reading, ReadingProvider>(builder);
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-}

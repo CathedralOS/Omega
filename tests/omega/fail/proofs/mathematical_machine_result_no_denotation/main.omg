@@ -1,3 +1,0 @@
-data Packet [copy] { value: u8; }
-boundary operator requirement(value:u8)->Packet;
-let same_requirement(value:u8):core::Strict<0> = requirement(value)==requirement(value);

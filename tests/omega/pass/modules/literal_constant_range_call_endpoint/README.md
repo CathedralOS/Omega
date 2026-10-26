@@ -1,1 +1,0 @@
-Check a literal constant against its completed, exactly qualified machine-call contract endpoint, with same-named endpoints in the root and another module. Run `python3 tools/corpus_gate.py --filter literal_constant_range_call_endpoint`.

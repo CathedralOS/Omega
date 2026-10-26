@@ -1,1 +1,0 @@
-uses implementation `SelectedReading` as a stored/runtime type

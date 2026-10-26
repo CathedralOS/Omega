@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "runtime_index_recast");
-    builder.freestanding = true;
-}

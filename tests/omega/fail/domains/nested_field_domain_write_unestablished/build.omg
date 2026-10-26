@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "nested_field_domain_write_unestablished");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

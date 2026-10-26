@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "drop_owner_hooks");
-    builder.freestanding = true;
-}

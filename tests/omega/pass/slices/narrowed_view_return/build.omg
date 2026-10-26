@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "narrowed_view_return");
-    builder.freestanding = true;
-}

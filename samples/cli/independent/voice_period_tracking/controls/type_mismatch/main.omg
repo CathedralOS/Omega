@@ -1,6 +1,0 @@
-// Complete negative control: a Boolean is not an i32. This control has its own
-// freestanding build declaration; no provider is involved.
-data Main { period: i32; }
-machine Main::main(main: &mut Main) {
-    main.period = true;
-}

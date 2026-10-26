@@ -1,8 +1,0 @@
-// Full-width carrier fit does not prove the element's narrower declared range.
-data Bounded [copy] where value <= 9223372036854775808u64 {
-    value: u64;
-}
-
-machine bad(values: &mut [Bounded; 1]) {
-    values = [Bounded { value: 18446744073709551615u64 }];
-}

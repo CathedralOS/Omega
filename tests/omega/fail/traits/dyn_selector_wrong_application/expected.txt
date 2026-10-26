@@ -1,1 +1,0 @@
-`Primary` implements `Shape<Item>`, not `dyn Shape<Other>`

@@ -1,2 +1,0 @@
-cannot prove default-domain field requirement for return from bad
-requires [u8; N]::Ascii

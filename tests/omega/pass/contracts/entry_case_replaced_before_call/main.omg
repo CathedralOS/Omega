@@ -1,8 +1,0 @@
-// The original entry case may neither prove nor refute a later call after
-// an explicit replacement establishes a different current case.
-data Choice { case Cell(value: u32); case Empty; }
-machine require_empty(choice: &Choice) requires choice in Choice::Empty {}
-machine exercise(choice: &mut Choice) requires choice in Choice::Cell {
-    choice = Choice::Empty {};
-    require_empty(choice);
-}

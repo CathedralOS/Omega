@@ -1,3 +1,0 @@
-module scientific::baseline;
-use omega::language::core::float_operations;
-pub machine finite(value: f64) -> bool { F64::is_finite(value) }

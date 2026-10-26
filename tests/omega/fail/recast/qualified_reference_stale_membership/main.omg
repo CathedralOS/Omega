@@ -1,9 +1,0 @@
-data Ticket [copy] { number: u64; }
-domain Ticket::Issued(ticket) requires ticket.number != 0 established by issue;
-machine issue() -> Ticket in Ticket::Issued { Ticket { number: 17 } }
-machine clear(number: &mut u64) { number = 0; }
-machine main() {
-    let mut ticket: Ticket in Ticket::Issued = issue();
-    clear(&mut ticket.number);
-    let view: &Ticket in Ticket::Issued = (&ticket) as &Ticket in Ticket::Issued;
-}

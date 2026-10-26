@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "carrier_length_cross_carrier_store");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

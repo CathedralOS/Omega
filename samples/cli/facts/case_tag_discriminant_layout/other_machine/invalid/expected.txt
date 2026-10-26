@@ -1,1 +1,0 @@
-error: exact arithmetic in machine `inspect` state `do_match` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation).

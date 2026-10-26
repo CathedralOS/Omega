@@ -1,8 +1,0 @@
-data Cursor where position < 2 { position: u64; }
-machine extent(values: &[f64], stamp: u64) -> u64 ensures result == values.len { values.len }
-machine select(cursor: &mut Cursor) -> u64 { cursor.position = 1; 0 }
-machine first(views: &[&[f64]; 2]) -> f64 {
-    let mut cursor: Cursor = Cursor { position: 0 };
-    let count: u64 = extent(views[cursor.position],select(&mut cursor));
-    transition count > 0 { true -> (views[cursor.position][0]) false -> 0.0 }
-}

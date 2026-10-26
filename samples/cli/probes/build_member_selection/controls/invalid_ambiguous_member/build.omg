@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_ambiguous_member");
-    Build::depend_as(builder, "k1", Source::Path { location: "d1" });
-    Build::depend_as(builder, "k2", Source::Path { location: "d2" });
-    builder.freestanding = true;
-}

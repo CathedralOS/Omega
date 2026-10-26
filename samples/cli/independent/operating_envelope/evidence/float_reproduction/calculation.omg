@@ -1,7 +1,0 @@
-module calculation;
-use omega::language::core::float_operations;
-public machine sample() -> i32 {
-    let value: f64 = F64::from_i32(3);
-    let converted: i32 in Saturating = I32::from_f64(value);
-    converted as i32
-}

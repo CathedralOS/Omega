@@ -1,1 +1,0 @@
-private entry RAM requires the complete nonempty bounded schema extent

@@ -1,1 +1,0 @@
-cannot prove ensures contract for exit from produce_shifted at statement 0: result >= 120 && result <= 120

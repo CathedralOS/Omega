@@ -1,6 +1,0 @@
-data CombatRound {
-    player_damage: i32 in Wrapping;
-    enemy_damage: i32 in Wrapping;
-    enemy_defeated: bool;
-    player_defeated: bool;
-}

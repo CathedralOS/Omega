@@ -1,5 +1,0 @@
-data Packet [copy] { value: u8; }
-machine packet(value:u8)->Packet
-requires value>=10u8
-{ Packet { value: value } }
-let unproved_call(value:u8):core::Strict<0> = packet(value)==packet(value);

@@ -1,8 +1,0 @@
-data Ticket { value: u64; }
-machine issue() -> Ticket { Ticket { value: 73 } }
-machine forward(ticket: Ticket) -> Ticket { ticket }
-machine read(ticket: Ticket) -> u64 { ticket.value }
-machine invalid(choice: bool) -> bool {
-    let ticket: Ticket = issue();
-    choice && read(forward(ticket)) == 73 && ticket.value == 73
-}

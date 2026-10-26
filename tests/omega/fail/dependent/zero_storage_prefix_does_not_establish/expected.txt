@@ -1,1 +1,0 @@
-reading `pending.number` crosses an open default-domain invariant window

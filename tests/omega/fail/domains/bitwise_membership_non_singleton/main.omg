@@ -1,6 +1,0 @@
-// Both endpoints clear bit 1, but the interval contains 2 and 3.
-domain u32::Clear(value) requires (value & 2) == 0;
-machine accept(value: u32 in Clear) -> u32 { value as u32 }
-machine forward(value: u32) -> u32
-requires value < 4
-{ accept(value) }

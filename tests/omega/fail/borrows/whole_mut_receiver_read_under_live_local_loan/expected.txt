@@ -1,2 +1,0 @@
-state `peek_through` receives `main` while local borrow `other_view` is still active (borrowed at statement 0; its last use is at statement 2)
-state `peek_count` receives `main` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2)

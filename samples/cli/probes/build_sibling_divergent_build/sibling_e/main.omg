@@ -1,3 +1,0 @@
-public machine e_value() -> i64 {
-    5 as i64
-}

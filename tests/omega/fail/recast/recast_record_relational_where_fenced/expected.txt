@@ -1,1 +1,0 @@
-is not a scalar primitive or an eligible fixed aggregate

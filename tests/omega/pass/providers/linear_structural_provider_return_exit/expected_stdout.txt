@@ -1,4 +1,0 @@
-token=7
-fresh=9
-pair=45
-choices=06

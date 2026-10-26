@@ -1,1 +1,0 @@
-invalidated by prior mutation of storage.resident.value

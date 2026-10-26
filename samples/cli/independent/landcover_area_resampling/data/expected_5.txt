@@ -1,8 +1,0 @@
-LANDCOVER exact planar area; enter fixture 1..6 (7..9 invalid)
-CELL row col forest water urban nodata outside dominant (fractions of full cell)
-CELL 000 000 004/009 002/009 002/009 001/009 000/009 001
-CELL 000 001 000/009 002/009 000/009 001/009 006/009 002
-CELL 001 000 000/009 000/009 002/009 001/009 006/009 003
-CELL 001 001 000/009 000/009 000/009 001/009 008/009 000
-TOTAL forest water urban nodata outside area 004 004 004 004 020 036
-AUDIT PASS: class conservation and full-area closure; tolerance=0

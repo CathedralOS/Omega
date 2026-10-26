@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_unstaged_include");
-    Build::depend_as(builder, "kit", Source::Path { location: "dependency" });
-    builder.freestanding = true;
-}

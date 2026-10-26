@@ -1,1 +1,0 @@
-cannot resolve declared package closure: cannot resolve root package: cannot establish package declaration: build must declare exactly one kind; package, application, and workspace member declarations cannot be mixed

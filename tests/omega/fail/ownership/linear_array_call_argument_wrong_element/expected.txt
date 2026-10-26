@@ -1,1 +1,0 @@
-array literal element expects the `Receipt` data type but got `Other`

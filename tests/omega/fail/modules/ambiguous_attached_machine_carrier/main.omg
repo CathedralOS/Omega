@@ -1,4 +1,0 @@
-// A qualified descendant cannot disambiguate the carrier its head names.
-use first::Carrier;
-use second::Carrier;
-machine probe() -> u64 { Carrier::value() }

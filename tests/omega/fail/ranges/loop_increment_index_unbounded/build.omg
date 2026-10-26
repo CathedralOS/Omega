@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "loop_increment_index_unbounded");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

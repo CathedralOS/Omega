@@ -1,3 +1,0 @@
-domain [u8; 2]::Bytes;
-data Row { bytes: [u8; 2] in Bytes; }
-machine assign(row: &mut Row) { row.bytes = "a"; }

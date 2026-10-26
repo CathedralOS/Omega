@@ -1,9 +1,0 @@
-const Upper: u32 = 100;
-const Lower: u32 = 50;
-trait Bound<const Limit: u32> {
-    machine produce() -> u32 ensures result <= Limit;
-}
-machine wide() -> u32 satisfies Bound<Upper>::produce { 75 }
-// Owing Bound<100> does not establish the same declaration at Bound<50>.
-Narrow satisfies Bound<Lower> { Bound::produce = wide; }
-machine main() {}

@@ -1,2 +1,0 @@
-module right;
-public machine max(left: i32, right: i32) -> i32 { 7i32 }

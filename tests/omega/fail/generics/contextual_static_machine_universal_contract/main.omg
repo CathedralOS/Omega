@@ -1,7 +1,0 @@
-machine fixed(value: u64) -> bool { true }
-
-machine invoke<machine Routine>() -> bool
-where machine Routine<Context>(value: Context) -> bool;
-{ Routine<u64>(3u64) }
-
-machine main() { let result: bool = invoke<fixed>(); }

@@ -1,4 +1,0 @@
-PARETO|id|source|position|cost|days|gain|risk|status|certificate
-901|601|001|000|001|000|000|SELECTED|000
-902|602|002|010|002|000|000|DOMINATED|901
-END

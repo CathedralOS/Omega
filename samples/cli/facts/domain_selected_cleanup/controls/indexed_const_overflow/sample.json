@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "u64(18446744073709551616)",
-    "does not fit exact carrier `u64`"
-  ]
-}

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "declared_range_index_too_wide");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

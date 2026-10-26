@@ -1,9 +1,0 @@
-// N4 first slice, consumption twin: core Nat is proof-only (N1's
-// classification: recursive data has no layout). A record holding it cannot
-// be supplied as an explicit runtime parameter. Its namespace adds no storage.
-use omega::language::core::nat;
-use omega_language_std::console;
-data Main { n: Nat; }
-machine Main::main(main: &mut Main) {
-    Console::exit_process(0);
-}

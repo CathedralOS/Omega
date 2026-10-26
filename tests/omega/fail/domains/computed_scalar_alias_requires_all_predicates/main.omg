@@ -1,9 +1,0 @@
-// An alias's empty local fact list cannot waive its constituent predicates.
-domain i32::NotFive(value) requires value != 5;
-domain i32::BelowFive(value) requires value < 5;
-domain i32::Small = i32::NotFive & i32::BelowFive;
-
-machine main() {
-    let raw: i32 = 5;
-    let value: i32 = raw as i32 in Small;
-}

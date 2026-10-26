@@ -1,8 +1,0 @@
-// Core also declares f32 and f64 Float::equal. This i32 boundary is the
-// selected crashing equal; compare publishes Abort, so the Trap route
-// stays uncovered.
-boundary machine == Float::equal(left: i32, right: i32) -> bool crashes Trap;
-
-machine compare(left: i32, right: i32) -> bool crashes Abort {
-    left == right
-}

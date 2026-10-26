@@ -1,1 +1,0 @@
-cannot prove requires contract for call evaluate from main: values[3] == 0

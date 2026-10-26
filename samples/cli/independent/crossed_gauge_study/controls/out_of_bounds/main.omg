@@ -1,5 +1,0 @@
-// Intended rejection: index 8 is outside the eight-slot measurement extent.
-data Main { values: [i32; 8]; }
-machine Main::main(main: &mut Main) {
-    main.values[8] = 1;
-}

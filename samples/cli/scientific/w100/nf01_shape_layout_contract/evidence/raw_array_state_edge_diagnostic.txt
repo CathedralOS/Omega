@@ -1,3 +1,0 @@
-package candidate checking failed: checked compilation failed for package `nf01_readonly_consumer` with 1 diagnostic(s)
-  error: `Main::main` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: conditional successors: loan transfer)
-    source-unit 0, bytes 2181..2183

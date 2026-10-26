@@ -1,1 +1,0 @@
-cannot prove requires contract for call verify_quotient from divide_local: quotient >= 40 && quotient <= 40 (needs fact `quotient >= 40 && quotient <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

@@ -1,5 +1,0 @@
-data Receipt [linear] { code: u64; }
-data Envelope { receipt: Receipt; }
-machine main() {
-    let envelope: Envelope = Envelope { receipt: Receipt { code: 13 } };
-}

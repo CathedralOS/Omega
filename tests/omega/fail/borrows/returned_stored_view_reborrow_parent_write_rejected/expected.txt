@@ -1,1 +1,0 @@
-mutates `wrapper.bundle.windows[0][0]` while local borrow `selected` is still active

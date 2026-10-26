@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_identifier_charset");
-    builder.freestanding = true;
-    builder.identifier = "com.example.invalid_id";
-}

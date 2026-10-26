@@ -1,8 +1,0 @@
-use omega_language_std::math;
-
-machine evaluate(value: i32) -> i32 {
-    transition min_i32(max_i32(value, 0), 10) {
-        true -> (7)
-        _ -> (90)
-    }
-}

@@ -1,1 +1,0 @@
-machine build(builder: &mut Build) { Build::application(builder, "outcome_specific_nonmatching_scope"); builder.freestanding = true; }

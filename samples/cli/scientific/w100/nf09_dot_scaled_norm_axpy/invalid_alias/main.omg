@@ -1,8 +1,0 @@
-use numerics::linalg::dot_scaled_norm_axpy::try_axpy_f64;
-
-// Intended rejection: simultaneous shared/exclusive loans of one backing.
-// The permitted exact self-alias operation is try_axpy_self_f64.
-machine main() {
-    let mut values: [f64; 2] = [3.0, 4.0];
-    let accepted: bool = try_axpy_f64(2.0, &values[..], &mut values[..]);
-}

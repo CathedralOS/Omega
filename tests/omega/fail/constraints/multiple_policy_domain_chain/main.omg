@@ -1,5 +1,0 @@
-data Main {
-    value: i32 in Wrapping & Trapping;
-}
-
-machine Main::main() {}

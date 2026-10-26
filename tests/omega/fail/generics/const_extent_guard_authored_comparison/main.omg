@@ -1,5 +1,0 @@
-domain u64::Custom;
-machine > u64::Custom::always(left: u64 in Custom, right: u64) -> bool { true }
-machine first<const Count: u64 in Custom>(moments: &[i64 in Wrapping; Count]) -> i64 in Wrapping {
-    transition Count > 0 { true -> (moments[0]) _ -> (0) }
-}

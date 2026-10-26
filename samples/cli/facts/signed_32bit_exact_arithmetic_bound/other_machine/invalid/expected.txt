@@ -1,1 +1,0 @@
-cannot prove requires contract for call forward_sum from probe: sum >= 35 && sum <= 60

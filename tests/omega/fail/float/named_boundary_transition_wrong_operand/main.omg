@@ -1,2 +1,0 @@
-use omega::language::core::float_operations;
-machine main() -> f64 { transition { _ -> F64::from_i32(true) } }

@@ -1,7 +1,0 @@
-data Receipt [linear] { code: u64; }
-machine Receipt::drop(receipt: &mut Receipt) {}
-data Pair { first: Receipt; second: Receipt; }
-machine main() {
-    let receipt: Receipt = Receipt { code: 7 };
-    let pair: Pair = Pair { first: receipt, second: receipt };
-}

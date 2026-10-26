@@ -1,9 +1,0 @@
-// Choosing an application type cannot implement every independent invocation
-// result type. One binder cannot stand for both quantifiers.
-public trait Transform<Context> {
-    machine transform<Result>(context: Context) -> Result;
-}
-public data Reader {}
-boundary machine Reader::transform<Value>(context: Value) -> Value
-satisfies Transform<Value>::transform;
-machine main() {}

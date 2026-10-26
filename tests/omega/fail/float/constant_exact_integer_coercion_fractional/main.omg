@@ -1,4 +1,0 @@
-use omega::language::core::float_operations;
-
-const FRACTION: i32 = 3.75f64 as i32;
-machine read() -> i32 { FRACTION }

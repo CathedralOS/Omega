@@ -1,1 +1,0 @@
-declare `PointEquality satisfies Equatable<Point> { }` to synthesize structural equality

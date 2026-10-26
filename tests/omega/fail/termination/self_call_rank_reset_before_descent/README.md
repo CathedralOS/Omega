@@ -1,1 +1,0 @@
-The local hop increases the rank and the recursive call decreases it back to its original value. Each actual forms and stays in range, but the complete cycle makes no progress. A current-site strict comparison cannot close the self-call premise without nonincrease on its preceding internal arrival.

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "service_nonboundary_requirement_rejected");
-    Build::select_provider<Local, LocalProvider>(builder);
-}

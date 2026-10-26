@@ -1,9 +1,0 @@
-module first;
-use omega::language::core::layout;
-
-public data Registers {
-    status: u32;
-    transmit: u8;
-}
-
-public data RegPlacement {}

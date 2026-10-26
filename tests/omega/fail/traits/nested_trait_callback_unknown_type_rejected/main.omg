@@ -1,7 +1,0 @@
-trait Visitor<Value> {
-    machine visit<machine Callback>(value: &Value) -> bool
-    where machine Callback(value: &Missing) -> bool;
-    ;
-}
-
-machine main() {}

@@ -1,5 +1,0 @@
-domain i32::Selected(value) requires value == 1 || value == 38;
-machine main() {
-    let mut selected: i32 in Selected = 38;
-    selected = 2;
-}

@@ -1,1 +1,0 @@
-linux_arm64 machine main() { asm where clobbers x0, x1, x2, nzcv { mov w0, 2; subs w1, w0, 1 } }

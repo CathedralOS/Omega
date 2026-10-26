@@ -1,1 +1,0 @@
-`next` is an internal state of this machine and cannot be called; ordinary calls invoke machines, not states

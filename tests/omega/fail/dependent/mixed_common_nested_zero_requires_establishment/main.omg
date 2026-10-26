@@ -1,6 +1,0 @@
-// Omitting a common structural member must not establish its invalid zero.
-data Positive [copy] where value > 0 { value: i32; }
-data Event { common: Positive; case Empty; case Present(value: i32); }
-machine main() {
-    let event: Event = Event::Present { value: 7 };
-}

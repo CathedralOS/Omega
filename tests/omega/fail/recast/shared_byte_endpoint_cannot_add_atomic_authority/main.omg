@@ -1,4 +1,0 @@
-data Cell { value: AtomicU64; }
-machine main(bytes: &[u8]) requires bytes.len >= 8 {
-    let cell: &Cell = &bytes[0] as &Cell;
-}

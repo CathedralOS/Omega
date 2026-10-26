@@ -1,7 +1,0 @@
-// A member-only build declares an explicit workspace. A workspace is a
-// package-set listing, not a checkable package root — `--check` must
-// refuse it for want of a package or application declaration.
-
-machine build(builder: &mut Build) {
-    Build::member(builder, "dependency");
-}

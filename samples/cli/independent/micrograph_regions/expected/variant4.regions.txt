@@ -1,4 +1,0 @@
-regions 2
-label area centroid_x centroid_y min_x min_y max_x max_y
-1 8 4/8 18/8 0 0 2 4
-2 13 49/13 26/13 2 0 5 4

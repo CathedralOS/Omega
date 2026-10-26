@@ -1,3 +1,0 @@
-public machine flat() -> i32 {
-    1
-}

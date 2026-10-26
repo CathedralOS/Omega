@@ -1,3 +1,0 @@
-use omega::language::core::extent;
-machine forget(storage: Extent in Granted) -> Extent { storage }
-machine main() {}

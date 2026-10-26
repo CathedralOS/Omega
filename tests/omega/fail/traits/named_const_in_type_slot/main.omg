@@ -1,4 +1,0 @@
-const Upper: u32 = 100;
-trait Container<Value> {}
-Wrong satisfies Container<Upper> {}
-machine main() {}

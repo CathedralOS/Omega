@@ -1,6 +1,0 @@
-candidate 0 -1 residual2 0 0 0
-candidate -1 0 residual2 0 0 0
-candidate 1 0 residual2 0 0 0
-candidate 0 1 residual2 0 0 0
-count 4
-status degenerate

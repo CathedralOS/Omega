@@ -1,8 +1,0 @@
-// Intended-invalid: a convolution coefficient reads outside its proven span.
-machine convolution_sample(input: &[f64; 32], source: i32 in Wrapping) -> f64
-requires source >= 0 && source < 32
-{ input[source] }
-machine main() {
-    let input: [f64; 32];
-    let value: f64 = convolution_sample(&input, 32);
-}

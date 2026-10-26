@@ -1,2 +1,0 @@
-# Preserve the intentionally invalid CRLF input as exact bytes.
-data/crlf.stdin binary

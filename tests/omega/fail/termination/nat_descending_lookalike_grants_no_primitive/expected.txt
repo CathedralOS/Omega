@@ -1,1 +1,0 @@
-merely naming a declaration `Nat::Descending` grants no primitive

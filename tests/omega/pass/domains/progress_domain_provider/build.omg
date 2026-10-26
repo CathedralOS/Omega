@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "progress_domain_provider");
-    builder.freestanding = true;
-}

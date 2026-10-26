@@ -1,4 +1,0 @@
-data Cell { value: i64; }
-data Slot { value: &mut Cell; }
-machine set(value: &write i64) { value = 23; }
-machine replace(slot: &write Slot) { set(&write slot.value.value); }

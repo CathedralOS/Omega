@@ -1,8 +1,0 @@
-// `freestanding` does not forbid dependency edges: a freestanding
-// application may still depend on local sibling packages — freestanding
-// only opts out of lock/install context, not edge resolution.
-machine build(builder: &mut Build) {
-    Build::application(builder, "build_freestanding_depend");
-    Build::depend(builder, Source::Path { location: "dep" });
-    builder.freestanding = true;
-}

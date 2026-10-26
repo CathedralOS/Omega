@@ -1,3 +1,0 @@
-module first;
-public data Envelope<T [copy]> { value: T; }
-public machine Envelope::read<T [copy]>(envelope: &Envelope<T>) -> T { envelope.value }

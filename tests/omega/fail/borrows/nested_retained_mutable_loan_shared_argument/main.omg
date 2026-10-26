@@ -1,9 +1,0 @@
-data Counter {trace:u32 in Wrapping; calls:u32 in Wrapping;}
-machine hold(counter:&mut Counter)->&mut Counter {counter}
-machine observe_hold(held:&mut Counter,read:&Counter)->u32 in Wrapping {held.trace+read.trace}
-machine main() crashes Trap {
- let mut counter:Counter=Counter{trace:4,calls:0};
- let observed:u32 in Wrapping=observe_hold(hold(&mut counter),&counter);
- transition observed==8 {true->done() _->bad()}
- state done(){} state bad(){crash Trap;}
-}

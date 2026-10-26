@@ -1,4 +1,0 @@
-data Main { rows: [[i32; 2]; 2]; }
-machine Main::main(main: &mut Main) {
-    main.rows[2] = [main.rows[0][1], main.rows[0][0]];
-}

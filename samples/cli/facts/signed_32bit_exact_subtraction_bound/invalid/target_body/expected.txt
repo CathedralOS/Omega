@@ -1,1 +1,0 @@
-cannot prove requires contract for call verify_diff from compute_target_body: diff >= 40 && diff <= 100

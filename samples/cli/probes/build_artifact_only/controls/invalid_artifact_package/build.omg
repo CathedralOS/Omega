@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "invalid_artifact_package");
-    Build::artifact_only(builder);
-}

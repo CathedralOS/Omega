@@ -1,4 +1,0 @@
-// Package root for the paradigm-internals fixture: keeps the published
-// surface in its `paradigm` module, like the sibling fixture packages do.
-
-use paradigm;

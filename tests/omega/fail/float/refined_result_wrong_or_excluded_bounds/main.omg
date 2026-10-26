@@ -1,8 +1,0 @@
-use omega::language::core::float_operations;
-
-// The Exact conversions are legal. The independently demanded result bounds
-// are false; no receiving postcondition changes the source's value.
-machine sample() -> f64 ensures result == 3.0 { 3.0 }
-machine outside() -> i32 ensures result == 4 { sample() as i32 }
-machine float_outside() -> f32 ensures result == 4.0f32 { sample() as f32 }
-machine excluded() -> f32 ensures result >= 0.0f32 && result < 3.0f32 { sample() as f32 }

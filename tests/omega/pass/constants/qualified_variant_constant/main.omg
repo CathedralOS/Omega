@@ -1,5 +1,0 @@
-data Mode [copy] { case Idle; case Busy; }
-domain Mode::Known;
-const DEFAULT: Mode in Known = Mode::Idle;
-machine take(value: Mode in Known) {}
-machine main() { take(DEFAULT); }

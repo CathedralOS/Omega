@@ -1,8 +1,0 @@
-{
-  "reason": "Incoming compiler and shared statement changes require integration before final production capture; interrupted our own build group before any executable or qualification was published.",
-  "process_group": 35582,
-  "exit": 130,
-  "drained": true,
-  "original_candidate": "b68adcb4b9d4a1b5e9063c8643ba5890605f4876",
-  "next_candidate": "db1367c3d94414b765562f5f0db97304c1f7682e"
-}

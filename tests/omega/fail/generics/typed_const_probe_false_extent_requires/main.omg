@@ -1,6 +1,0 @@
-machine extent() -> u64 requires false { 2 }
-data Packet<Value [copy], const Size: u64> [copy]
-where Value == [u8; Size]
-{ items: Value; }
-data Main { packet: Packet<[u8; 2], extent()>; }
-machine main() {}

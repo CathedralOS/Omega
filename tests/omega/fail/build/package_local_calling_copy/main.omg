@@ -1,5 +1,0 @@
-use calling;
-
-machine main() {
-    let marker: u8 = 0;
-}

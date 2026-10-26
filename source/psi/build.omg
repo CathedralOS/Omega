@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "psi");
-    Build::depend(builder, Source::Path {
-        location: "../library/std"
-    });
-}

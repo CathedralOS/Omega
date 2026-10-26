@@ -1,3 +1,0 @@
-implicit domain weakening
-drops `IssuedIndex`
-only by an explicit `as`

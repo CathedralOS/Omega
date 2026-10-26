@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "pkga");
-    Build::depend_as(builder, "b", Source::Path { location: "../b" });
-}

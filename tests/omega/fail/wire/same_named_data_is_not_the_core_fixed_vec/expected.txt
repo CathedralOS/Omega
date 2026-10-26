@@ -1,1 +1,0 @@
-field `samples`: `FixedVec<i32, 4>` is not encodable by the compact_binary v0 encoder yet

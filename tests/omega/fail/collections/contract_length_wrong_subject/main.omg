@@ -1,2 +1,0 @@
-machine extent(values: &[f64]) -> u64 ensures result == values.len { values.len }
-machine first(left: &[f64], right: &[f64]) -> f64 { let count: u64 = extent(right); transition count > 0 { true -> (left[0]) false -> 0.0 } }

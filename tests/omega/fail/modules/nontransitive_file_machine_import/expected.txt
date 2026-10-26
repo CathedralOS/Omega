@@ -1,1 +1,0 @@
-call `seed` selects no declaration

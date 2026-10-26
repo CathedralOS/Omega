@@ -1,1 +1,0 @@
-receives `buffer` as both mutable and read-only

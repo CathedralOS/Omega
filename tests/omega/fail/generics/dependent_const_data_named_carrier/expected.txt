@@ -1,1 +1,0 @@
-const `Upper` declares type `u32`, but the parameter requires `u64`

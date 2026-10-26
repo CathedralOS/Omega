@@ -1,5 +1,0 @@
-machine main(){observe(7u64);}
-machine observe(raw:u64){
- let snapshot:u64=(raw >>64u32) ^ (raw >>64u32);
- asm {observed requires snapshot==0u64:nop}
-}

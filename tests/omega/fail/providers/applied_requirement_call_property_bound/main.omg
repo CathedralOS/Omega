@@ -1,6 +1,0 @@
-// A call-site application owes each type parameter's declared property.
-public boundary trait Parent<Value [copy]> { machine read() -> i32 reaches; }
-data Token { value: i32; }
-machine invalid() -> i32 reaches Parent {
-    Parent<Token>::read()
-}

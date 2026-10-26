@@ -1,5 +1,0 @@
-// Intended invalid: a concentration vector has exactly three entries.
-machine main() {
-    let values: [f64; 3] = [1.0, 0.0, 0.0];
-    let absent: f64 = values[3];
-}

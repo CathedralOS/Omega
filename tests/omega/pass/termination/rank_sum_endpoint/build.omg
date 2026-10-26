@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "rank_sum_endpoint");
-    builder.freestanding = true;
-}

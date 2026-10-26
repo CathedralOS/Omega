@@ -1,2 +1,0 @@
-requires builtin operator meaning
-an authored operator cannot redefine an instruction

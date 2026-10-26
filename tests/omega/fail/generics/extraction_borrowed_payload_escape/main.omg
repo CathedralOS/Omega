@@ -1,9 +1,0 @@
-data Extraction<Value> { case Moved(value: Value); }
-machine unpack<Value>(result: Extraction<Value>) -> Value {
-    transition result { Extraction::Moved { value } -> value }
-}
-machine leak() -> &u64 {
-    let backing: u64 = 41;
-    let result: Extraction<&u64> = Extraction::Moved { value: &backing };
-    unpack<&u64>(result)
-}

@@ -1,9 +1,0 @@
-use omega::language::core::activation;
-machine escape() -> ActivationClaim crashes Trap {
-    transition Activation::try_claim<8>(3) {
-        ActivationClaimAttempt::Established { claim } -> (claim)
-        ActivationClaimAttempt::Rejected -> bad()
-    }
-    state bad() -> ActivationClaim { crash Trap; }
-}
-machine main() crashes Trap { let claim: ActivationClaim = escape(); ActivationClaim::release(claim); }

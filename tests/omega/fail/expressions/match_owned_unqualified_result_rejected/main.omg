@@ -1,9 +1,0 @@
-// A match producing a qualified result must establish the qualification on
-// every arm; an unqualified arm rejects before the result type is trusted.
-domain u64::Marked;
-machine choose(flag: bool) -> u64 {
-    match flag {
-        true -> (4 as u64 in Marked) as u64,
-        _ -> 9 as u64 in Marked
-    }
-}

@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "module_operator_satisfier_signature_mismatch");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    Build::bind(builder, linux_x86_64::ProgramEntry, mismatch_probe::Main::main);
-}

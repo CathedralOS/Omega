@@ -1,2 +1,0 @@
-cannot use `schema.fields[0].key`
-after `schema` was transferred or consumed at statement 0

@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "allocation_adapter_control");
-    Build::accept_boundary<NativeBytes>(builder);
-    Build::select_provider<NativeBytes, LibSystemBytes>(builder);
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-}

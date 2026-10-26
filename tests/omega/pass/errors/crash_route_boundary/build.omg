@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "crash_route_boundary");
-    builder.freestanding = true;
-}

@@ -1,6 +1,0 @@
-// One incoming loan's qualification says nothing about the other referent.
-data Resource { identity: u64; }
-domain Resource::Open(resource) requires resource.identity != 0;
-machine inspect(left: &Resource in Open, right: &Resource, flag: bool) {
-    let selected: &Resource in Open = match flag { true -> left, false -> right };
-}

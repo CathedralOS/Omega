@@ -1,7 +1,0 @@
-// Expected exit: 0. Complete applied-callable contract custody regression.
-// Nat publishes CommutativeSemiring<Nat> law signatures. Their logical applied copies
-// must retain exact resultless-theorem owners even with Float::equal visible.
-use omega::language::core::nat;
-use omega::language::core::float_operations;
-
-machine main() { }

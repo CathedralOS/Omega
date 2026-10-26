@@ -1,1 +1,0 @@
-The selected helper publishes a Trap route and eagerly overflows an unused Trapping local. A normal-result equality used as both hypothesis and guarantee cannot establish crash-free denotational formation. The entry point leaves the helper unused; its contract must still be checked.

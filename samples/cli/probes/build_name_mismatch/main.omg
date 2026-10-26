@@ -1,5 +1,0 @@
-use depkit::main;
-
-machine entry() -> i32 {
-    value()
-}

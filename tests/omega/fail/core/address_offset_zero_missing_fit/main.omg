@@ -1,1 +1,0 @@
-machine offset(count: u64) -> addr { let zero: addr = 0; zero + count }

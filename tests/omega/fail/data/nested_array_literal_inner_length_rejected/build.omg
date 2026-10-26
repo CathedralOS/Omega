@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "nested_array_literal_inner_length_rejected");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

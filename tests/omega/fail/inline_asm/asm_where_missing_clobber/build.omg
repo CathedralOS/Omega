@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "asm_where_missing_clobber");
-    builder.subsystem = Subsystem::EfiApplication;
-    builder.freestanding = true;
-}

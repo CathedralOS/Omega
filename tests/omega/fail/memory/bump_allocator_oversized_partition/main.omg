@@ -1,7 +1,0 @@
-use omega::language::core::extent;
-use alloc::bump;
-// Partitioning itself requires sufficient concrete backing, independently of Bump.
-machine invalid(whole: Extent in Granted & Vacant) -> VacantExtentParts
-requires whole.length == 16
-{ split_vacant_extent(whole, 32) }
-machine main() {}

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "hold_state_call");
-    builder.freestanding = true;
-}

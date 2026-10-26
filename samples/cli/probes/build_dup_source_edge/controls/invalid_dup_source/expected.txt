@@ -1,1 +1,0 @@
-cannot resolve declared package closure: cannot resolve package closure: product dependencies of package `invalid_dup_source` have invalid aliases: dependency alias `same_kernel` conflicts between occurrences 0 and 1

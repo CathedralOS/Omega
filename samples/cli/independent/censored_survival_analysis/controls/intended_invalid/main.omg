@@ -1,6 +1,0 @@
-// Intended-invalid: neither negative, past-end nor unproved dynamic indexing
-// has the table bounds required by the source checker.
-use domain::table;
-machine negative(table: &Table) -> f64 { transition { _ -> (table.survival[-1]) } }
-machine past_end(table: &Table) -> f64 { transition { _ -> (table.survival[32]) } }
-machine unproved(table: &Table, index: i32 in Wrapping) -> f64 { transition { _ -> (table.survival[index]) } }

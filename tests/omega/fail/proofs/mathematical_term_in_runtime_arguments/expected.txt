@@ -1,1 +1,0 @@
-mathematical terms are proof-only and cannot be used as executable values or statements

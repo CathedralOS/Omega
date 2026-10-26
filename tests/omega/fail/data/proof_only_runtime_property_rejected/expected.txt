@@ -1,1 +1,0 @@
-declares runtime properties, but `Nat` is proof-only

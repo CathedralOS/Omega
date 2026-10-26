@@ -1,4 +1,0 @@
-// Refuse the authored extent obligation before execution.
-machine size(value: u64) -> u64 { value }
-data Bad<const R: u64> { bytes: [u8; size(R + false)]; }
-machine main() {}

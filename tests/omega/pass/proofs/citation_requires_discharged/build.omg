@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "citation_requires_discharged");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

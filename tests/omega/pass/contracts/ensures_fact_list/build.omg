@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "ensures_fact_list");
-    builder.freestanding = true;
-}

@@ -1,1 +1,0 @@
-`Wrapped::plus` binds the fixed operator token `+` already bound by `Wrapped::add`

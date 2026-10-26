@@ -1,9 +1,0 @@
-use omega::language::core::float_operations;
-data Main { value: f64; }
-machine Main::main(main: &mut Main) {
-    main.value = -1.0;
-    transition { _ -> bounded(main.value) }
-    state bounded(value: f64)
-    requires value == value && value >= 0.0 && value < 1000.0
-    { }
-}

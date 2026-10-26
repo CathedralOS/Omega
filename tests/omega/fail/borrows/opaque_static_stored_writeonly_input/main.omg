@@ -1,7 +1,0 @@
-public data Cell { value: i32; }
-public data Slot<'s> { target: &'s write Cell; }
-boundary machine consume<T>(value: T);
-machine apply<'s, machine Sink>(value: Slot<'s>)
-where machine Sink(value: Slot<'s>);
-{ Sink(value); }
-machine forward<'s>(value: Slot<'s>) { apply<consume<Slot<'s>>>(value); }

@@ -1,7 +1,0 @@
-use omega::language::core::extent;
-machine false_length(storage: Extent in Granted) -> Extent
-requires storage.length == 4096
-ensures result in Granted, result.length == 1 {
-    storage
-}
-machine main() {}

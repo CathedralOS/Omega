@@ -1,8 +1,0 @@
-use omega::language::core::float_operations;
-public data Observation [copy] { value: f64; }
-public trait Blocking { machine calculate(value: f64) -> f64 blocks; }
-Implementation satisfies Blocking { machine calculate(value: f64) -> f64 { value } }
-boundary machine wrap<Operations satisfies Blocking>(value: f64) -> Observation {
-    Observation { value: Blocking::calculate<Operations>(value) }
-}
-machine main() {}

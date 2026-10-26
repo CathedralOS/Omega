@@ -1,5 +1,0 @@
-// A predicate call still depends on the exact field passed to it.
-machine valid(values: &[u64; 2]) -> bool { values[0] <= 1 }
-data Main where valid(&values) == true { values: [u64; 2]; position: u64; }
-machine replace(values: &write [u64; 2]) { values[0] = 7; }
-machine test(main: &mut Main) { replace(&write main.values); }

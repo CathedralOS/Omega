@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "specialized_mixed_structural_fixed_operator_hosted_native");
-}

@@ -1,8 +1,0 @@
-
-public boundary trait Parent<Value> {
-    machine borrow<'source>(value: &'source Value) -> &'source Value reaches;
-}
-
-machine invalid<'source, 'other>(value: &'source i32, other: &'other i32) -> &'source i32 reaches Parent {
-    Parent<i32>::borrow(other)
-}

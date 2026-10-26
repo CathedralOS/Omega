@@ -1,2 +1,0 @@
-machine choose<'left, 'right>(first: &'left [u8], second: &'right [u8]) -> &[u8] { first }
-machine main() {}

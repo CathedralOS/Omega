@@ -1,1 +1,0 @@
-Exclusive reference results retain their caller storage through an ordinary wrapper, both guarded call arms, and mixed call/value arms. Each returned reference is read before the next loan; distinct caller values detect incorrect backing substitution. Both engines must exit zero.

@@ -1,3 +1,0 @@
-data Payload<T> { case Present(values: [T;3]); case Absent; }
-machine read<T>(payload: &Payload<T>) -> &[T] { &payload.values }
-machine main() { let payload: Payload<i32> = Payload::Absent; let values: &[i32] = read(&payload); }

@@ -1,1 +1,0 @@
-machine `Main::main` state `checked` declares result `named(name(i32))`, which differs from the machine's no result

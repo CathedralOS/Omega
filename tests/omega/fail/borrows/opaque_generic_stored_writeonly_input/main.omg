@@ -1,4 +1,0 @@
-public data Cell { value: i32; }
-public data Slot<'storage> { target: &'storage write Cell; }
-boundary machine consume<T>(value: T);
-machine forward<'storage>(value: Slot<'storage>) { consume<Slot<'storage>>(value); }

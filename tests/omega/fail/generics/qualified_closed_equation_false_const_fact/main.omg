@@ -1,8 +1,0 @@
-use models::COUNT;
-data Check<const Count: u64> [copy]
-where models::COUNT == 3
-{ value: u64; }
-data Main { check: Check<4>; }
-machine main() {
-    let check: Check<4> = Check { value: 19 };
-}

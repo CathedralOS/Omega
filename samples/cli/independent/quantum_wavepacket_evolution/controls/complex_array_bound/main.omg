@@ -1,3 +1,0 @@
-// Intended invalid: a complex amplitude vector has exactly 32 entries.
-data Complex [copy] { real: f64; imaginary: f64; }
-machine main() { let values: [Complex; 32]; let absent: Complex = values[32]; }

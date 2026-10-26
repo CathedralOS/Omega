@@ -1,5 +1,0 @@
-module values;
-
-public boundary trait Hidden { machine read() -> u64 reaches; }
-public HiddenMap satisfies Hidden { Hidden::read = hidden_provider_read; }
-public machine hidden_provider_read() -> u64 { 7 }

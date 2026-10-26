@@ -1,3 +1,0 @@
-machine view(bytes: &[u8]) {
-    let fixed: &[u8; 4] = bytes;
-}

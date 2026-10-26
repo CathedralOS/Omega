@@ -1,6 +1,0 @@
-use omega_language_std::windows_filesystem_host;
-use omega::language::core::filesystem_authority;
-machine inspect() -> i32
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation {
-    block WindowsFilesystemHost::hard_link("original", "alias")
-}

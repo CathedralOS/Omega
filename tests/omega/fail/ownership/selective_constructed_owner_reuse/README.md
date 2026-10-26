@@ -1,1 +1,0 @@
-A conditional move into a constructed call argument makes the original owner unavailable after the selection. Retained custody on the skipped runtime path authorizes its cleanup, not an unconditional later read. Check with `omega --check tests/omega/fail/ownership/selective_constructed_owner_reuse/main.omg`.

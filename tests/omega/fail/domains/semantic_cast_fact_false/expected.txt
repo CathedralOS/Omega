@@ -1,1 +1,0 @@
-predicate obligation is owed

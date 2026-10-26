@@ -1,1 +1,0 @@
-Build declaration operand does not resolve to one visible product declaration of the required kind

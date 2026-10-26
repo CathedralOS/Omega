@@ -1,7 +1,0 @@
-use omega::language::core::option;
-
-machine select<'input>(values: &'input [i32], position: u64) -> Optional<&'input i32> {
-    Optional::Some { value: &values[position] }
-}
-
-machine main() {}

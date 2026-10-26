@@ -1,9 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "unannotated_imported_boundary_call_through_field");
-    Build::depend_as(builder, "support", Source::Path { location: "support" });
-    Build::select_provider<support::Mark, MarkerMark>(builder);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-}

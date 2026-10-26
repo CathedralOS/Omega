@@ -1,5 +1,0 @@
-data Zero where value == 0 { value: u8; }
-machine invalid(value: u8) -> Zero requires value <= 100 {
-    Zero { value: (value * 2) % 0 }
-}
-machine main() {}

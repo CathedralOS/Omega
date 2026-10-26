@@ -1,1 +1,0 @@
-where equations bind `Capacity` to both 2 and 3

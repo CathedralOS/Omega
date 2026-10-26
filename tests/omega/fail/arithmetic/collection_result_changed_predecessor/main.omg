@@ -1,8 +1,0 @@
-machine rejected(values: &[u8], other: &[u8], choose: bool) -> u64
-ensures result <= values.len {
-    transition choose {
-        true -> finish(values)
-        _ -> finish(other)
-    }
-    state finish(selected: &[u8]) -> u64 { selected.len }
-}

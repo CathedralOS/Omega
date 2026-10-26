@@ -1,9 +1,0 @@
-// wav_output: the portable write-a-buffer-to-a-file boundary shared by the
-// audio samples.
-
-machine build(builder: &mut Build) {
-    Build::package(builder, "wav_output");
-    Build::depend(builder, Source::Path {
-        location: "../../../../source/library/std"
-    });
-}

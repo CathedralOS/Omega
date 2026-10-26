@@ -1,3 +1,0 @@
-module right;
-public data Reader {}
-public machine Reader::read() -> u64 { 37u64 }

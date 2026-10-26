@@ -1,1 +1,0 @@
-only the carrier's owning package may authorize the selection

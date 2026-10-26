@@ -1,3 +1,0 @@
-machine first() terminates; { transition { _ -> second() } }
-machine second() { transition { _ -> first() } }
-machine main() { first(); }

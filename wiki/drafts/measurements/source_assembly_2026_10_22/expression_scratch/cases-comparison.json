@@ -1,5 +1,0 @@
-{
-  "files": 15,
-  "exact_observations": true,
-  "oracle_note": "Python default JSON recursion limit raised to 30000 for the preserved 4096-prefix tree; first comparison attempt exceeded host decoder limit, not parser limit."
-}

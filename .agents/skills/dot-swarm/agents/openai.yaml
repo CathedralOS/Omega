@@ -1,4 +1,0 @@
-interface:
-  display_name: "dot swarm"
-  short_description: "Run Omega waves with native dot agents"
-  default_prompt: "Use $dot-swarm to coordinate a bounded Omega wave for the program or board scope I specify."

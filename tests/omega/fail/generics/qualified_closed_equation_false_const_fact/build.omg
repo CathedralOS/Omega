@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "qualified_closed_equation_false_const_fact");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-}

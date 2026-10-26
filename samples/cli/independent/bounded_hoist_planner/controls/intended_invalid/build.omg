@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "clearance_route_planner_invalid_bounds");
-}

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "gui_provider_substitution");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

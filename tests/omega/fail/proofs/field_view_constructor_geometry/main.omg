@@ -1,4 +1,0 @@
-use omega::language::core::slice;
-data View<'data> [copy] { samples: &'data [u8]; }
-machine read<'data>(view: View<'data>, index: u64) -> u8 requires index < view.samples.len { view.samples[index] }
-machine main() -> u8 { let values: [u8; 2] = [11, 14]; read(View { samples: &values[0..3] }, 0) }

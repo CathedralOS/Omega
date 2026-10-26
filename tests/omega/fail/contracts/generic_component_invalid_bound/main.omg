@@ -1,4 +1,0 @@
-data Bounded<const Limit: u64> [copy] where Limit >= 1, value < Limit { value: u64; }
-machine main() {
-    let invalid: Bounded<4> = Bounded { value: 4 };
-}

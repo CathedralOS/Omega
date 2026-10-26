@@ -1,4 +1,0 @@
-data Box where embed(amount) <= 100 {
-    embed: u64;
-    amount: u64;
-}

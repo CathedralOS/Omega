@@ -1,8 +1,0 @@
-// Explicit trait arguments determine the operand types, not the machine namespace.
-use omega::language::core::float_order;
-
-machine Wrong::before(left: f32, right: f32) -> bool
-satisfies Order<f64>::before
-{
-    false
-}

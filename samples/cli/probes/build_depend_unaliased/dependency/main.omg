@@ -1,3 +1,0 @@
-public machine seed() -> i32 {
-    3
-}

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "finite_requirement_const_outside_roster");
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-}

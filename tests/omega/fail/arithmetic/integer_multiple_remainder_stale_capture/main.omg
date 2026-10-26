@@ -1,8 +1,0 @@
-data Cell { count: u16; }
-data Even where value % 2 == 0 { value: u16; }
-machine invalid(cell: &mut Cell) -> Even requires cell.count < 4096 {
-    let doubled: u16 = cell.count * 2;
-    cell.count = doubled + 1;
-    Even { value: cell.count }
-}
-machine main() {}

@@ -1,1 +1,0 @@
-cannot prove requires contract for call narrow_u32_to_u16_exact from narrow: value <= 65535

@@ -1,0 +1,48 @@
+{
+  "source": "91838745b51bb7cae56a606372c70fa87b4d715d",
+  "known_published_base": "b56c80ce1cb2123210fa8f7a3a4289288c348e6f",
+  "bundle": "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/p26b/integrated-source-91838745b51bb7cae56a606372c70fa87b4d715d.bundle",
+  "sha256": "0149519ab1b6463c60a33c8b08013663d9c3278a20a68e875fecbd5d8ee2efa5",
+  "bytes": 99042,
+  "verification": [
+    {
+      "command": [
+        "git",
+        "-C",
+        "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/p26b/bundle-restore.git",
+        "bundle",
+        "verify",
+        "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/p26b/integrated-source-91838745b51bb7cae56a606372c70fa87b4d715d.bundle"
+      ],
+      "exit": 0,
+      "stdout": "The bundle contains this ref:\n91838745b51bb7cae56a606372c70fa87b4d715d HEAD\nThe bundle requires these 2 refs:\n16b381462327a3f7d1eb8c7218bdb81114a8a10a \nb56c80ce1cb2123210fa8f7a3a4289288c348e6f \nThe bundle uses this hash algorithm: sha1\n",
+      "stderr": "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/p26b/integrated-source-91838745b51bb7cae56a606372c70fa87b4d715d.bundle is okay\n"
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/p26b/bundle-restore.git",
+        "bundle",
+        "unbundle",
+        "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/p26b/integrated-source-91838745b51bb7cae56a606372c70fa87b4d715d.bundle"
+      ],
+      "exit": 0,
+      "stdout": "91838745b51bb7cae56a606372c70fa87b4d715d HEAD\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/p26b/bundle-restore.git",
+        "cat-file",
+        "-t",
+        "91838745b51bb7cae56a606372c70fa87b4d715d"
+      ],
+      "exit": 0,
+      "stdout": "commit\n",
+      "stderr": ""
+    }
+  ]
+}

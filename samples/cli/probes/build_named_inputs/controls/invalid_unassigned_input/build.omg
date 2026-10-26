@@ -1,9 +1,0 @@
-// `BuildInputs::get` returns a `BuildSource` facet rooted at the named
-// caller-provided slot. No caller assigned `toolchain-key` to this
-// activation, so the lookup must reject rather than fabricate a slot.
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_unassigned_input");
-    builder.freestanding = true;
-    let slot: BuildSource = BuildInputs::get(&builder.inputs, "toolchain-key");
-}

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "asm_port_io_service_required");
-    builder.freestanding = true;
-}

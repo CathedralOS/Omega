@@ -1,3 +1,0 @@
-domain u8::Clear(value) requires (value & 2u16) == 0;
-machine accept(value: u8 in Clear) -> u8 { value as u8 }
-machine main() -> u8 { accept(128) }

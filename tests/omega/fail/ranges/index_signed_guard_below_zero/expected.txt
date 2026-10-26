@@ -1,1 +1,0 @@
-cannot prove index `main.j` is non-negative

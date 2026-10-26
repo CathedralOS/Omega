@@ -1,4 +1,0 @@
-invariant window opened on `debt.cells[0]`
-invariant window opened on `stale.cells[0]`
-invariant window opened on `transport.cells[0]`
-reading `raw[0].value`

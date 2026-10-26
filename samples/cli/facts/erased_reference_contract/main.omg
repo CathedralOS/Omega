@@ -1,3 +1,0 @@
-// Expected exit: 0
-machine keep(witness [erased]: &i32) requires witness == 7 {}
-machine main() { let value: i32 = 7; keep(&value); }

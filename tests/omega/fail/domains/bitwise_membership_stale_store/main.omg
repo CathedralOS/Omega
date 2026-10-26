@@ -1,9 +1,0 @@
-domain u32::Clear(value) requires (value & 2) == 0;
-machine accept(value: u32 in Clear) -> u32 { value as u32 }
-data Options { flags: u32; }
-machine main() -> u32 {
-    let mut options: Options = Options { flags: 128 };
-    let before: u32 = accept(options.flags);
-    options.flags = 130;
-    accept(options.flags)
-}

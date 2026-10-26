@@ -1,2 +1,0 @@
-proposition ready(value: i32);
-machine main() { let observed: bool = ready(7); }

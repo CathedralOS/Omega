@@ -1,1 +1,0 @@
-cannot prove requires contract for call accept from Main::main: 1.5 >= 0.0 && 1.5 < 1.5

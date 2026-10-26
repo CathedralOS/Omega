@@ -1,6 +1,0 @@
-// Complete self-contained source control for the fixed-array bounds rule.
-// It has no package dependency; rejection cannot be confused with std review.
-public data InvalidProfile { heights: [u64; 4]; }
-public machine InvalidProfile::main(profile: &mut InvalidProfile) {
-    profile.heights[4] = 1;
-}

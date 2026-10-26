@@ -1,8 +1,0 @@
-machine middle(bytes: &[u8], start: u64, end: u64) -> &[u8]
-requires start < end && end <= bytes.len
-ensures result.len == end - start {
-    let mut window: &[u8] = bytes[start..end];
-    window = bytes[0..0];
-    window
-}
-machine main() {}

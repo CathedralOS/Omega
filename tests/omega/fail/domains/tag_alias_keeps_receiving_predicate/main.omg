@@ -1,5 +1,0 @@
-domain u32::Label;
-domain u32::Positive(value) requires value > 0;
-domain u32::LabelledPositive = Label & Positive;
-data Cell { value: u32 in LabelledPositive; }
-machine write(cell: &mut Cell) { cell.value = 0; }

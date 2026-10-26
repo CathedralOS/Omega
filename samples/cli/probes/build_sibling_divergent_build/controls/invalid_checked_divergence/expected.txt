@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `sibling_bad2` with 1 diagnostic(s)
-  error: machine `build` state `entry`: value call `ghost_machine(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.

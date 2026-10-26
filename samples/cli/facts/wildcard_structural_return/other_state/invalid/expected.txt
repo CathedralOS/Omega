@@ -1,1 +1,0 @@
-exact arithmetic in machine `consume` state `entry` return value may overflow `u64`

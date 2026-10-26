@@ -1,3 +1,0 @@
-// Complete intended-invalid source: an exact service quota cannot be negative.
-data ServiceQuota where count >= 0 { count: i32; }
-machine main() { let quota: ServiceQuota = ServiceQuota { count: -1 }; }

@@ -1,5 +1,0 @@
-data Bounded [copy] where value <= 7 { value: u64; }
-const VALID: Bounded = Bounded { value: 7 };
-data Indexed<const Value: Bounded> [copy] { marker: u64; }
-data Main { indexed: Indexed<VALID>; }
-machine Main::main(main: &mut Main) {}

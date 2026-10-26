@@ -1,1 +1,0 @@
-machine build(builder: &mut Build) { Build::application(builder,"runtime_borrowed_ingress_no_nominal_disposal_exit"); Build::select_provider<Console,ConsoleNativeProviderConsoleImplementation>(builder); Build::bind(builder,linux_x86_64::ProgramEntry,entry_start); }

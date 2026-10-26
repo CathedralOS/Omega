@@ -1,4 +1,0 @@
-// Const admission does not depend on calling a requirement.
-public boundary trait Parent<const Count: u8> { machine read() -> i32 reaches; }
-HolderMap satisfies Parent<bool> { Parent::read = holder_read; }
-machine holder_read() -> i32 { 0 }

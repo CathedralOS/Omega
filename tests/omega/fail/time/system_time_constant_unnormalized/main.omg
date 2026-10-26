@@ -1,4 +1,0 @@
-use omega_language_std::time;
-
-const INVALID: SystemTime = SystemTime { seconds_since_unix_epoch: 0, subsecond_nanoseconds: 1000000000 };
-machine main() {}

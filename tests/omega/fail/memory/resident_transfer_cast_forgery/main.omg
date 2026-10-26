@@ -1,8 +1,0 @@
-// An empty Resident theory still owes its exact declared content-transfer route.
-use omega::language::core::extent;
-data Payload [copy] { value: u64; }
-data Placement {}
-machine forge(storage: Extent) -> Extent in Resident<Placement, Payload> {
-    storage as Extent in Resident<Placement, Payload>
-}
-machine main() {}

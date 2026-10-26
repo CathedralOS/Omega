@@ -1,8 +1,0 @@
-// Dependency aliases must spell a snake_case Omega identifier:
-// `kit9` is legal; `KIT`, `kit-name`, `_kit`, `kit_`, `9lives`,
-// `ki t`, and the empty string all reject with one diagnostic.
-machine build(builder: &mut Build) {
-    Build::application(builder, "build_alias_vocabulary");
-    builder.freestanding = true;
-    Build::depend_as(builder, "kit9", Source::Path { location: "dep" });
-}

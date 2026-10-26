@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "private_generic_dependency");
-    Build::depend_as(builder, "leaf", Source::Path { location: "leaf" });
-}

@@ -1,9 +1,0 @@
-public data Distribution {
-    box: i32;
-    particles: i32 in Wrapping;
-    snapshots: i32 in Wrapping;
-    bins: i32 in Wrapping;
-    edges: [i32; 16];
-    coordinates: [i32; 768];
-    counts: [i32 in Wrapping; 16];
-}

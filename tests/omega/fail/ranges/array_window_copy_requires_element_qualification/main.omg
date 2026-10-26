@@ -1,8 +1,0 @@
-// Copying established elements cannot manufacture their destination bounds.
-data Bounded [copy] where value <= 2 {
-    value: u64;
-}
-
-machine bad(destination: &mut [Bounded; 2], source: [u64; 1]) {
-    destination[0..1] = source;
-}

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "wire_field_numbers");
-    builder.freestanding = true;
-}

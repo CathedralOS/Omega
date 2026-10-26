@@ -1,8 +1,0 @@
-// The implemented port write is byte-wide (`out dx, al`), so its value must
-// be an exact u8 place rather than a silently truncated u16.
-use omega::language::core::assembly;
-
-data Main { port: u16; value: u16; }
-machine Main::main(main: &mut Main) reaches PortIo {
-    asm { out main.port, main.value }
-}

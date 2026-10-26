@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `result_domain_conversion` with 1 diagnostic(s)
-  error: compiler library changed during compilation; run `omega update` for fresh review

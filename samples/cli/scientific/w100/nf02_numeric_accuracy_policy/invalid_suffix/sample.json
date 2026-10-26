@@ -1,4 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": ["literal `1.0` is suffixed `f64` but lands in a `f32` place"]
-}

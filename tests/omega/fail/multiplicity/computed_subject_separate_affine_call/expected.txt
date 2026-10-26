@@ -1,1 +1,0 @@
-after `choice` was transferred or consumed

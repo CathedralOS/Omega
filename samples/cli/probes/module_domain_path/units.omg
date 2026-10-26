@@ -1,9 +1,0 @@
-// Sibling file owning the carrier-qualified domain + operator
-// home. `use units;` in main.omg exposes `units::u64::Distance`
-// as a domain path.
-
-module units;
-
-public domain u64::Distance(value) requires value > 0;
-
-public operator + u64::Distance::add(left: u64 in u64::Distance, right: u64 in u64::Distance) -> u64 in u64::Distance;

@@ -1,3 +1,0 @@
-machine main() {
-    let values: [u32; 1] in Wrapping = [(1u32 as u32 in Saturating)];
-}

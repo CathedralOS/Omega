@@ -1,3 +1,0 @@
-cannot prove automatic cleanup requires
-Room::drop
-room.count == 10

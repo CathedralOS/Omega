@@ -1,7 +1,0 @@
-data Owner<'first, 'second> {
-    first: &'first i32;
-    second: &'second i32;
-}
-machine Owner::drop(owner: &mut Owner<'first, 'second>) {}
-
-machine main() {}

@@ -1,9 +1,0 @@
-const Count: u64 = 4;
-
-data Mode<const Count: u64> [copy] { value: u64; }
-
-machine capacity<Payload, const Count: u64>() -> u64
-where Payload == Mode<Count>
-{ Count }
-
-machine relay<const Count: u64>() -> u64 { capacity<Mode<Count>>() }

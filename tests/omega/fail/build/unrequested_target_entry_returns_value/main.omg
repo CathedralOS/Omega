@@ -1,5 +1,0 @@
-machine launch() {
-}
-machine foreign_launch() -> u8 {
-    0
-}

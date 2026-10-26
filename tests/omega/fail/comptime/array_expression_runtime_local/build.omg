@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "array_expression_runtime_local");
-}

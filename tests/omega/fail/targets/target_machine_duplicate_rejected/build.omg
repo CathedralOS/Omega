@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "target_machine_duplicate_rejected");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

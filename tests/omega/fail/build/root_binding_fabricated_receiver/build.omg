@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "root_binding_fabricated_receiver");
-    let mut other: Build = Build {};
-    Build::bind(&mut other, macos_arm64::ProgramEntry, main);
-}

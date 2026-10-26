@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "ordinary_exit_return_obligations");
-}

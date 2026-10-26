@@ -1,6 +1,0 @@
-machine code_layout() -> bool { true }
-machine main() crashes Trap {
- transition code_layout() { true -> done() _ -> bad() }
- state done() {}
- state bad() { crash Trap; }
-}

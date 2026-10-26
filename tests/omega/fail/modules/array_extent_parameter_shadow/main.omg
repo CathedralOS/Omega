@@ -1,6 +1,0 @@
-const Count: u64 = 8;
-machine extent(Count: u64) -> u64 {
-    let bytes: [u8; Count] = [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8];
-    bytes.len
-}
-machine main() { let result: u64 = extent(2); }

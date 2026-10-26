@@ -1,2 +1,0 @@
-machine produce<Length [copy], const Capacity: u64>(items: Length) -> Length where Length == [u8; Capacity] { items }
-machine main() { let items: [u8; 2] = produce([7, 11, 13]); }

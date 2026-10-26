@@ -1,1 +1,0 @@
-error: cannot prove requires contract for call consume from probe: diff >= 200 && diff <= 450 (needs fact `forwarded >= 200 && forwarded <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "nf01_invalid_control");
-    Build::depend(builder, Source::Path { location: "../../../../../../source/library/numerics" });
-}

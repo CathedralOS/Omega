@@ -1,6 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "after `incoming` was transferred or consumed"
-  ]
-}

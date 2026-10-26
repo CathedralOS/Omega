@@ -1,3 +1,0 @@
-public data Cell { value: i32; }
-public data Slot<'storage> { target: &'storage write Cell; }
-boundary machine consume<'storage>(value: Slot<'storage>);

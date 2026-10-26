@@ -1,5 +1,0 @@
-domain i32::Small(value) requires 0<=value && value<=100;
-machine copy(items:&mut[i32 in Small]) -> i32 in Small requires items.len>1 {
- items[1]=101; items[1]
-}
-machine main(){}

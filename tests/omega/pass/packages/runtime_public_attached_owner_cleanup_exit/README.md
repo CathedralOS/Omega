@@ -1,3 +1,0 @@
-A public nominal cleanup hook retains its owner-declared lifetime through ordinary callable policy projection and automatic-cleanup semantic identity. This separate variation publishes only Counter, AffineLeaf, and AffineLeaf::drop from the private cleanup customer; its program, cleanup observations, and exit oracles otherwise stay identical.
-
-Ordinary package update must admit this complete public surface before `omega run --both main.omg` establishes native and interpreter exit zero. The build binds all four hosted ProgramEntry targets. Source-only checking does not establish package admission.

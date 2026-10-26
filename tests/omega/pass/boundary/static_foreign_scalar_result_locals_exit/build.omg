@@ -1,8 +1,0 @@
-// Darwin-only canary: `macos_perf_counter` is a macos_arm64 foreign leaf, so
-// only that target selects the entry.
-machine build(builder: &mut Build) {
-    Build::application(builder, "static_foreign_scalar_result_locals_exit");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-}

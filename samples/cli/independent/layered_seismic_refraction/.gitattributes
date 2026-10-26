@@ -1,5 +1,0 @@
-# Raw acquisition bytes are part of the frozen oracle, including CRLF and EOF.
-*.stdin -text
-# The overlong-whitespace refusal fixture intentionally contains only spaces.
-data/long_input.stdin whitespace=-blank-at-eol,-blank-at-eof
-data/crlf.stdin whitespace=cr-at-eol

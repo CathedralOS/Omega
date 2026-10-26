@@ -1,7 +1,0 @@
-use omega::language::core::extent;
-
-machine geometry(base: addr, length: u64)
-requires no_wrap(base, length);
-{}
-
-machine main() {}

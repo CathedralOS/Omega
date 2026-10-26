@@ -1,1 +1,0 @@
-The range descriptor completes with endpoint 0. A later argument changes the endpoint to 1 before invocation, but cannot change that empty descriptor or prove the callee's nonempty requirement. The error must identify that Requires clause rather than another formation or ownership obligation.

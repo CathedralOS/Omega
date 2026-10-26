@@ -1,7 +1,0 @@
-use omega::language::core::float_operations;
-
-machine identity(value: f64) -> f64 { value }
-
-machine invalid(value: f64) {
-    let finite: f64 in Finite = identity(value) as f64;
-}

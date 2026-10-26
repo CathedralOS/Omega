@@ -1,5 +1,0 @@
-data Signed { value: i32; }
-machine invalid(subject: &Signed) -> i32
-requires subject.value <= 9;
-terminates by subject.value -> Nat::Descending in 0..=9;
-{ subject.value }

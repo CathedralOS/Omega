@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `nf02_invalid_suffix` with 1 diagnostic(s)
-  error: literal `1.0` is suffixed `f64` but lands in a `f32` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)

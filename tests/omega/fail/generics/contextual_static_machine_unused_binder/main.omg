@@ -1,8 +1,0 @@
-machine accepts<Kind, Unused>(value: Kind) -> bool { true }
-
-machine consumer<machine Routine>() -> bool
-where machine Routine<Context, machine Callback>(value: Context) -> bool
-where machine Callback(value: Context) -> bool;
-{ Routine<u64, accepts>(3u64) }
-
-machine main() {}

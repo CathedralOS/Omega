@@ -1,3 +1,0 @@
-data Counter<const Limit: u64> [copy] where value <= Limit { value: u64; }
-const INVALID: Counter<7> = Counter { value: 8 };
-machine main() -> u64 { 0 }

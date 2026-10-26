@@ -1,1 +1,0 @@
-expects the `Representative` data type but got `EquivalenceClass`

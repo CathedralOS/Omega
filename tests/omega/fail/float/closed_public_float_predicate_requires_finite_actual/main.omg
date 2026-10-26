@@ -1,8 +1,0 @@
-use omega::language::core::float_operations;
-
-machine finite_value(value: f32) -> f32
-requires F32::is_finite(value) { value }
-
-machine main() {
-    let result: f32 = finite_value(0.0f32 / 0.0f32);
-}

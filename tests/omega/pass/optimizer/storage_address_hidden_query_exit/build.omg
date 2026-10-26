@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
- Build::application(builder, "storage_address_motion");
- Build::bind(builder, linux_x86_64::ProgramEntry, main);
- Optimizations::enable(&mut builder.optimizations, Optimization::LoopInvariantScalarMotion);
-}

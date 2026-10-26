@@ -1,9 +1,0 @@
-machine read(values: &[u32], position: u64) -> u32
-requires position < values.len;
-{
-    values[position]
-}
-
-machine wrong(values: &[u32; 4]) -> u32 {
-    read(&values[1..=2], 2)
-}

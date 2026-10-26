@@ -1,7 +1,0 @@
-data Ticket { value: u64; }
-data First {}
-domain<P> Ticket::Issued<P>(ticket)
-requires ticket.value > 0
-established by issue;
-machine issue<P>() -> Ticket in Issued<P> { Ticket { value: 0 } }
-machine main() { let ticket: Ticket in Issued<First> = issue<First>(); }

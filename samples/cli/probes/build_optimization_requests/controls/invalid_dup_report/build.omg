@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_dup_report");
-    builder.freestanding = true;
-    Optimizations::emit_report(&mut builder.optimizations);
-    Optimizations::emit_report(&mut builder.optimizations);
-}

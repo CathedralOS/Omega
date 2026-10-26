@@ -1,3 +1,0 @@
-data Packet { byte: u8; }
-machine capacity<Length [copy], const Capacity: u64>(items: Length) -> u64 where Length == [Packet; Capacity] { Capacity }
-machine main() { let items: [Packet; 2] = [Packet { byte: 7 }, Packet { byte: 11 }]; let observed: u64 = capacity(items); }

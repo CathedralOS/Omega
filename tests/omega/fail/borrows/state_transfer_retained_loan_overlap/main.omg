@@ -1,7 +1,0 @@
-// Expected error: state `done` receives `control` as mutable more than once
-// A copied scalar may be staged; a second retained loan may not overlap.
-data Control { value: i32; }
-machine transfer(control: &mut Control) {
-    transition { _ -> done(control, control) }
-    state done(first: &mut Control, second: &mut Control) { first.value = 1; second.value = 2; }
-}

@@ -1,9 +1,0 @@
-use omega::language::core::float_operations;
-
-// A guarantee on the first input says nothing about the returned second one.
-machine source(known: f64, returned: f64) -> f64
-requires known == 3.75
-ensures known == 3.75
-{ returned }
-
-machine narrow() -> f32 { source(3.75, 0.1f64) as f32 }

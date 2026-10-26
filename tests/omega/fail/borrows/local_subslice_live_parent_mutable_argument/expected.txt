@@ -1,4 +1,0 @@
-state `zero` receives `view` while local borrow `middle` is still active
-state `swap_out` receives `view` while local borrow `middle` is still active
-state `both` receives `view` while local borrow `middle` is still active
-state `zero` receives `outer` while local borrow `inner` is still active

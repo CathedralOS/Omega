@@ -1,3 +1,0 @@
-use omega::language::core::float_operations;
-data Value { integer: i32; }
-machine main() -> f64 { let F64: Value = Value { integer: 1 }; transition { _ -> F64::from_i32(1) } }

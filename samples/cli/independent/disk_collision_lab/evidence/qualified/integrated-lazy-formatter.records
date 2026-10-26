@@ -1,3 +1,0 @@
-pass/arithmetic/runtime_fixed_integer_across_console_exit rejected 72861ms interpreter:unchecked
-	native artifact identity physical pipeline failed: common physical staging failed: RegisterAllocation(RuntimeSpill(Homes(UnresolvedEntryTransitions { function: 3, register: 25, count: 2 })))
-pass/float/runtime_shared_float_lazy_branch_exit built 67531ms exit:70 interpreter-exit:70 interpreter:agrees

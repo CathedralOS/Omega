@@ -1,3 +1,0 @@
-public machine u() -> i32 {
-    3
-}

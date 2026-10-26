@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "cross_enum_case_membership_rejected");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

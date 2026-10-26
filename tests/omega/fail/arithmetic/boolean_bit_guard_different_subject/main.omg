@@ -1,9 +1,0 @@
-machine bit(count: u32, other: u32) -> u64 {
-    let valid: bool = count < 64u32;
-    transition valid {
-        true -> calculate(other)
-        false -> empty()
-    }
-    state calculate(count: u32) -> u64 { 1u64 << count }
-    state empty() -> u64 { 0 }
-}

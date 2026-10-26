@@ -1,1 +1,0 @@
-Fixed integer operand occurrences must preserve the resident value through ordinary state control and Console calls. The complete source and analytic total are retained from the independently frozen IND08 witness. Expected stdout `112` (no newline) and exit 70 precede execution.

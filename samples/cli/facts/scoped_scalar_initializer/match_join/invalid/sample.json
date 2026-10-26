@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "cannot prove initializer of `value` in left is in domain `BelowIndex`"
-  ]
-}

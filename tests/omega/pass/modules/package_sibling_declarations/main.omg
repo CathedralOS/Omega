@@ -1,7 +1,0 @@
-// COMPILE-ONLY. A package's module-less files form one logical module: `b`
-// names `A` from its sibling `a` without an import, while each file's own
-// imports stay local to it.
-use m::a;
-use m::b;
-data Main {}
-machine Main::main() {}

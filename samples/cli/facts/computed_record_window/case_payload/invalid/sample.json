@@ -1,4 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": ["literal cannot prove the case constraint"]
-}

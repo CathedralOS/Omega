@@ -1,1 +1,0 @@
-Case dispatch transports signed i8, i16 and i32 payloads into an inline state guard. Negative values retain their sign before comparison; the accompanying u16 value 65535 retains its unsigned presentation. Both routes must exit 0. Expected values were frozen in the independent executable witness before its baseline run.

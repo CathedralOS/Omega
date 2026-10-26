@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "field_subject_arm_chain");
-    builder.freestanding = true;
-}

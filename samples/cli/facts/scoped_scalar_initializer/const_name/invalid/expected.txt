@@ -1,1 +1,0 @@
-cannot prove scalar result domain for return from @const-qualification-SCALAR-0 at statement 0: BelowIndex

@@ -1,3 +1,0 @@
-public machine dir() -> i32 {
-    2
-}

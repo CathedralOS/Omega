@@ -1,2 +1,0 @@
-ensures contract proof fact
-on the transition arm guarded by `n > 0 == false`

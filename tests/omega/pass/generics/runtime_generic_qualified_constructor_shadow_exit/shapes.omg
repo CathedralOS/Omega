@@ -1,2 +1,0 @@
-module shapes;
-data Box<Value [copy]> [copy] { value: Value; }

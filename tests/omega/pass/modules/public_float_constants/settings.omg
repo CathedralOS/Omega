@@ -1,6 +1,0 @@
-module settings;
-
-public const SCALE: f32 = 1.5;
-public const WIDE: f64 = 1.5;
-public const POSITIVE_INFINITY: f32 = 1e40;
-public const NEGATIVE_INFINITY: f64 = -1e9999;

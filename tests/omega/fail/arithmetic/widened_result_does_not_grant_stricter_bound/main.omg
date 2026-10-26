@@ -1,7 +1,0 @@
-use omega::language::core::numeric_conversion;
-
-machine consume(value: u16) requires value <= 254 {}
-machine widen_and_consume(value: u8) {
-    consume(widen_u8_to_u16(value));
-}
-machine main() {}

@@ -1,6 +1,0 @@
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "provider_receiver_progress_installation");
-    Build::select_provider<Scheduler, SchedulerProvider>(builder);
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-}

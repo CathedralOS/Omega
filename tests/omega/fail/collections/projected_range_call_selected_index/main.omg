@@ -1,7 +1,0 @@
-machine consume(values: &[u32]) {}
-
-machine invalid(matrix: &[[u32; 3]; 2]) {
-    consume(matrix[2][0..1]);
-}
-
-machine main() {}

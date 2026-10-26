@@ -1,5 +1,0 @@
-data Distribution { snapshots: i32 in Wrapping; particles: i32 in Wrapping; coordinates: [i32; 768]; }
-machine invalid() -> i32 {
-    let distribution: Distribution;
-    distribution.coordinates[3 * distribution.snapshots * distribution.particles]
-}

@@ -1,9 +1,0 @@
-// `Source::Path` locations resolve against the filesystem — both
-// absolute paths and `..` traversal into a sibling sample's dep
-// directory are legal local sources.
-machine build(builder: &mut Build) {
-    Build::application(builder, "build_path_edges");
-    builder.freestanding = true;
-    Build::depend_as(builder, "inside", Source::Path { location: "dep_inside" });
-    Build::depend_as(builder, "escape", Source::Path { location: "../build_dep_diamond/dep_c" });
-}

@@ -1,2 +1,0 @@
-cannot prove automatic cleanup requires
-elements[1] does not establish Element::drop

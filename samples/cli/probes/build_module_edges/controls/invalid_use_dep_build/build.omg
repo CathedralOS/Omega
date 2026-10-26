@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_use_dep_build");
-    builder.freestanding = true;
-    Build::depend_as(builder, "kit", Source::Path { location: "dep" });
-}

@@ -1,2 +1,0 @@
-checked compilation failed for package `invalid_use_wildcard`
-main.omg:1:10: expected identifier, found punctuation `*`

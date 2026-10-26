@@ -1,5 +1,0 @@
-// `crash Trap;` is an explicit unrecoverable, unwind-free terminal outcome.
-
-machine main() {
-    crash Trap;
-}

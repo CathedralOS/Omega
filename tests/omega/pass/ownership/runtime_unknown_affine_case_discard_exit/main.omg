@@ -1,7 +1,0 @@
-data Item { value: u32; }
-data Slot { case Empty; case Held(item: Item); }
-machine forget(value: Slot) {}
-machine main() {
-    forget(Slot::Empty);
-    forget(Slot::Held { item: Item { value: 70 } });
-}

@@ -1,5 +1,0 @@
-use omega::language::core::atomic;
-machine wrong() -> FenceOrdering ensures result in FenceOrdering::Publish {
-    FenceOrdering::Receive
-}
-machine main() { Atomic::fence(wrong()); }

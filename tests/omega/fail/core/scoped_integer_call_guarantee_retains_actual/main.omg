@@ -1,5 +1,0 @@
-machine identity(value: i16) -> i16 ensures result == value { value }
-machine caller(value: i16) -> i16
-requires value >= -100i16 && value <= 100i16
-ensures (identity(value + 1i16) as i16 in Saturating) == result { value }
-machine main() {}

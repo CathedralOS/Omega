@@ -1,3 +1,0 @@
-A transition subject retains its completed scalar value before a later sibling mutates the source. The first subject observes values[0] as 11; the second replaces it with 22. Both native and Terminal execution must exit 0, with all four hosted ProgramEntry bindings. Reading the updated source instead exits 71.
-
-The source and exit oracle preserve the frozen scalar-value-before-later-write witness. Only its Build dependency uses the ordinary relative SDK path. The existing noncopy subject and selected-extent rejects remain separate access and geometry obligations; copying a scalar grants no mutation or disposal authority for an owned noncopy subject.

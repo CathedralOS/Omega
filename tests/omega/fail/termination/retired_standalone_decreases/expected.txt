@@ -1,1 +1,0 @@
-standalone `decreases` clause is retired

@@ -1,5 +1,0 @@
-machine scan() -> bool {
-    transition { _ -> block done() }
-    state done() -> bool { true }
-}
-machine main() -> bool { scan() }

@@ -1,7 +1,0 @@
-step healthy degraded failed survival denominator
-0 0 1 0 1 1
-1 0 2 2 2 4
-2 0 4 12 4 16
-3 0 8 56 8 64
-4 0 16 240 16 256
-expected_min_lifetime 480 256

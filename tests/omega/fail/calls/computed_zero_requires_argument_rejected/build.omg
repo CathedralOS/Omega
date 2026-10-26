@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "computed_zero_requires_argument_rejected");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

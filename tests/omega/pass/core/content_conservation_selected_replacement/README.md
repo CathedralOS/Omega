@@ -1,1 +1,0 @@
-A selected result is consumed through both projected children, then its empty home receives a second selected result and later a third. Each replacement retains the actual new claims and content qualifications; both branch choices execute. Native and Terminal must exit 70.

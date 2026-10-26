@@ -1,7 +1,0 @@
-// Refuse the authored extent obligation before execution.
-use omega::language::core::float_operations;
-data Matrix<const Rows: u64, const Columns: u64> [copy]
-where Rows >= 1 && Rows <= 4 && Columns >= 1 && Columns <= 4 {
-    values: [f64; Rows * Columns];
-}
-machine main() { let left: Matrix<2,4>; let right: Matrix<4,2> = left; }

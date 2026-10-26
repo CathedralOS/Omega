@@ -1,4 +1,0 @@
-boundary machine + Integer::replace(left: u32, right: u32) -> u32;
-domain u32::Clear(value)
-    requires ((value + 0) & 2) == 0;
-machine main() -> u32 in Clear { 0 as u32 in Clear }

@@ -1,9 +1,0 @@
-domain<Outer, Inner> u64::Pair<Outer, Inner>;
-boundary trait Identity<Value> {
-    machine paired<Element>(value: u64 in Pair<Value, Element>) -> u64 in Pair<Value, Element> reaches;
-}
-machine wrong<Outer, Left, Right>(value: u64 in Pair<Outer, Right>) -> u64 in Pair<Outer, Left>
-reaches Identity
-{
-    Identity<Outer>::paired<Left>(Identity<Outer>::paired<Right>(value))
-}

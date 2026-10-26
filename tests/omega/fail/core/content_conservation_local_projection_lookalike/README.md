@@ -1,1 +1,0 @@
-Ordinary locally declared Content and CountedQuantity types do not acquire compiler-owned content semantics from their names. A conservation contract must call the exact owner projection admitted under canonical core Content.

@@ -1,2 +1,0 @@
-public let value_ok(value: f32): core::Strict<0> = true;
-machine main() requires value_ok(0.0f64) {}

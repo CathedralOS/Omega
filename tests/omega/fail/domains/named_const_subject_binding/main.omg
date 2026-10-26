@@ -1,6 +1,0 @@
-// A same-named outer constant cannot discharge a false subject predicate.
-const value: u64 = 1;
-domain u64::Below(value) requires value < 5;
-domain u64::Below::Inherited;
-const INVALID: u64 in Below::Inherited = 9;
-machine check() {}

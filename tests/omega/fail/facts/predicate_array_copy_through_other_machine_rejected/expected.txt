@@ -1,1 +1,0 @@
-cannot prove requires contract for call qualify from main: values[3] == 0

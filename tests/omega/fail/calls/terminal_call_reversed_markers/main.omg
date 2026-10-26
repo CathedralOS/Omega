@@ -1,4 +1,0 @@
-machine park() -> bool suspends; blocks; { true }
-machine main() suspends; blocks; {
-    transition { _ -> block suspend park() }
-}

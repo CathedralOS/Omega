@@ -1,0 +1,58 @@
+{
+  "candidate": "45654cb29dff7f40e24026e46610ed65c762ca3c",
+  "initial_base": "16b381462327a3f7d1eb8c7218bdb81114a8a10a",
+  "integrated_main": "b56c80ce1cb2123210fa8f7a3a4289288c348e6f",
+  "producer": "91838745b51bb7cae56a606372c70fa87b4d715d",
+  "actual_conflict": "PR277:shared predicate consequence owner versus main structural-interval fallback;both preserved",
+  "fresh_public": {
+    "positive_native_terminal_agreements": 31,
+    "intended_rejects": 43
+  },
+  "fresh_retained_corpus": {
+    "positive_native_terminal_agreements": 30,
+    "checked": 30,
+    "intended_rejects": 43
+  },
+  "custody_tests": 7,
+  "baseline_comparison": {
+    "fixtures": 5,
+    "lost": 0,
+    "gained": 0
+  },
+  "conflict_consumers": {
+    "checked": 2,
+    "intended_rejects": 2,
+    "native_terminal_agreements": 2,
+    "unrecorded_native_golden_addition": "Existing main stored-view parameter row;oracles passed,no unrelated golden recorded"
+  },
+  "source_oracle_hashes": 467,
+  "raw_producer_hashes": 238,
+  "qualification": {
+    "state_revision": 20,
+    "initial_qualification_revision": "f00821efc1436f458442cf687e471157d341538a",
+    "final_assessed_candidate": "45654cb29dff7f40e24026e46610ed65c762ca3c",
+    "retained_current_checks": 4,
+    "invalidated_current_checks": 0,
+    "new_run_exits": [
+      [
+        "integrated-corpus-evidence",
+        0
+      ],
+      [
+        "integrated-public-row-evidence",
+        0
+      ],
+      [
+        "conflict-consumer-evidence",
+        0
+      ],
+      [
+        "independent-integrated-review",
+        0
+      ]
+    ]
+  },
+  "original_evidence": "a071669c7566149cd5ad9bf4976243166357e739 (f008/133/16f historical identities preserved)",
+  "host": "macos_arm64 native/Terminal;other native hosts not executed",
+  "remaining_parent": "Structured callee/domain predicates,broader runtime projections,same-statement/theorem establishment"
+}

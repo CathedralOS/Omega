@@ -1,3 +1,0 @@
-public machine c_value() -> i64 {
-    3 as i64
-}

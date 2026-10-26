@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_swapped_output");
-    builder.freestanding = true;
-    builder.output = BuildOutput {};
-    let p: BuildPath = BuildOutput::resolve(&builder.output, "out.bin");
-}

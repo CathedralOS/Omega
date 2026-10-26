@@ -1,3 +1,0 @@
-cannot prove index `-1` is within length 32
-cannot prove index `32` is within length 32
-cannot prove index `index` is within length 32

@@ -1,1 +1,0 @@
-where type equation has conflicting element types

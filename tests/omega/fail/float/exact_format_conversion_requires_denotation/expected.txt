@@ -1,7 +1,0 @@
-machine `lossy` state `entry` cannot prove Exact float-to-`f32` cast
-machine `lossy_literal` state `entry` cannot prove Exact float-to-`f32` cast
-machine `unknown` state `entry` cannot prove Exact float-to-`f32` cast
-machine `finite_is_not_exact` state `entry` cannot prove Exact float-to-`f32` cast
-machine `exact_ends_are_not_enough` state `entry` cannot prove Exact float-to-`f32` cast
-machine `overflow` state `entry` cannot prove Exact float-to-`f32` cast
-machine `receiving_type_is_not_proof` state `entry` cannot prove Exact float-to-`f32` cast

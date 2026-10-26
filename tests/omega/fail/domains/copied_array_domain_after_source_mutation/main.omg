@@ -1,9 +1,0 @@
-// A write retires the source fact before the unrestricted capture.
-domain [u16; 4]::ZeroTail(values) requires values[3] == 0;
-machine read_tail(values: [u16; 4] in ZeroTail) -> u16 { values[3] }
-machine main() {
-    let mut original: [u16; 4] = [37, 0, 0, 0];
-    original[3] = 1;
-    let captured: [u16; 4] in ZeroTail = original;
-    let tail: u16 = read_tail(captured);
-}

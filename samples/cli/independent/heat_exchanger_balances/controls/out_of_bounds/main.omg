@@ -1,6 +1,0 @@
-// Intended invalid: every temperature access must have a proven index < 9.
-data Temperatures { hot: [f64; 9]; }
-machine main() {
-    let mut temperatures: Temperatures;
-    temperatures.hot[9] = 40.0;
-}

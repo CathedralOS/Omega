@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "package_bare_cases");
-    Build::depend_as(builder, "leaf", Source::Path { location: "leaf" });
-    builder.freestanding = true;
-}

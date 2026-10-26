@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "mutual_cycle_decrease_unproven");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

@@ -1,1 +1,0 @@
-cannot prove requires contract for call verify_diff from compute_other_machine: transported >= 40 && transported <= 100

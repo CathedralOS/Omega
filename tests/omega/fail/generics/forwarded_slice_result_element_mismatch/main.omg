@@ -1,5 +1,0 @@
-machine view<Element>(items: &[Element]) -> &[Element] { items }
-machine wrong<Input, Output>(items: &[Input]) -> &[Output] {
-    view<Input>(items)
-}
-machine main() {}

@@ -1,9 +1,0 @@
-// The compiler-owned build log facet takes an explicit operand:
-// `BuildLog::write_line(&mut builder.log, text)` — the line is
-// retained in the build observation summary and emitted with the
-// compile's other output.
-machine build(builder: &mut Build) {
-    Build::application(builder, "build_log_write");
-    BuildLog::write_line(&mut builder.log, "omega build log witness");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-}

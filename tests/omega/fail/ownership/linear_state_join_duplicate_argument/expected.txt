@@ -1,2 +1,0 @@
-cannot use `left`
-after `left` was transferred or consumed

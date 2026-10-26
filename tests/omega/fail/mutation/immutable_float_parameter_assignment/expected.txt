@@ -1,1 +1,0 @@
-cannot write `fraction` because it is not mutable in this state

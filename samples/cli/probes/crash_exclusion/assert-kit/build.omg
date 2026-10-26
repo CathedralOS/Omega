@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "assert_kit");
-    Build::select_provider<Assert, NoOpAssert>(builder);
-}

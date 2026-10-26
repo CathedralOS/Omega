@@ -1,5 +1,0 @@
-public trait Local { machine ping() -> i32; }
-data LocalProvider {}
-machine LocalProvider::ping() -> i32 satisfies Local::ping { 7 }
-data Main {}
-machine Main::main() { }

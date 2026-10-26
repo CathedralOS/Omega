@@ -1,9 +1,0 @@
-// A product dependency row selects a package-purpose edge; the location's
-// declaration is an application, not a package, so the row asks for a
-// purpose the dependent can never serve and must be rejected.
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_application_as_dependency");
-    Build::depend_as(builder, "depapp", Source::Path { location: "depapp" });
-    builder.freestanding = true;
-}

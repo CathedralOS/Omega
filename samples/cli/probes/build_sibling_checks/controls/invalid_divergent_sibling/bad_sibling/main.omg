@@ -1,3 +1,0 @@
-public machine bad_value() -> i32 {
-    "text"
-}

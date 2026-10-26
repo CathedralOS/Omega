@@ -1,6 +1,0 @@
-use omega_language_std::calling;
-
-machine corrupt(plan: &mut CallPlan) {
-    plan.parameter_count = 33;
-}
-machine main() {}

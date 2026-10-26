@@ -1,9 +1,0 @@
-// Divergence in build scope at pool position 2: this sibling's build
-// evaluation retires its own required-output obligation with an authored
-// sticky failure. The check must name `sibling_bad1`, not the requester.
-
-machine build(builder: &mut Build) {
-    Build::package(builder, "sibling_bad1");
-    let obligation: RequiredOutput = BuildOutput::require(&mut builder.output, "ghost.txt");
-    BuildOutput::fail(&mut builder.output, obligation, "bad1 staged nothing");
-}

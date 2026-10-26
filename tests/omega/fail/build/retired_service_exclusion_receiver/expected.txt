@@ -1,1 +1,0 @@
-receiver-style service exclusion is retired; use Build::exclude_service<BoundaryTrait>(builder)

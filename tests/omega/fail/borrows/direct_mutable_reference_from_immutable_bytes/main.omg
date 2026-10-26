@@ -1,2 +1,0 @@
-machine main() { inspect("immutable"); }
-machine inspect(bytes: &mut [u8]) {}

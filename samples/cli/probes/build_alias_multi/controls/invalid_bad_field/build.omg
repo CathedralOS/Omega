@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_bad_field");
-    builder.freestanding = true;
-    builder.bogus = 1;
-}

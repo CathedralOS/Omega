@@ -1,2 +1,0 @@
-machine extent(values: &[f64]) -> u64 ensures result == values.len { values.len }
-machine first(values: &[f64], unknown: u64) -> f64 { let mut count: u64 = extent(values); count = unknown; transition count > 0 { true -> (values[0]) false -> 0.0 } }

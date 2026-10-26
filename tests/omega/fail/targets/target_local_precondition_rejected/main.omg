@@ -1,7 +1,0 @@
-// The Windows call cannot borrow the Linux helper's precondition, even when
-// another target is realized or this family is not reached from main.
-linux_x86_64 machine private_value(input: u64) -> u64 requires input == 1 { 42 }
-windows_x86_64 machine private_value(input: u64) -> u64 requires input == 2 { 42 }
-linux_x86_64 machine read() -> u64 { private_value(1) }
-windows_x86_64 machine read() -> u64 { private_value(1) }
-machine main() {}

@@ -1,4 +1,0 @@
-// Expected exit: 0
-data Index<Limit:u32> [copy] where value<Limit {value:u32;}
-machine first(flag:&mut u32)->u32 ensures result==9 {flag=1;9}
-machine main() crashes Trap {let mut flag:u32=0; let indexed:Index<(first(&mut flag))> = Index{value:8}; transition indexed.Limit==9 && indexed.value==8 && flag==1 {true->done() _->bad()} machine done(){} machine bad() crashes Trap {crash Trap;}}

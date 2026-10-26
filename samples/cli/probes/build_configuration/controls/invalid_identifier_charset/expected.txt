@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `invalid_identifier_charset` with 1 diagnostic(s)
-  error: `build` produced an invalid Build: Build.identifier is not a valid application identifier: identifier contains a byte outside `A-Z a-z 0-9 . -`

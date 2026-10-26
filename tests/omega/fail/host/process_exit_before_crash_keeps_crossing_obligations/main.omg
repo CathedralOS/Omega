@@ -1,8 +1,0 @@
-use omega::language::core::process_exit;
-data Token [linear] { value: u64; }
-data Holder { token: Token; }
-machine before_crash(holder: &mut Holder) reaches ProcessExit crashes Trap {
-    let detached: Token = holder.token;
-    ProcessExit::exit_process(0);
-    crash Trap;
-}

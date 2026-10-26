@@ -1,9 +1,0 @@
-use omega::language::core::float_operations;
-data Pair { selected: f64; }
-machine replace(destination: &Pair, choose_first: bool) {
-    destination.selected = match choose_first { true -> (1.0) false -> (2.0) };
-}
-machine main() {
-    let pair: Pair;
-    replace(&pair, true);
-}

@@ -1,5 +1,0 @@
-machine read(values: &[i64 in Wrapping; 0], enabled: bool) -> i64 in Wrapping {
- transition enabled { true -> selected(values) _ -> maybe(values) }
- state maybe(values: &[i64 in Wrapping; 0]) { transition 0u64 > 0u64 { true -> selected(values) _ -> (0) } }
- state selected(values: &[i64 in Wrapping; 0]) { values[0] }
-}

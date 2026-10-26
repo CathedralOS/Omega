@@ -1,5 +1,0 @@
-machine walk(remaining: u64) -> u64
-terminates;
-{
-    transition { _ -> walk(remaining) }
-}

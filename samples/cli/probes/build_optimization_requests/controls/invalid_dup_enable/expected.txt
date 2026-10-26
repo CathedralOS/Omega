@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `invalid_dup_enable` with 1 diagnostic(s)
-  error: `build` produced an invalid Build: optimization `CopyPropagation` is enabled more than once

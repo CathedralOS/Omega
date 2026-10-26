@@ -1,2 +1,0 @@
-source adapter failed for product dependency row 0 of package `invalid_file_source`: cannot resolve package source: source root `
-dependency/main.omg` is not a directory

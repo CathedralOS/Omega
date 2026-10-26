@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `invalid_bad_field` with 1 diagnostic(s)
-  error: machine `build` state `entry` assignment: data `Build` has no field `bogus` (check the spelling of the field name)

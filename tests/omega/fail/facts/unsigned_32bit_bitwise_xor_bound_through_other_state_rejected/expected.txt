@@ -1,1 +1,0 @@
-cannot prove requires contract for call next_state from probe: res >= 40 && res <= 63

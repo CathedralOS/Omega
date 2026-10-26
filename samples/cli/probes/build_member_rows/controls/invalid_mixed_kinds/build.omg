@@ -1,9 +1,0 @@
-// `Build::member` declares a workspace member and cannot share a build
-// activation with `Build::application` or `Build::package` — exactly one
-// kind per declaration.
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_mixed_kinds");
-    Build::member(builder, "dependency");
-    builder.freestanding = true;
-}

@@ -1,1 +1,0 @@
-A generated resolver refusal retains the exact generated source path, line and column. The duplicate target implementation rejects during generated pre-resolution, before a final typed source map exists. `expected_source_locations.txt` is checked against the compiler diagnostic records, independently of their message text.

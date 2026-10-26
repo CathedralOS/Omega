@@ -1,2 +1,0 @@
-cannot bind `Operations` to conformance `Integer`
-expected a complete `Arithmetic` implementation

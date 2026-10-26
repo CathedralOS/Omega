@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "dungeon_smoke");
-    Build::depend(builder, Source::Path { location: "../engine" });
-    Build::depend(builder, Source::Path { location: "../../../../source/library/std" });
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-}

@@ -1,2 +1,0 @@
-cannot prove requires contract for call needs_unmarked_empty from completed_call
-needs fact `value.marked == false`

@@ -1,3 +1,0 @@
-// Intended rejection: richness 13 lies beyond the complete 0..12 bin extent.
-data Main { weights: [u64; 13]; }
-machine Main::main(main: &mut Main) { main.weights[13] = 1; }

@@ -1,9 +1,0 @@
-// A data value cannot qualify a static declaration, even when its exact type
-// has a same-named machine. Qualification supplies neither data nor storage.
-data Cell { value: u64; }
-data Outer { cell: Cell; }
-machine Cell::read() -> u64 { 70 }
-machine main() {
-    let outer: Outer;
-    let observed: u64 = outer.cell.read();
-}

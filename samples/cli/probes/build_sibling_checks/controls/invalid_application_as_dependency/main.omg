@@ -1,5 +1,0 @@
-use depapp::main;
-
-machine entry() -> i32 {
-    depapp_value()
-}

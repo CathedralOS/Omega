@@ -1,1 +1,0 @@
-cannot prove index `joined_index` is within length 2

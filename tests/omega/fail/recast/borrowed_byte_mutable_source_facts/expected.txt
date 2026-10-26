@@ -1,1 +1,0 @@
-must preserve the source element's representation facts in BOTH directions

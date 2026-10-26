@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "vec_invalidated_loan_after_growth");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/alloc" });
-}

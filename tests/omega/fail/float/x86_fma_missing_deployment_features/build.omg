@@ -1,6 +1,0 @@
-// Exact std-free FMA source with no AVX+FMA3 deployment admission.
-// Bind Linux explicitly so the control reaches the assigned x86 realization.
-machine build(builder: &mut Build) {
-    Build::application(builder, "fused_multiply_add_single_rounding_exit");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-}

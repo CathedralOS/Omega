@@ -1,7 +1,0 @@
-use omega::language::core::extent;
-Adapter satisfies VacantContentTransfer {
-    machine transfer(storage: Extent in Granted) -> Extent
-    ensures Granted::content(old(&storage)) == Granted::content(&result)
-    { storage as Extent }
-}
-machine main() {}

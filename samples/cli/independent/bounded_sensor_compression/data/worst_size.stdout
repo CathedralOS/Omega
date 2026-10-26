@@ -1,8 +1,0 @@
-bytes: 83 67 1 16 0 255 255 15 255 0 0 255 255 15 255 0 0 255 255 15 255 0 0 255 255 15 255 0 0 255 255 15 255 0 0 255 255 15 255 0 0 255 255 15 255 0 0 255 255 15 255 0 0
-reconstruction: 4095 0 4095 0 4095 0 4095 0 4095 0 4095 0 4095 0 4095 0
-raw_bytes: 32
-encoded_bytes: 53
-worst_bytes: 53
-tolerance_units: 0
-max_error_units: 0
-certificate: verified against original records

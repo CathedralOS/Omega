@@ -1,4 +1,0 @@
-// Contextual destination selection cannot make this anonymous count fit u64.
-machine offset(base: addr) -> addr
-requires embed(base) >= 18446744073709551616
-{ base - 18446744073709551616 }

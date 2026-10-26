@@ -1,4 +1,0 @@
-# Protocol fixtures deliberately contain CRLF, missing LF, and empty records.
-# Preserve exact frozen bytes across every checkout and platform.
-data/*.stdin -text
-data/*.stdout -text

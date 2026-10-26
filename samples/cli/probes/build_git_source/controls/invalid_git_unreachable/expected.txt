@@ -1,1 +1,0 @@
-source adapter failed for product dependency row 0 of package `invalid_git_unreachable`: cannot resolve package source: git command failed with status Some(128)

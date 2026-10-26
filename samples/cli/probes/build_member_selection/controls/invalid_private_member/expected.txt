@@ -1,4 +1,0 @@
-checked compilation failed for package `invalid_private_member`
-error: package `invalid_private_member` (
-) selects private machine `hidden::entry`
-main.omg:4:18

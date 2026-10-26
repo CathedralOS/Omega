@@ -1,9 +1,0 @@
-// One bounded return cannot authorize coercing the other normal return.
-machine joined(value: u16, bounded: bool) -> u16 {
-    transition bounded { true -> masked(value) false -> whole(value) }
-    state masked(value: u16) -> u16 { value & 255u16 }
-    state whole(value: u16) -> u16 { value }
-}
-machine reject(value: u16, bounded: bool) -> u8 in Wrapping {
-    joined(value, bounded) as u8 in Wrapping
-}

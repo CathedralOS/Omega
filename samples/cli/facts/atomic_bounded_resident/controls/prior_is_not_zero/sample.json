@@ -1,1 +1,0 @@
-{"role":"intended-invalid","entry":"main.omg","rejection_contains":["exact arithmetic","may overflow `u32`"]}

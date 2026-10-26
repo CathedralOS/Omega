@@ -1,2 +1,0 @@
-cannot use `inventory`
-after `inventory.tokens[0]` was transferred or consumed

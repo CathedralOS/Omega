@@ -1,9 +1,0 @@
-// Statement calls must reject data-receiver syntax during checking, not fall
-// through successfully and fail a later authored-selection audit.
-data Cell { value: u64; }
-data Outer { cell: Cell; }
-machine Cell::touch() {}
-machine main() {
-    let outer: Outer;
-    outer.cell.touch();
-}

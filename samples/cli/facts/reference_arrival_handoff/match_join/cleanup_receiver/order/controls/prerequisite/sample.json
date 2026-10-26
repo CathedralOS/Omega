@@ -1,7 +1,0 @@
-{
-  "rejection_contains": [
-    "cannot prove automatic cleanup requires",
-    "Keeper::drop clause `keeper.code == 41`"
-  ],
-  "role": "intended-invalid"
-}

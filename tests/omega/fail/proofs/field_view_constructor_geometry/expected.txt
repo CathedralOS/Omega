@@ -1,3 +1,0 @@
-value call to `Slice::range` violates required fact `start <= end && end <= items.len`
-the instantiated fact is structurally false
-0 <= 3 && 3 <= 2

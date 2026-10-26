@@ -1,5 +1,0 @@
-machine stop() -> i32 crashes Trap { crash Trap; }
-machine choose(stopping: bool) -> i32 crashes Trap !stopping {
-    transition stopping { true -> stop() false -> (47) }
-}
-machine main() crashes Trap { let value: i32 = choose(true); }

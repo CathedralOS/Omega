@@ -1,3 +1,0 @@
-public data Left {
-    value: i32;
-}

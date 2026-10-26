@@ -1,5 +1,0 @@
-machine invalid(value: u64) -> u64 {
-    embed(value) as u64
-}
-
-machine main() {}

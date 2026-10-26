@@ -1,5 +1,0 @@
-domain u32::Clear(value) requires (value & 2) == 0;
-machine main() {
-    transition { _ -> consume(130) }
-    state consume(value: u32 in Clear) {}
-}

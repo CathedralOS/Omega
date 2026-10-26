@@ -1,7 +1,0 @@
-// False does not establish a contract even when its numeric conjunct holds.
-machine window(items: &[u8], offset: u64, limit: u64) -> &[u8]
-requires offset <= limit && limit <= items.len
-ensures false && result.len == limit - offset {
-    &items[offset..limit]
-}
-machine main() {}

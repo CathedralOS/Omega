@@ -1,6 +1,0 @@
-use omega::language::core::layout;
-
-machine main() {
-    let regions: [ResourceRegion; 32];
-    let profile: ResourceProfile = ResourceProfile { regions: regions, region_count: 33 };
-}

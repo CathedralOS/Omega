@@ -1,9 +1,0 @@
-data Token { value: u64; }
-machine Token::drop(token: &mut Token) {
-    transition { _ -> finish(token) }
-    state finish(token: &mut Token) { token.value = 0; }
-}
-machine main() {
-    let mut token: Token = Token { value: 7 };
-    Token::drop(&mut token);
-}

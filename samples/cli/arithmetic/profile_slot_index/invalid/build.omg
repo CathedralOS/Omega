@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "profile_slot_index_invalid");
-}

@@ -1,6 +1,0 @@
-// Expected reject: ProgramEntry cannot supply erased requires evidence.
-trait Evidence {}
-proposition above(limit: u32) evidence Evidence;
-machine main()
-requires incoming: above(5u32)
-{}

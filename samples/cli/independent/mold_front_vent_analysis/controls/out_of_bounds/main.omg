@@ -1,6 +1,0 @@
-// Intended invalid: index sixteen is outside an array of sixteen arrivals.
-// This complete compile-only program needs no console or package provider.
-machine main() {
-    let mut arrival: [i32; 16];
-    arrival[16] = 1;
-}

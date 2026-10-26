@@ -1,3 +1,0 @@
-cannot use `pair.left`
-after `pair` was transferred or consumed
-it holds no value

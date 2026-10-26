@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "guarded_copy_stale_after_write");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

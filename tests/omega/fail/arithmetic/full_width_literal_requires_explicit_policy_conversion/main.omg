@@ -1,4 +1,0 @@
-machine exact(value: u64) -> u64 { value }
-machine invalid() -> u64 {
-    exact(18446744073709551615u64 as u64 in Saturating)
-}

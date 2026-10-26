@@ -1,8 +1,0 @@
-use omega::language::core::float_format;
-use omega::language::core::float_meaning;
-use omega::language::core::float_operations;
-
-// The signature matches one sealed overload, but this declaration does not own it.
-machine FloatSemantics::from_integer(format: FloatFormat, value: i16) -> FloatMeaning;
-
-machine convert(value: i16) -> f64 { value as f64 }

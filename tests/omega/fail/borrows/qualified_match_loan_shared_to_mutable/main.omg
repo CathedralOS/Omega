@@ -1,7 +1,0 @@
-// Matching independently qualified shared loans cannot grant exclusive access.
-data Resource { identity: u64; }
-domain Resource::Open(resource) requires resource.identity != 0;
-machine inspect(left: &Resource in Open, right: &Resource in Open, flag: bool) {
-    let selected: &mut Resource in Open = match flag { true -> left, false -> right };
-    selected.identity = 0;
-}

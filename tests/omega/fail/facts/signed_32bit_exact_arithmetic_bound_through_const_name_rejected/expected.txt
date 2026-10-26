@@ -1,1 +1,0 @@
-cannot prove requires contract for call consume_i32_margin from probe: margin >= 0 && margin <= 25

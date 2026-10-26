@@ -1,7 +1,0 @@
-// FAIL CANARY. The zero bytes of Player are not a Player, so Team cannot omit
-// its captain field even though Team itself spells no additional clause.
-data Player where health >= 1 && health <= 100 { health: i32; }
-data Team { captain: Player; score: i32; }
-machine main() {
-    let team: Team = Team {};
-}

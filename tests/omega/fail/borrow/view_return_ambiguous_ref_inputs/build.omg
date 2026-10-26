@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "view_return_ambiguous_ref_inputs");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

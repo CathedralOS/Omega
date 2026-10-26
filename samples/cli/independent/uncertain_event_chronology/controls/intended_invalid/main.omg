@@ -1,3 +1,0 @@
-// Complete source: a fixed three-element event array cannot contain event 3.
-data Main { timestamps: [i32; 3]; }
-machine Main::main(main: &mut Main) -> i32 { main.timestamps[3] }

@@ -1,9 +1,0 @@
-data Pending where number > 0 { number: u64; }
-
-machine read_pending(value: addr) -> u64
-requires addr::Bound == 18446744073709551616
-{
-    let pending: Pending;
-    let converted: u64 = value as u64;
-    pending.number
-}

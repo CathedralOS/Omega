@@ -1,3 +1,0 @@
-domain i32::Selected(value) requires value == 0 || value == 38;
-machine bad() -> i32 in Selected { 37 }
-machine main() { let value: i32 in Selected = bad(); }

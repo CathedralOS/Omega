@@ -1,2 +1,0 @@
-write-only formation must preserve the declared constraint atoms exactly
-write-only subloan requires compatible stored carriers

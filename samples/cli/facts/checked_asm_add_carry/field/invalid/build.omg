@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "checked_asm_add_carry_field_invalid");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-}

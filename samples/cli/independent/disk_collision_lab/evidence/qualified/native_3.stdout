@@ -1,6 +1,0 @@
-disk_collision_lab Newton frictionless model
-ledger time=0.000000 px=-1.000000 py=0.000000 energy=0.500000 loss=0.000000
-ledger time=3.000000 px=-1.000000 py=0.000000 energy=0.500000 loss=0.000000
-disk 0 x=-3.000000 y=0.000000 vx=-1.000000 vy=0.000000
-disk 1 x=4.000000 y=0.000000 vx=0.000000 vy=0.000000
-status complete

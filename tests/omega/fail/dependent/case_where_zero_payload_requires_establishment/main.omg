@@ -1,9 +1,0 @@
-// Zero selects the first case; satisfying another case proves nothing about it.
-data Choice {
-    case Selected(value: i32) where value >= 1 && value <= 100;
-    case Empty;
-}
-data Context { choice: Choice; }
-machine main() {
-    let context: Context = Context {};
-}

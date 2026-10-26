@@ -1,8 +1,0 @@
-data Container<Element [copy]> [copy] { value: Element; }
-
-data Template<Payload [copy]> [copy]
-where Payload == Container
-{ value: Payload; }
-
-data Main { value: u64; }
-machine main(main: &mut Main) { main.value = 0; }

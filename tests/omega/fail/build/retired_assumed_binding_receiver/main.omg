@@ -1,3 +1,0 @@
-machine main(builder: &mut Build) {
-    builder.assume_binding_contract<Required::operation, Supplied::operation>();
-}

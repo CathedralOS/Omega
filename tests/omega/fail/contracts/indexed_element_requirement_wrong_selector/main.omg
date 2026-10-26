@@ -1,6 +1,0 @@
-machine letter(text: &[u8], index: u64) -> u64
-requires index < text.len && text[index] >= 97;
-{ (text[index] - 97) as u64 }
-machine invalid(text: &[u8], index: u64, other: u64) -> u64
-requires index < text.len && other < text.len && text[index] >= 97;
-{ letter(text, other) }

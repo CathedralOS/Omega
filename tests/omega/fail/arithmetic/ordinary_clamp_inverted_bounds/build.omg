@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "ordinary_clamp_inverted_bounds");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

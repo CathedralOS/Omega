@@ -1,2 +1,0 @@
-cannot prove initializer
-satisfies `finite`

@@ -1,4 +1,0 @@
-public proposition established();
-
-public boundary machine establish()
-ensures established();

@@ -1,7 +1,0 @@
-import subprocess,json,os
-from pathlib import Path
-p=Path('build/ingress-ownership');os.environ['OMEGA_LIBRARY_ROOT']=str(Path('source/library').resolve());rows=[]
-for producer in ['baseline','final-candidate']:
- command=[str(p/f'omega-{producer}'),'run','--both',str(p/'extent-probe/main.omg')]
- result=subprocess.run(command,text=True,capture_output=True);rows.append(dict(producer=producer,command=command,exit=result.returncode,stdout=result.stdout,stderr=result.stderr))
-(p/'extent-runtime-final.json').write_text(json.dumps(rows,indent=2)+'\n');print(json.dumps(rows,indent=2));assert all(row['exit']==0 for row in rows)

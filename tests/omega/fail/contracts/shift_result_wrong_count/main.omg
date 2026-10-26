@@ -1,8 +1,0 @@
-machine shifted(value: i32, count: u8 in Wrapping) -> i32
-requires value >= 0 && value <= 9 && count >= 1 && count <= 3;
-ensures result == value >> count;
-{ value >> count }
-machine require_expected(actual: i32, expected: i32) requires actual == expected; {}
-machine invalid(value: i32, count: u8 in Wrapping)
-requires value >= 0 && value <= 9 && count >= 1 && count <= 3;
-{ require_expected(shifted(value, count), value >> 3); }

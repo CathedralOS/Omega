@@ -1,7 +1,0 @@
-use omega::language::core::extent;
-use alloc::bump;
-// A counter cannot enlarge the concrete tail.
-machine invalid(whole: Extent in Granted & Vacant) -> Bump
-requires whole.length == 16
-{ Bump { tail: whole, remaining: 32 } }
-machine main() {}

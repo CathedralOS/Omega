@@ -1,4 +1,0 @@
-machine main() -> u32 ensures result <= 4 {
-    let mut value: u32 = 5;
-    value
-}

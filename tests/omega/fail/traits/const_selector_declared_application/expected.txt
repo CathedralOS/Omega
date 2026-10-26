@@ -1,1 +1,0 @@
-constant implementation selector differs from its declared trait application

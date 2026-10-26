@@ -1,2 +1,0 @@
-domain i64::Positive(value) requires value > 0 {}
-let bad(value: i64 in Positive): i64 in Positive = -value;

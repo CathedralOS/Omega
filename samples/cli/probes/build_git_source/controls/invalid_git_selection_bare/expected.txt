@@ -1,1 +1,0 @@
-cannot resolve declared package closure: cannot resolve root package: cannot project package dependencies: Git package selection must be a direct `PackageSelection::Root` or `PackageSelection::Named` literal

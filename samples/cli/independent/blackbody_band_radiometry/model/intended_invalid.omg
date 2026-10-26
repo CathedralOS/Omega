@@ -1,4 +1,0 @@
-// Expected check failure: violates required fact `panels >= 1 && panels <= 320`
-use planck;
-use omega::language::core::float_operations;
-machine invalid_quadrature() -> f64 { integral(1.0, 2.0, 321, 0.0, false) }

@@ -1,7 +1,0 @@
-bytes: 83 67 1 8 3 127 255 255 15 255 0 0 255 255 15 255 0 0 255 255 15 255 3 8 120
-reconstruction: 0 4095 0 4095 0 4095 2051 2044
-raw_bytes: 16
-encoded_bytes: 25
-worst_bytes: 29
-tolerance_units: 3
-certificate: decode only; originals unavailable

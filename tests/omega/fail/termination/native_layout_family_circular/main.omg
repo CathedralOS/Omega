@@ -1,6 +1,0 @@
-linux_x86_64 machine selected_family<T>(value: u64) -> u64 terminates; { selected_family<T>(value) }
-linux_arm64 machine selected_family<T>(value: u64) -> u64 terminates; { selected_family<T>(value) }
-macos_arm64 machine selected_family<T>(value: u64) -> u64 terminates; { selected_family<T>(value) }
-windows_x86_64 machine selected_family<T>(value: u64) -> u64 terminates; { selected_family<T>(value) }
-machine checked_caller(value: u64) -> u64 terminates; { selected_family<u64>(value) }
-machine main() {}

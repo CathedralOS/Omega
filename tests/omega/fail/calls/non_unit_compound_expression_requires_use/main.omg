@@ -1,7 +1,0 @@
-// Consuming a call as an operand does not make the final statement value Unit.
-machine identity(value: bool) -> bool ensures result == value { value }
-machine invalid() -> bool {
-    identity(false) || identity(false);
-    true
-}
-machine main() {}

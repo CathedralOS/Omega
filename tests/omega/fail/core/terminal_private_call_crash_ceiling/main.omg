@@ -1,4 +1,0 @@
-// A private terminal-call chain cannot erase its callee's crash cause.
-machine stop() -> i32 crashes Trap { crash Trap; }
-machine relay() -> i32 { transition { _ -> stop() } }
-machine main() crashes Trap false { let value: i32 = relay(); }

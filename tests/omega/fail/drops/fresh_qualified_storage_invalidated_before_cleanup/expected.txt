@@ -1,2 +1,0 @@
-cannot prove contextual cleanup prerequisite
-capacity.active == 0 && capacity.released

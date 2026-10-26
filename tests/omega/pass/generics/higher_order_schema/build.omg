@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "higher_order_schema");
-    builder.freestanding = true;
-}

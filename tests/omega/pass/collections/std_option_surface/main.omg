@@ -1,8 +1,0 @@
-use omega::language::core::option;
-
-data OptionSurface {
-    value: Optional<u64>;
-}
-
-machine main() {
-}

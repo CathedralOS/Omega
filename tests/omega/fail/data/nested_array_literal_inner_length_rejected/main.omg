@@ -1,7 +1,0 @@
-// A nested array literal whose INNER array has the wrong element count
-// (`[[i32;2];2] = [[1,2],[3,4,5]]`) used to compile silently -- the length check
-// did not recurse into nested array elements, so the extra element was truncated
-// away. Now the check recurses to every nesting level.
-use omega_language_std::console;
-data Main { grid: [[i32; 2]; 2]; }
-machine Main::main(main: &mut Main) { main.grid = [[1, 2], [3, 4, 5]]; Console::exit_process(0); }

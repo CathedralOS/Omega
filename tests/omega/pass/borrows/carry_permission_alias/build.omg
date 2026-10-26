@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "carry_permission_alias");
-    builder.freestanding = true;
-}

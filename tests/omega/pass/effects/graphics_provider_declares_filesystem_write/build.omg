@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "graphics_reach_review");
-    Build::audit_service<SurfacePresentation>(builder);
-}

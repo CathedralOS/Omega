@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "plan_laid_dynamic_plan");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

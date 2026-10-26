@@ -1,1 +1,0 @@
-applies an operator to a boolean and a numeric value

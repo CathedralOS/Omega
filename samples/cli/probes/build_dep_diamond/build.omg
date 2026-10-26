@@ -1,7 +1,0 @@
-// Dependency diamonds unify: dep_a and dep_b each declare their own
-// edge onto dep_c, and both see the same `shared` machine through it.
-machine build(builder: &mut Build) {
-    Build::application(builder, "build_dep_diamond");
-    Build::depend_as(builder, "kit_a", Source::Path { location: "dep_a" });
-    Build::depend_as(builder, "kit_b", Source::Path { location: "dep_b" });
-}

@@ -1,2 +1,0 @@
-cannot prove unqualified `U64::from_f64` operand `values[index]`
-finite and truncates into `u64`

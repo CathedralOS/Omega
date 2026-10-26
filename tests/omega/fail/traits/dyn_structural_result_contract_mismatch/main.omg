@@ -1,8 +1,0 @@
-data Packet { value: u64; }
-trait Factory {
-    machine make() -> Packet ensures result.value == 7;
-}
-Wrong satisfies Factory {
-    machine make() -> Packet ensures result.value == 7 { Packet { value: 9 } }
-}
-machine probe() -> Packet { Factory::make(Wrong as dyn Factory) }

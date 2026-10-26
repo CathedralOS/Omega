@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `result_domain_conversion` with 1 diagnostic(s)
-  error: /workspace/Omega/.codex/worktrees/nf01/tests/omega/pass/operators/result_domain_operator_family_conversion_exit/main.omg:7:18: expected expression

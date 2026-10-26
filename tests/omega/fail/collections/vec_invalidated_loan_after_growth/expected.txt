@@ -1,2 +1,0 @@
-state `grow8to16` receives `main.b8` while local borrow `slots` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-statement 2 mutates `main.b8.e[0]` while local borrow `slots` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)

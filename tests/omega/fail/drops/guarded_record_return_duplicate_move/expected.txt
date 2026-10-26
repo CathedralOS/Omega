@@ -1,2 +1,0 @@
-cannot use `observation`
-after `observation` was transferred or consumed

@@ -1,1 +1,0 @@
-transitions to `vanished`, which names no state

@@ -1,7 +1,0 @@
-trait Reading<Value> { machine read(value: Value) -> i32; }
-ReadingMap<'unused> satisfies Reading<i32> {
-    machine read(value: i32) -> i32 { value }
-}
-trait Uses<Reader satisfies Reading<i32>> {}
-trait Invalid<'actual>: Uses<ReadingMap<'undeclared>> {}
-machine main() {}

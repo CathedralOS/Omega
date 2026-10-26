@@ -1,9 +1,0 @@
-data First [copy] { value: u64; }
-data Second [copy] { value: u64; }
-trait Echo<Value [copy]> { machine forward(value: Value) -> Value; }
-Selected<Value [copy], Role> satisfies Echo<Value> {
-    machine forward(value: Value) -> Value { value }
-}
-machine carry<Role>(value: Second) -> First {
-    Selected<First, Role>::forward(value)
-}

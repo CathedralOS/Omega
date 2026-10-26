@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "sum_receiver_dispatch");
-    builder.freestanding = true;
-}

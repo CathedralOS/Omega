@@ -1,1 +1,0 @@
-erased parameter `witness` is not scalar

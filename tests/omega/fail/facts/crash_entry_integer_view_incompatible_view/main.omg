@@ -1,7 +1,0 @@
-// Invalid: equal-width u8 storage does not establish Boolean representation validity.
-machine read_bits(value: u8) -> bool { let view: &bool = &value as &bool; view }
-machine main() crashes Trap {
- let flag: bool = read_bits(7);
- transition flag { true -> done() false -> bad() }
- state done() {} state bad() { crash Trap; }
-}

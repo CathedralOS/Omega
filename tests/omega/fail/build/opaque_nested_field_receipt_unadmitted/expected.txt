@@ -1,1 +1,0 @@
-opaque boundary data `Token` cannot claim `[copy]` without an admitted property receipt

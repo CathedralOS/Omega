@@ -1,5 +1,0 @@
-corpus_runner: 106 prior timings loaded
-corpus_runner: 2/2 done, 0 compile(s) in flight
-corpus_gate: clean — 2 fixtures ({'built': 2}), 0 rejected without their expected fragment, 0 fail fixtures did not reject; executed 2 (exit codes {'0': 2}), 0 with stdout differing from expected
-corpus_gate: golden provenance: 2 rows stamped, 0 legacy (unstamped), oldest stamped row 21 commits behind HEAD (@f04eab4d149c)
-corpus_gate: wrote 0 moved fixture(s) to /tmp/w100-borrowed-both-moves.json

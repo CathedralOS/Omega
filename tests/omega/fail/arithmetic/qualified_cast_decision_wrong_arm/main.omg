@@ -1,8 +1,0 @@
-domain u32::Marked;
-
-machine narrow(value: u32) -> u8 {
-    transition value <= 255 {
-        true -> ((value as u32 in Marked) as u8)
-        _ -> ((value as u32 in Marked) as u8)
-    }
-}

@@ -1,8 +1,0 @@
-// A namespace cannot make a borrow of storage-free data into a proof term.
-data Natural { case Zero; case Succ(previous: Natural); }
-data Namespace { unrelated: u64; }
-
-machine inspect(value: &Natural) {}
-machine Namespace::inspect(value: &Natural) {}
-machine Natural::inspect(value: &Natural) {}
-machine main() {}

@@ -1,8 +1,0 @@
-data Input [copy] { value: u64; }
-data Other [copy] { value: u64; }
-
-machine + Input::combine(left: Input, right: Input) -> u64 { left.value }
-
-machine invalid() -> u64 {
-    Input { value: 1 } + Other { value: 2 }
-}

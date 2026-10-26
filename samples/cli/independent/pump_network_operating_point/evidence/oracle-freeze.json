@@ -1,9 +1,0 @@
-{
-  "frozen_at_utc": "2026-10-11T00:41:12.703862+00:00",
-  "before_any_omega_execution": true,
-  "expected_sha256": "19a20e8e3332ea6e5f7e1b99b767b0adf8e3882f918fd24f6b6401fc72ffa928",
-  "cases": 76,
-  "flow_tolerance": "1/1024",
-  "head_residual_tolerance": "800/1024",
-  "fraction_reporting_tolerance": 0
-}

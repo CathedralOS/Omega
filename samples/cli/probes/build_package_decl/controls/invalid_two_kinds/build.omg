@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_two_kinds");
-    Build::package(builder, "invalid_two_kinds");
-    builder.freestanding = true;
-}

@@ -1,9 +1,0 @@
-public data Token [linear] { value: u64; }
-public boundary trait Flow { machine forward(token: Token) -> Token reaches; }
-data Provider {}
-machine Provider::forward(token: Token) -> Token satisfies Flow::forward { token }
-data Harness { }
-machine Harness::abandon(harness: &Harness, token: Token) reaches Flow {
-    let issued: Token = Flow::forward(token);
-}
-machine main() {}

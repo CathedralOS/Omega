@@ -1,7 +1,0 @@
-machine shifted(value: i32, count: i8 in Wrapping) -> i32
-requires value >= 0 && value <= 9 && count >= 0 && count < 32;
-ensures result == value >> count;
-{ value >> count }
-machine invalid(value: i32) -> i32
-requires value >= 0 && value <= 9;
-{ shifted(value, -31 as i8 in Wrapping) }

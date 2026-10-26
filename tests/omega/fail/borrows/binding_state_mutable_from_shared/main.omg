@@ -1,8 +1,0 @@
-// Upgrading a shared borrow to mutable access must reject: `forward` receives
-// `&Cell` and its successor state declares `&mut Cell` for the same storage.
-data Cell { count: i64; }
-
-machine forward(cell: &Cell) -> i64 {
-    transition { _ -> finish(cell) }
-    state finish(cell: &mut Cell) { 7i64 }
-}

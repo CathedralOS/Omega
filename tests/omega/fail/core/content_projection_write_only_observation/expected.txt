@@ -1,3 +1,0 @@
-callable `Direct::observe` has an invalid content-conservation contract
-callable `Nested::observe` has an invalid content-conservation contract
-content projection subjects cannot observe write-only reference storage

@@ -1,1 +1,0 @@
-An aggregate byte recast captures `bytes[position]` while `position` is 0. After `position` changes to 1, a nested scalar loan and ordinary helpers must still write -128 and 127 into byte 0 alone. A shared helper must read -128 between those writes, with signed extension from one stored byte. Byte 1 remains 85. Both execution engines must exit 0.

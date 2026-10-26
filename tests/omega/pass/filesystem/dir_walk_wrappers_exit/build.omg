@@ -1,8 +1,0 @@
-// Portable filesystem behavior selects explicit Darwin and Linux entries.
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "dir_walk_wrappers_exit");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-}

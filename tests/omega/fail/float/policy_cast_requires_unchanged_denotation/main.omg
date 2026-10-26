@@ -1,7 +1,0 @@
-use omega::language::core::float_operations;
-
-machine fractional_saturating() -> i32 in Saturating { 3.75f64 as i32 in Saturating }
-machine fractional_trapping() -> i32 in Trapping { 3.75f64 as i32 in Trapping }
-machine lossy_format() -> f32 in Saturating { 3.0000000000000004f64 as f32 in Saturating }
-machine outside_carrier() -> u8 in Saturating { 300.0f64 as u8 in Saturating }
-machine main() {}

@@ -1,6 +1,0 @@
-machine midpoint(lower: u64, upper: u64) -> u64
-requires lower < upper
-{
-    (lower + upper) / 2
-}
-machine main() {}

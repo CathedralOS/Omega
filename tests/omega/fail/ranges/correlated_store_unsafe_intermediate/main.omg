@@ -1,7 +1,0 @@
-data Limited where value <= 320 { value: u64; }
-data Input where total <= 320, amount <= 1000 { total: u64; amount: u64; }
-machine write(output: &mut Limited, input: &Input)
-requires input.amount <= 320 - input.total
-{
-    output.value = (input.total + 18446744073709551615) - 18446744073709551615;
-}

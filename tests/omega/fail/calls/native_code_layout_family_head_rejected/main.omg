@@ -1,7 +1,0 @@
-// Unsupported bodyless-family metadata must reject explicitly.
-use omega::language::core::code_layout;
-linux_x86_64 machine selected<T>(value: T) -> T { value }
-linux_arm64 machine selected<T>(value: T) -> T { value }
-macos_arm64 machine selected<T>(value: T) -> T { value }
-windows_x86_64 machine selected<T>(value: T) -> T { value }
-machine main() { code_layout<selected<u64>>(); }

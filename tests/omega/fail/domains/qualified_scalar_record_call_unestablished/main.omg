@@ -1,9 +1,0 @@
-domain i32::NotFive(value) requires value != 5;
-data Marker [copy] { }
-data Gauge { level: i32 in NotFive; }
-
-machine make_gauge(marker: Marker, value: i32 in NotFive) -> Gauge {
-    Gauge { level: value }
-}
-
-machine invalid() -> Gauge { make_gauge(Marker {}, 5) }

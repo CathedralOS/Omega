@@ -1,6 +1,0 @@
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "duplicate_program_entry_binding");
-    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
-}

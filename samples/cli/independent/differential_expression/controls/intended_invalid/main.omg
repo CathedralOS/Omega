@@ -1,9 +1,0 @@
-// Complete negative control: a two-element storage extent cannot deliver
-// element 2. This control imports no provider or package, so rejection cannot
-// be mistaken for missing package acceptance or entry-slot admission.
-data Control { counts: [i32; 2]; observed: i32; }
-machine Control::main(control: &mut Control) {
-    control.counts[0] = 26;
-    control.counts[1] = 52;
-    control.observed = control.counts[2];
-}

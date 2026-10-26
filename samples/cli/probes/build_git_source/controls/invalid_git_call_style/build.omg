@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_git_call_style");
-    builder.freestanding = true;
-    Build::depend(builder, Source::Git("https://example.invalid/kit.git", "deadbeef", PackageSelection::Root {}));
-}

@@ -1,2 +1,0 @@
-retains 0 authored satisfaction row(s)
-StepContract::step

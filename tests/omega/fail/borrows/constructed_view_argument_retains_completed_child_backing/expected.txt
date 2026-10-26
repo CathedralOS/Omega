@@ -1,1 +1,0 @@
-mutates `constructor_storage[0]` while local borrow `constructor_original` is still active

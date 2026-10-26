@@ -1,3 +1,0 @@
-public data Records { count: i32 in Wrapping; time: [f64; 32]; event: [i32; 32]; group: [i32; 32]; }
-public data Table { count: i32 in Wrapping; time: [f64; 32]; risk: [i32; 32]; event: [i32; 32]; censor: [i32; 32]; survival: [f64; 32]; variance: [f64; 32]; zero: [i32; 32]; median: f64; median_status: i32; numerator: [u64 in Wrapping; 4]; denominator: [u64 in Wrapping; 4]; }
-public data Logrank { observed: f64; expected: f64; variance: f64; statistic: f64; status: i32; }

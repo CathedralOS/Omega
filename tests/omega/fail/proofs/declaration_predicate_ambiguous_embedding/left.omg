@@ -1,3 +1,0 @@
-module left;
-
-public let embed(value: u64): u64 = value;

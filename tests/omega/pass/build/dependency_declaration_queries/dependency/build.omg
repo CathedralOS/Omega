@@ -1,8 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "query_dependency");
-    let entry: ProductEntryRef = choose(builder, "launch");
-}
-
-machine choose(builder: &mut Build, path: &[u8]) -> ProductEntryRef {
-    BuildProduct::entry(&builder.product, path, "windows_x86_64::ProgramEntry")
-}

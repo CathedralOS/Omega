@@ -1,2 +1,0 @@
-argument `frame` for state `at` is declared `&mut` (`&mut Frame`)
-the caller lends only immutable access

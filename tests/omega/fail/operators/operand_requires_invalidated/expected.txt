@@ -1,2 +1,0 @@
-cannot prove requires contract for call equal from compare: value >= 0
-needs fact `right >= 0` here

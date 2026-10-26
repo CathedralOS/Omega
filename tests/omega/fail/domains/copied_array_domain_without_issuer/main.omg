@@ -1,9 +1,0 @@
-// Equal bytes cannot mint a routed qualification through unrestricted copying.
-domain [u16; 4]::Issued(values) requires values[3] == 0 established by Issues::issue;
-trait Issues { machine issue() -> [u16; 4] in Issued; }
-machine read_tail(values: [u16; 4] in Issued) -> u16 { values[3] }
-machine main() {
-    let original: [u16; 4] = [37, 0, 0, 0];
-    let captured: [u16; 4] in Issued = original;
-    let tail: u16 = read_tail(captured);
-}

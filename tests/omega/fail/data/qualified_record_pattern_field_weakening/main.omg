@@ -1,9 +1,0 @@
-data Point [copy] { horizontal: u64; vertical: u64; }
-domain Point::Screen established by screen;
-data Frame [copy] { point: Point in Screen; }
-machine screen() -> Point in Screen { Point { horizontal: 30, vertical: 40 } }
-machine inspect(frame: Frame) -> Point {
-    let { point } = frame;
-    let unqualified: Point = point;
-    unqualified
-}

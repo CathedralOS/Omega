@@ -1,4 +1,0 @@
-machine main() blocks; {
-    transition { _ -> block next() }
-    state next() {}
-}

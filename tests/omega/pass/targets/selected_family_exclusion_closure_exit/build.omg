@@ -1,8 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "selected_family_exclusion_closure_exit");
-    Build::exclude_crash(builder, CrashCause::Trap);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-}

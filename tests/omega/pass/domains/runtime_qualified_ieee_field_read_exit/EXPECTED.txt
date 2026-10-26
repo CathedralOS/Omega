@@ -1,1 +1,0 @@
-Frozen before repaired execution: direct and shared Time field observations retain Binary64 value2.5; nested record projection yields4.0. Success exits0; failed comparisons crashTrap. Reads preserve original owners and restricted store obligations.

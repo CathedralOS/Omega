@@ -1,1 +1,0 @@
-The range descriptor captures endpoint 1 before the later argument changes the endpoint to 0. The callee receives a nonempty view containing 7, and the endpoint write remains observable. Requires uses the completed descriptor extent, while all argument effects still execute in authored order. Native and Terminal execution must exit 0.

@@ -1,4 +1,0 @@
-// Receiving a literal under the selected parameter type does not establish
-// a false precondition about that literal's actual extent.
-machine requires_pair(path: &[u8]) requires path.len == 2 {}
-machine main() { requires_pair("."); }

@@ -1,3 +1,0 @@
-// Expected rejection: predictive bin 33 is outside the 33-bin array.
-data Control { bins: [f64; 33]; observed: f64; }
-machine Control::main(control: &mut Control) { control.observed = control.bins[33]; }

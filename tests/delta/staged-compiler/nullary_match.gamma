@@ -1,3 +1,0 @@
-(def __d_choose ((value Int) (when_left Int) (when_right Int)) Int (let $m97 Int value (if (eq $m97 0) when_left when_right)))
-(def main () Int (__d_choose 1 7 9))
-

@@ -1,5 +1,0 @@
-data Box<Value [copy]> [copy] { value: Value; }
-const Count: u64 = 4;
-data Nested<Element [copy], Count> { nested: Box<[Element; Count]>; }
-data Main { value: Nested<u64, u64>; }
-machine main(main: &mut Main) {}

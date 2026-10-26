@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "construction of `Holder` field `scoped`: value 4 is outside its declared range"
-  ]
-}

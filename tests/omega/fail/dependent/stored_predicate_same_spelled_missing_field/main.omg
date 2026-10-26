@@ -1,6 +1,0 @@
-// Reject: a caller parameter cannot stand in for an unwritten data field.
-data Pair where left == right { left: u64; right: u64; }
-machine replace(record: &mut Pair, right: u64) {
-    record.left = right;
-}
-machine main() {}

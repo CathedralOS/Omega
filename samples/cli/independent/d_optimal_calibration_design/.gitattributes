@@ -1,2 +1,0 @@
-# Finite stdin fixtures preserve CRLF, EOF and exact whitespace byte bounds.
-data/*.stdin -text -diff

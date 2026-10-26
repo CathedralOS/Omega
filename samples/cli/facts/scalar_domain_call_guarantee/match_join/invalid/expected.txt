@@ -1,1 +1,0 @@
-cannot prove scalar result domain

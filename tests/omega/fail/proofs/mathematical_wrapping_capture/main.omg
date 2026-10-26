@@ -1,6 +1,0 @@
-// A wrapping capture is not the exact integer expression of its operands.
-let fits(base: addr, length: u64 in Wrapping): core::Strict<0> =
-    embed(base) + embed(length) <= addr::Bound;
-machine cut(base: addr, length: u64 in Wrapping, requested: u64) -> addr
-requires fits(base, length + 1); requested < length
-{ base + requested }

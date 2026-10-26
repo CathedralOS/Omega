@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "recursive_data_infinite_size");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

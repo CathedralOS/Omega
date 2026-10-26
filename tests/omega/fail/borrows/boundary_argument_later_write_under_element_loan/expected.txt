@@ -1,2 +1,0 @@
-receives `bytes` as both mutable and read-only
-receives `constructed_bytes` as both mutable and read-only

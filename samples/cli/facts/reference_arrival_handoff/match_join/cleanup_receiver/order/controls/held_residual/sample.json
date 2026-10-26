@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "reads `output.value` while local borrow `original` is still active",
-    "reads `spare.value` while local borrow `alternate` is still active"
-  ]
-}

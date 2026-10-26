@@ -1,7 +1,0 @@
-// Expected exit: 0.
-machine main() crashes Trap {
- let mut count:u32=2; let mut snapshot:u64=0;
- asm { entry:pushfq snapshot; mov eax,count; sub eax,1; mov count,eax; jnz entry; done:nop }
- transition count==0u32 && (snapshot&64u64)==0u64 {true ->done() false->bad()}
- state done(){} state bad(){crash Trap;}
-}

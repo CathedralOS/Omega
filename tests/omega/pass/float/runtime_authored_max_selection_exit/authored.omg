@@ -1,3 +1,0 @@
-// Same leaf name, ordinary checked body: this must not become F64::maximum.
-use omega::language::core::float_operations;
-public machine max(left:f64,right:f64)->f64 {left+right}

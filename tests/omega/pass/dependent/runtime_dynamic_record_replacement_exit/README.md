@@ -1,1 +1,0 @@
-Run `omega run --both tests/omega/pass/dependent/runtime_dynamic_record_replacement_exit/main.omg`. A runtime-selected whole record replacement preserves an already valid collection, for both ordinary records and records with coupled field predicates. Native and Terminal execution must exit 0 and preserve the untouched element.

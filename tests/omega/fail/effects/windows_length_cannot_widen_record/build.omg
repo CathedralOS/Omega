@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "windows_length_cannot_widen_record");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

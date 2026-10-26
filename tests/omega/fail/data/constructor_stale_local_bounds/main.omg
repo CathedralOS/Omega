@@ -1,7 +1,0 @@
-// The initializer is not the value observed after an intervening assignment.
-data Bounded where value <= 5 { value: u64; }
-machine invalid() -> Bounded {
-    let mut current: u64 = 1;
-    current = 7;
-    transition { _ -> Bounded { value: current } }
-}

@@ -1,9 +1,0 @@
-// Library package for corpus fixtures: one assertion library with a checking and a no-op
-// implementation behind the same public Trap ceiling
-// (wiki/spec/build/behavior_exclusions.md). The library composes the no-op
-// implementation by default; an application selects the one it composes.
-
-machine build(builder: &mut Build) {
-    Build::package(builder, "assert_kit");
-    Build::select_provider<Assert, NoOpAssert>(builder);
-}

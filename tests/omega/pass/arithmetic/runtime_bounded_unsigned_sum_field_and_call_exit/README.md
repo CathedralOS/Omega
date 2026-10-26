@@ -1,1 +1,0 @@
-Every thirteen-term sum uses the same bounded Exact unsigned operation through a scalar parameter, a record field and an ordinary call result. A local is carried into another state. All three independently evaluated results must be 48; native and actual Terminal exits are 48. Retained comparisons remain available when independent carrier bounds do not suffice.

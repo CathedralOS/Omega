@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "the selected theorem conclusion is not the exact result relation"
-  ]
-}

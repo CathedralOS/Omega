@@ -1,1 +1,0 @@
-error: `increment` has no executable body: this compiler does not lower a statement of it yet (structural field store: destination parameter)

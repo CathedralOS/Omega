@@ -1,1 +1,0 @@
-reads a nested member `count`, but data `Scanned` has no field `count`

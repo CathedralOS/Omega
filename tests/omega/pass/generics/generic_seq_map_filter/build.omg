@@ -1,8 +1,0 @@
-// Check-only probe: `Seq<T>` is recursive by value, so it has no finite
-// runtime representation and stays proof-only (wiki/spec/proofs/contracts.md,
-// "Recursive mathematical data without a finite runtime representation remain
-// proof-only"). No program entry is bound; the probe pins checking only.
-machine build(builder: &mut Build) {
-    Build::application(builder, "generic_seq_map_filter");
-    builder.freestanding = true;
-}

@@ -1,5 +1,0 @@
-// An unused phantom argument still owes its declared property.
-public boundary trait Parent<Value [copy]> { machine read() -> i32 reaches; }
-data Token { value: i32; }
-HolderMap satisfies Parent<Token> { Parent::read = holder_read; }
-machine holder_read() -> i32 { 0 }

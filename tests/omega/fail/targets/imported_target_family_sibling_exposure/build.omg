@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "imported_target_family_sibling_exposure");
-    Build::depend(builder, Source::Path { location: "../../../pass/targets/imported_target_family_heads_exit/kit" });
-}

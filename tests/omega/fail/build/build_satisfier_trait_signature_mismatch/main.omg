@@ -1,3 +1,0 @@
-use omega::language::core::extent;
-public data Root {}
-machine Root::grant(root: Extent) -> Extent satisfies ExtentRootProvider::grant { root }

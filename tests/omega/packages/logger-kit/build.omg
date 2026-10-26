@@ -1,8 +1,0 @@
-// Library package for corpus fixtures: one abstract Sink service, a silent provider for
-// it, and an ordinary silent logger that only publishes a broad Sink
-// allowance (wiki/spec/build/behavior_exclusions.md, Console rows).
-
-machine build(builder: &mut Build) {
-    Build::package(builder, "logger_kit");
-    Build::select_provider<Sink, QuietSink>(builder);
-}

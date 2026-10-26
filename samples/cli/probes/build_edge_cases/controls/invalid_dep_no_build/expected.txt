@@ -1,1 +1,0 @@
-source adapter failed for product dependency row 0 of package `invalid_dep_no_build`: cannot establish package declaration: package build file is missing: 

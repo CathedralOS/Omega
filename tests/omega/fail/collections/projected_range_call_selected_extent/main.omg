@@ -1,7 +1,0 @@
-data Cursor where row < 2 { row: u64; }
-machine consume(values: &[u32]) {}
-machine invalid(matrix: &[[u32; 3]; 2], cursor: &Cursor)
-requires cursor.row < 2 {
-    consume(matrix[cursor.row][0..4]);
-}
-machine main() {}

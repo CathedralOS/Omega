@@ -1,9 +1,0 @@
-// Widen before the Exact addition. The selected payload is 256 rather than
-// a wrapping u8 sum, so formation of the specification call is justified.
-machine restricted(value: u16) -> u16
-requires value == 256u16
-ensures result == value { value }
-machine caller(value: u8)
-requires value == 255u8
-requires restricted((value as u16) + 1u16) == restricted((value as u16) + 1u16) {}
-machine main() { caller(255u8); }

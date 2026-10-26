@@ -1,2 +1,0 @@
-# This raw stdin fixture retains CR, LF and tab bytes fixed by its frozen hash.
-data/whitespace.txt -text

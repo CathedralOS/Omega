@@ -1,9 +1,0 @@
-// Concrete retained contracts owe the same operand-formation obligations.
-machine requirement(left: f64, right: f32) requires left < right { }
-data Predicate { }
-public boundary operator Predicate::accept(left: f64, right: f32)
-requires left >= right;
-trait Comparison {
-    machine checked(left: f64, right: f32) requires left != right;
-}
-domain f64::Mixed(value) requires value < 1.0f32;

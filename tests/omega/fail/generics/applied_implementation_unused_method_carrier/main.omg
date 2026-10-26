@@ -1,7 +1,0 @@
-trait Operations<Value> {
-    machine constant<const Extra: u8>() -> u64;
-}
-Selected<Value, const Captured: u64> satisfies Operations<Value> {
-    machine constant<const Extra: u8>() -> u64 { 1u64 }
-}
-machine main() -> u64 { Selected<u64, 31>::constant<300>() }

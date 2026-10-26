@@ -1,4 +1,0 @@
-module nodes;
-public machine unguarded(values: &[i64; 6], ordinal: i32 in Wrapping) -> i64 {
-    values[ordinal]
-}

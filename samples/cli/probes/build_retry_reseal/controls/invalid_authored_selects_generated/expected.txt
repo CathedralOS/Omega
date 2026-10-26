@@ -1,3 +1,0 @@
-checked compilation failed for package `invalid_authored_selects_generated`
-call `generated_value` selects no declaration
-in package `stratum_kernel`

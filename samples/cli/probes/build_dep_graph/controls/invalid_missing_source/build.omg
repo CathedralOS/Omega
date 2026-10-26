@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_missing_source");
-    Build::depend_as(builder, "ghost", Source::Path { location: "missing_dir" });
-    builder.freestanding = true;
-}

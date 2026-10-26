@@ -1,1 +1,0 @@
-exact anonymous value `25/8` cannot land in an integer const argument

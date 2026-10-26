@@ -1,2 +1,0 @@
-files/companion.txt
-files/generated.omg

@@ -1,4 +1,0 @@
-machine prefix(values: &[u8; 4]) -> u64 {
-    let view: &[u8] = &values[..=4];
-    view.len
-}

@@ -1,9 +1,0 @@
-use omega::language::core::float_operations;
-
-// IEEE equality admits negative zero; proof meaning distinguishes its sign.
-machine zero_does_not_fix_sign(value: f64) -> f64
-requires value == 0.0
-ensures Float::meaning64(result) == Float::meaning64(0.0)
-{
-    value
-}

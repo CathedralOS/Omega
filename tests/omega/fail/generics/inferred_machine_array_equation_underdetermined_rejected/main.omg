@@ -1,2 +1,0 @@
-machine capacity<Length [copy], const Capacity: u64>() -> u64 where Length == [u8; Capacity] { Capacity }
-machine main() { let observed: u64 = capacity(); }

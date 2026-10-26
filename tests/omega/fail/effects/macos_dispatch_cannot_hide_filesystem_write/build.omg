@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "native_dispatch_filesystem_write");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

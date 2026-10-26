@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "authored_resolution_source_location");
-    Build::artifact_only(builder);
-}

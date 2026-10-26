@@ -1,1 +1,0 @@
-linux_arm64 machine main() { asm { mov w0, 2; subs x1, w0, 1 } }

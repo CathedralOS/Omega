@@ -1,9 +1,0 @@
-// Expected rejection: reaction index 6 exceeds six-reaction storage.
-data Control { reactions: [i64; 6]; observed: i64; }
-machine Control::main(control: &mut Control) { control.observed = control.reactions[6]; }
-
-// The entry owns ordinary local state; selection supplies no context.
-machine entry_start() {
-    let mut entry_storage: Control;
-    Control::main(&mut entry_storage);
-}

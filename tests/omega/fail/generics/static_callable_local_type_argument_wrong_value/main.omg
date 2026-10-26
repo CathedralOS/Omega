@@ -1,5 +1,0 @@
-machine invoke<machine Routine>() -> bool
-where machine Routine<Context>(value: Context) -> bool;
-{ Routine<bool>(3u64) }
-
-machine main() {}

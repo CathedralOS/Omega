@@ -1,8 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "cannot prove requires contract for call",
-    "10 < limit",
-    "value < Forwarded"
-  ]
-}

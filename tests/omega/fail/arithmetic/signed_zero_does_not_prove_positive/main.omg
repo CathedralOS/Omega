@@ -1,3 +1,0 @@
-machine need(value: i32) requires value > 0 {}
-machine check(value: i32) { transition { value != 0 -> need(value) _ -> {} } }
-machine main() { check(2); }

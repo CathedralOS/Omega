@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "resident_whole_extraction");
-    Build::select_provider<ResourceProfileSupply, MemorySupply>(builder);
-}

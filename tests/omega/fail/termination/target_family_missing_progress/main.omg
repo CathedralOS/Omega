@@ -1,9 +1,0 @@
-macos_arm64 machine finish(value: u64) -> u64 terminates;
-{ value }
-// A private acyclic implementation is not a published portable promise.
-windows_x86_64 machine finish(other: u64) -> u64 { other }
-
-machine forward(value: u64) -> u64 terminates;
-{
-    finish(value)
-}

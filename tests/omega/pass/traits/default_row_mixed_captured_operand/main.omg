@@ -1,8 +1,0 @@
-// A fresh reference wrapper and its captured phantom operand have independent
-// region owners, even when their binders share a spelling.
-data Marker<'held> {}
-trait Reader<Value> {
-    machine read<'same>(value: &'same Value) -> &'same Value { value }
-}
-Mapped<'same> satisfies Reader<Marker<'same>> {}
-machine main() {}

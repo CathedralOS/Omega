@@ -1,1 +1,0 @@
-every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain

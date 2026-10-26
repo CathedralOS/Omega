@@ -1,1 +1,0 @@
-Independent completed selections retain distinct invocation claims. Taking the left result from one and the right result from another cannot establish the first input partition, even when both selections use the same subject. The authored ensures must refuse.

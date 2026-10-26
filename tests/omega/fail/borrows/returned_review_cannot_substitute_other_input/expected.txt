@@ -1,1 +1,0 @@
-machine `wrong` returns a view borrowing input `second`, which is not permitted by the declared result lifetime relation

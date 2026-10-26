@@ -1,2 +1,0 @@
-machine `bad_value` state `entry` terminal expression expects `i32`, got `String`
-in package `bad_sibling`

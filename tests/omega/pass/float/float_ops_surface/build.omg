@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "float_ops_surface");
-    builder.freestanding = true;
-}

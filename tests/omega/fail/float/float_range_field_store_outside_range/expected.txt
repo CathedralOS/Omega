@@ -1,1 +1,0 @@
-data `Ratio`'s default domain is still FALSE at state exit: the invariant window opened on `built` must close first -- restore the `where` facts before this consumption point

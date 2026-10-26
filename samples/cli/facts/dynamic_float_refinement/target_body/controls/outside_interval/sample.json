@@ -1,6 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`"
-  ]
-}

@@ -1,1 +1,0 @@
-cannot be a borrow, constraint or dynamic trait

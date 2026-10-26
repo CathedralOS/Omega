@@ -1,5 +1,0 @@
-use omega::language::core::float_operations;
-data Carrier where value >= 3.75, value <= 3.75 {
-    value: f64;
-}
-proposition fractional(carrier: Carrier) = (carrier.value as u8 in Saturating) == 3u8;

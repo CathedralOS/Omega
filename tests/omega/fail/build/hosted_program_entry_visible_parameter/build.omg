@@ -1,5 +1,0 @@
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "hosted_program_entry_visible_parameter");
-    Build::bind(builder, windows_x86_64::ProgramEntry, launch);
-}

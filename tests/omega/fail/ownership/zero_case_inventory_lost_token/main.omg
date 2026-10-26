@@ -1,6 +1,0 @@
-data Token [linear] { value: u64; }
-data Slot { case Empty; case Held(token: Token); }
-machine invalid(token: Token) {
-    let mut slots: [Slot; 4];
-    slots[1] = Slot::Held { token: token };
-}

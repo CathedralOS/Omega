@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_double_application");
-    Build::application(builder, "invalid_double_application_again");
-    builder.freestanding = true;
-}

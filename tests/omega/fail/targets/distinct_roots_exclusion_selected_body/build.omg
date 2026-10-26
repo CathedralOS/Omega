@@ -1,7 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "distinct_roots_exclusion_selected_body");
-    Build::bind(builder, macos_arm64::ProgramEntry, trapping);
-    Build::bind(builder, windows_x86_64::ProgramEntry, normal);
-    Build::bind(builder, linux_x86_64::ProgramEntry, normal);
-    Build::exclude_crash(builder, CrashCause::Trap);
-}

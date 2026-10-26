@@ -1,8 +1,0 @@
-use omega_language_std::calling;
-
-machine main() {
-    let path: [u64; 16];
-    let destination: NativePlace = NativePlace::Field {
-        parameter: 1, layout: 2, field_path: path, field_path_count: 0,
-    };
-}

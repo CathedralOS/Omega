@@ -1,4 +1,0 @@
-// Refuse the authored extent obligation before execution.
-const count: u64 = 2;
-machine inspect(count: u64) { let cells: [u8; count + 1]; }
-machine main() { inspect(2); }

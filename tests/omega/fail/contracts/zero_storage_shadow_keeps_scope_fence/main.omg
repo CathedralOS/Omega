@@ -1,6 +1,0 @@
-data Buffer { bytes: [u8; 8]; count: u64; }
-machine needs_one(count: u64) requires count == 1 { }
-machine shadow(value: Buffer) requires value.count == 1 {
-    let value: Buffer;
-    needs_one(value.count);
-}

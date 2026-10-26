@@ -1,2 +1,0 @@
-widens write-only parameter `pair` to `&mut`
-reads field `cell` from write-only parameter `pair`

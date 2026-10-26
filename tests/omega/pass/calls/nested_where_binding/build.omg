@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "nested_where_binding");
-    builder.freestanding = true;
-}

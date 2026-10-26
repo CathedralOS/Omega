@@ -1,7 +1,0 @@
-windows_x86_64 machine choose() -> bool { true }
-linux_x86_64 machine choose() -> bool { true }
-linux_arm64 machine choose() -> bool { true }
-macos_arm64 machine choose() -> bool { false }
-machine relay() -> bool { choose() }
-machine demand(value: bool) -> bool requires value == true { value }
-machine main() -> bool { demand(relay()) }

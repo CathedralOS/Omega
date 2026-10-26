@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "boundary_operator_contract");
-    builder.freestanding = true;
-}

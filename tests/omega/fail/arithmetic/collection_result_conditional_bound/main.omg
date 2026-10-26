@@ -1,8 +1,0 @@
-machine count(values: &[u8]) -> u64
-ensures result <= values.len || result == 18446744073709551615 {
-    18446744073709551615
-}
-machine rejected() -> u64 {
-    let values: [u8; 3];
-    count(&values[..]) + 1
-}

@@ -1,1 +1,0 @@
-binds `Count` to 4 but its explicit argument is 2

@@ -1,9 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "applied_type_index_forwarding");
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::accept_boundary<Identity>(builder);
-    Build::select_provider<Identity, Provider>(builder);
-}

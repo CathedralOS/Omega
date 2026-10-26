@@ -1,8 +1,0 @@
-use omega_language_std::math;
-
-proposition paired(left: u64, right: u64) = min_u64(left, right) >= 1;
-
-machine unchecked_claim(left: u64, right: u64)
-requires paired(left, right)
-ensures paired(right, 0)
-{}

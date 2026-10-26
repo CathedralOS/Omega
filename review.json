@@ -1,0 +1,48 @@
+{
+  "accepted": true,
+  "candidate": "45654cb29dff7f40e24026e46610ed65c762ca3c",
+  "reviewer": "/root/fact_a",
+  "decision": "Accept the exact integrated candidate for the demonstrated checked scalar-predicate, unary-bound, dynamic-index and exclusive-call fact mechanism. Merge resolution preserves main structural interval narrowing and retained stored-view behavior. No unresolved finding remains in this scoped review.",
+  "scope": [
+    "Exact integrated source91838745b51bb7cae56a606372c70fa87b4d715d and metadata-only final delta45654cb29dff7f40e24026e46610ed65c762ca3c.",
+    "Full-carrier consequence and independent converse judgments; exact recursive conclusion instantiation; original proof-formal admission.",
+    "Exact caller/captured identities, bounded equality transport, mutation validity, and narrow retained duplicate-custody audit preserving operand correspondence/access/lineage/moves/dependencies."
+  ],
+  "evidence": {
+    "producer": "91838745b51bb7cae56a606372c70fa87b4d715d",
+    "omega_sha256": "1a03b6a8e56e6fb810d1db3e34694ed20e1aee622e2540e8f1373168fe6c441f",
+    "fresh_public": {
+      "native_terminal_agreements": 31,
+      "intended_rejects": 43,
+      "all_expected": 74
+    },
+    "fresh_retained": {
+      "checking_outcomes": 73,
+      "checked": 30,
+      "intended_rejects": 43,
+      "wrong_reason": 0,
+      "native_terminal_agreements": 30
+    },
+    "focused_tests": {
+      "custody_unit_passed": 7,
+      "historical_fixtures_compared": 5,
+      "losses": 0,
+      "gains": 0
+    },
+    "merge_consumers": {
+      "checking": 4,
+      "positive": 2,
+      "intended_rejects": 2,
+      "native_terminal_agreements": 2,
+      "owners": "domain-pattern-match field interval and reborrowed stored-view parameter"
+    },
+    "integrity": "Independently verified all467 source hashes against918 Git objects and current bytes and all238 raw/receipt/producer hashes in frozen-evidence-integrated.json; no mismatches. Independently read fresh public/corpus/unit/merge-consumer observations and final clean metadata-only diff.",
+    "reuse": "Fresh918 evidence establishes integrated behavior; original133/16f observations and final-review.json accepted f008 remain historical, unchanged. Final45654 adds no semantic code or witness changes."
+  },
+  "limitations": [
+    "Runtime observed on macos_arm64; other hosted targets bound and applicable Terminal target checks are not a claim of native execution there.",
+    "BORROW-PROOF-CONVERGENCE remains open for structured/domain predicates, broader runtime projections and same-statement/theorem establishment.",
+    "Review acceptance does not establish authorized main landing or remote verification; implementation owner retains publication and parent acceptance.",
+    "One merge-consumer dual-engine gate reports a new golden row; both actual engines succeed and agree, with no lost success/oracle/infrastructure failure."
+  ]
+}

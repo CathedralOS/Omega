@@ -1,7 +1,0 @@
-machine `DirectTally::add` state `add` declares 2 parameter(s), but trait `Tally` machine `add` declares 1: a satisfier declares no parameter its requirement lacks
-machine `MappedTally::add` state `add` declares 2 parameter(s), but trait `Tally` machine `add` declares 1: a satisfier declares no parameter its requirement lacks
-machine `stateful_reset` state `entry` declares 1 parameter(s), but trait `Tally` machine `reset` declares 0: a satisfier declares no parameter its requirement lacks
-machine `stateful_exit` state `entry` declares 2 parameter(s), but trait `Process` machine `exit` declares 1: a satisfier declares no parameter its requirement lacks
-machine `stateful_count` declares 2 parameter(s), but top-level boundary requirement `Arithmetic::count` declares 1: a satisfier declares no parameter its requirement lacks
-machine `stateful_offset` declares 2 parameter(s), but requirement `Arithmetic::offset` declares 1: a satisfier declares no parameter its requirement lacks
-machine `stateful_select_left` declares 3 parameter(s), but requirement `Arithmetic::select_left` declares 2: a satisfier declares no parameter its requirement lacks

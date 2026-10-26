@@ -1,4 +1,0 @@
-use left;
-use right;
-data Storage { bytes: [u8; Count]; }
-machine main() {}

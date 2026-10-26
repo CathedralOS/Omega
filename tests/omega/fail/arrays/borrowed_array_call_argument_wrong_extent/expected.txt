@@ -1,2 +1,0 @@
-array literal with 1 element(s) to a `[_; 2]` place
-argument `receipts` for state `entry` expects `&[Receipt; 2]`

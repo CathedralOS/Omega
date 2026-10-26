@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "narrowing_literal_wider_than_target");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

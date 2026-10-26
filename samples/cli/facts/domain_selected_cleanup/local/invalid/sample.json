@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "cannot prove automatic cleanup requires",
-    "release_keeper clause `keeper.code == 7`"
-  ]
-}

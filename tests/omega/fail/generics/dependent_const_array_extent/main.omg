@@ -1,4 +1,0 @@
-const Two: u32 = 2;
-const Short: [u8; 1] = [1];
-trait Pick<Value, const Extent: u32, const Selected: [Value; Extent]> {}
-Wrong satisfies Pick<u8, Two, Short> {}

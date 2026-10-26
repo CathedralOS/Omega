@@ -1,5 +1,0 @@
-machine items() -> [u8; 2] { [7, 42] }
-
-machine invalid() -> u8 {
-    items()[1 / 2]
-}

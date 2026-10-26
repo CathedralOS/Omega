@@ -1,5 +1,0 @@
-// A requirement call's non-unit result cannot be discarded implicitly.
-public boundary trait Service { machine read() -> i32 reaches; }
-machine invalid() {
-    Service::read();
-}

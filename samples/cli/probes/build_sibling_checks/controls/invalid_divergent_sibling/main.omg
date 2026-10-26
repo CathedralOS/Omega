@@ -1,7 +1,0 @@
-use a::main;
-use bad::main;
-use c::main;
-
-machine entry() -> i64 {
-    a_value() as i64 + bad_value() as i64 + c_value() as i64
-}

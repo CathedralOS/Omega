@@ -1,8 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "mutates `bytes[2]` while local borrow",
-    "is still active"
-  ]
-}

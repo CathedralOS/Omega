@@ -1,1 +1,0 @@
-mutates `right.value` while local borrow `pair` is still active

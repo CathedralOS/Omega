@@ -1,1 +1,0 @@
-`as ... in Extent::Granted` cannot establish a non-vacuous domain

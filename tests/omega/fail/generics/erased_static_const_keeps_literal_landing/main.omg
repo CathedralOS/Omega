@@ -1,2 +1,0 @@
-machine unused<const Tag: u8>() {}
-machine Main::main() { unused<7u16>(); }

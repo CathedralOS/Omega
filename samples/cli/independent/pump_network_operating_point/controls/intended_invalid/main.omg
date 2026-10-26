@@ -1,4 +1,0 @@
-// Complete intended-invalid control: a branch pair requires exactly two values.
-// This one-element literal cannot satisfy the documented fixed-array extent.
-machine branch_total(branches: &[i64; 2]) -> i64 { branches[0] }
-machine main() { let invalid: i64 = branch_total(&[1]); }

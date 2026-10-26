@@ -1,2 +1,0 @@
-native compile FAILED:
-  error: `main` has no executable body: this compiler does not lower a state of it yet (state graph: terminator: conditional successors: guard expression)

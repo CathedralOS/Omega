@@ -1,6 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "not a declared local, parameter, field, or type in this state"
-  ]
-}

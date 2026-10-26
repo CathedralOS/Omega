@@ -1,1 +1,0 @@
-outcome proof selector `selected` is not a named guarantee of the matching result case

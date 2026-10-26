@@ -1,3 +1,0 @@
-machine `inspect` state `entry` parameter `value` mentions proof-only `Natural`
-machine `Namespace::inspect` state `inspect` parameter `value` mentions proof-only `Natural`
-machine `Natural::inspect` state `inspect` parameter `value` mentions proof-only `Natural`

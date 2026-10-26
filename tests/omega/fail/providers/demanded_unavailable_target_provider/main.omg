@@ -1,7 +1,0 @@
-// A selected provider may not fall back to an available sibling.
-use omega_language_std::console;
-boundary trait Value { machine read() -> i32 reaches; }
-FirmwareValue satisfies Value { machine read() -> i32 { bridge() } }
-machine bridge() -> i32 { firmware_only() }
-uefi_x86_64 machine firmware_only() -> i32 { 63 }
-machine main() reaches Console { Console::exit_process(Value::read()); }

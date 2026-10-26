@@ -1,7 +1,0 @@
-machine wrong(value: u64) -> u64
-requires value > 0
-ensures result > 0
-{
-    transition { _ -> later(0) }
-    state later(value: u64) -> u64 { value }
-}

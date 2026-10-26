@@ -1,1 +1,0 @@
-state `ident` receives `view[3]` while local borrow `middle` is still active

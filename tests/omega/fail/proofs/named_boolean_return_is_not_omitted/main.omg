@@ -1,6 +1,0 @@
-machine choose(flag: bool) -> bool {
-    transition flag { true -> yes() false -> false }
-    state yes() -> bool { true }
-}
-machine demand(value: bool) -> bool requires value == false { value }
-machine main() -> bool { demand(choose(true)) }

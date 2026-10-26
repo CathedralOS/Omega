@@ -1,3 +1,0 @@
-machine offset(value: i32, macos_arm64: i32) -> i32
-    requires value >= 0; macos_arm64 >= 0; value < 100; { value + 1 }
-machine probe() -> i32 { offset(41, -1) }

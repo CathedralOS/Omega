@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "const_call_range_endpoint");
-    builder.freestanding = true;
-}

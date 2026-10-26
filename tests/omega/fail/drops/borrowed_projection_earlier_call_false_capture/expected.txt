@@ -1,1 +1,0 @@
-Pair.first does not establish Receipt::drop clause

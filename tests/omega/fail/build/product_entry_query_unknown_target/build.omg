@@ -1,8 +1,0 @@
-// FAIL CANARY -- the query's slot owner names no target profile. The slot
-// string is a locator for a declared target's root slot, not free text, so
-// the query rejects before any binding exists.
-machine build(builder: &mut Build) {
-    Build::application(builder, "product_entry_query_unknown_target");
-    let entry: ProductEntryRef = BuildProduct::entry(&builder.product, "launch", "unknown_target::ProgramEntry");
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry);
-}

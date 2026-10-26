@@ -1,9 +1,0 @@
-data Cell { value: u64; }
-machine Cell::replace(cell: &mut Cell) { cell.value = 0; }
-machine stale(cell: &mut Cell) -> u64
-requires cell.value > 0
-ensures result > 0
-{
-    Cell::replace(cell);
-    cell.value
-}

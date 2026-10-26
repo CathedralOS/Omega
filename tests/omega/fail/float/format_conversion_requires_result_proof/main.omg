@@ -1,9 +1,0 @@
-use omega::language::core::float_operations;
-
-data Reading { amount: f32 in Finite; }
-machine huge() -> f64 in Finite { 1.0e100 }
-machine make() -> Reading { Reading { amount: F32::from_f64(huge()) } }
-machine consume(value: f32 in Finite) {}
-machine overflow() { consume(F32::from_f64(huge())); }
-
-machine unknown(value: f64) -> f32 in Finite { F32::from_f64(value) }

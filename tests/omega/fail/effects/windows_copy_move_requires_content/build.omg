@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "windows_copy_move_requires_content");
-    Build::depend(builder, Source::Path {
-        location: "../../../../../source/library/std"
-    });
-}

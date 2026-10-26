@@ -1,1 +1,0 @@
-Run `omega run --both tests/omega/pass/control_flow/runtime_index_state_child_loan_exit/main.omg`. Both engines must exit 0. Source and Build are byte-identical to the frozen state_indexed_child_loan witness; its observable assertions remain unchanged.

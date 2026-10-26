@@ -1,3 +1,0 @@
-boundary trait Sink {
-    machine emit() reaches;
-}

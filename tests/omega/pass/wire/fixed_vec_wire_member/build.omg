@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "fixed_vec_wire_member");
-    builder.freestanding = true;
-}

@@ -1,1 +1,0 @@
-PASS: st_blksize decodes a nonzero preferred I/O size

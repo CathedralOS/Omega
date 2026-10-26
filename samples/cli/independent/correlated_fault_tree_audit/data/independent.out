@@ -1,7 +1,0 @@
-failure_ppm=314000/1000000
-cut_mask=3
-cut_mask=4
-event=0 marginal_ppm=100000 repaired_ppm=300000 reduction_ppm=14000 forced_ppm=440000
-event=1 marginal_ppm=200000 repaired_ppm=300000 reduction_ppm=14000 forced_ppm=370000
-event=2 marginal_ppm=300000 repaired_ppm=20000 reduction_ppm=294000 forced_ppm=1000000
-AUDIT COMPLETE

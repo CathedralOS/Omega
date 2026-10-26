@@ -1,6 +1,0 @@
-// Complete intended-invalid source: a literal index equals its array extent.
-data Control { classes: [u8; 4]; }
-machine main() {
-    let mut control: Control;
-    control.classes[4] = 1;
-}

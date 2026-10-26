@@ -1,9 +1,0 @@
-// Anonymous array elements form values exactly in their destination carrier.
-// The final mathematical value exceeds i32, so its contextual landing rejects
-// before runtime storage. The same rule governs ordinary scalar destinations.
-use omega_language_std::console;
-data Main { }
-machine Main::main(main: &mut Main) {
-    let values: [i32; 1] = [2147483647 + 1];
-    Console::exit_process(70);
-}

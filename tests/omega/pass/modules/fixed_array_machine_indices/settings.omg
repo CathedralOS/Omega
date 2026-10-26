@@ -1,3 +1,0 @@
-module settings;
-use main;
-machine keep(value: Indexed<Sizes::SIZE>) -> Indexed<Sizes::SAME> { value }

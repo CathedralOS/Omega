@@ -1,4 +1,0 @@
-interface:
-  display_name: "Codex swarm"
-  short_description: "Coordinate Codex cloud workers and compact source batches"
-  default_prompt: "Use $codex-swarm to advance the Omega compiler through the requested pool of independent, reusable Codex cloud sessions."

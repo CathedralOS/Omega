@@ -1,7 +1,0 @@
-// An abstract sibling cannot hide an independently known local-backed view.
-data Text { bytes: &[u8]; }
-data Holder<T> { item: T; text: Text; }
-machine replace<T>(holder: &mut Holder<T>) {
-    let bytes: [u8; 4] = [65, 66, 67, 68];
-    holder.text = Text { bytes: &bytes[..] };
-}

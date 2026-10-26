@@ -1,1 +1,0 @@
-Frozen before execution: choose(true) is First; choose(false) is Second. First==First and Second!=First are both true, so native and Terminal exit zero. Neither call may be skipped/replaced by a different equality policy. This fixture admits only payload-free copy enum values.

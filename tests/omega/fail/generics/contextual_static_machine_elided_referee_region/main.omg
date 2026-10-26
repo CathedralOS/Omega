@@ -1,7 +1,0 @@
-machine selected<'outer, 'inner>(value: &'outer &'inner u64) -> & &u64 { value }
-
-machine accept<machine Callback>()
-where machine Callback<'first, 'second>(value: &'first &'second u64) -> &'first &'first u64;
-{}
-
-machine main() { accept<selected>(); }

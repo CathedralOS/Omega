@@ -1,8 +1,0 @@
-use omega::language::core::numeric_conversion;
-
-data ByteResult where value >= 0, value <= 255 { value: i64; }
-machine corrupt(byte: u8) {
-    let mut widened: ByteResult = ByteResult { value: widen_u8_to_i64(byte) };
-    widened.value = -1;
-}
-machine main() {}

@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "saturating_integer_arithmetic_target_body_invalid");
-}

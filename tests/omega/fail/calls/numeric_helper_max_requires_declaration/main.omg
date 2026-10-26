@@ -1,1 +1,0 @@
-machine evaluate(left: i32, right: i32) -> i32 { max(left, right) }

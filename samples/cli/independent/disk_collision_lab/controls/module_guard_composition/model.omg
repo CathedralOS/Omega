@@ -1,3 +1,0 @@
-public data Disk [copy] {x:f64;y:f64;vx:f64;vy:f64;radius:f64;mass:f64;}
-public data Measurements {disks:[Disk;4];events:u64;first:u64;second:u64;time:f64;impulse:f64;px:f64;py:f64;energy:f64;loss:f64;initial_x:f64;initial_y:f64;initial_energy:f64;contact_error:f64;}
-public data Probe {lab:Measurements;choice:i32;observed:i32;}

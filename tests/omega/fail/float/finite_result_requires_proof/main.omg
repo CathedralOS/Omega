@@ -1,3 +1,0 @@
-use omega::language::core::float_operations;
-
-machine invalid(value: f64) -> f64 in Finite { value }

@@ -1,3 +1,0 @@
-// Refuse the authored extent obligation before execution.
-data Matrix<const R: u32, const C: u32> [copy] { cells: [u8; (R * C) / 1000000000]; }
-machine main() { let cells: Matrix<65536,65536>; }

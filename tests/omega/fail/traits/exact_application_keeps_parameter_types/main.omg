@@ -1,7 +1,0 @@
-trait Identity<Element> {
-    machine identity(value: Element) -> Element;
-}
-machine identity<Element>(value: i32) -> i32
-satisfies Identity<Element>::identity {
-    value
-}

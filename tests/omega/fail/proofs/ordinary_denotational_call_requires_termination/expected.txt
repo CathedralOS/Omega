@@ -1,1 +1,0 @@
-is not denotational: the selected machine is not unconditionally terminating

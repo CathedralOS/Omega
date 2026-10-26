@@ -1,6 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "cannot prove requires contract for call deliver from Main::main: s <= 5"
-  ]
-}

@@ -1,5 +1,0 @@
-machine main() {
-    let value: u64 = 42;
-    let observed: u64 = read();
-    machine read() -> u64 { value }
-}

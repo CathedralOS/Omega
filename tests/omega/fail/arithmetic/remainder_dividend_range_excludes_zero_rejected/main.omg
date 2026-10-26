@@ -1,5 +1,0 @@
-machine wrong(value: i64, divisor: i64) -> i64
-    requires value >= 5, value <= 7, divisor >= 2
-    ensures result >= 5 && result <= 7
-{ value % divisor }
-machine main() {}

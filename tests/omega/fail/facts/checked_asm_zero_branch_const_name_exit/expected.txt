@@ -1,3 +1,0 @@
-cannot prove requires contract for call done
-== 1
-in state `loop`

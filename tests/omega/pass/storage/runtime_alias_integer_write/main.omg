@@ -1,8 +1,0 @@
-data Main {
-}
-
-machine Main::main(
-    health: &mut i32
-) {
-    health = 1;
-}

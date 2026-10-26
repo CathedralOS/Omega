@@ -1,5 +1,0 @@
-// A module path selects only a domain that module declares.
-use units;
-machine main() -> u64 {
-    transition { _ -> (3 as u64 in units::u64::Missing) as u64 }
-}

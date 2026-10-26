@@ -1,1 +1,0 @@
-assignment would overwrite live linear value `receipt`

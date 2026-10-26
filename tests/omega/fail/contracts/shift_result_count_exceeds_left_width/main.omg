@@ -1,6 +1,0 @@
-machine shifted(value: i8, count: u64) -> i8
-requires value >= 0 && count < 8;
-ensures result == value >> count;
-{ value >> count }
-machine invalid(value: i8) -> i8 requires value >= 0;
-{ shifted(value, 8u64) }

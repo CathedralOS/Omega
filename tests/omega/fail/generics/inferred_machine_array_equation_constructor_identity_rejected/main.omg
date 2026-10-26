@@ -1,5 +1,0 @@
-data Length [copy] { first: u8; second: u8; }
-machine capacity<Length [copy], const Capacity: u64>(items: Length) -> u64
-where Length == [u8; Capacity]
-{ Capacity }
-machine main() { let items: Length = Length { first: 7, second: 11 }; let observed: u64 = capacity(items); }

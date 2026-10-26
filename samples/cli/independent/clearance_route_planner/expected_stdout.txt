@@ -1,8 +1,0 @@
-clearance_route_planner
-radius=2
-scene=0
-status=route
-cost_milli=14000
-minimum_clearance_milli=3000
-coordinates=0,5;3,1;7,1;10,5
-validated=1

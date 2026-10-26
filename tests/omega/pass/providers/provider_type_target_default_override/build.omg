@@ -1,9 +1,0 @@
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "provider_type_target_default_override");
-    Build::select_provider<Pick, SecondProvider>(builder);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-}

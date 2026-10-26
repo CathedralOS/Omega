@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `invalid_optimization_case` with 1 diagnostic(s)
-  error: build-time evaluation of `build` failed: `Optimization` names a declaration, not storage

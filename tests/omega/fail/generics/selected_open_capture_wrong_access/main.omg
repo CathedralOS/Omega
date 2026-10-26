@@ -1,8 +1,0 @@
-data Cell { value: u64; }
-trait Update<Value> { machine update(value: &mut Value); }
-Selected<Value, Role> satisfies Update<Value> {
-    machine update(value: &mut Value) {}
-}
-machine carry<Role>(value: &Cell) {
-    Selected<Cell, Role>::update(value);
-}
