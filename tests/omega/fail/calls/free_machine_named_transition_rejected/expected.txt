@@ -1,1 +1,1 @@
-unsupported transition target `scan`
+cannot prove requires contract for call scan

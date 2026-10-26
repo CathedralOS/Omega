@@ -22,7 +22,7 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
     let access: AccessPlan = AccessPlan::inaccessible(&schema);
     transition { _ -> place_status(schema, access, entries) }
 
-    state place_status(
+    machine place_status(
         schema: Schema,
         access: AccessPlan,
         entries: [FieldEntry; 64]
@@ -43,7 +43,7 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
         ) }
     }
 
-    state place_transmit(
+    machine place_transmit(
         schema: Schema,
         access: AccessPlan,
         entries: [FieldEntry; 64]
@@ -62,7 +62,7 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
         ) }
     }
 
-    state finish(
+    machine finish(
         access: AccessPlan,
         entries: [FieldEntry; 64]
     ) -> PlacementPlan {
@@ -102,8 +102,8 @@ machine start(
         true -> write(fifth)
         _ -> bad()
     }
-    state write(fifth: &mut Placed<RegPlacement, Registers>) {
+    machine write(fifth: &mut Placed<RegPlacement, Registers>) {
         fifth.transmit.write(&mut fifth.transmit, 9);
     }
-    state bad() { crash Trap; }
+    machine bad() crashes Trap { crash Trap; }
 }
