@@ -1,1 +1,2 @@
-cannot prove requires contract for call apply
+cannot prove requires contract for call step
+0 <= right && right <= 50
