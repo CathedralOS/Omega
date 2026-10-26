@@ -178,6 +178,21 @@ impl<'program> StructuralJudge<'program> {
         paths
     }
 
+    fn term_max_captured_occurrence(term: &StructuralTerm) -> Option<usize> {
+        match term.semantic_value() {
+            StructuralTerm::CapturedValue { occurrence, .. } => Some(*occurrence),
+            _ => {
+                let mut max = None;
+                term.for_each_child(|child| {
+                    if let Some(child_occ) = Self::term_max_captured_occurrence(child) {
+                        max = Some(max.map_or(child_occ, |curr: usize| curr.max(child_occ)));
+                    }
+                });
+                max
+            }
+        }
+    }
+
     /// Resolve captured value identities without folding arithmetic or using
     /// caller hypotheses. Discovery needs the producing operand structure;
     /// ring equality cannot replace its intermediate formation obligations.
@@ -276,13 +291,31 @@ impl<'program> StructuralJudge<'program> {
             return value;
         }
         for (left, right) in self.captured_result_equations.iter() {
-            for (pattern, replacement) in [(left, right), (right, left)] {
-                if pattern == &value
-                    && replacement != &value
-                    && !super::super::structural_terms::term_contains(replacement, &value)
-                {
-                    return self.completed_value_identity_at(replacement.clone(), depth + 1);
+            // Orient captured results toward earlier source observations:
+            // normalize a later captured call result toward an earlier
+            // observation or input parameter, avoiding circular flips.
+            let (pattern, replacement) = match (
+                Self::term_max_captured_occurrence(left),
+                Self::term_max_captured_occurrence(right),
+            ) {
+                (Some(left_occ), Some(right_occ)) => {
+                    if left_occ > right_occ {
+                        (left, right)
+                    } else if right_occ > left_occ {
+                        (right, left)
+                    } else {
+                        continue;
+                    }
                 }
+                (Some(_), None) => (left, right),
+                (None, Some(_)) => (right, left),
+                (None, None) => continue,
+            };
+            if pattern == &value
+                && replacement != &value
+                && !super::super::structural_terms::term_contains(replacement, &value)
+            {
+                return self.completed_value_identity_at(replacement.clone(), depth + 1);
             }
         }
         value

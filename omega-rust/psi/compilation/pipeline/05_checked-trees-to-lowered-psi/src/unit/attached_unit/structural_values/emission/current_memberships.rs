@@ -147,7 +147,16 @@ impl Emission<'_, '_, '_> {
                         &self.checked.typed,
                         *left,
                         *right,
-                    )
+                    ) || match (left, right) {
+                        (
+                            facts::PlaceSegment::Field { symbol: left },
+                            facts::PlaceSegment::Field { symbol: right },
+                        ) => {
+                            self.checked.typed.symbols.name(*left)
+                                == self.checked.typed.symbols.name(*right)
+                        }
+                        _ => false,
+                    }
                 })
         {
             return Err(LoweringError::Unsupported(
