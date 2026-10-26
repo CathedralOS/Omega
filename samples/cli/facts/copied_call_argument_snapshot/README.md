@@ -534,3 +534,71 @@ ordinary full write-frame query remains unchanged. The four hosted entries remai
 present. Linux and Windows execution are unverified here; Windows native
 validation remains owner-deferred. Opaque/provider-backed and remaining cyclic
 result compositions stay open on the parent task.
+
+## Window indices retain completed endpoint operands
+
+The selected value of a copied first argument remains 7 when the second argument
+replaces its former descriptor home with a view of 9.
+
+`<place>/captured_window_indices/main.omg` produces `Counted<end - start>` through
+both a direct call and a public `Counting` call. The start operand completes as 2;
+the later end operand resets its former home to 0 and returns 9. The returned
+window retains extent 7, which `receive_inferred`, `seven` and exact subtraction
+consume before the former descriptor home is replaced. The endpoint reset and
+once-only counters remain runtime oracles. Each twin changes only the end
+producer's result to 8 and rejects the unchanged `Count == 7` obligation.
+
+Fresh main `a61700a1889` rejects all nine positives while preparing their runtime
+index descriptor. Executable recipes now copy their expression graphs and retain
+selected operation meaning. Callable type formation consumes its exact incoming
+requirements through the ordinary integer judgment; a requirement cannot form
+its own partial operand. Symbolic windows retain body-derived enclosing regions
+through the same typed source-path query as custody replay. These regions prove
+neither descriptor equality nor permission ancestry. Authenticated image scope
+and declared lifetime debts remain separate obligations.
+
+The nine positive and negative places are pinned as
+`tests/omega/{pass,fail}/facts/copied_captured_window_index_argument_snapshot_through_*`.
+The `dependent_window_*` controls reject missing order, self-forming requirements,
+wrong window extent, mismatched parameter indices and writes to retained backing.
+Their positive counterparts exercise an unrelated write, an image-backed sibling
+and a dependent parameter application. `runtime_dependent_window_byte_payload_exit`
+also reads byte 49 through the returned `Counted` value, checking the nonzero
+window offset independently of its extent. Native/Terminal observations are macOS
+ARM64 exit 0; other-host execution remains unverified. General opaque/provider
+result composition and the parent capability remain open.
+
+### Forwarded dependent results and static callable contracts
+
+The same nine `captured_window_indices` places now pass their direct producer
+through an explicitly contracted static callback. The completed start operand,
+later endpoint reset, result extent 7, subsequent descriptor replacement and
+extent-6 reject twins remain unchanged. The existing public producer is still
+exercised. Pins retain the same nine fact names.
+
+Baseline `2e70a865669` refuses all nine positives while forming generated result
+locals. Local type recipes now consume the current write-invalidated value
+environment. Their incoming machine contract is not replayed after mutation.
+Call-result types apply the exact occurrence-selected parameter telescope;
+static callable recipes no longer retain foreign formal subjects. Callable
+shape checks use positional formal correspondence for dependent expressions,
+including renamed parameters. Conservative call frames preserve established
+immutable scalar snapshots through the same observation query already used for
+private descriptor metadata. Mutable subjects retain ordinary invalidation.
+These operations supply neither spatial geometry nor access authority.
+
+`controls/dependent_callback_window` also reads byte 49 at the returned window's
+nonzero offset. `dependent_forwarded_window` exercises ordinary forwarding,
+and `dependent_renamed_callback_window` changes the callback's formal names.
+`dependent_local_valid_order` forms a local index from its current written value;
+its `dependent_local_written_order` twin changes only that write to break the
+ordering. `dependent_callback_missing_order` and `dependent_callback_wrong_result`
+reject missing public premises and a different result index. Corresponding pins
+live under `tests/omega/{pass,fail}/{borrows,generics}`.
+
+Acceptance requires all nine positive places and their pins to agree between
+native and Terminal execution, their nine reject twins to refuse `Count == 7`,
+and these composition and invalidation controls to retain their authored
+outcomes. Observations are recorded against the actual producer and host in the
+qualification record. Other-host execution and the broader parent acceptance,
+including opaque/provider result composition, remain open.

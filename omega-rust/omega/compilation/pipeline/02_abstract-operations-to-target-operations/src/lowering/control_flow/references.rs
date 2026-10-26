@@ -8,15 +8,13 @@
 //! Conditional payload slots join by union without manufacturing a descriptor
 //! for an inactive case. Moves, copies and calls follow current storage paths,
 //! not reconstructed parent loans or formation histories.
-use super::LiveDefinitions;
+use super::{LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
-use target_operations::{
-    TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation, TerminalPsiProvenance,
-};
+use target_operations::{TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
 };
@@ -969,12 +967,9 @@ pub(super) fn commit_argument_moves(
 /// Establish descriptor storage; the backing root remains metadata only.
 pub(super) fn establish(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
+    site: &mut RowSite<'_>,
 ) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
     let AbstractOperation::EstablishReference {
         psi_operation,
         result,
@@ -1057,12 +1052,9 @@ pub(super) fn establish(
 /// origin remain independent from the requested placement and result carrier.
 pub(super) fn establish_placed(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
+    site: &mut RowSite<'_>,
 ) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
     let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::EstablishPlacedReference {
         psi_operation,
@@ -1197,11 +1189,9 @@ pub(super) fn retain_placed_result(
 /// Retire metadata for the exact stored descriptor, never its referent storage.
 pub(super) fn release(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
+    site: &mut RowSite<'_>,
 ) -> Result<(), LoweringError> {
+    let (function, _, live, operations, provenance) = site.parts();
     let AbstractOperation::ReleaseReference {
         psi_operation,
         source,

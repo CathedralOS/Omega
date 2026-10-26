@@ -5,31 +5,24 @@
 //! can fulfill this operation. Its result uses ordinary aggregate storage, so
 //! rejection and successful extraction preserve the same caller-visible ABI.
 
-use super::LiveDefinitions;
+use super::RowSite;
 use crate::LoweringError;
-use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{
-    AbstractBoundaryResult, AbstractFunction, AbstractOperation, PlacementLifecycleOperands,
-};
+use abstract_operations::{AbstractBoundaryResult, AbstractOperation, PlacementLifecycleOperands};
 use semantic_vocabulary::BoundaryMachineId;
 use std::collections::BTreeMap;
 use target_operations::{
     BoundaryExecutionBinding, BoundaryRealization, BoundarySettlementBinding,
     BoundarySettlementRealization, CompilerBuiltinExecution, TargetUnitOperation,
-    TerminalPsiProvenance,
 };
 use terminal_psi::{StructuralAccess, TerminalPlacementLifecycleExecution};
 
 pub(super) fn lower(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
+    site: &mut RowSite<'_>,
     boundaries: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
     let AbstractOperation::BoundaryCall {
         psi_operation,
         boundary,

@@ -165,6 +165,12 @@ pub(crate) fn declaration_call_dependencies(
     });
     if let Some(machine) = machine {
         let mut dependencies = machine_call_dependency_symbols(program, machine);
+        dependencies.extend(
+            super::machine_parameters::specialization_selection_dependency_symbols(
+                program,
+                machine.symbol,
+            )?,
+        );
         if machine.target_family_interface {
             // A portable guarantee depends on every retained member, even
             // though the interface itself has no body. This prevents a

@@ -147,6 +147,7 @@ dependencies = [
  "numerics",
  "optimization-core",
  "semantic-vocabulary",
+ "source-audit",
  "terminal-psi",
 ]
 
@@ -589,6 +590,7 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "source",
+ "source-audit",
  "symbols",
  "target",
  "terminal-installation",
@@ -1236,6 +1238,7 @@ dependencies = [
  "machine-emission",
  "native-artifact",
  "optimization-core",
+ "phase-profile",
  "post-allocation-machine-to-selected-form-encoding",
  "register-environment",
  "register-homes-to-post-allocation-machine",
@@ -1594,6 +1597,7 @@ dependencies = [
  "optimization-core",
  "post-handoff-writer-plan",
  "semantic-vocabulary",
+ "source-audit",
  "target",
  "terminal-psi",
  "terminal-semantics",
@@ -1653,6 +1657,7 @@ dependencies = [
  "representation-planning",
  "semantic-vocabulary",
  "source",
+ "source-audit",
  "symbols",
  "target",
  "task-plans",
@@ -1981,6 +1986,7 @@ dependencies = [
  "legalized-operations",
  "optimization-core",
  "optimization-unit",
+ "phase-profile",
  "register-environment",
  "register-homes",
  "register-model",
@@ -2007,6 +2013,7 @@ dependencies = [
  "legalized-operations",
  "optimization-core",
  "optimization-unit",
+ "phase-profile",
  "register-environment",
  "register-homes",
  "register-model",
@@ -2117,6 +2124,10 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
 ]
+
+[[package]]
+name = "source-audit"
+version = "0.1.0"
 
 [[package]]
 name = "source-files-to-tokens"
@@ -2290,6 +2301,7 @@ dependencies = [
  "language-core",
  "optimization-core",
  "semantic-vocabulary",
+ "source-audit",
  "symbols",
  "terminal-psi",
 ]

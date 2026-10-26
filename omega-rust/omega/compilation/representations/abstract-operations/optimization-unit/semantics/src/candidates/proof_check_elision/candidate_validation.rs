@@ -251,12 +251,14 @@ pub(crate) fn validate_proof_certified_scalar_identity_candidate(
     if !function.facts.iter().any(|fact| {
         matches!(fact, OptimizationFact::OperationObligationReference { obligation, support }
             if *obligation == shape.obligation && *support == shape.source_operation)
-    }) || !input.accepted_obligation_facts.iter().any(|fact| {
-        fact.identity == obligation_fact
-            && fact.machine == function.machine
-            && fact.owner == optimization_unit::PsiProvenance::Operation(shape.source_operation)
-            && fact.obligation == shape.obligation
-    }) {
+    }) || input
+        .accepted_obligation_fact(
+            function.machine,
+            optimization_unit::PsiProvenance::Operation(shape.source_operation),
+            Some(shape.obligation),
+        )
+        .is_none_or(|fact| fact.identity != obligation_fact)
+    {
         return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
     }
     let receiver = &block.nodes[node_index + 1];

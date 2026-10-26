@@ -68,29 +68,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
              `satisfies Trait::machine via Binding::Case(...)`",
         ));
     }
-    let (
-        (
-            terminates_guarantee,
-            ranking_subjects,
-            ranking_view,
-            ranking_view_arguments,
-            ranking_range,
-            service_reach_keyword_source_spans,
-            service_reach_is_installation_bound,
-            service_reaches,
-            invokes,
-            suspends_keyword_source_spans,
-            blocks_keyword_source_spans,
-            suspends,
-            blocks,
-            contracts,
-            clauses_return_type,
-            where_facts,
-            admitted_same_stack_bytes,
-            same_stack_clause_span,
-        ),
-        next,
-    ) = parse_machine_clauses(syntax_trees, next)?;
+    let (clauses, next) = parse_machine_clauses(syntax_trees, next)?;
     let conformance_bounds = generic_parameters.conformance_bounds;
     input = next;
     // `-> T` is written either before the clauses or after them
@@ -98,7 +76,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
     let machine_return_type = if machine_return_type.is_valid() {
         machine_return_type
     } else {
-        clauses_return_type
+        clauses.return_type
     };
     let MachinePath {
         name,
@@ -116,8 +94,10 @@ pub(crate) fn parse_machine<'tokens, 'source>(
     // Tail normalization belongs to resolved machine identity. Parsing a
     // same-spelled call as a backedge here loses generic applications and can
     // choose a different callable before binding has established its target.
-    if admitted_same_stack_bytes != 0 {
-        let span = same_stack_clause_span.expect("a positive stack demand records its clause span");
+    if clauses.admitted_same_stack_bytes != 0 {
+        let span = clauses
+            .same_stack_clause_span
+            .expect("a positive stack demand records its clause span");
         if !bodyless {
             return Err(crate::diagnostics::parse_error::ParseError::at_source_span(
                 "`stack N bytes` admits demand only on a bodyless external realization",
@@ -155,22 +135,22 @@ pub(crate) fn parse_machine<'tokens, 'source>(
             type_parameters,
             satisfies,
             conformance_bounds,
-            where_facts,
-            terminates_guarantee,
-            ranking_subjects,
-            ranking_view,
-            ranking_view_arguments,
-            ranking_range,
-            service_reach_keyword_source_spans,
-            service_reach_is_installation_bound,
-            service_reaches,
-            invokes,
-            suspends_keyword_source_spans,
-            blocks_keyword_source_spans,
-            suspends,
-            blocks,
-            admitted_same_stack_bytes,
-            contracts,
+            where_facts: clauses.where_facts,
+            terminates_guarantee: clauses.terminates_guarantee,
+            ranking_subjects: clauses.ranking_subjects,
+            ranking_view: clauses.ranking_view,
+            ranking_view_arguments: clauses.ranking_view_arguments,
+            ranking_range: clauses.ranking_range,
+            service_reach_keyword_source_spans: clauses.service_reach_keyword_source_spans,
+            service_reach_is_installation_bound: clauses.service_reach_is_installation_bound,
+            service_reaches: clauses.service_reaches,
+            invokes: clauses.invokes,
+            suspends_keyword_source_spans: clauses.suspends_keyword_source_spans,
+            blocks_keyword_source_spans: clauses.blocks_keyword_source_spans,
+            suspends: clauses.suspends,
+            blocks: clauses.blocks,
+            admitted_same_stack_bytes: clauses.admitted_same_stack_bytes,
+            contracts: clauses.contracts,
             states,
         },
         input,

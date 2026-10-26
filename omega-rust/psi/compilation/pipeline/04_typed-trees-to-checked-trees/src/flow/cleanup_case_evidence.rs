@@ -23,6 +23,7 @@ pub(crate) struct CleanupCaseEvidence<'a> {
     facts: &'a CheckFacts,
     disposition: &'a ContextualCleanupDisposition,
     inactive: Vec<&'a [PlaceSegment]>,
+    definite: Vec<&'a [PlaceSegment]>,
     contexts: OnceCell<Option<OccurrenceContexts>>,
 }
 
@@ -44,13 +45,35 @@ impl<'a> CleanupCaseEvidence<'a> {
                 .then_some(path)
             })
             .collect::<Option<Vec<_>>>()?;
+        let excluded = cleanup.exclusions.span(disposition.exclusions)?;
+        let definite = cleanup
+            .exclusions
+            .span(disposition.definite_exclusions)?
+            .iter()
+            .map(|place| {
+                let path = cleanup.segments.span(place.segments)?;
+                (place.root == disposition.root
+                    && excluded.iter().any(|excluded| {
+                        excluded.root == place.root
+                            && cleanup.segments.span(excluded.segments) == Some(path)
+                    }))
+                .then_some(path)
+            })
+            .collect::<Option<Vec<_>>>()?;
         Some(Self {
             program,
             facts,
             disposition,
             inactive,
+            definite,
             contexts: OnceCell::new(),
         })
+    }
+
+    /// Producer custody proves a real transfer on every edge where this
+    /// case exists; an unknown exit tag alone supplies no such evidence.
+    pub(crate) fn definitely_transferred(&self, path: &[PlaceSegment]) -> bool {
+        self.definite.contains(&path)
     }
 
     pub(crate) fn contexts(&self) -> &Option<OccurrenceContexts> {

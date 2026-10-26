@@ -7,7 +7,7 @@ use crate::parameters::parse_parameters::{
     parse_optional_parameters, parse_optional_return_type, parse_parameter,
 };
 use crate::type_syntax::parse_type::parse_type_reference_handle;
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{StateSignature, TraitDefinition};
@@ -68,10 +68,8 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         ));
     }
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut required_trait_start = Handle::invalid();
-    let mut required_trait_count = 0u32;
-    let mut machine_start = Handle::invalid();
-    let mut machine_count = 0u32;
+    let mut requires = crate::handle_spans::HandleSpanBuilder::new();
+    let mut machines = crate::handle_spans::HandleSpanBuilder::new();
     let mut refinement_clauses = Vec::new();
 
     if refines.is_some() {
@@ -124,12 +122,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
             let handle = syntax_trees
                 .items
                 .append_identifier_path_member(required_trait);
-            if required_trait_count == 0 {
-                required_trait_start = handle;
-            }
-            required_trait_count = required_trait_count
-                .checked_add(1)
-                .expect("trait requirement span count overflow");
+            requires.push(handle);
             input = rest;
             continue;
         }
@@ -227,18 +220,11 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         signature.default_body = default_body;
         let handle = syntax_trees.items.insert_state_signature(&signature);
         let handle = syntax_trees.items.append_state_signature_handle(handle);
-        if machine_count == 0 {
-            machine_start = handle;
-        }
-        machine_count = machine_count
-            .checked_add(1)
-            .expect("trait machine signature span count overflow");
+        machines.push(handle);
         input = next;
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let requires = HandleSpan::from_parts_or_empty(required_trait_start, required_trait_count);
-    let machines = HandleSpan::from_parts_or_empty(machine_start, machine_count);
     Ok((
         TraitDefinition {
             is_boundary,
@@ -248,8 +234,8 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
             type_parameters,
             conformance_bounds,
             parents,
-            requires,
-            machines,
+            requires: requires.finish(),
+            machines: machines.finish(),
             refines,
             refinement_clauses,
         },
@@ -339,23 +325,16 @@ fn parse_refinement_clause<'tokens, 'source>(
                     "`reaches <= Bound` is an installation row; a refinement narrows the authored reach set",
                 ));
             }
-            let mut reach_start = Handle::invalid();
-            let mut reach_count = 0u32;
+            let mut reach = crate::handle_spans::HandleSpanBuilder::new();
             while !input.at_punctuation(PunctuationKind::Semicolon) {
                 let (row, rest) = input.take_identifier()?;
-                let handle = syntax_trees.items.append_identifier_path_member(row);
-                if reach_count == 0 {
-                    reach_start = handle;
-                }
-                reach_count = reach_count
-                    .checked_add(1)
-                    .expect("refinement reach row count overflow");
+                reach.push(syntax_trees.items.append_identifier_path_member(row));
                 input = rest;
                 if input.at_punctuation(PunctuationKind::Plus) {
                     input = input.take_punctuation(PunctuationKind::Plus, "+")?;
                 }
             }
-            signature.service_reaches = HandleSpan::from_parts_or_empty(reach_start, reach_count);
+            signature.service_reaches = reach.finish();
             input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
             continue;
         }
@@ -591,7 +570,7 @@ fn parse_boundary_parameter_telescope<'tokens, 'source>(
     }
 
     let mut input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-    let mut parameters = crate::parameters::ParameterSpanBuilder::new();
+    let mut parameters = crate::handle_spans::HandleSpanBuilder::new();
     let mut native_callback_parameters = Vec::new();
     let mut native_ordinal = 0u32;
 

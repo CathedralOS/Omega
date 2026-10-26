@@ -1,6 +1,6 @@
 //! Complete normalized placement transport; no address or host grant is encoded.
 use super::super::CodecError;
-use super::super::wire::{Reader, Writer, decode_counted};
+use super::super::wire::{Reader, Writer, decode_canonical, decode_counted};
 use access_plans::{
     AccessExposure, AccessPermissions, AtomicPermissions, BoundaryReach, BoundaryServiceReachId,
     ExternalRead, FieldAccess, ObservationModel, PlacementPlanSnapshot,
@@ -25,15 +25,11 @@ pub fn encode_placed_view_catalog(plans: &[TerminalPlacedViewPlan]) -> Result<Ve
 }
 
 pub fn decode_placed_view_catalog(bytes: &[u8]) -> Result<Vec<TerminalPlacedViewPlan>, CodecError> {
-    let mut reader = Reader::new(bytes);
-    let plans = decode_counted(&mut reader, decode)?;
-    if reader.remaining() != 0 {
-        return Err(CodecError::TrailingBytes(reader.remaining()));
-    }
-    if encode_placed_view_catalog(&plans)? != bytes {
-        return Err(CodecError::NonCanonicalEncoding);
-    }
-    Ok(plans)
+    decode_canonical(
+        bytes,
+        |reader| decode_counted(reader, decode),
+        |plans| encode_placed_view_catalog(plans),
+    )
 }
 
 pub(super) fn encode(writer: &mut Writer, plan: &TerminalPlacedViewPlan) -> Result<(), CodecError> {

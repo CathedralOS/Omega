@@ -2,7 +2,7 @@
 //! binding of one placed view with its placement commitment.
 
 use super::super::CodecError;
-use super::super::wire::{Reader, Writer, decode_counted};
+use super::super::wire::{Reader, Writer, decode_canonical, decode_counted};
 use terminal_psi::{StructuralAccess, TerminalIdentityIndex, TerminalPlacedViewInput};
 
 /// Preserve exact formal demands independently of the carrier's storage shape.
@@ -20,15 +20,11 @@ pub fn encode_placed_view_input_catalog(
 pub fn decode_placed_view_input_catalog(
     bytes: &[u8],
 ) -> Result<Vec<TerminalPlacedViewInput>, CodecError> {
-    let mut reader = Reader::new(bytes);
-    let inputs = decode_counted(&mut reader, decode_placed_view_input)?;
-    if reader.remaining() != 0 {
-        return Err(CodecError::TrailingBytes(reader.remaining()));
-    }
-    if encode_placed_view_input_catalog(&inputs)? != bytes {
-        return Err(CodecError::NonCanonicalEncoding);
-    }
-    Ok(inputs)
+    decode_canonical(
+        bytes,
+        |reader| decode_counted(reader, decode_placed_view_input),
+        |inputs| encode_placed_view_input_catalog(inputs),
+    )
 }
 
 pub(super) fn encode_placed_view_input(

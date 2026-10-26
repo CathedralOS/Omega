@@ -7,7 +7,7 @@
 //! Dynamic targets borrow the public requirement slot, never one table row.
 //! Their opaque selection operand stays separate from the ordinary argument ABI.
 
-use super::LiveDefinitions;
+use super::{LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::function_signature::{PreparedFunctionSignature, prepare_function_signature};
 use crate::lowering::scalar::byte_views::is_byte_parameter;
@@ -30,7 +30,7 @@ use target::NativeTarget;
 use target_operations::{
     ScalarAbiValue, ScalarFunctionAbi, TargetCallResult, TargetStructuralArgument,
     TargetStructuralHomeRequirement, TargetStructuralParameter, TargetUnitOperation,
-    TargetUnitScalarCallArgument, TerminalPsiProvenance,
+    TargetUnitScalarCallArgument,
 };
 use terminal_psi::{
     ClaimTransfer, CrashRouteBucket, StructuralAccess, StructuralArgument,
@@ -64,18 +64,15 @@ struct Invocation<'a> {
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_call(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
+    site: &mut RowSite<'_>,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
-    types: &StructuralTypeLookup<'_>,
     scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
     prepared: &PreparedFunctionSignature,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
     // The scalar-only `Call` is a scalar-result call without structural
     // operands; it borrows the same result vocabulary.
     let published_result;

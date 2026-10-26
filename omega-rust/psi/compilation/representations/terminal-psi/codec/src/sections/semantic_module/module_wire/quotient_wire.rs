@@ -1,7 +1,7 @@
 //! Canonical quotient catalog encoding. Field order and variant tags are explicit.
 use super::super::{
     CodecError,
-    wire::{Reader, Writer, decode_counted},
+    wire::{Reader, Writer, decode_canonical, decode_counted},
 };
 use language_semantics::quotient_correspondence::*;
 use semantic_vocabulary::{MachineId, OperationId, PlaceId, StructuralTypeId};
@@ -264,13 +264,9 @@ pub fn encode_quotient_catalog(catalog: &TerminalQuotientCatalog) -> Result<Vec<
     Ok(writer.finish())
 }
 pub fn decode_quotient_catalog(bytes: &[u8]) -> Result<TerminalQuotientCatalog, CodecError> {
-    let mut reader = Reader::new(bytes);
-    let catalog = TerminalQuotientCatalog::read(&mut reader)?;
-    if reader.remaining() != 0 {
-        return Err(CodecError::TrailingBytes(reader.remaining()));
-    }
-    if encode_quotient_catalog(&catalog)? != bytes {
-        return Err(CodecError::NonCanonicalEncoding);
-    }
-    Ok(catalog)
+    decode_canonical(
+        bytes,
+        TerminalQuotientCatalog::read,
+        encode_quotient_catalog,
+    )
 }

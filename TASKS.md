@@ -153,26 +153,6 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
-- **STATIC-CALLBACK-REACH-RETENTION.** Retain static callback reach dependencies
-  end to end through `samples/cli/facts/` witnesses and `omega run --both` under
-  [static callback reach dependencies](wiki/spec/language/effects.md#static-callback-reach-dependencies).
-  Owners: `omega-rust/psi/compilation/checking/src/machine_calls/static_machine_call_contracts.rs`
-  and `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/closed_reach_applications.rs`.
-  - `retain_closed_reach_applications` skips proposition and requirement-identity
-    binders, and `prune_incomplete_closed_reach_applications` removes incomplete
-    annotations and their dependents. Retain the original dependency and
-    telescope instead, including for inlined or absent emitted callees, reusing
-    exact specialization/contract identities.
-  Acceptance: nine-place fact witnesses and corpus fixtures (covering a named
-  traversal with pure and Console callbacks, nested/private helpers, recursive
-  components, selected generic schemas, and unused selections) execute via
-  `omega run --both`, while selections exceeding requirement bounds, redirected
-  same-shaped calls, and incomplete telescopes reject. Inlining or a missing
-  callee never removes reach coverage, and the pure callback's ordinary callers
-  see its specialized empty row without consuming the generic definition. Keep
-  `tests/omega/pass/effects/{nominal_callback_dependency,generic_callback_schema_reach,structural_callback_reach}`
-  passing.
-
 - **CHECKED-PACKAGE-REUSE.** (new-scope) A dependent's check re-judges its
   dependencies' bodies (`std` is checked once at package review, then re-judged
   in dependents). Dependents must consume that judgment through compiler-private
@@ -416,7 +396,7 @@ defines the complete product bar.
     affine cleanup, and occurrence-bound routed memberships through completed
     children, copies, and nested projections (retaining
     `samples/cli/facts/copied_call_argument_snapshot` including
-    `copied_call_argument_snapshot/*/{indexed_byte_view,inferred_indexed_byte_view,post_write_indexed_byte_view,public_post_write_indexed_byte_view,ranked_indexed_byte_view,computed_ranked_indexed_byte_view}`
+    `copied_call_argument_snapshot/*/{indexed_byte_view,inferred_indexed_byte_view,post_write_indexed_byte_view,public_post_write_indexed_byte_view,ranked_indexed_byte_view,computed_ranked_indexed_byte_view,captured_window_indices}`
     and `samples/cli/facts/matched_field_windows` across all nine places).
   - **Loan locals and projected storage (REFERENCE-LOCAL-BINDING-ROUTES):**
     reference-valued locals from every admitted producer keep their loan
@@ -2032,21 +2012,6 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   hosts with nested raw-provider closure checks and occurrence-bound close
   classifications, while failed acquisition, handle escape, or unproved close
   retains conservative authority.
-
-- **R5.** Carry complete caller-visible may-write summaries through source
-  checking (`omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/`
-  and `omega-rust/psi/compilation/checking/src/borrow_contracts.rs`) under
-  [invocation contracts](wiki/spec/language/state_contracts.md) and
-  [subject preservation](wiki/spec/language/termination.md#subject-preservation):
-  - Complete ordinary parser-gate package admission through the normal project
-    authority review without bypassing the standard library's `FloatMeaning`
-    proof contracts: `omega update --project tests/psi/parser --target
-    linux_x86_64` must publish accepted inputs before the parser check.
-    Retain the may-write nine-place fact rows and their overlapping rejects.
-
-  Acceptance: all R5 nine-place fact rows and finite write-cycle / parameter-permutation
-  witnesses pass `omega run --both` with overlapping twins rejecting, and
-  `omega --check tests/psi/parser/main.omg` converges.
 
 - **TR3-TR8.** (Also covers **`BLOCKEXEC`**.) Execute ordinary named machines
   through a selected task runtime and deliver the `source/library/blocking-executor/`

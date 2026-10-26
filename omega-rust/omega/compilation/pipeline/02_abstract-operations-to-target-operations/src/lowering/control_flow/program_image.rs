@@ -1,7 +1,7 @@
 //! A selected image address becomes an ordinary scalar home. It neither
 //! introduces a storage root nor loans any bytes of its referent.
 
-use super::LiveDefinitions;
+use super::RowSite;
 use crate::LoweringError;
 use abstract_operations::{AbstractBoundaryResult, AbstractOperation};
 use semantic_vocabulary::{BoundaryMachineId, IntegerType, ScalarType};
@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use target_operations::{
     BoundaryExecutionBinding, BoundaryRealization, BoundarySettlementBinding,
     BoundarySettlementRealization, CompilerBuiltinExecution, TargetUnitOperation,
-    TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+    TargetUnitScalarHomeRequirement,
 };
 
 pub(super) fn lower(
@@ -17,10 +17,9 @@ pub(super) fn lower(
     target: target::NativeTarget,
     declarations: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
+    site: &mut RowSite<'_>,
 ) -> Result<(), LoweringError> {
+    let (_, _, live, operations, provenance) = site.parts();
     let AbstractOperation::BoundaryCall {
         psi_operation,
         result,

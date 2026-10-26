@@ -81,7 +81,16 @@ pub(super) fn projected_leaf_source(
         statement_index,
         expression,
     )?;
-    if !place.has_only_positional_segments() {
+    if place.segments.is_empty()
+        || !place.segments.iter().all(|segment| {
+            matches!(
+                segment,
+                facts::PlaceSegment::Field { .. }
+                    | facts::PlaceSegment::FixedIndex { .. }
+                    | facts::PlaceSegment::Case { .. }
+            )
+        })
+    {
         return None;
     }
     match place.root {

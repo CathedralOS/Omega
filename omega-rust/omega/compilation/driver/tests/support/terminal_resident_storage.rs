@@ -1,6 +1,9 @@
 //! Execute the authored initialization/transport/extraction journey against
 //! one real supplied buffer. Its source checks the extracted value; handback
 //! checks the original allocation and untouched tail, not numeric geometry alone.
+#[path = "terminal_provision.rs"]
+mod terminal_provision;
+
 use access_plans::{
     AtomicCapability, BoundaryReach, ExternalCapability, PeerWritability, ResourceProfile,
     ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion, StableCapability,
@@ -42,42 +45,34 @@ pub(super) fn observe(
         .iter()
         .map(|value| value.parse::<u64>().map_err(|error| error.to_string()))
         .collect::<Result<Vec<_>, _>>()?;
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let loaded = TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap();
-        for program in [TerminalProgram::borrow(artifact.view()), loaded] {
-            for (ceiling, payload_ceiling, supply, constrain_after_image) in [
-                (peak, payload_peak, StableCapability::ReadWrite, false),
-                (peak - 1, payload_peak, StableCapability::ReadWrite, false),
-                (peak, payload_peak, StableCapability::Write, false),
-                (peak, 1, StableCapability::ReadWrite, false),
-                (peak, payload_peak - 1, StableCapability::ReadWrite, false),
-                (peak, payload_peak, StableCapability::ReadWrite, true),
-            ] {
-                exercise(
-                    artifact,
-                    &program,
-                    peak,
-                    ceiling,
-                    payload_peak,
-                    payload_ceiling,
-                    supply,
-                    &expected,
-                    constrain_after_image,
-                );
+    terminal_provision::result(
+        || {
+            let loaded = TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap();
+            for program in [TerminalProgram::borrow(artifact.view()), loaded] {
+                for (ceiling, payload_ceiling, supply, constrain_after_image) in [
+                    (peak, payload_peak, StableCapability::ReadWrite, false),
+                    (peak - 1, payload_peak, StableCapability::ReadWrite, false),
+                    (peak, payload_peak, StableCapability::Write, false),
+                    (peak, 1, StableCapability::ReadWrite, false),
+                    (peak, payload_peak - 1, StableCapability::ReadWrite, false),
+                    (peak, payload_peak, StableCapability::ReadWrite, true),
+                ] {
+                    exercise(
+                        artifact,
+                        &program,
+                        peak,
+                        ceiling,
+                        payload_peak,
+                        payload_ceiling,
+                        supply,
+                        &expected,
+                        constrain_after_image,
+                    );
+                }
             }
-        }
-    }))
-    .map_err(|failure| {
-        failure
-            .downcast_ref::<String>()
-            .cloned()
-            .or_else(|| {
-                failure
-                    .downcast_ref::<&str>()
-                    .map(|message| (*message).to_owned())
-            })
-            .unwrap_or_else(|| "resident storage provision failed".to_owned())
-    })
+        },
+        "resident storage provision failed",
+    )
 }
 
 fn exercise(

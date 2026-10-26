@@ -11,18 +11,9 @@ fn domains(
     module: &TerminalModule,
     set: ScalarQualificationSetId,
 ) -> Result<&[ScalarDomainId], CodecError> {
-    if set.is_empty() {
-        return Ok(&[]);
-    }
-    module
-        .scalar_qualifications
-        .sets
-        .iter()
-        .find(|row| row.id == set)
-        .map(|row| row.domains.as_slice())
-        .ok_or(CodecError::MalformedStructuralFoundation(
-            "boundary scalar value names an absent qualification set",
-        ))
+    super::qualification_domains(module, set).ok_or(CodecError::MalformedStructuralFoundation(
+        "boundary scalar value names an absent qualification set",
+    ))
 }
 
 pub(super) fn validate_declarations(module: &TerminalModule) -> Result<(), CodecError> {
@@ -61,14 +52,11 @@ pub(super) fn validate_declarations(module: &TerminalModule) -> Result<(), Codec
                 .ok_or(CodecError::MalformedStructuralFoundation(
                     "boundary scalar domain requirement has no parameter",
                 ))?;
-            let domain = module
-                .scalar_qualifications
-                .domains
-                .iter()
-                .find(|domain| domain.id == requirement.domain)
-                .ok_or(CodecError::MalformedStructuralFoundation(
+            let domain = super::scalar_domain(module, requirement.domain).ok_or(
+                CodecError::MalformedStructuralFoundation(
                     "boundary scalar requirement names an absent domain",
-                ))?;
+                ),
+            )?;
             if domain.carrier != *carrier {
                 return malformed("boundary scalar domain requirement changes its carrier");
             }
@@ -89,15 +77,7 @@ pub(super) fn validate_arguments(
                 "boundary scalar domain requirement has no actual argument",
             ),
         )?;
-        let actual = machine
-            .parameters
-            .iter()
-            .chain(machine.block_parameters())
-            .chain(
-                machine
-                    .operations()
-                    .filter_map(|operation| operation.result.scalar_ref()),
-            )
+        let actual = super::values(machine)
             .find(|value| value.id == *argument)
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "boundary scalar membership has no exact value declaration",

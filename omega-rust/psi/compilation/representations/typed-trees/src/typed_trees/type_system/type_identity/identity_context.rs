@@ -460,7 +460,7 @@ fn application_parameters(
 /// A source static type application and a type-reference application denote
 /// the same carrier. Read both through one grammar without allocating a type
 /// node merely to compare a retained source operand.
-pub(super) fn static_type_argument_identity(
+pub(super) fn static_nominal_argument_identity(
     program: &TypedTrees,
     argument: &crate::expression::StaticMachineArgument,
     context: &TypeIdentityContext<'_>,
@@ -472,6 +472,8 @@ pub(super) fn static_type_argument_identity(
             symbols::SymbolKind::Data
                 | symbols::SymbolKind::BuiltinType
                 | symbols::SymbolKind::TypeParameter
+                | symbols::SymbolKind::Conformance
+                | symbols::SymbolKind::ConformanceParameter
         )
     {
         return None;

@@ -442,11 +442,17 @@ fn capture_preserved(
     let Some((_, state)) = borrow.first_state_borrow(caller.symbol, supplied.caller_state) else {
         return false;
     };
+    // A named path may retain its machine head while borrow facts name the
+    // resolved entry. Normalize that exact declaration join on both sides;
+    // signature/binder identities remain distinct and are never matched by shape.
+    let entry = |target| {
+        validation::call_target_state(program, target).map_or(target, |state| state.symbol)
+    };
+    let target = entry(supplied.site.target_symbol(program));
     let Some(call) = borrow.calls.span_or_empty(state.calls).iter().find(|call| {
         call.statement_index == supplied.statement
             && call.call_ordinal == supplied.ordinal
-            && (call.target_symbol == supplied.callable.target_symbol()
-                || call.target_symbol == supplied.callable.owner_symbol())
+            && entry(call.target_symbol) == target
     }) else {
         return false;
     };
