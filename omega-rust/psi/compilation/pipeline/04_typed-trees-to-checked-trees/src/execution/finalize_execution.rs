@@ -156,3 +156,47 @@ pub(crate) fn finalize_execution(
 
     Ok(facts)
 }
+
+/// Replace a preliminary execution catalog after the existing target closure
+/// discharged its debts. This does not repeat proof or select a provider; the
+/// same planner consumes the original checked facts and closed typed values.
+pub fn settle_closed_constant_execution(
+    checked: checked_trees::CheckedTrees,
+) -> Result<checked_trees::CheckedTrees, Vec<Diagnostic>> {
+    if checked
+        .facts
+        .constant_recipe_obligations
+        .iter()
+        .any(checked_trees::ConstantRecipeObligation::is_pending)
+        || checked
+            .facts
+            .integer_range_obligations
+            .iter()
+            .any(checked_trees::IntegerRangeObligation::is_pending)
+        || checked
+            .facts
+            .constant_predicate_obligations
+            .iter()
+            .any(checked_trees::ConstantPredicateObligation::is_pending)
+    {
+        return Err(vec![Diagnostic::error(
+            "execution catalog cannot settle pending target proof conditions",
+        )]);
+    }
+    let typed = checked.typed;
+    let facts = finalize_execution(&typed, checked.facts)?;
+    if facts
+        .flow
+        .terminal_unit_effects
+        .boundary_machines
+        .iter()
+        .any(|plan| {
+            !plan.pending_scalar_requires.is_empty() || !plan.pending_scalar_recipes.is_empty()
+        })
+    {
+        return Err(vec![Diagnostic::error(
+            "selected execution retains unresolved boundary scalar contract clauses",
+        )]);
+    }
+    Ok(checked_trees::CheckedTrees::with_roots(typed, facts))
+}

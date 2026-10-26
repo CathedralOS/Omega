@@ -52,6 +52,20 @@ pub fn lower_machine(
 ) -> Result<LoweredPsi, LoweringError> {
     if checked
         .facts
+        .flow
+        .terminal_unit_effects
+        .boundary_machines
+        .iter()
+        .any(|plan| {
+            !plan.pending_scalar_requires.is_empty() || !plan.pending_scalar_recipes.is_empty()
+        })
+    {
+        return unsupported(
+            "boundary scalar contract clauses require target closure before Terminal production",
+        );
+    }
+    if checked
+        .facts
         .integer_range_obligations
         .iter()
         .any(checked_trees::IntegerRangeObligation::is_pending)

@@ -169,3 +169,47 @@ pub(super) fn boundary_scalar_requires(
     }
     Some(rows)
 }
+
+/// Preserve the whole source contract while selected endpoints remain symbolic.
+/// Final rebuilding must lower every clause normally; these rows grant no proof.
+pub(super) fn pending_recipe_requires(
+    program: &dyn ::validation::CheckingInput,
+    contracts: &[typed_trees::signature::SignatureContract],
+    entry_contracts: &[typed_trees::signature::SignatureContract],
+) -> Option<(
+    Vec<typed_trees::signature::SignatureContract>,
+    Vec<typed_trees::constant_recipes::ConstantRecipeHandle>,
+)> {
+    let clauses = contracts
+        .iter()
+        .chain(entry_contracts)
+        .filter(|clause| clause.kind == typed_trees::signature::SignatureContractKind::Requires)
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut pending = clauses
+        .iter()
+        .flat_map(|clause| program.proof_facts.span_or_empty(clause.facts))
+        .filter_map(|fact| fact.as_expression().copied())
+        .collect::<Vec<_>>();
+    let mut recipes = Vec::new();
+    let mut visited = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if visited.contains(&expression) {
+            continue;
+        }
+        visited.push(expression);
+        let recipe = program.constant_recipe_for_contract_expression(expression);
+        if recipe.is_valid()
+            && program.closed_constant_recipe_value(recipe).is_none()
+            && !recipes.contains(&recipe)
+        {
+            recipes.push(recipe);
+        }
+        validation::expression_traversal::children(
+            program,
+            program.expression_table.expression(expression),
+            |child| pending.push(child),
+        );
+    }
+    (!recipes.is_empty()).then_some((clauses, recipes))
+}

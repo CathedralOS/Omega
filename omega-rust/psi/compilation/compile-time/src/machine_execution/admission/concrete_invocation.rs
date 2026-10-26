@@ -368,6 +368,28 @@ fn require_complete_invocation_conditions(
         &[],
     );
     let demanded = |owner: SymbolHandle| !owner.is_valid() || domain.contains(owner);
+    if checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .boundary_machines
+        .iter()
+        .any(|plan| {
+            (!plan.pending_scalar_requires.is_empty() || !plan.pending_scalar_recipes.is_empty())
+                && (demanded(plan.machine)
+                    || demanded(plan.state)
+                    || checked.typed.target_machine_families.iter().any(|family| {
+                        family.canonical == plan.machine
+                            && family.members.iter().any(|member| demanded(member.machine))
+                    }))
+        })
+    {
+        return Err(
+            "constant invocation retains pending scalar contract clauses in its demanded closure"
+                .to_owned(),
+        );
+    }
+
     if let Some(obligation) = checked
         .facts
         .constant_recipe_obligations

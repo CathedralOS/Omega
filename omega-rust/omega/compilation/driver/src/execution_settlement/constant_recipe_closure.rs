@@ -221,10 +221,22 @@ pub(super) fn close_constant_recipes(
         closed_typed.constant_recipe_closure.target_scope =
             selected_target_profile.target_name().to_owned();
     }
-    Ok(Arc::new(CheckedTrees::with_roots(
-        closed_typed,
-        closed_facts,
-    )))
+    let closed = CheckedTrees::with_roots(closed_typed, closed_facts);
+    let pending_boundary_clauses = closed
+        .facts
+        .flow
+        .terminal_unit_effects
+        .boundary_machines
+        .iter()
+        .any(|plan| {
+            !plan.pending_scalar_requires.is_empty() || !plan.pending_scalar_recipes.is_empty()
+        });
+    let closed = if pending_boundary_clauses {
+        psi_compiler::settle_closed_constant_execution(closed)?
+    } else {
+        closed
+    };
+    Ok(Arc::new(closed))
 }
 
 /// Resume one capsule's existing evaluator and rejoin by canonical identity.
