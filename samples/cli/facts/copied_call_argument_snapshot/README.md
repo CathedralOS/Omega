@@ -213,10 +213,13 @@ grant no new access authority.
 The changed-input, swapped-field and shortened-window controls under
 `tests/omega/fail/contracts/cyclic_descriptor_result_*` must refuse the helper's
 own length guarantee. Ranking and recursive premise checks remain independent.
-The changed-input and swapped-field controls currently check on the frozen
-`f145bb89c720` baseline and the incoming-origin repair producer. Enforcing those
-recursive guarantees remains open under the parent capability; the origin
-repair does not establish that proof acceptance.
+Terminal invocations retain the selected machine identity, including recursive
+and attached calls; a signature's entry-state coordinate is not an internal
+arrival. Each recursive return discharges the enclosing invocation's guarantees
+against its own captured inputs. Only actual private state arrivals defer that
+completion obligation. The changed-input and swapped-field controls expose the
+previous loss of this distinction; descriptor backing alone cannot discharge
+the caller's original length guarantee.
 
 
 ## Public local dispatch results
