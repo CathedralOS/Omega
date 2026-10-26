@@ -32,12 +32,14 @@ pub mod storage_path_relations;
 pub use captured_ownership::ownership_place_from_expression_in_state;
 pub mod collection_operations;
 mod declaration_types;
+pub(crate) use declaration_types::declaration_type_equations;
 pub use declaration_types::declaration_type_reference;
 
 use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
 use access_plans::BorrowPolarity;
 use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -352,6 +354,41 @@ pub fn declared_place_type_raw(
     }
 
     if let Some(path) = program.expression_table.name_path_node(handle)
+        && path.symbol.is_valid()
+        && program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            == 1
+    {
+        if path.head_symbol != path.symbol
+            || program
+                .expression_table
+                .name_path_member_symbols(path.member_symbols)
+                != [path.symbol]
+        {
+            return None;
+        }
+        let state = current_state?;
+        let mut matching = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .filter_map(|statement| statement.as_local_data())
+            .filter(|local| local.symbol == path.symbol)
+            .map(|local| local.type_reference)
+            .chain(
+                program
+                    .state_parameters(state)
+                    .iter()
+                    .filter(|parameter| parameter.symbol == path.symbol)
+                    .map(|parameter| parameter.type_reference),
+            );
+        let reference = matching.next()?;
+        return (matching.next().is_none() && reference.is_valid()).then_some(reference);
+    }
+
+    if let Some(path) = program.expression_table.name_path_node(handle)
         && path.head_symbol == path.symbol
         && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Field
         && program
@@ -640,12 +677,11 @@ pub fn declared_reference_access(
     Some(*access)
 }
 
-/// Two declared types name the same storage carrier when they differ only by
-/// `Constrained` shells, at any depth: a `&[u8] in Utf8` leaf and a `&[u8]`
-/// destination both describe the 16-byte shared-view descriptor. Reference
-/// access, fixed extents, and generic arguments stay strict — they change
-/// layout or custody, which no qualification erases. A pair that differs in
-/// any other way keeps its full normalized-identity comparison.
+mod declared_carriers;
+pub(crate) use declared_carriers::substituted_declared_carrier;
+
+/// Two declared types retain the same storage carrier through constraint shells.
+/// Reference access, fixed extents and generic arguments remain strict.
 pub fn declared_carriers_match(
     program: &dyn crate::CheckingInput,
     left: TypeReferenceHandle,
@@ -654,133 +690,25 @@ pub fn declared_carriers_match(
     declared_carriers_match_under_application(program, left, right, &[])
 }
 
-/// The same storage-carrier judgment under one exact authored application.
-/// Only right-hand declaration leaves see these simultaneous substitutions;
-/// constraint-shell weakening stays separate from arithmetic-policy admission.
-/// No type graph is allocated or inferred from a desired receiving type.
+/// Exact lexical declaration equations refine both logical sides transitively.
+pub(crate) fn declared_carriers_match_with_substitutions(
+    program: &dyn crate::CheckingInput,
+    left: TypeReferenceHandle,
+    right: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    declared_carriers::under_equations(program, left, right, substitutions)
+}
+
+/// One authored application substitutes only formal/right-hand leaves.
+/// Supplied caller operands retain their independent scope.
 pub(crate) fn declared_carriers_match_under_application(
     program: &dyn crate::CheckingInput,
     left: TypeReferenceHandle,
     right: TypeReferenceHandle,
-    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
-    let left = peel_declared_constraints(program, left);
-    let right = peel_declared_constraints(program, right);
-    if let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(right)
-        && let Some((_, actual)) = substitutions.iter().find(|(formal, _)| formal == symbol)
-    {
-        // A supplied operand belongs to the caller. Its leaves must never be
-        // rebound by another formal in this same simultaneous application.
-        return declared_carriers_match_under_application(program, left, *actual, &[]);
-    }
-    match (
-        program.type_reference_table.type_reference(left),
-        program.type_reference_table.type_reference(right),
-    ) {
-        (
-            TypeReferenceNode::Reference {
-                referee: left_referee,
-                access: left_access,
-                ..
-            },
-            TypeReferenceNode::Reference {
-                referee: right_referee,
-                access: right_access,
-                ..
-            },
-        ) => {
-            left_access == right_access
-                && declared_carriers_match_under_application(
-                    program,
-                    *left_referee,
-                    *right_referee,
-                    substitutions,
-                )
-        }
-        (
-            TypeReferenceNode::Slice {
-                element_type: left_element,
-            },
-            TypeReferenceNode::Slice {
-                element_type: right_element,
-            },
-        ) => declared_carriers_match_under_application(
-            program,
-            *left_element,
-            *right_element,
-            substitutions,
-        ),
-        (
-            TypeReferenceNode::FixedArray {
-                element_type: left_element,
-                length: left_length,
-            },
-            TypeReferenceNode::FixedArray {
-                element_type: right_element,
-                length: right_length,
-            },
-        ) => {
-            program
-                .fixed_array_length_identity(left_length, &[], &[])
-                .zip(
-                    program.fixed_array_length_identity_with_simultaneous_substitutions(
-                        right_length,
-                        substitutions,
-                    ),
-                )
-                .is_some_and(|(left, right)| left == right)
-                && declared_carriers_match_under_application(
-                    program,
-                    *left_element,
-                    *right_element,
-                    substitutions,
-                )
-        }
-        (
-            TypeReferenceNode::Generic {
-                base_symbol: left_symbol,
-                arguments: left_arguments,
-                ..
-            },
-            TypeReferenceNode::Generic {
-                base_symbol: right_symbol,
-                arguments: right_arguments,
-                ..
-            },
-        ) => {
-            let left_handles = program
-                .type_reference_table
-                .type_reference_handles(*left_arguments);
-            let right_handles = program
-                .type_reference_table
-                .type_reference_handles(*right_arguments);
-            left_symbol == right_symbol
-                && left_handles.len() == right_handles.len()
-                && left_handles.iter().zip(right_handles.iter()).all(
-                    |(left_argument, right_argument)| {
-                        declared_carriers_match_under_application(
-                            program,
-                            *left_argument,
-                            *right_argument,
-                            substitutions,
-                        )
-                    },
-                )
-        }
-        _ if substitutions.is_empty() => {
-            program.normalized_type_identity(left) == program.normalized_type_identity(right)
-        }
-        _ => {
-            let applied = program.type_identity_with_simultaneous_substitutions(
-                typed_trees::type_identity::TypeIdentityRequest {
-                    substitutions,
-                    ..typed_trees::type_identity::TypeIdentityRequest::ordinary(right)
-                },
-            );
-            applied.is_valid() && program.normalized_type_identity(left) == applied
-        }
-    }
+    declared_carriers::under_application(program, left, right, substitutions)
 }
 
 /// Whether a declared type is wholly zero-constructible: a primitive scalar,

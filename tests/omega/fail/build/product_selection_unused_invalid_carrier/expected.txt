@@ -1,0 +1,1 @@
+a copyable opaque datum requires every carrier declaration to be structurally `[copy]`

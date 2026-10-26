@@ -3,8 +3,11 @@ use symbols::SymbolHandle;
 
 mod product;
 pub use product::{
-    DescribedProductEntry, DescribedProductProvider, DescribedProductSchema, ExecutedRootBinding,
-    RootBindingOperand, RootBindingRequest, RootBindingSelection,
+    BuildSelectionRequest, CompositionMode, DescribedProductEntry, DescribedProductProvider,
+    DescribedProductSchema, EnumExclusionRequest, ExclusionVocabulary, ExecutedBuildSelection,
+    ExecutedEnumExclusion, ExecutedProductSelection, ExecutedRootBinding,
+    ProductDeclarationOperand, ProductDeclarationRequest, RootBindingOperand, RootBindingRequest,
+    RootBindingSelection,
 };
 
 /// Whether an authored declaration selection contributes only to an

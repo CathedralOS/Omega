@@ -38,16 +38,14 @@ pub(super) fn check_storage_move<'program>(
         segments: resolved.place.segments,
     };
     for loan_handle in active_loans {
-        if let checked_trees::FlowPermissionEvaluation::TransitionTarget(target) = event.evaluation
-            && super::selected_retirement::before_target(
-                program,
-                facts,
-                state,
-                statement.statement_index,
-                target,
-                loan_handle,
-            )
-        {
+        if super::selected_retirement::before_evaluation(
+            program,
+            facts,
+            state,
+            statement.statement_index,
+            event.evaluation,
+            loan_handle,
+        ) {
             continue;
         }
         let loan = facts.borrow.loans.get(loan_handle);

@@ -187,8 +187,9 @@ required behavior. Include `passages`, a small list of exact relevant canonical
 excerpts (at most 2000 characters each, 6000 per mapping). A language change
 instead says `classification:"owner_decision"`
 and records the explicit owner's `authorization`; an agent's proposed design is
-not authority. Mappings require a `review` check with `final:true`. Independent
-review must distinguish an implementation gap from an invented feature and
+not authority. Mappings do not add a review gate. When the assignment explicitly
+requires independent review, retain its `review` check with `final:true`; that
+check must distinguish an implementation gap from an invented feature and
 verify preservation of authority, custody, type/loan, arithmetic and provenance.
 Contract files enter every check's dependency closure. They must exist unchanged
 from the integrated main base: editing a spec alongside its implementation does
@@ -199,7 +200,7 @@ Before semantic implementation, render the context with
 `qualification.py context --base FULL_MAIN_SHA --config CONFIG_JSON`.
 Use `context --state STATE_JSON` for the recorded qualification. Include its
 actual passages, source revision/blob hashes and behavior-to-contract mapping
-in the implementation **and independent-review** handoffs; a separate promise
+in the implementation and any required independent-review handoffs; a separate promise
 to retrieve a linked spec is insufficient. The tool rejects missing/stale or
 invented excerpts and records the focused context in normal evidence. Review
 still judges whether those passages actually authorize the behavior: their

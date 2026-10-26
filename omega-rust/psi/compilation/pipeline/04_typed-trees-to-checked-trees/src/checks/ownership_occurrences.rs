@@ -47,6 +47,9 @@ impl EvaluationBranch {
 
 pub(super) struct StatementOccurrence {
     pub(super) step: StatementStep,
+    /// Guards and selected target operands have distinct resource boundaries,
+    /// even when their source expressions share a structural shape.
+    pub(super) evaluation: checked_trees::FlowPermissionEvaluation,
     /// Exact invocation completed here, independent of its syntax's scalar
     /// expression handle (named transitions and statement calls have none).
     pub(super) invocation: Option<InvocationIdentity>,
@@ -223,6 +226,10 @@ pub(super) fn statement_steps_at_evaluation(
             ) && let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard
             {
                 order.expression(guard, false);
+                for occurrence in &mut order.steps {
+                    occurrence.evaluation =
+                        checked_trees::FlowPermissionEvaluation::TransitionGuard;
+                }
             }
             for (alternative, target) in [transition.target, transition.continuation]
                 .into_iter()
@@ -247,6 +254,7 @@ pub(super) fn statement_steps_at_evaluation(
                         selected: alternative == 0,
                     });
                 }
+                let first_target_step = order.steps.len();
                 match program.statement_table.transition_target(target) {
                     typed_trees::statement::TransitionTargetNode::Value(value) => {
                         order.expression(*value, conditional)
@@ -269,6 +277,10 @@ pub(super) fn statement_steps_at_evaluation(
                         order.hold_through_completion(first);
                     }
                     _ => {}
+                }
+                for occurrence in &mut order.steps[first_target_step..] {
+                    occurrence.evaluation =
+                        checked_trees::FlowPermissionEvaluation::TransitionTarget(target);
                 }
                 if conditional {
                     order.route.pop();
@@ -434,6 +446,7 @@ impl StatementOrder<'_> {
         let position = self.steps.len();
         self.steps.push(StatementOccurrence {
             step,
+            evaluation: checked_trees::FlowPermissionEvaluation::Statement,
             invocation: None,
             route: self.route.clone(),
             held_until: position,

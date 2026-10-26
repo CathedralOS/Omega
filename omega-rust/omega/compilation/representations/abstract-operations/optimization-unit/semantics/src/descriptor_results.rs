@@ -21,6 +21,8 @@ use terminal_semantics::descriptor_results::{
 };
 
 pub mod placed_results;
+mod scalar_expressions;
+use scalar_expressions::ScalarExpressions;
 
 /// Adapt current flat abstract bodies through the same block reconstruction
 /// and descriptor flow used by optimization-unit consumers. No retained source
@@ -331,6 +333,7 @@ fn adapt(
     preserves_boundary: &impl Fn(&PsiOptimizationFunction, &optimization_unit::OptimizationNode) -> bool,
     selector_graph: Option<&[DescriptorMachine]>,
 ) -> Option<DescriptorMachine> {
+    let scalar_expressions = ScalarExpressions::new(function);
     let mut graph = DescriptorMachine {
         id: function.machine,
         entry: (function.entry, 0),
@@ -510,7 +513,11 @@ fn adapt(
                     let candidate = matching.next()?;
                     matching.next().is_none().then_some(candidate)
                 },
-                &|value| scalar_expression(function, value).map(|term| term.scalar_type()),
+                &|value| {
+                    scalar_expressions
+                        .expression(value)
+                        .map(|term| term.scalar_type())
+                },
             ) {
                 graph
                     .payload_scalar_postconditions
@@ -523,7 +530,7 @@ fn adapt(
                 value,
                 ..
             } = operation
-                && let Some(value) = scalar_expression(function, value.value)
+                && let Some(value) = scalar_expressions.expression(value.value)
                 // Runtime selectors keep their typed invalidation below; only
                 // an exact coordinate establishes a new stored scalar fact.
                 && let Some(destination) = location(destination.place(), path, Some(*field))
@@ -1097,7 +1104,7 @@ fn adapt(
                     step.inputs = vec![DescriptorLocation::whole(*source)];
                 }
                 O::EstablishPrimitiveLocal { result, value, .. } => {
-                    if let Some(value) = scalar_expression(function, value.value) {
+                    if let Some(value) = scalar_expressions.expression(value.value) {
                         graph
                             .scalar_payload_writes
                             .entry(position)
@@ -1108,7 +1115,7 @@ fn adapt(
                 O::PrimitiveLocalStore {
                     destination, value, ..
                 } => {
-                    if let Some(value) = scalar_expression(function, value.value) {
+                    if let Some(value) = scalar_expressions.expression(value.value) {
                         graph
                             .scalar_payload_writes
                             .entry(position)
@@ -1125,7 +1132,7 @@ fn adapt(
                             result.structural_type,
                             u64::try_from(ordinal).ok()?,
                         )?;
-                        if let Some(value) = scalar_expression(function, *value) {
+                        if let Some(value) = scalar_expressions.expression(*value) {
                             graph
                                 .scalar_payload_writes
                                 .entry(position)
@@ -1196,7 +1203,7 @@ fn adapt(
                             _ => location(result.place, &[], Some(field.field))?,
                         };
                         if let terminal_psi::RecordFieldValue::Scalar { value, .. } = &field.value
-                            && let Some(value) = scalar_expression(function, *value)
+                            && let Some(value) = scalar_expressions.expression(*value)
                         {
                             graph
                                 .scalar_payload_writes
@@ -1609,13 +1616,13 @@ fn adapt(
                             case.psi_edge == edge.psi_edge && case.target == edge.target
                         });
                         let case = matching.next()?;
-                        matching
-                            .next()
-                            .is_none()
-                            .then_some(kernel::DescriptorCasePredicate {
+                        matching.next().is_none().then_some((
+                            kernel::DescriptorCasePredicate {
                                 subject: subject.clone(),
                                 case: case.case,
-                            })
+                            },
+                            true,
+                        ))
                     })
                     .collect::<Option<Vec<_>>>()?;
                 graph.case_successors.insert(position, predicates);
@@ -1710,7 +1717,7 @@ fn adapt(
                             .iter()
                             .map(|parameter| {
                                 let binding = edge.binding(parameter.value)?;
-                                let value = scalar_expression(function, binding.argument)?;
+                                let value = scalar_expressions.expression(binding.argument)?;
                                 (value.scalar_type() == parameter.scalar_type)
                                     .then_some((parameter.value, value))
                             })
@@ -1770,7 +1777,7 @@ fn adapt(
                 }
             }
             if let O::Conditional { condition, .. } = operation
-                && let Some(term) = scalar_expression(function, *condition)
+                && let Some(term) = scalar_expressions.expression(*condition)
             {
                 graph.payload_edge_predicates.insert(
                     position,
@@ -1790,6 +1797,7 @@ fn adapt(
             }
         }
     }
+    scalar_expressions.retain_case_conditions(types, &mut graph);
     Some(graph)
 }
 
@@ -1906,129 +1914,11 @@ pub(crate) fn scalar_call_guarantees<'function>(
     ))
 }
 
-fn scalar_literal(
-    function: &PsiOptimizationFunction,
-    value: semantic_vocabulary::ValueId,
-) -> Option<semantic_vocabulary::ScalarTerm> {
-    if let Some(literal) = function
-        .block_nodes()
-        .find_map(|node| match node.operation {
-            O::BooleanConstant {
-                result,
-                value: literal,
-                ..
-            } if result == value => Some(literal),
-            _ => None,
-        })
-    {
-        return Some(semantic_vocabulary::ScalarTerm::Boolean(literal));
-    }
-    let (scalar_type, literal) =
-        terminal_semantics::scalar_constant_value(value, |value| {
-            if let Some((scalar_type, literal)) = function.block_nodes().find_map(|node| match node
-                .operation
-            {
-                O::IntegerConstant {
-                    result,
-                    scalar_type,
-                    value: literal,
-                    ..
-                } if result == value => Some((scalar_type, literal)),
-                _ => None,
-            }) {
-                return Some(terminal_semantics::ScalarConstantOrigin::Literal(
-                    scalar_type,
-                    literal,
-                ));
-            }
-            let owner = function.blocks.iter().find(|block| {
-                block
-                    .parameters
-                    .iter()
-                    .any(|parameter| parameter.value == value)
-            })?;
-            if owner.id == function.entry {
-                return None;
-            }
-            let incoming = function
-                .block_nodes()
-                .flat_map(|node| &node.successors)
-                .filter(|edge| edge.target == owner.id)
-                .map(|edge| edge.binding(value).map(|binding| binding.argument))
-                .collect::<Option<Vec<_>>>()?;
-            Some(terminal_semantics::ScalarConstantOrigin::Incoming(incoming))
-        })?;
-    let semantic_vocabulary::ScalarType::Integer(integer) = scalar_type else {
-        return None;
-    };
-    Some(semantic_vocabulary::ScalarTerm::Integer {
-        scalar_type: integer,
-        value: literal,
-    })
-}
-
 pub(crate) fn scalar_expression(
     function: &PsiOptimizationFunction,
     value: semantic_vocabulary::ValueId,
 ) -> Option<semantic_vocabulary::ScalarTerm> {
-    use semantic_vocabulary::ScalarTerm as T;
-    let types: BTreeMap<_, _> = function
-        .parameters
-        .iter()
-        .chain(function.blocks.iter().flat_map(|block| &block.parameters))
-        .chain(function.block_nodes().flat_map(|node| &node.definitions))
-        .map(|value| (value.value, value.scalar_type))
-        .collect();
-    kernel::scalar_payload_expression(value, &|value| {
-        let scalar_type = *types.get(&value)?;
-        if let Some(literal) = scalar_literal(function, value) {
-            return Some((scalar_type, Some(literal)));
-        }
-        let term = |value| Some(Box::new(T::value(value, *types.get(&value)?)));
-        let integer = |value| types.get(&value)?.as_integer();
-        let denotation = function
-            .block_nodes()
-            .find(|node| {
-                node.definitions
-                    .iter()
-                    .any(|definition| definition.value == value)
-            })
-            .and_then(|node| {
-                Some(match &node.operation {
-                    O::IntegerArithmetic {
-                        arithmetic,
-                        scalar_type,
-                        left,
-                        right,
-                        ..
-                    } => arithmetic.scalar_term(*scalar_type, *term(*left)?, *term(*right)?),
-                    O::BooleanNot { operand, .. } => T::BooleanNot {
-                        operand: term(*operand)?,
-                    },
-                    O::BooleanEqual { left, right, .. } => T::BooleanEqual {
-                        left: term(*left)?,
-                        right: term(*right)?,
-                    },
-                    O::IntegerEqual { left, right, .. } => T::IntegerEqual {
-                        scalar_type: integer(*left)?,
-                        left: term(*left)?,
-                        right: term(*right)?,
-                    },
-                    O::IntegerLessThan { left, right, .. } => T::IntegerLessThan {
-                        scalar_type: integer(*left)?,
-                        left: term(*left)?,
-                        right: term(*right)?,
-                    },
-                    O::IntegerLessOrEqual { left, right, .. } => T::IntegerLessOrEqual {
-                        scalar_type: integer(*left)?,
-                        left: term(*left)?,
-                        right: term(*right)?,
-                    },
-                    _ => return None,
-                })
-            });
-        Some((scalar_type, denotation))
-    })
+    ScalarExpressions::new(function).expression(value)
 }
 
 fn selected_effects_machine(

@@ -1346,9 +1346,14 @@ pub(super) fn adapt(
                 position,
                 cases
                     .iter()
-                    .map(|case| DescriptorCasePredicate {
-                        subject: subject.clone(),
-                        case: case.case,
+                    .map(|case| {
+                        (
+                            DescriptorCasePredicate {
+                                subject: subject.clone(),
+                                case: case.case,
+                            },
+                            true,
+                        )
                     })
                     .collect(),
             );

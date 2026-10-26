@@ -20,7 +20,7 @@ pub(crate) mod quotient_wire;
 mod recursive_component_wire;
 
 mod closed_conformance_wire;
-mod declaration_wire;
+pub(crate) mod declaration_wire;
 mod dynamic_dispatch_wire;
 mod evidence_wire;
 mod float_meaning_wire;

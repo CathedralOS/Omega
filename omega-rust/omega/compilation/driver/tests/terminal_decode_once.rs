@@ -16,7 +16,7 @@
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
-use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct, compile};
+use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct};
 use fixture_package_inputs::{repo_root, reviewed_repository_fixture_package_inputs};
 use std::fs;
 use std::path::PathBuf;
@@ -50,11 +50,12 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     if let Some(package_inputs) = prepared.package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
-    let retained = compile(request)
-        .and_then(compiler::CompileOutcomes::into_single_report)
-        .unwrap_or_else(|diagnostics| panic!("{FIXTURE} must reach Terminal: {diagnostics:#?}"))
-        .into_retained_terminal_artifact()
-        .unwrap_or_else(|| panic!("{FIXTURE} retains its native proposal"));
+    let retained =
+        omega_build::compile_sources(&mut compiler::CompilationSession::default(), request)
+            .and_then(compiler::CompileOutcomes::into_single_report)
+            .unwrap_or_else(|diagnostics| panic!("{FIXTURE} must reach Terminal: {diagnostics:#?}"))
+            .into_retained_terminal_artifact()
+            .unwrap_or_else(|| panic!("{FIXTURE} retains its native proposal"));
     let proposal = retained
         .native_realization_proposal()
         .unwrap_or_else(|| panic!("{FIXTURE} native proposal"));
@@ -119,6 +120,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
             terminal_authority_permission_policy: Some(permission_policy),
             image_request,
             imports: &[],
+            components: &[],
         },
     )
     .unwrap_or_else(|(_, diagnostics)| {
@@ -226,9 +228,10 @@ fn exercise_owned_and_borrowed_instances() {
     if let Some(package_inputs) = prepared.package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
-    let report = compile(request)
-        .and_then(compiler::CompileOutcomes::into_single_report)
-        .expect("ordinary empty entry produces Terminal");
+    let report =
+        omega_build::compile_sources(&mut compiler::CompilationSession::default(), request)
+            .and_then(compiler::CompileOutcomes::into_single_report)
+            .expect("ordinary empty entry produces Terminal");
     let retained = report
         .into_retained_terminal_artifact()
         .expect("retained Terminal");

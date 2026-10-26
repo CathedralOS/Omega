@@ -543,16 +543,25 @@ fn scalar_value_type(
     })
 }
 
-fn establishment_route(
+pub(crate) fn establishment_route(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     route: &DomainEstablishmentRoute,
 ) -> Result<ScalarDomainEstablishmentRoute, LoweringError> {
+    let declaration = terminal_psi::NominalDeclarationIdentity::new(
+        crate::machine_lowering::declarations::semantic_identity(
+            identities,
+            checked,
+            route.established_declaration(),
+        )
+        .map_err(|_| LoweringError::Unsupported("domain issuer has no exact declaration owner"))?,
+    );
     Ok(match *route {
         DomainEstablishmentRoute::CheckedRequirement {
             trait_definition,
             requirement,
         } => ScalarDomainEstablishmentRoute::CheckedRequirement {
+            declaration,
             requirement_identity: identities.intern(
                 &crate::proofs::evidence_lowering::checked_evidence_requirement_identity(
                     checked,
@@ -565,6 +574,7 @@ fn establishment_route(
             boundary_trait,
             requirement,
         } => ScalarDomainEstablishmentRoute::BoundaryRequirement {
+            declaration,
             requirement_identity: identities.intern(
                 &crate::proofs::evidence_lowering::checked_evidence_requirement_identity(
                     checked,
@@ -575,6 +585,7 @@ fn establishment_route(
         },
         DomainEstablishmentRoute::ExactMachine { machine } => {
             ScalarDomainEstablishmentRoute::ExactMachine {
+                declaration,
                 machine_identity: identities.intern(
                     &crate::proofs::evidence_lowering::checked_evidence_machine_identity(
                         checked, machine,

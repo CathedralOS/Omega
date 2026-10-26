@@ -98,7 +98,8 @@ pub use proof_contracts::arithmetic_domains::{
     selected_scalar_interval,
 };
 pub use proof_contracts::collection_predicates::{
-    exact_predicate_intervals, length_member, premises_prove_expression,
+    PredicateIntegerOperand, exact_predicate_intervals, exact_predicate_ordering, length_member,
+    predicate_ordering_consequences, premises_prove_expression,
 };
 pub use proof_contracts::contract_entailment::call_projection_identity::{
     captured_call_argument_index_matches, captured_call_index_value,
@@ -132,7 +133,7 @@ pub use proof_contracts::domains::{
     scalar_field_domain_predicate, scalar_field_restriction, scalar_membership_carrier,
     scalar_membership_predicates, scalar_membership_value_carrier,
     scalar_membership_value_predicates, scalar_predicate_domains, scalar_type_routed_domains,
-    scalar_type_tags,
+    scalar_type_tags, validate_executable_domain_test_carriers,
 };
 pub use proof_contracts::parameter_domains::parameter_domain_constraints;
 pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;
@@ -364,7 +365,7 @@ pub use value_custody::expression_types::{
 };
 pub use value_custody::expression_types::{
     structural_match_cases_are_covered, structural_match_pattern_case,
-    structural_match_subject_type,
+    structural_match_pattern_is_total, structural_match_subject_type,
 };
 pub use value_custody::literals::builtin_constant_array_projection_type;
 pub use value_custody::literals::declared_constant_array_type;

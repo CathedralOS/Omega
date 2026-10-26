@@ -19,8 +19,10 @@ use crate::operations::{
 };
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, GitDependencyPins,
-    GitResolutionOptions, PackageSourceClosureLimits, ResolvedPackageSourceClosure,
-    resolve_staged_external_local_project_closure,
+    GitResolutionOptions, PackageRootSourceRequest, ResolvedPackageSourceClosure,
+};
+use crate::resolution::source::{
+    AcquiredBuildSource, BuildSourceAcquisitions, ResolvedBuildSources,
 };
 use crate::review::CompileResolvedPackageReviewsError;
 use package_source::PrimaryGitChoices;
@@ -58,14 +60,13 @@ impl PackageCommandTransaction {
         })
     }
 
-    /// Resolve one install/update/resume without invoking the compiler. The
-    /// returned command borrows this transaction and its original proposal
-    /// file handle until all target findings have been reconciled.
+    /// Stage one install/update/resume before executing its Build. The returned
+    /// preparation retains transaction custody across source discovery and review.
     pub fn prepare<'workspace, 'storage>(
         &'workspace mut self,
         command: PackageCommand,
         storage: Option<&'storage SourceResolver>,
-    ) -> Result<PreparedPackageCommand<'workspace, 'storage>, PackageCommandError> {
+    ) -> Result<PackageCommandPreparation<'workspace, 'storage>, PackageCommandError> {
         let options = &self.options;
         if options.build_inputs.is_some()
             && matches!(
@@ -169,8 +170,7 @@ impl PackageCommandTransaction {
                             transaction.project_root().join("build.omg"),
                             before,
                             proposal.proposed_build.clone(),
-                        )
-                        .map_err(failure)?,
+                        ),
                         updates: Some(Vec::new()),
                     },
                     proposal.targets.clone(),
@@ -208,58 +208,12 @@ impl PackageCommandTransaction {
                 "project source changed since the proposal; discard it and review a fresh candidate",
             ));
         }
-        let preserved_subject = recovered
-            .as_ref()
-            .map(|proposal| &proposal.source)
-            .or_else(|| accepted.as_ref().map(|lock| lock.targets()[0].source()));
-        let context = ExternalSourceContext::derive(crate::operations::LOCAL_PROJECT_CONTEXT);
         let acquisition = if offline {
             GitExactRevisionAcquisition::Offline
         } else {
             GitExactRevisionAcquisition::AllowFetch
         };
-        let pins = preserved_subject
-            .zip(updates.as_deref())
-            .map(|(subject, updates)| GitDependencyPins::new(subject, updates, acquisition))
-            .transpose()
-            .map_err(failure)?;
-        let closure = resolve_staged_external_local_project_closure(
-            &stage,
-            context,
-            storage.resolver(),
-            LocalSourceLimits::default(),
-            PackageSourceClosureLimits::default(),
-            GitResolutionOptions { pins, offline },
-        )
-        .map_err(failure)?;
-        let source = CanonicalSourceClosureSubject::from_resolved(
-            &closure.for_exact_target(targets[0]),
-            CanonicalSourceClosureSubjectLimits::default(),
-        )
-        .map_err(failure)?;
-        if recovered
-            .as_ref()
-            .is_some_and(|proposal| proposal.source != source)
-        {
-            return Err(failure(
-                "candidate sources or dependency graph changed since the proposal; discard it and review a fresh candidate",
-            ));
-        }
-        let proposal = if !resume {
-            Some(PendingPackageChange {
-                kind,
-                before_build: digest(&before_build),
-                before_lock: before_lock.as_deref().map(digest),
-                original_content: digest(stage.original().content_identity.as_bytes()),
-                proposed_build: replacement.replacement_source().to_owned(),
-                source,
-                targets: targets.clone(),
-                build_inputs,
-            })
-        } else {
-            None
-        };
-        Ok(PreparedPackageCommand {
+        Ok(PackageCommandPreparation {
             identity: Arc::new(CommandReviewIdentity),
             transaction,
             files,
@@ -270,11 +224,128 @@ impl PackageCommandTransaction {
             accepted,
             replacement,
             stage,
-            closure,
             targets,
             build_snapshot,
-            proposal,
             resume,
+            kind,
+            before_build,
+            build_inputs,
+            recovered,
+            updates,
+            offline,
+        })
+    }
+}
+
+impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
+    pub fn acquire_root(&self) -> Result<AcquiredBuildSource, PackageCommandError> {
+        AcquiredBuildSource::capture_staged(
+            &self.stage,
+            ExternalSourceContext::derive(crate::operations::LOCAL_PROJECT_CONTEXT),
+        )
+        .map_err(failure)
+    }
+
+    pub fn build_snapshot(&self) -> Option<&build_evaluation::BuildSnapshotRequest> {
+        self.build_snapshot.as_ref()
+    }
+
+    pub fn source_acquisitions(&self) -> Result<BuildSourceAcquisitions<'_>, PackageCommandError> {
+        let preserved = self
+            .recovered
+            .as_ref()
+            .map(|proposal| &proposal.source)
+            .or_else(|| {
+                self.accepted
+                    .as_ref()
+                    .map(|lock| lock.targets()[0].source())
+            });
+        if let Some(source) = preserved.filter(|_| self.updates.is_some()) {
+            let matches_root = matches!(source.root().request(),
+                crate::resolution::graph::CanonicalRootSourceRequest::ExternalLocal { requested_root, source_context }
+                if requested_root == self.stage.requested_root().as_os_str().as_encoded_bytes()
+                    && source_context == &ExternalSourceContext::derive(crate::operations::LOCAL_PROJECT_CONTEXT));
+            if !matches_root {
+                return Err(failure("accepted Git pins belong to another root request"));
+            }
+        }
+        let pins = preserved
+            .zip(self.updates.as_deref())
+            .map(|(subject, updates)| GitDependencyPins::new(subject, updates, self.acquisition))
+            .transpose()
+            .map_err(failure)?;
+        Ok(BuildSourceAcquisitions::new(
+            self.storage.resolver(),
+            GitResolutionOptions {
+                pins,
+                offline: self.offline,
+            },
+            self.root_request(),
+        ))
+    }
+
+    fn root_request(&self) -> PackageRootSourceRequest {
+        PackageRootSourceRequest::ExternalLocal {
+            requested_root: self.stage.requested_root().to_path_buf(),
+            source_context: ExternalSourceContext::derive(crate::operations::LOCAL_PROJECT_CONTEXT),
+        }
+    }
+
+    /// Join only this staged candidate's executed graph. Saved proposals retain
+    /// their exact source graph; a fresh execution cannot silently replace it.
+    pub fn complete_source_resolution(
+        self,
+        resolved: ResolvedBuildSources,
+    ) -> Result<PreparedPackageCommand<'workspace, 'storage>, PackageCommandError> {
+        let closure = resolved.into_source_closure();
+        let root = closure
+            .custody(closure.graph().root())
+            .ok_or_else(|| failure("resolved command has no root source custody"))?;
+        if closure.source_requests().root().request() != &self.root_request()
+            || root.snapshot_root() != self.stage.snapshot_root()
+            || root.resolution()
+                != &package_source::ImmutableSourceResolution::external_local(
+                    package_source::SourceContentDigest::derive(
+                        self.stage.normalized().content_identity.as_bytes(),
+                    ),
+                )
+        {
+            return Err(failure(
+                "resolved command sources do not belong to this staged proposal",
+            ));
+        }
+        let source = CanonicalSourceClosureSubject::from_resolved(
+            &closure.for_exact_target(self.targets[0]),
+            CanonicalSourceClosureSubjectLimits::default(),
+        )
+        .map_err(failure)?;
+        if self
+            .recovered
+            .as_ref()
+            .is_some_and(|proposal| proposal.source != source)
+        {
+            return Err(failure(
+                "candidate sources or dependency graph changed since the proposal; discard it and review a fresh candidate",
+            ));
+        }
+        let proposal = if !self.resume {
+            Some(PendingPackageChange {
+                kind: self.kind,
+                before_build: digest(&self.before_build),
+                before_lock: self.before_lock.as_deref().map(digest),
+                original_content: digest(self.stage.original().content_identity.as_bytes()),
+                proposed_build: self.replacement.replacement_source().to_owned(),
+                source,
+                targets: self.targets.clone(),
+                build_inputs: self.build_inputs.clone(),
+            })
+        } else {
+            None
+        };
+        Ok(PreparedPackageCommand {
+            preparation: self,
+            closure,
+            proposal,
         })
     }
 }
@@ -296,7 +367,7 @@ impl CommandStorage<'_> {
 /// An admitted command with source and file custody retained through review.
 /// Private fields prevent callers from replacing its accepted baseline or
 /// proposal while compiler work is in flight.
-pub struct PreparedPackageCommand<'workspace, 'storage> {
+pub struct PackageCommandPreparation<'workspace, 'storage> {
     identity: Arc<CommandReviewIdentity>,
     transaction: &'workspace mut PackageFileTransaction,
     files: &'workspace RecordFileRoot,
@@ -307,11 +378,21 @@ pub struct PreparedPackageCommand<'workspace, 'storage> {
     accepted: Option<PackageLock>,
     replacement: BuildFileReplacement,
     stage: StagedLocalSnapshot,
-    closure: ResolvedPackageSourceClosure,
     targets: Vec<TargetProfile>,
     build_snapshot: Option<package_compilation::BuildSnapshotRequest>,
-    proposal: Option<PendingPackageChange>,
     resume: bool,
+    kind: PackageCommandKind,
+    before_build: Vec<u8>,
+    build_inputs: Option<package_compilation::BuildSourceCaptureRequest>,
+    recovered: Option<PendingPackageChange>,
+    updates: Option<Vec<crate::declarations::PackageKey>>,
+    offline: bool,
+}
+
+pub struct PreparedPackageCommand<'workspace, 'storage> {
+    preparation: PackageCommandPreparation<'workspace, 'storage>,
+    closure: ResolvedPackageSourceClosure,
+    proposal: Option<PendingPackageChange>,
 }
 
 /// One target's exact review inputs. This is work to perform, not a policy
@@ -368,14 +449,19 @@ impl PreparedPackageCommand<'_, '_> {
     }
 
     pub fn review_requests(&self) -> impl Iterator<Item = PackageCommandReviewRequest<'_>> {
-        self.targets
+        self.preparation
+            .targets
             .iter()
             .map(|&target| PackageCommandReviewRequest {
-                identity: &self.identity,
+                identity: &self.preparation.identity,
                 source_closure: &self.closure,
                 target,
-                accepted: self.accepted.as_ref().and_then(|lock| lock.target(target)),
-                build_snapshot: self.build_snapshot.as_ref(),
+                accepted: self
+                    .preparation
+                    .accepted
+                    .as_ref()
+                    .and_then(|lock| lock.target(target)),
+                build_snapshot: self.preparation.build_snapshot.as_ref(),
             })
     }
 
@@ -388,13 +474,13 @@ impl PreparedPackageCommand<'_, '_> {
         reviews: Vec<PackageCommandReview>,
         session: &mut PackageBuildSession,
     ) -> Result<PackageCommandOutcome, PackageCommandError> {
-        if reviews.len() != self.targets.len() {
+        if reviews.len() != self.preparation.targets.len() {
             return Err(failure(
                 "package command did not receive every requested target review",
             ));
         }
-        for (result, &target) in reviews.iter().zip(&self.targets) {
-            if !Arc::ptr_eq(&self.identity, &result.identity) {
+        for (result, &target) in reviews.iter().zip(&self.preparation.targets) {
+            if !Arc::ptr_eq(&self.preparation.identity, &result.identity) {
                 return Err(failure(
                     "package command received a review from another command",
                 ));
@@ -407,6 +493,11 @@ impl PreparedPackageCommand<'_, '_> {
             }
         }
         let Self {
+            preparation,
+            closure,
+            proposal,
+        } = self;
+        let PackageCommandPreparation {
             transaction,
             files,
             mut pending_file,
@@ -416,11 +507,9 @@ impl PreparedPackageCommand<'_, '_> {
             accepted,
             replacement,
             stage,
-            closure,
-            proposal,
             resume,
             ..
-        } = self;
+        } = preparation;
         let reviews = reviews
             .into_iter()
             .map(|result| result.review)

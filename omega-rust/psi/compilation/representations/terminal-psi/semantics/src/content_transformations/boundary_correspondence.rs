@@ -234,7 +234,13 @@ pub(super) fn validate_authority(
                         .is_some_and(|projection| projection.identity == output.projection)
                 })
                 .ok_or("boundary body output has no exact domain owner")?;
-            if !domain.authorizes_boundary_requirement(boundary.identity) {
+            if !domain.authorizes_boundary_requirement(
+                boundary.identity,
+                boundary
+                    .declaration
+                    .as_ref()
+                    .map(|checked| checked.source.semantic_declaration),
+            ) {
                 return Err(
                     "boundary body public requirement is not authorized for this output domain",
                 );

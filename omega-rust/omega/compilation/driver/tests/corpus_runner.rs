@@ -1,7 +1,7 @@
 //! Corpus outcome runner — a `harness = false` test target that walks
 //! `tests/omega/{pass,fail,run}` and compiles every fixture, printing one
 //! text record per fixture to stdout (format below): pass and run fixtures go through
-//! `compiler::compile` with a `Check` product (run fixtures are compile-
+//! `omega_build::compile_sources` with a `Check` product (run fixtures are compile-
 //! checked only — the suite's execution leg is not reproduced here), fail
 //! fixtures through the compiler session with reviewed repository package
 //! inputs, continuing that checked compilation to native production only when
@@ -520,9 +520,7 @@ fn produce_terminal_semantic(
     if let Some(snapshot) = build_snapshot {
         request = request.with_build_snapshot(snapshot);
     }
-    let report = prepared
-        .session
-        .compile(request)
+    let report = omega_build::compile_sources(&mut prepared.session, request)
         .and_then(compiler::CompileOutcomes::into_single_report)?;
     let receipt = report
         .optimization_rollback_receipt()
@@ -660,9 +658,7 @@ fn published_files(
         if let Some(snapshot) = build_snapshot {
             request = request.with_build_snapshot(snapshot);
         }
-        prepared
-            .session
-            .compile(request)
+        omega_build::compile_sources(&mut prepared.session, request)
             .and_then(compiler::CompileOutcomes::into_single_report)
     })();
     let listing = match compiled {
@@ -708,7 +704,7 @@ fn completed_files(sets: &Path) -> Result<Vec<String>, String> {
 }
 
 /// The pass/run tier of `production_compile` restricted to the Check product:
-/// reviewed package inputs plus `compiler::compile`, targetless.
+/// reviewed package inputs plus `omega_build::compile_sources`, targetless.
 fn check_pass_fixture(
     root_path: &Path,
     build_dir: PathBuf,
@@ -724,9 +720,7 @@ fn check_pass_fixture(
     if let Some(snapshot) = build_snapshot {
         request = request.with_build_snapshot(snapshot);
     }
-    let result = prepared
-        .session
-        .compile(request)
+    let result = omega_build::compile_sources(&mut prepared.session, request)
         .and_then(compiler::CompileOutcomes::into_single_report)
         .map(|_| ());
     let _ = fs::remove_dir_all(&build_dir);
@@ -1190,7 +1184,7 @@ fn build_native_fixture(
     let mut reports = if let Some(reports) = accepted_reports {
         reports
     } else {
-        let outcomes = prepared.session.compile(request)?;
+        let outcomes = omega_build::compile_sources(&mut prepared.session, request)?;
         let mut reports = Vec::new();
         let mut failures = Vec::new();
         for outcome in outcomes.into_outcomes().into_vec() {
@@ -1655,16 +1649,15 @@ fn check_fail_fixture(
         .map(|_| ())
         .map_err(|error| error.failure.into_diagnostics())
     } else if let Some(native_product) = native_product {
-        session
-            .produce(
-                request.take().expect("root request"),
-                compiler::CompilationProduct::Native(native_product),
-            )
-            .map(|_| ())
-            .map_err(compiler::CompilationProductError::into_diagnostics)
+        omega_build::produce_source(
+            &mut session,
+            request.take().expect("root request"),
+            compiler::CompilationProduct::Native(native_product),
+        )
+        .map(|_| ())
+        .map_err(compiler::CompilationProductError::into_diagnostics)
     } else {
-        session
-            .check(request.take().expect("root request"))
+        omega_build::check_source(&mut session, request.take().expect("root request"))
             .result
             .map(|_| ())
             .map_err(|failure| failure.into_diagnostics())
@@ -1758,9 +1751,7 @@ fn realize_fixture(
     if let Some(snapshot) = build_snapshot {
         request = request.with_build_snapshot(snapshot);
     }
-    let result = prepared
-        .session
-        .compile(request)
+    let result = omega_build::compile_sources(&mut prepared.session, request)
         .and_then(compiler::CompileOutcomes::into_single_report)
         .map(|report| {
             if let Some((fixture_dir, observation)) = interpretation {
@@ -1799,10 +1790,21 @@ fn declared_realization_targets(root_path: &Path) -> Vec<String> {
     // Read the slot operand structurally. An explicit Build argument can be
     // a call containing commas, and comments may contain example bindings;
     // neither should change which target this fixture actually declares.
-    for item in syntax.root_items() {
-        let syntax_trees::item::Item::Machine(machine) = item else {
+    // Candidate discovery follows the declaration graph. Native admission
+    // still executes Build and requires an actually selected root; seeing a
+    // source binding here supplies no execution or entry authority.
+    let mut pending = syntax
+        .root_item_handles()
+        .iter()
+        .rev()
+        .copied()
+        .collect::<Vec<_>>();
+    while let Some(item) = pending.pop() {
+        let syntax_trees::item::Item::Machine(machine) = syntax.items.item(item) else {
             continue;
         };
+        let nested = machine.nested_machines.handles().collect::<Vec<_>>();
+        pending.extend(nested.into_iter().rev());
         for state in syntax.items.state_handles(machine.states) {
             let state = syntax.items.state(*state);
             for statement in syntax.items.statements(state.statements) {

@@ -8,7 +8,7 @@ audit, or publish native artifacts.
 ```text
 inspect_packages.rs  transaction, target admission, policy/report joins and completion
 inspect_packages/
-├── sources.rs       pinned source resolution, review and comparison
+├── sources.rs       executed source custody, review and comparison
 ├── report.rs        bounded graph and policy presentation
 └── report/
     ├── policy.rs        typed policy summary and full-detail delegation
@@ -17,8 +17,11 @@ inspect_packages/
 ```
 
 Application Build's [`package_inspection.rs`](../../../../../application/build/src/package_inspection.rs)
-owns session creation/disposal and the ordered target loop. It calls the same
-dependency review executor as install/update. Package completion requires every
+owns session creation/disposal, shared source execution and the ordered target
+loop. Each selected source Build runs once, before target-specific review;
+review passes consume its retained result, not new execution requests or grants.
+It uses the same source resolver and review executor as install/update.
+Package completion requires every
 admitted target, in order, and rechecks the original project files before returning
 the report. A failed target produces unavailable findings without hiding later
 targets; a reporting failure stops further work.

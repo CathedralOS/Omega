@@ -126,6 +126,13 @@ impl CheckedMachineDeclaration {
                         .text(specialization.template_callable)
                         .zip(other_identities.text(other_specialization.template_callable))
                         .is_some_and(|(left, right)| !left.is_empty() && left == right)
+                    && identities
+                        .text(specialization.template_semantic_declaration)
+                        .zip(
+                            other_identities
+                                .text(other_specialization.template_semantic_declaration),
+                        )
+                        .is_some_and(|(left, right)| !left.is_empty() && left == right)
                     && specialization.template.same_identity_as(
                         identities,
                         &other_specialization.template,
@@ -146,6 +153,9 @@ pub struct CheckedMachineSpecialization {
     /// from the template's nominal declaration path. Issuer routes name this
     /// declaration, not a same-spelled specialization or sibling overload.
     pub template_callable: TerminalIdentityIndex,
+    /// Issuer routes use this semantic declaration coordinate. `template`
+    /// retains the independent nominal encoding and cannot substitute for it.
+    pub template_semantic_declaration: TerminalIdentityIndex,
     pub commitment: [u8; 32],
 }
 

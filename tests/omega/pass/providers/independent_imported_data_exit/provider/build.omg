@@ -1,0 +1,9 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "imported_data_provider");
+    Build::depend_as(builder, "records", Source::Path { location: "../records" });
+    Build::select_provider<Probe, ProbeProvider>(builder);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry);
+}

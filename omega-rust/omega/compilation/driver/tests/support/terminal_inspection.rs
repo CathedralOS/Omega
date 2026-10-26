@@ -139,14 +139,14 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             let _artifact = indexed_family_controls::produce(request, machine)?;
             continue;
         }
-        let produced = compiler::CompilationSession::default()
-            .produce(
-                request,
-                compiler::CompilationProduct::Inspection(machine.to_owned()),
-            )
-            .and_then(compiler::CompilationOutput::into_inspection)
-            .map_err(compiler::CompilationProductError::into_diagnostics)
-            .map_err(|errors| format!("inspection {machine} production: {errors:?}"))?;
+        let produced = omega_build::produce_source(
+            &mut compiler::CompilationSession::default(),
+            request,
+            compiler::CompilationProduct::Inspection(machine.to_owned()),
+        )
+        .and_then(compiler::CompilationOutput::into_inspection)
+        .map_err(compiler::CompilationProductError::into_diagnostics)
+        .map_err(|errors| format!("inspection {machine} production: {errors:?}"))?;
         let artifact = produced.artifact().map_err(|error| error.to_string())?;
         let mut transported = artifact.to_bytes();
         let decoded = CanonicalTerminalArtifact::from_bytes(&transported)

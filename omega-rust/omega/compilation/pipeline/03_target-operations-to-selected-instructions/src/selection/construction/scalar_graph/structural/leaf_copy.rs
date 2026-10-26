@@ -2,13 +2,13 @@
 //! and reseat a borrowed window's vacated field with the inverse copy.
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    SelectedInstructionKind,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
+use crate::selection::scalar_call_abi::load_transfer;
 use selected_instructions::VirtualRegisterId;
 use semantic_vocabulary::PlaceId;
 
@@ -483,32 +483,12 @@ fn copy_bytes(
             from.elements,
             super::runtime_address::Written::None,
         )?;
-        let (kind, key) = match width {
-            8 => (
-                SelectedInstructionKind::Load64 {
-                    byte_offset: load_displacement,
-                },
-                builder.constraints.keys.load64,
-            ),
-            4 => (
-                SelectedInstructionKind::Load32 {
-                    byte_offset: load_displacement,
-                },
-                builder.constraints.keys.load32,
-            ),
-            2 => (
-                SelectedInstructionKind::Load16 {
-                    byte_offset: load_displacement,
-                },
-                builder.constraints.keys.load16,
-            ),
-            _ => (
-                SelectedInstructionKind::Load8 {
-                    byte_offset: load_displacement,
-                },
-                builder.constraints.keys.load8,
-            ),
-        };
+        let (kind, key) = load_transfer(
+            &builder.constraints.keys,
+            u32::from(width),
+            load_displacement,
+        )
+        .ok_or_else(|| invalid())?;
         builder.emit(
             kind,
             key.ok_or_else(|| invalid())?,

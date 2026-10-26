@@ -15,6 +15,7 @@ use package_compilation::{
 use std::path::PathBuf;
 use target::TargetProfile;
 
+#[derive(Clone)]
 pub struct PreparedPackageBuild {
     root_path: PathBuf,
     target: TargetProfile,
@@ -26,6 +27,29 @@ pub struct PreparedPackageBuild {
 }
 
 impl PreparedPackageBuild {
+    /// Equality of a complete Product source admission, not target authority.
+    /// A matching context may share typing/checking; each target still admits
+    /// its generated bundles and supplies its own realization permissions.
+    pub fn has_source_admission(
+        &self,
+        inputs: &PackageCompilationInputs,
+        rollback: &OptimizationRollback,
+        permit_unsettled_fused_service_fields: bool,
+    ) -> bool {
+        self.rollback == *rollback
+            && self.permit_unsettled_fused_service_fields == permit_unsettled_fused_service_fields
+            && self.same_source_inputs(inputs)
+    }
+
+    fn same_source_inputs(&self, inputs: &PackageCompilationInputs) -> bool {
+        let execution = self.prepared.build_sources.build_execution_profile;
+        package_compilation::SourceAssemblyInputs::new(Some(inputs), execution)
+            == package_compilation::SourceAssemblyInputs::new(Some(&self.inputs), execution)
+            && inputs.semantic_role_discovery() == self.inputs.semantic_role_discovery()
+            && inputs
+                .accepted_semantic_bindings()
+                .eq(self.inputs.accepted_semantic_bindings())
+    }
     /// Select a realization context from one completed Build. The source
     /// continuation, executed effects and charges remain shared. Target-local
     /// permissions are supplied by the product request, never copied here.
@@ -36,13 +60,7 @@ impl PreparedPackageBuild {
     ) -> Result<Self, Vec<Diagnostic>> {
         let execution = self.prepared.build_sources.build_execution_profile;
         inputs.validate_execution_context(Some(target), execution)?;
-        if package_compilation::SourceAssemblyInputs::new(Some(&inputs), execution)
-            != package_compilation::SourceAssemblyInputs::new(Some(&self.inputs), execution)
-            || inputs.semantic_role_discovery() != self.inputs.semantic_role_discovery()
-            || !inputs
-                .accepted_semantic_bindings()
-                .eq(self.inputs.accepted_semantic_bindings())
-        {
+        if !self.same_source_inputs(&inputs) {
             return Err(vec![Diagnostic::error(
                 "completed Build target selection cannot change its source or semantic admission",
             )]);
@@ -71,6 +89,8 @@ impl PreparedPackageBuild {
             // cannot partition source work, nor be replaced by a sibling's.
             && build.config == other_build.config
             && build.root_binding_requests == other_build.root_binding_requests
+            && build.declared_product_selections == other_build.declared_product_selections
+            && build.product_selection_requests == other_build.product_selection_requests
             && build.selected_build_machine_symbol == other_build.selected_build_machine_symbol
             && build.generated_sources == other_build.generated_sources
             && build.project_declaration == other_build.project_declaration

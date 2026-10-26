@@ -1482,15 +1482,7 @@ pub fn structural_call_custody(
     if crate::machine_calls::reference_result_custody::local_owes_record_loans(program, return_type)
     {
         use crate::machine_calls::reference_result_custody::record_call_reception;
-        let reception = record_call_reception(
-            program,
-            facts,
-            caller_machine,
-            source_state,
-            u32::try_from(call.statement_index)
-                .map_err(|_| "reference record call index exceeds u32")?,
-            call.authored_expression,
-        )?;
+        let reception = record_call_reception(program, facts, caller_machine, source_state, call)?;
         // Received leaves consume checked formation groups. Unreceived
         // projection siblings and anonymous operands stay in the call's
         // temporary carrier until ordinary subtree/operand disposal.
@@ -1500,9 +1492,7 @@ pub fn structural_call_custody(
                 facts,
                 caller_machine,
                 source_state,
-                u32::try_from(call.statement_index)
-                    .map_err(|_| "reference record call index exceeds u32")?,
-                call.authored_expression,
+                call,
                 structural_arguments,
                 &reception.residual_paths,
             )

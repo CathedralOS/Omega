@@ -2,11 +2,13 @@
 
 [`build_evaluation.rs`](src/build_evaluation.rs) owns one complete Build activation:
 entry selection, pre-effect semantic admission, filesystem preparation, exact machine admission,
-restricted-request consent, execution and the returned source commitment.
-The coordinator calls `evaluate_build` once and consumes `EvaluatedBuild`; it
-cannot obtain an executable checkpoint and skip consent. The private
-`admitted_build_program.rs` binds one selected machine to its prepared program;
-`execution` consumes that activation against its selected filesystem.
+restricted-request consent and normal-return settlement.
+`PreparedBuildEvaluation` retains that admission while the application advances
+one `TerminalBuildHost` activation and joins its dependency requests. Completion
+accepts only that invocation's normal return and produces `EvaluatedBuild`; the
+caller cannot skip consent or substitute another invocation's result.
+`admitted_build_program.rs` binds the selected machine to its prepared program;
+`execution` prepares it and settles its returned values.
 Without a consent guard, a nonempty restricted request returns
 `CompileFailure::BuildConsentRequired` before execution, configuration decoding
 or generated-source continuation. Checked and dependency Build outcomes retain
@@ -178,6 +180,19 @@ observations. Terminal's binding adapter authenticates the original receiver,
 issues an activation-local ticket and consumes it once at commit. This owner
 rejoins requests to the occurrence's source/package before target selection;
 requests are not target-admission evidence.
+
+Crash, physical-class and service exclusions use this same prepare/commit
+protocol. Checked Omega helpers encode evaluated enum values; the host neither
+reads source expressions nor guesses enum layout tags. The normal-return ledger
+retains the authored call and selecting machine. Final Product admission resolves
+service declarations and exact toolchain cases before applying the restrictions
+to each selected target closure. Formation sees every service operand; execution
+alone selects a restriction. Duplicate restrictions union, and an untaken branch
+does not impose one.
+
+`mbx nextest run -p compiler --test terminal_behavior_exclusions` checks computed
+helper values, original receiver/ticket custody, target-local refusal, exact
+service identity, physical classification, and native/reloaded-Terminal execution.
 
 Foreign helpers are admitted lexically: each `Build::bind` occurrence resolves
 its implementation against the product machines of its own source package, so a

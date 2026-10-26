@@ -138,12 +138,20 @@ one roster through the same Terminal producer as standalone requests.
 Package-manager batches supply dependency-ordered custody/consent plans; the
 compiler owns generated-output joins, Build/Product continuations and independent
 component publication. Target plans enter together; matching post-Build root
-continuations share source completion. Package operations supply requested
+continuations share source completion. The captured Build prefix retains its
+deferred Product frontend by exact source and semantic inputs. Siblings validate
+live custody before borrowing it, then rejoin their own Build selections and
+receipts; a reused frontend never substitutes another occurrence's return or
+grants. Package operations supply requested
 products and exact root permission consent, and receive reports or inspections,
 not checked activations to resume. Standalone and session products share
 selection, Terminal production, then installation; source checking no longer
 installs the package product ahead of that sequence. Review descriptions supply
-the same borrowed production facts without a second producer mode.
+the same borrowed production facts without a second producer mode. Demanded
+components and lazy review descriptions enter the same product sequence as root
+compilation. Component completion owns its exported plans, description and
+permission evidence, not a second Terminal batch loop or public checked-source
+publication entrance.
 Package preparation advances dependency-first rounds across target rosters;
 demanded component continuations enter the same source batch as their siblings,
 rather than completing one target's entire dependency chain first.
@@ -185,6 +193,7 @@ foundations, product reports and publication keep independent ownership.
 | `omega/application/cli/src/main.rs` | Parse and dispatch; display outcomes |
 | `omega/application/build/src/build.rs` | Request admission, Build lifecycle, requested products, required tests and publication |
 | `omega/application/build/src/build_execution.rs` | Dependency jobs and Build activation readiness; mandatory final join |
+| `omega/application/build/src/source_compilation.rs` | One-shot source consumers: prepare an opaque compiler invocation, execute Build, complete the requested products |
 | `omega/application/build/src/build_session.rs` | Invocation compiler lifetime beside independently package-owned staging and aggregate sponsors |
 | `omega/application/build/src/package_commands.rs` | Admitted install/update target-review work; complete findings returned to package-owned publication |
 | `omega/application/build/src/package_review.rs` | Admitted review dependency passes, compiler calls and suspended-Build cache recovery, shared with audit |
@@ -270,6 +279,41 @@ and Product-preparation sequence without forking a nonexistent sibling. An
 already prepared `PackageBuild::select_target` remains restricted to equal source
 and semantic inputs; it selects realization, not a new Product judgment.
 
+Ordinary CLI and SDK build/check/run/inspection use this lifecycle; SDK callers
+submit `BuildRequest` rather than preparing a second, statically projected graph.
+Package recovery
+begins before acquisition; one application session executes actual declarations
+and selected dependency requests, retains their source captures and settles each
+Build. Package-owned Product admission preserves source/compiler/lock checks and
+target-specific refusals, but issues no second execution request. Its inert
+execution requirement must match the pre-effect host profile, snapshot, named
+inputs and required-output roster retained with the Build. Discovery runs with
+private snapshot/staging authority only: a restricted request stops before effects;
+neither an accepted Product row nor a discarded late grant can authorize it.
+Matching Product admissions share one prepared source continuation; realization
+still validates each target's own generated bundles and permissions. Named Git
+selection settles the actual workspace catalog and observes member declarations
+from authenticated subtrees. Those observations are not completed Builds or
+Products: only selected members join their dependencies and prepare Products,
+using their original returned activations. Relative Paths stay within registered
+member navigation at the frozen repository resolution. Install/update/resume
+execute their staged candidates through the same discovery loop and retain the
+settled Builds across review passes and targets. Proposal identity, original
+local dependency bases, execution inventories, review decisions and accepted-pair
+publication remain package-owned. Discovery tolerance is part of Product
+judgment reuse, never copied into a bound admission. Observational audit uses
+the same executed source roster and retained Product review. Its accepted graph
+admits dependency requests before acquisition, preserves exact Git pins, and
+permits only root-content changes; per-target findings never recover proposals
+or publish acceptance. Source failure remains unavailable findings for every
+requested target. Review has no fresh-execution or sponsor-issuing route.
+Standalone batches, diagnostic checks and named inspection use that same
+application execution owner. The compiler's opaque `PreparedCompilation` and
+`SourceCompilation` keep source continuations and target policy alive; their
+completion accepts the exact returned Build, never an execution callback or a
+checked-tree sidecar. Target-local refusals and post-Build discovery remain in
+their outcomes. Provider suspension remains open.
+
 Each compiler entrance shows named representations and actual stage calls in
 execution order. A separate `pipeline.rs` is justified only if it owns meaningful
 sequencing rather than forwarding. Use ordinary locals, loops and matches for
@@ -339,7 +383,7 @@ library APIs; they do not introduce another compiler driver.
 | Terminal Psi loading, supplied-binding installation and execution | Psi interpreter facade under `interpreter/` |
 | Target-aware interpreter host adapters | Omega-owned host integration outside Psi, reusing independent backend ABI/mechanism libraries; not a compiler driver |
 | Compile-time interpretation and result elaboration | Psi `compilation/compile-time/` |
-| Checked program → published Terminal artifact | Psi compiler facade; current Rust migration adapter: `omega/compilation/driver/terminal-production/` |
+| Checked program → published Terminal artifact | `psi/compilation/driver/terminal-production/`, called directly with consumer-owned policy and observation |
 | Ordinary library reference implementations | `library/`, outside the compiler halves |
 
 ### Program families and support packages
@@ -509,8 +553,9 @@ jobs use the Terminal program/instance lifecycle; the remaining compile-time and
 Build consumers still use the checked interpreter.
 `psi/compilation/driver/terminal-production/` owns the one checked-program
 lowering, optimization and publication sequence, below the source facade so
-early jobs do not depend back on their source coordinator. The Omega adapter
-supplies product policy and reporting. Stage 05 owns input-ledger validation;
+early jobs do not depend back on their source coordinator. Product consumers
+call this operation directly with their policy and reporting observer; no Omega
+production wrapper remains. Stage 05 owns input-ledger validation;
 stage 07 owns entry receipts and source-correspondence judgments. This shared
 operation is neither another Psi stage nor a second complete compiler driver.
 Exact consumed-source and toolchain identities belong to the shared
@@ -760,8 +805,8 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   `codec/`, `semantics/` and `fuel/`.
   Representation data and candidate production remain independent of checking.
 - Psi `compilation/driver/terminal-production/` — sequences stages 05–07 through
-  publication. Omega `compilation/driver/terminal-production/` supplies product
-  policy and reporting; it does not assemble the stages. Exclusion admission
+  publication. Omega consumers supply product policy and reporting directly;
+  they do not assemble the stages or wrap this production entrance. Exclusion admission
   borrows the unoptimized Terminal composition inside that sequence, without
   exporting or cloning its checked-source lowering.
 - Psi `compilation/compile-time/` — evaluation admission and result elaboration.

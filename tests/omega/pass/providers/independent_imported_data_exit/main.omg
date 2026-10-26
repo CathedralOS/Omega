@@ -1,0 +1,9 @@
+use provider::main;
+machine main() reaches Probe crashes Trap {
+    transition Probe::run(64u64) == 64u64 && Probe::idle() == 7u64 {
+        true -> done()
+        _ -> failed()
+    }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}

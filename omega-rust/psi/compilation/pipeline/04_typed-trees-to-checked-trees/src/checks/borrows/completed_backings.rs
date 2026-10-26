@@ -51,14 +51,14 @@ pub(super) fn resolve_at_path(
         return Err("the completed projection has no value occurrence");
     };
     let mut forwarded_inputs = Vec::new();
-    let places = Resolver {
+    let resolved = Resolver {
         program,
         facts,
         state,
     }
     .retained_descriptor(descriptor, path, &mut Vec::new(), &mut forwarded_inputs)?;
     Ok(CompletedDescriptorBackings {
-        places,
+        places: resolved.places,
         forwarded_inputs,
     })
 }
@@ -115,6 +115,28 @@ pub(super) fn value_observation_descriptor_source(
     Ok(operand.backing)
 }
 
+/// Complete authority alternatives. Image storage has intrinsic shared
+/// formation, with no fabricated caller address or borrowed-loan lineage.
+#[derive(Default)]
+struct BackingFrontier {
+    places: Vec<ResolvedAlias>,
+    immutable_image: bool,
+}
+
+impl BackingFrontier {
+    fn borrowed(places: Vec<ResolvedAlias>) -> Self {
+        Self {
+            places,
+            immutable_image: false,
+        }
+    }
+
+    fn append(&mut self, other: Self) {
+        append_distinct(&mut self.places, other.places);
+        self.immutable_image |= other.immutable_image;
+    }
+}
+
 struct Resolver<'input> {
     program: &'input dyn validation::CheckingInput,
     facts: &'input CheckFacts,
@@ -131,7 +153,7 @@ impl Resolver<'_> {
         path: &[PlaceSegment],
         ancestors: &mut Vec<Handle<FlowOperandFact>>,
         forwarded_inputs: &mut Vec<Handle<FlowOperandFact>>,
-    ) -> Result<Vec<ResolvedAlias>, &'static str> {
+    ) -> Result<BackingFrontier, &'static str> {
         let control = &self.facts.flow.control;
         if !control.operands.is_valid(capture) || ancestors.contains(&capture) {
             return Err("the completed descriptor graph is missing or cyclic");
@@ -153,8 +175,15 @@ impl Resolver<'_> {
         let resolved = self.producer(capture, path, ancestors, forwarded_inputs);
         ancestors.pop();
         let resolved = resolved?;
-        if resolved.is_empty() {
+        if resolved.places.is_empty() && !resolved.immutable_image {
             return Err("the completed descriptor has no retained authority frontier");
+        }
+        if resolved.immutable_image
+            && validation::reference_shell(self.program, reference).is_none_or(|reference| {
+                reference.access != language_semantics::ReferenceAccess::Shared
+            })
+        {
+            return Err("immutable image storage cannot grant writable access");
         }
         Ok(resolved)
     }
@@ -165,7 +194,7 @@ impl Resolver<'_> {
         path: &[PlaceSegment],
         ancestors: &mut Vec<Handle<FlowOperandFact>>,
         forwarded_inputs: &mut Vec<Handle<FlowOperandFact>>,
-    ) -> Result<Vec<ResolvedAlias>, &'static str> {
+    ) -> Result<BackingFrontier, &'static str> {
         let control = &self.facts.flow.control;
         let operand = control.operands.get(capture);
         // Copies and selections own completed value occurrences. Their source
@@ -180,20 +209,17 @@ impl Resolver<'_> {
                 if alternatives.is_empty() {
                     return Err("the completed selection has no incoming descriptor");
                 }
-                let mut resolved = Vec::new();
+                let mut resolved = BackingFrontier::default();
                 for alternative in alternatives {
                     if !alternative.source_arm.is_valid() {
                         return Err("the completed selection has an unauthenticated arm");
                     }
-                    append_distinct(
-                        &mut resolved,
-                        self.retained_descriptor(
-                            alternative.value,
-                            path,
-                            ancestors,
-                            forwarded_inputs,
-                        )?,
-                    );
+                    resolved.append(self.retained_descriptor(
+                        alternative.value,
+                        path,
+                        ancestors,
+                        forwarded_inputs,
+                    )?);
                 }
                 return Ok(resolved);
             }
@@ -232,7 +258,27 @@ impl Resolver<'_> {
         ) && let Some(source) = &coordinate
             && source.root.as_symbol().is_some()
         {
-            return self.stored(operand, source, path);
+            return self
+                .stored(operand, source, path)
+                .map(BackingFrontier::borrowed);
+        }
+        // Literal formation authenticates image scope in the completed value
+        // inventory. Consume that positive evidence for any producer instead
+        // of inferring image backing from missing suppliers or source syntax.
+        if let Some(profiles) = validation::completed_storage::captured_retention_profiles_at_path(
+            self.program,
+            control,
+            operand,
+            path,
+        ) && !profiles.is_empty()
+            && profiles
+                .iter()
+                .all(|profile| self.immutable_image_profile(*profile, &mut Vec::new()))
+        {
+            return Ok(BackingFrontier {
+                places: Vec::new(),
+                immutable_image: true,
+            });
         }
         // A saved subject is the producer's retained value, not another read
         // of its authored initializer. Missing saved custody has no backing.
@@ -316,17 +362,14 @@ impl Resolver<'_> {
                 path,
             )
             .ok_or("the constructed descriptor has no complete evaluated child frontier")?;
-            let mut resolved = Vec::new();
+            let mut resolved = BackingFrontier::default();
             for child in children {
-                append_distinct(
-                    &mut resolved,
-                    self.retained_descriptor(
-                        child.capture,
-                        &child.projection,
-                        ancestors,
-                        forwarded_inputs,
-                    )?,
-                );
+                resolved.append(self.retained_descriptor(
+                    child.capture,
+                    &child.projection,
+                    ancestors,
+                    forwarded_inputs,
+                )?);
             }
             return Ok(resolved);
         }
@@ -348,11 +391,42 @@ impl Resolver<'_> {
             if calls.next().is_some() || invocation.authored_target != call.target_symbol {
                 return Err("the completed result has no unique checked invocation");
             }
-            let sources =
-                crate::borrow::call_reference_sources(self.program, self.state.state_symbol, call)
-                    .ok_or("the completed call has no declared return-source relation")?;
-            let mut resolved = Vec::new();
-            for (source, projection) in sources {
+            let sources = crate::borrow::completed_call_reference_sources(
+                self.program,
+                self.state.state_symbol,
+                call,
+            )
+            .ok_or("the completed call has no declared return-source relation")?;
+            let mut resolved = BackingFrontier::default();
+            for source in sources {
+                let (source, projection) = match source {
+                    crate::borrow::CompletedReturnSource::ImmutableImage { owner_path, kind } => {
+                        if kind != checked_trees::BorrowAccessKind::Read {
+                            return Err("immutable image storage cannot grant writable access");
+                        }
+                        let structural =
+                            crate::borrow::structural_owner_path(self.program, &owner_path)
+                                .ok_or("the image result has no declared output path")?;
+                        let output = validation::reference_result_custody::loan_place_segments(
+                            self.program,
+                            operand.type_reference,
+                            &structural,
+                        )
+                        .ok_or("the image result path disagrees with its completed carrier")?;
+                        if same_path(self.program, &output, path) {
+                            resolved.immutable_image = true;
+                        }
+                        continue;
+                    }
+                    crate::borrow::CompletedReturnSource::DescriptorCandidate {
+                        field,
+                        projection,
+                    } => (field, projection),
+                    crate::borrow::CompletedReturnSource::LifetimeDependency { .. } => continue,
+                    crate::borrow::CompletedReturnSource::UnresolvedDescriptor { .. } => {
+                        return Err("the completed call has an unresolved descriptor alternative");
+                    }
+                };
                 let output = crate::borrow::owner_place_segments(&source.owner_path);
                 if !same_path(self.program, &output, path) {
                     continue;
@@ -364,20 +438,21 @@ impl Resolver<'_> {
                     return Err("the returned descriptor has no completed input");
                 }
                 let input = crate::borrow::owner_place_segments(&source.source_path);
-                for mut backing in self.input_descriptor(
+                let mut backings = self.input_descriptor(
                     actuals.handle_at(index),
                     source.source,
                     &input,
                     ancestors,
                     forwarded_inputs,
-                )? {
+                )?;
+                for backing in &mut backings.places {
                     backing.place.segments =
                         facts::project_captured_view_segments(&backing.place.segments, &projection)
                             .ok_or("the returned descriptor cannot project its retained source")?;
-                    append_distinct(&mut resolved, [backing]);
                 }
+                resolved.append(backings);
             }
-            return (!resolved.is_empty())
+            return (!resolved.places.is_empty() || resolved.immutable_image)
                 .then_some(resolved)
                 .ok_or("the completed call does not cover the returned descriptor path");
         }
@@ -401,10 +476,37 @@ impl Resolver<'_> {
                 operand.constraints,
                 place,
             )
+            .map(BackingFrontier::borrowed)
             .ok_or("the completed borrow has no retained source authority")
         } else {
             Err("the computed descriptor has no retained authority producer")
         }
+    }
+
+    fn immutable_image_profile(
+        &self,
+        profile: Handle<checked_trees::FlowOperandRetention>,
+        ancestors: &mut Vec<Handle<checked_trees::FlowOperandRetention>>,
+    ) -> bool {
+        let control = &self.facts.flow.control;
+        if !control.operand_retentions.is_valid(profile) || ancestors.contains(&profile) {
+            return false;
+        }
+        let retained = control.operand_retentions.get(profile);
+        if retained.alternatives.is_empty() {
+            return retained.immutable_image;
+        }
+        let Some(alternatives) = control.operand_retentions.span(retained.alternatives) else {
+            return false;
+        };
+        ancestors.push(profile);
+        let image = !alternatives.is_empty()
+            && retained
+                .alternatives
+                .handles()
+                .all(|alternative| self.immutable_image_profile(alternative, ancestors));
+        ancestors.pop();
+        image
     }
 
     fn stored(
@@ -437,7 +539,7 @@ impl Resolver<'_> {
         path: &[PlaceSegment],
         ancestors: &mut Vec<Handle<FlowOperandFact>>,
         forwarded_inputs: &mut Vec<Handle<FlowOperandFact>>,
-    ) -> Result<Vec<ResolvedAlias>, &'static str> {
+    ) -> Result<BackingFrontier, &'static str> {
         let control = &self.facts.flow.control;
         if !control.operands.is_valid(capture) {
             return Err("the return-source relation has no completed actual");

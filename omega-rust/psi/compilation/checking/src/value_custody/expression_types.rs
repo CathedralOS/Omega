@@ -76,7 +76,7 @@ pub use match_dispatch::match_subject_primitive_type;
 pub use match_dispatch::validate_match_dispatch;
 pub use match_dispatch::{
     structural_match_cases_are_covered, structural_match_pattern_case,
-    structural_match_subject_type,
+    structural_match_pattern_is_total, structural_match_subject_type,
 };
 pub use result_type::{
     arithmetic_result_type_reference, expression_result_type_reference,

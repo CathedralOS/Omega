@@ -509,10 +509,14 @@ Focused acceptance on the submitted source plus required GitHub integration CI
 and verified publication establishes the landed repair. Postlanding verification
 is a read-only PR/commit/CI observation, not a compiler rebuild or acceptance
 rerun. Update its parent item in the same change following [board update discipline](../../../TASKS.md#updating-the-boards):
-subtract only requirements established by the evidence, delete the item only
-when its full acceptance is met, and do not add a success narrative or a new
-item per witness. Keep the next remaining requirement in the claim note. A
-sample that still fails keeps its current failure in its README.
+`tests/omega/` (`corpus_results.txt`) and `samples/cli/facts/` own regression
+protection of landed witnesses, while `TASKS.md` owns only the unbuilt or
+failing gap. Delete the completed witness's bullet or requirement from
+`TASKS.md` outright so the item shrinks with every landed step; never move a
+completed witness into a `"preserving / retaining / keeping / now passes"`
+regression list or append a milestone narrative, and delete the item when its
+full `Acceptance:` is met. Keep the next remaining requirement in the claim
+note. A sample that still fails keeps its current failure in its README.
 
 Landing one witness is not a switch to an unrelated outcome. Continue the
 parent's next required witness within authorized scope; use a fresh worktree

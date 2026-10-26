@@ -59,7 +59,18 @@ impl PackageReviewSource {
     }
 
     pub fn publish_component(&self) -> Result<IndependentComponentDescription, Vec<Diagnostic>> {
-        crate::compiler::package::publish_checked_component(self.retained.checked.clone())
+        super::run_on_compile_thread(|| {
+            let request =
+                crate::product_execution::ProductRequest::Component(self.retained.checked.clone());
+            let ((), output) = crate::compiler::produce_products(vec![((), Ok(request))])
+                .into_iter()
+                .next()
+                .ok_or_else(|| vec![Diagnostic::error("component publication lost its outcome")])?;
+            output
+                .and_then(crate::CompilationOutput::into_component)
+                .map(|product| product.description().clone())
+                .map_err(crate::CompilationProductError::into_diagnostics)
+        })
     }
 }
 

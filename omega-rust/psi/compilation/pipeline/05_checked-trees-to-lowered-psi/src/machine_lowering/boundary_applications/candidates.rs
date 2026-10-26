@@ -38,8 +38,16 @@ pub(super) fn retain(
             .specialization
             .map(|(template, commitment)| {
                 Ok::<_, &'static str>(CheckedMachineSpecialization {
-                    capture: super::super::declarations::capture_identity(identities, checked, candidate.machine)?,
+                    capture: super::super::declarations::capture_identity(
+                        identities,
+                        checked,
+                        candidate.machine,
+                    )?,
                     template: nominal(identities, template)?,
+                    template_semantic_declaration: super::super::declarations::semantic_identity(
+                        identities, checked, template,
+                    )
+                    .map_err(|_| "boundary specialization lost its template declaration owner")?,
                     template_callable: identities.intern(
                         &checked
                             .machine(template)

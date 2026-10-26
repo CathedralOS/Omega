@@ -98,6 +98,7 @@ pub(super) fn inspect(
         )?;
         let decoded = decode_component_description(product.description())
             .map_err(|error| format!("decode native description: {error:?}"))?;
+        reject_unrequired_provider(&decoded, &request)?;
         let mut missing_identity = decoded.clone();
         missing_identity.realization_identity = None;
         let mut missing_stack = decoded;
@@ -131,4 +132,56 @@ pub(super) fn inspect(
         std::fs::remove_dir_all(directory).map_err(|error| error.to_string())?;
     }
     Ok(())
+}
+
+// An unused native plan has a valid digest and complete row roster, but no
+// consumer or checked export in the artifact. Publication must omit it; a
+// forged carrier that adds it back must still fail independent verification.
+fn reject_unrequired_provider(
+    description: &component_description::component_description::ComponentDescription,
+    request: &ComponentVerificationRequest,
+) -> Result<(), String> {
+    use component_description::component_description::RetainedProvider;
+    use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
+
+    let requirement = "unused_native_probe()->named(name(u64))";
+    let mut plan = ProviderPlan {
+        name: "unused-native-probe".into(),
+        provider_type: "UnusedNativeProvider".into(),
+        ..ProviderPlan::default()
+    };
+    let requirement_identity = plan.identities.intern(requirement);
+    plan.schema.trait_name = plan.schema.identities.intern("UnusedNativeProbe");
+    let schema_requirement = plan.schema.identities.intern(requirement);
+    let result_type = plan.schema.identities.intern("named(name(u64))");
+    plan.schema.methods.push(ServiceMethod {
+        name: "unused_native_probe".into(),
+        requirement_owner: "UnusedNativeProbe".into(),
+        requirement_identity: schema_requirement,
+        has_result: true,
+        result_type_identity: result_type,
+        ..ServiceMethod::default()
+    });
+    plan.rows.push(ProviderPlanRow {
+        method: "unused_native_probe".into(),
+        requirement_identity,
+        requirement_lifetime_partition: Vec::new(),
+        admitted_same_stack_bytes: 0,
+        binding: ProviderBinding::Syscall { number: 0 },
+    });
+    let mut altered = description.clone();
+    altered.providers.push(RetainedProvider {
+        report_identity: plan.report_fingerprint(),
+        plan_digest: *plan.identity_digest().as_bytes(),
+        plan_input: plan.identity_preimage(),
+        requirement_identities: vec![requirement.into()],
+    });
+    match verify_component(&encode_component_description(&altered), request) {
+        Err(
+            component_description::ComponentVerificationRejection::SmuggledProviderRequirement(
+                identity,
+            ),
+        ) if identity == requirement => Ok(()),
+        outcome => Err(format!("unrequired native provider control: {outcome:?}")),
+    }
 }

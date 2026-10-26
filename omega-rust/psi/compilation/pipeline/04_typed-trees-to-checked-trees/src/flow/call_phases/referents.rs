@@ -224,7 +224,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     // selector denotes. Preserve only an already-live row, and only if every
     // overlapping contribution is restored by its own captured formal. Domain
     // dependency overlap uses the very same judgment as invalidation.
-    if let Some(writes) = writes {
+    if let Some(writes) = writes.filter(|writes| !writes.is_empty()) {
         let guarantees = guarantees::PreparedGuarantees::prepare(guarantees);
         // Confinement depends only on this immutable write path and its
         // selected formal, not on a live fact or a candidate guarantee. A
@@ -273,11 +273,28 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
             if !semantic_domain.is_valid() {
                 continue;
             }
-            let Some(place) = crate::flow::canonical_place_from_semantic_place(
-                program,
-                semantic,
-                semantic.places.get(handle),
-            ) else {
+            let semantic_place = semantic.places.get(handle);
+            if !semantic
+                .place_segments
+                .span_or_empty(semantic_place.segments)
+                .iter()
+                .all(crate::flow::place_segment_has_static_identity)
+            {
+                continue;
+            }
+            if !matches!(semantic_place.root, facts::PlaceRoot::Expression(_))
+                && !writes.iter().any(|contribution| {
+                    contribution
+                        .observations
+                        .iter()
+                        .any(|obs| obs.root == semantic_place.root)
+                })
+            {
+                continue;
+            }
+            let Some(place) =
+                crate::flow::canonical_place_from_semantic_place(program, semantic, semantic_place)
+            else {
                 continue;
             };
             if !place

@@ -58,7 +58,8 @@ mod aggregate;
 mod owner_paths;
 mod returned_carriers;
 pub(crate) use returned_carriers::{
-    call_reference_lifetime_sources, call_reference_sources, returned_body_source_mismatch,
+    CompletedReturnSource, call_reference_lifetime_sources, call_reference_sources,
+    completed_call_reference_sources, returned_body_source_mismatch,
 };
 mod replacement;
 mod stored_calls;

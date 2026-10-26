@@ -347,12 +347,15 @@ fn project_declarations(
 pub fn descriptor_selection_occurrences(
     program: &dyn crate::CheckingInput,
 ) -> HashSet<typed_trees::AuthoredDeclarationSelectionOccurrenceId> {
-    program
-        .authored_declaration_selections()
-        .iter()
-        .filter(|selection| !program.checks_authored_selection(selection))
-        .map(|selection| selection.occurrence_id())
-        .collect()
+    let mut occurrences = product_request_operand_occurrences(program);
+    occurrences.extend(
+        program
+            .authored_declaration_selections()
+            .iter()
+            .filter(|selection| !program.checks_authored_selection(selection))
+            .map(|selection| selection.occurrence_id()),
+    );
+    occurrences
 }
 
 /// Rebuild machine roots and machine-keyed sidecars. Backing declarations stay
@@ -553,4 +556,50 @@ mod lifecycle_projection_tests {
             1
         );
     }
+}
+
+/// Exact designated operand occurrences remain with Product admission. The
+/// checked Build call retains their immutable source request; this does not
+/// exempt ordinary unresolved calls or grant a Product declaration identity.
+pub fn product_request_operand_occurrences(
+    program: &dyn crate::CheckingInput,
+) -> HashSet<typed_trees::AuthoredDeclarationSelectionOccurrenceId> {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionKind as Kind, BuildSelectionRequest,
+    };
+    let mut occurrences = HashSet::new();
+    for (expression, node) in program.expression_table.iter_expressions() {
+        let typed_trees::expression::ExpressionNode::Call(call) = node else {
+            continue;
+        };
+        let Some(BuildSelectionRequest::Declaration(request)) = program
+            .expression_table
+            .build_selection_request(call.build_selection)
+        else {
+            continue;
+        };
+        for occurrence in program
+            .expression_table
+            .authored_selection_occurrences(expression)
+        {
+            let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
+                continue;
+            };
+            if !matches!(
+                selection.kind(),
+                Kind::StaticArgument | Kind::StaticPathSegment | Kind::Conformance
+            ) {
+                continue;
+            }
+            let span = selection.source_span();
+            if request.operands.iter().any(|operand| {
+                span.source_id == operand.source_span.source_id
+                    && span.span.start >= operand.source_span.span.start
+                    && span.span.end <= operand.source_span.span.end
+            }) {
+                occurrences.insert(occurrence);
+            }
+        }
+    }
+    occurrences
 }

@@ -1,0 +1,15 @@
+// Intended invalid: the saved observation remains active during guard evaluation.
+data Cell { value: i64; }
+machine mutate(cell: &mut Cell) -> bool { cell.value = 41; true }
+machine inspect(cell: &mut Cell) -> bool {
+    let saved: &Cell = &cell;
+    transition {
+        saved.value == 17 && mutate(&mut cell) -> true
+        saved.value == 19 -> false
+        _ -> false
+    }
+}
+machine main() {
+    let mut cell: Cell = Cell { value: 17 };
+    let result: bool = inspect(&mut cell);
+}

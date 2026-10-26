@@ -95,6 +95,43 @@ public boundary trait BuildBindingOperations {
     machine prepare(builder: &Build) -> u64 reaches;
     machine bind(activation: u64) reaches;
     machine bind_description(activation: u64, description: ProductEntryRef) reaches;
+    machine select(activation: u64) reaches;
+    machine select_mode(activation: u64, independent: bool) reaches;
+    machine exclude(activation: u64, code: u64) reaches;
+}
+machine build_exclusion_crash_code(cause: CrashCause) -> u64 {
+    match cause {
+        CrashCause::Trap -> 0u64
+        CrashCause::Abort -> 1u64
+    }
+}
+machine build_exclusion_physical_code(authority: PhysicalAuthorityClass) -> u64 {
+    match authority {
+        PhysicalAuthorityClass::FilesystemContentRead -> 0u64
+        PhysicalAuthorityClass::FilesystemContentWrite -> 1u64
+        PhysicalAuthorityClass::FilesystemMetadataQuery -> 2u64
+        PhysicalAuthorityClass::DirectoryEnumeration -> 3u64
+        PhysicalAuthorityClass::FilesystemNamespaceMutation -> 4u64
+        PhysicalAuthorityClass::FilesystemMetadataMutation -> 5u64
+        PhysicalAuthorityClass::ProcessOutput -> 6u64
+        PhysicalAuthorityClass::ProcessTermination -> 7u64
+        PhysicalAuthorityClass::MachineControl -> 8u64
+        PhysicalAuthorityClass::PortIo -> 9u64
+        PhysicalAuthorityClass::InterruptControl -> 10u64
+        PhysicalAuthorityClass::InterruptEntry -> 11u64
+        PhysicalAuthorityClass::RootMemoryAccess -> 12u64
+        PhysicalAuthorityClass::ProcessInput -> 13u64
+    }
+}
+// This conversion is ordinary checked source, preserving the exact enum's
+// meaning without teaching a host adapter to infer a case from storage bits.
+public machine build_selection_independent(mode: CompositionMode) -> bool {
+    transition mode {
+        CompositionMode::Fused -> fused()
+        CompositionMode::Independent -> independent()
+    }
+    machine fused() -> bool { false }
+    machine independent() -> bool { true }
 }
 // A restricted, non-callable product-provider description (the
 // `ProductProviderRef` of wiki/spec/build/scoped_execution.md). Authored
@@ -238,7 +275,7 @@ public machine Build::artifact_only(builder: &mut Build) reaches BuildRequestOpe
 // product-admission requirement that the selected executable composition
 // contains no reachable site of the named crash cause. The selection is
 // recorded when this call executes against the original Build value;
-// the evaluator intercepts the declaration, and a
+// typing normalizes the declaration to the authenticated selection protocol. A
 // declaration that permits Trap cannot override it.
 public machine Build::exclude_crash(builder: &mut Build, cause: CrashCause) {
 }

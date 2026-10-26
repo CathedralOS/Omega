@@ -150,6 +150,15 @@ reference still observe live contents. The additional rejection controls
 `computed_view_store_retains_local_array_backing` check that this preservation
 grants neither stale scalar facts nor permission to mutate borrowed backing.
 
+Completed-call backing resolution retains proven immutable image alternatives
+alongside input suppliers and declared lifetime dependencies. An image has shared
+access and no invented caller address; an unavailable alternative still refuses.
+Returned-origin capture reads copied descriptors from their frozen per-leaf
+referent inventory, then joins those coordinates to the returned loan group.
+Whole-carrier metadata does not replace that inventory or restore overwritten
+storage. This keeps the source-free replacement and recursive carrier forwarding
+on the same completed-value path.
+
 Host acceptance is nine native/Terminal exit-0 agreements and nine twins refusing
 `receive`'s 7 obligation, together with both ownership controls. Windows execution
 remains owner-deferred; Linux execution is unverified.
@@ -340,7 +349,9 @@ opaque/provider/dependent result acceptance remain open.
 ### Static callable result contracts
 
 Each computed byte-view place now returns its existing composed value through
-`retain_callback<callback_keep>` before the later overwrite. The callback’s fresh
+`retain_callback<callback_keep>` before the later overwrite. The wrapper now
+completes with `transition { _ -> Callback(selected) }`, transporting the same
+carrier through terminal static-call completion. The callback’s fresh
 invocation contract declares both descriptor-length guarantees; the wrapper
 proves those guarantees through that public signature. It does not inspect the
 selected callback body. All earlier ranked/dynamic producers, separate input
@@ -348,9 +359,11 @@ regions, the length-7 consumer and the once-only replacement counter remain in
 the same expression. The source-9 twins still reject at that consumer and at the
 existing returned-window obligation.
 
-The fresh baseline rejects both wrapper guarantees in all nine places. Shared
-contract discovery now recognizes the static callable binder’s declared
-signature. Completed locals in the straight-line proof path publish through the
+Source contract discovery recognizes the static callable binder’s declared
+signature. The selected executable target supplies the checked write and result
+transport; retaining the public binder does not make a terminal call opaque.
+Record reception consumes the exact checked invocation, including its ordinal,
+without requiring an expression-local result holder. Completed locals in the straight-line proof path publish through the
 same storage-binding operation as the general statement path. This preserves the
 executed result’s identity after a conservative call frame retires earlier
 storage observations; it does not revive an old initializer or pointee contents.
@@ -363,7 +376,15 @@ extra equation.
 callback toggles a mutable counter, pinned as
 `pass/borrows/runtime_writing_static_callback_snapshot_exit`. The runtime oracle
 checks that the callback ran once and that overwriting the original descriptor
-left the result’s length at 7.
+left the result’s length at 7. `controls/terminal_static_callback` applies the
+same counter-writing callback through two terminal arms targeting the same
+callee, pinned as
+`pass/borrows/runtime_terminal_static_callback_snapshot_exit`. Each arm executes once with its own
+invocation ordinal; the public lifetime relationship remains independent of the
+executable target.
+The terminal variants of `static_callback_requires_public_field_guarantee` and
+`static_callback_result_does_not_restore_entry_contents` retain the public-only
+postcondition and mutation-invalidation boundaries.
 
 The reject controls are `fail/borrows/static_callback_requires_public_field_guarantee`
 (a stronger selected implementation cannot replace a missing public clause),

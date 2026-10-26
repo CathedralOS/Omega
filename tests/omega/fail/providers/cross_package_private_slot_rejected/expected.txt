@@ -1,1 +1,1 @@
-Build declaration operand does not resolve to one visible product declaration of the required kind
+Product provider operand `support::values::Hidden` does not resolve to one visible declaration of role BoundarySubject

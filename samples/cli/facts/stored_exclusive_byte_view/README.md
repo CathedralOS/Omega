@@ -63,6 +63,12 @@ observation. After ordinary project preparation, run each positive with
   selected arrivals, state edges and target-scoped bodies carry the same fact.
   [Owned-record contracts](controls/owned_record/main.omg) retain projected
   metadata without granting borrowed referent-content observation authority.
+  The [nested identity relay](../../../../tests/omega/pass/borrows/opaque_incoming_nested_projected_record_result_exit/main.omg)
+  retains the caller's still-live descriptor fact without a redundant length
+  postcondition. Its [empty-view twin](../../../../tests/omega/fail/borrows/opaque_incoming_nested_projected_record_result_empty_rejected/main.omg)
+  breaks that fact at formation. Complete empty effects preserve these facts
+  under [call contracts](../../../../wiki/spec/language/state_contracts.md#mutation-and-subject-identity);
+  neither callee-entry assumptions nor address geometry establish them.
 - **Soundness boundaries:** exclusive and write-only carriers cannot become
   copyable because their referents are copyable. Their
   [exclusive](controls/owned_copy/main.omg) and
@@ -190,3 +196,64 @@ corresponding execution and refusal records establish them. Retained macOS
 observations above remain attached to their historical producer. Windows
 observations do not establish other hosts' native execution or authorize the
 unrelated pending production-package decisions.
+
+
+## Inner reborrows bounded by the incoming wrapper
+
+The same one-byte/19 fact now crosses the nine `reborrowed_reference` places:
+[local](local/reborrowed_reference/main.omg),
+[field](field/reborrowed_reference/main.omg),
+[parameter](parameter/reborrowed_reference/main.omg),
+[call result](call_result/reborrowed_reference/main.omg),
+[match join](match_join/reborrowed_reference/main.omg),
+[const name](const_name/reborrowed_reference/main.omg),
+[nested machine](other_state/reborrowed_reference/main.omg),
+[another machine](other_machine/reborrowed_reference/main.omg), and
+[another target body](target_body/reborrowed_reference/main.omg).
+Each has an `invalid/main.omg` twin changing only the initial window to empty.
+Pins are `tests/omega/{pass,fail}/facts/stored_exclusive_byte_view_reborrowed_reference_through_<place>_*`.
+This discharges **STATE-LOCAL-VALUE-FRONTIER**'s incoming-carrier inner-reborrow
+requirement; other runtime/case construction and replacement remain open.
+
+`capture` receives an outer `&'use mut Wrapper`, traverses its stored mutable
+`Bundle` reference and fixed array, and returns a fresh `&'use mut [u8]` child.
+Its source can supply the shorter outer lifetime without becoming inline
+wrapper storage. The return check authenticates the exact state's incoming
+permission, outer referee carrier and stored leaf. It retains the captured
+incoming namespace, projection, formation and lineage. The ordinary formation
+judgment still owns each access crossing and immediate-parent relation.
+This follows [returned views](../../../../wiki/spec/language/lifetimes.md#returned-views)
+and [reborrow lineage](../../../../wiki/spec/terminal-psi/loans.md#reborrow-lineage-and-access).
+
+- **Establishment:** construction supplies the one-byte view; `capture`'s entry
+  contract justifies its published one-byte result. `observe` consumes that
+  contract directly, without a caller guard recreating the fact.
+- **Identity and lifetime:** the child remains bounded by the outer invocation,
+  retaining its exact stored referent. Shared access cannot supply a mutable
+  child; a live child prevents a conflicting parent write.
+- **Composition:** the same capture, extent and byte operation survive all nine
+  transports, including the owned result relay and every target-scoped body.
+- **Soundness:** shared-crossing, conflicting-parent and local-escape controls
+  reject under `controls/reborrowed_*_rejected`; the existing wrong-input and
+  generic result-lifetime controls remain rejecting. No permission or longer
+  lifetime is inferred from a matching path.
+- **Psi 05–07:** ordinary checked reference formation and return custody lower
+  to explicit descriptor/projection operations and execute in Terminal Psi.
+  There is no new wire format or second proof replay.
+- **Omega 00–02:** nested reference, array and byte-view layouts and the
+  ordinary argument/result calling plans carry the original descriptor.
+- **Omega 03–06:** native instruction selection, register/frame homes and
+  call preservation retain its extent and the byte read through the child.
+- **Omega 07–09 and emission:** direct macOS ARM64 image execution and Terminal
+  execution both return zero across all nine places. This does not qualify
+  another ISA, every relocation class or worst-case stack accounting.
+
+Optimized baseline `6a9d4eb1fd10fba6e246821a21a26302de7fb822` refuses every
+positive at the declared result lifetime relation. Producer
+`f90e54a6b00f7878633ead10cbfaa016e05083fe`
+(SHA-256 `a28da933a8f198db8d2dfe3801ae41d00204545b9bad991474c39cecc73bbad4`)
+runs all nine positives with native/Terminal exit zero; all nine empty-view twins
+refuse their receiving contract. Run records are in the owning qualification
+ledger and `build/result-composition-next/`. Four hosted targets are authored;
+these observations establish macOS ARM64 only. Other matching-host execution,
+including owner-deferred Windows execution, remains unverified.

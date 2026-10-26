@@ -1,0 +1,36 @@
+data Item [copy] {
+    value: i32;
+    tag: i32;
+}
+
+domain Item::Valid(item)
+requires
+    item.value > 0;
+
+data Main {
+    items: [Item; 2];
+}
+
+machine Main::mark_valid(item: &mut Item)
+ensures
+    item in Item::Valid
+{
+    item.value = 1;
+}
+
+machine Main::accept(item: Item)
+requires
+    item in Item::Valid
+{
+}
+
+machine Main::identity_index(index: u64) -> u64 {
+    index
+}
+
+machine Main::main(main: &mut Main) {
+    let index: u64 = Main::identity_index(0);
+    Main::mark_valid(&mut main.items[0]);
+    main.items[index].value = 0;
+    Main::accept(main.items[0]);
+}

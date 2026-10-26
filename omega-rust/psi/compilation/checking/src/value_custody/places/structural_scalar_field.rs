@@ -84,7 +84,7 @@ pub fn structural_scalar_field_in_parameters(
         let mut segments = actual.segments.clone();
         segments.extend_from_slice(suffix);
         let actual = super::CanonicalPlace {
-            root: actual.root.clone(),
+            root: actual.root,
             segments,
         };
         if rebased.as_ref().is_some_and(|selected| selected != &actual) {
@@ -995,9 +995,29 @@ pub fn structural_source(
     ) {
         return None;
     }
-    let (root, receiver_value, ordinal, source_type) = if let Some(source) =
-        program.saved_argument_source(receiver_expression)
-    {
+    let (root, receiver_value, ordinal, source_type) = if let ExpressionNode::SavedSubject(saved) =
+        program.expression_table.expression(receiver_expression)
+        && matches!(
+            program.expression_table.value_capture(saved.capture).owner,
+            typed_trees::expression::ValueCaptureOwner::Match
+        ) {
+        // The match's subject producer dominates this observation. Its capture
+        // is a lexical alias of that completed home, not a fresh copy to produce
+        // for each predicate or arm that reads a field.
+        let source = program.saved_value_source(saved)?;
+        let reference = crate::expression_result_type_reference(program, machine, state, source)?;
+        (
+            facts::PlaceRoot::Expression(
+                program
+                    .expression_table
+                    .value_capture(saved.capture)
+                    .value_anchor,
+            ),
+            source,
+            statement_ordinal as usize,
+            reference,
+        )
+    } else if let Some(source) = program.saved_argument_source(receiver_expression) {
         let reference = crate::expression_result_type_reference(program, machine, state, source)?;
         (
             facts::PlaceRoot::Expression(source),
