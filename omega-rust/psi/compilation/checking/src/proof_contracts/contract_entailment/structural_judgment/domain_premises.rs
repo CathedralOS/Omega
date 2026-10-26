@@ -314,6 +314,36 @@ impl StructuralJudge<'_> {
     ) {
         self.intake_admitted_scalar_bounds(reference, &value);
         let program = self.program;
+        // Only independently admitted values donate declared refinements.
+        // A pending cast or constructor may know its carrier before admission.
+        if let Some(meaning) =
+            crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
+            && meaning.0.is_fixed_integer()
+            && super::super::structural_terms::scalar_operand_is_observed(
+                program, reference, &value,
+            )
+        {
+            for (minimum, maximum) in
+                crate::constrained_range_bounds(program, reference, false).unwrap_or_default()
+            {
+                for (operator, bound) in [
+                    (BinaryOperator::GreaterOrEqual, minimum),
+                    (BinaryOperator::LessOrEqual, maximum),
+                ] {
+                    self.intake_equation(
+                        StructuralTerm::ScalarBinary {
+                            references: [reference; 2],
+                            operator,
+                            meaning: [meaning; 2],
+                            left: Box::new(value.clone()),
+                            right: Box::new(StructuralTerm::Integer(bound)),
+                        },
+                        super::value_predicates::boolean_term(true),
+                        0,
+                    );
+                }
+            }
+        }
         for row in crate::field_domains::declared_type_domain_rows(program, reference) {
             let Some(projected) = super::super::observed_projections::project_observed_value(
                 program,

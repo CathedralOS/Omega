@@ -120,6 +120,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<diagnostic
             }
         }
     }
+    let mut changed_owners = Vec::new();
     for (machine, state_index, state, positions) in pending {
         let statements = program
             .statement_table
@@ -196,6 +197,14 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<diagnostic
                 .relocate_statement_operand_captures(source, target);
         }
         program.machine_states_mut(&machine)[state_index].statement_nodes = body;
+        changed_owners.push(machine.symbol);
+    }
+    if !changed_owners.is_empty() {
+        // Applied carriers and copied casts own new indexed-domain instances.
+        // Finalize this producer's graphs before checking compares their IDs.
+        let roots = typed_trees::references::DeclarationSelection::from_symbols(changed_owners);
+        crate::monomorphization::finalize_domain_instance_identities(program, &roots)
+            .map_err(|diagnostic| vec![diagnostic])?;
     }
     Ok(())
 }
