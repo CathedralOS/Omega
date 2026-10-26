@@ -195,13 +195,16 @@ impl BuildBehaviorExclusionKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildBehaviorExclusionRequest {
+    /// Source IDs are invocation-local. This exact owner/path/content row
+    /// authenticates rebasing the retained byte coordinates at Product join.
+    pub source: source::source_identity::ConsumedSourceUnit,
     pub source_span: SourceSpan,
     pub kind: BuildBehaviorExclusionKind,
 }
 
 /// Exact checked case occurrence, recorded only after observing its evaluated
-/// discriminator with the activation's original Build value. Source spans
-/// rejoin declarations after Product closure; interpreter-local IDs do not.
+/// discriminator with the activation's original Build value. Byte coordinates
+/// rejoin through the request's source identity, never interpreter-local IDs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutedBuildBehaviorExclusion {
     pub request: BuildBehaviorExclusionRequest,

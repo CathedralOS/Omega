@@ -85,11 +85,22 @@ pub(super) fn capture(
             .ok_or_else(|| {
                 Diagnostic::error("Build exclusion lost its authored selecting machine")
             })?;
+        let source_file = checked.symbols.source_file(source_span).ok_or_else(|| {
+            Diagnostic::error("Build exclusion lost its authenticated source unit")
+        })?;
+        if author.source_id != source_span.source_id {
+            return Err(Diagnostic::error(
+                "Build exclusion helper has a different source unit",
+            ));
+        }
+        let source = source::source_identity::consumed_source_unit(source_file, false)
+            .map_err(Diagnostic::error)?;
         Ok(TerminalBuildBindingCall {
             operation,
             boundary,
             action: TerminalBuildBindingOperation::ExcludeBehavior,
             request: BuildProductRequest::BehaviorExclusion(BuildBehaviorExclusionRequest {
+                source,
                 source_span,
                 kind,
             }),

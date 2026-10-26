@@ -246,8 +246,30 @@ pub fn resolve_executed_behavior_exclusion(
     let refuse = |reason: String| {
         vec![Diagnostic::error(reason).with_source_span(executed.request.source_span)]
     };
-    let author = typed_trees::product_operand::resolve_build_request_author(typed, executed.author)
-        .map_err(refuse)?;
+    // Build and Product have independently ordered source tables. Rejoin
+    // exact source custody before interpreting any retained byte coordinate;
+    // an old SourceId is neither a declaration identity nor a lookup hint.
+    let mut sources = typed.symbols.source_files().filter(|file| {
+        source::source_identity::consumed_source_unit(file, false)
+            .is_ok_and(|identity| identity == executed.request.source)
+    });
+    let file = sources.next().ok_or_else(|| {
+        refuse("executed Build exclusion source is absent or changed in the joined Product".into())
+    })?;
+    if sources.next().is_some()
+        || executed.author.source_id != executed.request.source_span.source_id
+        || executed.case.source_id != executed.request.source_span.source_id
+    {
+        return Err(refuse(
+            "executed Build exclusion has ambiguous source custody".into(),
+        ));
+    }
+    let rebase = |span: source::SourceSpan| source::SourceSpan::new(file.source_id, span.span);
+    let source_span = rebase(executed.request.source_span);
+    let author =
+        typed_trees::product_operand::resolve_build_request_author(typed, rebase(executed.author))
+            .map_err(refuse)?;
+    let case = rebase(executed.case);
     let mut candidates = typed
         .data_definitions()
         .iter()
@@ -261,7 +283,7 @@ pub fn resolve_executed_behavior_exclusion(
         .flat_map(|definition| typed.data_members(definition))
         .filter_map(|member| match member {
             typed_trees::data::DataMember::Variant(variant)
-                if typed.symbols.symbol_source_span(variant.symbol) == Some(executed.case) =>
+                if typed.symbols.symbol_source_span(variant.symbol) == Some(case) =>
             {
                 Some(variant.symbol)
             }
@@ -292,6 +314,6 @@ pub fn resolve_executed_behavior_exclusion(
     Ok(AuthoredBehaviorExclusion {
         kind,
         selecting_machine: author,
-        source_span: executed.request.source_span,
+        source_span,
     })
 }

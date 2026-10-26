@@ -202,7 +202,8 @@ def compare_records(base: list, head: list) -> dict:
             gained_agreement = (
                 (key == "interpreter" and after == "agrees"
                  and before in ("unchecked", "declined", "exhausted", "disagrees"))
-                or (key == "terminal-targets" and before == "unchecked" and after == "match"))
+                or (key == "terminal-targets" and before == "unchecked" and after == "match")
+                or (key == "terminal-inspections" and before == "failed" and after == "match"))
             # The runner rejects a publication that contradicts its authored
             # inventory. A refused positive's `none` therefore is not a
             # successful empty-output promise to preserve when it starts

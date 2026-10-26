@@ -303,6 +303,21 @@ class CompareRecords(unittest.TestCase):
                 self.assertEqual(corpus_records.compare_records(head, base)["losses"],
                                  [f"pass/a/x: interpreter agrees -> {previous}"])
 
+    def test_completed_terminal_inspection_is_a_gain_and_preserves_exit(self):
+        base = [self.row("pass/a/x", "checked",
+                         facts={"terminal-inspections": "failed", "exit": "0"})]
+        head = [self.row("pass/a/x", "checked",
+                         facts={"terminal-inspections": "match", "exit": "0"})]
+        result = corpus_records.compare_records(base, head)
+        self.assertEqual(result["losses"], [])
+        self.assertEqual(result["gains"],
+                         ["pass/a/x: terminal-inspections failed -> match"])
+        self.assertEqual(corpus_records.compare_records(head, base)["losses"],
+                         ["pass/a/x: terminal-inspections match -> failed"])
+        head[0]["facts"]["exit"] = "1"
+        self.assertEqual(corpus_records.compare_records(base, head)["losses"],
+                         ["pass/a/x: exit 0 -> 1"])
+
     def test_successful_publication_is_a_gain_after_refusing_a_positive(self):
         for tier in ("pass", "run"):
             for previous in ("rejected", "incomplete"):
