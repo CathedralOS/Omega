@@ -4490,6 +4490,43 @@ fail/facts/abi_multi_arg_spill_through_target_body_rejected rejected 1321ms expe
 	exact arithmetic in machine `weighted_ten_sum` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `weighted_ten_sum` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `weighted_ten_sum` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/abstract_signature_call_constant_initializer_forwarded_rejected rejected 63ms expected @289c0e2e2740+wt
+	machine `forward` state `entry` value call to `apply` violates required fact `premise(kept)`: the instantiated fact is structurally false
+	machine `forward$specialized$6acfdb056312d5df$0` state `entry` value call to `apply` violates required fact `premise(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_constant_initializer_rejected rejected 59ms expected @289c0e2e2740+wt
+	machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_constant_initializer_selected_entries_rejected rejected 58ms expected @289c0e2e2740+wt
+	machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$275d3a40695d70bf$1` state `entry` value call to `alternate` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_constant_initializer_statement_explicit_discard_rejected rejected 67ms expected @74b572b3e176+wt
+	constant initializer: constant invocation of `apply$specialized$b37cdd08ebba4760$0` failed checking: machine `@const-invocation` state `@const-invocation` value call to `apply` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_constant_initializer_supplied_body_terminal_rejected rejected 183ms expected @a8b77070b93c+wt
+	machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_constant_initializer_terminal_callback_rejected rejected 67ms expected @74b572b3e176+wt
+	constant initializer: constant invocation of `apply$specialized$b37cdd08ebba4760$0` failed checking: machine `@const-invocation` state `@const-invocation` value call to `apply` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_constant_initializer_through_call_result_rejected rejected 56ms expected @289c0e2e2740+wt
+	machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_constant_initializer_through_const_name_rejected rejected 58ms expected @289c0e2e2740+wt
+	machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_constant_initializer_through_field_rejected rejected 58ms expected @289c0e2e2740+wt
+	machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_constant_initializer_through_local_rejected rejected 58ms expected @289c0e2e2740+wt
+	machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_constant_initializer_through_match_join_rejected rejected 58ms expected @289c0e2e2740+wt
+	machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_constant_initializer_through_other_machine_rejected rejected 58ms expected @289c0e2e2740+wt
+	machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_constant_initializer_through_other_state_rejected rejected 58ms expected @289c0e2e2740+wt
+	machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_constant_initializer_through_parameter_rejected rejected 61ms expected @289c0e2e2740+wt
+	machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_constant_initializer_through_target_body_rejected rejected 60ms expected @289c0e2e2740+wt
+	machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_constant_initializer_unexecuted_body_dependency_rejected rejected 182ms expected @a8b77070b93c+wt
+	machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_constant_initializer_wrong_result_rejected rejected 1093ms expected @289c0e2e2740+wt
+	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/abstract_signature_call_through_call_result_rejected rejected 990ms expected @a92f16431042
 	machine `main` state `entry` value call to `apply` violates required fact `premise(kept)`: the instantiated fact is structurally false
 	machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
@@ -4514,7 +4551,8 @@ fail/facts/abstract_signature_call_through_other_state_rejected rejected 799ms e
 fail/facts/abstract_signature_call_through_parameter_rejected rejected 796ms expected @a92f16431042
 	machine `observe` state `entry` value call to `apply` violates required fact `premise(kept)`: the instantiated fact is structurally false
 	machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
-fail/facts/abstract_signature_call_through_target_body_rejected rejected 799ms expected @a92f16431042
+fail/facts/abstract_signature_call_through_target_body_rejected rejected 441ms expected @289c0e2e2740+wt
+	machine `observe` state `entry` value call to `apply` violates required fact `premise(kept)`: the instantiated fact is structurally false
 	machine `observe` state `entry` value call to `apply` violates required fact `premise(kept)`: the instantiated fact is structurally false
 	machine `observe` state `entry` value call to `apply` violates required fact `premise(kept)`: the instantiated fact is structurally false
 	machine `observe` state `entry` value call to `apply` violates required fact `premise(kept)`: the instantiated fact is structurally false
@@ -23546,6 +23584,22 @@ pass/facts/abi_multi_arg_spill_through_other_machine_exit checked 4431ms check-t
 pass/facts/abi_multi_arg_spill_through_other_state_exit checked 4916ms check-target:macos_arm64 @a92f16431042
 pass/facts/abi_multi_arg_spill_through_parameter_exit checked 6371ms check-target:macos_arm64 @a92f16431042
 pass/facts/abi_multi_arg_spill_through_target_body_exit checked 6219ms check-target:macos_arm64 @a92f16431042
+pass/facts/abstract_signature_call_constant_initializer_exit checked 6252ms check-target:macos_arm64 @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_forwarded_exit checked 6253ms check-target:macos_arm64 @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_selected_entries_exit checked 8183ms check-target:macos_arm64 @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_statement_explicit_discard_exit checked 6322ms check-target:macos_arm64 @74b572b3e176+wt
+pass/facts/abstract_signature_call_constant_initializer_supplied_body_terminal_exit checked 6181ms check-target:macos_arm64 @a8b77070b93c+wt
+pass/facts/abstract_signature_call_constant_initializer_terminal_callback_exit checked 6323ms check-target:macos_arm64 @74b572b3e176+wt
+pass/facts/abstract_signature_call_constant_initializer_through_call_result_exit checked 6124ms check-target:macos_arm64 @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_through_const_name_exit checked 8259ms check-target:macos_arm64 @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_through_field_exit checked 6210ms check-target:macos_arm64 @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_through_local_exit checked 6227ms check-target:macos_arm64 @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_through_match_join_exit checked 6219ms check-target:macos_arm64 @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_through_other_machine_exit checked 6395ms check-target:macos_arm64 @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_through_other_state_exit checked 6404ms check-target:macos_arm64 @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_through_parameter_exit checked 6453ms check-target:macos_arm64 @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_through_target_body_exit checked 6443ms check-target:macos_arm64 @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_unexecuted_body_dependency_exit checked 6182ms check-target:macos_arm64 @a8b77070b93c+wt
 pass/facts/abstract_signature_call_through_call_result_exit checked 3551ms check-target:macos_arm64 @a92f16431042
 pass/facts/abstract_signature_call_through_const_name_exit checked 2780ms check-target:macos_arm64 @a92f16431042
 pass/facts/abstract_signature_call_through_field_exit checked 2856ms check-target:macos_arm64 @a92f16431042
