@@ -230,6 +230,15 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                         if active_start > 0 {
                             instructions.extend_from_slice(&block.instructions[..active_start]);
                         }
+                        let has_retained_uses = !admitted.retained_uses.is_empty();
+                        let block_dedicated_ties = &admitted.dedicated_tie_uses[block_index];
+                        let has_dedicated_ties = !block_dedicated_ties.is_empty();
+                        let block_span_closes = &admitted.span_closes[block_index];
+                        let has_span_closes = !block_span_closes.is_empty();
+                        let has_after_defs = admitted.definitions.iter().any(|definition| {
+                            definition.block_index == block_index
+                                && !matches!(definition.position, super::StoragePosition::BlockStart)
+                        });
                         for (offset, original) in block.instructions[active_start..=active_end]
                             .iter()
                             .enumerate()
@@ -250,9 +259,10 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                             // home, which is the read-modify-write idiom's point.
                             for operand in &mut rewritten.operands {
                                 if operand.virtual_register != register
-                                    || admitted
-                                        .retained_uses
-                                        .contains(&(original.id, operand.operand))
+                                    || (has_retained_uses
+                                        && admitted
+                                            .retained_uses
+                                            .contains(&(original.id, operand.operand)))
                                     || !matches!(
                                         operand.access,
                                         RegisterOperandAccess::Use
@@ -264,8 +274,9 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                                 // A use admission recorded beside an early-clobber tied write
                                 // takes a pair of its own: the write's tied home must be a
                                 // register the instruction's unpinned co-readers never share.
-                                let dedicated = admitted.dedicated_tie_uses[block_index]
-                                    .contains(&(instruction_index, operand.operand));
+                                let dedicated = has_dedicated_ties
+                                    && block_dedicated_ties
+                                        .contains(&(instruction_index, operand.operand));
                                 let reloaded = reload_for_use(
                                     &admitted,
                                     admitted
@@ -296,55 +307,58 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                             // opens a fresh pair — unless admission proved a surviving view
                             // lets the produced interval cross a unit-writing instruction to
                             // its home.
-                            if open_reload.is_some()
-                                && admitted.span_closes[block_index].contains(&instruction_index)
+                            if has_span_closes
+                                && open_reload.is_some()
+                                && block_span_closes.contains(&instruction_index)
                             {
                                 open_reload = None;
                             }
-                            for (definition_index, definition) in
-                                admitted
-                                    .definitions
-                                    .iter()
-                                    .enumerate()
-                                    .filter(|(_, definition)| {
-                                        definition.block_index == block_index
-                                            && match definition.position {
-                                                super::StoragePosition::AfterInstruction(
-                                                    anchor,
-                                                )
-                                                | super::StoragePosition::AfterUseDef {
-                                                    instruction: anchor,
-                                                    ..
-                                                } => anchor == original.id,
-                                                super::StoragePosition::BlockStart => false,
-                                            }
-                                    })
-                            {
-                                // A `UseDef` write left the new value in the register its
-                                // operand was redirected to — the emitted instruction's
-                                // operand names it; the victim register itself was never
-                                // written. Every other definition stores the recorded
-                                // register directly.
-                                let stored = match definition.position {
-                                    super::StoragePosition::AfterUseDef { operand, .. } => {
-                                        instructions
-                                            .last()
-                                            .and_then(|emitted| emitted.operand(operand))
-                                            .map(|operand| operand.virtual_register)
-                                            .ok_or(RuntimeSpillError::SourceMismatch)?
-                                    }
-                                    _ => definition.register,
-                                };
-                                let store = admission::store(
-                                    &admitted,
-                                    admitted.assignment.store_slot(definition_index),
-                                    stored,
-                                    &mut next_instruction,
-                                    &mut next_register,
-                                )?;
-                                let (registers, sequence) = store.into_streams();
-                                virtual_registers.extend(registers);
-                                instructions.extend(sequence);
+                            if has_after_defs {
+                                for (definition_index, definition) in
+                                    admitted
+                                        .definitions
+                                        .iter()
+                                        .enumerate()
+                                        .filter(|(_, definition)| {
+                                            definition.block_index == block_index
+                                                && match definition.position {
+                                                    super::StoragePosition::AfterInstruction(
+                                                        anchor,
+                                                    )
+                                                    | super::StoragePosition::AfterUseDef {
+                                                        instruction: anchor,
+                                                        ..
+                                                    } => anchor == original.id,
+                                                    super::StoragePosition::BlockStart => false,
+                                                }
+                                        })
+                                {
+                                    // A `UseDef` write left the new value in the register its
+                                    // operand was redirected to — the emitted instruction's
+                                    // operand names it; the victim register itself was never
+                                    // written. Every other definition stores the recorded
+                                    // register directly.
+                                    let stored = match definition.position {
+                                        super::StoragePosition::AfterUseDef { operand, .. } => {
+                                            instructions
+                                                .last()
+                                                .and_then(|emitted| emitted.operand(operand))
+                                                .map(|operand| operand.virtual_register)
+                                                .ok_or(RuntimeSpillError::SourceMismatch)?
+                                        }
+                                        _ => definition.register,
+                                    };
+                                    let store = admission::store(
+                                        &admitted,
+                                        admitted.assignment.store_slot(definition_index),
+                                        stored,
+                                        &mut next_instruction,
+                                        &mut next_register,
+                                    )?;
+                                    let (registers, sequence) = store.into_streams();
+                                    virtual_registers.extend(registers);
+                                    instructions.extend(sequence);
+                                }
                             }
                         }
                         if active_end + 1 < block.instructions.len() {
@@ -354,6 +368,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                     } else if !block.instructions.is_empty() {
                         instructions.extend_from_slice(&block.instructions);
                     }
+                    let pre_terminator_len = instructions.len();
                     // Terminator operand uses reload after the last block instruction.
                     // Their pairs occupy the end-of-block gap, so the closing boundary and
                     // instruction positions are pushed only after they are appended.
@@ -553,11 +568,21 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                                 .ok_or(RuntimeSpillError::SourceMismatch)?;
                         }
                     }
+                    let unchanged_suffix = if instructions.len() == pre_terminator_len {
+                        active_window
+                            .map_or(block.instructions.len(), |(_, end)| {
+                                block.instructions.len() - (end + 1)
+                            })
+                            .min(block.instructions.len() - unchanged_prefix)
+                    } else {
+                        0
+                    };
                     blocks.replace_block_contents(
                         block_index,
                         instructions,
                         terminator,
                         unchanged_prefix,
+                        unchanged_suffix,
                     );
                 }
                 Ok(())

@@ -98,48 +98,22 @@ impl FunctionFlow {
                 return Err(mismatch());
             }
         }
-        let max_reg_id = if include_virtual {
-            let mut max_id = function
-                .virtual_registers
-                .iter()
-                .map(|reg| reg.id.0 as usize)
-                .max()
-                .unwrap_or(0);
-            for block in &function.blocks {
-                for instruction in block_instructions(block) {
-                    for operand in &instruction.operands {
-                        max_id = max_id.max(operand.virtual_register.0 as usize);
-                    }
-                }
-                for successor in control::successors(&block.terminator) {
-                    for binding in &successor.bindings {
-                        if let SelectedValueTransport::Registers {
-                            argument,
-                            parameter,
-                        } = binding.transport
-                        {
-                            max_id = max_id.max(argument.0 as usize).max(parameter.0 as usize);
-                        }
-                    }
-                    if let Some(case) = &successor.structural_case {
-                        for payload in &case.payloads {
-                            if let selected_instructions::SelectedCasePayloadTransport::Registers {
-                                argument,
-                                parameter,
-                            } = payload.transport
-                            {
-                                max_id = max_id.max(argument.0 as usize).max(parameter.0 as usize);
-                            }
-                        }
-                    }
-                }
-            }
-            max_id
-        } else {
-            0
-        };
         let word_count = if include_virtual {
-            (max_reg_id + 1).div_ceil(64)
+            let max_decl_words = function
+                .virtual_registers
+                .last()
+                .map_or(0, |last| (last.id.0 as usize / 64) + 1)
+                .max(
+                    function
+                        .virtual_registers
+                        .iter()
+                        .map(|reg| (reg.id.0 as usize / 64) + 1)
+                        .max()
+                        .unwrap_or(0),
+                );
+            max_decl_words
+                .max(function.blocks.max_referenced_register_word_count())
+                .max(1)
         } else {
             0
         };
@@ -213,16 +187,48 @@ impl FunctionFlow {
             if include_virtual {
                 for instruction in block_instructions(block) {
                     // Uses precede simultaneous definitions, as in reverse transfer.
-                    for operand in &instruction.operands {
-                        if operand.access == RegisterOperandAccess::Use
-                            && !bit_test(&transfer.virtual_kills_bits, operand.virtual_register.0)
-                        {
-                            bit_set(&mut transfer.virtual_uses_bits, operand.virtual_register.0);
+                    if let [operand] = instruction.operands.as_slice() {
+                        match operand.access {
+                            RegisterOperandAccess::Use => {
+                                if !bit_test(
+                                    &transfer.virtual_kills_bits,
+                                    operand.virtual_register.0,
+                                ) {
+                                    bit_set(
+                                        &mut transfer.virtual_uses_bits,
+                                        operand.virtual_register.0,
+                                    );
+                                }
+                            }
+                            RegisterOperandAccess::Def => {
+                                bit_set(
+                                    &mut transfer.virtual_kills_bits,
+                                    operand.virtual_register.0,
+                                );
+                            }
+                            RegisterOperandAccess::UseDef => {}
                         }
-                    }
-                    for operand in &instruction.operands {
-                        if operand.access == RegisterOperandAccess::Def {
-                            bit_set(&mut transfer.virtual_kills_bits, operand.virtual_register.0);
+                    } else {
+                        for operand in &instruction.operands {
+                            if operand.access == RegisterOperandAccess::Use
+                                && !bit_test(
+                                    &transfer.virtual_kills_bits,
+                                    operand.virtual_register.0,
+                                )
+                            {
+                                bit_set(
+                                    &mut transfer.virtual_uses_bits,
+                                    operand.virtual_register.0,
+                                );
+                            }
+                        }
+                        for operand in &instruction.operands {
+                            if operand.access == RegisterOperandAccess::Def {
+                                bit_set(
+                                    &mut transfer.virtual_kills_bits,
+                                    operand.virtual_register.0,
+                                );
+                            }
                         }
                     }
                 }
