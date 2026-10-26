@@ -13,6 +13,7 @@ pass/facts/abstract_signature_call_constant_initializer_exit built 6697ms exit:0
 pass/facts/abstract_signature_call_constant_initializer_forwarded_exit built 6935ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
 pass/facts/abstract_signature_call_constant_initializer_selected_entries_exit built 8996ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
 pass/facts/abstract_signature_call_constant_initializer_statement_explicit_discard_exit built 6727ms exit:0 interpreter-exit:0 interpreter:agrees @74b572b3e176+wt
+pass/facts/abstract_signature_call_constant_initializer_supplied_body_terminal_exit built 6803ms exit:0 interpreter-exit:0 interpreter:agrees @a8b77070b93c+wt
 pass/facts/abstract_signature_call_constant_initializer_terminal_callback_exit built 6518ms exit:0 interpreter-exit:0 interpreter:agrees @74b572b3e176+wt
 pass/facts/abstract_signature_call_constant_initializer_through_call_result_exit built 6732ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
 pass/facts/abstract_signature_call_constant_initializer_through_const_name_exit built 9161ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
@@ -23,6 +24,7 @@ pass/facts/abstract_signature_call_constant_initializer_through_other_machine_ex
 pass/facts/abstract_signature_call_constant_initializer_through_other_state_exit built 6814ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
 pass/facts/abstract_signature_call_constant_initializer_through_parameter_exit built 6752ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
 pass/facts/abstract_signature_call_constant_initializer_through_target_body_exit built 6815ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_unexecuted_body_dependency_exit built 6590ms exit:0 interpreter-exit:0 interpreter:agrees @a8b77070b93c+wt
 pass/facts/abstract_signature_call_through_call_result_exit built 1964ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
 pass/facts/abstract_signature_call_through_const_name_exit built 1933ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
 pass/facts/abstract_signature_call_through_field_exit built 1920ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt

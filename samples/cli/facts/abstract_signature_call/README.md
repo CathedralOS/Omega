@@ -140,8 +140,13 @@ result contract and supplies no runtime evidence.
 Both frozen positives have premise-false twins and matching corpus pins. The
 rejected C3 review remains immutable. This closure repair rejoins the exact
 machine's callable entry declaration while terminal invocation keeps its machine
-identity; a matching name or signature grants no selection. The new positives
-and their twins remain unfinished until the repaired producer validates them.
+identity; a matching name or signature grants no selection. At source
+`a8b77070b93c27ae30c01988bf046f2b0ee90c8f`, both frozen positives execute with
+native exit 0 and Terminal exit 0. Their twins now reject the intended premise,
+rather than being masked by the custody error. The source dependency producer
+emits that exact callable entry too, so recipe and body copies retain one
+consistent authored selection. Deferred body demand still grants no call
+admission.
 
 ### Requirement accounting for this production
 
@@ -358,6 +363,24 @@ their own source identities; this change records no unrelated constants golden.
 These observations do not establish that the whole constants domain is green.
 The preserved ledger, exact producer receipts, raw baseline and current streams,
 accepted locks and independent review remain under `build/swarm/operator/`.
+
+### Supplied-body closure repair observations
+
+At optimized source `a8b77070b93c27ae30c01988bf046f2b0ee90c8f`, CLI SHA-256
+`fc69138f217ea07c4c79d62097f8ff56811de4350194eb1b6167df606c8967ac`
+and corpus runner SHA-256
+`08b93723e7daf5083085164a7ba651199d5e7ce2645d80b468b66713de2d3ccc`,
+the focused source corpus checks 25 positives and rejects 26 controls for their
+expected reasons. All 25 positive corpus fixtures execute with native exit 0,
+Terminal exit 0 and agreement on `macos_x86_64`. The prior source rows do not
+move; only the two supplied-body positive/twin pairs and two runtime observations
+are new. Four affected crates pass `mbx check` and `mbx clippy`.
+
+All 42 bounded constants observations have the same status, facts, expected
+fragment result and diagnostics as the earlier C2 measurement. The six AA
+baseline attributions above therefore still apply; no unrelated constants rows
+are recorded. The rejected C1/C3 reviews, both source generations and all
+nonaccepted intermediate observations retain their original identities.
 
 ## What remains open
 
