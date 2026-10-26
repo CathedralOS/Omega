@@ -121,6 +121,7 @@ fn scalar_boundary_result_retains_membership_and_rejects_detached_types() {
     let result = module.machines[0].result.scalar().unwrap().value_type();
     let boundary = semantic_vocabulary::BoundaryMachineId::new(1).unwrap();
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        normal_qualifications: Vec::new(),
         scalar_domain_requirements: Vec::new(),
         declaration: None,
         role: terminal_psi::BoundaryDeclarationRole::Callable,
@@ -358,7 +359,7 @@ fn routed_scalar_specialization_retains_exact_authored_issuer() {
     let declaration = module.machines[0].declaration.as_mut().unwrap();
     declaration.callable = TerminalIdentityIndex(2);
     declaration.specialization = Some(terminal_psi::CheckedMachineSpecialization {
-                capture: None,
+        capture: None,
         template: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
         template_callable: TerminalIdentityIndex(3),
         commitment: [9; 32],

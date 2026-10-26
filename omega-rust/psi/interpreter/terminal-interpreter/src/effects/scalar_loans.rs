@@ -357,8 +357,32 @@ impl TerminalExecution<'_> {
         &self,
         target: &StructuralRuntimePlace,
     ) -> Result<(), TerminalInterpretError> {
+        self.validate_storage_loan_restoration(target, &[])
+    }
+
+    /// Preserve only memberships promised on this exact mutable formal's
+    /// normal return. Stronger caller roots and projected constraints cannot
+    /// inherit that promise. This checks existing tags and never installs one.
+    pub(crate) fn validate_storage_loan_restoration(
+        &self,
+        target: &StructuralRuntimePlace,
+        normal: &[semantic_vocabulary::StructuralDomainId],
+    ) -> Result<(), TerminalInterpretError> {
         let owns_target = |value: &TerminalStructuralValue| {
             value.opaque_identity == target.opaque_identity && target.path.starts_with(&value.path)
+        };
+        let covered = |value: &TerminalStructuralValue,
+                       qualifications: &[semantic_vocabulary::StructuralDomainId],
+                       projected_empty: bool| {
+            projected_empty
+                && (qualifications.is_empty()
+                    || (value.path == target.path
+                        && qualifications.iter().all(|domain| normal.contains(domain))))
+        };
+        let unsupported = || {
+            TerminalInterpretError::UnsupportedSemanticVariant(
+                "mutable host storage has an uncovered original qualification or owner",
+            )
         };
         for (machine_id, values) in std::iter::once((self.current_machine, &self.structural_values))
             .chain(
@@ -373,35 +397,47 @@ impl TerminalExecution<'_> {
                 .get(&machine_id)
                 .ok_or_else(malformed)?;
             for (place, value) in values.iter().filter(|(_, value)| owns_target(value)) {
-                if !value.qualifications.is_empty()
-                    || machine
-                        .structural_parameters
-                        .iter()
-                        .chain(machine.block_structural_parameters())
-                        .any(|parameter| {
-                            parameter.place == *place
-                                && (!parameter.qualifications.is_empty()
-                                    || !parameter.projected_qualifications.is_empty())
-                        })
+                if !covered(
+                    value,
+                    &value.qualifications,
+                    value.projected_qualifications.is_empty(),
+                ) || machine
+                    .structural_parameters
+                    .iter()
+                    .chain(machine.block_structural_parameters())
+                    .any(|parameter| {
+                        parameter.place == *place
+                            && !covered(
+                                value,
+                                &parameter.qualifications,
+                                parameter.projected_qualifications.is_empty(),
+                            )
+                    })
                     || machine
                         .operations()
                         .filter_map(|operation| operation.result.structural())
                         .any(|result| {
                             result.place == *place
-                                && (!result.qualifications.is_empty()
-                                    || !result.projected_qualifications.is_empty())
+                                && !covered(
+                                    value,
+                                    &result.qualifications,
+                                    result.projected_qualifications.is_empty(),
+                                )
                         })
                 {
-                    return Err(malformed());
+                    return Err(unsupported());
                 }
             }
         }
-        if self
-            .reference_referents
-            .values()
-            .any(|value| owns_target(&value.view) && !value.view.qualifications.is_empty())
-        {
-            return Err(malformed());
+        if self.reference_referents.values().any(|value| {
+            owns_target(&value.view)
+                && !covered(
+                    &value.view,
+                    &value.view.qualifications,
+                    value.view.projected_qualifications.is_empty(),
+                )
+        }) {
+            return Err(unsupported());
         }
         Ok(())
     }

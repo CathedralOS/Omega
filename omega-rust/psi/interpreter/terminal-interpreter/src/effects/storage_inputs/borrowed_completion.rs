@@ -30,10 +30,13 @@ pub(super) fn stage(
     {
         return Err(malformed());
     }
+    if binding.access == StructuralAccess::MutableBorrow {
+        execution.validate_storage_loan_restoration(
+            &StructuralRuntimePlace::from(&binding.referent),
+            &binding.normal_qualifications,
+        )?;
+    }
     for scalar in &binding.scalars {
-        if binding.access == StructuralAccess::MutableBorrow {
-            execution.validate_scalar_loan_qualifications(&scalar.storage)?;
-        }
         let current = execution.read_primitive_storage(
             binding.source,
             scalar.storage.clone(),

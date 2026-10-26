@@ -190,6 +190,19 @@ pub(crate) fn signature_ceiling_regions(
         // Lending a captured view does not lend replacement of its descriptor
         // or the owner descriptor anchoring the content loan.
     }
+    if let Some(borrow) = borrow {
+        for region in retained_loan_write_regions(
+            program,
+            caller_machine_symbol,
+            caller_state_symbol,
+            borrow,
+            borrow_call,
+        )? {
+            if !places.contains(&region) {
+                places.push(region);
+            }
+        }
+    }
     Some(places)
 }
 
@@ -491,6 +504,66 @@ fn carried_exclusive_referents(
         }
     }
     Some(referents)
+}
+
+/// Ending an exclusive retained debt exposes storage that its opaque provider
+/// could modify during the loan. Expire old observations at that boundary,
+/// independently of the carrier's reference-free representation or the final
+/// callee's visible descriptor frame. These are invalidation coordinates only.
+pub(super) fn retained_loan_write_regions(
+    program: &dyn validation::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    borrow: &BorrowFacts,
+    call: &BorrowCallFact,
+) -> Option<Vec<StorageRegion>> {
+    let (_, state) = borrow
+        .states
+        .iter()
+        .find(|(_, row)| row.state_symbol == state_symbol)?;
+    let site = validation::find_call_site(
+        program,
+        machine_symbol,
+        state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    )?;
+    let arguments = validation::call_site_argument_expressions(program, &site);
+    let mut regions = Vec::new();
+    for (_, loan) in borrow.state_loans(state) {
+        if loan.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency
+            || !loan.kind.is_exclusive()
+            || loan.last_use_statement_index != call.statement_index
+        {
+            continue;
+        }
+        // A later operand can form a debt in this same statement. Its future
+        // effects cannot invalidate facts before that formation. A completed
+        // nested producer is available to the enclosing invocation.
+        let formed = loan.statement_index < call.statement_index
+            || (loan.formation_expression.is_valid()
+                && arguments.iter().any(|argument| {
+                    validation::expression_owners::expression_contains(
+                        program,
+                        *argument,
+                        loan.formation_expression,
+                    )
+                }));
+        if !formed {
+            continue;
+        }
+        if !loan.root.is_valid() {
+            return None;
+        }
+        let region = StorageRegion::Declared(CanonicalPlace {
+            root: loan.root,
+            segments: borrow.loan_segments(loan).to_vec(),
+        });
+        if !regions.contains(&region) {
+            regions.push(region);
+        }
+    }
+    Some(regions)
 }
 
 /// Whether a recorded loan's owner path and a place's field path overlap.

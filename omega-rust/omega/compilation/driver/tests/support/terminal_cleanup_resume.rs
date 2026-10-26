@@ -144,6 +144,7 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
     assert_eq!(
         TerminalImportSignature::from(declaration),
         TerminalImportSignature {
+            normal_qualifications: Vec::new(),
             completion: terminal_psi::BoundaryCompletion::NormalReturn,
             scalar_parameters: vec![ScalarType::Integer(
                 IntegerType::new(IntegerSign::Signed, 32).unwrap()
