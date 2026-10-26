@@ -13,24 +13,7 @@ use terminal_psi_to_abstract_operations::RetainedNativeProviderInputs;
 /// returns the original complete image request, including its interpreter.
 pub fn compile(
     retained: terminal_psi_to_abstract_operations::RetainedTerminalArtifact,
-    request: NativeCompileRequest<'_>,
-) -> Result<
-    crate::RealizedNativeProduct,
-    (
-        image_emission::ExecutableImageEmissionRequest,
-        Vec<Diagnostic>,
-    ),
-> {
-    compile_with_components(retained, request, &[])
-}
-
-/// Compile the receiver with explicitly retained separately emitted component
-/// calls. Their producers remain independent object/image owners; only exact
-/// symbolic call settlements enter this program's ordinary native pipeline.
-pub fn compile_with_components(
-    retained: terminal_psi_to_abstract_operations::RetainedTerminalArtifact,
     mut request: NativeCompileRequest<'_>,
-    components: &[crate::ComponentNativeCall<'_>],
 ) -> Result<
     crate::RealizedNativeProduct,
     (
@@ -39,6 +22,7 @@ pub fn compile_with_components(
     ),
 > {
     let recoverable_image_request = request.image_request.clone();
+    let components = request.components;
     let result = (|| {
         let (artifact, proposal) = request.prepare_terminal(retained)?;
         let selections = terminal_installation::admit_target_machine_selections(

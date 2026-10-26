@@ -4,6 +4,10 @@ Start at [compiler.rs](src/compiler.rs): consume a retained
 Terminal product and explicit realization policy, prepare its providers, admit
 the entry and emit the requested image. On failure the caller recovers the
 original image request and diagnostics. No source compilation happens here.
+`compile` is the one application entrance: `NativeCompileRequest` carries
+component calls alongside imports, image custody and policy. Empty and nonempty
+component rosters follow that same sequence; callable export emission remains
+separate because it produces an independent image, not an application entry.
 
 [pipeline.rs](src/pipeline.rs) sequences the body transformations for application
 entries, callbacks and component exports: abstract optimization, target lowering,
