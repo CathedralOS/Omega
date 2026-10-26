@@ -136,6 +136,13 @@ impl OperationFrame<'_, '_> {
                 _,
             ) => self.dynamic_call(identities, operation, call, interface_identity, &inputs),
         }?;
+        // A stopping invocation has prepared its entry operands, but control
+        // has not returned to this activation. Keep their homes and loans
+        // intact for the pending terminator; only a normal return authorizes
+        // the completion and private-argument cleanup below.
+        if self.operations.invocation_completion.is_some() {
+            return Ok(());
+        }
         // Resolve the exact call just committed, including its prepared storage
         // coordinates. Replaying the checked actuals after result publication
         // could select a replacement binding; walking prior operations would
