@@ -11387,6 +11387,52 @@ fail/facts/projection_call_premise_through_target_body_rejected rejected 2157ms 
 	cannot prove requires contract for call hold from observe: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from observe: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/provider_contract_endpoint_control_circular_endpoint_formation rejected 1953ms expected @fb3442d9e130
+	contract integer expression: const evaluation failed: constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0
+	contract integer expression: const evaluation failed: constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0
+	contract integer expression: const evaluation failed: constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0
+fail/facts/provider_contract_endpoint_control_crashing_endpoint rejected 720ms expected @fb3442d9e130
+	contract integer expression: const evaluation failed: explicit crash Trap at machine `limit` state `entry` (source SourceId(1) bytes 427..432)
+	contract integer expression: const evaluation failed: explicit crash Trap at machine `limit` state `entry` (source SourceId(1) bytes 427..432)
+fail/facts/provider_contract_endpoint_control_direct_provider_protocol rejected 51ms expected @fb3442d9e130
+	Build binding protocol requires source-issued designated product operands
+fail/facts/provider_contract_endpoint_control_dormant_target_endpoint_rejected rejected 766ms expected @fb3442d9e130
+	requires contract for call bounded from dormant_demand state entry statement 0: requires 7 <= `limit`, but the selected target realization closes `limit` to 6
+fail/facts/provider_contract_endpoint_control_false_result_guarantee rejected 722ms expected @fb3442d9e130
+	ensures return comparison: exact arithmetic may overflow under target `linux_x86_64`: bounds [1, 1] lie outside [-18446744073709551615, 0]
+fail/facts/provider_contract_endpoint_control_field_false_conjunct rejected 321ms expected @fb3442d9e130
+	data `Holder` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/provider_contract_endpoint_control_field_snapshot_after_sibling_write rejected 294ms expected @fb3442d9e130
+	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/provider_contract_endpoint_control_machine_contract_self_forbidden rejected 56ms expected @fb3442d9e130
+	tests/omega/fail/facts/provider_contract_endpoint_control_machine_contract_self_forbidden/main.omg:13:10: implicit `self` is retired; name the explicit parameter or domain subject
+fail/facts/provider_contract_endpoint_control_mutated_scalar_return rejected 752ms expected @fb3442d9e130
+	ensures return comparison: exact arithmetic may overflow under target `linux_x86_64`: bounds [1, 1] lie outside [-18446744073709551615, 0]
+fail/facts/provider_contract_endpoint_control_nested_self_forbidden rejected 53ms expected @fb3442d9e130
+	tests/omega/fail/facts/provider_contract_endpoint_control_nested_self_forbidden/main.omg:23:41: implicit `self` is retired; name the explicit parameter or domain subject
+fail/facts/provider_contract_endpoint_control_public_header_private_endpoint rejected 298ms expected @fb3442d9e130
+	public interface selects private machine `limit::entry`
+	public interface selects private machine `limit::entry`
+fail/facts/provider_contract_endpoint_control_runtime_self_forbidden rejected 54ms expected @fb3442d9e130
+	tests/omega/fail/facts/provider_contract_endpoint_control_runtime_self_forbidden/main.omg:17:22: implicit `self` is retired; name the explicit parameter or domain subject
+fail/facts/provider_contract_endpoint_through_call_result_rejected rejected 731ms expected @fb3442d9e130
+	requires contract for call bounded from produce state entry statement 0: requires 7 <= `limit`, but the selected target realization closes `limit` to 6
+fail/facts/provider_contract_endpoint_through_const_name_rejected rejected 805ms expected @fb3442d9e130
+	constant initializer: constant invocation of `bounded` failed checking: machine `@const-invocation` state `@const-invocation` value call to `bounded` violates required fact `value <= 6`: the instantiated fact is structurally false (`7 <= 6`)
+fail/facts/provider_contract_endpoint_through_field_rejected rejected 745ms expected @fb3442d9e130
+	requires contract for call bounded from main state entry statement 0: requires 7 <= `limit`, but the selected target realization closes `limit` to 6
+fail/facts/provider_contract_endpoint_through_local_rejected rejected 739ms expected @fb3442d9e130
+	requires contract for call bounded from main state entry statement 0: requires 7 <= `limit`, but the selected target realization closes `limit` to 6
+fail/facts/provider_contract_endpoint_through_match_join_rejected rejected 746ms expected @fb3442d9e130
+	requires contract for call bounded from choose state entry statement 0: requires 7 <= `limit`, but the selected target realization closes `limit` to 6
+fail/facts/provider_contract_endpoint_through_other_machine_rejected rejected 767ms expected @fb3442d9e130
+	requires contract for call bounded from main state entry statement 0: requires 7 <= `limit`, but the selected target realization closes `limit` to 6
+fail/facts/provider_contract_endpoint_through_other_state_rejected rejected 767ms expected @fb3442d9e130
+	requires contract for call bounded from main state entry statement 0: requires 7 <= `limit`, but the selected target realization closes `limit` to 6
+fail/facts/provider_contract_endpoint_through_parameter_rejected rejected 755ms expected @fb3442d9e130
+	requires contract for call bounded from main state entry statement 0: requires 7 <= `limit`, but the selected target realization closes `limit` to 6
+fail/facts/provider_contract_endpoint_through_target_body_rejected rejected 851ms expected @fb3442d9e130
+	requires contract for call bounded from main state entry statement 0: requires 7 <= `limit`, but the selected target realization closes `limit` to 6
 fail/facts/qualified_field_capacity_through_call_result_rejected rejected 1220ms expected @a92f16431042
 	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/qualified_field_capacity_through_const_name_rejected rejected 751ms expected @a92f16431042
@@ -25902,6 +25948,23 @@ pass/facts/projection_call_premise_through_other_machine_exit checked 3167ms che
 pass/facts/projection_call_premise_through_other_state_exit checked 2415ms check-target:macos_arm64 @a92f16431042
 pass/facts/projection_call_premise_through_parameter_exit checked 2735ms check-target:macos_arm64 @a92f16431042
 pass/facts/projection_call_premise_through_target_body_exit checked 2807ms check-target:macos_arm64 @a92f16431042
+pass/facts/provider_contract_endpoint_control_composed_endpoint checked 1001ms check-target:macos_arm64 @fb3442d9e130
+pass/facts/provider_contract_endpoint_control_computed_composition_mode checked 1001ms check-target:macos_arm64 @fb3442d9e130
+pass/facts/provider_contract_endpoint_control_dormant_target_endpoint_positive checked 1875ms check-target:macos_arm64 @fb3442d9e130
+pass/facts/provider_contract_endpoint_control_field_snapshot_before_sibling_write checked 1019ms check-target:macos_arm64 @fb3442d9e130
+pass/facts/provider_contract_endpoint_control_forwarded_provider_selection checked 978ms check-target:macos_arm64 @fb3442d9e130
+pass/facts/provider_contract_endpoint_control_generic_forwarded_provider_selection checked 1075ms check-target:macos_arm64 @fb3442d9e130
+pass/facts/provider_contract_endpoint_control_indirect_helper checked 979ms check-target:macos_arm64 @fb3442d9e130
+pass/facts/provider_contract_endpoint_control_unrelated_pending_target_contract checked 3823ms check-target:macos_arm64 @fb3442d9e130
+pass/facts/provider_contract_endpoint_through_call_result_exit checked 1264ms check-target:macos_arm64 @fb3442d9e130
+pass/facts/provider_contract_endpoint_through_const_name_exit checked 3962ms check-target:macos_arm64 @fb3442d9e130
+pass/facts/provider_contract_endpoint_through_field_exit checked 1045ms check-target:macos_arm64 @fb3442d9e130
+pass/facts/provider_contract_endpoint_through_local_exit checked 988ms check-target:macos_arm64 @fb3442d9e130
+pass/facts/provider_contract_endpoint_through_match_join_exit checked 1046ms check-target:macos_arm64 @fb3442d9e130
+pass/facts/provider_contract_endpoint_through_other_machine_exit checked 1039ms check-target:macos_arm64 @fb3442d9e130
+pass/facts/provider_contract_endpoint_through_other_state_exit checked 1043ms check-target:macos_arm64 @fb3442d9e130
+pass/facts/provider_contract_endpoint_through_parameter_exit checked 1002ms check-target:macos_arm64 @fb3442d9e130
+pass/facts/provider_contract_endpoint_through_target_body_exit checked 3264ms check-target:macos_arm64 @fb3442d9e130
 pass/facts/qualified_borrowed_join_exit checked 2866ms check-target:macos_arm64 @a92f16431042
 pass/facts/qualified_field_capacity_through_call_result_exit checked 3383ms check-target:macos_arm64 @a92f16431042
 pass/facts/qualified_field_capacity_through_const_name_exit checked 3075ms check-target:macos_arm64 @a92f16431042
