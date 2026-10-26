@@ -59,7 +59,8 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
             semantic_vocabulary::InvocationSite::Operation(operation) => {
                 sidecar_operations.insert(operation);
             }
-            semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
+            semantic_vocabulary::InvocationSite::InvokeNoNormal(edge)
+            | semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
                 sidecar_edges.insert(edge);
             }
         }

@@ -33,6 +33,7 @@ pub fn successors(machine: &TerminalMachine) -> BTreeMap<BlockId, Vec<(EdgeId, B
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompletionGraphError {
     UnknownMachine(semantic_vocabulary::MachineId),
+    AmbiguousMachine(semantic_vocabulary::MachineId),
     InvalidControl {
         machine: semantic_vocabulary::MachineId,
         error: ControlGraphError,
@@ -49,10 +50,20 @@ pub fn normal_completion_possible(
     initial: semantic_vocabulary::MachineId,
 ) -> Result<bool, CompletionGraphError> {
     use terminal_psi::Terminator;
-    let entry = module
-        .machine(initial)
-        .ok_or(CompletionGraphError::UnknownMachine(initial))?
-        .entry;
+    let exact_machine = |identity| {
+        let mut candidates = module
+            .machines
+            .iter()
+            .filter(|machine| machine.id == identity);
+        let machine = candidates
+            .next()
+            .ok_or(CompletionGraphError::UnknownMachine(identity))?;
+        if candidates.next().is_some() {
+            return Err(CompletionGraphError::AmbiguousMachine(identity));
+        }
+        Ok(machine)
+    };
+    let entry = exact_machine(initial)?.entry;
     let mut validated = BTreeSet::new();
     let mut visited = BTreeSet::new();
     let mut pending = vec![(initial, entry)];
@@ -60,9 +71,7 @@ pub fn normal_completion_possible(
         if !visited.insert((machine_id, block_id)) {
             continue;
         }
-        let machine = module
-            .machine(machine_id)
-            .ok_or(CompletionGraphError::UnknownMachine(machine_id))?;
+        let machine = exact_machine(machine_id)?;
         if validated.insert(machine_id) {
             validate_control_graph(machine).map_err(|error| {
                 CompletionGraphError::InvalidControl {
@@ -82,9 +91,7 @@ pub fn normal_completion_possible(
             | Terminator::ReturnUnit { .. }
             | Terminator::ReturnStructural { .. } => return Ok(true),
             Terminator::InvokeNoNormal { callee, .. } => {
-                let target = module
-                    .machine(*callee)
-                    .ok_or(CompletionGraphError::UnknownMachine(*callee))?;
+                let target = exact_machine(*callee)?;
                 pending.push((*callee, target.entry));
             }
             Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => {}

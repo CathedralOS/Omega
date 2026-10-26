@@ -272,6 +272,7 @@ pub(crate) fn check_with_private_entry_ram(
                 }
             }
             match &block.terminator {
+                Terminator::InvokeNoNormal { callee, .. } => pending.push(*callee),
                 Terminator::ExternalCompletion { boundary, kind, .. } => {
                     let callee = crate::calls::target_families::completion_callee(
                         program,
@@ -1047,6 +1048,35 @@ mod tests {
         };
         set_machine(&mut program, selected, never_returns);
         assert!(check(&program, None).is_ok());
+    }
+
+    #[test]
+    fn capability_graph_follows_no_normal_invocation_without_demanding_a_result() {
+        let mut program = program();
+        let selected = MachineId::new(2).unwrap();
+        let boundary = BoundaryMachineId::new(1).unwrap();
+        let mut entry = machine(0, Vec::new());
+        entry.blocks.first_mut().unwrap().terminator = Terminator::InvokeNoNormal {
+            edge: EdgeId::new(1).unwrap(),
+            callee: selected,
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        };
+        set_machine(&mut program, MachineId::new(1).unwrap(), entry);
+        let mut never_returns = machine(2, vec![boundary_call(boundary)]);
+        never_returns.blocks.first_mut().unwrap().terminator = Terminator::Crash {
+            edge: EdgeId::new(1).unwrap(),
+            cause: terminal_psi::CrashCause::Trap,
+            site_guard: Vec::new(),
+            frontier_lower_bound: Vec::new(),
+        };
+        set_machine(&mut program, selected, never_returns);
+        assert_eq!(check(&program, None).unwrap().imports, vec![boundary]);
     }
 
     #[test]

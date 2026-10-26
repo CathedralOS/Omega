@@ -28,9 +28,17 @@ pub(super) fn encode_terminator(
     terminator: &Terminator,
 ) -> Result<(), CodecError> {
     match terminator {
-        Terminator::InvokeNoNormal { edge, .. } => {
+        Terminator::InvokeNoNormal {
+            edge,
+            static_reach_binding,
+            ..
+        } => {
             writer.u8(19);
             writer.id(*edge);
+            writer.boolean(static_reach_binding.is_some());
+            if let Some(binder) = static_reach_binding {
+                writer.u32(*binder);
+            }
             super::call_operations::encode_module_invocation_inputs(
                 writer,
                 terminator
@@ -205,6 +213,11 @@ pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, C
     Ok(match reader.u8()? {
         19 => Terminator::InvokeNoNormal {
             edge: reader.id("EdgeId")?,
+            static_reach_binding: if reader.boolean()? {
+                Some(reader.u32()?)
+            } else {
+                None
+            },
             callee: reader.id("MachineId")?,
             arguments: decode_ids(reader, "ValueId")?,
             erased_arguments: decode_scalar_terms(reader)?,

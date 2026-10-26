@@ -35,6 +35,11 @@ pub(crate) struct RecordNamedRows {
 /// all of them, so a carrier added here reaches every consumer at once.
 pub(crate) fn record_named_rows(module: &terminal_psi::TerminalModule) -> RecordNamedRows {
     let mut rows = RecordNamedRows::default();
+    for machine in &module.machines {
+        for invocation in machine.module_invocations() {
+            proof_values::retain_invocation_inputs(invocation.inputs, &mut rows.values);
+        }
+    }
     rows.operations
         .extend(module.quotients.operations.iter().map(|row| row.call));
     rows.operations
@@ -126,6 +131,12 @@ pub(crate) fn contains_source_call(
             .blocks
             .iter()
             .any(|block| block.operations.iter().any(|row| row.id == operation)),
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+            machine.blocks.iter().any(|block| {
+                matches!(block.terminator,
+                    terminal_psi::Terminator::InvokeNoNormal { edge: actual, .. } if actual == edge)
+            })
+        }
         semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
             machine.blocks.iter().any(|block| {
                 matches!(block.terminator,

@@ -16,6 +16,9 @@ pub enum Terminator {
     /// this marker is neither a crash event nor authority to elide the caller frame.
     InvokeNoNormal {
         edge: EdgeId,
+        /// Exact closed-reach telescope binder, independently joined to the
+        /// invocation occurrence in the enclosing specialization.
+        static_reach_binding: Option<u32>,
         callee: MachineId,
         arguments: Vec<ValueId>,
         erased_arguments: Vec<ScalarTerm>,

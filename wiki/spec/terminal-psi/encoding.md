@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 193 even when every table
+order below. This layout uses semantic format marker 194 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -656,7 +656,7 @@ A terminator row is a `u8` tag followed by its fields.
 | 7 | ReturnUnitPartialAffine | edge id + counted trivial discards + counted residual discards |
 | 8 | ReturnUnitNominalAffine | edge id + counted cleanups (place id + structural type id + cleanup machine id + optional receiver place id + obligation id list) |
 | 16 | StructuralCase | source place id + structural subject path + counted case successors (edge id + target block id + case id + counted field ids + counted affine cleanup actions) |
-| 19 | InvokeNoNormal | edge id + callee machine id + counted scalar value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
+| 19 | InvokeNoNormal | edge id + `bool` static-reach presence (when present `u32` binder) + callee machine id + counted scalar value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
 
 A Jump with no residual affine discards uses tag 1; a nonempty residual list
 uses tag 10. Both have the same jump semantics. Tag 10 with an empty list is
@@ -696,7 +696,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 193 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 194 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.
@@ -1052,7 +1052,9 @@ template commitment, 32-byte capture commitment, a counted declaration-kind
 roster, and its counted telescope.
 Dependency positions traverse capture slots before method-local invocation slots;
 method invocation tuple comparisons use only the latter. A call row is an
-operation id, a `u32` binder, and a `bool` application presence flag followed,
+invocation site (`u8` namespace: 0 operation, 1 external completion, 2 no-normal
+invocation; followed by its nonzero `u64` identity), a `u32` binder, and a `bool`
+application presence flag followed,
 when present, by the call application.
 
 | Closed reach row | Fields |
@@ -1545,8 +1547,8 @@ by machine id, lane kind, and position.
 | --- | --- |
 | proof-output invocation | caller machine id + `u32` ordinal + target machine identity string + optional static requirement dispatch + optional runtime result + optional runtime call + counted evidence arguments + counted outputs |
 | static requirement dispatch | `u64` conformance application report fingerprint + 32-byte commitment + public requirement identity + declaring trait identity + requirement identity + realization identity + realization callable identity + realization machine id |
-| runtime result | `u8` presence; when present `u8` scalar flag (1 + scalar type; 0 Unit) |
-| runtime call | `u8` presence; when present operation id + callee machine id |
+| runtime result | `u8` presence; when present `u8` role (0 Unit; 1 + scalar type; 2 NoNormal) |
+| runtime call | `u8` presence; when present tagged invocation site (as above) + callee machine id |
 | evidence argument | `u32` input position + callee proposition id + source evidence term id + instantiated proposition id |
 | output | `u32` output position + output field string + callee proposition id + optional callee output evidence term id + instantiated proposition id + optional `u32` forwarded input position + optional evidence term id |
 | proof recursive component | ranking relation + rank type identity string + counted member types + counted members + counted edges |

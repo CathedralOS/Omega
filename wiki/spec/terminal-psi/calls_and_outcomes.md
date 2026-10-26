@@ -46,7 +46,26 @@ membership; retaining a domain label does not mint a proof or disposal right.
 Byte-predicate evaluation separately requires owned or shared-readable byte
 storage and does not decide whether other structural carriers retain domains.
 
-### Scalar qualifications
+### Calls without normal completion
+
+An ordinary call whose selected checked body has no normal completion still
+performs ordinary invocation entry. `InvokeNoNormal` retains the exact callee,
+scalar and erased actuals, structural arguments, input claim transfers,
+requirement obligations and crash continuations. Its edge has an invocation
+identity distinct from operation identities and external completion identities.
+The canonical reader reconstructs the selected callee's control graph; a
+returning, absent or ambiguous callee cannot justify this terminator.
+
+The caller remains suspended in its activation. This edge introduces no result,
+normal successor, normal cleanup, restored-loan receipt or abandonment
+permission. Callee crashes follow the retained crash routes. Absence of a normal
+return does not prove termination or authorize disposal of the caller's remaining
+resources. The callee's declared result and physical calling convention remain
+intact, including hidden result storage where its ABI requires it; the caller
+publishes no semantic result from that storage. An interpreter observing an
+unexpected normal return refuses the malformed execution.
+
+## Scalar qualifications
 
 A scalar declaration retains both its payload carrier and its normalized
 qualification set. The empty set is bare. A matching payload carrier alone does

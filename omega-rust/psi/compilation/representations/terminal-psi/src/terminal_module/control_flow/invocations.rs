@@ -156,6 +156,7 @@ impl Terminator {
 #[derive(Clone, Copy)]
 pub struct ModuleInvocation<'a> {
     pub site: semantic_vocabulary::InvocationSite,
+    pub static_reach_binding: Option<u32>,
     pub inputs: ModuleInvocationInputs<'a>,
 }
 
@@ -171,6 +172,7 @@ impl super::Block {
                     .module_invocation()
                     .map(|inputs| ModuleInvocation {
                         site: semantic_vocabulary::InvocationSite::Operation(operation.id),
+                        static_reach_binding: operation.static_reach_binding,
                         inputs,
                     })
             })
@@ -181,6 +183,13 @@ impl super::Block {
                         site: semantic_vocabulary::InvocationSite::InvokeNoNormal(
                             self.terminator.edge(),
                         ),
+                        static_reach_binding: match self.terminator {
+                            Terminator::InvokeNoNormal {
+                                static_reach_binding,
+                                ..
+                            } => static_reach_binding,
+                            _ => None,
+                        },
                         inputs,
                     }),
             )

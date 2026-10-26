@@ -11,6 +11,7 @@ impl TerminalExecution<'_> {
         terminator: &Terminator,
         meter: &mut TerminalFuelMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
+        self.reject_no_normal_return()?;
         let Terminator::ReturnStructural {
             source,
             returned_claims,

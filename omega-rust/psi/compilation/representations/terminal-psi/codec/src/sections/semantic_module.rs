@@ -120,7 +120,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Normal-return parameter membership preservation is distinct from entry demands.
 // Fresh union marker distinguishes both prior wire schemas.
 // Content transformations retain a complete root roster, including n-to-m joins.
-pub(crate) const FORMAT_MARKER: u16 = 193;
+pub(crate) const FORMAT_MARKER: u16 = 194;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
