@@ -289,6 +289,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
             semantic_context_proves_instantiated_boolean_expression(
                 program,
                 facts,
+                call_flow,
                 call_frames,
                 context,
                 entry_contexts,

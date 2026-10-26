@@ -39,7 +39,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
 ) -> Result<bool, Diagnostic> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let (expression, destination, type_reference) = match statement {
-        StatementNode::LocalData(local) if !local.is_mutable => {
+        StatementNode::LocalData(local) => {
             (local.initial_value, local.symbol, local.type_reference)
         }
         StatementNode::Expression(expression) if statement_index + 1 == statements.len() => {
