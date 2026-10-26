@@ -1,5 +1,5 @@
 // A selected checked provider closes limit() to 7; requires self.value <= limit() carries that bound into exact subtraction 7 - value.
-// Expected exit: 0
+// Expected: reject the named formation or fact obligation
 public boundary trait Endpoint {
     machine upper() -> u64 reaches terminates;
 }
