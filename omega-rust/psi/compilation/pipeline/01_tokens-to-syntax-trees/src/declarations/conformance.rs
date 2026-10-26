@@ -1,11 +1,11 @@
 use crate::contracts::conformance::parse_conformance::parse_conformance_trait_application;
-use crate::declarations::machines::parse_machine;
+use crate::declarations::machines::{MachineEntryNaming, parse_machine};
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{ConformanceMember, Item, State};
+use syntax_trees::item::{ConformanceMember, Item};
 use tokens::{KeywordKind, PunctuationKind};
 
 /// `Name<binders> satisfies Trait<Args> { rows }`. The name identifies a
@@ -63,7 +63,11 @@ fn parse_conformance_members<'tokens, 'source>(
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (member, rest) = if input.at_keyword(KeywordKind::Machine) {
             let after_machine = input.take_keyword(KeywordKind::Machine, "machine")?;
-            let (mut machine, rest) = parse_machine(syntax_trees, after_machine)?;
+            let (machine, rest) = parse_machine(
+                syntax_trees,
+                after_machine,
+                MachineEntryNaming::ImplementationMember,
+            )?;
             if machine.service_reach_is_installation_bound {
                 return Err(rest.error_here(
                     "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement",
@@ -90,7 +94,6 @@ fn parse_conformance_members<'tokens, 'source>(
                     "a conformance-block machine already belongs to its enclosing conformance; remove its nested `satisfies` clause",
                 ));
             }
-            normalize_conformance_machine_entry(syntax_trees, &mut machine);
             (ConformanceMember::Machine(machine), rest)
         } else {
             let (declaring_trait, rest) = input.take_identifier()?;
@@ -118,29 +121,4 @@ fn parse_conformance_members<'tokens, 'source>(
 
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
     Ok((members.finish(), input))
-}
-
-fn normalize_conformance_machine_entry(
-    syntax_trees: &mut SyntaxTrees,
-    machine: &mut syntax_trees::item::Machine,
-) {
-    let requirement_name = machine.name.clone();
-    let state_handles = syntax_trees.items.state_handles(machine.states).to_vec();
-    if let Some(first) = state_handles.first().copied() {
-        let state = syntax_trees.items.state(first);
-        if state.name.as_str(syntax_trees) == "entry" && !state.name.is_source_backed() {
-            syntax_trees.items.state_mut(first).name = requirement_name;
-        }
-        return;
-    }
-
-    let state = syntax_trees.items.insert_state(&State {
-        name: requirement_name,
-        parameters: HandleSpan::empty(),
-        return_type: syntax_trees::types::TypeReferenceHandle::invalid(),
-        contracts: HandleSpan::empty(),
-        statements: HandleSpan::empty(),
-    });
-    let state = syntax_trees.items.append_state_handle(state);
-    machine.states = HandleSpan::from_parts(state, 1);
 }

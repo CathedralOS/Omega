@@ -20,14 +20,14 @@ pub(crate) struct ParsedMachineBody {
 pub(crate) fn parse_body<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
-    entry_name: Option<Identifier>,
+    entry_name: Identifier,
     machine_parameters: HandleSpan<StateParameterHandle>,
     machine_return_type: TypeReferenceHandle,
 ) -> ParseResult<'tokens, 'source, ParsedMachineBody> {
     if input.at_punctuation(PunctuationKind::Semicolon) {
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         let entry_state = State {
-            name: entry_name.unwrap_or_else(|| Identifier::generated("entry")),
+            name: entry_name,
             parameters: machine_parameters,
             return_type: machine_return_type,
             contracts: HandleSpan::empty(),
@@ -35,19 +35,19 @@ pub(crate) fn parse_body<'tokens, 'source>(
         };
         let state = syntax_trees.items.insert_state(&entry_state);
         let state = syntax_trees.items.append_state_handle(state);
-        return Ok((ParsedMachineBody {
-            states: HandleSpan::from_parts(state, 1),
-            nested_machines: HandleSpan::empty(),
-            bodyless: true,
-        }, input));
+        return Ok((
+            ParsedMachineBody {
+                states: HandleSpan::from_parts(state, 1),
+                nested_machines: HandleSpan::empty(),
+                bodyless: true,
+            },
+            input,
+        ));
     }
 
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut states = crate::handle_spans::HandleSpanBuilder::new();
     let mut children = Vec::new();
-    let implicit_entry_name = entry_name
-        .clone()
-        .unwrap_or_else(|| Identifier::generated("entry"));
 
     let parse_implicit_entry = machine_parameters.count() > 0
         || machine_return_type.is_valid()
@@ -63,7 +63,7 @@ pub(crate) fn parse_body<'tokens, 'source>(
         let (state, rest) = parse_implicit_entry_state(
             syntax_trees,
             input,
-            implicit_entry_name,
+            entry_name,
             machine_parameters,
             machine_return_type,
         )?;
@@ -80,14 +80,18 @@ pub(crate) fn parse_body<'tokens, 'source>(
                 return Err(declaration_start.error_here("expected a nested machine declaration"));
             };
             if machine.is_public {
-                return Err(declaration_start.error_here("nested machines are lexical declarations and cannot be package-exported"));
+                return Err(declaration_start.error_here(
+                    "nested machines are lexical declarations and cannot be package-exported",
+                ));
             }
             children.push(Item::Machine(machine));
             input = rest;
             continue;
         }
         if !children.is_empty() {
-            return Err(input.error_here("executable statements cannot follow nested machine declarations"));
+            return Err(
+                input.error_here("executable statements cannot follow nested machine declarations")
+            );
         }
         if starts_retired_entry_member(input)
             || (input.at_keyword(KeywordKind::Public)

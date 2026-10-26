@@ -15,9 +15,15 @@ use crate::contracts::conformance::parse_conformance::parse_satisfies_traits;
 use crate::contracts::parse_contract_clauses::parse_machine_clauses;
 use crate::parameters::contracts::parse_machine_parameter_contracts;
 
+pub(crate) enum MachineEntryNaming {
+    Implicit,
+    ImplementationMember,
+}
+
 pub(crate) fn parse_machine<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
+    entry_naming: MachineEntryNaming,
 ) -> ParseResult<'tokens, 'source, Machine> {
     // OPERATOR-MACHINE-SUPPLY (spec expressions.md#executable-supply): an
     // optional fixed token immediately after `machine` binds operator syntax
@@ -84,10 +90,25 @@ pub(crate) fn parse_machine<'tokens, 'source>(
         entry_name,
     } = split_machine_path(syntax_trees, path);
 
-    let (body::parse_body::ParsedMachineBody { states, nested_machines, bodyless }, input) = body::parse_body::parse_body(
+    // An implicit entry is the callable role of this exact declaration. Its
+    // owned spelling differs from the authored machine name, but copies must
+    // keep that declaration anchor, including across retained source frontiers.
+    let entry_name = entry_name.unwrap_or_else(|| match entry_naming {
+        MachineEntryNaming::Implicit => Identifier::new("entry", name.source_span()),
+        MachineEntryNaming::ImplementationMember => name.clone(),
+    });
+
+    let (
+        body::parse_body::ParsedMachineBody {
+            states,
+            nested_machines,
+            bodyless,
+        },
+        input,
+    ) = body::parse_body::parse_body(
         syntax_trees,
         input,
-        entry_name.clone(),
+        entry_name,
         machine_parameters,
         machine_return_type,
     )?;

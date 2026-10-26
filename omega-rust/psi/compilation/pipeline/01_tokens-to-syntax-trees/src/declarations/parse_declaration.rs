@@ -10,7 +10,7 @@ use super::proposition::parse_proposition_definition;
 use super::trait_definition::parse_trait_definition;
 use super::use_item::parse_use_item;
 use crate::declarations::data::{parse_boundary_data_definition, parse_data_definition};
-use crate::declarations::machines::parse_machine;
+use crate::declarations::machines::{MachineEntryNaming, parse_machine};
 use crate::input::token_cursor::{Input, ParseResult};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -244,7 +244,7 @@ fn parse_boundary_item<'tokens, 'source>(
     }
     if input.at_contextual("requirement") {
         let input = input.take_contextual("requirement")?;
-        let (mut item, rest) = parse_machine(syntax_trees, input)?;
+        let (mut item, rest) = parse_machine(syntax_trees, input, MachineEntryNaming::Implicit)?;
         if item.spelling.is_some() {
             return Err(rest.error_here(
                 "a `boundary requirement` does not take a fixed operator token; a \
@@ -277,7 +277,7 @@ fn parse_boundary_item<'tokens, 'source>(
     // inferred from the image subsystem.
     if input.at_keyword(KeywordKind::Machine) {
         let input = input.take_keyword(KeywordKind::Machine, "machine")?;
-        let (mut item, rest) = parse_machine(syntax_trees, input)?;
+        let (mut item, rest) = parse_machine(syntax_trees, input, MachineEntryNaming::Implicit)?;
         item.boundary = true;
         if item.service_reach_is_installation_bound
             && (!item.bodyless || !item.satisfies.is_empty())
@@ -353,7 +353,7 @@ fn parse_declared_item<'tokens, 'source>(
 
     if input.at_keyword(KeywordKind::Machine) {
         let input = input.take_keyword(KeywordKind::Machine, "machine")?;
-        let (item, rest) = parse_machine(syntax_trees, input)?;
+        let (item, rest) = parse_machine(syntax_trees, input, MachineEntryNaming::Implicit)?;
         if item.service_reach_is_installation_bound {
             return Err(rest.error_here(
                 "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement",
@@ -464,7 +464,7 @@ fn parse_declared_item<'tokens, 'source>(
     // Dispatch uses the same prefix probe as a preceding contract's terminator.
     if let Some((target, boundary, input)) = target_machine_prefix(input) {
         let input = input.take_keyword(KeywordKind::Machine, "machine")?;
-        let (mut machine, rest) = parse_machine(syntax_trees, input)?;
+        let (mut machine, rest) = parse_machine(syntax_trees, input, MachineEntryNaming::Implicit)?;
         machine.boundary = boundary;
         machine.authored_target = Some(target.clone());
         machine.target = Some(target);
