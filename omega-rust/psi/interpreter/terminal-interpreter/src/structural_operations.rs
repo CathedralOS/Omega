@@ -1474,123 +1474,20 @@ impl TerminalExecution<'_> {
         to: &StructuralRuntimePlace,
         vacate: bool,
     ) -> Result<(), TerminalInterpretError> {
-        let retarget = |parent: &StructuralRuntimePlace| {
-            (parent.opaque_identity == from.opaque_identity && parent.path.starts_with(&from.path))
-                .then(|| StructuralRuntimePlace {
-                    opaque_identity: to.opaque_identity,
-                    path: to
-                        .path
-                        .iter()
-                        .chain(&parent.path[from.path.len()..])
-                        .cloned()
-                        .collect(),
-                })
-        };
-        let mut staged_scalars =
-            crate::scalar_storage::ScalarStorageRows::new(self.account.as_ref());
-        for (cell, scalar) in crate::structural_storage::cells(&self.structural_scalar_fields, from)
-        {
-            if let Some(parent) = retarget(&cell.parent) {
-                staged_scalars.insert_cell(cell.relocated(parent), scalar.relocated(vacate)?)?;
-            }
-        }
-        let mut staged_byte_fields = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_byte_sequence_fields, from)
-                .filter_map(|(cell, view)| {
-                    retarget(&cell.parent).map(|parent| (cell.relocated(parent), view.clone()))
-                }),
-        )?;
-        let mut staged_arrays = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_byte_storage, from)
-                .filter_map(|(carrier, view)| retarget(carrier).map(|place| (place, view.clone()))),
-        )?;
-        let mut staged_byte_descriptors =
-            crate::runtime_rows::RuntimeRows::new(self.account.as_ref());
-        for (home, binding) in
-            crate::structural_storage::cells(&self.structural_byte_descriptors, from)
-        {
-            if !vacate && !matches!(binding, ByteSequenceBinding::Immutable(_)) {
-                return Err(malformed());
-            }
-            let target = retarget(home).ok_or_else(malformed)?;
-            let binding = binding.relocated_descriptor(home, &target)?;
-            staged_byte_descriptors.insert(target, binding)?;
-        }
-        let mut staged_atoms = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_host_atoms, from)
-                .filter_map(|(home, atom)| retarget(home).map(|home| (home, *atom))),
-        )?;
-        let mut staged_cases = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_cases, from).filter_map(
-                |(carrier, contents)| retarget(carrier).map(|place| (place, *contents)),
-            ),
-        )?;
-        let mut staged_element_views = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_element_view_fields, from)
-                .filter_map(|(carrier, descriptor)| {
-                    retarget(carrier).map(|place| (place, descriptor.clone()))
-                }),
-        )?;
-        let mut staged_referents = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.reference_referents, from).filter_map(
-                |(carrier, referent)| retarget(carrier).map(|place| (place, referent.clone())),
-            ),
-        )?;
-        let mut staged_primitives =
-            crate::scalar_storage::ScalarStorageRows::new(self.account.as_ref());
-        for (carrier, scalar) in
-            crate::structural_storage::cells(&self.structural_primitive_storage, from)
-        {
-            if let Some(place) = retarget(carrier) {
-                staged_primitives.insert_cell(place, scalar.relocated(vacate)?)?;
-            }
-        }
-        self.structural_scalar_fields
-            .validate_append(&staged_scalars)?;
-        self.structural_primitive_storage
-            .validate_append(&staged_primitives)?;
-        self.structural_byte_sequence_fields
-            .validate_append(&staged_byte_fields)?;
-        self.structural_byte_storage
-            .validate_append(&staged_arrays)?;
-        self.structural_byte_descriptors
-            .validate_append(&staged_byte_descriptors)?;
-        self.structural_cases.validate_append(&staged_cases)?;
-        self.structural_host_atoms.validate_append(&staged_atoms)?;
-        self.reference_referents
-            .validate_append(&staged_referents)?;
-        self.structural_element_view_fields
-            .validate_append(&staged_element_views)?;
-        let scalar_writes = staged_scalars
-            .prepare_resident_replacement(&self.structural_scalar_fields, Some(to))?;
-        let primitive_writes = staged_primitives
-            .prepare_resident_replacement(&self.structural_primitive_storage, Some(to))?;
-        scalar_writes.commit(&mut staged_scalars)?;
-        primitive_writes.commit(&mut staged_primitives)?;
+        // Leaf moves/copies and constructors must transport the same complete
+        // typed storage. A second row-by-row inventory lost original allocation
+        // seals while retaining scalar residents, detaching their provenance.
+        // The shared constructor transaction stages and funds every cell before
+        // pruning, snapshots copies, and retains whole allocation custody only
+        // on an authorized move.
+        let mut storage = crate::record::storage::ConstructorStorage::new(self.account.as_ref());
+        storage.stage_subtree(self, from, to, vacate)?;
+        storage.preserve_replaced_residents(self, to)?;
         self.prune_subtree(to);
         if vacate {
             self.prune_subtree(from);
         }
-        self.structural_scalar_fields.append(&mut staged_scalars)?;
-        self.structural_byte_sequence_fields
-            .append(&mut staged_byte_fields)?;
-        self.structural_byte_storage.append(&mut staged_arrays)?;
-        self.structural_byte_descriptors
-            .append(&mut staged_byte_descriptors)?;
-        self.structural_cases.append(&mut staged_cases)?;
-        self.structural_host_atoms.append(&mut staged_atoms)?;
-        self.reference_referents.append(&mut staged_referents)?;
-        self.structural_element_view_fields
-            .append(&mut staged_element_views)?;
-        self.structural_primitive_storage
-            .append(&mut staged_primitives)?;
-        Ok(())
+        storage.publish(self)
     }
 
     /// Move every runtime cell under `from` to the same subtree suffix under

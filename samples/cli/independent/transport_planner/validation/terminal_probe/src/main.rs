@@ -54,6 +54,7 @@ fn main() {
             .join(" ")
             + "\n";
         let observed = terminal_runtime::execute(TerminalRuntimeRequest {
+            native_provider: None,
             x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             artifact,
             provider_proposal: None,
@@ -92,6 +93,7 @@ fn main() {
     }
     for (name, input) in manifest["invalid"].as_object().expect("invalid inputs") {
         let observed = terminal_runtime::execute(TerminalRuntimeRequest {
+            native_provider: None,
             x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             artifact,
             provider_proposal: None,

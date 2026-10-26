@@ -92,6 +92,7 @@ fn runtime(root: &Path, output: &Path) {
     assert!(native.stdout.is_empty() && native.stderr.is_empty());
     std::fs::write(output.join("native.exit"), b"70\n").unwrap();
     let result = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+        native_provider: None,
         x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
         provider_proposal: None,
         artifact: artifact.psi_artifact(),

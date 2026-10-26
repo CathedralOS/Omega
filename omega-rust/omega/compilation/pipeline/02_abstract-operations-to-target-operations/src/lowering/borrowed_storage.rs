@@ -23,19 +23,36 @@ pub(super) fn capture(plan: &AbstractOperationPlan) -> Vec<NativeBorrowedStorage
         .iter()
         .map(|row| (row.id, row))
         .collect();
+    // Native value codecs need owned argument and result layouts even when no
+    // unrelated boundary in this module borrows storage. Original allocation
+    // geometry additionally needs the complete actual owned roots below.
     let mut requested: BTreeSet<_> = plan
         .boundary_machines
         .iter()
+        .flat_map(|boundary| {
+            boundary
+                .structural_parameters
+                .iter()
+                .map(|parameter| parameter.structural_type)
+                .chain(match &boundary.result {
+                    terminal_psi::BoundaryMachineResult::Structural(result) => {
+                        Some(result.structural_type)
+                    }
+                    _ => None,
+                })
+        })
+        .collect();
+    let needs_original_roots = plan
+        .boundary_machines
+        .iter()
         .flat_map(|boundary| &boundary.structural_parameters)
-        .filter(|parameter| {
+        .any(|parameter| {
             matches!(
                 parameter.access,
                 terminal_psi::reading_borrow_pair_pattern!()
             )
-        })
-        .map(|parameter| parameter.structural_type)
-        .collect();
-    if !requested.is_empty() {
+        });
+    if needs_original_roots {
         // A boundary may first borrow a nested field. Its formal supplies
         // only that field's view, never the containing allocation's extent,
         // alignment or field offsets. Retain layouts for the actual owned

@@ -134,8 +134,7 @@ satisfies Reader::register via windows_x86_64_register_binding();
 windows_x86_64 machine complete<'source>(pending: Pending<'source> in Pending::Retained, observed: &mut u64) -> Capacity
 satisfies Reader::complete via windows_x86_64_complete_binding();
 windows_x86_64 machine release(capacity: Capacity in Capacity::Available) satisfies Reader::release via windows_x86_64_release_binding();
-data Envelope [linear] { payload: Buffer in Buffer::Owned; }
-machine Envelope::drop(envelope: &mut Envelope) {}
+data Envelope { payload: Buffer in Buffer::Owned; }
 machine relay(buffer: Buffer in Buffer::Owned) -> Buffer ensures result in Buffer::Owned { buffer }
 data Main {}
 machine Main::main(main: &mut Main) reaches Reader crashes Trap {

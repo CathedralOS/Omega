@@ -44,18 +44,25 @@ python3 samples/cli/facts/foreign_retained_shared_borrow/fixture/prepare.py
 DYLD_LIBRARY_PATH="$PWD/build/foreign_retained_fixture" omega run --both samples/cli/facts/foreign_retained_shared_borrow/local/main.omg
 ```
 
-Native execution must report `native exit 0`. The default Terminal host currently
-**declines this custom foreign binding** because it has no trusted implementation.
-That is not interpreter execution or agreement. This row's Terminal acceptance
-and the larger capability remain open. The same compiled native path is exercised
-through all nine places; no host adapter is recognized by sample name in the CLI.
+The standalone CLI and corpus sponsor an isolated native provider for Terminal
+execution. It loads the exact fixed-frame adapter produced with the selected
+foreign calling application. The adapter uses the same mapped original cells
+across calls; neither per-call snapshots nor token values establish backing or
+completion authority. Embedders opt in with an explicit worker command; absence
+provides no native execution. Modeled host services retain their own bindings.
 
-Fresh optimized published-main producer `d313552268ce` checks the local witness
-and runs all nine places natively at exit zero on macOS ARM64. Each corresponding
-Terminal invocation still declines the unoffered foreign implementation. The
-matching-host C self-test passes, and all nine invalid lifecycle subprocesses
-terminate at their deliberate ARM64 trap. These observations establish the
-native prerequisite only; they do not close this row.
+All nine places now reach actual `native exit 0` and `interp exit: 0` on macOS
+ARM64. The shared-alias, enclosing-allocation and resident-whole-move controls
+also pass in both engines there. Windows and both Linux targets still need the
+complete current adapter path measured; earlier native-only or physical worker
+results do not establish that agreement. The row remains open until those
+matching-host executions and intended rejects are recorded.
+
+`tools/ci/compiler_retained_foreign.py` prepares and self-tests the matching C
+library, checks the nine intended rejects and pinned positives through the
+corpus, then executes fresh copies of all nine authored places and three
+composition controls through the actual CLI. It requires both engine exits;
+a successful compile or a declined Terminal invocation fails that gate.
 
 | Place | Positive | Invalid twin |
 | --- | --- | --- |
@@ -71,6 +78,15 @@ native prerequisite only; they do not close this row.
 
 The matching nine positives and negatives are pinned under
 `tests/omega/{pass,fail}/facts/foreign_retained_shared_borrow_*`.
+The [shared-alias control](controls/shared_aliases/main.omg) gives C two shared
+loans to the same original pointer in one invocation. The
+[enclosing-allocation control](controls/enclosing_allocation/main.omg) first
+borrows a nested Buffer while preserving the original parent's geometry. The
+[whole-move control](controls/resident_whole_move/main.omg) completes a first
+registration, moves the realized Buffer through a call and record field, then
+registers it again. It retains the allocation seal through the ordinary owned
+storage transaction; a scalar resident alone cannot authorize a new root.
+
 The controls additionally require early disposal, capacity reuse, repeated
 completion, mutable/call-scoped retention and unsupported persistent retention
 to reject for their stated obligations. Two simultaneous registrations remain
@@ -94,15 +110,16 @@ foreign effects and executes in both engines.
   persistent stores remain rejected.
 - Psi 05–07: checked boundary custody retains its exact source/result projection;
   ordinary loan flow carries the token's dependency without a fabricated
-  reference field. Terminal execution of this provider remains unsupported.
+  reference field. Terminal executes the actual C provider under the same custody joins.
 - Omega 00–02: the existing borrowed-record path resolves the original home,
   checks access, declared shape, offset and full extent, and supplies the native
   pointer. Protocol tokens remain ordinary transparent one-word records.
 - Omega 03–06: native calls use ordinary register/stack and activation homes;
   suspended callers retain their frame backing while helpers transport tokens.
 - Omega 07–09/emission: Linux ELF and macOS Mach-O imports execute the authored
-  C lifecycle and native oracle. Windows and Linux ARM64 execution is unverified.
+  C lifecycle and native oracle. Current full Terminal agreement outside macOS
+  ARM64 remains unverified.
 
 This covers the direct shared fixed-record rung. Moved backing, explicit
 snapshots, mutable retention, wider/recursive graphs, more general retained
-provider installations and complete Terminal host integration remain open.
+provider installations and wider resident codecs remain open.
