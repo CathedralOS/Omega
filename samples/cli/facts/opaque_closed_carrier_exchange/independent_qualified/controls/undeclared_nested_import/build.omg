@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
  Build::application(builder, "independent_opaque_import_alias");
- Build::depend_as(builder, "renamed", Source::Path { location: "../../producer" });
+ Build::depend_as(builder, "renamed", Source::Path { location: "producer" });
  Build::select_representation<renamed::InternetAddress, renamed::AddressRepresentation>(builder);
  Build::select_provider<renamed::AddressBridge, renamed::AddressBridgeProvider>(builder, CompositionMode::Independent);
  Build::bind(builder, linux_x86_64::ProgramEntry, main);
