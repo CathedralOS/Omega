@@ -5,11 +5,11 @@
 //! Simultaneous substitution retains the declaration's selected arithmetic;
 //! no pre-call invariant is assumed to prove its own handback.
 use super::{Interval, ValueEnvironment};
-use crate::proof_contracts::contract_entailment::{
+use crate::value_custody::places::CanonicalPlace;
+use crate::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticValue, StrictArithmeticImplicationJudgment, scoped_arithmetic_implication,
 };
-use crate::value_custody::places::CanonicalPlace;
 use numerics::bignum::BigInt;
 use typed_trees::{data::DataDefinition, machine::Machine, types::PrimitiveType};
 

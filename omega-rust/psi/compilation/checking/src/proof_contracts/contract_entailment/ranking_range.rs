@@ -3,9 +3,9 @@
 //! Numeric meaning and descriptor geometry grant no bounds or borrow authority.
 use super::{
     BTreeMap, BigInt, BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Machine,
-    Polynomial, ProofFact, SignatureContractKind, StrictArithmeticBindingValue,
-    StrictArithmeticSymbolBinding, inductive_judgment,
+    Polynomial, ProofFact, SignatureContractKind, inductive_judgment,
 };
+use crate::{StrictArithmeticBindingValue, StrictArithmeticSymbolBinding};
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceNode};
 

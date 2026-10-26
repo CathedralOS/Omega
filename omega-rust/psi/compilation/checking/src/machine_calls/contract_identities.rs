@@ -324,16 +324,25 @@ pub fn prepare_specialization_contract_identities(
                 "capture application does not retain its complete original state correspondence",
             )]);
         }
-        let original_parameters = program.machine_type_parameters(template).iter().map(|parameter| parameter.symbol)
-            .chain(template.conformance_bounds.iter().map(|bound| bound.binder)).collect::<Vec<_>>();
-        let applied_parameters = program.machine_type_parameters(instance).iter().map(|parameter| parameter.symbol)
-            .chain(instance.conformance_bounds.iter().map(|bound| bound.binder)).collect::<Vec<_>>();
+        let original_parameters = program
+            .machine_type_parameters(template)
+            .iter()
+            .map(|parameter| parameter.symbol)
+            .chain(template.conformance_bounds.iter().map(|bound| bound.binder))
+            .collect::<Vec<_>>();
+        let applied_parameters = program
+            .machine_type_parameters(instance)
+            .iter()
+            .map(|parameter| parameter.symbol)
+            .chain(instance.conformance_bounds.iter().map(|bound| bound.binder))
+            .collect::<Vec<_>>();
         if capture.parameters.len() != original_parameters.len()
             || capture.parameters.len() != applied_parameters.len()
-            || !capture.parameters.iter().zip(original_parameters.iter().zip(&applied_parameters))
-                .all(|((original, applied), (left, right))| {
-                    original == left && applied == right
-                })
+            || !capture
+                .parameters
+                .iter()
+                .zip(original_parameters.iter().zip(&applied_parameters))
+                .all(|((original, applied), (left, right))| original == left && applied == right)
         {
             return Err(vec![Diagnostic::error(
                 "capture application lost its exact method binder correspondence",
