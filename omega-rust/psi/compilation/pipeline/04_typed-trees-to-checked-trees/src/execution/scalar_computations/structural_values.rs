@@ -687,7 +687,15 @@ impl Builder<'_, '_> {
             self.program.expression_table.expression(expression)
         {
             let call_target = validation::call_target_symbol(self.program, call);
-            let returned = validation::call_target_return_type(self.program, call_target)?;
+            // This occurrence owns its substituted result vocabulary. The
+            // raw declaration still names callee index/region binders and
+            // cannot type the caller's completed structural home.
+            let returned = validation::expression_result_type_reference(
+                self.program,
+                self.program.machine_by_symbol(self.machine)?,
+                self.program.state_by_symbol(self.state)?,
+                expression,
+            )?;
             // Result storage does not depend on the source of executable
             // supply. The ordinary call planner retains the exact boundary,
             // body or dynamic route and its independent completion custody.

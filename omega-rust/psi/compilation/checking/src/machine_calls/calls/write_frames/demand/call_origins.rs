@@ -219,6 +219,22 @@ impl<'program> CallFrameResolver<'program> {
                 // otherwise an empty signature ceiling becomes opaque here.
                 let callee_is_resolved = frames::machine_state_by_symbol(program, target).is_some()
                     || program.dynamic_slot_by_symbol(target).is_some()
+                    // An open evidence member has the same declaration-only
+                    // qualifier as its closed realization. Authenticate that
+                    // exact member before asking for runtime receiver origins;
+                    // the signature still owns all explicit-operand writes.
+                    || match site {
+                        CallerWriteSite::Call(call) => crate::machine_calls::calls::requirement_namespace_member(
+                            program, call.receiver_symbol, call.target_symbol,
+                        ),
+                        CallerWriteSite::Expression(expression) => program.expression_table.call_node(expression)
+                            .and_then(|call| program.expression_table.name_path_node(call.receiver)
+                                .map(|receiver| (receiver.symbol, call.target_symbol)))
+                            .is_some_and(|(namespace, member)| crate::machine_calls::calls::requirement_namespace_member(
+                                program, namespace, member,
+                            )),
+                        _ => false,
+                    }
                     || match site {
                         CallerWriteSite::Expression(expression) => program
                             .expression_table

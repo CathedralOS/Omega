@@ -31,6 +31,7 @@ use symbols::SymbolHandle;
 use symbols::SymbolKind;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::name::Identifier;
 use typed_trees::types::FixedArrayLength;
 use typed_trees::types::TypeConstraintNode;
@@ -421,6 +422,9 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
         {
             return false;
         }
+        if program.closed_data_definition(reference).is_some() {
+            continue;
+        }
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Named { symbol, .. } => {
                 if symbol.is_valid()
@@ -513,7 +517,16 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                 {
                     return false;
                 }
-                pending.extend(arguments.iter().copied());
+                if let Some(data) = program.unique_data_definition_by_symbol(*base_symbol) {
+                    let parameters = program.data_type_parameters(data);
+                    for (param, &arg) in parameters.iter().zip(arguments.iter()) {
+                        if !matches!(param.kind, TypeParameterKind::Value { .. }) {
+                            pending.push(arg);
+                        }
+                    }
+                } else {
+                    pending.extend(arguments.iter().copied());
+                }
             }
             TypeReferenceNode::DynamicTrait {
                 symbol, arguments, ..

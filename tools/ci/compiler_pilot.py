@@ -84,7 +84,7 @@ def observation_golden(output, *, both, target):
     return initial
 
 
-def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES):
+def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checking_only=()):
     revision = command(["git", "rev-parse", "HEAD"])
     if command(["git", "status", "--porcelain"]):
         raise ValueError("pilot requires a clean candidate")
@@ -92,7 +92,8 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES):
         raise ValueError("checkout is not the GitHub candidate being checked")
     summary.update(candidate=revision, target=corpus_gate.host_target(),
                    toolchain=command(["rustc", "-Vv"]), stages=[],
-                   fixtures=dict(positive=positives, negative=negatives))
+                   fixtures=dict(positive=positives, negative=negatives,
+                                 checking_only=checking_only))
 
     def stage(name, operation):
         started = time.monotonic()
@@ -140,18 +141,19 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES):
         validate_report(json.loads(report_path.read_text(encoding="utf-8")), fixtures,
                         both=both, revision=revision, target=summary["target"])
 
-    stage("checking and rejection controls", lambda: corpus("checking", positives + negatives))
+    stage("checking and rejection controls", lambda: corpus("checking", positives + checking_only + negatives))
     stage("native and Terminal execution", lambda: corpus("both", positives, both=True))
     if command(["git", "rev-parse", "HEAD"]) != revision or command(["git", "status", "--porcelain"]):
         raise ValueError("candidate changed during validation")
 
 
-def run_suite(name, positives, negatives):
+def run_suite(name, positives, negatives, *, checking_only=()):
     output = ROOT / "build" / name
     output.mkdir(parents=True, exist_ok=True)
     summary = dict(schema="omega-compiler-pilot-v1", passed=False)
     try:
-        execute(output, summary, positives=positives, negatives=negatives)
+        execute(output, summary, positives=positives, negatives=negatives,
+                checking_only=checking_only)
         summary["passed"] = True
         return 0
     except (OSError, ValueError, subprocess.CalledProcessError,
