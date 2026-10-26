@@ -380,6 +380,38 @@ pub(super) fn lower_unit_structural_types_including(
     LoweringError,
 > {
     let mut roots = additional_roots.to_vec();
+    // A closed contract can observe a type without any runtime query, local
+    // storage or structural parameter. Phase04 froze that query's complete
+    // stored carrier; retain it in the same catalog its callable contracts
+    // borrow, before taking the transitive structural closure. Type source
+    // and selected physical geometry are not inputs to this identity join.
+    for subject in &checked.facts.layout_query_subjects {
+        // Named constants can retain a declaration meaning owner outside the
+        // callable roster. Their emitted receiving condition still consumes
+        // this exact subject, including when its policy call was erased.
+        let receiving_input =
+            checked
+                .facts
+                .constant_layout_requirements
+                .iter()
+                .any(|requirement| {
+                    requirement.alternatives.iter().any(|alternative| {
+                        alternative.observations.iter().any(|observation| {
+                            observation.expression == subject.expression
+                                && observation.owner == subject.owner
+                        })
+                    })
+                });
+        if (closure.contains(&subject.owner)
+            || boundaries.iter().any(|(boundary, _)| {
+                subject.owner == boundary.machine || subject.owner == boundary.state
+            })
+            || receiving_input)
+            && let checked_trees::CheckedLayoutQueryCarrier::Structural(identity) = subject.carrier
+        {
+            roots.push(identity);
+        }
+    }
     let mut literal_view = false;
     for symbol in closure {
         let operands = crate::scalar_lowering::computations::operand_types::type_requirements(

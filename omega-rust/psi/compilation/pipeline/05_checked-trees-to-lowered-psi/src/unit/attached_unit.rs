@@ -552,6 +552,8 @@ pub(crate) fn lower_unit_closure(
         &provider_candidate_plans,
         &provider_candidates,
         &machine_ids,
+        plans,
+        &type_ids,
     )?;
 
     // Publication: one module in canonical roster order.

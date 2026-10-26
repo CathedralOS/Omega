@@ -990,6 +990,7 @@ pub(crate) fn map_scalar(
         | Scalar::RepresentationView { operand, .. } => map_scalar(operand, map)?,
         Scalar::IntegerLiteral { .. }
         | Scalar::IeeeFloatLiteral { .. }
+        | Scalar::LayoutObservation { .. }
         | Scalar::ImplementationSelection { .. } => {}
         Scalar::StructuralSequenceLength { .. } | Scalar::ErasedParameter { .. } => return None,
     }

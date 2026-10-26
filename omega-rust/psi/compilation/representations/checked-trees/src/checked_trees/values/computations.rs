@@ -372,7 +372,7 @@ impl CheckedScalarComputation {
                 ..
             } => *completion_expression,
             CheckedScalarComputationKind::LayoutObservation { expression, .. }
-            | CheckedScalarComputationKind::RetainedConstant { expression } => *expression,
+            | CheckedScalarComputationKind::RetainedConstant { expression, .. } => *expression,
             CheckedScalarComputationKind::Value(_) => self.value_source,
             CheckedScalarComputationKind::SelectedComparison { .. }
             | CheckedScalarComputationKind::Call { .. } => {
@@ -491,6 +491,7 @@ pub enum CheckedScalarComputationKind {
     /// (`CheckedTrees::landed_integer_constant`), and lowering emits that
     /// literal, never a callee or a source spelling.
     RetainedConstant {
+        machine: SymbolHandle,
         expression: typed_trees::expression::ExpressionHandle,
     },
     /// Pure source expression in the enclosing state's scalar namespace.

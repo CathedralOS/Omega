@@ -14,6 +14,23 @@ pub(crate) fn validate_proof_only_consumption(
     classification: &ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // Queries in unused constants and open templates still owe formation.
+    // Their physical evaluation may remain deferred or never be demanded.
+    for expression in typed_trees::references::collect_program_references(program).expressions {
+        if let Some(query) = program
+            .expression_table
+            .call_node(expression)
+            .and_then(|call| call.layout_query.as_ref())
+            && let Err(reason) = crate::compiler_operations::validate_data_layout_query_subject(
+                program,
+                classification,
+                query,
+                program.expression_table.source_span(expression),
+            )
+        {
+            diagnostics.push(reason);
+        }
+    }
     // N7 machine-indexed data is compile-time schema metadata. It has no
     // runtime callable field and therefore only makes sense on a carrier that
     // already has no layout (recursive proof data or an opaque boundary

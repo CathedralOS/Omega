@@ -99,7 +99,6 @@ fn application_machines(
     selected_rows: &[SymbolHandle],
 ) -> Vec<SymbolHandle> {
     let typed = &checked.typed;
-    let plan = &checked.facts.operational;
     let mut pending = Vec::new();
     for machine in typed.machines() {
         let authored = typed.machine_authored_target(machine);
@@ -134,6 +133,47 @@ fn application_machines(
         machine: *machine,
         bindings: Vec::new(),
     }));
+    application_closure(checked, target, provider_edges, pending)
+}
+
+/// Dependencies of one concrete evaluation or materialization root. The same
+/// admitted invocation walk owns static bindings, cleanup, callbacks and rows.
+pub fn proof_application_dependencies(
+    checked: &CheckedTrees,
+    target: TargetProfile,
+    root: SymbolHandle,
+    providers: &[crate::SelectedProviderReviewProvenance],
+) -> Vec<SymbolHandle> {
+    let edges: Vec<_> = providers
+        .iter()
+        .flat_map(|selected| {
+            selected
+                .provider
+                .row_requirements
+                .iter()
+                .copied()
+                .zip(selected.provider.row_realizations.iter().copied())
+        })
+        .collect();
+    application_closure(
+        checked,
+        target,
+        &edges,
+        vec![Application {
+            machine: root,
+            bindings: Vec::new(),
+        }],
+    )
+}
+
+fn application_closure(
+    checked: &CheckedTrees,
+    target: TargetProfile,
+    provider_edges: &[(SymbolHandle, SymbolHandle)],
+    mut pending: Vec<Application>,
+) -> Vec<SymbolHandle> {
+    let typed = &checked.typed;
+    let plan = &checked.facts.operational;
     let mut visited = Vec::new();
     let mut machines = Vec::new();
     while let Some(mut application) = pending.pop() {

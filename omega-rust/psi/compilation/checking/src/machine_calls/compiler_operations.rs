@@ -5,9 +5,11 @@
 //! authority by spelling; Build execution still checks the original activation cell.
 
 mod build_declarations;
+mod data_layout_queries;
 pub use build_declarations::{
     build_operation, is_build_declaration_selection, resolve_build_static_operand,
 };
+pub use data_layout_queries::validate_data_layout_query_subject;
 
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionIntrinsic, BuildOperation,

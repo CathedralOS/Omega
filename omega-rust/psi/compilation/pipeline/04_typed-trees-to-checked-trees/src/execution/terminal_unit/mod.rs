@@ -156,6 +156,7 @@ pub(crate) mod cleanup;
 mod composed_control;
 pub(crate) mod control;
 mod initialized_locals;
+mod layout_queries;
 mod local_storage;
 pub(crate) mod plan_gaps;
 mod providers;
@@ -183,7 +184,7 @@ pub(crate) struct ScalarCalleeClosure;
 
 pub(crate) fn build_checked_unit_effect_plans(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: &mut CheckFacts,
     boundary_signature_reaches: &[(symbols::SymbolHandle, language_semantics::ServiceReachRowId)],
     scalar_callees: ScalarCalleeClosure,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -1116,45 +1117,15 @@ pub(crate) fn build_checked_unit_effect_plans(
                 Some(result.type_identity)
             }))
     }));
-    // A query names storage even when no local, formal or result carries a
-    // value of that type. Register the exact stored carrier here and retain
-    // it through the same catalog closure as ordinary operands.
-    for (_, computation) in facts.values.scalar_computations.nodes.iter() {
-        let checked_trees::CheckedScalarComputationKind::LayoutObservation {
-            machine,
-            operand,
-            carrier_identity,
-            ..
-        } = &computation.kind
-        else {
-            continue;
-        };
-        if program.primitive_type_reference(*operand).is_some()
-            || matches!(
-                program.type_reference_table.type_reference(*operand),
-                TypeReferenceNode::Unit
-            )
-        {
-            continue;
-        }
-        let Some(owner) = program.machine_by_symbol(*machine) else {
-            continue;
-        };
-        let binders = types::machine_binders(program, owner);
-        match shapes.add_stored_type(*operand, &binders, &[]) {
-            Some(identity) if identity == *carrier_identity => {
-                retained_type_identities.insert(identity);
-            }
-            _ => gaps.push(plan_gaps::plan_gap(
-                program,
-                *machine,
-                plan_gaps::GapSite::Machine,
-                CheckedUnitPlanGapReason::Unsupported(
-                    "layout observation has no matching checked stored carrier",
-                ),
-            )),
-        }
-    }
+    // Runtime and erased proof observations share the checked carrier owner.
+    // Publish their exact subjects before pruning the transitive type catalog.
+    facts.layout_query_subjects = layout_queries::retain(
+        program,
+        facts,
+        &mut shapes,
+        &mut retained_type_identities,
+        &mut gaps,
+    );
     shapes.retain_transitive(&retained_type_identities);
     types::retain_domain_predicates(program, &facts.operators, &mut shapes.domains);
 

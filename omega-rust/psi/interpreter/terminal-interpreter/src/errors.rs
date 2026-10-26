@@ -12,6 +12,10 @@ use terminal_psi::CrashCause;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalInterpretError {
+    FoldedLayoutRequirement {
+        owner: terminal_psi::FoldedLayoutOwner,
+        reason: terminal_semantics::LayoutObservationError,
+    },
     LayoutObservation {
         operation: OperationId,
         reason: terminal_semantics::LayoutObservationError,

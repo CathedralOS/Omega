@@ -136,6 +136,20 @@ impl IntegerRangeObligation {
         self.discharged_target.is_none()
     }
 
+    /// Exact observation leaves and meaning owners captured by the recipe,
+    /// independent of the enclosing arithmetic expression or current storage.
+    pub fn observation_dependencies(
+        &self,
+    ) -> impl Iterator<Item = (ExpressionHandle, SymbolHandle)> + '_ {
+        self.steps
+            .span_or_empty(self.recipe)
+            .iter()
+            .filter_map(|step| match step {
+                RangeStep::Observation { expression, owner } => Some((*expression, *owner)),
+                _ => None,
+            })
+    }
+
     pub fn discharge(&mut self, program: &TypedTrees, target: &str) -> Result<(), Diagnostic> {
         let result = self
             .steps

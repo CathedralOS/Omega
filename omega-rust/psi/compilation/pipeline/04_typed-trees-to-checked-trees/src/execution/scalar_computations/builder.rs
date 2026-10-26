@@ -463,7 +463,10 @@ impl Builder<'_, '_> {
                     ),
                 }
             }
-            _ => CheckedScalarComputationKind::RetainedConstant { expression: root },
+            _ => CheckedScalarComputationKind::RetainedConstant {
+                expression: root,
+                machine: self.machine,
+            },
         };
         Some((self.insert(primitive, kind), primitive))
     }

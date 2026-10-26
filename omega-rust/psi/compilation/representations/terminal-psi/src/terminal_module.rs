@@ -10,6 +10,7 @@ pub mod boundary;
 pub mod folded_constants;
 pub use folded_constants::{
     FoldedConstantCandidate, FoldedConstantClosure, FoldedConstantDependency,
+    FoldedLayoutAlternative, FoldedLayoutObservation, FoldedLayoutOwner, FoldedLayoutRequirement,
 };
 pub mod control_flow;
 pub mod identity;

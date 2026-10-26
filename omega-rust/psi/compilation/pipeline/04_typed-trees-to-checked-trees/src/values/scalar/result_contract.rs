@@ -412,6 +412,47 @@ impl ContractPredicates<'_, '_> {
             ExpressionNode::Match(_) if depth < 64 => {
                 self.logical_match_numeric(expression, depth + 1)
             }
+            ExpressionNode::Call(call) if call.layout_query.is_some() => {
+                let query = call.layout_query.as_ref()?;
+                if !program
+                    .type_reference_table
+                    .contains_type_reference(query.carrier)
+                {
+                    return None;
+                }
+                let binders = program
+                    .machine_by_symbol(self.owner)
+                    .or_else(|| program.machine_holding_state(self.owner))
+                    .map(|machine| {
+                        crate::execution::terminal_unit::types::machine_binders(program, machine)
+                    })
+                    .unwrap_or_default();
+                let carrier_identity = validation::stored_structural_type_identity(
+                    program,
+                    query.carrier,
+                    &binders,
+                    &[],
+                );
+                if !carrier_identity.is_valid() {
+                    return None;
+                }
+                let reference = program.type_reference_table.named_references().find_map(
+                    |(reference, symbol, _)| {
+                        (program.symbols.builtin_type_atom(symbol)
+                            == Some(symbols::BuiltinTypeAtom::U64))
+                        .then_some(reference)
+                    },
+                )?;
+                Some((
+                    CheckedScalarExpression::LayoutObservation {
+                        expression,
+                        owner: self.owner,
+                        kind: query.kind,
+                        carrier_identity,
+                    },
+                    reference,
+                ))
+            }
             ExpressionNode::Float(literal) => {
                 // Typed literal landing carries the exact IEEE format and bits.
                 // Contract lowering never rounds a decimal through host floats.

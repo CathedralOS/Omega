@@ -232,7 +232,8 @@ impl EntryOperands<'_> {
             | CheckedScalarExpression::StructuralParameterField { .. }
             | CheckedScalarExpression::IntegerLiteral { .. }
             | CheckedScalarExpression::IeeeFloatLiteral { .. }
-            | CheckedScalarExpression::ImplementationSelection { .. } => {}
+            | CheckedScalarExpression::ImplementationSelection { .. }
+            | CheckedScalarExpression::LayoutObservation { .. } => {}
         }
         Some(())
     }

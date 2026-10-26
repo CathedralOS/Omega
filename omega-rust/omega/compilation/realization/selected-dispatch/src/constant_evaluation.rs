@@ -21,12 +21,13 @@ pub struct SelectedConstantEvaluation {
     provider_bodies: Vec<SelectedBuildTimeProviderBody>,
     /// The exact selected target the deferred folds are answered under — the
     /// explicit target custody a retained `size_of`/`align_of` query names its
-    /// subject from. Never the host's facts: a `--target` build folds every
-    /// query against this target's layout closure.
+    /// subject from. Never the host's facts: demanded constant/proof queries
+    /// fold against this target's layout closure.
     target_profile: target::TargetProfile,
     /// Only these declaration roots own folds; canonical arenas also retain
     /// Product descriptions during Build admission.
     selection: typed_trees::references::DeclarationSelection,
+    query_requests: std::collections::HashSet<typed_trees::expression::ExpressionHandle>,
     /// The opaque representation selections the layout authority consults for
     /// the same fold; Build admission has none and supplies an empty set.
     opaque_representation_selections: Vec<representation_planning::OpaqueRepresentationSelection>,
@@ -40,10 +41,9 @@ impl SelectedConstantEvaluation {
     /// lands its value in `typed`.
     ///
     /// Retained `size_of`/`align_of` queries fold first, under the selected
-    /// target's custody: every typed call carrying a `layout_query` becomes
-    /// the `u64` literal the layout authority reports for this target, in
-    /// constant and runtime positions alike, before the deferred
-    /// continuations' own evaluation observes the program.
+    /// target's custody, only for the exact constant/proof dependency set.
+    /// Runtime queries remain portable operations; the canonical catalog and
+    /// its other target bodies remain available for lookup.
     pub fn evaluate_pending(
         self,
         typed: &mut TypedTrees,
@@ -55,16 +55,21 @@ impl SelectedConstantEvaluation {
             &self.opaque_representation_selections,
             true,
             &self.selection,
+            &self.query_requests,
         )?;
         let mut evaluated = Vec::with_capacity(pending.len());
         for continuation in pending {
-            evaluated.push(continuation.evaluate_selected_operators(
-                typed,
-                SelectedBuildTimeOperators {
-                    operators: &self.operators,
-                    provider_bodies: &self.provider_bodies,
-                },
-            )?);
+            evaluated.push(
+                continuation
+                    .select_work(typed, &self.selection)?
+                    .evaluate_selected_operators(
+                        typed,
+                        SelectedBuildTimeOperators {
+                            operators: &self.operators,
+                            provider_bodies: &self.provider_bodies,
+                        },
+                    )?,
+            );
         }
         // The deferred evaluation installed the validated plan-laid layouts;
         // queries over `Policy<Schema>` operands fold now, and any operand the
@@ -76,6 +81,7 @@ impl SelectedConstantEvaluation {
             &self.opaque_representation_selections,
             false,
             &self.selection,
+            &self.query_requests,
         )?;
         for continuation in evaluated {
             continuation.finish(typed)?;
@@ -109,6 +115,8 @@ impl SelectedConstantEvaluation {
         opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
         facts: &checked_trees::CheckedOperatorFacts,
         plans: &SelectedProviderPlanFacts,
+        selection: &typed_trees::references::DeclarationSelection,
+        query_requests: &std::collections::HashSet<typed_trees::expression::ExpressionHandle>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let typed = context.typed;
         let uses = facts.resolved_expression_selections();
@@ -116,10 +124,17 @@ impl SelectedConstantEvaluation {
             operators: Vec::new(),
             provider_bodies: Vec::new(),
             target_profile,
-            selection: typed_trees::references::DeclarationSelection::from_program(typed),
+            selection: selection.clone(),
+            query_requests: query_requests.clone(),
             opaque_representation_selections: opaque_representation_selections.to_vec(),
         };
+        let expressions =
+            typed_trees::references::collect_selected_program_references(typed, selection)
+                .expressions;
         for (expression, origin, requirement, policy) in uses {
+            if !expressions.contains(&expression) {
+                continue;
+            }
             let Some((_, plan)) =
                 provider_planning::selected_requirement_plan(context, plans.plans(), requirement)
             else {

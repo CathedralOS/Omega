@@ -118,6 +118,19 @@ impl NativeExecutionScope {
                 continue;
             }
             scope.machines.push(machine);
+            let layouts = input.target_layout_selections();
+            terminal_semantics::admit_folded_layout_requirements(
+                &input
+                    .context()
+                    .module()
+                    .folded_constants
+                    .layout_requirements,
+                plan.structural_types.as_slice().iter(),
+                layouts.and_then(|layouts| layouts.physical()),
+                layouts.map_or("", |layouts| layouts.target()),
+                terminal_psi::FoldedLayoutOwner::Machine(machine),
+            )
+            .map_err(|reason| NativeExecutionScopeError::TargetLayout(reason.to_string()))?;
             for operation in &plan.functions[function_position].operations {
                 if let AbstractOperation::BoundaryCall { psi_operation, .. } = operation {
                     pending.extend(

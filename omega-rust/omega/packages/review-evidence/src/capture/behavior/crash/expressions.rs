@@ -155,6 +155,9 @@ fn project_scalar_expression(
         CheckedScalarExpression::StorageRead { .. } => return None,
         // A selector has no public crash-predicate vocabulary.
         CheckedScalarExpression::ImplementationSelection { .. } => return None,
+        // Ground geometry has no public crash-predicate carrier coordinate.
+        // Never export a source handle or replace an observation with a hint.
+        CheckedScalarExpression::LayoutObservation { .. } => return None,
         CheckedScalarExpression::StructuralSequenceLength { root, path } => {
             PackageReviewScalarExpression::StructuralParameterByteLength {
                 parameter_position: root.parameter()?,

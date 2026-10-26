@@ -16,7 +16,9 @@ mod direct_body_absences;
 mod proof_applications;
 mod provider_publication;
 pub(crate) use direct_body_absences::DirectTargetBodyAbsences;
-pub use proof_applications::{proof_application_machines, target_has_proof_demand};
+pub use proof_applications::{
+    proof_application_dependencies, proof_application_machines, target_has_proof_demand,
+};
 pub use provider_publication::{TargetProviderPublicationRequest, provider_selection_roots};
 
 /// Project retained declarations onto one realization using their exact handles.

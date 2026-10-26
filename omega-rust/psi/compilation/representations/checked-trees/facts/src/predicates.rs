@@ -13,6 +13,7 @@ pub use bindings::{BooleanPredicate, BooleanPredicateBinding, BooleanPredicateRo
 
 mod byte_comparison;
 mod integer_math;
+mod layout_observations;
 pub use integer_math::{CheckedIntegerMathExpression, CheckedIntegerMathTerm};
 
 /// The storage an observation or a view derivation starts from: a structural
@@ -91,6 +92,15 @@ impl CheckedScalarReadProjection {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarExpression {
+    /// Target-independent query identity, not a geometry value or a premise.
+    /// The exact occurrence and meaning owner rejoin the frozen checked query
+    /// subject; `carrier_identity` names its complete own-storage type.
+    LayoutObservation {
+        expression: typed_trees::expression::ExpressionHandle,
+        owner: SymbolHandle,
+        kind: language_core::data_layout_queries::DataLayoutQueryKind,
+        carrier_identity: TypeIdentityId,
+    },
     /// Exact u64 live count at one storage projection, never its capacity.
     /// The root counts authored structural positions; selectors keep their
     /// consuming scalar namespace and indexing proof occurrence. Element views
@@ -275,6 +285,7 @@ impl CheckedScalarExpression {
                 }
             }),
             Self::StorageRead { .. }
+            | Self::LayoutObservation { .. }
             | Self::Parameter { .. }
             | Self::ErasedParameter { .. }
             | Self::Local { .. }
@@ -290,7 +301,9 @@ impl CheckedScalarExpression {
     pub fn primitive_type(&self) -> Option<typed_trees::types::PrimitiveType> {
         use typed_trees::types::PrimitiveType;
         match self {
-            Self::StructuralSequenceLength { .. } => Some(PrimitiveType::U64),
+            Self::StructuralSequenceLength { .. } | Self::LayoutObservation { .. } => {
+                Some(PrimitiveType::U64)
+            }
             Self::Parameter { primitive_type, .. }
             | Self::ErasedParameter { primitive_type, .. }
             | Self::StorageRead { primitive_type, .. }

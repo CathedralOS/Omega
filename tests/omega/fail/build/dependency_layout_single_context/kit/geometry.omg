@@ -1,0 +1,32 @@
+// Expected exit: 0
+use omega::language::core::layout;
+
+data BasePolicy {}
+data Payload [copy] { value: u32; }
+data Policy {}
+data View { payload: Policy<Payload>; }
+data Seed { payload: BasePolicy<Payload>; }
+
+macos_arm64 machine BasePolicy::plan(schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: 4, size_is_dynamic: false, align: 4 }
+}
+
+
+
+
+machine require_extent() requires size_of<BasePolicy<Payload>>() == 8 {}
+machine Policy::plan(schema: Schema) -> Plan {
+    require_extent();
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 8 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: 12, size_is_dynamic: false, align: 4 }
+}
+public macos_arm64 machine library_observation() -> u32 {
+    let mut seed: Seed;
+    seed.payload.value = 7;
+    let mut view: View;
+    view.payload.value = 51;
+    view.payload.value
+}

@@ -24,6 +24,7 @@ task-plans = { path = "../../backend/runtime/task-plans" }
 arena = { path = "../../../../psi/foundation/arena" }
 build-time-evaluation = { path = "../../../../psi/compilation/compile-time" }
 checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }
+validation = { path = "../../../../psi/compilation/checking" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }

@@ -18,6 +18,10 @@ pub enum LayoutObservationError {
     UnsupportedCarrier(StructuralTypeId),
     UnsupportedScalar(ScalarType),
     ExtentOverflow,
+    IncompatibleFoldedLayout {
+        owner: terminal_psi::FoldedLayoutOwner,
+        target: String,
+    },
 }
 
 impl std::fmt::Display for LayoutObservationError {
@@ -56,8 +60,67 @@ impl std::fmt::Display for LayoutObservationError {
                 "layout observation scalar {scalar:?} has no supported storage geometry"
             ),
             Self::ExtentOverflow => write!(formatter, "layout observation extent exceeds u64"),
+            Self::IncompatibleFoldedLayout { owner, target } => write!(
+                formatter,
+                "folded layout requirement for {owner:?} has no matching joint assignment under `{target}`"
+            ),
         }
     }
+}
+
+/// Admit every independent compatibility row owned by this receiving scope.
+/// One alternative must agree in full: individually observed coordinates do
+/// not justify a combination the producing judgment never consumed.
+pub fn admit_folded_layout_requirements<'types>(
+    requirements: &[terminal_psi::FoldedLayoutRequirement],
+    types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+    physical: Option<PhysicalDataLayout>,
+    target: &str,
+    owner: terminal_psi::FoldedLayoutOwner,
+) -> Result<(), LayoutObservationError> {
+    for requirement in requirements.iter().filter(|row| row.owner == owner) {
+        let mut matched = false;
+        let mut unavailable = None;
+        for alternative in requirement
+            .alternatives
+            .iter()
+            .filter(|row| row.target == target)
+        {
+            let mut agrees = true;
+            for observation in &alternative.observations {
+                match observe_layout(
+                    types.clone(),
+                    physical,
+                    observation.kind,
+                    observation.carrier,
+                ) {
+                    Ok(value) if value == observation.value => {}
+                    Ok(_) => {
+                        agrees = false;
+                        break;
+                    }
+                    Err(reason) => {
+                        unavailable.get_or_insert(reason);
+                        agrees = false;
+                        break;
+                    }
+                }
+            }
+            if agrees {
+                matched = true;
+                break;
+            }
+        }
+        if !matched {
+            return Err(unavailable.unwrap_or_else(|| {
+                LayoutObservationError::IncompatibleFoldedLayout {
+                    owner,
+                    target: target.to_owned(),
+                }
+            }));
+        }
+    }
+    Ok(())
 }
 impl std::error::Error for LayoutObservationError {}
 
@@ -117,4 +180,68 @@ pub fn observe_layout<'types>(
         LayoutObservationKind::Size => size,
         LayoutObservationKind::Alignment => alignment,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use terminal_psi::{
+        FoldedLayoutAlternative, FoldedLayoutObservation, FoldedLayoutOwner,
+        FoldedLayoutRequirement,
+    };
+
+    #[test]
+    fn folded_observations_require_one_joint_qualified_assignment_per_owner() {
+        let owner = FoldedLayoutOwner::Machine(semantic_vocabulary::MachineId::new(1).unwrap());
+        let carrier = LayoutObservationCarrier::Scalar(semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::address(64).unwrap(),
+        ));
+        let alternative = |value| FoldedLayoutAlternative {
+            target: "macos_arm64".to_owned(),
+            observations: vec![
+                FoldedLayoutObservation {
+                    kind: LayoutObservationKind::Size,
+                    carrier,
+                    value,
+                },
+                FoldedLayoutObservation {
+                    kind: LayoutObservationKind::Alignment,
+                    carrier,
+                    value,
+                },
+            ],
+        };
+        let mut requirements = vec![FoldedLayoutRequirement {
+            owner,
+            alternatives: vec![alternative(4), alternative(8)],
+        }];
+        let receive = |requirements: &[FoldedLayoutRequirement], size, alignment, target| {
+            admit_folded_layout_requirements(
+                requirements,
+                std::iter::empty(),
+                Some(PhysicalDataLayout {
+                    address_byte_size: size,
+                    address_byte_alignment: alignment,
+                }),
+                target,
+                owner,
+            )
+        };
+        assert_eq!(receive(&requirements, 4, 4, "macos_arm64"), Ok(()));
+        assert_eq!(receive(&requirements, 8, 8, "macos_arm64"), Ok(()));
+        // Each coordinate matches an alternative, but their combination does not.
+        assert!(matches!(
+            receive(&requirements, 8, 4, "macos_arm64"),
+            Err(LayoutObservationError::IncompatibleFoldedLayout { .. })
+        ));
+        // Numeric equality does not supply a different evaluation context.
+        assert!(receive(&requirements, 8, 8, "linux_arm64").is_err());
+        requirements.push(FoldedLayoutRequirement {
+            owner,
+            alternatives: vec![alternative(4)],
+        });
+        // Another proof owner's row remains independently owed.
+        assert!(receive(&requirements, 8, 8, "macos_arm64").is_err());
+        assert_eq!(receive(&requirements, 4, 4, "macos_arm64"), Ok(()));
+    }
 }

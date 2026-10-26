@@ -51,6 +51,7 @@ impl build_time_evaluation::LayoutQueryPreparation for SourceLayoutQueries<'_> {
             self.opaque_representation_selections,
             selection,
             QueryScope::Invariant,
+            |_| true,
         )
         .map(|_| ())
     }
@@ -124,6 +125,7 @@ impl build_time_evaluation::LayoutQueryPreparation for SourceLayoutQueries<'_> {
                 native: context.native_target(),
                 allow_pending: true,
             },
+            |_| true,
         )
     }
 }
@@ -156,6 +158,7 @@ pub fn fold_data_layout_queries(
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     defer_uninstalled_plans: bool,
     selection: &checked_trees::typed_trees::references::DeclarationSelection,
+    requests: &std::collections::HashSet<typed_trees::expression::ExpressionHandle>,
 ) -> Result<(), Vec<Diagnostic>> {
     fold_queries(
         program,
@@ -166,6 +169,7 @@ pub fn fold_data_layout_queries(
             native: target.native_target(),
             allow_pending: defer_uninstalled_plans,
         },
+        |expression| requests.contains(&expression),
     )
     .and_then(|inputs| match inputs {
         LayoutContextInputs::Ready | LayoutContextInputs::Pending => Ok(()),
@@ -182,6 +186,7 @@ fn fold_queries(
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     selection: &checked_trees::typed_trees::references::DeclarationSelection,
     scope: QueryScope,
+    requested: impl Fn(typed_trees::expression::ExpressionHandle) -> bool,
 ) -> Result<LayoutContextInputs, Vec<Diagnostic>> {
     // The proof-only classification is computed over the typed program;
     // a `size_of<Nat>` over recursive data must name the
@@ -199,7 +204,7 @@ fn fold_queries(
     )> = program
         .expression_table
         .iter_expressions()
-        .filter(|(handle, _)| owned_expressions.contains(handle))
+        .filter(|(handle, _)| owned_expressions.contains(handle) && requested(*handle))
         .filter_map(|(handle, node)| match node {
             ExpressionNode::Call(call) => call.layout_query.as_ref().map(|query| {
                 (
@@ -215,15 +220,13 @@ fn fold_queries(
     // open callable. A known proof-only subject cannot acquire storage merely
     // because its enclosing template has no executable application yet.
     for (_, query, reference) in &queries {
-        if let Some(held) = proof_only.proof_only_mention(program, query.carrier) {
-            let spelling = query.kind.target_name();
-            return Err(vec![
-                Diagnostic::error(format!(
-                    "`{spelling}` cannot measure a proof-only carrier: `{held}` has no runtime layout"
-                ))
-                .with_source_span(*reference),
-            ]);
-        }
+        validation::compiler_operations::validate_data_layout_query_subject(
+            program,
+            &proof_only,
+            query,
+            *reference,
+        )
+        .map_err(|reason| vec![reason])?;
     }
     // An open callable is checked as a template, not evaluated as an
     // executable application. Its exact query operands become physical work

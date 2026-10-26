@@ -52,7 +52,7 @@ pub(crate) fn finalize_execution(
         phase_profile::scope("05.d.8_10.a.3.unit_effect_plans", || {
             crate::execution::terminal_unit::build_checked_unit_effect_plans(
                 program,
-                &facts,
+                &mut facts,
                 &boundary_signature_reaches,
                 crate::execution::terminal_unit::ScalarCalleeClosure,
                 call_frames.as_ref(),

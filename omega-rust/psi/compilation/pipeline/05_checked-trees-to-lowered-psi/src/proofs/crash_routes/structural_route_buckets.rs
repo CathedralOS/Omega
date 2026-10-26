@@ -545,7 +545,8 @@ fn uses_structural_storage(expression: &CheckedScalarExpression) -> bool {
             | CheckedScalarExpression::Local { .. }
             | CheckedScalarExpression::IntegerLiteral { .. }
             | CheckedScalarExpression::IeeeFloatLiteral { .. }
-            | CheckedScalarExpression::ImplementationSelection { .. } => {}
+            | CheckedScalarExpression::ImplementationSelection { .. }
+            | CheckedScalarExpression::LayoutObservation { .. } => {}
         }
     }
     false

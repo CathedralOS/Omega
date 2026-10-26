@@ -4,6 +4,7 @@ use super::{
 };
 use terminal_psi::{
     FoldedConstantCandidate, FoldedConstantClosure, FoldedConstantDependency,
+    FoldedLayoutAlternative, FoldedLayoutObservation, FoldedLayoutOwner, FoldedLayoutRequirement,
     ProviderCandidateConformance, TerminalIdentityTableBuilder,
 };
 
@@ -14,11 +15,20 @@ pub(super) fn lower(
     sources: &[CheckedUnitProviderCandidate],
     candidates: &[ProviderCandidateConformance],
     machines: &[(symbols::SymbolHandle, MachineId)],
+    plans: super::UnitPlans<'_>,
+    type_ids: &[(
+        typed_trees::type_identity::TypeIdentityId,
+        semantic_vocabulary::StructuralTypeId,
+    )],
 ) -> Result<FoldedConstantClosure, LoweringError> {
     let typed = &checked.typed;
     let closure = &typed.constant_recipe_closure;
+    let layout_requirements = lower_layout_requirements(checked, plans, type_ids, machines)?;
     if closure.receipts.is_empty() {
-        return Ok(Default::default());
+        return Ok(FoldedConstantClosure {
+            layout_requirements,
+            ..Default::default()
+        });
     }
     if closure.target_scope.is_empty() {
         return Err(LoweringError::Unsupported(
@@ -108,5 +118,119 @@ pub(super) fn lower(
     Ok(FoldedConstantClosure {
         target: Some(closure.target_scope.clone()),
         dependencies,
+        layout_requirements,
     })
+}
+
+fn lower_layout_requirements(
+    checked: &CheckedTrees,
+    plans: super::UnitPlans<'_>,
+    type_ids: &[(
+        typed_trees::type_identity::TypeIdentityId,
+        semantic_vocabulary::StructuralTypeId,
+    )],
+    machines: &[(symbols::SymbolHandle, MachineId)],
+) -> Result<Vec<FoldedLayoutRequirement>, LoweringError> {
+    let mut requirements = Vec::new();
+    for requirement in &checked.facts.constant_layout_requirements {
+        let owner = match requirement.owner {
+            checked_trees::CheckedLayoutOwner::Machine(machine) => {
+                if !machines.iter().any(|(source, _)| *source == machine)
+                    && checked
+                        .facts
+                        .constant_layout_requirements
+                        .iter()
+                        .any(|carrier| {
+                            carrier.proof_owner == requirement.proof_owner
+                                && matches!(
+                                    carrier.owner,
+                                    checked_trees::CheckedLayoutOwner::Carrier(_)
+                                )
+                        })
+                {
+                    // Static policy execution is erased. Its materialized
+                    // result below retains the same judgment's condition.
+                    continue;
+                }
+                FoldedLayoutOwner::Machine(lookup_machine_id(machines, machine)?)
+            }
+            checked_trees::CheckedLayoutOwner::Carrier(application) => {
+                let mut matches = Vec::new();
+                for (identity, carrier) in type_ids {
+                    let declaration = super::catalog::selected_declaration(plans, *identity)?;
+                    if matches!(&declaration.shape,
+                        checked_trees::CheckedUnitStructuralTypeShape::Record {
+                            storage: checked_trees::CheckedUnitRecordStorage::TargetLayout { application: bound, .. }, ..
+                        } if *bound == application)
+                    {
+                        matches.push(*carrier);
+                    }
+                }
+                let [carrier] = matches.as_slice() else {
+                    return Err(LoweringError::Unsupported(
+                        "folded layout proof lost its exact consuming application",
+                    ));
+                };
+                FoldedLayoutOwner::Carrier(*carrier)
+            }
+        };
+        let mut alternatives = Vec::new();
+        for alternative in &requirement.alternatives {
+            let mut observations = Vec::new();
+            for observation in &alternative.observations {
+                let mut subjects = checked.facts.layout_query_subjects.iter().filter(|query| {
+                    query.expression == observation.expression && query.owner == observation.owner
+                });
+                let query = subjects.next().ok_or(LoweringError::Unsupported(
+                    "folded observation lost its checked query subject",
+                ))?;
+                if subjects.next().is_some() {
+                    return Err(LoweringError::Unsupported(
+                        "folded observation has ambiguous checked query subjects",
+                    ));
+                }
+                let carrier = match query.carrier {
+                    checked_trees::CheckedLayoutQueryCarrier::Unit => {
+                        terminal_psi::LayoutObservationCarrier::Unit
+                    }
+                    checked_trees::CheckedLayoutQueryCarrier::Scalar(scalar) => {
+                        terminal_psi::LayoutObservationCarrier::Scalar(scalar)
+                    }
+                    checked_trees::CheckedLayoutQueryCarrier::Structural(identity) => {
+                        terminal_psi::LayoutObservationCarrier::Structural(
+                            crate::terminal_identities::lookup_type_id(type_ids, &identity)?,
+                        )
+                    }
+                };
+                let kind = match query.kind {
+                    language_core::data_layout_queries::DataLayoutQueryKind::Size => {
+                        terminal_psi::LayoutObservationKind::Size
+                    }
+                    language_core::data_layout_queries::DataLayoutQueryKind::Alignment => {
+                        terminal_psi::LayoutObservationKind::Alignment
+                    }
+                };
+                observations.push(FoldedLayoutObservation {
+                    kind,
+                    carrier,
+                    value: observation.value,
+                });
+            }
+            observations.sort();
+            observations.dedup();
+            alternatives.push(FoldedLayoutAlternative {
+                target: alternative.target.as_str().to_owned(),
+                observations,
+            });
+        }
+        alternatives.sort();
+        alternatives.dedup();
+        requirements.push(FoldedLayoutRequirement {
+            owner,
+            alternatives,
+        });
+    }
+    requirements.sort();
+    requirements.dedup();
+    Ok(requirements)
 }

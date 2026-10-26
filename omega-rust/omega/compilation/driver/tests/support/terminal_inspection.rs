@@ -25,12 +25,14 @@ mod mathematical_actuals;
 pub(super) const ORACLE: &str = "expected_terminal_inspections.txt";
 
 #[derive(Clone, Copy)]
-enum InspectionControls {    MethodApplications,
+enum InspectionControls {
+    MethodApplications,
     BoundaryCallables,
     IndexedFamily,
     MathematicalActuals,
     ClosedReach,
     ClosedReachCaptures,
+    FoldedLayouts,
 }
 
 #[derive(Clone, Copy)]
@@ -85,11 +87,16 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 false,
                 Some(InspectionControls::MethodApplications),
             ),
-            [machine, "closed-reach-capture-controls"] => {
-                (*machine, false, Some(InspectionControls::ClosedReachCaptures))
-            }
+            [machine, "closed-reach-capture-controls"] => (
+                *machine,
+                false,
+                Some(InspectionControls::ClosedReachCaptures),
+            ),
             [machine, "closed-reach-controls"] => {
                 (*machine, false, Some(InspectionControls::ClosedReach))
+            }
+            [machine, "folded-layout-controls"] => {
+                (*machine, false, Some(InspectionControls::FoldedLayouts))
             }
             [machine, "boundary-conformance-controls"] => {
                 (*machine, false, Some(InspectionControls::BoundaryCallables))
@@ -212,7 +219,10 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             match controls {
                 InspectionControls::MethodApplications => closed_conformance_controls(&decoded)?,
                 InspectionControls::ClosedReach => closed_reach_controls::inspect(&decoded)?,
-                InspectionControls::ClosedReachCaptures => closed_reach_controls::inspect_captures(&decoded)?,
+                InspectionControls::ClosedReachCaptures => {
+                    closed_reach_controls::inspect_captures(&decoded)?
+                }
+                InspectionControls::FoldedLayouts => folded_layout_controls(&decoded)?,
                 InspectionControls::BoundaryCallables => boundary_conformance_controls(&decoded)?,
                 InspectionControls::IndexedFamily | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")
@@ -252,6 +262,111 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
         return Err(format!("{ORACLE} needs at least one machine selection"));
     }
     Ok(observations)
+}
+
+/// A source-produced policy condition must survive transport on its result,
+/// independently of the erased policy call and the caller's entry contract.
+fn folded_layout_controls(artifact: &CanonicalTerminalArtifact) -> Result<(), String> {
+    let target = "macos_arm64";
+    let physical = Some(semantic_vocabulary::PhysicalDataLayout {
+        address_byte_size: 8,
+        address_byte_alignment: 8,
+    });
+    let selections =
+        terminal_installation::admit_target_machine_selections(artifact.view(), target);
+    terminal_installation::admit_target_layouts(artifact.view(), &selections, physical)
+        .map_err(|reason| format!("original folded layout inputs: {reason}"))?;
+    let ordinary = artifact
+        .semantic_module()
+        .structural_types
+        .iter()
+        .find(|declaration| {
+            matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::Record {
+                    storage: terminal_psi::StructuralRecordStorage::Packed,
+                    ..
+                }
+            )
+        })
+        .ok_or("folded layout owner control needs an ordinary source record")?
+        .id;
+    let mut reassociated = artifact.semantic_module().clone();
+    reassociated
+        .folded_constants
+        .layout_requirements
+        .iter_mut()
+        .find(|row| matches!(row.owner, terminal_psi::FoldedLayoutOwner::Carrier(_)))
+        .ok_or("policy result lost its folded layout requirement")?
+        .owner = terminal_psi::FoldedLayoutOwner::Carrier(ordinary);
+    reassociated.folded_constants.layout_requirements.sort();
+    match terminal_codec::encode_module(&reassociated)
+        .and_then(|bytes| terminal_codec::decode_module(&bytes))
+    {
+        Err(reason)
+            if reason
+                .to_string()
+                .contains("folded layout carrier owner has no target layout application") => {}
+        Err(reason) => {
+            return Err(format!(
+                "reassociated layout owner failed for an unrelated reason: {reason}"
+            ));
+        }
+        Ok(_) => {
+            return Err(
+                "canonical ingress accepted a layout condition without an enforcing owner"
+                    .to_owned(),
+            );
+        }
+    }
+    let mut changed = artifact.semantic_module().clone();
+    let requirement = changed
+        .folded_constants
+        .layout_requirements
+        .iter_mut()
+        .find(|requirement| {
+            matches!(
+                requirement.owner,
+                terminal_psi::FoldedLayoutOwner::Carrier(_)
+            ) && requirement
+                .alternatives
+                .iter()
+                .any(|alternative| alternative.target == target)
+        })
+        .ok_or("policy result lost its qualified folded layout requirement")?;
+    for alternative in requirement
+        .alternatives
+        .iter_mut()
+        .filter(|alternative| alternative.target == target)
+    {
+        let observation = alternative
+            .observations
+            .first_mut()
+            .ok_or("folded layout alternative lost its observation inputs")?;
+        observation.value = observation
+            .value
+            .checked_add(1)
+            .ok_or("test observation overflows")?;
+    }
+    requirement.alternatives.sort();
+    changed.folded_constants.layout_requirements.sort();
+    let execution = terminal_codec::build_identity_optimization_execution_record(&changed)
+        .map_err(|reason| format!("changed folded layout identity stage: {reason:?}"))?;
+    let changed = CanonicalTerminalArtifact::from_parts(changed, execution, None)
+        .map_err(|reason| format!("changed folded layout encoding: {reason:?}"))?;
+    let received = CanonicalTerminalArtifact::from_bytes(&changed.to_bytes())
+        .map_err(|reason| format!("changed folded layout transport: {reason:?}"))?;
+    let selections =
+        terminal_installation::admit_target_machine_selections(received.view(), target);
+    match terminal_installation::admit_target_layouts(received.view(), &selections, physical) {
+        Err(terminal_installation::TargetLayoutSelectionError::FoldedLayoutRequirement {
+            ..
+        }) => Ok(()),
+        Err(reason) => Err(format!(
+            "changed policy condition failed for an unrelated reason: {reason}"
+        )),
+        Ok(_) => Err("receiving layout admission ignored a changed policy condition".to_owned()),
+    }
 }
 
 /// Source-produced cleanup invocations retain one positional obligation for

@@ -463,6 +463,24 @@ impl PreCheckEvaluation {
         )
     }
 
+    /// A private receiving capsule owns only these declaration jobs. Its
+    /// complete admitted execution catalog remains available for lookup and
+    /// invocation admission; narrowing work never prunes semantic context.
+    pub fn select_work(
+        &self,
+        original: &typed_trees::TypedTrees,
+        selection: &DeclarationSelection,
+    ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
+        self.select(
+            original,
+            EvaluationDomain {
+                work: self.domain.work.intersect(selection),
+                execution: self.domain.execution.clone(),
+                product_frontier: self.domain.product_frontier.clone(),
+            },
+        )
+    }
+
     fn select(
         &self,
         original: &typed_trees::TypedTrees,

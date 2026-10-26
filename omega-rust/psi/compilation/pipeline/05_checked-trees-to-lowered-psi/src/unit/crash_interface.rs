@@ -162,7 +162,8 @@ fn contract_scoped_scalar(expression: &CheckedScalarExpression) -> bool {
     match expression {
         CheckedScalarExpression::StorageRead { .. }
         | CheckedScalarExpression::Local { .. }
-        | CheckedScalarExpression::ImplementationSelection { .. } => false,
+        | CheckedScalarExpression::ImplementationSelection { .. }
+        | CheckedScalarExpression::LayoutObservation { .. } => false,
         CheckedScalarExpression::RepresentationView {
             primitive_type,
             operand,

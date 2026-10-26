@@ -109,6 +109,10 @@ impl<'a> TargetLayoutGeometry<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetLayoutSelectionError {
+    FoldedLayoutRequirement {
+        carrier: StructuralTypeId,
+        reason: terminal_semantics::LayoutObservationError,
+    },
     InvalidPhysicalParameters,
     ArtifactIdentityMismatch,
     MissingMember {
@@ -124,6 +128,10 @@ pub enum TargetLayoutSelectionError {
 impl std::fmt::Display for TargetLayoutSelectionError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::FoldedLayoutRequirement { carrier, reason } => write!(
+                formatter,
+                "selected carrier {carrier:?} has incompatible folded layout inputs: {reason}"
+            ),
             Self::InvalidPhysicalParameters => {
                 write!(formatter, "invalid physical data-layout parameters")
             }
@@ -249,11 +257,28 @@ pub fn admit_target_layouts(
         records.push(record);
     }
     records.sort_unstable_by_key(|record| record.id);
-    Ok(AdmittedTargetLayouts {
+    let layouts = AdmittedTargetLayouts {
         terminal_psi: artifact.identity(),
         target: selections.target().to_owned(),
         closures,
         records,
         physical,
-    })
+    };
+    let geometry = layouts.geometry(artifact)?;
+    for closure in layouts.closures() {
+        terminal_semantics::admit_folded_layout_requirements(
+            &artifact.module().folded_constants.layout_requirements,
+            geometry.declarations(),
+            physical,
+            selections.target(),
+            terminal_psi::FoldedLayoutOwner::Carrier(closure.record),
+        )
+        .map_err(
+            |reason| TargetLayoutSelectionError::FoldedLayoutRequirement {
+                carrier: closure.record,
+                reason,
+            },
+        )?;
+    }
+    Ok(layouts)
 }

@@ -158,6 +158,7 @@ pub(in crate::unit::attached_unit) fn emit(
         &machine.result,
         &signature.erased_scalar_parameters,
         &crate::scalar_lowering::contracts::ContractViewNamespace {
+            checked: Some(checked),
             parameters: &view_roster,
             result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
             structural_types: &catalogs.structural_types,

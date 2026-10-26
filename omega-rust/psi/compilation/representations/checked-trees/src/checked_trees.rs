@@ -47,6 +47,10 @@ pub use borrow::{
 };
 pub use facts::CheckedValueQualification;
 pub use facts::{
+    CheckedLayoutAlternative, CheckedLayoutObservation, CheckedLayoutOwner, CheckedLayoutQuery,
+    CheckedLayoutQueryCarrier, CheckedLayoutRequirement,
+};
+pub use facts::{
     CheckedMachineRankCorrespondence, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
     CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
     CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,

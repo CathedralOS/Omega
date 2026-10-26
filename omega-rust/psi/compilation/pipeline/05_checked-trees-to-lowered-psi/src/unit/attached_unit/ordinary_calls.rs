@@ -155,6 +155,7 @@ pub(super) fn prepare(
                 return unsupported("erased Unit call actual must be a pure checked expression");
             };
             crate::scalar_lowering::contracts::erased_actual_term(
+                checked,
                 identities,
                 expression,
                 caller_scalar_values,

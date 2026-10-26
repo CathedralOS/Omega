@@ -69,7 +69,8 @@ mod reference_completion;
 mod reference_origins;
 mod reference_storage_geometry;
 pub use layout_observations::{
-    LayoutObservationError, observe_layout, validate_layout_observation,
+    LayoutObservationError, admit_folded_layout_requirements, observe_layout,
+    validate_layout_observation,
 };
 mod reference_views;
 pub use reference_completion::{

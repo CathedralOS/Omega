@@ -55,6 +55,9 @@ impl ContractStructuralResult<'_> {
 /// `ContractViewNamespace::EMPTY`.
 #[derive(Clone, Copy)]
 pub(crate) struct ContractViewNamespace<'a> {
+    /// Frozen query subjects and their source-to-Terminal type correspondence.
+    /// This is identity lookup only; contract lowering never rereads type syntax.
+    pub checked: Option<&'a CheckedTrees>,
     pub parameters: &'a [(u32, StructuralParameterDeclaration)],
     /// Normal guarantees observe the declared result place, never a synthetic
     /// entry parameter or a returned body-local place.
@@ -73,6 +76,7 @@ static EMPTY_ELEMENT_VIEWS: std::collections::BTreeMap<StructuralTypeId, Option<
 impl ContractViewNamespace<'static> {
     /// Scalar-only contexts pass `ContractViewNamespace::EMPTY`.
     pub(crate) const EMPTY: ContractViewNamespace<'static> = ContractViewNamespace {
+        checked: None,
         parameters: &[],
         result: ContractStructuralResult::Absent,
         structural_types: &[],
@@ -554,6 +558,7 @@ pub(crate) fn proposition(
 /// This retains structural field identity as a term; it emits no runtime read
 /// and grants no premise beyond the source-admitted call's existing facts.
 pub(crate) fn erased_actual_term(
+    checked: &CheckedTrees,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     expression: &CheckedScalarExpression,
     namespace: &[ValueDeclaration],
@@ -565,6 +570,7 @@ pub(crate) fn erased_actual_term(
         namespace,
         erased,
         views: ContractViewNamespace {
+            checked: Some(checked),
             parameters,
             structural_types,
             ..ContractViewNamespace::EMPTY
@@ -716,6 +722,63 @@ impl ScalarContractTerms<'_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: &CheckedScalarExpression,
     ) -> Result<ScalarTerm, LoweringError> {
+        if let CheckedScalarExpression::LayoutObservation {
+            expression,
+            owner,
+            kind,
+            carrier_identity,
+        } = expression
+        {
+            let checked = self.views.checked.ok_or(LoweringError::Unsupported(
+                "layout contract observation has no checked query subject namespace",
+            ))?;
+            let mut subjects = checked
+                .facts
+                .layout_query_subjects
+                .iter()
+                .filter(|subject| subject.expression == *expression && subject.owner == *owner);
+            let subject = subjects.next().ok_or(LoweringError::Unsupported(
+                "layout contract observation lost its frozen checked query subject",
+            ))?;
+            if subjects.next().is_some() || subject.kind != *kind || !carrier_identity.is_valid() {
+                return unsupported(
+                    "layout contract observation has inconsistent checked query identity",
+                );
+            }
+            let carrier = match subject.carrier {
+                checked_trees::CheckedLayoutQueryCarrier::Unit => {
+                    terminal_psi::LayoutObservationCarrier::Unit
+                }
+                checked_trees::CheckedLayoutQueryCarrier::Scalar(scalar) => {
+                    terminal_psi::LayoutObservationCarrier::Scalar(scalar)
+                }
+                checked_trees::CheckedLayoutQueryCarrier::Structural(identity) => {
+                    if identity != *carrier_identity {
+                        return unsupported(
+                            "layout contract observation changed its checked stored carrier",
+                        );
+                    }
+                    let declaration =
+                        crate::terminal_identities::structural_declaration_by_identity(
+                            self.views.structural_types,
+                            identities,
+                            checked,
+                            identity,
+                            "layout contract observation lost its checked structural carrier",
+                        )?;
+                    terminal_psi::LayoutObservationCarrier::Structural(declaration.id)
+                }
+            };
+            let kind = match kind {
+                language_core::data_layout_queries::DataLayoutQueryKind::Size => {
+                    terminal_psi::LayoutObservationKind::Size
+                }
+                language_core::data_layout_queries::DataLayoutQueryKind::Alignment => {
+                    terminal_psi::LayoutObservationKind::Alignment
+                }
+            };
+            return Ok(ScalarTerm::LayoutObservation { kind, carrier });
+        }
         if let CheckedScalarExpression::Boolean(predicate) = expression {
             return self.boolean(identities, predicate);
         }

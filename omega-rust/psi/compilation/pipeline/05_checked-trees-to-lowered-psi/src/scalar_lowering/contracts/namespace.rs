@@ -156,7 +156,8 @@ fn scalar(
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::IntegerLiteral { .. }
         | CheckedScalarExpression::IeeeFloatLiteral { .. }
-        | CheckedScalarExpression::ImplementationSelection { .. } => Ok(()),
+        | CheckedScalarExpression::ImplementationSelection { .. }
+        | CheckedScalarExpression::LayoutObservation { .. } => Ok(()),
         // The term owner rejoins the complete descriptor path against the
         // supplied structural signature. A local storage root cannot borrow
         // an equally numbered contract parameter.

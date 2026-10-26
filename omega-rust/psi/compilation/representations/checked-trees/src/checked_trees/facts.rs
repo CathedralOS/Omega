@@ -11,6 +11,11 @@
 
 // `CheckFacts`, the root that holds every fact family.
 mod collection;
+mod constant_layout_obligations;
+pub use constant_layout_obligations::{
+    CheckedLayoutAlternative, CheckedLayoutObservation, CheckedLayoutOwner, CheckedLayoutQuery,
+    CheckedLayoutQueryCarrier, CheckedLayoutRequirement,
+};
 mod constant_predicate_obligations;
 mod constant_recipe_obligations;
 mod integer_range_obligations;

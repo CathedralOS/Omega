@@ -20,6 +20,7 @@ pub struct ConstantPredicateObligation {
     description: String,
     owner: symbols::SymbolHandle,
     caller: symbols::SymbolHandle,
+    observation_dependencies: Vec<ExpressionHandle>,
     discharged_target: Option<typed_trees::name::Identifier>,
 }
 
@@ -36,7 +37,7 @@ impl ConstantPredicateObligation {
     ) -> Option<Self> {
         let mut pending = vec![expression];
         let mut visited = Vec::new();
-        let mut needs_closure = false;
+        let mut observation_dependencies = Vec::new();
         while let Some(current) = pending.pop() {
             if visited.contains(&current) {
                 continue;
@@ -48,7 +49,7 @@ impl ConstantPredicateObligation {
             match program.expression_table.expression(current) {
                 ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {}
                 ExpressionNode::Call(call) if call.layout_query.is_some() => {
-                    needs_closure = true;
+                    observation_dependencies.push(current);
                 }
                 ExpressionNode::Name(path) => {
                     let declaration = program.const_declaration_by_symbol(path.symbol)?;
@@ -72,11 +73,12 @@ impl ConstantPredicateObligation {
                 _ => return None,
             }
         }
-        needs_closure.then_some(Self {
+        (!observation_dependencies.is_empty()).then_some(Self {
             expression,
             description,
             owner,
             caller,
+            observation_dependencies,
             discharged_target: None,
         })
     }
@@ -90,6 +92,17 @@ impl ConstantPredicateObligation {
     /// called from several differently scoped bodies.
     pub fn caller(&self) -> symbols::SymbolHandle {
         self.caller
+    }
+
+    /// Original query leaves, including those reached through constant names.
+    /// Their meaning owner is independent of the caller's application scope.
+    pub fn observation_dependencies(
+        &self,
+    ) -> impl Iterator<Item = (ExpressionHandle, symbols::SymbolHandle)> + '_ {
+        self.observation_dependencies
+            .iter()
+            .copied()
+            .map(move |expression| (expression, self.owner))
     }
 
     /// Consume the target's already closed observations. Unknown and false

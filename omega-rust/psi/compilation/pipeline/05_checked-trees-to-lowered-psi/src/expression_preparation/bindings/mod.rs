@@ -1538,6 +1538,7 @@ impl ScalarBindings {
             CheckedScalarExpression::IntegerLiteral { .. }
             | CheckedScalarExpression::IeeeFloatLiteral { .. }
             | CheckedScalarExpression::ImplementationSelection { .. }
+            | CheckedScalarExpression::LayoutObservation { .. }
             | CheckedScalarExpression::ErasedParameter { .. }
             | CheckedScalarExpression::StructuralParameterField { .. } => {}
         }

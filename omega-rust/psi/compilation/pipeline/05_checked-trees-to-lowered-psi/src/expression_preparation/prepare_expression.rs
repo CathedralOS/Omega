@@ -94,6 +94,9 @@ impl<'a> PreparedExpressionContext<'a> {
         expression: &CheckedScalarExpression,
     ) -> Result<LoweredDirectExpression, LoweringError> {
         match expression {
+            CheckedScalarExpression::LayoutObservation { .. } => unsupported(
+                "symbolic layout contract observation requires its checked subject namespace",
+            ),
             CheckedScalarExpression::StructuralSequenceLength { root, path } => self
                 .sequence_observation(identities, *root, path, |identities, selector| {
                     self.lower_scalar(identities, selector)

@@ -498,6 +498,7 @@ pub(super) fn executable_entry_predicate(
             | Scalar::StructuralParameterField { .. }
             | Scalar::IntegerLiteral { .. }
             | Scalar::IeeeFloatLiteral { .. }
+            | Scalar::LayoutObservation { .. }
             | Scalar::ImplementationSelection { .. } => true,
             Scalar::StructuralParameterIndexedRead {
                 root,

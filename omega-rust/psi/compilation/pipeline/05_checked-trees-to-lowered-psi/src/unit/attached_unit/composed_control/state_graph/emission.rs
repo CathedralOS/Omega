@@ -786,6 +786,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             &state_values[position],
             &state_erased[position],
             &crate::scalar_lowering::contracts::ContractViewNamespace {
+                checked: Some(checked),
                 result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
                 parameters: view_roster,
                 structural_types: &catalogs.structural_types,

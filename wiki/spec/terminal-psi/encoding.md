@@ -643,7 +643,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 189 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 190 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.
@@ -703,7 +703,7 @@ Older markers are rejected before their payload is read.
 | 3 | mathematical carriers | counted closed carrier keys, above |
 | 4 | scalar qualification catalog | the five counted catalog tables above |
 | 5 | quotient catalog | the canonical quotient catalog |
-| 6 | folded constant closure | optional primary target and counted selected-realization dependencies, below |
+| 6 | folded constant closure | optional primary target, selected-realization dependencies and qualified layout requirements, below |
 | 7 | structural types | counted structural type declarations |
 | 8 | structural referent identities | counted identity-only pointer targets |
 | 9 | structural domains | counted structural domain declarations |
@@ -770,6 +770,25 @@ strings are nonempty; commitments are nonzero. Structural admission rejoins
 present candidates to the exact checked catalog. Receiving realization closure
 checks reconstruct complete canonical plan inputs and bind the primary target;
 the wire commitment alone grants no provider installation or authority.
+
+Marker 190 follows those dependencies with counted layout requirements. Each
+row encodes its receiving owner (`u8` 1 and machine id, or `u8` 2 and structural
+type id), then counted alternatives. An alternative encodes its counted UTF-8
+target and counted observations. Each observation encodes its kind (`u8` 1 for
+size, 2 for alignment), carrier (`u8` 1 for Unit, 2 followed by a scalar type,
+or 3 followed by a structural type id), and observed `u64` value. Rows and
+alternatives are strictly ordered and unique; observations are strictly ordered
+by kind and carrier. Targets and observation lists are nonempty.
+Carrier owners name the record of an existing target-layout application; its
+selected realization supplies the enforcing scope. Other structural carriers
+do not supply this receiving lane.
+
+Every requirement is owed independently. A receiving owner must match one whole
+alternative under its selected target; matching coordinates from different
+alternatives does not establish a joint assignment. Policy materialization
+retains its proof conditions on the resulting carrier even when the policy call
+is erased. These conditions supply no provider, access or execution authority
+and do not become caller-owed machine entry contracts.
 
 A dynamic slot encodes its id, declaring-trait and requirement identity strings,
 counted family tuple, counted scalar formals and counted structural formals.

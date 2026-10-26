@@ -4,12 +4,44 @@
 use super::{
     NominalDeclarationIdentity, TargetMachineCallable, TerminalIdentityIndex, TerminalModule,
 };
-use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use semantic_vocabulary::{
+    BoundaryMachineId, LayoutObservationCarrier, LayoutObservationKind, MachineId, StructuralTypeId,
+};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FoldedConstantClosure {
     pub target: Option<String>,
     pub dependencies: Vec<FoldedConstantDependency>,
+    /// Qualified geometry inputs consumed by constant proof closure. These
+    /// are receiving compatibility demands, independent from caller contracts.
+    pub layout_requirements: Vec<FoldedLayoutRequirement>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FoldedLayoutOwner {
+    Machine(MachineId),
+    Carrier(StructuralTypeId),
+}
+
+/// Every row is owed independently. Within one row, a complete qualified
+/// assignment supplies one alternative; coordinates never mix across rows.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct FoldedLayoutRequirement {
+    pub owner: FoldedLayoutOwner,
+    pub alternatives: Vec<FoldedLayoutAlternative>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct FoldedLayoutAlternative {
+    pub target: String,
+    pub observations: Vec<FoldedLayoutObservation>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct FoldedLayoutObservation {
+    pub kind: LayoutObservationKind,
+    pub carrier: LayoutObservationCarrier,
+    pub value: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -73,6 +105,7 @@ impl FoldedConstantClosure {
     /// Supplemental proof applications remain provenance, never installations
     /// under the primary execution target.
     pub fn validate(&self, module: &TerminalModule) -> Result<(), &'static str> {
+        self.validate_layout_requirements(module)?;
         if self.dependencies.is_empty() {
             return if self.target.is_none() {
                 Ok(())
@@ -125,6 +158,69 @@ impl FoldedConstantClosure {
                     })
                 {
                     return Err("folded constant candidate belongs to another target scope");
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_layout_requirements(&self, module: &TerminalModule) -> Result<(), &'static str> {
+        if self
+            .layout_requirements
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        {
+            return Err("folded layout requirements are repeated or out of canonical order");
+        }
+        for requirement in &self.layout_requirements {
+            let owner_exists = match requirement.owner {
+                FoldedLayoutOwner::Machine(machine) => module.machine(machine).is_some(),
+                FoldedLayoutOwner::Carrier(carrier) => {
+                    let Some(declaration) = module.structural_type(carrier) else {
+                        return Err("folded layout carrier owner has no target layout application");
+                    };
+                    let crate::StructuralTypeShape::Record {
+                        storage: crate::StructuralRecordStorage::TargetLayout(application),
+                        ..
+                    } = &declaration.shape
+                    else {
+                        return Err("folded layout carrier owner has no target layout application");
+                    };
+                    module
+                        .target_layout_applications
+                        .iter()
+                        .any(|row| row.id == *application && row.record == carrier)
+                }
+            };
+            if !owner_exists || requirement.alternatives.is_empty() {
+                return Err("folded layout requirement has no exact owner or qualified assignment");
+            }
+            if requirement
+                .alternatives
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+            {
+                return Err("folded layout assignments are repeated or out of canonical order");
+            }
+            for alternative in &requirement.alternatives {
+                if alternative.target.is_empty() || alternative.observations.is_empty() {
+                    return Err("folded layout assignment has no target or observations");
+                }
+                if alternative
+                    .observations
+                    .windows(2)
+                    .any(|pair| (pair[0].kind, pair[0].carrier) >= (pair[1].kind, pair[1].carrier))
+                {
+                    return Err(
+                        "folded layout observations repeat a subject or are out of canonical order",
+                    );
+                }
+                for observation in &alternative.observations {
+                    if let LayoutObservationCarrier::Structural(carrier) = observation.carrier
+                        && module.structural_type(carrier).is_none()
+                    {
+                        return Err("folded layout observation lost its exact carrier");
+                    }
                 }
             }
         }

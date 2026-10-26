@@ -141,6 +141,9 @@ pub struct CheckFacts {
     /// Ground predicates whose target observations must close before execution.
     pub constant_predicate_obligations: Vec<super::ConstantPredicateObligation>,
     pub integer_range_obligations: Vec<super::IntegerRangeObligation>,
+    /// Joint qualified observations consumed by deferred proof closure.
+    pub constant_layout_requirements: Vec<super::CheckedLayoutRequirement>,
+    pub layout_query_subjects: Vec<super::CheckedLayoutQuery>,
 }
 
 /// One `AssignmentIndex { depth }` selector of the assignment at

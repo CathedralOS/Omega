@@ -191,6 +191,7 @@ fn integer(
         }
         CheckedScalarExpression::IeeeFloatLiteral { .. }
         | CheckedScalarExpression::ImplementationSelection { .. }
+        | CheckedScalarExpression::LayoutObservation { .. }
         | CheckedScalarExpression::Boolean(_) => None,
     }
 }

@@ -418,6 +418,7 @@ fn scalar_expression_needs_no_bindings(
 ) -> bool {
     use checked_trees::CheckedScalarExpression;
     match expression {
+        CheckedScalarExpression::LayoutObservation { .. } => false,
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::Local { .. }
         | CheckedScalarExpression::IntegerLiteral { .. }

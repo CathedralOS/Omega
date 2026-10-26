@@ -18,6 +18,9 @@ use diagnostics::Diagnostic;
 use std::sync::Arc;
 use typed_trees::constant_recipes::ConstantRecipeDependencyReceipt;
 
+mod query_inputs;
+mod requirements;
+
 pub(super) fn close_constant_recipes(
     source: &CheckedProductSource,
     selected_target_profile: target::TargetProfile,
@@ -33,37 +36,34 @@ pub(super) fn close_constant_recipes(
 ) -> Result<Arc<CheckedTrees>, Vec<Diagnostic>> {
     let shared = &source.program;
     let typed = &shared.typed;
-    let layout_queries: Vec<_> = typed_trees::references::collect_program_references(typed)
-        .expressions
-        .into_iter()
-        .filter(|expression| {
-            matches!(
-                typed.expression_table.expression(*expression),
-                typed_trees::expression::ExpressionNode::Call(call) if call.layout_query.is_some()
-            )
+    let retained_constant_owners: Vec<_> = shared
+        .facts
+        .values
+        .scalar_computations
+        .nodes
+        .iter()
+        .filter_map(|(_, node)| match node.kind {
+            checked_trees::CheckedScalarComputationKind::RetainedConstant { machine, .. } => {
+                Some(machine)
+            }
+            _ => None,
         })
         .collect();
-    // Runtime layout queries also retain a continuation even when no array,
-    // range endpoint, or const application contributes a recipe roster entry.
-    if typed.constant_recipes.is_empty() && layout_queries.is_empty() {
+    // Runtime observations keep their portable operation. Only a private
+    // constant or proof consumer needs a value closure before Terminal output.
+    if typed.constant_recipes.is_empty()
+        && shared.facts.constant_predicate_obligations.is_empty()
+        && shared.facts.integer_range_obligations.is_empty()
+        && retained_constant_owners.is_empty()
+    {
         return Ok(Arc::clone(shared));
     }
-    let mut closed_typed = close_constant_values(
-        source,
-        selected_target_profile,
-        opaque_representation_selections,
-        selected_provider_plan_facts,
-        &layout_queries,
-    )?;
-    ConstantRecipeObligation::discharge_all(
-        &shared.facts.constant_recipe_obligations,
-        &closed_typed,
-    )?;
     let mut closed_facts = shared.facts.clone();
     let mut proof_targets = vec![selected_target_profile];
     let predicate_rows = &shared.facts.constant_predicate_obligations;
     let range_rows = &shared.facts.integer_range_obligations;
-    if !predicate_rows.is_empty() || !range_rows.is_empty() {
+    if !retained_constant_owners.is_empty() || !predicate_rows.is_empty() || !range_rows.is_empty()
+    {
         for machine in typed.machines() {
             if let Some(name) = typed.machine_authored_target(machine) {
                 let target = target::TargetProfile::from_canonical_target_name(name)
@@ -93,6 +93,7 @@ pub(super) fn close_constant_recipes(
         .iter()
         .map(|row| row.caller())
         .chain(range_rows.iter().map(|row| row.owner()))
+        .chain(retained_constant_owners)
         .collect();
     let mut capsules = Vec::new();
     let mut guarded_owners = Vec::new();
@@ -132,6 +133,30 @@ pub(super) fn close_constant_recipes(
         }
         capsules.push((target, supplemental));
     }
+    let selected_applications = provider_planning::target_machines::proof_application_machines(
+        shared,
+        selected_target_profile,
+        true,
+        selected_provider_provenance,
+        &guarded_owners,
+    );
+    let selected_inputs = query_inputs::prepare(
+        shared,
+        selected_target_profile,
+        selected_provider_provenance,
+        selected_applications,
+    )?;
+    let mut closed_typed = close_constant_values(
+        source,
+        selected_target_profile,
+        opaque_representation_selections,
+        selected_provider_plan_facts,
+        &selected_inputs,
+    )?;
+    ConstantRecipeObligation::discharge_all(
+        &shared.facts.constant_recipe_obligations,
+        &closed_typed,
+    )?;
     for (target, supplemental) in capsules {
         let provenance = supplemental
             .as_ref()
@@ -145,17 +170,27 @@ pub(super) fn close_constant_recipes(
             provenance,
             &guarded_owners,
         );
+        let supplemental_inputs;
+        let inputs = if target == selected_target_profile {
+            &selected_inputs
+        } else {
+            supplemental_inputs = query_inputs::prepare(shared, target, provenance, applications)?;
+            &supplemental_inputs
+        };
         let predicate_applications: Vec<_> = predicate_rows
             .iter()
             .enumerate()
-            .filter(|(_, obligation)| applications.contains(&obligation.caller()))
+            .filter(|(_, obligation)| inputs.applications.contains(&obligation.caller()))
             .collect();
         let range_applications: Vec<_> = range_rows
             .iter()
             .enumerate()
-            .filter(|(_, obligation)| applications.contains(&obligation.owner()))
+            .filter(|(_, obligation)| inputs.applications.contains(&obligation.owner()))
             .collect();
-        if predicate_applications.is_empty() && range_applications.is_empty() {
+        if predicate_applications.is_empty()
+            && range_applications.is_empty()
+            && inputs.owners.is_empty()
+        {
             continue;
         }
         let proof_program = match &supplemental {
@@ -165,7 +200,7 @@ pub(super) fn close_constant_recipes(
                 target,
                 opaque_representation_selections,
                 &selected.selected_provider_plan_facts,
-                &layout_queries,
+                inputs,
             )?),
         };
         let program = proof_program.as_ref().unwrap_or(&closed_typed);
@@ -193,6 +228,14 @@ pub(super) fn close_constant_recipes(
             closed_facts.integer_range_obligations.push(application);
             range_closed[position] = true;
         }
+        requirements::retain(
+            shared,
+            program,
+            target,
+            provenance,
+            inputs,
+            &mut closed_facts.constant_layout_requirements,
+        )?;
         if let Some(proof_program) = proof_program {
             closed_typed
                 .constant_recipe_closure
@@ -239,7 +282,7 @@ fn close_constant_values(
     selected_target_profile: target::TargetProfile,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     selected_provider_plan_facts: &effects::SelectedProviderPlanFacts,
-    layout_queries: &[typed_trees::expression::ExpressionHandle],
+    inputs: &query_inputs::Inputs,
 ) -> Result<typed_trees::TypedTrees, Vec<Diagnostic>> {
     let typed = &source.program.typed;
     // The continuation folds on the authored source it was deferred from,
@@ -258,6 +301,8 @@ fn close_constant_values(
         opaque_representation_selections,
         &validation::derive_pre_flow_operator_selections(authored),
         selected_provider_plan_facts,
+        &inputs.work,
+        &inputs.queries,
     )?;
     let (operators, provider_bodies) = evaluation.pending_fold_providers();
     let mut receipts: Vec<ConstantRecipeDependencyReceipt> = operators
@@ -302,32 +347,32 @@ fn close_constant_values(
     closed_typed.plan_laid_target_layouts = std::mem::take(&mut evaluated.plan_laid_target_layouts);
     closed_typed.plan_laid_contexts = std::mem::take(&mut evaluated.plan_laid_contexts);
     closed_typed.plan_laid_schema_fields = std::mem::take(&mut evaluated.plan_laid_schema_fields);
-    if !layout_queries.is_empty() {
+    if !inputs.queries.is_empty() {
         // Preparation can append specialized query occurrences after the
         // authored continuation was retained. Arena coordinates from the
         // checked program are not identities in the authored forest: reading
         // an appended handle there can silently select an unrelated literal.
         // Close these actual checked subjects through the same layout owner,
         // using this target's completed recipe and validated plan inputs.
-        let selection = typed_trees::references::DeclarationSelection::from_program(&closed_typed);
         provider_planning::data_layout_queries::fold_data_layout_queries(
             &mut closed_typed,
             selected_target_profile,
             opaque_representation_selections,
             false,
-            &selection,
+            &inputs.work,
+            &inputs.queries,
         )?;
-        closed_typed
-            .tables
-            .const_declarations
-            .for_each_mut(|_, declaration| {
-                if declaration.evaluated_value.is_none() {
-                    declaration.evaluated_value = evaluated
-                        .const_declaration_by_symbol(declaration.symbol)
-                        .and_then(|closed| closed.evaluated_value.clone());
-                }
-            });
     }
+    closed_typed
+        .tables
+        .const_declarations
+        .for_each_mut(|_, declaration| {
+            if declaration.evaluated_value.is_none() {
+                declaration.evaluated_value = evaluated
+                    .const_declaration_by_symbol(declaration.symbol)
+                    .and_then(|closed| closed.evaluated_value.clone());
+            }
+        });
     Ok(closed_typed)
 }
 

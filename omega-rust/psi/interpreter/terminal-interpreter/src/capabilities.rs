@@ -105,6 +105,24 @@ pub(crate) fn check_with_private_entry_ram(
             continue;
         }
         let machine = program.verified_machine(machine_id)?;
+        let layout_owner = terminal_psi::FoldedLayoutOwner::Machine(machine_id);
+        terminal_semantics::admit_folded_layout_requirements(
+            &program.catalogs.folded_constants.layout_requirements,
+            program.structural_types().values(),
+            program
+                .target_layouts
+                .as_ref()
+                .and_then(|layouts| layouts.physical()),
+            program
+                .target_layouts
+                .as_ref()
+                .map_or("", |layouts| layouts.target()),
+            layout_owner,
+        )
+        .map_err(|reason| TerminalInterpretError::FoldedLayoutRequirement {
+            owner: layout_owner,
+            reason,
+        })?;
         let requirement = machine.assembly_target_requirement;
         if requirement != terminal_psi::RegisterTargetApplicability::Any {
             let selected = installation

@@ -901,7 +901,7 @@ impl<'a> Expansion<'a> {
                     },
                 )
             }
-            CheckedScalarComputationKind::RetainedConstant { expression } => {
+            CheckedScalarComputationKind::RetainedConstant { expression, .. } => {
                 let Some(literal) = self.checked.landed_integer_constant(expression) else {
                     return unsupported("retained scalar constant is not closed for the target");
                 };

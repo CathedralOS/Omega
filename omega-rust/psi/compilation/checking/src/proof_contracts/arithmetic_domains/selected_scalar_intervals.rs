@@ -136,6 +136,12 @@ fn integer(
 ) -> Option<(PrimitiveType, IntegerRange)> {
     use CheckedScalarExpression as Expression;
     let (primitive, bounds) = match expression {
+        // Geometry remains symbolic until receiving layout admission. Its
+        // declared u64 carrier alone supplies a target-neutral bound.
+        Expression::LayoutObservation { .. } => (
+            PrimitiveType::U64,
+            carrier_integer_range(PrimitiveType::U64)?,
+        ),
         // A view local's extent has no parameter snapshot; its `u64`
         // carrier bounds every length it can store.
         Expression::StructuralSequenceLength { root, path } => (
