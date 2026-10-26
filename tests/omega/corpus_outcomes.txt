@@ -17827,7 +17827,6 @@ fail/layouts/runtime_restricted_shared_unbounded rejected 2269ms expected @a92f1
 	cannot prove index `position` is within length 4 in inspect::entry
 fail/layouts/runtime_value_is_not_layout_constant rejected 1547ms expected @a92f16431042
 	cannot prove requires contract for call required from forward: value >= size_of() (needs fact `value >= size_of()` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/layouts/schema_field_exceeds_declared_size checked 2226ms @a92f16431042
 fail/layouts/schema_identity_payload_predicate rejected 193ms expected @a92f16431042
 	plan-laid value type `Contiguous<Payload>`: error: supplied policy arguments failed value establishment: data `Identity` case `Some` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/layouts/schema_key_read_after_move rejected 1852ms expected @a92f16431042
@@ -28468,7 +28467,6 @@ pass/layouts/runtime_target_layout_queries_exit checked 3152ms check-target:maco
 pass/layouts/runtime_transition_scalar_reference_codec_exit rejected 1845ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/schema_field_at_declared_size checked 1776ms @a92f16431042
 pass/layouts/schema_identity_payload_within_predicate checked 1824ms @a92f16431042
 pass/layouts/single_bool_array_layout_compile checked 1516ms @a92f16431042
 pass/layouts/single_byte_member_layout_compile checked 1299ms @a92f16431042
