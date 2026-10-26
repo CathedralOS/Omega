@@ -221,8 +221,9 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
     InvokeNoNormal {
         coordinate: super::CheckedUnitCallCoordinate,
     },
-    /// The retained value-evaluation prefix ends every path before a result.
-    /// Its effect owns the exact invocation(s), including selected branches.
+    /// The retained evaluation prefix ends every path before a result.
+    /// Its effects own the exact invocation outcomes and authority, including
+    /// selected value branches and declaration-owned external completion.
     EvaluateNoNormal,
     ReturnUnit,
     /// Complete a scalar-result machine with the same completion an ordinary

@@ -46,14 +46,6 @@ pub(super) fn build(
     terminator_index: usize,
     trace: &control::LocalConstructionTrace,
 ) -> Option<CheckedComposedUnitControlTerminatorPlan> {
-    if operations.iter().any(|operation| {
-        matches!(
-            operation,
-            CheckedUnitEffectOperationPlan::EvaluateStructuralValue { .. }
-        )
-    }) {
-        return Some(CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal);
-    }
     if let Some(call) = operations
         .iter()
         .filter_map(CheckedUnitEffectOperationPlan::call)
@@ -62,6 +54,15 @@ pub(super) fn build(
         return Some(CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal {
             coordinate: call.coordinate,
         });
+    }
+    // A stopped prefix has no value to return, including a declaration-owned
+    // external completion. The operation retains its exact outcome and entry
+    // authority; this marker supplies neither cleanup nor abandonment evidence.
+    if operations
+        .iter()
+        .any(|operation| !operation.has_normal_continuation())
+    {
+        return Some(CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal);
     }
     let result = result.clone();
     // The state's own owner answers its machine-scoped facts; the dispatch
