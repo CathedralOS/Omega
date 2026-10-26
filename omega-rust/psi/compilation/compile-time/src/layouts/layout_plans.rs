@@ -27,13 +27,20 @@ pub fn compute_native_layout_plan_for_machine(
     selection: Option<crate::AuthorizedSelection>,
 ) -> Result<NativeLayoutPlanReport, String> {
     let (fields, fingerprint) = schema_fields(typed, schema_data)?;
+    let (authority, custody) = match selection {
+        Some(selection) => (Some(selection.authority), Some(selection.custody)),
+        None => (None, None),
+    };
+    let admission = BuildTimeAdmissionPlan::infer(typed, authority);
+    let custodies: Vec<_> = custody.into_iter().collect();
     compute_native_layout_plan_with_schema(
         typed,
         machine_symbol,
         schema_data,
         &fields,
         fingerprint,
-        selection,
+        &admission,
+        &custodies,
     )
 }
 
@@ -45,29 +52,21 @@ pub(super) fn compute_native_layout_plan_with_schema(
     schema_data: &str,
     schema_fields: &[super::schema_reflection::SchemaFieldInfo],
     schema_report_fingerprint: u64,
-    selection: Option<crate::AuthorizedSelection>,
+    admission: &BuildTimeAdmissionPlan,
+    custodies: &[crate::BuildTimeInvocationCustody],
 ) -> Result<NativeLayoutPlanReport, String> {
     let machine = typed
         .machine_by_symbol(machine_symbol)
         .ok_or_else(|| "layout policy lost its exact machine declaration".to_owned())?;
     let policy_machine = machine.name.as_str();
-    let (selection_authority, custody) = match selection {
-        Some(selection) => (Some(selection.authority), Some(selection.custody)),
-        None => (None, None),
-    };
     let schema_value = build_schema_value(typed, schema_data, schema_fields)?;
-
-    let admission = BuildTimeAdmissionPlan::infer(typed, selection_authority);
-    match custody {
-        Some(custody) => admission.require_common_floor_for_invocation(typed, machine, custody)?,
-        None => admission.require_common_floor(typed, machine)?,
-    }
-
-    let evaluation = checked_interpreter::evaluate_build_time_machine(
-        typed,
-        super::policy_arguments::policy_request(typed, machine, vec![schema_value])?,
-    )
-    .map_err(|reason| format!("build-time evaluation of `{policy_machine}` failed: {reason}"))?;
+    let arguments = super::policy_arguments::policy_arguments(typed, machine, vec![schema_value])?;
+    let evaluation = admission
+        .admit_supplied_invocation(typed, machine, arguments, custodies)?
+        .evaluate()
+        .map_err(|reason| {
+            format!("build-time evaluation of `{policy_machine}` failed: {reason}")
+        })?;
 
     let layout = validate_plan(
         evaluation.value(),

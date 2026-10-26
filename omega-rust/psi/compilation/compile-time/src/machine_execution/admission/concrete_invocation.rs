@@ -13,6 +13,9 @@
 //! appending a generated machine whose body is the synthesized call, and
 //! treats a clean checked lowering with no retained crash routes as the
 //! discharge evidence.
+//! Compiler-supplied policies retain their actual established argument
+//! expressions for this same judgment. Borrowed arguments use fresh owned
+//! locals; pending proof obligations cannot issue immediate admission.
 //!
 //! Every other premise — on a callee, a later state, or a callable target —
 //! sits at a source call or transition site whose proof reads only that
@@ -90,6 +93,7 @@ pub(super) fn zero_argument_invocation_discharges(
         "@const-length",
         concrete,
         entry_return,
+        &mut [],
     );
     // The const-eval window sits inside preliminary package checking: the
     // owning program has not reached settlement, so the probe lowers in the
@@ -279,7 +283,24 @@ pub(crate) fn snapshot_arguments_discharge(
     probe
         .expression_table
         .set_source_span(concrete, program.expression_table.source_span(expression));
-    let owner = append_invocation_probe(&mut probe, owner, probe_name, concrete, return_type);
+    let owner = append_invocation_probe(
+        &mut probe,
+        owner,
+        probe_name,
+        concrete,
+        return_type,
+        &mut [],
+    );
+    check_invocation(probe, owner, preparation_request, checking, callee).map(|_| ())
+}
+
+fn check_invocation(
+    probe: TypedTrees,
+    owner: SymbolHandle,
+    preparation_request: &typed_trees_to_typed_trees::PreparationRequest,
+    checking: &typed_trees_to_checked_trees::CheckingRequest,
+    callee: &str,
+) -> Result<checked_trees::CheckedTrees, String> {
     let checked = typed_trees_to_typed_trees::prepare_typed_trees(probe, preparation_request)
         .and_then(|(probe, preparation)| {
             typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, checking)
@@ -301,7 +322,93 @@ pub(crate) fn snapshot_arguments_discharge(
             "constant invocation of `{callee}` retains unhandled {causes:?} routes at its concrete arguments"
         ));
     }
+    Ok(checked)
+}
+
+/// Supplied values enter the same concrete call judgment as authored snapshots.
+/// Expressions are retained from argument construction; no second Schema
+/// decoder or premise evaluator participates in this proof.
+pub(super) fn supplied_arguments_discharge(
+    mut supplied: super::supplied_values::SuppliedArguments,
+    machine: &Machine,
+) -> Result<(), String> {
+    let mut probe = supplied.program;
+    let entry = entry_state(&probe, machine).ok_or("supplied invocation has no entry state")?;
+    let target_symbol = entry.symbol;
+    let target = entry.name.clone();
+    let return_type = entry.return_type;
+    let call = TableCallExpression {
+        target_symbol,
+        target,
+        arguments: probe
+            .expression_table
+            .insert_expression_handles(supplied.arguments),
+        authored_machine_application: Default::default(),
+        requirement_application: Default::default(),
+        exact_coercion_target: Default::default(),
+        receiver: Default::default(),
+        static_machine_parameter: Default::default(),
+        static_requirement_dispatch: None,
+        machine_arguments: Box::default(),
+        quotient_operation: None,
+        private_layout_operation: None,
+        layout_query: None,
+        native_code_layout: None,
+        root_binding: Default::default(),
+        evidence_arguments: Box::default(),
+        operational_acknowledgement: Default::default(),
+    };
+    let expression = probe.expression_table.insert(ExpressionNode::Call(call));
+    let owner = append_invocation_probe(
+        &mut probe,
+        machine.symbol,
+        "@supplied-invocation",
+        expression,
+        return_type,
+        &mut supplied.bindings,
+    );
+    let domain =
+        crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(&probe, &[owner], &[]);
+    let mut probe = domain.execution_program(&probe);
+    probe.pending_const_range_endpoints.clear();
+    let checked = check_invocation(
+        probe,
+        owner,
+        &typed_trees_to_typed_trees::PreparationRequest::preliminary(),
+        &typed_trees_to_checked_trees::CheckingRequest::new(),
+        machine.name.as_str(),
+    )?;
+    // A crash-free call can still be conditional on deferred target facts.
+    // This API issues immediate admission, so no pending judgment may escape
+    // with probe-local handles that the receiving program cannot discharge.
+    if checked
+        .facts
+        .constant_predicate_obligations
+        .iter()
+        .any(checked_trees::ConstantPredicateObligation::is_pending)
+        || checked
+            .facts
+            .integer_range_obligations
+            .iter()
+            .any(checked_trees::IntegerRangeObligation::is_pending)
+    {
+        return Err(format!(
+            "supplied invocation of `{}` retains unresolved constant proof obligations",
+            machine.name
+        ));
+    }
+    checked_trees::ConstantRecipeObligation::discharge_all(
+        &checked.facts.constant_recipe_obligations,
+        &checked.typed,
+    )
+    .map_err(|diagnostics| diagnostics::join_messages(&diagnostics))?;
     Ok(())
+}
+
+pub(super) fn entry_has_requires(program: &TypedTrees, machine: &Machine) -> bool {
+    has_authored_requires(program.machine_contracts(machine))
+        || entry_state(program, machine)
+            .is_some_and(|entry| has_authored_requires(program.state_contracts(entry)))
 }
 
 /// Append the generated probe machine whose single state returns the
@@ -312,6 +419,7 @@ pub(super) fn append_invocation_probe(
     name: &str,
     expression: ExpressionHandle,
     destination: typed_trees::types::TypeReferenceHandle,
+    bindings: &mut [(typed_trees::statement::TableLocalData, ExpressionHandle)],
 ) -> SymbolHandle {
     let symbol = probe
         .symbols
@@ -329,6 +437,31 @@ pub(super) fn append_invocation_probe(
         ..Default::default()
     };
     let source_span = probe.expression_table.source_span(expression);
+    let locals = probe.symbols.insert_generated_children(
+        children.start(),
+        bindings
+            .iter()
+            .map(|(binding, _)| (SymbolKind::Local, binding.name.as_str())),
+    );
+    for ((binding, expression), symbol) in bindings
+        .iter_mut()
+        .zip(symbols::SymbolTableBuilder::child_handles(locals))
+    {
+        binding.symbol = symbol;
+        let mut member_symbols = arena::HandleSpan::empty();
+        probe
+            .expression_table
+            .push_name_path_member_symbol(&mut member_symbols, symbol);
+        if let ExpressionNode::Name(path) = probe.expression_table.expression_mut(*expression) {
+            path.head_symbol = symbol;
+            path.symbol = symbol;
+            path.member_symbols = member_symbols;
+        }
+        probe.statement_table.push_statement(
+            &mut state.statement_nodes,
+            StatementNode::LocalData(binding.clone()),
+        );
+    }
     probe.statement_table.push_statement(
         &mut state.statement_nodes,
         StatementNode::Transition(TableTransition {

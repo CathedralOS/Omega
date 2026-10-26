@@ -15,14 +15,27 @@ pub(super) struct Inputs {
     pub owners: Vec<(SymbolHandle, HashSet<ExpressionHandle>)>,
 }
 
+#[derive(Clone)]
+pub(super) struct Roots {
+    pub owner: SymbolHandle,
+    expressions: Vec<ExpressionHandle>,
+    declarations: Vec<SymbolHandle>,
+}
+
 pub(super) fn prepare(
     checked: &CheckedTrees,
     target: target::TargetProfile,
     providers: &[provider_planning::SelectedProviderReviewProvenance],
     mut applications: Vec<SymbolHandle>,
 ) -> Result<Inputs, Vec<Diagnostic>> {
+    let materialized = materialized_entry_inputs(checked, Some(target.target_name()));
+    for root in &materialized {
+        if !applications.contains(&root.owner) {
+            applications.push(root.owner);
+        }
+    }
     loop {
-        let mut roots: Vec<(SymbolHandle, Vec<ExpressionHandle>)> = Vec::new();
+        let mut roots = materialized.clone();
         for row in &checked.facts.constant_predicate_obligations {
             if applications.contains(&row.caller()) {
                 append_roots(
@@ -30,6 +43,7 @@ pub(super) fn prepare(
                     row.caller(),
                     row.observation_dependencies()
                         .map(|(expression, _)| expression),
+                    [],
                 );
             }
         }
@@ -40,6 +54,7 @@ pub(super) fn prepare(
                     row.owner(),
                     row.observation_dependencies()
                         .map(|(expression, _)| expression),
+                    [],
                 );
             }
         }
@@ -50,14 +65,14 @@ pub(super) fn prepare(
             } = node.kind
                 && applications.contains(&machine)
             {
-                append_roots(&mut roots, machine, [expression]);
+                append_roots(&mut roots, machine, [expression], []);
             }
         }
         let mut owners = Vec::new();
         let mut queries = HashSet::new();
         let mut added_application = false;
-        for (owner, expressions) in roots {
-            let dependencies = dependencies(checked, target, providers, &expressions);
+        for root in roots {
+            let dependencies = dependencies(checked, target, providers, &root);
             for machine in dependencies.machines {
                 if !applications.contains(&machine) {
                     applications.push(machine);
@@ -81,7 +96,7 @@ pub(super) fn prepare(
             }
             queries.extend(dependencies.queries.iter().copied());
             if !dependencies.queries.is_empty() {
-                owners.push((owner, dependencies.queries));
+                owners.push((root.owner, dependencies.queries));
             }
         }
         if added_application {
@@ -97,15 +112,84 @@ pub(super) fn prepare(
     }
 }
 
+/// A materialized policy call consumed its entry contract while making a
+/// carrier. Its query inputs remain conditions of that carrier even though no
+/// source call remains to produce a deferred caller obligation. Only recorded
+/// materializations contribute: ordinary runtime entry contracts still belong
+/// to their callers, never to a global geometry preflight.
+pub(super) fn materialized_entry_inputs(
+    checked: &CheckedTrees,
+    target: Option<&str>,
+) -> Vec<Roots> {
+    let mut roots = Vec::new();
+    for layout in &checked.typed.plan_laid_layouts {
+        let entries = layout
+            .target_layouts(&checked.typed)
+            .iter()
+            .filter(|row| target.is_none_or(|target| row.target.as_str() == target))
+            .map(|row| row.machine)
+            .chain(
+                matches!(
+                    layout.realizations,
+                    typed_trees::PlanLaidRealizations::Invariant(_)
+                )
+                .then_some(layout.policy_plan_machine_symbol),
+            );
+        for entry in entries {
+            let Some(machine) = checked.typed.machine_by_symbol(entry) else {
+                continue;
+            };
+            let mut references = References::new(&checked.typed, None);
+            // Scalar contract projection is optional and whole-clause: a
+            // membership beside a scalar fact can make that projection absent.
+            // The semantic fact roster still owns all consumed dependencies.
+            for contract in checked.typed.machine_contracts(machine).iter().chain(
+                checked
+                    .typed
+                    .machine_states(machine)
+                    .first()
+                    .into_iter()
+                    .flat_map(|state| checked.typed.state_contracts(state)),
+            ) {
+                if contract.kind != typed_trees::signature::SignatureContractKind::Requires {
+                    continue;
+                }
+                for fact in checked.typed.proof_facts.span_or_empty(contract.facts) {
+                    typed_trees::references::visit_proof_fact(
+                        &checked.typed,
+                        &mut references,
+                        fact,
+                    );
+                }
+            }
+            if !references.expressions.is_empty() || !references.declarations.is_empty() {
+                append_roots(
+                    &mut roots,
+                    entry,
+                    references.expressions,
+                    references.declarations,
+                );
+            }
+        }
+    }
+    roots
+}
+
 fn append_roots(
-    roots: &mut Vec<(SymbolHandle, Vec<ExpressionHandle>)>,
+    roots: &mut Vec<Roots>,
     owner: SymbolHandle,
     expressions: impl IntoIterator<Item = ExpressionHandle>,
+    declarations: impl IntoIterator<Item = SymbolHandle>,
 ) {
-    if let Some((_, existing)) = roots.iter_mut().find(|(candidate, _)| *candidate == owner) {
-        existing.extend(expressions);
+    if let Some(existing) = roots.iter_mut().find(|candidate| candidate.owner == owner) {
+        existing.expressions.extend(expressions);
+        existing.declarations.extend(declarations);
     } else {
-        roots.push((owner, expressions.into_iter().collect()));
+        roots.push(Roots {
+            owner,
+            expressions: expressions.into_iter().collect(),
+            declarations: declarations.into_iter().collect(),
+        });
     }
 }
 
@@ -120,7 +204,8 @@ struct References<'program> {
     symbols: HashSet<SymbolHandle>,
     expressions: HashSet<ExpressionHandle>,
     types: HashSet<typed_trees::types::TypeReferenceHandle>,
-    constants: Vec<SymbolHandle>,
+    declarations: Vec<SymbolHandle>,
+    declaration_roots: DeclarationSelection,
     calls: Vec<SymbolHandle>,
 }
 
@@ -135,8 +220,32 @@ impl<'program> References<'program> {
             symbols: HashSet::new(),
             expressions: HashSet::new(),
             types: HashSet::new(),
-            constants: Vec::new(),
+            declarations: Vec::new(),
+            declaration_roots: DeclarationSelection::from_program(program),
             calls: Vec::new(),
+        }
+    }
+
+    /// Share the semantic declaration walk between work selection and demand
+    /// capture. An expanded constant's authored initializer is lookup history;
+    /// only its materialized value can supply a current proof input.
+    fn visit_selected_declarations(&mut self) {
+        let program = self.program;
+        typed_trees::references::visit_program(program, self);
+        for declaration in program.const_declarations() {
+            if self
+                .selection
+                .is_some_and(|selection| !selection.contains(declaration.symbol))
+            {
+                continue;
+            }
+            self.extend([declaration.symbol]);
+            typed_trees::references::visit_type_reference(program, self, declaration.declared_type);
+            typed_trees::references::visit_expression(
+                program,
+                self,
+                declaration.materialized_initializer,
+            );
         }
     }
 }
@@ -151,7 +260,7 @@ fn work(checked: &CheckedTrees, applications: &[SymbolHandle]) -> DeclarationSel
     loop {
         let before = selected.clone();
         let mut references = References::new(program, Some(&before));
-        typed_trees::references::visit_program(program, &mut references);
+        references.visit_selected_declarations();
         for symbol in references.symbols {
             if declarations.contains(symbol)
                 && (program.machine_by_symbol(symbol).is_none() || applications.contains(&symbol))
@@ -168,17 +277,21 @@ fn work(checked: &CheckedTrees, applications: &[SymbolHandle]) -> DeclarationSel
 impl Extend<SymbolHandle> for References<'_> {
     fn extend<Symbols: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: Symbols) {
         for symbol in symbols {
-            self.symbols.insert(symbol);
-            if self.program.const_declaration_by_symbol(symbol).is_some() {
-                self.constants.push(symbol);
+            if self.symbols.insert(symbol)
+                && self.declaration_roots.contains(symbol)
+                && self.program.machine_by_symbol(symbol).is_none()
+            {
+                self.declarations.push(symbol);
             }
         }
     }
 }
 impl TypedReferences for References<'_> {
     fn declaration(&mut self, symbol: SymbolHandle) -> bool {
-        self.selection
-            .is_none_or(|selection| selection.contains(symbol))
+        self.program.const_declaration_by_symbol(symbol).is_none()
+            && self
+                .selection
+                .is_none_or(|selection| selection.contains(symbol))
     }
     fn expression(&mut self, expression: ExpressionHandle) -> bool {
         if !self.expressions.insert(expression) {
@@ -210,26 +323,36 @@ fn dependencies(
     checked: &CheckedTrees,
     target: target::TargetProfile,
     providers: &[provider_planning::SelectedProviderReviewProvenance],
-    roots: &[ExpressionHandle],
+    roots: &Roots,
 ) -> Dependencies {
     let program = &checked.typed;
     let mut references = References::new(program, None);
-    for root in roots {
+    for root in &roots.expressions {
         typed_trees::references::visit_expression(program, &mut references, *root);
     }
-    let mut constants = HashSet::new();
+    references
+        .declarations
+        .extend(roots.declarations.iter().copied());
+    let mut declarations = HashSet::new();
     let mut machines = HashSet::new();
-    while !references.constants.is_empty() || !references.calls.is_empty() {
-        while let Some(symbol) = references.constants.pop() {
-            if constants.insert(symbol)
-                && let Some(declaration) = program.const_declaration_by_symbol(symbol)
-            {
-                typed_trees::references::visit_expression(
-                    program,
-                    &mut references,
-                    declaration.materialized_initializer,
-                );
-            }
+    while !references.declarations.is_empty() || !references.calls.is_empty() {
+        let fresh: Vec<_> = references
+            .declarations
+            .drain(..)
+            .filter(|symbol| declarations.insert(*symbol))
+            .collect();
+        if !fresh.is_empty() {
+            // Domain, proposition, data and mathematical declarations retain
+            // their own requirements. Membership must not hide a consumed
+            // observation just because the entry clause has no scalar reading.
+            let selection = DeclarationSelection::from_symbols(fresh);
+            let mut found = References::new(program, Some(&selection));
+            found.visit_selected_declarations();
+            references.expressions.extend(found.expressions);
+            references.types.extend(found.types);
+            references.symbols.extend(found.symbols);
+            references.declarations.extend(found.declarations);
+            references.calls.extend(found.calls);
         }
         while let Some(called) = references.calls.pop() {
             let dependencies = provider_planning::target_machines::proof_application_dependencies(
@@ -246,11 +369,11 @@ fn dependencies(
             }
             let selection = DeclarationSelection::from_symbols(fresh);
             let mut found = References::new(program, Some(&selection));
-            typed_trees::references::visit_program(program, &mut found);
+            found.visit_selected_declarations();
             references.expressions.extend(found.expressions);
             references.types.extend(found.types);
             references.symbols.extend(found.symbols);
-            references.constants.extend(found.constants);
+            references.declarations.extend(found.declarations);
             references.calls.extend(found.calls);
         }
     }

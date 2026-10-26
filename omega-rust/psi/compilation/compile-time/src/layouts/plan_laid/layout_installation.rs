@@ -526,45 +526,30 @@ fn install_plan_laid_layout(
         };
         let admission =
             crate::BuildTimeAdmissionPlan::infer(execution, selection_authority.clone());
-        let machine = execution.machine_by_symbol(machine_symbol).ok_or_else(|| {
-            vec![Diagnostic::error(
-                "layout policy lost its exact machine declaration",
-            )]
-        })?;
-        for source in &record.invocation_sources {
-            admission
-                .require_common_floor_for_invocation(
-                    execution,
-                    machine,
-                    crate::BuildTimeInvocationCustody::Source(*source),
-                )
-                .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
-        }
-        let selection = selection_authority
-            .clone()
-            .zip(record.invocation_sources.first())
-            .map(|(authority, source)| crate::AuthorizedSelection {
-                authority,
-                custody: crate::BuildTimeInvocationCustody::Source(*source),
-            });
-        let report = match &guarded_schema {
-            Some((fields, fingerprint, _)) => {
-                super::super::layout_plans::compute_native_layout_plan_with_schema(
-                    execution,
-                    machine_symbol,
-                    &record.schema_data,
-                    fields,
-                    *fingerprint,
-                    selection,
-                )
+        let custodies: Vec<_> = record
+            .invocation_sources
+            .iter()
+            .map(|source| crate::BuildTimeInvocationCustody::Source(*source))
+            .collect();
+        let reflected;
+        let (fields, fingerprint) = match &guarded_schema {
+            Some((fields, fingerprint, _)) => (fields.as_slice(), *fingerprint),
+            None => {
+                reflected =
+                    super::super::schema_reflection::schema_fields(execution, &record.schema_data)
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                (reflected.0.as_slice(), reflected.1)
             }
-            None => super::super::layout_plans::compute_native_layout_plan_for_machine(
-                execution,
-                machine_symbol,
-                &record.schema_data,
-                selection,
-            ),
-        }
+        };
+        let report = super::super::layout_plans::compute_native_layout_plan_with_schema(
+            execution,
+            machine_symbol,
+            &record.schema_data,
+            fields,
+            fingerprint,
+            &admission,
+            &custodies,
+        )
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
         install_geometry(execution, record, &schema_fields, report).map(Some)
     };

@@ -22,13 +22,15 @@ fn evaluate_selected_policy(
     policy_kind: &str,
 ) -> Result<BuildTimeValue, String> {
     let policy_machine = machine.name.as_str();
-    BuildTimeAdmissionPlan::infer(typed, None).require_common_floor(typed, machine)?;
-    checked_interpreter::evaluate_build_time_machine(
-        typed,
-        super::policy_arguments::policy_request(typed, machine, arguments)?,
-    )
-    .map(BuildTimeOperationEvaluation::into_value)
-    .map_err(|reason| {
-        format!("build-time evaluation of {policy_kind} policy `{policy_machine}` failed: {reason}")
-    })
+    let admission = BuildTimeAdmissionPlan::infer(typed, None);
+    let arguments = super::policy_arguments::policy_arguments(typed, machine, arguments)?;
+    admission
+        .admit_supplied_invocation(typed, machine, arguments, &[])?
+        .evaluate()
+        .map(BuildTimeOperationEvaluation::into_value)
+        .map_err(|reason| {
+            format!(
+                "build-time evaluation of {policy_kind} policy `{policy_machine}` failed: {reason}"
+            )
+        })
 }

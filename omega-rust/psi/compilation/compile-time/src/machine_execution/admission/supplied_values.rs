@@ -19,11 +19,17 @@ use typed_trees::expression::{
 use typed_trees::machine::Machine;
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-pub(crate) fn require_established_arguments(
+pub(super) struct SuppliedArguments {
+    pub program: TypedTrees,
+    pub arguments: Vec<ExpressionHandle>,
+    pub bindings: Vec<(typed_trees::statement::TableLocalData, ExpressionHandle)>,
+}
+
+pub(super) fn establish_arguments(
     program: &TypedTrees,
     machine: &Machine,
     arguments: &mut [BuildTimeValue],
-) -> Result<(), String> {
+) -> Result<SuppliedArguments, String> {
     let entry = program
         .machine_states(machine)
         .first()
@@ -34,6 +40,8 @@ pub(crate) fn require_established_arguments(
     }
     let mut probe = program.clone();
     let mut constructions = Vec::with_capacity(arguments.len());
+    let mut expressions = Vec::with_capacity(arguments.len());
+    let mut bindings = Vec::new();
     for (parameter, value) in parameters.iter().zip(arguments) {
         // A borrowed policy arrival refers to the evaluator's fresh owned
         // snapshot. Establish its pointee, not an escaping reference result.
@@ -46,6 +54,42 @@ pub(crate) fn require_established_arguments(
         };
         let value = literal(&mut probe, destination, value)
             .map_err(|reason| format!("policy argument `{}`: {reason}", parameter.name))?;
+        let argument = match program
+            .type_reference_table
+            .type_reference(parameter.type_reference)
+        {
+            TypeReferenceNode::Reference { access, .. } => {
+                let name = typed_trees::name::Identifier::generated("@supplied-argument");
+                let local =
+                    probe
+                        .expression_table
+                        .insert_tree(&typed_trees::expression::Expression::Name(
+                            typed_trees::expression::NamePath::resolved(
+                                vec![name.clone()],
+                                symbols::SymbolHandle::invalid(),
+                                symbols::SymbolHandle::invalid(),
+                            ),
+                        ));
+                bindings.push((
+                    typed_trees::statement::TableLocalData {
+                        name: name.clone(),
+                        type_reference: destination,
+                        initial_value: value,
+                        is_mutable: access.is_exclusive(),
+                        ..Default::default()
+                    },
+                    local,
+                ));
+                probe.expression_table.insert(ExpressionNode::Borrow(
+                    typed_trees::expression::TableBorrowExpression {
+                        target: local,
+                        access: *access,
+                    },
+                ))
+            }
+            _ => value,
+        };
+        expressions.push(argument);
         // Receive the root through an ordinary declared field as well. Merely
         // checking its child constructors would miss a qualification on the
         // parameter itself (or a primitive/array root's receiving obligations).
@@ -106,6 +150,7 @@ pub(crate) fn require_established_arguments(
             "@supplied-value",
             expression,
             destination,
+            &mut [],
         );
         constructions.push((owner, expression));
     }
@@ -131,7 +176,11 @@ pub(crate) fn require_established_arguments(
             },
         )?;
     }
-    Ok(())
+    Ok(SuppliedArguments {
+        program: probe,
+        arguments: expressions,
+        bindings,
+    })
 }
 
 /// Encode values, not new evidence. Ordinary checking owns all obligations.

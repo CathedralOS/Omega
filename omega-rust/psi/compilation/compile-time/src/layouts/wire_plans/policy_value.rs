@@ -17,20 +17,19 @@ pub(super) fn evaluate_wire_policy(
     let machine = typed
         .realized_machine_named(WIRE_GRAMMAR_POLICY)
         .expect("caller checked the policy exists");
-    admission.require_common_floor_for_invocation(typed, machine, custody)?;
-
     let schema_value = build_wire_schema_value(fields);
-    let plan = checked_interpreter::evaluate_build_time_machine(
-        typed,
-        crate::layouts::policy_arguments::policy_request(typed, machine, vec![schema_value])?,
-    )
-    .map(BuildTimeOperationEvaluation::into_value)
-    .map_err(|reason| {
-        format!(
-            "build-time evaluation of `{WIRE_GRAMMAR_POLICY}` failed for `{schema_name}`: \
+    let arguments =
+        crate::layouts::policy_arguments::policy_arguments(typed, machine, vec![schema_value])?;
+    let plan = admission
+        .admit_supplied_invocation(typed, machine, arguments, &[custody])?
+        .evaluate()
+        .map(BuildTimeOperationEvaluation::into_value)
+        .map_err(|reason| {
+            format!(
+                "build-time evaluation of `{WIRE_GRAMMAR_POLICY}` failed for `{schema_name}`: \
              {reason}"
-        )
-    })?;
+            )
+        })?;
 
     extract_wire_placements(&plan, fields.len(), schema_name)
 }

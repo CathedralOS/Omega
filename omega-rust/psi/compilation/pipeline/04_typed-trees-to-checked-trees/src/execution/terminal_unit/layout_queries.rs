@@ -170,29 +170,19 @@ pub(super) fn retain(
         pending: dependencies.collect(),
         queries: Vec::new(),
     };
-    // A source contract remains a dependency even when its whole clause is
-    // outside the closed scalar algebra (for example a constant-name operand).
-    // Read its original facts, not just the successfully projected Predicate.
-    // Open callable templates retain formation checking but have no concrete
-    // physical query subject until their actual application is checked.
-    for plan in &facts.contract_plans.machines {
-        let Some(machine) = program.machine_by_symbol(plan.machine) else {
-            continue;
-        };
-        if program.callable_body_has_open_parameters(machine) {
+    // The catalog covers proof declarations as well as callable contracts.
+    // A membership's domain can own the query even when no scalar contract
+    // projection exists on its caller. Retain lexical owners from the shared
+    // proof-fact inventory rather than reconstructing declaration families.
+    for (owner, _, fact) in typed_trees::references::program_scoped_proof_facts(program) {
+        if program
+            .machine_by_symbol(owner)
+            .is_some_and(|machine| program.callable_body_has_open_parameters(machine))
+        {
             continue;
         }
-        references.owner = machine.symbol;
-        for contract in program.machine_contracts(machine).iter().chain(
-            program
-                .machine_states(machine)
-                .iter()
-                .flat_map(|state| program.state_contracts(state)),
-        ) {
-            for fact in program.proof_facts.span_or_empty(contract.facts) {
-                typed_trees::references::visit_proof_fact(program, &mut references, fact);
-            }
-        }
+        references.owner = owner;
+        typed_trees::references::visit_proof_fact(program, &mut references, fact);
     }
     while let Some((expression, owner)) = references.pending.pop() {
         if !program.expression_table.expression_is_valid(expression) {
@@ -211,6 +201,14 @@ pub(super) fn retain(
             missing_subject(program, gaps, owner);
             continue;
         };
+        // An open theory can mention a physical query on a static type binder.
+        // It has no closed catalog subject until substitution. Executable
+        // computations above still require their subject, and actual deferred
+        // consumers fail closed if their queried subject is absent.
+        if !validation::stored_structural_type_identity(program, query.carrier, &[], &[]).is_valid()
+        {
+            continue;
+        }
         match freeze_carrier(program, shapes, owner, query.carrier, None, retained) {
             Some(carrier) => retain_subject(
                 program,

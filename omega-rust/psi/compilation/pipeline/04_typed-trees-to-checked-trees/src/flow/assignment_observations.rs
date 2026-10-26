@@ -42,7 +42,7 @@ impl AssignmentObservations {
 
     fn payloads<'a>(
         &'a mut self,
-        program: &dyn ::validation::CheckingInput,
+        program: &'a dyn ::validation::CheckingInput,
         semantic: &FactPlan,
         contexts: &'a [FlowSemanticContextRef],
         subject: &'a CanonicalPlace,
@@ -64,6 +64,9 @@ impl AssignmentObservations {
                     let context = semantic.contexts.get(handle);
                     prepared.observations =
                         prepare_assignment_observations(program, semantic, context);
+                    prepared
+                        .observations
+                        .sort_by(|left, right| left.place.compare_identity(&right.place));
                     prepared.context = handle;
                 }
             }
@@ -81,17 +84,37 @@ impl AssignmentObservations {
                             .get(reference.context.arena_index() as usize)
                             .filter(|prepared| prepared.context == reference.context)
                             .into_iter()
-                            .flat_map(|prepared| &prepared.observations)
+                            .flat_map(move |prepared| {
+                                // Identity ordering groups a root's observations.
+                                // Runtime selectors still use semantic equality
+                                // below; sorting does not equate their spellings.
+                                let root = CanonicalPlace {
+                                    root: subject_root,
+                                    segments: Vec::new(),
+                                };
+                                let first = prepared.observations.partition_point(|observation| {
+                                    observation.place.compare_identity(&root).is_lt()
+                                });
+                                let selected = &prepared.observations[first..];
+                                let count = selected.partition_point(|observation| {
+                                    observation.place.root == subject_root
+                                });
+                                &selected[..count]
+                            })
                             .filter(move |observation| {
                                 observation.place.root == subject_root
-                                    && observation.place.segments == subject.segments
+                                    && crate::flow::canonical_places_agree(
+                                        program,
+                                        &observation.place,
+                                        subject,
+                                    )
                             })
                             .map(|observation| observation.payload)
                     }),
             )
     }
 
-    fn scalar_value(
+    pub(super) fn scalar_value(
         &mut self,
         program: &dyn ::validation::CheckingInput,
         semantic: &FactPlan,

@@ -1,0 +1,9 @@
+// Expected exit: 0
+use layout_scoped_macos_kit::geometry;
+machine good() {}
+machine bad() crashes Trap { crash Trap; }
+macos_arm64 machine main() crashes Trap { let observed: u32 = library_observation(); transition observed == 51u32 { true -> good() false -> bad() } }
+
+linux_x86_64 machine main() {}
+linux_arm64 machine main() {}
+windows_x86_64 machine main() {}

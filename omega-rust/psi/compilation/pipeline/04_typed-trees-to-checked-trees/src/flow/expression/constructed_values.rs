@@ -154,6 +154,13 @@ impl Execution<'_, '_, '_> {
                 }
             })
             .collect::<Vec<_>>();
+        // Reuse the flow sweep's prepared assignment rows. Aggregate children
+        // read many sibling projections from this exact immutable capture;
+        // rebuilding every canonical fact place for every field is cubic work.
+        let captured_references: Vec<_> = captured_contexts
+            .iter()
+            .map(|context| FlowSemanticContextRef { context: *context })
+            .collect();
         let mut values = Vec::new();
         let primitive = self.program.primitive_type_reference(type_reference);
         // Completed expression facts and live storage facts use the same
@@ -177,12 +184,10 @@ impl Execution<'_, '_, '_> {
             ) {
                 return None;
             }
-            crate::values::scalar_value_at_place(
+            self.context.assignment_observations.scalar_value(
                 self.program,
                 self.semantic,
-                captured_contexts
-                    .iter()
-                    .map(|context| self.semantic.contexts.get(*context)),
+                &captured_references,
                 &source,
             )
         });
@@ -219,12 +224,10 @@ impl Execution<'_, '_, '_> {
                         parameters: self.program.state_parameters(self.state),
                         symbols: &symbols,
                         value_at_place: |place: &validation::CanonicalPlace| {
-                            crate::values::scalar_value_at_place(
+                            self.context.assignment_observations.scalar_value(
                                 self.program,
                                 self.semantic,
-                                captured_contexts
-                                    .iter()
-                                    .map(|context| self.semantic.contexts.get(*context)),
+                                &captured_references,
                                 place,
                             )
                         },
@@ -332,12 +335,10 @@ impl Execution<'_, '_, '_> {
                         )
                         .map(ScalarValue::Boolean)
                         .or_else(|| {
-                            crate::values::scalar_value_at_place(
+                            self.context.assignment_observations.scalar_value(
                                 self.program,
                                 self.semantic,
-                                captured_contexts
-                                    .iter()
-                                    .map(|context| self.semantic.contexts.get(*context)),
+                                &captured_references,
                                 &place,
                             )
                         }))

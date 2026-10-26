@@ -7,22 +7,20 @@
 //! selects that position. Every invocation gets fresh storage, so policy
 //! mutations cannot escape into another schema evaluation.
 //!
-//! This adapter runs after ordinary Build admission. It establishes zero for
-//! the declared subject before materializing it, then establishes supplied
-//! values through ordinary construction checking. Argument order, execution
-//! and returned-plan validation remain with the existing interpreter and policy
-//! consumers. Reflection metadata is projected to the exact declared roster
-//! before both checking and execution; unclaimed metadata is not a field.
+//! The adapter establishes zero for the declared subject before materializing
+//! it. The shared supplied-invocation admission then establishes and projects
+//! these values, proves entry contracts and checks the execution floor before
+//! interpretation. Argument order and returned-plan validation remain with the
+//! policy consumer. Unclaimed reflection metadata is not a declared field.
 
 use build_time_values::BuildTimeValue;
-use checked_interpreter::BuildMachineEvaluationRequest;
 use typed_trees::{TypedTrees, machine::Machine, types::TypeReferenceNode};
 
-pub(super) fn policy_request<'a>(
+pub(super) fn policy_arguments(
     typed: &TypedTrees,
     machine: &Machine,
     mut arguments: Vec<BuildTimeValue>,
-) -> Result<BuildMachineEvaluationRequest<'a>, String> {
+) -> Result<Vec<BuildTimeValue>, String> {
     let entry = typed
         .machine_states(machine)
         .first()
@@ -77,13 +75,5 @@ pub(super) fn policy_request<'a>(
         )?;
         arguments.insert(position, context);
     }
-    crate::machine_execution::admission::require_established_arguments(
-        typed,
-        machine,
-        &mut arguments,
-    )?;
-    Ok(BuildMachineEvaluationRequest::symbol(
-        machine.symbol,
-        arguments,
-    ))
+    Ok(arguments)
 }

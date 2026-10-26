@@ -28,7 +28,6 @@ mod concrete_invocation;
 mod supplied_values;
 
 pub(crate) use concrete_invocation::{SnapshotArgument, snapshot_arguments_discharge};
-pub(crate) use supplied_values::require_established_arguments;
 pub(crate) mod const_evaluable;
 mod selection_authority;
 
@@ -134,6 +133,20 @@ pub struct BuildTimeAdmissionPlan {
     selected_machine_bodies: Vec<crate::SelectedBuildTimeMachineBody>,
 }
 
+/// An exact supplied invocation after value establishment, entry proof and the
+/// complete execution floor. Its private request keeps the proved snapshots
+/// bound to the same program and selected execution context until consumption.
+pub(crate) struct AdmittedSuppliedInvocation<'program> {
+    program: &'program TypedTrees,
+    request: BuildMachineEvaluationRequest<'program>,
+}
+
+impl AdmittedSuppliedInvocation<'_> {
+    pub(crate) fn evaluate(self) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, String> {
+        checked_interpreter::evaluate_build_time_machine(self.program, self.request)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct BuildTimeSuspensionRow {
     machine_symbol: SymbolHandle,
@@ -206,6 +219,50 @@ fn walk_call_closure<Outcome>(
 }
 
 impl BuildTimeAdmissionPlan {
+    pub(crate) fn admit_supplied_invocation<'program>(
+        &'program self,
+        program: &'program TypedTrees,
+        machine: &Machine,
+        mut arguments: Vec<BuildTimeValue>,
+        custodies: &[BuildTimeInvocationCustody],
+    ) -> Result<AdmittedSuppliedInvocation<'program>, String> {
+        // Reflection metadata is projected once, to the exact parameter types.
+        // These same resulting values are the ones the interpreter receives.
+        let supplied = supplied_values::establish_arguments(program, machine, &mut arguments)?;
+        let entry_requires = concrete_invocation::entry_has_requires(program, machine);
+        if entry_requires {
+            concrete_invocation::supplied_arguments_discharge(supplied, machine)?;
+        }
+        let concrete_premises = entry_requires
+            || (self.closure_includes_authored_requires(program, machine)
+                && concrete_invocation::argument_independent_closure_discharges(
+                    BuildTimeProgram::Typed(program),
+                    machine,
+                )?);
+        if custodies.is_empty() {
+            self.require_floor(
+                BuildTimeProgram::Typed(program),
+                machine,
+                None,
+                concrete_premises,
+            )?;
+        } else {
+            // Reusing a value/proof does not reuse another occurrence's authority.
+            for custody in custodies {
+                self.require_floor(
+                    BuildTimeProgram::Typed(program),
+                    machine,
+                    Some(*custody),
+                    concrete_premises,
+                )?;
+            }
+        }
+        let mut request = BuildMachineEvaluationRequest::symbol(machine.symbol, arguments);
+        request.operators = &self.selected_operators;
+        request.machine_bodies = &self.selected_machine_bodies;
+        Ok(AdmittedSuppliedInvocation { program, request })
+    }
+
     pub fn infer(
         program: &TypedTrees,
         selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,

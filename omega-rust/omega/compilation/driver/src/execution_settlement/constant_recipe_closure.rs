@@ -36,6 +36,7 @@ pub(super) fn close_constant_recipes(
 ) -> Result<Arc<CheckedTrees>, Vec<Diagnostic>> {
     let shared = &source.program;
     let typed = &shared.typed;
+    let materialized_entries = query_inputs::materialized_entry_inputs(shared, None);
     let retained_constant_owners: Vec<_> = shared
         .facts
         .values
@@ -55,6 +56,7 @@ pub(super) fn close_constant_recipes(
         && shared.facts.constant_predicate_obligations.is_empty()
         && shared.facts.integer_range_obligations.is_empty()
         && retained_constant_owners.is_empty()
+        && materialized_entries.is_empty()
     {
         return Ok(Arc::clone(shared));
     }
@@ -62,7 +64,10 @@ pub(super) fn close_constant_recipes(
     let mut proof_targets = vec![selected_target_profile];
     let predicate_rows = &shared.facts.constant_predicate_obligations;
     let range_rows = &shared.facts.integer_range_obligations;
-    if !retained_constant_owners.is_empty() || !predicate_rows.is_empty() || !range_rows.is_empty()
+    if !retained_constant_owners.is_empty()
+        || !predicate_rows.is_empty()
+        || !range_rows.is_empty()
+        || !materialized_entries.is_empty()
     {
         for machine in typed.machines() {
             if let Some(name) = typed.machine_authored_target(machine) {
@@ -94,11 +99,14 @@ pub(super) fn close_constant_recipes(
         .map(|row| row.caller())
         .chain(range_rows.iter().map(|row| row.owner()))
         .chain(retained_constant_owners)
+        .chain(materialized_entries.iter().map(|root| root.owner))
         .collect();
     let mut capsules = Vec::new();
     let mut guarded_owners = Vec::new();
     for target in proof_targets {
         if target != selected_target_profile
+            && query_inputs::materialized_entry_inputs(shared, Some(target.target_name()))
+                .is_empty()
             && !provider_planning::target_machines::target_has_proof_demand(
                 shared,
                 target,
