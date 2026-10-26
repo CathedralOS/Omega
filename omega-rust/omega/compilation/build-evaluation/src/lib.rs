@@ -60,8 +60,10 @@
 //! `admitted_build_program.rs` fixes its private checkpoint; `execution` prepares
 //! its code and account, authenticates the returned invocation, and assembles its
 //! checked result. The activation retains every request through normal return;
-//! completion currently refuses dependency requests until coordinator settlement
-//! is connected. `compilation_products` owns the
+//! completion requires exact source-request settlement. Bound compilations can
+//! join retained acquisitions; anonymous discovery joins its returned requests
+//! after source acquisition. An alias graph alone never discharges the ledger.
+//! `compilation_products` owns the
 //! retained Build records; admission and execution produce them without making
 //! downstream product custody depend on this evaluator.
 //! Trust grants, component assumptions and executed exclusions are checked by

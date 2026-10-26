@@ -1122,7 +1122,11 @@ narrows realization only.
   reject; private dependency machines remain inaccessible. Captured dependency
   bytes no longer imply root-only Build metadata authority. Reconciliation keeps
   its scope/alias/cycle/limit checks; compiler completion refuses any unjoined
-  request. Project preparation now retains transaction recovery, lock selection
+  request. Pre-acquired source inputs retain the exact request value, purpose,
+  ordinal and selected source; bound compilation rejoins those receipts against
+  the executed ledger rather than treating an alias graph as settlement. The
+  same validation serves post-execution acquisition, and changed locators still
+  refuse with unchanged aliases. Project preparation retains recovery, lock selection
   and concurrent-edit checks across application-owned source execution; its
   begin/finish boundary accepts the actual acquired graph without parsing Build
   declarations. Application source discovery now drives the executed traversal

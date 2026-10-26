@@ -104,7 +104,7 @@ impl BuildSourceInvocation {
 
     pub(super) fn complete(
         self,
-        returned: Option<build_evaluation::ReturnedBuild>,
+        mut returned: Option<build_evaluation::ReturnedBuild>,
         joined_inputs: Option<&PackageCompilationInputs>,
         product_target: Option<target::TargetProfile>,
     ) -> Result<compilation_products::PreparedBuild, CompileFailure> {
@@ -126,6 +126,11 @@ impl BuildSourceInvocation {
             .into());
         }
         let initially_unbound = package_inputs.is_none();
+        if let (Some(inputs), Some(returned)) = (package_inputs.as_ref(), returned.as_mut()) {
+            returned
+                .join_preacquired_sources(inputs)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        }
         let selected_target_profile = if initially_unbound {
             product_target.or(selected_target_profile)
         } else {
