@@ -124,3 +124,12 @@ Run the public acceptance with `omega run --both <place>/main.omg` after ordinar
 package preparation, then `python3 tools/corpus_gate.py --both --filter checked_predicate_disjoint_loans`.
 The parent retains remaining domain, runtime-projection and same-statement/theorem
 premise acceptance beyond the relations established by this row.
+
+The repaired optimized producer `13375dc5d9c41501f4be4584f52d9f8847823940`
+observed all nine places on macOS ARM64 with native exit 0 and Terminal exit 0,
+including both exclusive-call and unary-predicate productions of this same fact.
+The root and composed, reversed-actual and signed controls also agree; all 43
+fact-sensitive invalid programs reject with their authored diagnostics. Source,
+producer digests and separate engine/rejection streams remain in the fixed lane
+qualification record. These observations do not claim execution on another host
+or closure of the parent capability's remaining premise kinds.
