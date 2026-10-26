@@ -8,7 +8,7 @@ use typed_trees::{
         StaticMachineApplication, StaticMachineBinding, StaticMachineBindingValue,
         StaticMachineLifetimeBinding,
     },
-    type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument},
+    type_identity::AppliedTypeIdentityScope,
 };
 
 pub(super) fn validate(
@@ -19,29 +19,7 @@ pub(super) fn validate(
     lifetimes: &[StaticMachineLifetimeBinding],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let operands = bindings
-        .iter()
-        .map(|binding| {
-            (
-                binding.parameter,
-                match &binding.value {
-                    StaticMachineBindingValue::Type(actual) => {
-                        IndexIdentityArgument::TypeArgument(*actual)
-                    }
-                    StaticMachineBindingValue::Const(actual) => {
-                        IndexIdentityArgument::TypeReference(*actual)
-                    }
-                    StaticMachineBindingValue::RuntimeValue { subject, .. } => {
-                        IndexIdentityArgument::Subject(*subject)
-                    }
-                    StaticMachineBindingValue::Machine(argument)
-                    | StaticMachineBindingValue::Conformance(argument) => {
-                        IndexIdentityArgument::StaticArgument(argument)
-                    }
-                },
-            )
-        })
-        .collect::<Vec<_>>();
+    let operands = super::index_identity_arguments(bindings);
     let regions = lifetimes
         .iter()
         .map(|binding| {

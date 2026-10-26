@@ -20,6 +20,7 @@ use typed_trees::static_applications::{
     StaticMachineApplication, StaticMachineApplicationHandle, StaticMachineBinding,
     StaticMachineBindingValue,
 };
+use typed_trees::type_identity::IndexIdentityArgument;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// The authored telescope belongs to a callable declaration, including a trait
@@ -794,6 +795,41 @@ fn validate_conformance_bindings(
     }
 }
 
+/// Transcribe a retained static application tuple into index-identity rows:
+/// every binder keeps its exact argument identity, and a runtime Value keeps
+/// its expression occurrence — its name subject is zero beside a valid
+/// expression — so every carrier and scope reads one spelling of the tuple.
+pub(crate) fn index_identity_arguments<'application>(
+    bindings: &'application [StaticMachineBinding],
+) -> Vec<(SymbolHandle, IndexIdentityArgument<'application>)> {
+    bindings
+        .iter()
+        .map(|binding| (binding.parameter, index_identity_argument(&binding.value)))
+        .collect()
+}
+
+fn index_identity_argument(value: &StaticMachineBindingValue) -> IndexIdentityArgument<'_> {
+    match value {
+        StaticMachineBindingValue::Type(actual) => IndexIdentityArgument::TypeArgument(*actual),
+        StaticMachineBindingValue::Const(actual) => IndexIdentityArgument::TypeReference(*actual),
+        StaticMachineBindingValue::RuntimeValue {
+            subject,
+            expression,
+            ..
+        } => {
+            if expression.is_valid() {
+                IndexIdentityArgument::Expression(*expression)
+            } else {
+                IndexIdentityArgument::Subject(*subject)
+            }
+        }
+        StaticMachineBindingValue::Machine(actual)
+        | StaticMachineBindingValue::Conformance(actual) => {
+            IndexIdentityArgument::StaticArgument(actual)
+        }
+    }
+}
+
 fn conformance_arguments_match(
     program: &dyn crate::CheckingInput,
     machine: &StaticDeclaration<'_>,
@@ -805,37 +841,7 @@ fn conformance_arguments_match(
 ) -> bool {
     use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
 
-    let substitutions = bindings
-        .iter()
-        .map(|binding| {
-            (
-                binding.parameter,
-                match &binding.value {
-                    StaticMachineBindingValue::Type(actual) => {
-                        IndexIdentityArgument::TypeArgument(*actual)
-                    }
-                    StaticMachineBindingValue::Const(actual) => {
-                        IndexIdentityArgument::TypeReference(*actual)
-                    }
-                    StaticMachineBindingValue::RuntimeValue {
-                        subject,
-                        expression,
-                        ..
-                    } => {
-                        if expression.is_valid() {
-                            IndexIdentityArgument::Expression(*expression)
-                        } else {
-                            IndexIdentityArgument::Subject(*subject)
-                        }
-                    }
-                    StaticMachineBindingValue::Machine(argument)
-                    | StaticMachineBindingValue::Conformance(argument) => {
-                        IndexIdentityArgument::StaticArgument(argument)
-                    }
-                },
-            )
-        })
-        .collect::<Vec<_>>();
+    let substitutions = index_identity_arguments(bindings);
     let lifetimes = lifetimes
         .iter()
         .map(|binding| {
