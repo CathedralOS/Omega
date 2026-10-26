@@ -184,83 +184,6 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             retained.completed_writes = evaluated.writes.writes;
             retained.completed_unknown_write = evaluated.writes.unknown;
         }
-
-        // Assignment evaluates its RHS under the entry loans above, then
-        // overwrites the target. Retire loans carried by the old value before
-        // activating loans carried by the replacement below; otherwise the
-        // replacement spuriously conflicts with the value it is replacing.
-        let has_active_borrow_loans = build
-            .contexts
-            .constraint_refs
-            .span_or_empty(*active_constraints)
-            .iter()
-            .any(|constraint| matches!(constraint.kind, FlowConstraintKind::BorrowLoan { .. }));
-        if has_active_borrow_loans {
-            let reassigned_place = if let Some(assignment) = statement.as_assignment() {
-                build.canonical_place_at(program, state.symbol, statement_index, assignment.target)
-            } else {
-                None
-            };
-            *active_constraints = filter_reassigned_borrow_loans(
-                &mut build.borrow_lifetimes.weakenings,
-                &mut build.contexts.constraint_refs,
-                *active_constraints,
-                borrow,
-                program,
-                machine,
-                reassigned_place,
-                statement_index,
-                statement,
-                build.call_frames,
-            );
-        }
-
-        for loan_index in loan_ranges[statement_index].clone() {
-            let loan = &borrow_loans[loan_index];
-            let loan_handle = borrow_state.loans.handle_at(loan_index as u32);
-
-            let formation_value = {
-                let captures_span = super::reference_spans::appended_span_since(
-                    &build.control.operands,
-                    operand_capture_start,
-                );
-                let mut captures = build
-                    .control
-                    .operands
-                    .span_or_empty(captures_span)
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, operand)| {
-                        operand.expression == loan.formation_expression
-                            && operand.state_symbol == state.symbol
-                            && operand.statement_index == statement_index
-                    });
-                let first = captures
-                    .next()
-                    .map(|(offset, _)| captures_span.handle_at(offset as u32))
-                    .unwrap_or_default();
-                if captures.next().is_none() {
-                    first
-                } else {
-                    Handle::invalid()
-                }
-            };
-            build
-                .borrow_lifetimes
-                .activations
-                .append(FlowBorrowActivationFact {
-                    source: FlowInvalidationSource::Statement { statement_index },
-                    loan: loan_handle,
-                    formation_value,
-                });
-
-            append_constraint_ref(
-                &mut build.contexts.constraint_refs,
-                active_constraints,
-                FlowConstraintKind::BorrowLoan { loan: loan_handle },
-            );
-        }
-
         // Prepare the completed store once, before retiring its destination.
         // Invalidation and establishment must consume the same captured
         // address, including a view's base and a pinned selector. A coarse
@@ -348,6 +271,95 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 });
             }
         }
+
+        // Assignment evaluates its RHS under the entry loans above, then
+        // overwrites the target. Retire loans carried by the old value before
+        // activating loans carried by the replacement below; otherwise the
+        // replacement spuriously conflicts with the value it is replacing.
+        let has_active_borrow_loans = build
+            .contexts
+            .constraint_refs
+            .span_or_empty(*active_constraints)
+            .iter()
+            .any(|constraint| matches!(constraint.kind, FlowConstraintKind::BorrowLoan { .. }));
+        if has_active_borrow_loans {
+            // Retire only the single destination captured before RHS evaluation.
+            // Rebuilding the authored target loses pinned call-result selectors;
+            // a may-write set never proves that an old carrier was overwritten.
+            let reassigned_place = write.as_ref().and_then(|write| {
+                (statement.as_assignment().is_some()
+                    && write.target_is_exact
+                    && write.destination_is_current)
+                    .then(|| {
+                        super::canonical_place_from_semantic_place(
+                            program,
+                            semantic,
+                            semantic.places.get(write.target_place),
+                        )
+                    })
+                    .flatten()
+            });
+            *active_constraints = filter_reassigned_borrow_loans(
+                &mut build.borrow_lifetimes.weakenings,
+                &mut build.contexts.constraint_refs,
+                *active_constraints,
+                borrow,
+                program,
+                machine,
+                reassigned_place,
+                state,
+                statement_index,
+                statement,
+                build.call_frames,
+            );
+        }
+
+        for loan_index in loan_ranges[statement_index].clone() {
+            let loan = &borrow_loans[loan_index];
+            let loan_handle = borrow_state.loans.handle_at(loan_index as u32);
+
+            let formation_value = {
+                let captures_span = super::reference_spans::appended_span_since(
+                    &build.control.operands,
+                    operand_capture_start,
+                );
+                let mut captures = build
+                    .control
+                    .operands
+                    .span_or_empty(captures_span)
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, operand)| {
+                        operand.expression == loan.formation_expression
+                            && operand.state_symbol == state.symbol
+                            && operand.statement_index == statement_index
+                    });
+                let first = captures
+                    .next()
+                    .map(|(offset, _)| captures_span.handle_at(offset as u32))
+                    .unwrap_or_default();
+                if captures.next().is_none() {
+                    first
+                } else {
+                    Handle::invalid()
+                }
+            };
+            build
+                .borrow_lifetimes
+                .activations
+                .append(FlowBorrowActivationFact {
+                    source: FlowInvalidationSource::Statement { statement_index },
+                    loan: loan_handle,
+                    formation_value,
+                });
+
+            append_constraint_ref(
+                &mut build.contexts.constraint_refs,
+                active_constraints,
+                FlowConstraintKind::BorrowLoan { loan: loan_handle },
+            );
+        }
+
         let storage_writes = if let Some(write) = write.as_ref()
             && statement.as_assignment().is_some()
         {

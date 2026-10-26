@@ -341,6 +341,7 @@ pass/borrows/runtime_byte_view_element_reference_calls_exit built 2658ms exit:0 
 pass/borrows/runtime_callee_alias_descriptor_replacement_exit built 3239ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/borrows/runtime_captured_primitive_reference_exit built 16139ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/borrows/runtime_captured_record_nested_field_snapshot_exit built 15867ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
+pass/borrows/runtime_captured_window_effectful_selector_exit built 1527ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
 pass/borrows/runtime_carrier_reference_reselection_exit built 16565ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/borrows/runtime_carrier_reference_store_exit built 16705ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/borrows/runtime_case_descriptor_retirement_exit incomplete 7438ms interpreter:unchecked @a92f16431042
@@ -990,8 +991,7 @@ pass/collections/runtime_slice_record_copy_exit built 8373ms exit:70 interpreter
 pass/collections/runtime_state_indexed_scalar_field_store_exit built 7354ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/collections/runtime_stored_reference_array_owned_record_contract_exit incomplete 4387ms interpreter:unchecked @a92f16431042
 	`observe` has no executable body: this compiler does not lower a state of it yet (sequence cleanup actions); in state `observe::entry`
-pass/collections/runtime_stored_reference_array_replacement_contract_exit incomplete 2833ms interpreter:unchecked @a92f16431042
-	`observe` has no executable body: this compiler does not lower a state of it yet (sequence cleanup actions); in state `observe::entry`
+pass/collections/runtime_stored_reference_array_replacement_contract_exit built 1415ms exit:0 interpreter-exit:0 interpreter:agrees @5fe2ed4548de
 pass/collections/runtime_vec_u32_growth_exit built 17574ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/collections/runtime_view_element_structural_replacement_exit built 2356ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/collections/runtime_whole_array_value_copy_exit built 9340ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
@@ -2098,6 +2098,15 @@ pass/facts/callee_saved_across_nested_calls_through_other_machine_exit built 232
 pass/facts/callee_saved_across_nested_calls_through_other_state_exit built 2317ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/callee_saved_across_nested_calls_through_parameter_exit built 1971ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/callee_saved_across_nested_calls_through_target_body_exit built 2331ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/captured_window_slot_retirement_through_call_result_exit built 1536ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
+pass/facts/captured_window_slot_retirement_through_const_name_exit built 1536ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
+pass/facts/captured_window_slot_retirement_through_field_exit built 1513ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
+pass/facts/captured_window_slot_retirement_through_local_exit built 1633ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
+pass/facts/captured_window_slot_retirement_through_match_join_exit built 1839ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
+pass/facts/captured_window_slot_retirement_through_other_machine_exit built 1584ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
+pass/facts/captured_window_slot_retirement_through_other_state_exit built 1557ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
+pass/facts/captured_window_slot_retirement_through_parameter_exit built 1573ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
+pass/facts/captured_window_slot_retirement_through_target_body_exit built 1509ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
 pass/facts/case_const_equal_literals_with_predicate checked 1556ms @a92f16431042
 pass/facts/case_const_equal_literals_without_predicate checked 1537ms @a92f16431042
 pass/facts/case_const_forwarded_binder_compile checked 1546ms @a92f16431042
@@ -2405,8 +2414,7 @@ pass/domains/runtime_forwarded_borrowed_result_domain_exit built 11904ms exit:0 
 pass/domains/runtime_qualified_ieee_field_read_exit built 7174ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/domains/runtime_structural_contract_erasure_exit built 2621ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/domains/runtime_terminal_result_context_exit built 21919ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a92f16431042
-pass/drops/reference_rebinding_preserves_pointee_exit rejected 4209ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "observe_byte_view", reason: "shared view rebind changes its declared carrier", gap: None })
+pass/drops/reference_rebinding_preserves_pointee_exit built 1767ms exit:0 interpreter-exit:0 interpreter:agrees @5fe2ed4548de
 pass/drops/runtime_borrowed_ingress_no_nominal_disposal_exit built 2666ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a92f16431042
 pass/drops/runtime_empty_array_owner_cleanup_sites_exit built 3842ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/drops/runtime_named_linear_container_cleanup_exit built 9852ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
@@ -3349,6 +3357,15 @@ pass/facts/indexed_owned_case_replacement_through_other_machine built 7887ms exi
 pass/facts/indexed_owned_case_replacement_through_other_state built 7938ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/indexed_owned_case_replacement_through_parameter built 7670ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/indexed_owned_case_replacement_through_target_body built 7763ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/indexed_recoverable_replacement_window_through_call_result_exit built 2073ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
+pass/facts/indexed_recoverable_replacement_window_through_const_name_exit built 2128ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
+pass/facts/indexed_recoverable_replacement_window_through_field_exit built 2079ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
+pass/facts/indexed_recoverable_replacement_window_through_local_exit built 2087ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
+pass/facts/indexed_recoverable_replacement_window_through_match_join_exit built 2198ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
+pass/facts/indexed_recoverable_replacement_window_through_other_machine_exit built 2226ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
+pass/facts/indexed_recoverable_replacement_window_through_other_state_exit built 2252ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
+pass/facts/indexed_recoverable_replacement_window_through_parameter_exit built 2073ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
+pass/facts/indexed_recoverable_replacement_window_through_target_body_exit built 2203ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
 pass/facts/indexed_storage_address_identity_through_call_result_exit built 2493ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/indexed_storage_address_identity_through_const_name_exit built 1841ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/indexed_storage_address_identity_through_field_exit built 2159ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -5029,6 +5046,15 @@ pass/facts/shared_borrow_field_projection_through_other_machine_exit built 3554m
 pass/facts/shared_borrow_field_projection_through_other_state_exit built 3276ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/shared_borrow_field_projection_through_parameter_exit built 3557ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/shared_borrow_field_projection_through_target_body_exit built 3132ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/shared_byte_view_rebinding_through_call_result_exit built 1471ms exit:0 interpreter-exit:0 interpreter:agrees @5fe2ed4548de
+pass/facts/shared_byte_view_rebinding_through_const_name_exit built 1469ms exit:0 interpreter-exit:0 interpreter:agrees @5fe2ed4548de
+pass/facts/shared_byte_view_rebinding_through_field_exit built 1678ms exit:0 interpreter-exit:0 interpreter:agrees @5fe2ed4548de
+pass/facts/shared_byte_view_rebinding_through_local_exit built 1542ms exit:0 interpreter-exit:0 interpreter:agrees @5fe2ed4548de
+pass/facts/shared_byte_view_rebinding_through_match_join_exit built 1648ms exit:0 interpreter-exit:0 interpreter:agrees @5fe2ed4548de
+pass/facts/shared_byte_view_rebinding_through_other_machine_exit built 1562ms exit:0 interpreter-exit:0 interpreter:agrees @5fe2ed4548de
+pass/facts/shared_byte_view_rebinding_through_other_state_exit built 1527ms exit:0 interpreter-exit:0 interpreter:agrees @5fe2ed4548de
+pass/facts/shared_byte_view_rebinding_through_parameter_exit built 1584ms exit:0 interpreter-exit:0 interpreter:agrees @5fe2ed4548de
+pass/facts/shared_byte_view_rebinding_through_target_body_exit built 1653ms exit:0 interpreter-exit:0 interpreter:agrees @5fe2ed4548de
 pass/facts/shared_qualification_erasure_through_call_result_exit built 3570ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/shared_qualification_erasure_through_const_name_exit built 10052ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/shared_qualification_erasure_through_field_exit built 2852ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -9074,9 +9100,7 @@ run/borrows/local_mut_borrow built 5548ms exit:9 interpreter-exit:9 interpreter:
 run/borrows/mut_record_loan_member_access built 5452ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 run/borrows/owned_array_view_establishment built 2332ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 run/borrows/probe_shared_len built 5526ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-run/borrows/proved_window_index_replacement rejected 1965ms interpreter:unchecked @a92f16431042
-	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+run/borrows/proved_window_index_replacement built 1686ms exit:0 interpreter-exit:0 interpreter:agrees @fe4789a121e2
 run/borrows/qualified_owner_views incomplete 1792ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
 	`main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has duplicate dispositions); in state `main::entry`, statement 5
 run/borrows/recast_mut_borrow built 5397ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
