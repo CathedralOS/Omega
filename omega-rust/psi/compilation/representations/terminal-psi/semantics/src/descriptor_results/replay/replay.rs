@@ -1004,12 +1004,12 @@ impl<'a> Replay<'a> {
                     return None;
                 }
                 let mut selected = after.clone();
-                if let Some(predicate) = machine
+                if let Some((predicate, truth)) = machine
                     .case_successors
                     .get(&position)
                     .and_then(|cases| cases.get(ordinal))
                 {
-                    if !super::case_flow::select(self, machine, &mut selected, predicate)? {
+                    if !super::case_flow::select(self, machine, &mut selected, predicate, *truth)? {
                         continue;
                     }
                 }

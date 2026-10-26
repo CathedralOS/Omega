@@ -7,14 +7,27 @@ use optimization_unit::{OptimizationEdge, OptimizationNode, PsiOptimizationFunct
 use semantic_vocabulary::{BlockId, IntegerValue, ScalarTerm as T, ScalarType, ValueId};
 use std::collections::BTreeMap;
 
+mod case_conditions;
+
+struct ScalarDefinition<'function> {
+    node: &'function OptimizationNode,
+    position: (BlockId, usize),
+}
+
+struct IncomingEdge<'function> {
+    source: (BlockId, usize),
+    edge: &'function OptimizationEdge,
+}
+
 pub(super) struct ScalarExpressions<'function> {
     entry: BlockId,
     types: BTreeMap<ValueId, ScalarType>,
-    definitions: BTreeMap<ValueId, &'function OptimizationNode>,
+    definitions: BTreeMap<ValueId, ScalarDefinition<'function>>,
     booleans: BTreeMap<ValueId, bool>,
     integers: BTreeMap<ValueId, (ScalarType, IntegerValue)>,
     owners: BTreeMap<ValueId, BlockId>,
-    incoming: BTreeMap<BlockId, Vec<&'function OptimizationEdge>>,
+    incoming: BTreeMap<BlockId, Vec<IncomingEdge<'function>>>,
+    blocks: BTreeMap<BlockId, &'function optimization_unit::OptimizationBlock>,
 }
 
 impl<'function> ScalarExpressions<'function> {
@@ -34,14 +47,25 @@ impl<'function> ScalarExpressions<'function> {
             integers: BTreeMap::new(),
             owners: BTreeMap::new(),
             incoming: BTreeMap::new(),
+            blocks: function
+                .blocks
+                .iter()
+                .map(|block| (block.id, block))
+                .collect(),
         };
         for block in &function.blocks {
             for parameter in &block.parameters {
                 reader.owners.entry(parameter.value).or_insert(block.id);
             }
-            for node in &block.nodes {
+            for (index, node) in block.nodes.iter().enumerate() {
                 for definition in &node.definitions {
-                    reader.definitions.entry(definition.value).or_insert(node);
+                    reader
+                        .definitions
+                        .entry(definition.value)
+                        .or_insert(ScalarDefinition {
+                            node,
+                            position: (block.id, index),
+                        });
                 }
                 match node.operation {
                     O::BooleanConstant { result, value, .. } => {
@@ -61,7 +85,14 @@ impl<'function> ScalarExpressions<'function> {
                     _ => {}
                 }
                 for edge in &node.successors {
-                    reader.incoming.entry(edge.target).or_default().push(edge);
+                    reader
+                        .incoming
+                        .entry(edge.target)
+                        .or_default()
+                        .push(IncomingEdge {
+                            source: (block.id, index),
+                            edge,
+                        });
                 }
             }
         }
@@ -88,7 +119,7 @@ impl<'function> ScalarExpressions<'function> {
                 .get(&owner)
                 .into_iter()
                 .flatten()
-                .map(|edge| edge.binding(value).map(|binding| binding.argument))
+                .map(|incoming| incoming.edge.binding(value).map(|binding| binding.argument))
                 .collect::<Option<Vec<_>>>()?;
             Some(terminal_semantics::ScalarConstantOrigin::Incoming(incoming))
         })?;
@@ -110,7 +141,8 @@ impl<'function> ScalarExpressions<'function> {
             }
             let term = |value| Some(Box::new(T::value(value, *types.get(&value)?)));
             let integer = |value| types.get(&value)?.as_integer();
-            let denotation = self.definitions.get(&value).and_then(|node| {
+            let denotation = self.definitions.get(&value).and_then(|definition| {
+                let node = definition.node;
                 Some(match &node.operation {
                     O::IntegerArithmetic {
                         arithmetic,
