@@ -28,6 +28,7 @@ pub fn check_closed_const_expression(
         lexical_owner,
         &declaration_parameters(program, lexical_owner),
         &[],
+        None,
         expression,
         program.primitive_type_reference(carrier),
         program.arithmetic_domain_for_type_reference(carrier),
