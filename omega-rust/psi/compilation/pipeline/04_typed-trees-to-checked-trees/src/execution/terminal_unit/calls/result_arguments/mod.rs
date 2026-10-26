@@ -21,9 +21,7 @@ use crate::execution::terminal_unit::StateParameter;
 use crate::execution::terminal_unit::StatementNode;
 use crate::execution::terminal_unit::SymbolHandle;
 
-use crate::execution::terminal_unit::calls::argument_paths::{
-    projected_argument_path_for_identity, projected_evaluated_path,
-};
+use crate::execution::terminal_unit::calls::argument_paths::projected_evaluated_path;
 use crate::execution::terminal_unit::calls::argument_presentation::ArgumentPresentation;
 use crate::execution::terminal_unit::calls::structural_arguments::exact_structural_argument_access;
 
@@ -423,13 +421,21 @@ fn argument_contract(
             }
                 Some(path)
             } else {
-                projected_argument_path_for_identity(
+                phase("call result argument: owned projected storage");
+                // Owned projection keeps its checked selector evaluation just
+                // like a loan. Custody is joined independently below; a
+                // static-only path reader cannot present a completed index.
+                projected_evaluated_path(
                     program,
+                    machine,
                     state,
                     call.statement_index,
                     place,
-                    target_identity,
-                )
+                    selectors,
+                ).and_then(|(selected, path)| {
+                    (base_type_identity(program, selected, &[], &[])? == target_identity)
+                        .then_some(path)
+                })
             }
         } else {
             None

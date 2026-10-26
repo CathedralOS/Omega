@@ -350,7 +350,7 @@ pub(super) fn root_type(
                 result.multiplicity,
                 terminal_psi::StructuralMultiplicity::Affine
                     | terminal_psi::StructuralMultiplicity::Unrestricted
-            ) && result.claims.is_empty())
+            ))
             .then_some(result.structural_type);
         }
         if let Some((_, parameter)) = join(source, place) {

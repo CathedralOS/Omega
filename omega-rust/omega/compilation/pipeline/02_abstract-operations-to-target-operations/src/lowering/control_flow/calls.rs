@@ -720,6 +720,7 @@ fn structural_argument(
             argument,
             declaration,
             destination,
+            function,
             prepared,
             live,
             types,

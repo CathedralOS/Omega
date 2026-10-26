@@ -153,6 +153,10 @@ pub struct FlowControlFacts {
     pub case_accesses: Arena<super::FlowCaseAccessFact>,
     pub operator_invocations: Arena<super::FlowOperatorInvocationFact>,
     pub operands: Arena<super::FlowOperandFact>,
+    /// Captured occurrences grouped by their actual evaluated expression.
+    /// The shared index follows the operand arena's exact mutation revision.
+    pub operands_by_expression:
+        KeyedRows<typed_trees::expression::ExpressionHandle, super::FlowOperandFact>,
     pub operand_children: Arena<super::FlowOperandChild>,
     pub operand_child_paths: Arena<facts::PlaceSegment>,
     /// Exact storage an operand's evaluated view carrier denotes, one row per
@@ -183,6 +187,19 @@ pub struct FlowControlFacts {
 }
 
 impl FlowControlFacts {
+    pub fn with_expression_operands<R>(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+        run: impl FnOnce(&[arena::Handle<super::FlowOperandFact>]) -> R,
+    ) -> R {
+        self.operands_by_expression.with_rows(
+            &self.operands,
+            |operand| operand.expression,
+            &expression,
+            run,
+        )
+    }
+
     /// Complete captured lifetime dependencies, never exact address evidence.
     pub fn retained_roots(
         &self,
@@ -215,6 +232,7 @@ impl FlowControlFacts {
             case_accesses: Arena::default(),
             operator_invocations: Arena::default(),
             operands: Arena::default(),
+            operands_by_expression: KeyedRows::default(),
             operand_children: Arena::default(),
             operand_child_paths: Arena::default(),
             operand_origin_writes: Arena::default(),
@@ -503,6 +521,6 @@ paged_flow_roots!(FlowControlFacts {
         exit_parameter_origins,
         states,
     ],
-    indexes: [],
+    indexes: [operands_by_expression],
     lists: [retired_calls],
 });
