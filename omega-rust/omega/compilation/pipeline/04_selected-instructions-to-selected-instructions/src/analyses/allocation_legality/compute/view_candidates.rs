@@ -6,8 +6,18 @@ use register_model::{
 };
 use selected_instructions::SelectedBlockId;
 
-use crate::AllocationLegalityError;
-use selected_instructions::{FunctionLiveRanges, LiveRangePoint, VirtualLiveRange};
+use crate::{AllocationLegalityError, ValidatedAllocatorAvailability};
+use selected_instructions::{
+    ArchitecturalUnitLiveRange, FunctionLiveRanges, LiveRangePoint, VirtualLiveRange,
+};
+
+#[derive(Clone, Default)]
+enum CellCandidates {
+    #[default]
+    Unknown,
+    AllBaseViews,
+    PerBlock(Vec<(SelectedBlockId, Vec<RegisterViewId>)>),
+}
 
 /// General candidates depend on the block, class, and architectural availability,
 /// not the value visiting it. Availability is constant between the prepared unit
@@ -21,13 +31,17 @@ pub(super) struct CandidateViews<'a> {
     function: &'a FunctionLiveRanges,
     physical: &'a ValidatedPhysicalRegisterModel,
     reservations: &'a ValidatedRegisterReservationProfile,
-    candidates_by_class: Vec<Vec<Vec<(SelectedBlockId, Vec<RegisterViewId>)>>>,
+    base_views_by_class: Vec<Vec<RegisterViewId>>,
+    base_view_masks_by_class: Vec<Option<Vec<(RegisterViewId, u64)>>>,
+    arch_units_by_class: Vec<Vec<usize>>,
+    cells_by_class: Vec<Vec<CellCandidates>>,
     boundaries_by_class: Vec<Vec<LiveRangePoint>>,
 }
 
 impl<'a> CandidateViews<'a> {
     pub(super) fn new(
         function: &'a FunctionLiveRanges,
+        availability: &'a ValidatedAllocatorAvailability,
         physical: &'a ValidatedPhysicalRegisterModel,
         reservations: &'a ValidatedRegisterReservationProfile,
     ) -> Self {
@@ -46,27 +60,46 @@ impl<'a> CandidateViews<'a> {
             .map(|c| usize::from(c.id.0))
             .max()
             .unwrap_or(0);
+        let mut base_views_by_class = vec![Vec::new(); max_class_id + 1];
+        let mut base_view_masks_by_class = vec![None; max_class_id + 1];
+        let mut arch_units_by_class = vec![Vec::new(); max_class_id + 1];
+        let mut cells_by_class = vec![Vec::new(); max_class_id + 1];
         let mut boundaries_by_class = vec![Vec::new(); max_class_id + 1];
-        let mut candidates_by_class = vec![Vec::new(); max_class_id + 1];
         for class in &model.classes {
-            let mut class_units = std::collections::BTreeSet::new();
+            let class_idx = usize::from(class.id.0);
+            let available = availability
+                .unconstrained_views(class.id)
+                .unwrap_or(&[][..]);
+            let mut class_units = Vec::new();
+            let mut base_views = Vec::with_capacity(class.views.len());
             for &view_id in &class.views {
                 if let Some(view) = model.views.get(usize::from(view_id.0))
                     && view.id == view_id
                     && view.allocatable
                 {
+                    let mut has_reserved = false;
                     for &unit in view.units.iter().chain(&view.write_units) {
                         if reserved.binary_search(&unit).is_err() {
-                            class_units.insert(unit);
+                            if !class_units.contains(&unit) {
+                                class_units.push(unit);
+                            }
+                        } else {
+                            has_reserved = true;
                         }
+                    }
+                    if !has_reserved && available.binary_search(&view_id).is_ok() {
+                        base_views.push(view_id);
                     }
                 }
             }
+            class_units.sort_unstable();
+            let mut arch_units = Vec::new();
             let mut boundaries = Vec::new();
-            for unit in &function.architectural_units {
-                if !class_units.contains(&unit.unit) {
+            for (unit_idx, unit) in function.architectural_units.iter().enumerate() {
+                if class_units.binary_search(&unit.unit).is_err() {
                     continue;
                 }
+                arch_units.push(unit_idx);
                 for fragment in &unit.fragments {
                     boundaries.extend([fragment.start, fragment.end]);
                 }
@@ -79,15 +112,35 @@ impl<'a> CandidateViews<'a> {
             }
             boundaries.sort_unstable();
             boundaries.dedup();
-            let class_idx = usize::from(class.id.0);
-            candidates_by_class[class_idx] = vec![Vec::new(); boundaries.len() + 1];
+            if arch_units.len() <= 64 {
+                let mut masks = Vec::with_capacity(base_views.len());
+                for &view_id in &base_views {
+                    let view = &model.views[usize::from(view_id.0)];
+                    let mut mask = 0u64;
+                    for (bit, &unit_idx) in arch_units.iter().enumerate() {
+                        let arch_unit = function.architectural_units[unit_idx].unit;
+                        if view.units.contains(&arch_unit) || view.write_units.contains(&arch_unit)
+                        {
+                            mask |= 1u64 << bit;
+                        }
+                    }
+                    masks.push((view_id, mask));
+                }
+                base_view_masks_by_class[class_idx] = Some(masks);
+            }
+            base_views_by_class[class_idx] = base_views;
+            arch_units_by_class[class_idx] = arch_units;
+            cells_by_class[class_idx] = vec![CellCandidates::Unknown; boundaries.len() + 1];
             boundaries_by_class[class_idx] = boundaries;
         }
         Self {
             function,
             physical,
             reservations,
-            candidates_by_class,
+            base_views_by_class,
+            base_view_masks_by_class,
+            arch_units_by_class,
+            cells_by_class,
             boundaries_by_class,
         }
     }
@@ -142,41 +195,114 @@ impl<'a> CandidateViews<'a> {
         cell: usize,
         fixed: Option<RegisterViewId>,
     ) -> Result<&[RegisterViewId], AllocationLegalityError> {
-        let class_idx = usize::from(class.id.0);
-        let bucket = &mut self.candidates_by_class[class_idx][cell];
-        let pos = if let Some(pos) = bucket.iter().position(|(b, _)| *b == block) {
-            pos
-        } else {
-            let computed = unconstrained(
-                class,
-                available,
+        if let Some(fixed) = fixed {
+            // A fixed view has always replaced (not intersected) the general
+            // roster after its own class and conflict checks. Borrow its exact
+            // model identity rather than clearing and rebuilding a one-item Vec.
+            return fixed_candidate(
+                function_index,
+                register,
                 block,
                 point,
+                fixed,
                 self.function,
                 self.physical,
                 self.reservations,
             );
-            bucket.push((block, computed));
-            bucket.len() - 1
-        };
-        let candidates = bucket[pos].1.as_slice();
-        let Some(fixed) = fixed else {
-            return Ok(candidates);
-        };
-        // A fixed view has always replaced (not intersected) the general
-        // roster after its own class and conflict checks. Borrow its exact
-        // model identity rather than clearing and rebuilding a one-item Vec.
-        fixed_candidate(
-            function_index,
-            register,
-            block,
-            point,
-            fixed,
-            self.function,
-            self.physical,
-            self.reservations,
-        )
+        }
+        let class_idx = usize::from(class.id.0);
+        if matches!(self.cells_by_class[class_idx][cell], CellCandidates::Unknown) {
+            let arch_units = &self.arch_units_by_class[class_idx];
+            let any_active_at_point = arch_units.iter().any(|&unit_idx| {
+                unit_active_at_point(&self.function.architectural_units[unit_idx], point)
+            });
+            if !any_active_at_point {
+                self.cells_by_class[class_idx][cell] = CellCandidates::AllBaseViews;
+            } else {
+                self.cells_by_class[class_idx][cell] = CellCandidates::PerBlock(Vec::new());
+            }
+        }
+        match &mut self.cells_by_class[class_idx][cell] {
+            CellCandidates::AllBaseViews => Ok(&self.base_views_by_class[class_idx]),
+            CellCandidates::PerBlock(bucket) => {
+                let pos = if let Some(pos) = bucket.iter().position(|(b, _)| *b == block) {
+                    pos
+                } else {
+                    let computed = if let Some(masks) = &self.base_view_masks_by_class[class_idx] {
+                        let mut active_mask = 0u64;
+                        for (bit, &unit_idx) in
+                            self.arch_units_by_class[class_idx].iter().enumerate()
+                        {
+                            if unit_active_in_block_at_point(
+                                &self.function.architectural_units[unit_idx],
+                                block,
+                                point,
+                            ) {
+                                active_mask |= 1u64 << bit;
+                            }
+                        }
+                        if active_mask == 0 {
+                            self.base_views_by_class[class_idx].clone()
+                        } else {
+                            masks
+                                .iter()
+                                .filter_map(|&(view_id, mask)| {
+                                    ((mask & active_mask) == 0).then_some(view_id)
+                                })
+                                .collect()
+                        }
+                    } else {
+                        unconstrained(
+                            class,
+                            available,
+                            block,
+                            point,
+                            self.function,
+                            self.physical,
+                            self.reservations,
+                        )
+                    };
+                    bucket.push((block, computed));
+                    bucket.len() - 1
+                };
+                Ok(bucket[pos].1.as_slice())
+            }
+            CellCandidates::Unknown => unreachable!(),
+        }
     }
+}
+
+fn unit_active_at_point(row: &ArchitecturalUnitLiveRange, point: LiveRangePoint) -> bool {
+    let frag_pos = row
+        .fragments
+        .partition_point(|fragment| fragment.start <= point);
+    if frag_pos > 0 && point < row.fragments[frag_pos - 1].end {
+        return true;
+    }
+    row.actions
+        .binary_search_by_key(&point, |action| action.point)
+        .is_ok()
+}
+
+fn unit_active_in_block_at_point(
+    row: &ArchitecturalUnitLiveRange,
+    block: SelectedBlockId,
+    point: LiveRangePoint,
+) -> bool {
+    let frag_pos = row
+        .fragments
+        .partition_point(|fragment| fragment.start <= point);
+    if frag_pos > 0 {
+        let fragment = &row.fragments[frag_pos - 1];
+        if fragment.block == block && point < fragment.end {
+            return true;
+        }
+    }
+    let act_pos = row.actions.partition_point(|action| action.point < point);
+    row.actions[act_pos..]
+        .iter()
+        .take_while(|action| action.point == point)
+        .any(|action| action.block == block)
 }
 
 #[allow(clippy::too_many_arguments)]
