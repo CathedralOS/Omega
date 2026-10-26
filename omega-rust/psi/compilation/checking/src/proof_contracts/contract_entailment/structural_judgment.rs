@@ -646,13 +646,10 @@ impl<'program> StructuralJudge<'program> {
             // the same read owner as completed operands. Exact replacements
             // can be observed; retired roots still decline there. Abstract
             // entry terms must never reinterpret an old binder as new contents.
-            let mut specification = self.clone();
-            specification.specification_terms = true;
-            return specification.callee_term_in_scope(
-                Some((machine, state, state.return_type)),
+            return self.predicate_term_in_scope(
+                (machine, state, state.return_type),
                 expression,
                 &environment,
-                0,
             );
         }
         super::structural_terms::structural_term(
@@ -662,6 +659,20 @@ impl<'program> StructuralJudge<'program> {
             expression,
             None,
         )
+    }
+
+    /// The ordinary predicate reader can also consume an executed prefix's
+    /// exact local bindings. These bindings affect the question only; the
+    /// judge's admitted premises and captured storage epochs remain intact.
+    pub(super) fn predicate_term_in_scope(
+        &self,
+        scope: (&Machine, &typed_trees::state::State, TypeReferenceHandle),
+        expression: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+    ) -> Option<StructuralTerm> {
+        let mut specification = self.clone();
+        specification.specification_terms = true;
+        specification.callee_term_in_scope(Some(scope), expression, environment, 0)
     }
 
     pub(super) fn application_is_independent(
