@@ -263,7 +263,8 @@ pub use crate::value_custody::content_projections::build_content_projection_plan
 
 pub use crate::declarations::symbols::TopLevelSymbols;
 pub use crate::value_custody::cleanup::{
-    data_requires_nominal_drop, has_no_owned_cleanup_obligations, type_graph_requires_nominal_drop,
+    data_requires_nominal_drop, has_no_owned_cleanup_obligations,
+    has_plain_contents_without_nominal_cleanup, type_graph_requires_nominal_drop,
 };
 pub use crate::value_custody::data::{data_requires_establishment, type_requires_establishment};
 pub use crate::value_custody::type_references::{

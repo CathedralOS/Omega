@@ -17,25 +17,34 @@ use typed_trees::statement::TransitionTargetNode;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-/// A complete plain copy has no owned cleanup state. Keep the original
-/// qualified reference: peeling it could erase a domain-selected hook.
-/// Unknown contents or selections retain ordinary cleanup processing.
+/// The original qualified type must be a complete plain structure without a
+/// selected hook. Affine whole-value custody remains the caller's obligation;
+/// this judgment grants neither copying nor disposal. Unknown selections and
+/// contents retain ordinary processing.
+pub fn has_plain_contents_without_nominal_cleanup(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    super::storage_contents::has_contents(
+        program,
+        reference,
+        &[],
+        super::storage_contents::ContentsRequirement::PlainOwned,
+    ) && matches!(
+        super::cleanup_selection::selected_application(program, reference),
+        Ok(None)
+    )
+}
+
+/// Copyable use alone does not retire materialized loan descriptors. Combine
+/// exact result custody with the complete original contents/cleanup judgment.
 pub fn has_no_owned_cleanup_obligations(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
     crate::reference_result_custody::result_multiplicity(program, reference)
         == Multiplicity::Unrestricted
-        && super::storage_contents::has_contents(
-            program,
-            reference,
-            &[],
-            super::storage_contents::ContentsRequirement::PlainOwned,
-        )
-        && matches!(
-            super::cleanup_selection::selected_application(program, reference),
-            Ok(None)
-        )
+        && has_plain_contents_without_nominal_cleanup(program, reference)
 }
 
 pub fn type_graph_requires_nominal_drop(

@@ -119,31 +119,27 @@ impl<'program> CaseEvidence<'program> {
         let mut inactive = Vec::new();
         let mut previous = None;
         let mut previous_root = None;
-        let mut root_has_no_cleanup = false;
+        let mut root_is_plain_without_cleanup = false;
+        let mut subject_cleanup_types = Vec::new();
         for observation in &self.observations {
             let subject = &observation.place;
             if previous_root != Some(&subject.root) {
-                // A nested plain field may still serve an ancestor's hook or
-                // descriptor cleanup. Only the original whole root can prove
-                // this cleanup-only batch irrelevant. The cache lives at one
-                // immutable evidence cut, never across writes or joins.
+                // A nested plain field can still serve an ancestor's hook or
+                // loan cleanup. Authenticate the original whole root first.
                 let root = CanonicalPlace {
                     root: subject.root,
                     segments: Vec::new(),
                 };
-                root_has_no_cleanup = validation::canonical_owned_place_type_reference(
+                root_is_plain_without_cleanup = validation::canonical_owned_place_type_reference(
                     self.program,
                     self.state.symbol,
                     self.statement_index,
                     &root,
                 )
                 .is_some_and(|reference| {
-                    validation::has_no_owned_cleanup_obligations(self.program, reference)
+                    validation::has_plain_contents_without_nominal_cleanup(self.program, reference)
                 });
                 previous_root = Some(&subject.root);
-            }
-            if root_has_no_cleanup {
-                continue;
             }
             if previous == Some(subject) {
                 continue;
@@ -166,6 +162,26 @@ impl<'program> CaseEvidence<'program> {
             ) else {
                 continue;
             };
+            if root_is_plain_without_cleanup {
+                // No claim or descriptor lies below a complete unrestricted
+                // subject, so its case namespaces cannot affect affine sibling
+                // or ancestor custody. Reuse only exact original type answers
+                // in this immutable batch, never across writes or joins.
+                let no_owned_cleanup = if let Some((_, answer)) = subject_cleanup_types
+                    .iter()
+                    .find(|(retained, _)| *retained == reference)
+                {
+                    *answer
+                } else {
+                    let answer =
+                        validation::has_no_owned_cleanup_obligations(self.program, reference);
+                    subject_cleanup_types.push((reference, answer));
+                    answer
+                };
+                if no_owned_cleanup {
+                    continue;
+                }
+            }
             let reference = validation::peel_declared_constraints(self.program, reference);
             let Some(data) = self.program.closed_data_definition(reference) else {
                 continue;
@@ -181,35 +197,6 @@ impl<'program> CaseEvidence<'program> {
                         variant: variant.symbol,
                     });
                     inactive.push(path);
-                    if inactive.len() == 8192
-                        && std::env::var_os("OMEGA_CASE_BATCH_PROFILE").is_some()
-                    {
-                        let root = CanonicalPlace {
-                            root: subject.root,
-                            segments: Vec::new(),
-                        };
-                        let root_type = validation::canonical_owned_place_type_reference(
-                            self.program,
-                            self.state.symbol,
-                            self.statement_index,
-                            &root,
-                        );
-                        eprintln!(
-                            "case-batch machine={} state={} statement={} root={:?} root_type={:?} subject={:?} sum={} members={} observations={}",
-                            self.machine.name.as_str(),
-                            crate::labels::symbol_name(self.program, self.state.symbol),
-                            self.statement_index,
-                            subject.root,
-                            root_type.map(|reference| self
-                                .program
-                                .type_reference_table
-                                .type_reference(reference)),
-                            subject.segments,
-                            crate::labels::symbol_name(self.program, data.symbol),
-                            self.program.data_members(data).len(),
-                            self.observations.len(),
-                        );
-                    }
                 }
             }
         }
