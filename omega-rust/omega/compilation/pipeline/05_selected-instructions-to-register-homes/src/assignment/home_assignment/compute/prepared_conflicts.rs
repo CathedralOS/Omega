@@ -235,18 +235,86 @@ impl PreparedConflicts {
         let model = physical.model();
         let view_count = model.views.len();
         let mut used_views = vec![false; view_count];
-        for domain in domains {
-            for candidate in &domain.candidates {
-                let view = model
-                    .views
-                    .get(usize::from(candidate.0))
-                    .filter(|view| view.class == domain.members[0].class)
-                    .ok_or(RegisterHomeError::UnknownOrIncompatibleView {
-                        function,
-                        register: domain.members[0].virtual_register.0,
-                        view: candidate.0,
-                    })?;
-                used_views[usize::from(view.id.0)] = true;
+        let dense_view_ids = view_count <= 64
+            && model
+                .views
+                .iter()
+                .enumerate()
+                .all(|(idx, view)| usize::from(view.id.0) == idx);
+        if dense_view_ids {
+            let max_class = model
+                .views
+                .iter()
+                .map(|v| usize::from(v.class.0))
+                .max()
+                .unwrap_or(0);
+            let mut class_masks = vec![0u64; max_class + 1];
+            for (idx, view) in model.views.iter().enumerate() {
+                class_masks[usize::from(view.class.0)] |= 1u64 << idx;
+            }
+            let mut used_views_mask = 0u64;
+            for domain in domains {
+                let class_idx = usize::from(domain.leader_member.class.0);
+                let valid_mask = class_masks.get(class_idx).copied().unwrap_or(0);
+                if domain.candidates.is_empty() {
+                    let invalid = domain.candidates_mask & !valid_mask;
+                    if invalid != 0 {
+                        return Err(RegisterHomeError::UnknownOrIncompatibleView {
+                            function,
+                            register: domain.leader_member.virtual_register.0,
+                            view: invalid.trailing_zeros() as u16,
+                        });
+                    }
+                    used_views_mask |= domain.candidates_mask;
+                } else {
+                    for candidate in &domain.candidates {
+                        let bit = usize::from(candidate.0);
+                        if bit >= 64 || (valid_mask & (1u64 << bit)) == 0 {
+                            return Err(RegisterHomeError::UnknownOrIncompatibleView {
+                                function,
+                                register: domain.leader_member.virtual_register.0,
+                                view: candidate.0,
+                            });
+                        }
+                        used_views_mask |= 1u64 << bit;
+                    }
+                }
+            }
+            for (idx, slot) in used_views.iter_mut().enumerate() {
+                *slot = (used_views_mask & (1u64 << idx)) != 0;
+            }
+        } else {
+            for domain in domains {
+                if domain.candidates.is_empty() {
+                    let mut mask = domain.candidates_mask;
+                    while mask != 0 {
+                        let bit = mask.trailing_zeros() as u16;
+                        mask &= mask - 1;
+                        let view = model
+                            .views
+                            .get(usize::from(bit))
+                            .filter(|view| view.class == domain.leader_member.class)
+                            .ok_or(RegisterHomeError::UnknownOrIncompatibleView {
+                                function,
+                                register: domain.leader_member.virtual_register.0,
+                                view: bit,
+                            })?;
+                        used_views[usize::from(view.id.0)] = true;
+                    }
+                } else {
+                    for candidate in &domain.candidates {
+                        let view = model
+                            .views
+                            .get(usize::from(candidate.0))
+                            .filter(|view| view.class == domain.leader_member.class)
+                            .ok_or(RegisterHomeError::UnknownOrIncompatibleView {
+                                function,
+                                register: domain.leader_member.virtual_register.0,
+                                view: candidate.0,
+                            })?;
+                        used_views[usize::from(view.id.0)] = true;
+                    }
+                }
             }
         }
         // Hardware view relationships do not depend on virtual values. Store

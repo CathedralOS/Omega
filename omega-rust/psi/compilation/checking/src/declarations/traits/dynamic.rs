@@ -228,6 +228,12 @@ pub struct DynamicSlotDemand {
     pub selector_type: TypeReferenceHandle,
     pub declaring_trait: symbols::SymbolHandle,
     pub requirement: symbols::SymbolHandle,
+    /// Exact executable requirement application for this call; a static local
+    /// tuple can close its representation independently of the public roster.
+    pub call_requirement: symbols::SymbolHandle,
+    /// Complete authored family under this exact outer application. These
+    /// existing public instances, never provider shapes, own each row ABI.
+    pub family_call_requirements: Vec<symbols::SymbolHandle>,
     /// Complete outer-to-inner applied telescopes. A declaring trait's
     /// composite argument can still name an outer trait's parameter.
     pub type_substitutions: Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,
@@ -251,10 +257,18 @@ pub fn collect_dynamic_slot_demands(
     )> = Vec::new();
     let mut push = |demand: DynamicSlotDemand| {
         let identity = program.normalized_type_identity(demand.selector_type);
-        if !demands.iter().any(|(existing, known)| {
-            *existing == identity && known.requirement == demand.requirement
-        }) {
-            demands.push((identity, demand));
+        let mut variants = vec![demand.clone()];
+        for requirement in &demand.family_call_requirements {
+            let mut closed = demand.clone();
+            closed.call_requirement = *requirement;
+            variants.push(closed);
+        }
+        for variant in variants {
+            if !demands.iter().any(|(existing, known)| {
+                *existing == identity && known.call_requirement == variant.call_requirement
+            }) {
+                demands.push((identity, variant));
+            }
         }
     };
     for selection in collect_dynamic_implementation_selections(program)? {
@@ -287,6 +301,12 @@ pub fn collect_dynamic_slot_demands(
                 selector_type: selection.selector_type,
                 declaring_trait: row.declaring_trait,
                 requirement: row.requirement,
+                call_requirement: row.requirement,
+                family_call_requirements: closed_family_requirements(
+                    program,
+                    row.requirement,
+                    &application,
+                ),
                 type_substitutions: application.substitutions,
                 substitution_scope_starts: application.substitution_scope_starts,
             });
@@ -383,6 +403,15 @@ pub fn dynamic_call_demand(
         selector_type: call.selector_type,
         declaring_trait: call.application.declaration.symbol,
         requirement: call.signature.symbol,
+        call_requirement: call
+            .closed_signature
+            .filter(|_| !call.signature.type_parameters.is_empty())
+            .map_or(call.signature.symbol, |signature| signature.symbol),
+        family_call_requirements: closed_family_requirements(
+            program,
+            call.signature.symbol,
+            &call.application,
+        ),
         type_substitutions: call.application.substitutions,
         substitution_scope_starts: call.application.substitution_scope_starts,
     })
@@ -883,4 +912,51 @@ fn collect_dynamic_requirements_named<'program>(
             }
         }
     });
+}
+
+/// Rejoin only compiler-produced instances of the declared correlated roster.
+/// A caller's observed tuple set and selected implementation cannot narrow it.
+fn closed_family_requirements(
+    program: &dyn crate::CheckingInput,
+    requirement: symbols::SymbolHandle,
+    application: &typed_trees::trait_definition::AppliedTraitScope<'_>,
+) -> Vec<symbols::SymbolHandle> {
+    let Some(signature) = program
+        .applied_callable_signature(application, requirement)
+        .or_else(|| {
+            program
+                .trait_machine_signature(requirement)
+                .map(|(_, signature)| signature)
+        })
+    else {
+        return Vec::new();
+    };
+    let typed_trees::finite_family::FamilyProbe::Finite { arity, tuples } =
+        program.finite_signature_family(signature)
+    else {
+        return Vec::new();
+    };
+    tuples
+        .iter()
+        .filter_map(|tuple| {
+            program
+                .closed_requirement_applications()
+                .find(|instance| {
+                    instance.template == requirement
+                        && instance.local_arguments.len() == arity
+                        && program.requirement_application_matches_scope(
+                            instance.signature.symbol,
+                            application,
+                        )
+                        && instance
+                            .local_arguments
+                            .iter()
+                            .map(|argument| program.static_const_type_reference_identity(*argument))
+                            .collect::<Option<Vec<_>>>()
+                            .as_deref()
+                            == Some(tuple.identities.as_ref())
+                })
+                .map(|instance| instance.signature.symbol)
+        })
+        .collect()
 }

@@ -35,6 +35,9 @@ pub use value_custody::places::binding_observations::stable_slice_descriptor_pla
 pub use value_custody::places::collection_operations;
 pub use value_custody::places::declared_reference_access;
 pub use value_custody::places::{declaration_type_reference, declared_case_projection_field};
+pub use value_custody::static_inline_storage::{
+    runtime_inline_array_extent, validate_prepared_inline_storage,
+};
 
 pub use declarations::selection_resolution;
 pub use declarations::source_completion;

@@ -98,7 +98,16 @@ impl CurrentScalarValues<'_> {
         expression: ExpressionHandle,
         arguments: &[(SymbolHandle, Option<ExpressionHandle>)],
     ) -> Option<ScopedArithmeticExpression> {
-        if arguments.is_empty() {
+        self.application_value_with_captured(expression, arguments, &[])
+    }
+
+    pub(crate) fn application_value_with_captured(
+        &self,
+        expression: ExpressionHandle,
+        arguments: &[(SymbolHandle, Option<ExpressionHandle>)],
+        captured: &[(SymbolHandle, Option<ScopedArithmeticValue>)],
+    ) -> Option<ScopedArithmeticExpression> {
+        if arguments.is_empty() && captured.is_empty() {
             return self.current(expression);
         }
         let mut bindings = Vec::new();
@@ -113,7 +122,12 @@ impl CurrentScalarValues<'_> {
             remaining = remaining.checked_sub(1)?;
             match self.program.expression_table.expression(occurrence) {
                 ExpressionNode::Name(path) => {
-                    let value = if let Some((_, actual)) =
+                    let value = if let Some((_, value)) =
+                        captured.iter().find(|(formal, _)| *formal == path.symbol)
+                    {
+                        owner = self.program.symbols.get(path.symbol).parent;
+                        value.clone()?
+                    } else if let Some((_, actual)) =
                         arguments.iter().find(|(formal, _)| *formal == path.symbol)
                     {
                         owner = self.program.symbols.get(path.symbol).parent;

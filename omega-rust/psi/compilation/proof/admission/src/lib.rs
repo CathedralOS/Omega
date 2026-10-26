@@ -124,3 +124,26 @@ macro_rules! debug_display {
     };
 }
 pub(crate) use debug_display;
+
+/// The cited-semantic-axiom lookup each witness module reads its roster
+/// through: the index must exist and its proposition must validate against
+/// the context. The module names its own refusal type, so the two refusals
+/// stay in its vocabulary and no lookup body is written twice.
+macro_rules! checked_axiom {
+    ($error:path) => {
+        fn checked_axiom<'a>(
+            context: &semantic_vocabulary::PropositionContext,
+            semantic_axioms: &'a [semantic_vocabulary::Proposition],
+            index: usize,
+        ) -> Result<&'a semantic_vocabulary::Proposition, $error> {
+            let proposition = semantic_axioms
+                .get(index)
+                .ok_or(<$error>::UnknownSemanticAxiom(index))?;
+            context
+                .validate(proposition)
+                .map_err(<$error>::MalformedProposition)?;
+            Ok(proposition)
+        }
+    };
+}
+pub(crate) use checked_axiom;

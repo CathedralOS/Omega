@@ -171,31 +171,15 @@ fn system_v_small_integer_aggregates_use_consecutive_registers_and_results() {
     assert_eq!(
         plan.parameters[1].locations,
         vec![
-            ValueLocation::Register {
-                register: MachineRegister::X86Rsi,
-                value_byte_offset: 0,
-                byte_size: 8,
-            },
-            ValueLocation::Register {
-                register: MachineRegister::X86Rdx,
-                value_byte_offset: 8,
-                byte_size: 8,
-            },
+            ValueLocation::register(MachineRegister::X86Rsi, 0, 8),
+            ValueLocation::register(MachineRegister::X86Rdx, 8, 8),
         ]
     );
     assert_eq!(
         plan.result.expect("aggregate result").locations,
         vec![
-            ValueLocation::Register {
-                register: MachineRegister::X86Rax,
-                value_byte_offset: 0,
-                byte_size: 8,
-            },
-            ValueLocation::Register {
-                register: MachineRegister::X86Rdx,
-                value_byte_offset: 8,
-                byte_size: 4,
-            },
+            ValueLocation::register(MachineRegister::X86Rax, 0, 8),
+            ValueLocation::register(MachineRegister::X86Rdx, 8, 4),
         ]
     );
 }
@@ -215,27 +199,13 @@ fn system_v_register_exhausted_aggregate_moves_wholly_to_stack_and_rolls_back() 
     assert_eq!(
         plan.parameters[5].locations,
         vec![
-            ValueLocation::Stack {
-                stack_byte_offset: 0,
-                value_byte_offset: 0,
-                byte_size: 8,
-                alignment: 8,
-            },
-            ValueLocation::Stack {
-                stack_byte_offset: 8,
-                value_byte_offset: 8,
-                byte_size: 8,
-                alignment: 8,
-            },
+            ValueLocation::stack(0, 0, 8, 8),
+            ValueLocation::stack(8, 8, 8, 8),
         ]
     );
     assert_eq!(
         plan.parameters[6].locations,
-        vec![ValueLocation::Register {
-            register: MachineRegister::X86R9,
-            value_byte_offset: 0,
-            byte_size: 8,
-        }]
+        vec![ValueLocation::register(MachineRegister::X86R9, 0, 8)]
     );
 }
 
@@ -269,31 +239,15 @@ fn aapcs_small_integer_aggregates_use_consecutive_x_registers() {
     assert_eq!(
         plan.parameters[1].locations,
         vec![
-            ValueLocation::Register {
-                register: MachineRegister::Aarch64X(2),
-                value_byte_offset: 0,
-                byte_size: 8,
-            },
-            ValueLocation::Register {
-                register: MachineRegister::Aarch64X(3),
-                value_byte_offset: 8,
-                byte_size: 8,
-            },
+            ValueLocation::register(MachineRegister::Aarch64X(2), 0, 8),
+            ValueLocation::register(MachineRegister::Aarch64X(3), 8, 8),
         ]
     );
     assert_eq!(
         plan.result.expect("aggregate result").locations,
         vec![
-            ValueLocation::Register {
-                register: MachineRegister::Aarch64X(0),
-                value_byte_offset: 0,
-                byte_size: 8,
-            },
-            ValueLocation::Register {
-                register: MachineRegister::Aarch64X(1),
-                value_byte_offset: 8,
-                byte_size: 4,
-            },
+            ValueLocation::register(MachineRegister::Aarch64X(0), 0, 8),
+            ValueLocation::register(MachineRegister::Aarch64X(1), 8, 4),
         ]
     );
 }
@@ -313,18 +267,8 @@ fn aapcs_small_aggregate_moves_wholly_to_stack_when_x_registers_run_out() {
     assert_eq!(
         plan.parameters[7].locations,
         vec![
-            ValueLocation::Stack {
-                stack_byte_offset: 0,
-                value_byte_offset: 0,
-                byte_size: 8,
-                alignment: 8,
-            },
-            ValueLocation::Stack {
-                stack_byte_offset: 8,
-                value_byte_offset: 8,
-                byte_size: 8,
-                alignment: 8,
-            },
+            ValueLocation::stack(0, 0, 8, 8),
+            ValueLocation::stack(8, 8, 8, 8),
         ]
     );
     assert!(matches!(
@@ -347,12 +291,12 @@ fn aapcs_large_aggregates_use_caller_copies_and_indirect_results() {
 
     assert_eq!(
         plan.parameters[0].locations,
-        vec![ValueLocation::Indirect {
-            pointer: IndirectPointerLocation::Register(MachineRegister::Aarch64X(0)),
-            copy_stack_byte_offset: Some(0),
-            byte_size: 24,
-            alignment: 8,
-        }]
+        vec![ValueLocation::indirect(
+            IndirectPointerLocation::Register(MachineRegister::Aarch64X(0)),
+            Some(0),
+            24,
+            8
+        )]
     );
     assert!(matches!(
         plan.parameters[1].locations.as_slice(),
@@ -363,12 +307,12 @@ fn aapcs_large_aggregates_use_caller_copies_and_indirect_results() {
     ));
     assert_eq!(
         plan.result.expect("indirect aggregate result").locations,
-        vec![ValueLocation::Indirect {
-            pointer: IndirectPointerLocation::Register(MachineRegister::Aarch64X(8)),
-            copy_stack_byte_offset: None,
-            byte_size: 32,
-            alignment: 16,
-        }]
+        vec![ValueLocation::indirect(
+            IndirectPointerLocation::Register(MachineRegister::Aarch64X(8)),
+            None,
+            32,
+            16
+        )]
     );
 }
 
@@ -386,15 +330,15 @@ fn aapcs_large_aggregate_pointer_uses_stack_before_its_copy() {
 
     assert_eq!(
         plan.parameters[8].locations,
-        vec![ValueLocation::Indirect {
-            pointer: IndirectPointerLocation::Stack {
+        vec![ValueLocation::indirect(
+            IndirectPointerLocation::Stack {
                 stack_byte_offset: 0,
                 alignment: 8,
             },
-            copy_stack_byte_offset: Some(16),
-            byte_size: 24,
-            alignment: 16,
-        }]
+            Some(16),
+            24,
+            16
+        )]
     );
 }
 
