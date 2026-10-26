@@ -518,18 +518,21 @@ fn executed_dependency_source_join(private_call: bool) {
         )
         .unwrap();
     }
-    let acquired = package_manager::resolution::source::AcquiredLocalSource::capture(
+    let profile = target::TargetProfile::host_if_supported().unwrap();
+    let preparation = package_manager::operations::begin_local_project_preparation(
         &temporary
             .path()
-            .join("executed_dependency_source_join_exit"),
-        package_source::LocalSourceLimits::default(),
-        package_source::ExternalSourceContext::derive(b"executed-graph-sdk"),
+            .join("executed_dependency_source_join_exit/main.omg"),
+        &[profile],
+        true,
     )
-    .expect("capture root before declaration");
+    .expect("recover before source acquisition")
+    .expect("authored Build starts project preparation");
+    let acquired = preparation
+        .acquire_root()
+        .expect("capture root before declaration");
     let mut compiler = CompilationSession::default();
-    let target = target::TargetProfile::host_if_supported()
-        .unwrap()
-        .target_name();
+    let target = profile.target_name();
     let request = |capture: &package_compilation::CapturedLocalSource| CheckedCompileRequest {
         source_capture: Some(capture.clone()),
         ..CheckedCompileRequest::new(
@@ -668,6 +671,16 @@ fn executed_dependency_source_join(private_call: bool) {
             .join_build(resolved.root(), &mut root_return)
             .is_err(),
         "request join is single-use"
+    );
+    let prepared = preparation
+        .complete_source_resolution(resolved)
+        .expect("complete preparation from actual Build source work");
+    assert_eq!(
+        prepared.entry_path(),
+        acquired
+            .source_capture()
+            .canonical_live_root()
+            .join("main.omg")
     );
     root_invocation.join_package_inputs(inputs).unwrap();
     let build = compiler

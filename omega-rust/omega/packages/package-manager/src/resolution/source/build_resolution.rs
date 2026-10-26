@@ -133,6 +133,10 @@ pub struct ResolvedBuildSources {
 }
 
 impl ResolvedBuildSources {
+    pub(crate) fn into_source_closure(self) -> ResolvedPackageSourceClosure {
+        self.closure
+    }
+
     pub fn root(&self) -> PackageKeyIdentity {
         self.closure.graph().root().identity()
     }

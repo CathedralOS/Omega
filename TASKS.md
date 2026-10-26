@@ -1124,7 +1124,12 @@ narrows realization only.
   reject; private dependency machines remain inaccessible. Captured dependency
   bytes no longer imply root-only Build metadata authority. Reconciliation keeps
   its scope/alias/cycle/limit checks; compiler completion refuses any unjoined
-  request. This is not the production CLI route yet: application preparation
+  request. Project preparation now retains transaction recovery, lock selection
+  and concurrent-edit checks across application-owned source execution; its
+  begin/finish boundary accepts the actual acquired graph without parsing Build
+  declarations. The SDK uses that boundary, and focused package tests preserve
+  transaction exclusion and refusal ordering. This is not the production CLI
+  route yet: application preparation
   still consumes package management's static graph, and ordinary one-shot
   compiler calls still own their execution loop. The application must consume
   the executed traversal, extend pinned Git/workspace acquisition and preserve
