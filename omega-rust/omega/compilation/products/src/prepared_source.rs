@@ -7,8 +7,10 @@
 
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
-use package_compilation::source_assembly::ImmutableSourceParseCheckpoint;
-use package_compilation::{PackageCompilationInputs, SourceAssemblyInputs};
+use package_compilation::source_assembly::{
+    DeferredProductSources, ImmutableSourceParseCheckpoint,
+};
+use package_compilation::{PackageCompilationInputs, ProductSourceInputs, SourceAssemblyInputs};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -24,11 +26,73 @@ pub struct TypedCompilationFrontier {
     pub anonymous_source: Option<package_compilation::AnonymousSourceCapture>,
     /// Product imports and declarations are prepared only after Build's join.
     /// No checked identity or initial name-resolution context is rewritten.
-    pub product_sources: Option<package_compilation::source_assembly::DeferredProductSources>,
+    pub product_sources: Option<DeferredProductCompilation>,
     pub build_source_id: Option<source::SourceId>,
     pub source_file_count: usize,
     pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
     pub base_sources: Arc<source::SourceMap>,
+}
+
+/// Siblings of one captured Build prefix share its deferred Product preparation.
+/// Only the frontend is retained: Build returns, charges and selections are not.
+#[derive(Clone)]
+pub struct DeferredProductCompilation {
+    sources: DeferredProductSources,
+    frontiers: Arc<Mutex<Vec<(ProductSourceInputs, TypedCompilationFrontier)>>>,
+}
+
+impl DeferredProductCompilation {
+    pub fn new(sources: DeferredProductSources) -> Self {
+        Self {
+            sources,
+            frontiers: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    pub fn retained(
+        &self,
+        inputs: &ProductSourceInputs,
+        packages: Option<&PackageCompilationInputs>,
+    ) -> Result<Option<TypedCompilationFrontier>, Vec<Diagnostic>> {
+        let frontier = self
+            .frontiers
+            .lock()
+            .map_err(|_| {
+                vec![Diagnostic::error(
+                    "deferred Product frontend retention is poisoned",
+                )]
+            })?
+            .iter()
+            .find(|(stored, _)| stored == inputs)
+            .map(|(_, frontier)| frontier.clone());
+        if frontier.is_some() {
+            self.sources.admit_inputs(packages)?;
+        }
+        Ok(frontier)
+    }
+
+    pub fn sources(&self) -> DeferredProductSources {
+        self.sources.clone()
+    }
+
+    /// Publish only successful preparation, never a partially typed judgment.
+    pub fn retain(
+        &self,
+        inputs: ProductSourceInputs,
+        frontier: &TypedCompilationFrontier,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if Arc::strong_count(&self.frontiers) == 1 {
+            return Ok(());
+        }
+        let mut frontiers = self.frontiers.lock().map_err(|_| {
+            vec![Diagnostic::error(
+                "deferred Product frontend retention is poisoned",
+            )]
+        })?;
+        frontiers.retain(|(stored, _)| *stored != inputs);
+        frontiers.push((inputs, frontier.clone()));
+        Ok(())
+    }
 }
 
 /// Immutable parsing shared by exact checked children. Forks share storage;

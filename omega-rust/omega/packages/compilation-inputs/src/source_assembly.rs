@@ -84,6 +84,16 @@ impl Clone for DeferredProductSources {
 }
 
 impl DeferredProductSources {
+    /// Revalidate a sibling's live custody even when its frontend is retained.
+    /// An anonymous capture must join the same named source owner as assembly.
+    pub fn admit_inputs(
+        &self,
+        package_inputs: Option<&PackageCompilationInputs>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut checkpoint = self.checkpoint.clone_shared();
+        checkpoint.join_product_inputs(package_inputs)
+    }
+
     /// Load Product roots after successful Build return and dependency settlement.
     /// A previously unbound capture may receive its exact named owner here.
     /// Already supplied package inputs cannot be replaced. New dependency custody
@@ -94,13 +104,7 @@ impl DeferredProductSources {
         timings: &mut CompileTimings,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
         let mut checkpoint = self.checkpoint;
-        if checkpoint.package_source_inputs.is_none()
-            && let Some(inputs) = package_inputs
-        {
-            Arc::make_mut(&mut checkpoint.source_storage).join_package_inputs(inputs)?;
-            checkpoint.package_source_inputs = Some(inputs.source_inputs());
-        }
-        checkpoint.validate_child(package_inputs)?;
+        checkpoint.join_product_inputs(package_inputs)?;
         let roots = checkpoint.product_roots.take().ok_or_else(|| {
             vec![Diagnostic::error(
                 "Product source continuation has already been consumed",
@@ -130,6 +134,19 @@ impl DeferredProductSources {
 }
 
 impl ImmutableSourceParseCheckpoint {
+    fn join_product_inputs(
+        &mut self,
+        package_inputs: Option<&PackageCompilationInputs>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if self.package_source_inputs.is_none()
+            && let Some(inputs) = package_inputs
+        {
+            Arc::make_mut(&mut self.source_storage).join_package_inputs(inputs)?;
+            self.package_source_inputs = Some(inputs.source_inputs());
+        }
+        self.validate_child(package_inputs)
+    }
+
     /// Publish page sharing on the first actual fork. A uniquely consumed
     /// checkpoint keeps its original allocations without freezing overhead.
     pub fn fork(&mut self) -> Self {
