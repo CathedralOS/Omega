@@ -129,6 +129,36 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
     // callable selection must distinguish a value head from a declaration
     // namespace, exactly as expression calls do.
     named.head_symbol = head_symbol;
+    if path.len() >= 2 {
+        let (receiver_head, receiver) = resolve_state_scoped_members(
+            symbols,
+            machine.symbol,
+            state_symbol,
+            &path[..path.len() - 1],
+            None,
+        );
+        if receiver_head.is_valid() {
+            named.head_symbol = receiver_head;
+        }
+        if let Some(leaf) = target_name.as_ref() {
+            // Qualified terminal invocations use the ordinary scoped callable
+            // owner, including trait requirements with Unit results. A failed
+            // member never falls back into a global callable namespace.
+            let selected = super::calls::resolve_call_target_symbol(
+                machine,
+                parameters,
+                true,
+                receiver,
+                leaf,
+                child_type_references,
+                symbols,
+            );
+            if selected.is_valid() {
+                named.symbol = selected;
+                return;
+            }
+        }
+    }
     if symbol.is_valid() {
         named.symbol = symbol;
         return;
@@ -154,13 +184,15 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
             target_name.source_span(),
         );
         if target_symbol.is_valid() {
-            named.head_symbol = symbols
-                .find_top_level_by_name_and_kinds_from_source(
-                    &owner,
-                    &[SymbolKind::Data],
-                    diagnostic_path_source_span(&path[..path.len() - 1]),
-                )
-                .unwrap_or_else(SymbolHandle::invalid);
+            if !named.head_symbol.is_valid() {
+                named.head_symbol = symbols
+                    .find_top_level_by_name_and_kinds_from_source(
+                        &owner,
+                        &[SymbolKind::Data],
+                        diagnostic_path_source_span(&path[..path.len() - 1]),
+                    )
+                    .unwrap_or_else(SymbolHandle::invalid);
+            }
             named.symbol = target_symbol;
             return;
         }

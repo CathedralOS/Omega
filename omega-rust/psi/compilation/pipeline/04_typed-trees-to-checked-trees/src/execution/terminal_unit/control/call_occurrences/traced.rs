@@ -13,7 +13,7 @@ use super::collecting::{
     collect_owned_root_calls, collect_range_calls, collect_root_calls,
     collect_structural_argument_calls,
 };
-use super::{ordered_statement_call, terminal_named_call};
+use super::{is_terminal_call_occurrence, ordered_statement_call};
 use crate::execution::terminal_unit::control::{statement_sequence, structural_operands};
 
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
@@ -612,8 +612,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
         // Non-completing named transitions remain selected control edges,
         // never unconditional calls emitted by this linear sequence.
         if let StatementNode::Transition(transition) = statement
-            && terminal_named_call(program, owner, state, call.statement_index)
-                != Some(call.target_symbol)
+            && !is_terminal_call_occurrence(program, owner, state, call)
         {
             if matches!(
                 program.statement_table.transition_target(transition.target),
@@ -634,12 +633,10 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
         )?;
         // Occurrence traversal marks every transition target as selected.
         // The exact terminal named occurrence instead has its control authority
-        // from terminal_named_call: final Always, no preceding transition or
+        // from terminal_call: final Always, no preceding transition or
         // continuation, and an ordinary result matching the enclosing return.
         // Nested expression calls cannot inherit that completion proof.
-        let terminal_completion = matches!(site, validation::CallSite::TransitionNamed { .. })
-            && terminal_named_call(program, owner, state, call.statement_index)
-                == Some(call.target_symbol);
+        let terminal_completion = is_terminal_call_occurrence(program, owner, state, call);
         if !terminal_completion {
             validation::call_is_unconditional(
                 program,

@@ -66,13 +66,13 @@ mod traced;
 pub(in crate::execution::terminal_unit) use collecting::call_owns_statement_computations;
 pub(in crate::execution::terminal_unit) use traced::outer_calls_in_prefix_traced;
 
-pub(in crate::execution::terminal_unit) fn terminal_named_call(
+pub(in crate::execution::terminal_unit) fn terminal_call(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
 ) -> Option<SymbolHandle> {
-    use typed_trees::statement::{TransitionExit, TransitionGuardNode, TransitionTargetNode};
+    use typed_trees::statement::{TransitionExit, TransitionGuardNode};
     let statements = typed_trees::statement::reachable_state_statements(
         program.statement_table.statements(state.statement_nodes),
     );
@@ -99,17 +99,8 @@ pub(in crate::execution::terminal_unit) fn terminal_named_call(
     {
         return None;
     }
-    let TransitionTargetNode::Named { path, .. } =
-        program.statement_table.transition_target(transition.target)
-    else {
-        return None;
-    };
-    // The authored path spells the callee as its machine or as its entry
-    // state (a body-only machine resolves to the state itself); the flow
-    // call facts name the entry state either way, so the terminal call is
-    // identified by that resolved callable, not by the authored spelling.
-    let (callable, return_type) =
-        validation::terminal_callable_target(program, machine, path.symbol)?;
+    let target = terminal_target_symbol(program, transition.target)?;
+    let (callable, return_type) = validation::terminal_callable_target(program, machine, target)?;
     (program.normalized_type_identity(return_type)
         == program.normalized_type_identity(state.return_type))
     .then_some(callable)
@@ -223,4 +214,67 @@ pub(in crate::execution::terminal_unit) fn outer_calls_traced<'a>(
         std::ops::Bound::Unbounded,
         trace,
     )
+}
+
+/// The retained callable of one exact terminal invocation, independently of
+/// its source syntax. Operands still belong to their ordinary call occurrence.
+pub(in crate::execution::terminal_unit) fn terminal_target_symbol(
+    program: &dyn validation::CheckingInput,
+    target: typed_trees::statement::TransitionTargetHandle,
+) -> Option<SymbolHandle> {
+    use typed_trees::statement::TransitionTargetNode;
+    match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Named { path, .. } => Some(path.symbol),
+        TransitionTargetNode::Value(expression) => program
+            .expression_table
+            .call_node(*expression)
+            .map(|call| validation::call_target_symbol(program, call)),
+        TransitionTargetNode::Terminal => None,
+    }
+    .filter(|symbol| symbol.is_valid())
+}
+
+/// Authenticate the outer invocation of an unconditional terminal call. Nested
+/// operands can share its declaration but never inherit its control position.
+pub(in crate::execution::terminal_unit) fn is_terminal_call_occurrence(
+    program: &dyn validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    call: &checked_trees::FlowCallFact,
+) -> bool {
+    let Some(expected) = terminal_call(program, machine, state, call.statement_index) else {
+        return false;
+    };
+    if validation::terminal_callable_target(program, machine, call.target_symbol)
+        .is_none_or(|(target, _)| target != expected)
+    {
+        return false;
+    }
+    let Some(transition) = program
+        .statement_table
+        .statement_at(state, call.statement_index)
+        .and_then(StatementNode::as_transition)
+    else {
+        return false;
+    };
+    match (
+        program.statement_table.transition_target(transition.target),
+        validation::find_call_site_in_state(
+            program,
+            machine,
+            state,
+            call.statement_index,
+            call.call_ordinal,
+        ),
+    ) {
+        (
+            typed_trees::statement::TransitionTargetNode::Named { .. },
+            Some(validation::CallSite::TransitionNamed { .. }),
+        ) => true,
+        (
+            typed_trees::statement::TransitionTargetNode::Value(expected),
+            Some(validation::CallSite::Expression { expression, .. }),
+        ) => *expected == expression,
+        _ => false,
+    }
 }

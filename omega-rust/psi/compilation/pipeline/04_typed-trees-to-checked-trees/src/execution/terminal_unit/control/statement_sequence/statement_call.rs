@@ -112,8 +112,9 @@ pub(super) fn plan(
         return None;
     }
     if matches!(statement, StatementNode::Transition(_))
-        && super::super::call_occurrences::terminal_named_call(program, machine, state, index)
-            != Some(call.target_symbol)
+        && !super::super::call_occurrences::is_terminal_call_occurrence(
+            program, machine, state, call,
+        )
     {
         return None;
     }

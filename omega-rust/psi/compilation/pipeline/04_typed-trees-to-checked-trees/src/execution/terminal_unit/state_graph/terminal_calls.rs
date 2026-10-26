@@ -9,7 +9,7 @@
 //!
 //! - An unconditional final arm (`transition { _ -> self.finish() }`) is the
 //!   state's last operation. The shared statement sequence plans it through
-//!   `call_occurrences::terminal_named_call`, exactly as a single-state body
+//!   `call_occurrences::terminal_call`, exactly as a single-state body
 //!   does, so its occurrence counts against the state's call roster and its
 //!   value result binds as the state's returned value; `completion` then
 //!   completes the state with that result, whatever its kind.
@@ -68,15 +68,8 @@ pub(super) fn invoked_callable(
     {
         return None;
     }
-    let TransitionTargetNode::Named { path, .. } =
-        program.statement_table.transition_target(transition.target)
-    else {
-        return None;
-    };
-    // The static binder records source reach custody after specialization.
-    // Invocation classification follows the resolved target, not that retained
-    // provenance marker. Unresolved binders still have no executable call plan.
-    validation::terminal_callable_target(program, machine, path.symbol).map(|(target, _)| target)
+    let target = control::terminal_target_symbol(program, transition.target)?;
+    validation::terminal_callable_target(program, machine, target).map(|(target, _)| target)
 }
 
 /// Only a destination outside the retained graph needs a call operation.
@@ -236,7 +229,8 @@ pub(super) fn arm_call(
     let mut occurrences = calls.iter().filter(|call| {
         call.statement_index == statement_ordinal as usize
             && !facts.flow.control.is_retired(state.symbol, call)
-            && matches!(
+            && match (
+                program.statement_table.transition_target(transition.target),
                 validation::find_call_site(
                     program,
                     machine.symbol,
@@ -244,8 +238,17 @@ pub(super) fn arm_call(
                     call.statement_index,
                     call.call_ordinal,
                 ),
-                Some(validation::CallSite::TransitionNamed { .. })
-            )
+            ) {
+                (
+                    TransitionTargetNode::Named { .. },
+                    Some(validation::CallSite::TransitionNamed { .. }),
+                ) => true,
+                (
+                    TransitionTargetNode::Value(expected),
+                    Some(validation::CallSite::Expression { expression, .. }),
+                ) => *expected == expression,
+                _ => false,
+            }
             && validation::transition_call_target(
                 program,
                 machine,

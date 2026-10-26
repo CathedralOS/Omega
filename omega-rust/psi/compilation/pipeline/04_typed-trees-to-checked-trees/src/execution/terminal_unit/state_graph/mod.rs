@@ -466,7 +466,7 @@ pub(super) fn build_traced(
                 if matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_)))
         {
             std::ops::Bound::Included(terminator_index)
-        } else if control::terminal_named_call(program, owner, state, terminator_index)
+        } else if control::terminal_call(program, owner, state, terminator_index)
             .is_some_and(|target| fused_target_index(program, &fused, target).is_none())
         {
             // An unconditional terminal machine call is this state's last

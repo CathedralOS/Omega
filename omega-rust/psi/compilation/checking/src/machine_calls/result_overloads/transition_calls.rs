@@ -4,7 +4,7 @@
 //! requires contracts, result compatibility and provider selection then share
 //! the expression path; a qualified name alone never admits execution.
 
-use symbols::{SymbolHandle, SymbolKind};
+use symbols::SymbolKind;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
@@ -98,6 +98,21 @@ pub(super) fn normalize_terminal_transition_calls(program: &mut TypedTrees) {
             .name_path_members(path.members)
             .to_vec();
         let leaf = members.pop().expect("boundary declaration has a path");
+        // An owned implementation's machine is allocated at the root. Its
+        // semantic namespace is the owning conformance, not that allocation
+        // parent. Rejoin only the retained owned-realization relationship;
+        // a referenced row or a conflicting lexical head lends no namespace.
+        let owned_namespace = program
+            .machine_by_symbol(path.symbol)
+            .or_else(|| program.machine_holding_state(path.symbol))
+            .map(|machine| program.declaration_scope_parent(machine.symbol))
+            .filter(|owner| program.conformance_by_symbol(*owner).is_some());
+        let namespace_head = path.head_symbol;
+        let namespace_endpoint = if members.len() == 1 {
+            namespace_head
+        } else {
+            owned_namespace.unwrap_or_default()
+        };
         let receiver = if members.is_empty() {
             ExpressionHandle::invalid()
         } else {
@@ -112,12 +127,8 @@ pub(super) fn normalize_terminal_transition_calls(program: &mut TypedTrees) {
                 .insert(ExpressionNode::Name(TableNamePath {
                     members: namespace,
                     member_symbols: arena::HandleSpan::empty(),
-                    head_symbol: path.head_symbol,
-                    symbol: if namespace.count() == 1 {
-                        path.head_symbol
-                    } else {
-                        SymbolHandle::invalid()
-                    },
+                    head_symbol: namespace_head,
+                    symbol: namespace_endpoint,
                 }));
             program
                 .expression_table
