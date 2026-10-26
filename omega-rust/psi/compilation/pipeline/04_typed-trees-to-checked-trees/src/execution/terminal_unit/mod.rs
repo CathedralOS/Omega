@@ -392,7 +392,19 @@ pub(crate) fn build_checked_unit_effect_plans(
         // until their ordinary cleanup actions have been selected and installed.
         let normal =
             cleanup::normal_edges::sequence_cleanups(program, facts, &targets, &mut shapes, plan)?;
-        if plan.scalar_control.is_none() {
+        if let Some(stopping) = plan
+            .operations
+            .iter()
+            .position(|operation| !operation.has_normal_continuation())
+        {
+            // The evaluated prefix still owns its temporary actions. Its
+            // suspended caller has no normal exit to select or fabricate.
+            if stopping + 1 != plan.operations.len()
+                || !shapes.cleanup_control.normal_exits(normal).is_empty()
+            {
+                return None;
+            }
+        } else if plan.scalar_control.is_none() {
             let [row] = shapes.cleanup_control.normal_exits(normal) else {
                 return None;
             };
@@ -476,6 +488,16 @@ pub(crate) fn build_checked_unit_effect_plans(
         if cleanup::temporary_actions::install(&mut plan.operations, selected).is_none() {
             return false;
         }
+        plan.normal_exit_cleanups = normal;
+        if plan
+            .operations
+            .last()
+            .is_some_and(|operation| !operation.has_normal_continuation())
+        {
+            // Selection above retained no normal row. Preserve the actual
+            // stopping invocation instead of demanding a fictional Complete.
+            return true;
+        }
         let Some(CheckedUnitEffectOperationPlan::Complete {
             trivial_affine_discards,
             ..
@@ -483,7 +505,6 @@ pub(crate) fn build_checked_unit_effect_plans(
         else {
             return false;
         };
-        plan.normal_exit_cleanups = normal;
         // Parameter dispositions now have one authority and one schedule.
         // The former affine-only reconstruction must not dispose them again.
         trivial_affine_discards.clear();
