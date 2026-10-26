@@ -1,30 +1,24 @@
 use crate::record::{
     PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,
     PackagePolicyOperatorShape, PackagePolicyTraitRequirement, PackagePolicyTraitShape,
-    PackagePolicyTypeParameter, PackageReviewCallableContract, PackageReviewConformanceBound,
-    PackageReviewContractFact, PackageReviewDataKind, PackageReviewDataMember,
-    PackageReviewDataProperties, PackageReviewDomainClassification,
+    PackageReviewCallableContract, PackageReviewContractFact, PackageReviewDataKind,
+    PackageReviewDataMember, PackageReviewDataProperties, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentRoute, PackageReviewDomainSemanticRole,
-    PackageReviewEvidenceInterface, PackageReviewNominalIdentity, PackageReviewOperatorCoordinate,
-    PackageReviewSignatureParameter, PackageReviewTraitParent, PackageReviewTypeIdentity,
+    PackageReviewEvidenceInterface, PackageReviewOperatorCoordinate, PackageReviewTraitParent,
+    PackageReviewTypeIdentity,
 };
 
 impl PackagePolicyTraitShape {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
+    crate::record::accessors::record_accessors!(
+        identity,
+        lifetime_parameter_count,
+        type_parameters,
+        conformance_bounds
+    );
     pub const fn is_boundary(&self) -> bool {
         self.is_boundary
     }
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-    pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.type_parameters
-    }
-    pub fn conformance_bounds(&self) -> &[PackageReviewConformanceBound] {
-        &self.conformance_bounds
-    }
+
     pub fn parents(&self) -> &[PackageReviewTraitParent] {
         &self.parents
     }
@@ -33,47 +27,31 @@ impl PackagePolicyTraitShape {
     }
 }
 impl PackagePolicyTraitRequirement {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
-    pub const fn spelling(&self) -> Option<language_core::OperatorSpelling> {
-        self.spelling
-    }
+    crate::record::accessors::record_accessors!(
+        identity,
+        spelling,
+        lifetime_parameter_count,
+        type_parameters,
+        parameters
+    );
     pub const fn has_default_realization(&self) -> bool {
         self.has_default_realization
     }
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-    pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.type_parameters
-    }
-    pub fn parameters(&self) -> &[PackageReviewSignatureParameter] {
-        &self.parameters
-    }
+
     crate::record::accessors::package_policy_callable_signature_accessors!();
 }
 impl PackagePolicyConformanceShape {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-    pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.type_parameters
-    }
+    crate::record::accessors::record_accessors!(
+        identity,
+        lifetime_parameter_count,
+        type_parameters
+    );
     pub const fn interface(&self) -> &PackageReviewEvidenceInterface {
         &self.interface
     }
 }
 impl PackagePolicyDomainShape {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
-    pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.type_parameters
-    }
+    crate::record::accessors::record_accessors!(identity, type_parameters);
     pub const fn target_type(&self) -> &PackageReviewTypeIdentity {
         &self.target_type
     }
@@ -94,47 +72,37 @@ impl PackagePolicyDomainShape {
     }
 }
 impl PackagePolicyOperatorShape {
+    crate::record::accessors::record_accessors!(
+        spelling,
+        lifetime_parameter_count,
+        type_parameters,
+        parameters,
+        return_type
+    );
     pub const fn coordinate(&self) -> &PackageReviewOperatorCoordinate {
         &self.coordinate
     }
     pub const fn is_boundary(&self) -> bool {
         self.is_boundary
     }
-    pub const fn spelling(&self) -> Option<language_core::OperatorSpelling> {
-        self.spelling
-    }
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-    pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.type_parameters
-    }
-    pub fn parameters(&self) -> &[PackageReviewSignatureParameter] {
-        &self.parameters
-    }
-    pub const fn return_type(&self) -> Option<&PackageReviewTypeIdentity> {
-        self.return_type.as_ref()
-    }
+
     pub fn contracts(&self) -> &[PackageReviewCallableContract] {
         &self.contracts
     }
 }
 impl PackagePolicyDataShape {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
+    crate::record::accessors::record_accessors!(
+        identity,
+        lifetime_parameter_count,
+        type_parameters
+    );
     pub const fn kind(&self) -> &PackageReviewDataKind {
         &self.kind
     }
     pub const fn supply(&self) -> language_semantics::DataSupplyMode {
         self.supply
     }
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-    pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.type_parameters
-    }
+
     pub const fn properties(&self) -> PackageReviewDataProperties {
         self.properties
     }
