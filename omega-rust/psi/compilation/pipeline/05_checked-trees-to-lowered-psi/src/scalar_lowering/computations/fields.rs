@@ -1355,27 +1355,25 @@ pub(crate) fn type_roots(
             else {
                 continue;
             };
-            let references = validation::observed_storage_type_references(
+            if let Some(references) = validation::observed_storage_type_references(
                 &checked.typed,
                 *source_type,
                 *source_expression,
-            )
-            .ok_or(LoweringError::Unsupported(
-                "field observation lost its finite storage type path",
-            ))?;
-            for reference in references {
-                types.push(validation::structural_type_identity(
-                    &checked.typed,
-                    reference,
-                    &[],
-                    &[],
-                ));
-                types.push(validation::stored_structural_type_identity(
-                    &checked.typed,
-                    reference,
-                    &[],
-                    &[],
-                ));
+            ) {
+                for reference in references {
+                    types.push(validation::structural_type_identity(
+                        &checked.typed,
+                        reference,
+                        &[],
+                        &[],
+                    ));
+                    types.push(validation::stored_structural_type_identity(
+                        &checked.typed,
+                        reference,
+                        &[],
+                        &[],
+                    ));
+                }
             }
             // The observation names both its complete root and its selected
             // record. A descriptor field does not recursively root its referent.
