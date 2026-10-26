@@ -76,6 +76,7 @@ pub(crate) fn check_bounded_assignment<'program>(
     check_assignment_named_constraints(proof_plan, obligation, diagnostics);
     discharge_recipe_range(
         proof_plan,
+        obligation.machine_symbol,
         obligation.constraints,
         guarded_integer_range_for_assignment_with_context(proof_plan, obligation, context),
         obligation.value,
@@ -315,6 +316,7 @@ pub(crate) fn check_bounded_initializer(
     check_initializer_named_constraints(proof_plan, obligation, diagnostics);
     discharge_recipe_range(
         proof_plan,
+        obligation.owner.machine_symbol(),
         obligation.constraints,
         integer_range_for_initializer(proof_plan, obligation),
         obligation.value,
@@ -408,6 +410,7 @@ pub(crate) fn check_bounded_state_return<'program>(
     check_return_named_constraints(proof_plan, obligation, diagnostics);
     discharge_recipe_range(
         proof_plan,
+        obligation.machine_symbol,
         obligation.constraints,
         integer_range_for_state_return(proof_plan, obligation),
         obligation.value,
@@ -489,6 +492,7 @@ pub(crate) fn check_bounded_call_argument(
     check_call_named_constraints(proof_plan, obligation, diagnostics);
     discharge_recipe_range(
         proof_plan,
+        obligation.machine_symbol,
         obligation.constraints,
         integer_range_for_call_argument(proof_plan, obligation),
         obligation.argument,
@@ -643,6 +647,7 @@ pub(crate) fn check_bounded_transition_argument(
     check_transition_named_constraints(proof_plan, obligation, diagnostics);
     discharge_recipe_range(
         proof_plan,
+        obligation.machine_symbol,
         obligation.constraints,
         Some(guarded_integer_range_for_transition_argument(
             proof_plan, obligation,
@@ -859,6 +864,7 @@ fn discharge_declared_float_range<O>(
 /// range has nothing to compare and refuses now.
 fn discharge_recipe_range(
     proof_plan: &ProofPlan,
+    owner: symbols::SymbolHandle,
     constraints: arena::HandleSpan<crate::obligations::ProofConstraint>,
     value_range: Option<IntegerRange>,
     value: typed_trees::expression::ExpressionHandle,
@@ -897,6 +903,7 @@ fn discharge_recipe_range(
             RecipeRangeBound::Recipe { recipe, offset } => {
                 recipe_obligations.push(checked_trees::ConstantRecipeObligation {
                     recipe: *recipe,
+                    owner,
                     requirement: checked_trees::ConstantRecipeRequirement::AtMost(
                         value_range.minimum.sub(&BigInt::from_i64(*offset)),
                     ),
@@ -920,6 +927,7 @@ fn discharge_recipe_range(
             RecipeRangeBound::Recipe { recipe, offset } => {
                 recipe_obligations.push(checked_trees::ConstantRecipeObligation {
                     recipe: *recipe,
+                    owner,
                     requirement: checked_trees::ConstantRecipeRequirement::AtLeast(
                         value_range.maximum.sub(&BigInt::from_i64(*offset)),
                     ),

@@ -123,7 +123,7 @@ pub(super) fn domain_facts_need_operator_selection(
         .any(|fact| match fact {
             ProofFact::Expression(expression) => resolve_fact_machine(typed, domain, *expression)
                 .is_some_and(|(machine, _)| {
-                    admission.closure_needs_operator_selection(typed, machine.symbol, facts)
+                    admission.closure_needs_selected_execution(typed, machine.symbol, facts)
                 }),
             ProofFact::Membership(membership) => domain_facts_need_operator_selection(
                 typed,

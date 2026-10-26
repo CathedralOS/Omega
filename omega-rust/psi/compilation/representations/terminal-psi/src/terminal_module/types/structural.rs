@@ -696,7 +696,7 @@ pub fn structural_type_contains_reference_by<'types>(
     structural_type_contains_by(
         lookup,
         root,
-        |shape| matches!(shape, StructuralTypeShape::Reference { .. }),
+        |_, shape| matches!(shape, StructuralTypeShape::Reference { .. }),
         |_| false,
     )
 }
@@ -711,7 +711,7 @@ pub fn structural_type_has_borrowed_storage_by<'types>(
     structural_type_contains_by(
         lookup,
         root,
-        |shape| {
+        |_, shape| {
             matches!(
                 shape,
                 StructuralTypeShape::Reference { .. }
@@ -734,10 +734,20 @@ pub fn structural_type_has_borrowed_storage_by<'types>(
     )
 }
 
+/// Whether an exact declared type occurs below a storage/signature root.
+/// Missing referents supply no type and cycles do not expand the lookup walk.
+pub fn structural_type_contains_type_by<'types>(
+    lookup: impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+    selected: StructuralTypeId,
+) -> bool {
+    structural_type_contains_by(lookup, root, |identity, _| identity == selected, |_| false)
+}
+
 fn structural_type_contains_by<'types>(
     lookup: impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
     root: StructuralTypeId,
-    contains_shape: impl Fn(&StructuralTypeShape) -> bool,
+    contains_shape: impl Fn(StructuralTypeId, &StructuralTypeShape) -> bool,
     contains_field: impl Fn(&StructuralFieldType) -> bool,
 ) -> bool {
     let mut pending = vec![root];
@@ -749,7 +759,7 @@ fn structural_type_contains_by<'types>(
         let Some(declaration) = lookup(current) else {
             continue;
         };
-        if contains_shape(&declaration.shape) {
+        if contains_shape(current, &declaration.shape) {
             return true;
         }
         let mut push_fields = |fields: &[StructuralFieldDeclaration]| {
@@ -781,8 +791,8 @@ fn structural_type_contains_by<'types>(
                 }
             }
             StructuralTypeShape::ElementView { element, .. } => pending.push(*element),
-            StructuralTypeShape::Reference { .. }
-            | StructuralTypeShape::BindingCarrier
+            StructuralTypeShape::Reference { referent, .. } => pending.push(*referent),
+            StructuralTypeShape::BindingCarrier
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_) => {}
         }

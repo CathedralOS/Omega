@@ -67,6 +67,7 @@ pub(super) fn close_constant_recipes(
     if !retained_constant_owners.is_empty()
         || !predicate_rows.is_empty()
         || !range_rows.is_empty()
+        || !shared.facts.constant_recipe_obligations.is_empty()
         || !materialized_entries.is_empty()
     {
         for machine in typed.machines() {
@@ -94,10 +95,13 @@ pub(super) fn close_constant_recipes(
     closed_facts.integer_range_obligations.clear();
     let mut predicate_closed = vec![false; predicate_rows.len()];
     let mut range_closed = vec![false; range_rows.len()];
+    let recipe_rows = &shared.facts.constant_recipe_obligations;
+    let mut recipe_closed = vec![false; recipe_rows.len()];
     let proof_owners: Vec<_> = predicate_rows
         .iter()
         .map(|row| row.caller())
         .chain(range_rows.iter().map(|row| row.owner()))
+        .chain(recipe_rows.iter().map(|row| row.owner))
         .chain(retained_constant_owners)
         .chain(materialized_entries.iter().map(|root| root.owner))
         .collect();
@@ -161,10 +165,6 @@ pub(super) fn close_constant_recipes(
         selected_provider_plan_facts,
         &selected_inputs,
     )?;
-    ConstantRecipeObligation::discharge_all(
-        &shared.facts.constant_recipe_obligations,
-        &closed_typed,
-    )?;
     for (target, supplemental) in capsules {
         let provenance = supplemental
             .as_ref()
@@ -195,8 +195,17 @@ pub(super) fn close_constant_recipes(
             .enumerate()
             .filter(|(_, obligation)| inputs.applications.contains(&obligation.owner()))
             .collect();
+        let recipe_applications: Vec<_> = recipe_rows
+            .iter()
+            .enumerate()
+            .filter(|(_, obligation)| {
+                inputs.applications.contains(&obligation.owner)
+                    && inputs.recipes.contains(&obligation.recipe)
+            })
+            .collect();
         if predicate_applications.is_empty()
             && range_applications.is_empty()
+            && recipe_applications.is_empty()
             && inputs.owners.is_empty()
         {
             continue;
@@ -212,6 +221,15 @@ pub(super) fn close_constant_recipes(
             )?),
         };
         let program = proof_program.as_ref().unwrap_or(&closed_typed);
+        ConstantRecipeObligation::discharge_all(
+            recipe_applications
+                .iter()
+                .map(|(_, obligation)| *obligation),
+            program,
+        )?;
+        for (position, _) in recipe_applications {
+            recipe_closed[position] = true;
+        }
         for (position, obligation) in predicate_applications {
             let mut application = obligation.clone();
             checked_trees::ConstantPredicateObligation::discharge_all(
@@ -251,7 +269,10 @@ pub(super) fn close_constant_recipes(
                 .extend(proof_program.constant_recipe_closure.receipts);
         }
     }
-    if predicate_closed.contains(&false) || range_closed.contains(&false) {
+    if predicate_closed.contains(&false)
+        || range_closed.contains(&false)
+        || recipe_closed.contains(&false)
+    {
         return Err(vec![Diagnostic::error(
             "retained proof obligation has no target application",
         )]);
@@ -349,7 +370,7 @@ fn close_constant_values(
     // storage keeps its symbolic positions for every other target.
     let mut evaluated = pending
         .resume(|program, continuations| evaluation.evaluate_pending(program, continuations))?;
-    let closure = typed.read_constant_recipe_closure(&evaluated, receipts)?;
+    let closure = typed.read_constant_recipe_closure(&evaluated, &inputs.recipes, receipts)?;
     let mut closed_typed = (**typed).clone().with_constant_recipe_closure(closure);
     closed_typed.plan_laid_layouts = std::mem::take(&mut evaluated.plan_laid_layouts);
     closed_typed.plan_laid_target_layouts = std::mem::take(&mut evaluated.plan_laid_target_layouts);

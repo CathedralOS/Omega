@@ -21,6 +21,20 @@ pub struct FoldedConstantClosure {
 pub enum FoldedLayoutOwner {
     Machine(MachineId),
     Carrier(StructuralTypeId),
+    /// A materialized array condition consumed in this exact executable scope.
+    /// The evaluator may be erased; the storage and its consumer both survive.
+    Storage {
+        machine: MachineId,
+        carrier: StructuralTypeId,
+    },
+}
+
+impl FoldedLayoutOwner {
+    pub fn is_consumed_by(self, scope: Self) -> bool {
+        self == scope
+            || matches!((self, scope),
+            (Self::Storage { machine, .. }, Self::Machine(selected)) if machine == selected)
+    }
 }
 
 /// Every row is owed independently. Within one row, a complete qualified
@@ -175,6 +189,23 @@ impl FoldedConstantClosure {
         for requirement in &self.layout_requirements {
             let owner_exists = match requirement.owner {
                 FoldedLayoutOwner::Machine(machine) => module.machine(machine).is_some(),
+                FoldedLayoutOwner::Storage { machine, carrier } => {
+                    let Some(machine) = module.machine(machine) else {
+                        return Err("folded storage requirement has no exact consuming machine");
+                    };
+                    if !module.structural_type(carrier).is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            crate::StructuralTypeShape::FixedArray { .. }
+                        )
+                    }) || !machine.uses_structural_type(module, carrier)
+                    {
+                        return Err(
+                            "folded storage requirement has no exact consumed array carrier",
+                        );
+                    }
+                    true
+                }
                 FoldedLayoutOwner::Carrier(carrier) => {
                     let Some(declaration) = module.structural_type(carrier) else {
                         return Err("folded layout carrier owner has no target layout application");

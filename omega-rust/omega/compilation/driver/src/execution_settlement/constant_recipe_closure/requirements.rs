@@ -70,6 +70,46 @@ pub(super) fn retain(
             CheckedLayoutOwner::Machine(*proof_owner),
             &alternative,
         );
+        // A type-position recipe produces geometry even when its evaluator
+        // has no runtime body. The checked array shape retains the recipe's
+        // exact identity; transfer its complete observation assignment to that
+        // surviving carrier rather than inventing a callable for the evaluator.
+        for recipe in &inputs.recipes {
+            let selected = shared.typed.constant_recipes.get(*recipe);
+            if !provider_planning::target_machines::proof_application_dependencies(
+                shared,
+                target,
+                selected.machine,
+                providers,
+            )
+            .contains(proof_owner)
+            {
+                continue;
+            }
+            for shape in &shared.facts.flow.terminal_unit_effects.structural_types {
+                if matches!(shape.shape,
+                    checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
+                        length: checked_trees::CheckedExtent::Recipe(handle), ..
+                    } if handle == *recipe)
+                {
+                    for obligation in &shared.facts.constant_recipe_obligations {
+                        if obligation.recipe == *recipe
+                            && inputs.applications.contains(&obligation.owner)
+                        {
+                            append(
+                                requirements,
+                                *proof_owner,
+                                CheckedLayoutOwner::Structural {
+                                    machine: obligation.owner,
+                                    identity: shape.identity,
+                                },
+                                &alternative,
+                            );
+                        }
+                    }
+                }
+            }
+        }
         for layout in &shared.typed.plan_laid_layouts {
             let roots: Vec<_> = layout
                 .target_layouts(&shared.typed)

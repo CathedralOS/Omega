@@ -33,6 +33,7 @@ enum InspectionControls {
     ClosedReach,
     ClosedReachCaptures,
     FoldedLayouts,
+    FoldedStorage,
 }
 
 #[derive(Clone, Copy)]
@@ -94,6 +95,9 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             ),
             [machine, "closed-reach-controls"] => {
                 (*machine, false, Some(InspectionControls::ClosedReach))
+            }
+            [machine, "folded-storage-controls"] => {
+                (*machine, false, Some(InspectionControls::FoldedStorage))
             }
             [machine, "folded-layout-controls"] => {
                 (*machine, false, Some(InspectionControls::FoldedLayouts))
@@ -224,6 +228,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                     closed_reach_controls::inspect_captures(&decoded)?
                 }
                 InspectionControls::FoldedLayouts => folded_layout_controls(&decoded)?,
+                InspectionControls::FoldedStorage => folded_storage_controls(&decoded)?,
                 InspectionControls::BoundaryCallables => boundary_conformance_controls(&decoded)?,
                 InspectionControls::IndexedFamily | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")
@@ -367,6 +372,134 @@ fn folded_layout_controls(artifact: &CanonicalTerminalArtifact) -> Result<(), St
             "changed policy condition failed for an unrelated reason: {reason}"
         )),
         Ok(_) => Err("receiving layout admission ignored a changed policy condition".to_owned()),
+    }
+}
+
+/// The indexed-array source supplies a real transported storage condition.
+/// Mutate that condition independently of the surviving machine/policy rows:
+/// neither catalog presence nor a sibling condition can satisfy the receiver.
+fn folded_storage_controls(artifact: &CanonicalTerminalArtifact) -> Result<(), String> {
+    let module = artifact.semantic_module();
+    let position = module
+        .folded_constants
+        .layout_requirements
+        .iter()
+        .position(|row| matches!(row.owner, terminal_psi::FoldedLayoutOwner::Storage { .. }))
+        .ok_or("array result lost its folded storage requirement")?;
+    let terminal_psi::FoldedLayoutOwner::Storage { machine, carrier } =
+        module.folded_constants.layout_requirements[position].owner
+    else {
+        unreachable!()
+    };
+    let target = "macos_arm64";
+    let physical = Some(semantic_vocabulary::PhysicalDataLayout {
+        address_byte_size: 8,
+        address_byte_alignment: 8,
+    });
+    let receive = |artifact: &CanonicalTerminalArtifact| {
+        let selections =
+            terminal_installation::admit_target_machine_selections(artifact.view(), target);
+        let layouts =
+            terminal_installation::admit_target_layouts(artifact.view(), &selections, physical)
+                .map_err(|reason| format!("storage layout inputs: {reason}"))?;
+        let geometry = layouts
+            .geometry(artifact.view())
+            .map_err(|reason| format!("storage geometry: {reason}"))?;
+        terminal_semantics::admit_folded_layout_requirements(
+            &artifact
+                .semantic_module()
+                .folded_constants
+                .layout_requirements,
+            geometry.declarations(),
+            physical,
+            target,
+            terminal_psi::FoldedLayoutOwner::Machine(machine),
+        )
+        .map_err(|reason| reason.to_string())
+    };
+    receive(artifact).map_err(|reason| format!("original folded storage inputs: {reason}"))?;
+    let unrelated = module
+        .machines
+        .iter()
+        .find(|candidate| {
+            candidate.id != machine && !candidate.uses_structural_type(module, carrier)
+        })
+        .ok_or("storage owner control needs a machine without this array")?
+        .id;
+    let other_carrier = module
+        .structural_types
+        .iter()
+        .find(|declaration| {
+            !matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::FixedArray { .. }
+            )
+        })
+        .ok_or("storage owner control needs a non-array source type")?
+        .id;
+    for owner in [
+        terminal_psi::FoldedLayoutOwner::Storage {
+            machine: unrelated,
+            carrier,
+        },
+        terminal_psi::FoldedLayoutOwner::Storage {
+            machine,
+            carrier: other_carrier,
+        },
+    ] {
+        let mut reassociated = module.clone();
+        reassociated.folded_constants.layout_requirements[position].owner = owner;
+        reassociated.folded_constants.layout_requirements.sort();
+        match terminal_codec::encode_module(&reassociated)
+            .and_then(|bytes| terminal_codec::decode_module(&bytes))
+        {
+            Err(reason)
+                if reason
+                    .to_string()
+                    .contains("folded storage requirement has no exact consumed array carrier") => {
+            }
+            Err(reason) => {
+                return Err(format!(
+                    "reassociated storage owner failed for an unrelated reason: {reason}"
+                ));
+            }
+            Ok(_) => {
+                return Err(
+                    "canonical ingress accepted storage outside its consuming machine".to_owned(),
+                );
+            }
+        }
+    }
+    let mut changed = module.clone();
+    let requirement = &mut changed.folded_constants.layout_requirements[position];
+    for alternative in requirement
+        .alternatives
+        .iter_mut()
+        .filter(|row| row.target == target)
+    {
+        let observation = alternative
+            .observations
+            .first_mut()
+            .ok_or("storage condition lost its observation")?;
+        observation.value = observation
+            .value
+            .checked_add(1)
+            .ok_or("test observation overflows")?;
+    }
+    requirement.alternatives.sort();
+    changed.folded_constants.layout_requirements.sort();
+    let execution = terminal_codec::build_identity_optimization_execution_record(&changed)
+        .map_err(|reason| format!("changed storage identity stage: {reason:?}"))?;
+    let changed = CanonicalTerminalArtifact::from_parts(changed, execution, None)
+        .map_err(|reason| format!("changed storage encoding: {reason:?}"))?;
+    let received = CanonicalTerminalArtifact::from_bytes(&changed.to_bytes())
+        .map_err(|reason| format!("changed storage transport: {reason:?}"))?;
+    match receive(&received) {
+        Err(reason) if reason.contains("has no matching joint assignment") => Ok(()),
+        Err(reason) => Err(format!(
+            "changed storage condition failed for an unrelated reason: {reason}"
+        )),
+        Ok(_) => Err("receiving machine admission ignored a changed storage condition".to_owned()),
     }
 }
 

@@ -273,7 +273,7 @@ impl<'selection> LengthJobs<'selection> {
         let admission = BuildTimeAdmissionPlan::infer(&execution, self.authority.clone());
         if matches!(self.providers, LengthProviderSelection::Pending) {
             let facts = validation::derive_pre_flow_operator_selections(&execution);
-            if admission.closure_needs_operator_selection(&execution, machine, &facts) {
+            if admission.closure_needs_selected_execution(&execution, machine, &facts) {
                 return Ok(None);
             }
         }

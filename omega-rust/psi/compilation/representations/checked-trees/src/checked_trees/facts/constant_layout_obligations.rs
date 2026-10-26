@@ -24,6 +24,11 @@ pub struct CheckedLayoutQuery {
 pub enum CheckedLayoutOwner {
     Machine(SymbolHandle),
     Carrier(SymbolHandle),
+    /// A materialized structural carrier, including a recipe-sized array.
+    Structural {
+        machine: SymbolHandle,
+        identity: typed_trees::type_identity::TypeIdentityId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

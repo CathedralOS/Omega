@@ -4,15 +4,15 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
 };
 use source::SourceSpan;
-use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::SymbolKind;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::types::ConstArgumentOrigin;
+use syntax_trees_to_symbol_resolved_trees::pre_resolution::ConstArgumentSelection;
 
 pub(crate) fn retain(
     syntax: &SyntaxTrees,
-    resolved: &SymbolResolvedTrees,
+    resolved: &ConstArgumentSelection,
     root: ExpressionHandle,
 ) -> Result<Vec<ConstArgumentOrigin>, String> {
     let mut pending = vec![root];
@@ -86,7 +86,7 @@ pub(crate) fn retain(
 /// Invocation admission and concrete premise discharge belong to the probe.
 pub(crate) fn retain_calls(
     syntax: &SyntaxTrees,
-    resolved: &SymbolResolvedTrees,
+    resolved: &ConstArgumentSelection,
     root: ExpressionHandle,
 ) -> Result<Vec<(SourceSpan, SourceSpan)>, String> {
     let mut pending = vec![root];
@@ -101,27 +101,31 @@ pub(crate) fn retain_calls(
             ExpressionNode::Call(call) => {
                 let selected = selected_call(syntax, resolved, call)?;
                 let reference = selected.target.source_span();
-                let symbol = resolved.symbols.get(selected.target_symbol);
+                let symbol = resolved.program().symbols.get(selected.target_symbol);
                 if symbol.kind != SymbolKind::Machine
                     && !(symbol.kind == SymbolKind::State
-                        && resolved.symbols.get(symbol.parent).kind == SymbolKind::Machine)
+                        && resolved.program().symbols.get(symbol.parent).kind
+                            == SymbolKind::Machine)
                 {
                     return Err(
                         "machine index call must select an ordinary machine or state".into(),
                     );
                 }
                 let declaration = resolved
+                    .program()
                     .symbols
                     .symbol_source_span(selected.target_symbol)
                     .or_else(|| {
                         // Generated entry states retain their exact machine owner,
                         // rather than acquiring an invented authored declaration.
                         if symbol.kind != SymbolKind::State
-                            || resolved.symbols.get(symbol.parent).kind != SymbolKind::Machine
+                            || resolved.program().symbols.get(symbol.parent).kind
+                                != SymbolKind::Machine
                         {
                             return None;
                         }
                         let mut owners = resolved
+                            .program()
                             .machines
                             .iter()
                             .filter(|owner| owner.symbol == symbol.parent);
@@ -129,7 +133,7 @@ pub(crate) fn retain_calls(
                         if owners.next().is_some() {
                             return None;
                         }
-                        let storage = &resolved.tables.declarations;
+                        let storage = &resolved.program().tables.declarations;
                         let states = storage.machine_state_handles.span_or_empty(owner.states);
                         if states.len() != owner.states.len()
                             || storage.machine_states.get(*states.first()?).symbol
@@ -137,7 +141,7 @@ pub(crate) fn retain_calls(
                         {
                             return None;
                         }
-                        resolved.symbols.symbol_source_span(symbol.parent)
+                        resolved.program().symbols.symbol_source_span(symbol.parent)
                     })
                     .ok_or("machine index call lost its exact selected declaration source")?;
                 let selection = (reference, declaration);
@@ -175,7 +179,7 @@ pub(crate) fn retain_calls(
 
 fn selected_call<'resolved>(
     syntax: &SyntaxTrees,
-    resolved: &'resolved SymbolResolvedTrees,
+    resolved: &'resolved ConstArgumentSelection,
     authored: &syntax_trees::expression::TableCallExpression,
 ) -> Result<&'resolved symbol_resolved_trees::expression::TableCallExpression, String> {
     let reference = authored.target.source_span();
@@ -195,9 +199,9 @@ fn selected_call<'resolved>(
             }),
         _ => None,
     };
-    let table = &resolved.tables.bodies.expressions;
+    let table = &resolved.program().tables.bodies.expressions;
     let mut selected_call = None;
-    for (expression, node) in table.iter_expressions() {
+    for (expression, node) in resolved.expressions() {
         let symbol_resolved_trees::expression::ExpressionNode::Call(call) = node else {
             continue;
         };
@@ -210,6 +214,7 @@ fn selected_call<'resolved>(
         let mut exact_selection = false;
         for occurrence in table.authored_selection_occurrences(expression) {
             let selection = resolved
+                .program()
                 .authored_declaration_selections()
                 .get(occurrence)
                 .ok_or("machine index call lost its lexical selection occurrence")?;
@@ -244,7 +249,7 @@ fn selected_call<'resolved>(
 
 fn selected_call_has_namespace_receiver(
     syntax: &SyntaxTrees,
-    resolved: &SymbolResolvedTrees,
+    resolved: &ConstArgumentSelection,
     authored: &syntax_trees::expression::TableCallExpression,
 ) -> Result<bool, String> {
     let call = selected_call(syntax, resolved, authored)?;
@@ -253,19 +258,23 @@ fn selected_call_has_namespace_receiver(
 }
 
 fn has_namespace_receiver(
-    resolved: &SymbolResolvedTrees,
+    resolved: &ConstArgumentSelection,
     call: &symbol_resolved_trees::expression::TableCallExpression,
 ) -> bool {
     if !call.receiver.is_valid() {
         return false;
     }
-    let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
-        resolved.tables.bodies.expressions.expression(call.receiver)
+    let symbol_resolved_trees::expression::ExpressionNode::Name(path) = resolved
+        .program()
+        .tables
+        .bodies
+        .expressions
+        .expression(call.receiver)
     else {
         return false;
     };
     matches!(
-        resolved.symbols.get(path.symbol).kind,
+        resolved.program().symbols.get(path.symbol).kind,
         SymbolKind::Module
             | SymbolKind::Data
             | SymbolKind::Domain
@@ -276,12 +285,12 @@ fn has_namespace_receiver(
 }
 
 fn selected_constant(
-    resolved: &SymbolResolvedTrees,
+    resolved: &ConstArgumentSelection,
     reference: SourceSpan,
 ) -> Result<ConstArgumentOrigin, String> {
-    let table = &resolved.tables.bodies.expressions;
+    let table = &resolved.program().tables.bodies.expressions;
     let mut origin = None;
-    for (expression, node) in table.iter_expressions() {
+    for (expression, node) in resolved.expressions() {
         let mut matches_reference = false;
         if let symbol_resolved_trees::expression::ExpressionNode::Name(path) = node {
             let members = table.name_path_members(path.members);
@@ -294,6 +303,7 @@ fn selected_constant(
         let mut selected_origin = None;
         for occurrence in table.authored_selection_occurrences(expression) {
             let selection = resolved
+                .program()
                 .authored_declaration_selections()
                 .get(occurrence)
                 .ok_or("machine index lost its original declaration selection")?;
@@ -304,12 +314,16 @@ fn selected_constant(
             let AuthoredDeclarationSelectionTarget::Resolved(selected) = selection.target() else {
                 continue;
             };
-            let Some(declaration) = resolved.const_declaration(selected.selected_symbol()) else {
+            let Some(declaration) = resolved
+                .program()
+                .const_declaration(selected.selected_symbol())
+            else {
                 continue;
             };
             let candidate = ConstArgumentOrigin {
                 reference,
                 declaration: resolved
+                    .program()
                     .symbols
                     .symbol_source_span(declaration.symbol)
                     .ok_or("machine index constant lost its declaration source")?,
@@ -352,7 +366,7 @@ fn selected_constant(
 fn push_selected_call_children(
     pending: &mut Vec<ExpressionHandle>,
     syntax: &SyntaxTrees,
-    resolved: &SymbolResolvedTrees,
+    resolved: &ConstArgumentSelection,
     call: &syntax_trees::expression::TableCallExpression,
 ) -> Result<(), String> {
     pending.extend(

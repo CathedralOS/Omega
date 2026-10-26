@@ -365,19 +365,37 @@ impl BuildTimeAdmissionPlan {
         Ok(self)
     }
 
+    pub(crate) fn closure_needs_selected_execution(
+        &self,
+        program: &TypedTrees,
+        root: SymbolHandle,
+        facts: &checked_trees::CheckedOperatorFacts,
+    ) -> bool {
+        let closure = self.closure_machine_symbols(program, root);
+        // A retained layout query is an input of the selected realization,
+        // even when it occurs only inside a length or const-argument helper.
+        // Defer that exact call closure before ordinary invocation admission;
+        // admission cannot interpret an unresolved query as a machine call.
+        let selection =
+            typed_trees::references::DeclarationSelection::from_symbols(closure.iter().copied());
+        if crate::const_evaluation::data_layout_queries::pending_layout_queries_need_operator_selection(
+            program, &selection,
+        ) {
+            return true;
+        }
+        self.closure_needs_operator_selection(program, root, facts)
+    }
+
+    // Layout policies have a separate context-preparation step that supplies
+    // geometry. Its readiness test asks only for missing provider meaning;
+    // treating a ready layout query as such a provider would prevent that step.
     pub(crate) fn closure_needs_operator_selection(
         &self,
         program: &TypedTrees,
         root: SymbolHandle,
         facts: &checked_trees::CheckedOperatorFacts,
     ) -> bool {
-        let mut pending = vec![root];
-        let mut visited = Vec::new();
-        while let Some(machine) = pending.pop() {
-            if visited.contains(&machine) {
-                continue;
-            }
-            visited.push(machine);
+        for machine in self.closure_machine_symbols(program, root) {
             // Named and normalized token requirements appear as ordinary
             // calls. Their bodies are supplied by selected providers, not by
             // the requirement declarations in this closure.
@@ -411,12 +429,6 @@ impl BuildTimeAdmissionPlan {
             {
                 return true;
             }
-            pending.extend(
-                self.call_edges
-                    .iter()
-                    .filter(|edge| edge.source_machine_symbol == machine)
-                    .map(|edge| edge.target_machine_symbol),
-            );
         }
         false
     }

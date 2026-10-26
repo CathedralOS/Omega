@@ -256,7 +256,7 @@ fn evaluate_application_group(
             .iter()
             .copied()
             .filter(|symbol| {
-                !admission.closure_needs_operator_selection(execution, *symbol, &operators)
+                !admission.closure_needs_selected_execution(execution, *symbol, &operators)
             })
             .collect::<Vec<_>>();
         // Deferred provider uses are not part of this layer's checking domain.
@@ -288,7 +288,7 @@ fn evaluate_application_group(
             // exact provider rows Omega settles, as deferred fixed-array
             // lengths do. This is explicit external readiness, not a failed
             // admission interpreted as a dependency signal.
-            if admission.closure_needs_operator_selection(execution, machine.symbol, &operators) {
+            if admission.closure_needs_selected_execution(execution, machine.symbol, &operators) {
                 continue;
             }
             let checked = match checked_program {

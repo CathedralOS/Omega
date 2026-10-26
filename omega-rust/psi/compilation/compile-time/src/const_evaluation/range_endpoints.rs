@@ -265,7 +265,7 @@ pub(crate) fn pending_endpoint_calls_need_operator_selection(
         // this conservative deferral scan grants no invocation admission.
         let machine = resolve_endpoint_callee(execution, endpoint)
             .map_or(endpoint.machine, |callee| callee.instance);
-        admission.closure_needs_operator_selection(execution, machine, &facts)
+        admission.closure_needs_selected_execution(execution, machine, &facts)
     }))
 }
 

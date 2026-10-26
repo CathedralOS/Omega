@@ -65,6 +65,16 @@ predicates and arithmetic bounds refuse production. These facts describe
 geometry only; they grant no custody, backing or memory-access authority.
 They do not turn an arbitrary runtime argument into a layout constant.
 
+A retained array extent keeps its producing helper and each bound judgment's
+exact consuming body separately. Private evaluation selects its symbolic
+positions from the same semantic work inventory as its query dependencies;
+retained lookup history is not fresh evaluation work. The resulting observation
+assignment travels on the array's storage type and actual consuming machine,
+even when the extent helper is erased. Terminal ingress checks that storage
+use; native and Terminal scope admission check the complete qualified assignment
+before effects. Nominal attachment supplies neither runtime storage nor a
+receiving scope.
+
 [Record storage geometry](../../../../samples/cli/layouts/record_geometry/README.md)
 exercises the supported value flow through native and Terminal execution;
 `tests/omega/fail/layouts/` pins overflow, overwritten values and unselected

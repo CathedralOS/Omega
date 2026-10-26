@@ -111,7 +111,13 @@ pub(crate) fn evaluate(
         // not authorize a different carrier in the standalone probe.
         let mut carrier = None;
         let mut carrier_matches = true;
-        for (_, child) in original.tables.declarations.child_type_references.iter() {
+        for (_, child) in original
+            .program()
+            .tables
+            .declarations
+            .child_type_references
+            .iter()
+        {
             let symbol_resolved_trees::types::TypeReference::Named {
                 symbol,
                 name: selected_name,
@@ -123,7 +129,7 @@ pub(crate) fn evaluate(
             if selected_name.source_span() != name.source_span() {
                 continue;
             }
-            let Some(selected) = original.symbols.builtin_type_atom(*symbol) else {
+            let Some(selected) = original.program().symbols.builtin_type_atom(*symbol) else {
                 carrier_matches = false;
                 break;
             };

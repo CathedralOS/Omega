@@ -11,6 +11,7 @@ use typed_trees::references::{DeclarationSelection, StaticArgumentCall, TypedRef
 pub(super) struct Inputs {
     pub applications: Vec<SymbolHandle>,
     pub work: DeclarationSelection,
+    pub recipes: Vec<typed_trees::constant_recipes::ConstantRecipeHandle>,
     pub queries: HashSet<ExpressionHandle>,
     pub owners: Vec<(SymbolHandle, HashSet<ExpressionHandle>)>,
 }
@@ -35,6 +36,28 @@ pub(super) fn prepare(
         }
     }
     loop {
+        let work = work(checked, &applications);
+        let mut references = References::new(&checked.typed, Some(&work));
+        references.visit_selected_declarations();
+        let recipes: Vec<_> = checked
+            .typed
+            .constant_recipes
+            .iter()
+            .filter_map(|(handle, recipe)| {
+                use typed_trees::constant_recipes::RetainedConstantPosition;
+                let selected = match recipe.position {
+                    RetainedConstantPosition::None => false,
+                    RetainedConstantPosition::ArrayLength(site) => references.types.contains(&site),
+                    RetainedConstantPosition::RangeEndpoint(root) => {
+                        references.expressions.contains(&root)
+                    }
+                    RetainedConstantPosition::ConstApplication { site, root } => {
+                        references.types.contains(&site) || references.expressions.contains(&root)
+                    }
+                };
+                selected.then_some(handle)
+            })
+            .collect();
         let mut roots = materialized.clone();
         for row in &checked.facts.constant_predicate_obligations {
             if applications.contains(&row.caller()) {
@@ -56,6 +79,27 @@ pub(super) fn prepare(
                         .map(|(expression, _)| expression),
                     [],
                 );
+            }
+        }
+        // A symbolic type position consumes its helper just as a retained
+        // scalar does. The recipe roster records that exact application even
+        // though no runtime call or scalar-computation row survives for it.
+        // Keep its query dependencies on the same admitted context path.
+        for handle in &recipes {
+            let recipe = checked.typed.constant_recipes.get(*handle);
+            let expressions = match recipe.position {
+                typed_trees::constant_recipes::RetainedConstantPosition::RangeEndpoint(root)
+                | typed_trees::constant_recipes::RetainedConstantPosition::ConstApplication {
+                    root,
+                    ..
+                } => Some(root),
+                _ => None,
+            };
+            append_roots(&mut roots, recipe.machine, expressions, [recipe.machine]);
+            for obligation in &checked.facts.constant_recipe_obligations {
+                if obligation.recipe == *handle && applications.contains(&obligation.owner) {
+                    append_roots(&mut roots, obligation.owner, expressions, [recipe.machine]);
+                }
             }
         }
         for (_, node) in checked.facts.values.scalar_computations.nodes.iter() {
@@ -102,10 +146,10 @@ pub(super) fn prepare(
         if added_application {
             continue;
         }
-        let work = work(checked, &applications);
         return Ok(Inputs {
             applications,
             work,
+            recipes,
             queries,
             owners,
         });
@@ -330,9 +374,13 @@ fn dependencies(
     for root in &roots.expressions {
         typed_trees::references::visit_expression(program, &mut references, *root);
     }
-    references
-        .declarations
-        .extend(roots.declarations.iter().copied());
+    for &declaration in &roots.declarations {
+        if program.machine_by_symbol(declaration).is_some() {
+            references.calls.push(declaration);
+        } else if declaration.is_valid() {
+            references.declarations.push(declaration);
+        }
+    }
     let mut declarations = HashSet::new();
     let mut machines = HashSet::new();
     while !references.declarations.is_empty() || !references.calls.is_empty() {

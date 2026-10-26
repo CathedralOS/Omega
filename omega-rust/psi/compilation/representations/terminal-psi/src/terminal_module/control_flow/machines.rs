@@ -135,6 +135,40 @@ impl TerminalMachine {
             .flat_map(|block| &block.structural_parameters)
     }
 
+    /// Exact structural storage/signature use, independent of module catalog
+    /// membership. A retained type alone cannot become this machine's receipt.
+    /// Nominal attachment names code scope, never a runtime storage root.
+    pub fn uses_structural_type(
+        &self,
+        module: &crate::TerminalModule,
+        selected: StructuralTypeId,
+    ) -> bool {
+        self.structural_places
+            .iter()
+            .filter_map(|place| place.kind.produced_structural_type())
+            .chain(
+                self.structural_parameters
+                    .iter()
+                    .map(|parameter| parameter.structural_type),
+            )
+            .chain(
+                self.block_structural_parameters()
+                    .map(|parameter| parameter.structural_type),
+            )
+            .chain(
+                self.result
+                    .structural()
+                    .map(|result| result.structural_type),
+            )
+            .any(|root| {
+                crate::structural_type_contains_type_by(
+                    |identity| module.structural_type(identity),
+                    root,
+                    selected,
+                )
+            })
+    }
+
     /// The operation with `id`, searched across every block's roster.
     pub fn operation(&self, id: OperationId) -> Option<&Operation> {
         self.operations().find(|operation| operation.id == id)

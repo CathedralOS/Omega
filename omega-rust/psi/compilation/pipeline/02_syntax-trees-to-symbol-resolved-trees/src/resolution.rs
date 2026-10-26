@@ -235,6 +235,43 @@ fn index_declarations(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(),
     crate::symbols::assign_declarations(lowerer)
 }
 
+/// One lexical selection drive beside its complete retained lookup catalog.
+/// Predecessor expressions are lookup history, not fresh selections in this
+/// drive. In particular, local type operands live outside deferred runtime
+/// bodies, so a traversal of executable roots cannot recover this inventory.
+/// The resolution producer retains its classified authored expressions instead.
+/// This product grants neither body typing nor execution authority.
+pub struct ConstArgumentSelection {
+    program: SymbolResolvedTrees,
+    expressions: Vec<symbol_resolved_trees::expression::ExpressionHandle>,
+}
+
+impl ConstArgumentSelection {
+    pub fn program(&self) -> &SymbolResolvedTrees {
+        &self.program
+    }
+
+    pub fn expressions(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            symbol_resolved_trees::expression::ExpressionHandle,
+            &symbol_resolved_trees::expression::ExpressionNode,
+        ),
+    > {
+        self.expressions.iter().copied().map(|expression| {
+            (
+                expression,
+                self.program
+                    .tables
+                    .bodies
+                    .expressions
+                    .expression(expression),
+            )
+        })
+    }
+}
+
 /// Resolve raw index expressions in their authored owners through normal
 /// lexical selection. This performs no generic instance synthesis or evaluation;
 /// callers must still admit every selected leaf and checked operator meaning.
@@ -243,7 +280,7 @@ fn index_declarations(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(),
 /// not a continuation whose declaration scratch can be executed or completed.
 pub fn resolve_const_argument_selection(
     request: ResolutionRequest,
-) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+) -> Result<ConstArgumentSelection, Vec<Diagnostic>> {
     let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
     index_declarations(&mut lowerer, &syntax)?;
     crate::symbols::assign_lexical_inputs(
@@ -251,8 +288,18 @@ pub fn resolve_const_argument_selection(
         &syntax,
         crate::lowering::state::LexicalInputDemand::TypeOperands,
     )?;
+    let expressions = lowerer
+        .pending_authored_expressions
+        .iter()
+        .map(|authored| authored.expression)
+        .collect();
+    // Receipt dependencies completed below remain lookup, rather than new
+    // original candidates for this drive's lexical type operands.
     finish_resolution(&mut lowerer, &syntax, &[], &[])?;
-    Ok(lowerer.into_trees())
+    Ok(ConstArgumentSelection {
+        program: lowerer.into_trees(),
+        expressions,
+    })
 }
 
 /// Normalize ordinary constants for a numeric probe while retaining machine

@@ -39,6 +39,11 @@ pub(super) fn encode(
                 writer.u8(1);
                 writer.id(machine);
             }
+            FoldedLayoutOwner::Storage { machine, carrier } => {
+                writer.u8(3);
+                writer.id(machine);
+                writer.id(carrier);
+            }
             FoldedLayoutOwner::Carrier(carrier) => {
                 writer.u8(2);
                 writer.id(carrier);
@@ -91,6 +96,10 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<FoldedConstantClosure, C
         let owner = match reader.u8()? {
             1 => FoldedLayoutOwner::Machine(reader.id("MachineId")?),
             2 => FoldedLayoutOwner::Carrier(reader.id("StructuralTypeId")?),
+            3 => FoldedLayoutOwner::Storage {
+                machine: reader.id("MachineId")?,
+                carrier: reader.id("StructuralTypeId")?,
+            },
             tag => return Err(CodecError::InvalidTag("FoldedLayoutOwner", tag)),
         };
         let alternatives = decode_counted(reader, |reader| {

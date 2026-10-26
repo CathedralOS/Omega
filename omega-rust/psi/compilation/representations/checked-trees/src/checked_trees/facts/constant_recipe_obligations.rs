@@ -27,6 +27,8 @@ pub enum ConstantRecipeRequirement {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConstantRecipeObligation {
     pub recipe: ConstantRecipeHandle,
+    /// The exact consuming body, independent of a shared recipe's evaluator.
+    pub owner: symbols::SymbolHandle,
     pub requirement: ConstantRecipeRequirement,
     pub source_span: source::SourceSpan,
     /// The checked occurrence, for the refusal a closure reports.
@@ -36,8 +38,8 @@ pub struct ConstantRecipeObligation {
 impl ConstantRecipeObligation {
     /// Discharge every obligation against the closure `program` carries.
     /// Rows are independent; every failure is reported.
-    pub fn discharge_all(
-        obligations: &[Self],
+    pub fn discharge_all<'obligation>(
+        obligations: impl IntoIterator<Item = &'obligation Self>,
         program: &TypedTrees,
     ) -> Result<(), Vec<Diagnostic>> {
         let mut diagnostics = Vec::new();

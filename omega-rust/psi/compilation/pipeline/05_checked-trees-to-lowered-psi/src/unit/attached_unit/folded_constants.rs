@@ -136,23 +136,32 @@ fn lower_layout_requirements(
         let owner = match requirement.owner {
             checked_trees::CheckedLayoutOwner::Machine(machine) => {
                 if !machines.iter().any(|(source, _)| *source == machine)
-                    && checked
-                        .facts
-                        .constant_layout_requirements
-                        .iter()
-                        .any(|carrier| {
-                            carrier.proof_owner == requirement.proof_owner
-                                && matches!(
-                                    carrier.owner,
-                                    checked_trees::CheckedLayoutOwner::Carrier(_)
-                                )
-                        })
+                    && requirement.alternatives.iter().all(|alternative| {
+                        checked
+                            .facts
+                            .constant_layout_requirements
+                            .iter()
+                            .any(|carrier| {
+                                carrier.proof_owner == requirement.proof_owner
+                                    && !matches!(
+                                        carrier.owner,
+                                        checked_trees::CheckedLayoutOwner::Machine(_)
+                                    )
+                                    && carrier.alternatives.contains(alternative)
+                            })
+                    })
                 {
                     // Static policy execution is erased. Its materialized
                     // result below retains the same judgment's condition.
                     continue;
                 }
                 FoldedLayoutOwner::Machine(lookup_machine_id(machines, machine)?)
+            }
+            checked_trees::CheckedLayoutOwner::Structural { machine, identity } => {
+                FoldedLayoutOwner::Storage {
+                    machine: lookup_machine_id(machines, machine)?,
+                    carrier: crate::terminal_identities::lookup_type_id(type_ids, &identity)?,
+                }
             }
             checked_trees::CheckedLayoutOwner::Carrier(application) => {
                 let mut matches = Vec::new();

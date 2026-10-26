@@ -78,7 +78,10 @@ pub fn admit_folded_layout_requirements<'types>(
     target: &str,
     owner: terminal_psi::FoldedLayoutOwner,
 ) -> Result<(), LayoutObservationError> {
-    for requirement in requirements.iter().filter(|row| row.owner == owner) {
+    for requirement in requirements
+        .iter()
+        .filter(|row| row.owner.is_consumed_by(owner))
+    {
         let mut matched = false;
         let mut unavailable = None;
         for alternative in requirement

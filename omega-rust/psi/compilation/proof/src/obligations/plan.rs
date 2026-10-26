@@ -513,6 +513,18 @@ pub enum ProofObligationOwner {
 }
 
 impl ProofObligationOwner {
+    pub(crate) fn machine_symbol(&self) -> SymbolHandle {
+        match self {
+            Self::Unknown => SymbolHandle::invalid(),
+            Self::MachineOwnedData { machine_symbol, .. }
+            | Self::StateParameter { machine_symbol, .. }
+            | Self::StateReturn { machine_symbol, .. }
+            | Self::StateLocal { machine_symbol, .. }
+            | Self::ConstructorField { machine_symbol, .. }
+            | Self::ArrayElement { machine_symbol, .. } => *machine_symbol,
+        }
+    }
+
     /// `(machine, state, statement index)` of the statement that evaluates
     /// the owned value. Local and constructor-field initializers have one; owned data,
     /// parameters and returns are not evaluated at a single statement.

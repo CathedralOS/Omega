@@ -113,7 +113,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Content reunion retains completed producer operations and exact claim frontiers.
 // Logical source copy permission is separate from descriptor retirement.
 // Normal-return parameter membership preservation is distinct from entry demands.
-pub(crate) const FORMAT_MARKER: u16 = 191;
+pub(crate) const FORMAT_MARKER: u16 = 192;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

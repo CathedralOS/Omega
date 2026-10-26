@@ -250,17 +250,19 @@ impl crate::TypedTrees {
         }
     }
 
-    /// Read every retained recipe's value from `evaluated`, a copy of this
-    /// program whose deferred continuation folded under selected rows. A
+    /// Read the selected recipes from `evaluated`, a copy of this program
+    /// whose deferred continuation folded under selected rows. A
     /// position the fold left symbolic names the recipe that did not close.
     pub fn read_constant_recipe_closure(
         &self,
         evaluated: &crate::TypedTrees,
+        recipes: &[ConstantRecipeHandle],
         receipts: Vec<ConstantRecipeDependencyReceipt>,
     ) -> Result<ConstantRecipeClosure, Vec<diagnostics::Diagnostic>> {
-        let mut values = Vec::with_capacity(self.constant_recipes.len());
+        let mut values = Vec::with_capacity(recipes.len());
         let mut unclosed = Vec::new();
-        for (handle, recipe) in self.constant_recipes.iter() {
+        for &handle in recipes {
+            let recipe = self.constant_recipes.get(handle);
             let value = match recipe.position {
                 RetainedConstantPosition::None => continue,
                 RetainedConstantPosition::ArrayLength(type_reference) => {
