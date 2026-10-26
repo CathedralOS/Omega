@@ -79,10 +79,8 @@ impl TerminalExecution<'_> {
             || !result.projected_qualifications.is_empty()
             || !result.qualification_establishments.is_empty()
             || !result.claims.is_empty()
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(source.place) || claim.place == Some(result.place))
+            || crate::custody::place_is_claimed(&self.live_claims, source.place)
+            || crate::custody::place_is_claimed(&self.live_claims, result.place)
             || self.live_affine_discard_at(result.place).is_some()
         {
             return Err(malformed());

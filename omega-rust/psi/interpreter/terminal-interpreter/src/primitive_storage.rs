@@ -2245,10 +2245,7 @@ impl TerminalExecution<'_> {
             .map(|result| result.place)
         {
             if self.live_affine_discard_at(place).is_some()
-                || self
-                    .live_claims
-                    .values()
-                    .any(|claim| claim.place == Some(place))
+                || crate::custody::place_is_claimed(&self.live_claims, place)
             {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }

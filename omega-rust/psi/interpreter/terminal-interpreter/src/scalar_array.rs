@@ -192,10 +192,7 @@ impl TerminalExecution<'_> {
                 .elements()
                 .iter()
                 .any(|value| value.scalar_type() != scalar_type)
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(argument.place))
+            || crate::custody::place_is_claimed(&self.live_claims, argument.place)
             || self.structural_values.contains_key(&argument.place)
         {
             return Err(malformed());

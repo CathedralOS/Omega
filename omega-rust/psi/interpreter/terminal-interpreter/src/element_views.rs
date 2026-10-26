@@ -554,10 +554,7 @@ impl TerminalExecution<'_> {
             .copied()
             .filter(|place| {
                 !self.live_affine_discard_at(*place).is_some()
-                    && !self
-                        .live_claims
-                        .values()
-                        .any(|claim| claim.place == Some(*place))
+                    && !crate::custody::place_is_claimed(&self.live_claims, *place)
             })
             .collect::<Vec<_>>();
         for place in retired {
@@ -659,10 +656,7 @@ impl TerminalExecution<'_> {
             || self.scalar_array_values.contains_key(&result.place)
             || self.byte_sequence_values.contains_key(&result.place)
             || self.element_view_values.contains_key(&result.place)
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(result.place))
+            || crate::custody::place_is_claimed(&self.live_claims, result.place)
             || self.live_affine_discard_at(result.place).is_some()
         {
             return Err(malformed());
@@ -1494,10 +1488,8 @@ impl TerminalExecution<'_> {
                 .get(&result.structural_type)
                 .is_some_and(|row| matches!(row.shape, StructuralTypeShape::ElementView { .. }))
             || !result.claims.is_empty()
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(source.place) || claim.place == Some(result.place))
+            || crate::custody::place_is_claimed(&self.live_claims, source.place)
+            || crate::custody::place_is_claimed(&self.live_claims, result.place)
             || self.live_affine_discard_at(result.place).is_some()
         {
             return Err(malformed());

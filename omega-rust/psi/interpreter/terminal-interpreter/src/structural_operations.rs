@@ -395,10 +395,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn result_place_in_use(&self, place: semantic_vocabulary::PlaceId) -> bool {
         self.structural_values.contains_key(&place)
             || self.scalar_array_values.contains_key(&place)
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(place))
+            || crate::custody::place_is_claimed(&self.live_claims, place)
     }
 
     pub(crate) fn execute_establish_zeroed_structural(

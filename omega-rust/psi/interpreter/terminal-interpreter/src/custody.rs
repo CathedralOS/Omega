@@ -58,6 +58,13 @@ pub(crate) fn bind_result_claim(
     Ok(())
 }
 
+/// Whether a live claim still holds `place`. Claim rows are the only runtime
+/// table that names a place without owning its cell, so every route that frees
+/// or reuses a place asks this exact question of the claim table.
+pub(crate) fn place_is_claimed(claims: &BTreeMap<ClaimId, LiveClaim>, place: PlaceId) -> bool {
+    claims.values().any(|claim| claim.place == Some(place))
+}
+
 /// A loan follows backing identity, not the descriptor carrier's location.
 /// Moving that descriptor elsewhere does not unpin the selected owner.
 pub(crate) fn has_live_loan(
@@ -90,10 +97,7 @@ pub(crate) fn commit_cleanup_action(
 ) -> Result<Option<(NominalAffineCleanup, TerminalStructuralValue)>, TerminalInterpretError> {
     match action {
         TerminalAffineCleanupAction::DiscardRoot(place) => {
-            if live_claims
-                .values()
-                .any(|claim| claim.place == Some(*place))
-            {
+            if place_is_claimed(live_claims, *place) {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
             if reference::discard_structural_value(
@@ -374,7 +378,7 @@ pub(crate) fn retire_cleanup_home(
     claims: &BTreeMap<ClaimId, LiveClaim>,
     place: PlaceId,
 ) -> Result<(), TerminalInterpretError> {
-    if claims.values().any(|claim| claim.place == Some(place)) {
+    if place_is_claimed(claims, place) {
         return Err(TerminalInterpretError::AffineFrontierMismatch);
     }
     if values.remove(&place).is_none() {
