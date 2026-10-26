@@ -64,11 +64,15 @@ impl BuiltinTypeAtom {
         Self::ALL.get(ordinal).copied()
     }
 
-    pub fn ordinal(self) -> usize {
-        Self::ALL
-            .iter()
-            .position(|candidate| *candidate == self)
-            .expect("builtin type atom belongs to its closed inventory")
+    /// The atom's slot ordinal: its position in [`Self::ALL`]. The loop
+    /// compares discriminant values (this vocabulary has no payload), so the
+    /// accessors below can index the roster in const context.
+    pub const fn ordinal(self) -> usize {
+        let mut index = 0;
+        while (Self::ALL[index] as usize) != (self as usize) {
+            index += 1;
+        }
+        index
     }
 
     /// Whether this atom is one of the dedicated atomic core types whose
@@ -106,58 +110,40 @@ impl BuiltinTypeAtom {
         )
     }
 
+    /// One roster row per member in [`Self::ALL`] order: the atom's
+    /// diagnostic identity and its installed symbol spelling. Both readers
+    /// index this roster instead of restating the variant list once each.
+    const SPELLINGS: [(Self, &'static str, &'static str); BUILTIN_TYPE_COUNT] = [
+        (Self::Bool, "bool", "bool"),
+        (Self::I8, "i8", "i8"),
+        (Self::I16, "i16", "i16"),
+        (Self::I32, "i32", "i32"),
+        (Self::I64, "i64", "i64"),
+        (Self::U8, "u8", "u8"),
+        (Self::U16, "u16", "u16"),
+        (Self::U32, "u32", "u32"),
+        (Self::U64, "u64", "u64"),
+        (Self::Address, "address", "addr"),
+        (Self::F32, "f32", "f32"),
+        (Self::F64, "f64", "f64"),
+        (Self::Slice, "slice", "Slice"),
+        (Self::Result, "result", "Result"),
+        (Self::SyscallResult, "syscall-result", "SyscallResult"),
+        (Self::Terminal, "terminal", "Terminal"),
+        (Self::Never, "never", "Never"),
+        (Self::UInt, "uint", "UInt"),
+        (Self::Int, "int", "Int"),
+        (Self::AtomicBool, "atomic-bool", "AtomicBool"),
+        (Self::AtomicU32, "atomic-u32", "AtomicU32"),
+        (Self::AtomicU64, "atomic-u64", "AtomicU64"),
+    ];
+
     pub const fn identity(self) -> &'static str {
-        match self {
-            Self::Bool => "bool",
-            Self::I8 => "i8",
-            Self::I16 => "i16",
-            Self::I32 => "i32",
-            Self::I64 => "i64",
-            Self::U8 => "u8",
-            Self::U16 => "u16",
-            Self::U32 => "u32",
-            Self::U64 => "u64",
-            Self::Address => "address",
-            Self::F32 => "f32",
-            Self::F64 => "f64",
-            Self::Slice => "slice",
-            Self::Result => "result",
-            Self::SyscallResult => "syscall-result",
-            Self::Terminal => "terminal",
-            Self::Never => "never",
-            Self::UInt => "uint",
-            Self::Int => "int",
-            Self::AtomicBool => "atomic-bool",
-            Self::AtomicU32 => "atomic-u32",
-            Self::AtomicU64 => "atomic-u64",
-        }
+        Self::SPELLINGS[self.ordinal()].1
     }
 
     pub const fn symbol_name(self) -> &'static str {
-        match self {
-            Self::Bool => "bool",
-            Self::I8 => "i8",
-            Self::I16 => "i16",
-            Self::I32 => "i32",
-            Self::I64 => "i64",
-            Self::U8 => "u8",
-            Self::U16 => "u16",
-            Self::U32 => "u32",
-            Self::U64 => "u64",
-            Self::Address => "addr",
-            Self::F32 => "f32",
-            Self::F64 => "f64",
-            Self::Slice => "Slice",
-            Self::Result => "Result",
-            Self::SyscallResult => "SyscallResult",
-            Self::Terminal => "Terminal",
-            Self::Never => "Never",
-            Self::UInt => "UInt",
-            Self::Int => "Int",
-            Self::AtomicBool => "AtomicBool",
-            Self::AtomicU32 => "AtomicU32",
-            Self::AtomicU64 => "AtomicU64",
-        }
+        Self::SPELLINGS[self.ordinal()].2
     }
 }
 
