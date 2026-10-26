@@ -1566,7 +1566,15 @@ impl<'program> StructuralJudge<'program> {
                         inputs.iter().find(|(input, _)| *input == borrow.target)
                     {
                         if let Some(observed) = referent.observed_value() {
-                            value = observed.clone();
+                            value = crate::expression_result_type_reference(
+                                program, scope.0, scope.1, expression,
+                            )
+                            .and_then(|declared| {
+                                super::super::structural_terms::shared_inline_observation(
+                                    program, declared, observed.clone(),
+                                )
+                            })
+                            .unwrap_or_else(|| observed.clone());
                         }
                     }
                 }
@@ -1845,6 +1853,14 @@ impl<'program> StructuralJudge<'program> {
         if !(is_parameter || is_local) || !subject.type_reference.is_valid() {
             return None;
         }
+        let mut current_type = program
+            .state_local_declaration(scope.1, source.root)
+            .map(|(_, local)| local.type_reference)
+            .or_else(|| {
+                program
+                    .state_parameter_by_symbol(scope.1, source.root)
+                    .map(|param| param.type_reference)
+            })?;
         let name = program.symbols.name(source.root);
         let mut roots = environment.iter().filter(|(binding, _)| binding == name);
         let mut value = roots.next()?.1.clone();
@@ -1855,8 +1871,31 @@ impl<'program> StructuralJudge<'program> {
             match segment {
                 facts::PlaceSegment::Field { symbol } => {
                     value = self.observed_field_term(value, program.symbols.name(*symbol), 0)?;
+                    current_type =
+                        crate::value_custody::places::project_type_reference_from_segments(
+                            program,
+                            current_type,
+                            std::slice::from_ref(segment),
+                        )?;
                 }
-                // The current structural term owner has no indexed or case
+                facts::PlaceSegment::FixedIndex { index } => {
+                    let index_u64 = u64::try_from(*index).ok()?;
+                    let index_term =
+                        StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(index_u64));
+                    value = super::super::observed_projections::project_index(
+                        program,
+                        current_type,
+                        value,
+                        index_term,
+                    )?;
+                    current_type =
+                        crate::value_custody::places::project_type_reference_from_segments(
+                            program,
+                            current_type,
+                            std::slice::from_ref(segment),
+                        )?;
+                }
+                // The current structural term owner has no dynamic indexed or case
                 // projection observation. Exact origin/type alone cannot
                 // manufacture its value or erase an active-case obligation.
                 _ => return None,

@@ -23,6 +23,8 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::TypeReferenceHandle;
 
+mod metadata_paths;
+
 /// Keep the original completed producer of an immutable Boolean copy. Only
 /// exact local identities participate; parameters, projections and mutable
 /// observations cannot acquire a body-wide constant through a saved name.
@@ -171,6 +173,44 @@ struct SelectedApplicationCarrier<'program> {
 }
 
 impl StructuralJudge<'_> {
+    pub(in crate::proof_contracts::contract_entailment) fn captured_metadata_predicate_judgment(
+        &self,
+        owner: SymbolHandle,
+        parameters: &[typed_trees::signature::StateParameter],
+        expression: ExpressionHandle,
+        substitution: &[(String, StructuralTerm)],
+    ) -> StructuralJudgment {
+        let bindings = parameters
+            .iter()
+            .filter_map(|parameter| {
+                substitution
+                    .iter()
+                    .find(|(name, _)| name == parameter.name.as_str())
+                    .map(|(_, value)| (parameter.symbol, value.clone()))
+            })
+            .collect::<Vec<_>>();
+        let Some(term) = bound_term(
+            self.program,
+            expression,
+            owner,
+            parameters,
+            owner,
+            &bindings,
+            None,
+            0,
+        ) else {
+            return StructuralJudgment::Unknown;
+        };
+        fn contains_measure(term: &StructuralTerm) -> bool {
+            matches!(term, StructuralTerm::CollectionMeasure { .. })
+                || term.any_child(contains_measure)
+        }
+        if !contains_measure(&term) {
+            return StructuralJudgment::Unknown;
+        }
+        self.judge_observed_predicate(term, 0)
+    }
+
     /// Normalize an exact selected result or a view of a nested selected
     /// result. Equations are instantiated in the callable's own telescope;
     /// this does not execute the application or create a runtime occurrence.
@@ -1283,6 +1323,25 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
             ) {
                 return Some(measure);
             }
+            if let Some(measure) = super::super::structural_terms::collection_measure_term(
+                program,
+                member,
+                reference,
+                || {
+                    metadata_paths::bound_descriptor(
+                        program,
+                        member.receiver,
+                        scope,
+                        parameters,
+                        callable,
+                        bindings,
+                        result,
+                        depth + 1,
+                    )
+                },
+            ) {
+                return Some(measure);
+            }
             let carrier =
                 crate::value_custody::places::unwrapped_type_reference(program, reference)?;
             // The applied contract's fields belong to its selected data
@@ -1315,6 +1374,32 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                 program, reference, value, &path,
             )
         }
+        ExpressionNode::Indexed(indexed) => super::super::structural_terms::indexed_term_in_scope(
+            program,
+            None,
+            Some((scope, parameters)),
+            expression,
+            bound_term(
+                program,
+                indexed.collection,
+                scope,
+                parameters,
+                callable,
+                bindings,
+                result,
+                depth + 1,
+            )?,
+            bound_term(
+                program,
+                indexed.index,
+                scope,
+                parameters,
+                callable,
+                bindings,
+                result,
+                depth + 1,
+            )?,
+        ),
         ExpressionNode::Call(call) => {
             if let Some((_, argument)) = crate::integer_embedding_argument(program, expression) {
                 let reference = crate::parameter_expression_result_type_reference(

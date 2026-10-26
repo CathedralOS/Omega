@@ -114,7 +114,13 @@ impl<'program> CallFrameResolver<'program> {
                 // Authenticate the entire join; predicate truth belongs to the
                 // actual selected on a normal path, not every possible payload.
                 for source in origins {
-                    if !source.root.is_valid() || source.collection_coarse {
+                    if !source.root.is_valid()
+                        || (source.collection_coarse
+                            && !source
+                                .segments
+                                .iter()
+                                .any(|segment| matches!(segment, facts::PlaceSegment::FixedIndex { .. })))
+                    {
                         return None;
                     }
                     let root_type =
