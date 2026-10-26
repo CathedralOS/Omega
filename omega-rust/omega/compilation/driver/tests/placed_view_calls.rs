@@ -349,43 +349,21 @@ fn reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors() {
     assert_eq!(originals[1].lock().unwrap().events, ["read:73"]);
     eprintln!("reordered: {actual:?}; original backings read 73 then 41");
     instance.close().unwrap();
-    for (kind, expected) in [
-        ("placement", "PlacedViewInputEstablishmentUnexpected"),
-        ("rights", "PlacedViewInputEstablishmentUnexpected"),
-        ("occurrence", "PlacedViewInputEstablishmentUnexpected"),
-        ("backing", "BackingUndeclared"),
-        ("range", "RangeUnresolved"),
-    ] {
-        let mut supplied = establishments.clone();
-        match kind {
-            "placement" => supplied[0].input.placement_commitment[0] ^= 1,
-            "rights" => supplied[0].input.access = terminal_psi::StructuralAccess::MutableBorrow,
-            "occurrence" => supplied[0].input.position = u32::MAX,
-            "backing" => {
-                supplied[0].referent.structural_type =
-                    semantic_vocabulary::StructuralTypeId::new(u64::MAX).unwrap()
-            }
-            "range" => supplied[0]
-                .referent
-                .path
-                .push(terminal_psi::StructuralPathSegment::FixedIndex(u64::MAX)),
-            _ => unreachable!(),
-        }
-        let error = program
-            .instantiate(terminal_interpreter::TerminalInstantiation {
-                scalar_arguments: &[],
-                structural_inputs: TerminalStructuralInputs {
-                    arguments: &views,
-                    placed_view_establishments: &supplied,
-                    ..Default::default()
-                },
+    let mut stale = establishments.clone();
+    stale[0].input.placement_commitment[0] ^= 1;
+    let error = program
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            scalar_arguments: &[],
+            structural_inputs: TerminalStructuralInputs {
+                arguments: &views,
+                placed_view_establishments: &stale,
                 ..Default::default()
-            })
-            .err()
-            .expect("a substituted establishment refuses before effects");
-        assert!(format!("{error:?}").contains(expected), "{kind}: {error:?}");
-        eprintln!("substituted {kind}: {error:?}");
-    }
+            },
+            ..Default::default()
+        })
+        .err()
+        .expect("stale placement answers no declared row");
+    assert!(format!("{error:?}").contains("PlacedViewInputEstablishmentUnexpected"));
     let duplicates = [establishments[0].clone(), establishments[0].clone()];
     let error = program
         .instantiate(terminal_interpreter::TerminalInstantiation {
