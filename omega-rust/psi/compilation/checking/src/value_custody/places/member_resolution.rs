@@ -25,7 +25,7 @@ use symbols::SymbolHandle;
 /// reference handle, the same declaration, or the same element reference —
 /// not type equality: two positions naming equal types through different
 /// stored rows do not join, because neither is evidence for the other.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(super) enum MemberPosition {
     Reference(typed_trees::types::TypeReferenceHandle),
     Declaration(SymbolHandle),
