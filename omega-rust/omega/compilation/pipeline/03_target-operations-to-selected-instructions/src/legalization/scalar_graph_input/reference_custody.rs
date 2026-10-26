@@ -595,7 +595,7 @@ pub(in crate::legalization) fn window_regions(
     // its captured storage before interpreting relative selectors: `.field`
     // through that parameter must update the original slot, not temporary
     // parameter storage that disappears at the next control-flow join.
-    let sources = borrowed_arrivals::flatten(
+    let sources = borrowed_arrivals::captured_storage(
         function,
         custody,
         types,
@@ -608,14 +608,7 @@ pub(in crate::legalization) fn window_regions(
     .ok_or_else(|| invalid())?;
     let mut regions = Vec::new();
     for source in sources {
-        for region in window_regions_in_storage(
-            function,
-            custody,
-            types,
-            source.place,
-            &source.path,
-            source.access,
-        )? {
+        for region in window_regions_in_storage(function, custody, types, &source)? {
             if !regions.contains(&region) {
                 regions.push(region);
             }
@@ -628,26 +621,16 @@ fn window_regions_in_storage(
     function: &PsiOptimizationFunction,
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
-    place: PlaceId,
-    path: &[StructuralPathSegment],
-    access: StructuralAccess,
+    source: &borrowed_arrivals::CapturedStorage,
 ) -> Result<Vec<(PlaceId, Vec<StructuralPathSegment>)>, LegalizationError> {
+    let StructuralArgument { place, path, .. } = &source.argument;
     let Some(crossing) = path
         .iter()
         .rposition(|segment| *segment == StructuralPathSegment::Referent)
     else {
-        return Ok(vec![(place, path.to_vec())]);
+        return Ok(vec![(*place, path.to_vec())]);
     };
-    let observed = call_paths::call_reference_custody(
-        function,
-        custody,
-        types,
-        &StructuralArgument {
-            place,
-            path: path.to_vec(),
-            access,
-        },
-    )?;
+    let observed = call_paths::captured_reference_custody(function, custody, types, source)?;
     let mut regions = Vec::new();
     for root in &observed.origins {
         for origin in storage_origins(function, custody, types, root, observed.referent)? {

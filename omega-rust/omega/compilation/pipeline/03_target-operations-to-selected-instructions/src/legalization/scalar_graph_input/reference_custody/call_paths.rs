@@ -28,6 +28,27 @@ pub(super) fn call_reference_custody(
     argument: &StructuralArgument,
 ) -> Result<ReferenceObservation, LegalizationError> {
     let observed = observe_reference_custody(function, custody, types, argument)?;
+    require_observation(observed)
+}
+
+pub(super) fn captured_reference_custody(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    source: &super::borrowed_arrivals::CapturedStorage,
+) -> Result<ReferenceObservation, LegalizationError> {
+    require_observation(observe_direct_reference_custody(
+        function,
+        custody,
+        types,
+        &source.argument,
+        &source.grants,
+    )?)
+}
+
+fn require_observation(
+    observed: ReferenceObservation,
+) -> Result<ReferenceObservation, LegalizationError> {
     if observed.absent_case_descriptors || observed.origins.is_empty() {
         return Err(invalid());
     }
@@ -45,14 +66,14 @@ pub(super) fn observe_reference_custody(
     argument: &StructuralArgument,
 ) -> Result<ReferenceObservation, LegalizationError> {
     if !custody.borrowed_sources.contains_key(&argument.place) {
-        return observe_direct_reference_custody(function, custody, types, argument);
+        return observe_direct_reference_custody(function, custody, types, argument, &[]);
     }
     // A borrowed aggregate parameter transports an address, not duplicate
     // resident permissions. Authenticate its complete root presentation first,
     // then walk the unchanged relative path in every actual source namespace.
     // Looking up a descriptor at the parameter itself would lose that roster;
     // flattening the full path would demand the same missing descriptor first.
-    let roots = super::borrowed_arrivals::flatten(
+    let roots = super::borrowed_arrivals::captured_storage(
         function,
         custody,
         types,
@@ -65,9 +86,15 @@ pub(super) fn observe_reference_custody(
     .ok_or_else(|| invalid())?;
     let mut complete: Option<ReferenceObservation> = None;
     for mut root in roots {
-        root.path.extend_from_slice(&argument.path);
-        root.access = argument.access;
-        let observed = observe_direct_reference_custody(function, custody, types, &root)?;
+        root.argument.path.extend_from_slice(&argument.path);
+        root.argument.access = argument.access;
+        let observed = observe_direct_reference_custody(
+            function,
+            custody,
+            types,
+            &root.argument,
+            &root.grants,
+        )?;
         if let Some(complete) = &mut complete {
             if complete.referent != observed.referent {
                 return Err(invalid());
@@ -101,6 +128,7 @@ fn observe_direct_reference_custody(
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
     argument: &StructuralArgument,
+    grants: &[super::OccurrenceIdentity],
 ) -> Result<ReferenceObservation, LegalizationError> {
     if argument.access == StructuralAccess::Owned {
         return Err(invalid());
@@ -119,7 +147,7 @@ fn observe_direct_reference_custody(
         return Err(invalid());
     }
     let mut current = source_contract(function, custody, argument.place).ok_or(invalid())?;
-    let mut cursors = vec![(argument.place, Vec::new(), Vec::new())];
+    let mut cursors = vec![(argument.place, Vec::new(), grants.to_vec())];
     let cursor_budget = custody
         .leaves
         .len()
@@ -210,6 +238,13 @@ fn observe_direct_reference_custody(
                                 &leaf.identity,
                                 argument.access,
                             ) || custody.descends_from(child, &leaf.identity)
+                                && !grants.iter().any(|grant| {
+                                    super::borrowed_arrivals::granting_ancestor(
+                                        custody,
+                                        grant,
+                                        &child.identity,
+                                    )
+                                })
                                 && !shared_source_compatible(
                                     function,
                                     custody,
