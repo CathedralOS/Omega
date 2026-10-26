@@ -41,6 +41,15 @@ fn main() {
         source_discovery_root_inputs();
         return;
     }
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--one-shot")) {
+        anonymous_build_completes_before_product();
+        sliced_build_retains_effects();
+        source_native_roundtrip();
+        foreign_source_return_refuses();
+        foreign_build_return_refuses();
+        ignored_build_request_still_requires_join();
+        return;
+    }
     initial_build_source_isolation();
     deferred_product_uses_captured_imports();
     unbound_build_invocation("separate_build_product_imports_exit");
@@ -78,7 +87,7 @@ fn main() {
                 request.package_inputs.as_ref(),
             );
         request.build.evaluation_sponsor = Some(sponsor.clone());
-        session.check(request)
+        omega_build::check_source(session, request)
     };
     let measured = sponsor(limits(1_000_000));
     check(
@@ -788,8 +797,7 @@ fn terminal_build_filesystem() {
     limited.build.evaluation_sponsor = Some(account);
     limited.build.filesystem_sponsor = Some(staging);
     limited.build.directory = Some(output.clone());
-    let failure = session
-        .check(limited)
+    let failure = omega_build::check_source(&mut session, limited)
         .result
         .expect_err("fourth filesystem operation exceeds sponsor");
     let diagnostics = failure.into_diagnostics();
@@ -2116,12 +2124,66 @@ fn package_invocation_requests(fixture: &str) -> impl Fn() -> CheckedCompileRequ
 fn return_build(
     invocation: &mut compiler::PackageBuildInvocation,
 ) -> Option<build_evaluation::ReturnedBuild> {
-    invocation.execution().map(|execution| {
+    return_execution(invocation.execution())
+}
+
+fn return_execution(
+    execution: Option<&mut build_evaluation::PreparedBuildExecution>,
+) -> Option<build_evaluation::ReturnedBuild> {
+    execution.map(|execution| {
         let mut host = execution.host().expect("issue Build host once");
         let mut activation = host.start().expect("start Build once");
         while !activation.advance(1024).expect("advance Build").returned {}
         activation.complete().expect("normal Build return")
     })
+}
+
+fn foreign_source_return_refuses() {
+    let request = package_invocation_requests("pass/build/activation_yields_without_replay");
+    let mut session = CompilationSession::default();
+    let before = counters::build_execution_count();
+    let mut first = session
+        .begin_source_compilation(request())
+        .expect("first source admission");
+    let mut second = session
+        .begin_source_compilation(request())
+        .expect("second source admission");
+    assert_eq!(counters::build_execution_count(), before);
+    let first_returned = return_execution(first.execution());
+    let second_returned = return_execution(second.execution());
+    for (source, returned) in [(first, second_returned), (second, first_returned)] {
+        let failure = session
+            .complete_source_check(source, Ok(returned))
+            .result
+            .expect_err("a source continuation must reject another activation's return");
+        assert!(failure.into_diagnostics().iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("completion belongs to another invocation")
+        }));
+    }
+    assert_eq!(counters::build_execution_count(), before + 2);
+    println!("source_continuations_rejected_swapped_normal_returns_without_replay");
+}
+
+fn source_native_roundtrip() {
+    let repository = fixture_package_inputs::repo_root();
+    let root = repository.join("tests/omega/pass/build/activation_yields_without_replay/main.omg");
+    let directory = repository.join("build/one-shot-native");
+    let request = compiler::CompileRequest::for_targets(
+        root,
+        directory.clone(),
+        vec![Some(target::TargetProfile::host_if_supported().unwrap())],
+    )
+    .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact);
+    let before = counters::build_execution_count();
+    let report = omega_build::compile_sources(&mut CompilationSession::default(), request)
+        .expect("source admission")
+        .into_single_report()
+        .expect("source native product");
+    assert_eq!(counters::build_execution_count(), before + 1);
+    execute_report(report, &directory);
+    println!("source_native_and_reloaded_terminal_exit_zero_after_one_build");
 }
 
 fn interleaved_build_invocations() {
@@ -2266,8 +2328,7 @@ fn sliced_build_retains_effects() {
     let mut request = CheckedCompileRequest::new(&root, Some("linux_x86_64"));
     request.build.evaluation_sponsor = Some(account.clone());
     let before = counters::build_execution_count();
-    CompilationSession::default()
-        .check(request)
+    omega_build::check_source(&mut CompilationSession::default(), request)
         .result
         .expect("sliced Build completes");
     assert_eq!(counters::build_execution_count() - before, 1);
@@ -2283,8 +2344,7 @@ fn sliced_build_retains_effects() {
     let mut request = CheckedCompileRequest::new(&root, Some("linux_x86_64"));
     request.build.evaluation_sponsor = Some(limited.clone());
     let before = counters::build_execution_count();
-    let failure = CompilationSession::default()
-        .check(request)
+    let failure = omega_build::check_source(&mut CompilationSession::default(), request)
         .result
         .expect_err("slice replenishment must not enlarge the invocation allowance");
     let diagnostics = failure.into_diagnostics();
@@ -2316,7 +2376,9 @@ fn anonymous_build_completes_before_product() {
     )
     .with_requested_product(compiler::RequestedCompileProduct::TerminalArtifact);
     let before = counters::build_execution_count();
-    let outcomes = compiler::compile(request).expect("anonymous multi-target request");
+    let outcomes =
+        omega_build::compile_sources(&mut compiler::CompilationSession::default(), request)
+            .expect("anonymous multi-target request");
     assert_eq!(outcomes.outcomes().len(), 2);
     let mut identity = None;
     for outcome in outcomes.into_outcomes() {
@@ -2363,7 +2425,7 @@ fn logged_build_reuse() {
                 request.package_inputs.as_ref(),
             );
         request.build.evaluation_sponsor = Some(account.clone());
-        session.check(request)
+        omega_build::check_source(session, request)
     };
     let mut session = CompilationSession::default();
     let account = sponsor(limits(1_000_000));

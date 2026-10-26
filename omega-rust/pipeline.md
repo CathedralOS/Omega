@@ -185,6 +185,7 @@ foundations, product reports and publication keep independent ownership.
 | `omega/application/cli/src/main.rs` | Parse and dispatch; display outcomes |
 | `omega/application/build/src/build.rs` | Request admission, Build lifecycle, requested products, required tests and publication |
 | `omega/application/build/src/build_execution.rs` | Dependency jobs and Build activation readiness; mandatory final join |
+| `omega/application/build/src/source_compilation.rs` | One-shot source consumers: prepare an opaque compiler invocation, execute Build, complete the requested products |
 | `omega/application/build/src/build_session.rs` | Invocation compiler lifetime beside independently package-owned staging and aggregate sponsors |
 | `omega/application/build/src/package_commands.rs` | Admitted install/update target-review work; complete findings returned to package-owned publication |
 | `omega/application/build/src/package_review.rs` | Admitted review dependency passes, compiler calls and suspended-Build cache recovery, shared with audit |
@@ -298,7 +299,12 @@ admits dependency requests before acquisition, preserves exact Git pins, and
 permits only root-content changes; per-target findings never recover proposals
 or publish acceptance. Source failure remains unavailable findings for every
 requested target. Review has no fresh-execution or sponsor-issuing route.
-Provider suspension and one-shot execution unification remain open.
+Standalone batches, diagnostic checks and named inspection use that same
+application execution owner. The compiler's opaque `PreparedCompilation` and
+`SourceCompilation` keep source continuations and target policy alive; their
+completion accepts the exact returned Build, never an execution callback or a
+checked-tree sidecar. Target-local refusals and post-Build discovery remain in
+their outcomes. Provider suspension remains open.
 
 Each compiler entrance shows named representations and actual stage calls in
 execution order. A separate `pipeline.rs` is justified only if it owns meaningful

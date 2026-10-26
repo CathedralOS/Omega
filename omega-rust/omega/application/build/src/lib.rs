@@ -28,6 +28,8 @@ mod package_inspection;
 mod package_review;
 mod products;
 mod project_compilation;
+mod source_compilation;
+pub use source_compilation::{check_source, compile_sources, produce_source};
 pub mod publication;
 
 #[cfg(test)]

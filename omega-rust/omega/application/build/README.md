@@ -40,6 +40,15 @@ SDK callers use the same `build(BuildRequest)` entrance, including the
 `package_batch` counter probe and CLI `qualify_inputs` replay example. There is
 no separate prepared-project check/native/inspection API or static graph resolver.
 
+[source_compilation.rs](src/source_compilation.rs) owns embedded one-shot source
+requests used by standalone products and compiler diagnostics. Its
+`compile_sources`, `check_source` and `produce_source` stops all show the same
+sequence: prepare an opaque compiler invocation, execute its admitted Build
+through [build_execution.rs](src/build_execution.rs), and consume the exact
+return for completion. The compiler no longer starts or steps Build. An existing
+compiler session retains source/check reuse; these operations do not acquire
+packages or replace the project-level `BuildRequest` entrance.
+
 [package_compilation.rs](src/package_compilation.rs) owns the admitted package
 invocation. [build_execution.rs](src/build_execution.rs) advances dependency-first
 frontiers, joins generated dependency output, executes ready Builds, and waits for

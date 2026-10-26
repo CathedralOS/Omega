@@ -1,7 +1,7 @@
 //! Compiler orchestration from assembled syntax to one sealed checked compilation.
 //!
 //! Start at `CompilationSession` for invocation ownership and `checking.rs`
-//! for the feed-forward operation. It evaluates the Build, resolves and types
+//! for the feed-forward operation. It prepares Build, rejoins its actual return, resolves and types
 //! generated source against the retained base, then checks and seals custody.
 //! Each target then settles providers, dispatch, entry bindings and task
 //! activations without reopening checking. The `checking` folder holds the build
@@ -28,13 +28,13 @@ pub use artifacts::compile_timings::counters::{
     checked_compilation_call_count, preliminary_check_totals, settled_check_totals,
     source_assembly_invocation_count, typed_frontier_reuse_count,
 };
+pub use checking::SourceCompilation;
 pub use checking::compile_thread::run_on_compile_thread;
 pub use checking::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
     IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
     PreparedPackageBuild, RestrictedBuildGrants, SettledCheckReuse,
 };
-pub(crate) use checking::{check_product_source, prepare_product_source};
 pub use optimization_core::{
     OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackSettlement,
 };

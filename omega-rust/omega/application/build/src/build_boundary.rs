@@ -142,6 +142,47 @@ fn application_depends_on_facades_not_language_stages() {
 }
 
 #[test]
+fn source_and_package_execution_have_one_application_owner() {
+    let source = include_str!("source_compilation.rs");
+    for operation in [
+        "compiler.begin_compilation(",
+        "compiler.complete_compilation(",
+        "compiler.begin_source_compilation(",
+        "compiler.complete_source_check(",
+        "compiler.complete_source_product(",
+        "crate::build_execution::execute_build(",
+    ] {
+        // rustfmt may put a receiver and its method on different lines.
+        assert!(
+            source
+                .split_whitespace()
+                .collect::<String>()
+                .contains(&operation.split_whitespace().collect::<String>()),
+            "source orchestration lost {operation}"
+        );
+    }
+    for compiler in [
+        include_str!("../../../compilation/driver/src/compiler.rs"),
+        include_str!("../../../compilation/driver/src/checked/checking.rs"),
+        include_str!("../../../compilation/driver/src/checked/compilation_session.rs"),
+    ] {
+        for execution in [
+            ".host()",
+            "host.start(",
+            "activation.advance(",
+            "compile_with_session(",
+        ] {
+            assert!(
+                !compiler.contains(execution),
+                "compiler executes Build: {execution}"
+            );
+        }
+    }
+    let package = include_str!("build_execution.rs");
+    assert!(package.contains("execute_build(invocation.execution())"));
+}
+
+#[test]
 fn build_entrance_shows_the_ordered_project_lifecycle() {
     let mut source = include_str!("build.rs");
     for operation in [
