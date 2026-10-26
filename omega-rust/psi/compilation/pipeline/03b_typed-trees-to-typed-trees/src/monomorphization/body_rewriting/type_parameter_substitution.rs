@@ -143,6 +143,12 @@ pub(crate) fn reject_runtime_bound_static_occurrences(
         return Ok(());
     }
     let mut roots = Vec::new();
+    for equation in program
+        .declared_type_equations
+        .span_or_empty(cloned.declared_type_equations)
+    {
+        roots.extend([equation.parameter, equation.definition]);
+    }
     roots.extend(
         program
             .machine_owned_data(cloned)
@@ -338,6 +344,22 @@ pub(crate) fn cloned_expression_roots(
     cloned: &typed_trees::machine::Machine,
 ) -> Vec<ExpressionHandle> {
     let mut roots = Vec::new();
+    for equation in program
+        .declared_type_equations
+        .span_or_empty(cloned.declared_type_equations)
+    {
+        for reference in [equation.parameter, equation.definition] {
+            crate::monomorphization::for_each_type_reference(
+                program,
+                &[reference],
+                |_, _| false,
+                |_, minimum, maximum| {
+                    roots.extend([minimum, maximum]);
+                    false
+                },
+            );
+        }
+    }
     for item in program.machine_owned_data(cloned) {
         roots.push(item.initial_value);
     }

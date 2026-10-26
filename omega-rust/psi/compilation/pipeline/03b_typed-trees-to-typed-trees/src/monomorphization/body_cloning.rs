@@ -404,6 +404,19 @@ pub(super) fn clone_single_specialized_machine(
         } else {
             TypeReferenceHandle::invalid()
         };
+    let equations = source
+        .unwrap_or(program)
+        .declared_type_equations
+        .span_or_empty(source_machine.declared_type_equations)
+        .to_vec();
+    let equations = equations
+        .into_iter()
+        .map(|equation| typed_trees::machine::DeclaredTypeEquation {
+            parameter: copy_type_reference(source, program, equation.parameter, &symbol_map),
+            definition: copy_type_reference(source, program, equation.definition, &symbol_map),
+        })
+        .collect::<Vec<_>>();
+    cloned.declared_type_equations = program.declared_type_equations.insert_many(equations);
     if capture.is_none() {
         cloned.conformance_bounds.clear();
     } else {

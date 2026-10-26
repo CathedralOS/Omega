@@ -1112,6 +1112,15 @@ impl<'program> Collector<'program> {
             );
         }
         self.type_parameters(machine.type_parameters)?;
+        for equation in program
+            .tables
+            .declarations
+            .declared_type_equations
+            .span_or_empty(machine.declared_type_equations)
+        {
+            self.types
+                .extend([&equation.parameter, &equation.definition]);
+        }
         if let Some(reference) = &machine.attached_data_application {
             self.types.push(reference);
         }

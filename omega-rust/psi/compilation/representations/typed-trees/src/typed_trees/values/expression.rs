@@ -88,6 +88,15 @@ pub struct AtomicExpression {
     pub result_custody: language_core::atomic::AtomicExpressionResultCustody,
 }
 
+/// An executable domain predicate retains its exact tested value and selected
+/// declaration after normalization into Boolean operations. This is an
+/// obligation to check, never membership or establishment authority.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ExecutableDomainTest {
+    pub subject: ExpressionHandle,
+    pub domain: SymbolHandle,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpressionTable {
     expressions: Arena<ExpressionNode>,
@@ -108,6 +117,8 @@ pub struct ExpressionTable {
     index_expression_authority_handles: Vec<Handle<IndexExpressionAuthority>>,
     authored_selection_occurrences: Vec<HandleSpan<StoredAuthoredSelectionOccurrenceId>>,
     authored_selection_occurrence_ids: Arena<StoredAuthoredSelectionOccurrenceId>,
+    executable_domain_tests: Vec<HandleSpan<ExecutableDomainTest>>,
+    executable_domain_test_rows: Arena<ExecutableDomainTest>,
     expression_handles: Arena<ExpressionHandle>,
     name_path_members: Arena<Identifier>,
     name_path_member_symbols: Arena<SymbolHandle>,
@@ -367,6 +378,7 @@ impl ExpressionTable {
             .wrapping_add(self.expression_roots.revision())
             .wrapping_add(self.index_expression_authorities.revision())
             .wrapping_add(self.authored_selection_occurrence_ids.revision())
+            .wrapping_add(self.executable_domain_test_rows.revision())
             .wrapping_add(self.expression_handles.revision())
             .wrapping_add(self.name_path_members.revision())
             .wrapping_add(self.name_path_member_symbols.revision())
@@ -383,6 +395,7 @@ impl ExpressionTable {
             .wrapping_add(self.static_machine_lifetime_bindings.revision())
             .wrapping_add(self.source_spans.len() as u64)
             .wrapping_add(self.authored_selection_occurrences.len() as u64)
+            .wrapping_add(self.executable_domain_tests.len() as u64)
     }
 
     pub fn with_expression_capacity(expression_capacity: usize) -> Self {
@@ -416,6 +429,8 @@ impl ExpressionTable {
             authored_selection_occurrence_ids: Arena::with_capacity(
                 capacity.authored_selection_occurrences,
             ),
+            executable_domain_tests: Vec::with_capacity(capacity.expressions),
+            executable_domain_test_rows: Arena::default(),
             expression_handles: Arena::with_capacity(capacity.expression_handles),
             name_path_members: Arena::with_capacity(capacity.name_path_members),
             name_path_member_symbols: Arena::with_capacity(capacity.name_path_member_symbols),
@@ -445,6 +460,8 @@ impl ExpressionTable {
         self.authored_selection_occurrences.clear();
         self.authored_selection_occurrence_ids
             .reset_retain_capacity();
+        self.executable_domain_tests.clear();
+        self.executable_domain_test_rows.reset_retain_capacity();
         self.expression_handles.reset_retain_capacity();
         self.name_path_members.reset_retain_capacity();
         self.name_path_member_symbols.reset_retain_capacity();
@@ -671,6 +688,7 @@ impl ExpressionTable {
         self.source_spans.push(SourceSpan::default());
         self.authored_selection_occurrences
             .push(HandleSpan::empty());
+        self.executable_domain_tests.push(HandleSpan::empty());
         debug_assert_eq!(source_span_index(handle), self.source_spans.len() - 1);
         debug_assert_eq!(
             source_span_index(handle),
@@ -822,6 +840,33 @@ impl ExpressionTable {
             .iter()
             .copied()
             .map(StoredAuthoredSelectionOccurrenceId::occurrence)
+    }
+
+    pub fn executable_domain_tests(&self, expression: ExpressionHandle) -> &[ExecutableDomainTest] {
+        self.executable_domain_test_rows
+            .span_or_empty(self.executable_domain_tests[source_span_index(expression)])
+    }
+
+    pub fn retain_executable_domain_test(
+        &mut self,
+        expression: ExpressionHandle,
+        test: ExecutableDomainTest,
+    ) {
+        if !self.executable_domain_tests(expression).contains(&test) {
+            self.executable_domain_test_rows.append_to_span(
+                &mut self.executable_domain_tests[source_span_index(expression)],
+                test,
+            );
+        }
+    }
+
+    fn replace_executable_domain_tests(
+        &mut self,
+        expression: ExpressionHandle,
+        tests: impl IntoIterator<Item = ExecutableDomainTest>,
+    ) {
+        self.executable_domain_tests[source_span_index(expression)] =
+            self.executable_domain_test_rows.insert_many(tests);
     }
 
     pub fn insert_expression_handles(

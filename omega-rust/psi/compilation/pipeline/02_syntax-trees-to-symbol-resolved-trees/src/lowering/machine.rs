@@ -8,6 +8,7 @@
 
 use syntax_trees::identifier::JoinedSyntaxPath;
 mod token_bindings;
+mod type_equations;
 
 pub(crate) use token_bindings::{
     mark_token_bound_domain_homes, reject_duplicate_direct_token_bindings,
@@ -166,6 +167,7 @@ fn lower_lexical_machine_into(
     lowerer.current_state_name = None;
     lowerer.current_evidence_term_names.clear();
     let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?;
+    let declared_type_equations = type_equations::lower(lowerer, syntax_trees, machine)?;
     // Each member keeps its own conformances and target-owned `via` locators.
     // Provider selection joins an exact member without promoting it into the
     // portable head or rewriting other members' declarations.
@@ -350,6 +352,7 @@ fn lower_lexical_machine_into(
                 .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
                 .collect(),
             type_parameters,
+            declared_type_equations,
             owned_data: HandleSpan::empty(),
             satisfies,
             conformance_bounds,

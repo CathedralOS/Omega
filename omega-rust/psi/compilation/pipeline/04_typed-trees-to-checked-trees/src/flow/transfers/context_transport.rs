@@ -13,6 +13,7 @@ pub(super) fn transport(
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     write: &super::write_target::StatementWrite,
+    completed_source: Option<typed_trees::types::TypeReferenceHandle>,
     stable_value_target: bool,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -60,6 +61,7 @@ pub(super) fn transport(
                     FactPayload::CaseValue { .. }
                     | FactPayload::AssignedValue { .. }
                     | FactPayload::AssignedScalarValue { .. }
+                    | FactPayload::AssignedIntegerBounds { .. }
                     | FactPayload::AssignedValueCapture { .. }
                     | FactPayload::BytePredicate { .. }
                     | FactPayload::FloatPredicate { .. } => {
@@ -88,6 +90,7 @@ pub(super) fn transport(
                                         statement_index,
                                         &source,
                                         &target,
+                                        completed_source,
                                     )
                                 })
                             })
