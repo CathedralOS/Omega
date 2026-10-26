@@ -10,7 +10,7 @@
 //! as the caller's record inventory already retains it, so the stored
 //! predicate keeps the question it already asked.
 
-use crate::edge_arguments::drop_removed_positions;
+use crate::edge_arguments::drop_removed_positions_across_edges;
 use crate::retained_identities::proof_values::{
     call_erased_arguments, crash_continuations, retain_crash_routes, retain_erased_arguments,
     retain_proposition,
@@ -183,26 +183,7 @@ pub(super) fn propagate(
             .terminator
             .map_scalar_uses(&mut |value| collapse.get(&value).copied().unwrap_or(value));
     }
-    for block in &mut machine.blocks {
-        match &mut block.terminator {
-            Terminator::Jump {
-                target, arguments, ..
-            } => drop_removed_positions(arguments, removed_positions.get(target)),
-            Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => {
-                for edge in [when_true, when_false] {
-                    drop_removed_positions(
-                        &mut edge.arguments,
-                        removed_positions.get(&edge.target),
-                    );
-                }
-            }
-            _ => {}
-        }
-    }
+    drop_removed_positions_across_edges(machine, &removed_positions);
 }
 
 /// The identity `value` keeps after every justified copy collapses: the unique
