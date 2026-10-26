@@ -4,104 +4,66 @@
 //! cuts. Keep one exact-identity index alongside the publication order instead
 //! of comparing every prior structural path on every visit. This index decides
 //! only duplicate identity; it supplies no membership or overlap evidence.
+//! Hashes filter candidates; complete structural equality still decides every
+//! hit, including collisions. Publication and invalidation keep their order.
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use validation::CanonicalPlace;
 
-mod lookup_profile {
-    use std::sync::{
-        OnceLock,
-        atomic::{AtomicUsize, Ordering},
-    };
-    use validation::CanonicalPlace;
-
-    static ENABLED: OnceLock<bool> = OnceLock::new();
-    static LOOKUPS: AtomicUsize = AtomicUsize::new(0);
-    static HITS: AtomicUsize = AtomicUsize::new(0);
-    static COMPARISONS: AtomicUsize = AtomicUsize::new(0);
-    static SAME_ROOT: AtomicUsize = AtomicUsize::new(0);
-    static PREFIX_SEGMENTS: AtomicUsize = AtomicUsize::new(0);
-    static EXACT: AtomicUsize = AtomicUsize::new(0);
-    static SIZE_BUCKETS: [AtomicUsize; 16] = [const { AtomicUsize::new(0) }; 16];
-
-    fn enabled() -> bool {
-        *ENABLED.get_or_init(|| std::env::var_os("OMEGA_CASE_INDEX_PROFILE").is_some())
-    }
-
-    pub(super) fn comparison(left: &CanonicalPlace, right: &CanonicalPlace) {
-        if !enabled() {
-            return;
-        }
-        COMPARISONS.fetch_add(1, Ordering::Relaxed);
-        if left.root == right.root {
-            SAME_ROOT.fetch_add(1, Ordering::Relaxed);
-            PREFIX_SEGMENTS.fetch_add(
-                left.segments
-                    .iter()
-                    .zip(&right.segments)
-                    .take_while(|(left, right)| left == right)
-                    .count(),
-                Ordering::Relaxed,
-            );
-        }
-        EXACT.fetch_add(usize::from(left == right), Ordering::Relaxed);
-    }
-
-    pub(super) fn lookup(length: usize, found: bool) {
-        if !enabled() {
-            return;
-        }
-        let bucket = if length == 0 {
-            0
-        } else {
-            (length.ilog2() as usize + 1).min(15)
-        };
-        SIZE_BUCKETS[bucket].fetch_add(1, Ordering::Relaxed);
-        HITS.fetch_add(usize::from(found), Ordering::Relaxed);
-        let count = LOOKUPS.fetch_add(1, Ordering::Relaxed) + 1;
-        if count == 1 || count % 10000 == 0 {
-            eprintln!(
-                "case-index-profile lookups={} hits={} comparisons={} same_root={} prefix_segments={} exact={} size_log2={:?}",
-                count,
-                HITS.load(Ordering::Relaxed),
-                COMPARISONS.load(Ordering::Relaxed),
-                SAME_ROOT.load(Ordering::Relaxed),
-                PREFIX_SEGMENTS.load(Ordering::Relaxed),
-                EXACT.load(Ordering::Relaxed),
-                SIZE_BUCKETS
-                    .each_ref()
-                    .map(|count| count.load(Ordering::Relaxed))
-            );
-        }
-    }
+#[derive(Clone)]
+struct ObservationIndexEntry {
+    fingerprint: u64,
+    observation_position: usize,
 }
 
 #[derive(Clone, Default)]
 pub(super) struct CaseExclusions {
     observations: Vec<CanonicalPlace>,
-    by_identity: Vec<usize>,
+    by_identity: Vec<ObservationIndexEntry>,
 }
 
 impl CaseExclusions {
+    fn observation_fingerprint(place: &CanonicalPlace) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        place.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn identity_position(&self, fingerprint: u64, place: &CanonicalPlace) -> Result<usize, usize> {
+        let mut position = self
+            .by_identity
+            .partition_point(|entry| entry.fingerprint < fingerprint);
+        while let Some(entry) = self.by_identity.get(position) {
+            if entry.fingerprint != fingerprint {
+                break;
+            }
+            if self.observations[entry.observation_position] == *place {
+                return Ok(position);
+            }
+            position += 1;
+        }
+        Err(position)
+    }
+
     pub(super) fn insert(&mut self, place: &CanonicalPlace) {
-        let lookup = self.by_identity.binary_search_by(|&position| {
-            lookup_profile::comparison(&self.observations[position], place);
-            self.observations[position].compare_identity(place)
-        });
-        lookup_profile::lookup(self.by_identity.len(), lookup.is_ok());
-        let Err(position) = lookup else {
+        let fingerprint = Self::observation_fingerprint(place);
+        let Err(position) = self.identity_position(fingerprint, place) else {
             return;
         };
-        self.by_identity.insert(position, self.observations.len());
+        self.by_identity.insert(
+            position,
+            ObservationIndexEntry {
+                fingerprint,
+                observation_position: self.observations.len(),
+            },
+        );
         self.observations.push(place.clone());
     }
 
     pub(super) fn contains(&self, place: &CanonicalPlace) -> bool {
-        let lookup = self.by_identity.binary_search_by(|&position| {
-            lookup_profile::comparison(&self.observations[position], place);
-            self.observations[position].compare_identity(place)
-        });
-        lookup_profile::lookup(self.by_identity.len(), lookup.is_ok());
-        lookup.is_ok()
+        self.identity_position(Self::observation_fingerprint(place), place)
+            .is_ok()
     }
 
     pub(super) fn iter(&self) -> impl Iterator<Item = &CanonicalPlace> {
@@ -135,15 +97,15 @@ impl CaseExclusions {
         if self.observations.len() == previous_length {
             return;
         }
-        // Identity keys do not change when their rows compact. Keep their
+        // Hash filters do not change when their rows compact. Keep their
         // existing sorted order and translate positions instead of comparing
         // every surviving structural path again. Removed rows have no index.
-        self.by_identity.retain_mut(|position| {
-            let remapped = remapped_positions[*position];
+        self.by_identity.retain_mut(|entry| {
+            let remapped = remapped_positions[entry.observation_position];
             if remapped == usize::MAX {
                 false
             } else {
-                *position = remapped;
+                entry.observation_position = remapped;
                 true
             }
         });
@@ -157,7 +119,7 @@ impl CaseExclusions {
 
 #[cfg(test)]
 mod tests {
-    use super::CaseExclusions;
+    use super::{CaseExclusions, ObservationIndexEntry};
     use facts::{PlaceRoot, PlaceSegment};
     use symbols::SymbolHandle;
     use validation::CanonicalPlace;
@@ -174,6 +136,42 @@ mod tests {
                 },
             ],
         }
+    }
+
+    #[test]
+    fn hash_collisions_do_not_join_structural_identities() {
+        let places = [
+            place(1, 1, 8),
+            place(1, 2, 8),
+            place(2, 1, 8),
+            place(1, 1, 9),
+        ];
+        let fingerprint = 7;
+        let mut exclusions = CaseExclusions {
+            observations: places[..3].to_vec(),
+            by_identity: (0..3)
+                .map(|observation_position| ObservationIndexEntry {
+                    fingerprint,
+                    observation_position,
+                })
+                .collect(),
+        };
+        for (position, place) in places[..3].iter().enumerate() {
+            assert_eq!(
+                exclusions.identity_position(fingerprint, place),
+                Ok(position)
+            );
+        }
+        assert_eq!(
+            exclusions.identity_position(fingerprint, &places[3]),
+            Err(3)
+        );
+        exclusions.retain(|place| place != &places[1]);
+        assert_eq!(
+            exclusions.identity_position(fingerprint, &places[1]),
+            Err(2)
+        );
+        assert_eq!(exclusions.identity_position(fingerprint, &places[2]), Ok(1));
     }
 
     #[test]
