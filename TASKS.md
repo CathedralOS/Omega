@@ -763,15 +763,19 @@ defines the complete product bar.
     [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md)
     and running `pass/float/named_integer_conversion_source_proofs_exit` (exit
     78) on Linux/Windows.
-  - **Provider-dependent clause endpoints and remaining customers:** close the
-    three remaining `requires <param> <= call()` range-suffix sites
-    (`pass/providers/provider_const_endpoint:26`,
-    `pass/comptime/provider_boundary_range_endpoint_exit:33`,
-    `fail/comptime/recipe_endpoint_membership_refused_at_closure:26`) by adding
-    a contract-expression work-root class and fold-publication site in the
-    constant-recipe machinery feeding `constant_recipe_obligations.rs` against
-    `closed_constant_recipe_value` (without widening `ConstantPredicateObligation`).
-    Migrate the 16 recursive filesystem parameter suffixes with
+  - **Provider-dependent clause endpoints:** the
+    [provider contract endpoint row](samples/cli/facts/provider_contract_endpoint/README.md)
+    carries the selected bound through all nine places and rejects the changed
+    provider in each twin. Contract-expression roots, owner-bound recipe debts,
+    checked selected execution and fold publication preserve ordinary formation;
+    `ConstantPredicateObligation` is unchanged. The three named customers
+    (`pass/providers/provider_const_endpoint`,
+    `pass/comptime/provider_boundary_range_endpoint_exit`,
+    `fail/comptime/recipe_endpoint_membership_refused_at_closure`) now use clauses
+    and explicit provider/operator evidence; the runtime customer retains its
+    f32 rounding edge and macOS ARM64 native/Terminal exit 70, and the invalid
+    input 9 rejects against selected endpoint 7.
+  - **Remaining range customers:** migrate the 16 recursive filesystem parameter suffixes with
     **FILESYSTEM-PLATFORM-SERVICES**, and qualify remaining collection/slice
     view and capture compositions (`samples/cli/probes/slice_view_whole/main.omg`,
     `pass/dependent/runtime_symbolic_slice_{cell_theorem,predicate_store}_exit`,

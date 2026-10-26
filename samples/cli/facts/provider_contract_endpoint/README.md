@@ -27,11 +27,14 @@ remain historical only. The current witnesses use ordinary
 both match choices. The independently migrated `provider_const_endpoint`
 customer also demonstrates the clause failure directly: changing only its
 suffix to `requires value <= limit()` loses the proof of `7 <= limit()`.
-At immutable producer `3f5dbd042e845e859292cdf119069eda2bbb3780`, all nine
+At immutable producer `e89eee400dbaa88425faf8ae48554b7c020674d1`, all nine
 positive places execute with native exit 0 and Terminal exit 0 on macOS ARM64.
 All nine twins reject the captured input 7 against the selected endpoint 6.
-These are source/native observations; the pinned corpus and final review are
-recorded separately before publication.
+The focused corpus records 38 checks (17 positives and 21 intended rejects),
+17 native/Terminal agreements at exit 0, and six affected historical fixtures
+with no losses or gains against the fixed baseline. A fresh public local run
+also observes exit 0 in both engines. Exact-candidate review remains a separate
+publication gate.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -80,10 +83,19 @@ identify that the captured input 7 exceeds the selected closed endpoint 6.
 The nine places and their twins are pinned under `tests/omega/{pass,fail}/facts`.
 [Existing soundness controls](controls/README.md) pin formation, target ownership,
 write snapshots, result identity and authenticated Build request transport.
-The focused corpus and exact-candidate review remain publication gates.
+The focused corpus passes on the current captured producer; exact-candidate
+review remains a publication gate.
 
-Parent acceptance also includes
-the three named legacy endpoint-customer migrations, remaining field/case/recast
+The three named endpoint customers now use explicit free machines, selected
+provider/operator evidence, and ordinary `requires` clauses. The historical
+compile-only customer checks; the runtime customer retains its exact f32
+rounding guard and observes native/Terminal exit 70 through the public CLI.
+The invalid customer rejects its input 9 against the selected endpoint 7
+during ordinary candidate checking and the pinned corpus. Its earlier missing
+entry-policy refusal is not credited as that obligation. Normal dependency
+review is scoped to this project, exact source and target.
+
+Parent acceptance still includes remaining field/case/recast
 and collection compositions, filesystem parameter migration, product/bootstrap
 source migration, and retiring the suffix representation after its customers
 are migrated. This row alone does not close that parent outcome.
