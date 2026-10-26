@@ -32,6 +32,9 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+#[cfg(test)]
+mod tests;
+
 /// Untrusted inputs presented for one opaque same-stack contribution.
 ///
 /// Admission must compare the provider-plan report coordinate, strong
@@ -155,11 +158,8 @@ pub fn admit_same_stack_contribution(
             "same-stack admission requirement identity does not match the selected identity".into(),
         ));
     }
-    if candidate.bytes == 0 {
-        return Err(TaskPlanDiagnostic(
-            "same-stack admission has zero WCSU".into(),
-        ));
-    }
+    // A leaf can add no frame bytes. Zero still requires the exact selected
+    // plan, requirement and receipt; it does not mean an absent call edge.
     validate_alignment(candidate.alignment, "same-stack admission")?;
 
     let report_identity =
@@ -310,12 +310,6 @@ pub fn validate_task_stack_frame_summary(
     )?;
     for call in &summary.calls {
         if let StackCallContribution::AdmittedSameStack(contribution) = call {
-            if contribution.bytes() == 0 {
-                return Err(TaskPlanDiagnostic(format!(
-                    "admitted same-stack contribution 0x{:016x} has zero WCSU",
-                    contribution.report_identity().normalized_identity()
-                )));
-            }
             validate_alignment(
                 contribution.alignment(),
                 &format!(
