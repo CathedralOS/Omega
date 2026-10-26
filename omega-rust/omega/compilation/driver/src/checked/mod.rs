@@ -20,8 +20,8 @@ mod package_review;
 pub use package_review::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
 mod product_batch;
 pub use package_compilation::{
-    PackageBuild, PackageBuildInvocation, PackageCompilationRequest, PackageCompileFailure,
-    PreparedPackageProduct,
+    CompletedBuild, PackageBuild, PackageBuildInvocation, PackageCompilationRequest,
+    PackageCompileFailure, PreparedPackageProduct,
 };
 
 pub use artifacts::compile_timings::counters::{

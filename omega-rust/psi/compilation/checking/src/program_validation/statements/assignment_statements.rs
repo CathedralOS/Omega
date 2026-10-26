@@ -268,8 +268,10 @@ pub(super) fn validate<'a, 'p>(
         }
     }
     // Replacement-style atomic events establish their authored replacement.
-    // A failed exchange preserves the already-valid resident. The carrier's
-    // synthetic arithmetic is never a separately evaluated store value.
+    // A failed exchange preserves the already-valid resident. Fetch preservation
+    // is universal: the evaluated operand transforms the valid resident through
+    // raw interval laws. The carrier's synthetic arithmetic is never a separately
+    // evaluated store value.
     let resident_replacement = atomic.as_ref().and_then(|event| {
         use access_plans::AtomicAccessOperation as A;
         match event.operation {
@@ -278,7 +280,22 @@ pub(super) fn validate<'a, 'p>(
             _ => None,
         }
     });
-    let established_value = resident_replacement.unwrap_or(assignment.value);
+    let atomic_fetch = atomic.as_ref().and_then(|event| {
+        use access_plans::AtomicAccessOperation as A;
+        use typed_trees::expression::BinaryOperator;
+        let (operator, operand) = match event.operation {
+            A::FetchAdd(_) => (BinaryOperator::Add, event.operands.first().copied()?),
+            A::FetchSub(_) => (BinaryOperator::Subtract, event.operands.first().copied()?),
+            A::FetchXor(_) => (BinaryOperator::BitwiseXor, event.operands.first().copied()?),
+            A::FetchOr(_) => (BinaryOperator::BitwiseOr, event.operands.first().copied()?),
+            A::FetchAnd(_) => (BinaryOperator::BitwiseAnd, event.operands.first().copied()?),
+            _ => return None,
+        };
+        Some((operator, operand))
+    });
+    let established_value = resident_replacement
+        .or(atomic_fetch.map(|(_, operand)| operand))
+        .unwrap_or(assignment.value);
     let before = diagnostics.len();
     let first_checked_interval = arithmetic_decisions.expression_values.len();
     let assignment_target_domain = assignment_target_type
@@ -337,6 +354,52 @@ pub(super) fn validate<'a, 'p>(
         &owner,
         diagnostics,
     );
+    let interval = if let Some((operator, _)) = atomic_fetch {
+        let resident_interval = current_state
+            .and_then(|state| {
+                arithmetic_domains::atomic_resident_interval(
+                    program,
+                    machine,
+                    Some(state),
+                    assignment.target,
+                )
+            })
+            .or_else(|| assignment_target_primitive.and_then(arithmetic_domains::primitive_range))
+            .unwrap_or(arithmetic_domains::Interval::UNBOUNDED);
+        use typed_trees::expression::BinaryOperator;
+        match operator {
+            BinaryOperator::Add => resident_interval.add(interval),
+            BinaryOperator::Subtract => resident_interval.subtract(interval),
+            BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor => {
+                let primitive = assignment_target_primitive
+                    .or(source_primitive)
+                    .unwrap_or(typed_trees::types::PrimitiveType::U32);
+                let resident_known = if resident_interval.low == resident_interval.high
+                    && resident_interval.low >= Some(0)
+                {
+                    resident_interval.low.map(|v| v as u64)
+                } else {
+                    None
+                };
+                let operand_known = if interval.low == interval.high && interval.low >= Some(0) {
+                    interval.low.map(|v| v as u64)
+                } else {
+                    None
+                };
+                arithmetic_domains::bitwise_binary(
+                    operator,
+                    primitive,
+                    resident_interval,
+                    interval,
+                    resident_known,
+                    operand_known,
+                )
+            }
+            _ => arithmetic_domains::Interval::UNBOUNDED,
+        }
+    } else {
+        interval
+    };
     // Only a clean value supplies a successful storage-fit judgment.
     if diagnostics.len() == before {
         let observation = arithmetic_domains::IntegerValueObservation {

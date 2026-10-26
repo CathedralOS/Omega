@@ -144,21 +144,7 @@ fn proposal(
     // its static roster. Checking still admits the occurrence's authored
     // requirement. Derive its views from that same retained declaration and
     // operands, while reusing the occurrence's current selected entries.
-    let application = match site {
-        CallSite::Expression(handle) => {
-            program
-                .expression_table
-                .call_node(handle)?
-                .authored_machine_application
-        }
-        CallSite::Statement(handle) => {
-            program
-                .statement_table
-                .statement(handle)
-                .as_call()?
-                .authored_machine_application
-        }
-    };
+    let application = site.authored_machine_application(program)?;
     let (target, mut selected, selected_machines) = if application.is_valid() {
         (
             program

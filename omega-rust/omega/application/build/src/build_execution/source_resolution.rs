@@ -7,7 +7,7 @@
 
 use crate::BuildSession;
 use crate::build_execution::{ReturnedPackageBuild, execute_returned_build};
-use compiler::{CompilationSession, CompileFailure, PackageBuild};
+use compiler::{CompilationSession, CompileFailure, CompletedBuild, PackageBuild};
 use package_compilation::PackageCompilationInputs;
 use package_manager::operations::{
     LocalProjectPreparation, PrepareLocalProjectError, PreparedLocalProject,
@@ -52,6 +52,22 @@ pub struct ResolvedPackageBuild {
 impl ResolvedPackageBuild {
     pub fn package_inputs(&self) -> &PackageCompilationInputs {
         &self.inputs
+    }
+
+    /// Settle the original execution before independently admitted Product
+    /// contexts are prepared. No Product is typed and no live grant is retained.
+    pub fn settle(
+        mut self,
+        compiler: &mut CompilationSession,
+        target: TargetProfile,
+        inputs: PackageCompilationInputs,
+    ) -> Result<CompletedBuild, CompileFailure> {
+        self.build.invocation.join_product_context(target, inputs)?;
+        let ReturnedPackageBuild {
+            invocation,
+            returned,
+        } = self.build;
+        compiler.settle_package_build(invocation, returned)
     }
 
     /// Complete the original invocation after package admission has joined

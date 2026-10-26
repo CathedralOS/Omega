@@ -1893,12 +1893,6 @@ pub(super) fn derive_runtime_spill<'source>(
         if charged(steps)? > ceiling {
             return Err(RuntimeSpillError::WorkBudgetExceeded);
         }
-        let mut owners = std::collections::BTreeMap::new();
-        for (owner, block) in function.blocks.iter().enumerate() {
-            for (index, instruction) in block.instructions.iter().enumerate() {
-                owners.insert(instruction.id, (owner, index));
-            }
-        }
         for pending in &mut structural_uses {
             let Some(accesses) = chunk_loads.get(&(pending.edge, pending.place)) else {
                 return Err(RuntimeSpillError::UnsupportedUse);
@@ -1911,14 +1905,14 @@ pub(super) fn derive_runtime_spill<'source>(
                 access.byte_offset >= pending.source_byte_offset
                     && access.byte_offset - pending.source_byte_offset < pending.byte_size
                     && pending.source_read_roles.contains(&access.role)
-                    && owners
-                        .get(&access.instruction)
-                        .is_some_and(|&(owner, position)| {
-                            owner == pending.block
-                                && block.instructions[position]
-                                    .operands
-                                    .first()
-                                    .is_some_and(|operand| operand.virtual_register == register)
+                    && function
+                        .blocks
+                        .instruction_index_in_block(pending.block, access.instruction)
+                        .is_some_and(|position| {
+                            block.instructions[position]
+                                .operands
+                                .first()
+                                .is_some_and(|operand| operand.virtual_register == register)
                         })
             }) {
                 // A multidimensional selector contributes several evidence
@@ -1936,12 +1930,12 @@ pub(super) fn derive_runtime_spill<'source>(
                 if access.byte_offset != source_offset || access.byte_count != u32::from(width) {
                     return Err(RuntimeSpillError::UnsupportedUse);
                 }
-                let Some(&(owner, index)) = owners.get(&access.instruction) else {
+                let Some(index) = function
+                    .blocks
+                    .instruction_index_in_block(pending.block, access.instruction)
+                else {
                     return Err(RuntimeSpillError::UnsupportedUse);
                 };
-                if owner != pending.block {
-                    return Err(RuntimeSpillError::UnsupportedUse);
-                }
                 let instruction = &block.instructions[index];
                 let expected_kind = match width {
                     8 => SelectedInstructionKind::Load64 {

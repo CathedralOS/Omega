@@ -926,9 +926,18 @@ fn validate_structural_field_range_authority(
                     );
                 }
                 if requires {
-                    let value = event.replacement().ok_or(
-                        OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
-                    )?;
+                    let value = event
+                        .replacement()
+                        .or_else(|| match event {
+                            abstract_operations::AbstractAtomicEvent::ReadModifyWrite {
+                                operand,
+                                ..
+                            } => Some(*operand),
+                            _ => None,
+                        })
+                        .ok_or(
+                            OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
+                        )?;
                     let requirement = terminal_semantics::atomic_resident_requirement(
                         &declaration.field_type,
                         value,

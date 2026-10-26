@@ -750,13 +750,18 @@ impl StateGraphEmission<'_, '_> {
                             _ => None,
                         }),
                     };
-                    if parameter
-                        .and_then(|index| state.structural_parameters.get(index as usize))
-                        .is_some_and(|parameter| {
-                            parameter.access == checked_trees::CheckedStructuralAccess::Owned
-                        })
+                    if let Some(index) = parameter
+                        && state
+                            .structural_parameters
+                            .get(index as usize)
+                            .is_some_and(|parameter| {
+                                parameter.access == checked_trees::CheckedStructuralAccess::Owned
+                            })
                     {
-                        self.loan_chains.lend(target, target_index as u32, place)?;
+                        let home = state_parameters
+                            .get(index as usize)
+                            .map_or(place, |param| param.place);
+                        self.loan_chains.lend(target, target_index as u32, home)?;
                     }
                     let lender = if let Some(home) = loan_backing_home.as_ref() {
                         Some(std::borrow::Cow::Borrowed(home))

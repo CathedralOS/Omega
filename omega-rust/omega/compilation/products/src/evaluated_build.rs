@@ -8,6 +8,18 @@ use provider_planning::program_entry::RootBinding;
 use representation_planning::OpaqueRepresentationSelection;
 use trust_model::AuthoredComponentAssumptionAcceptance;
 
+/// Settled settings and observations, without a live activation or host grants.
+/// Product contexts may share this result, never an execution admission token.
+#[derive(Clone)]
+pub struct EvaluatedBuild {
+    pub configuration: std::sync::Arc<ComputedBuildConfig>,
+    pub restricted_build_requests:
+        Vec<package_compilation::build_execution::RestrictedBuildRequest>,
+    pub base_source_consumption_commitment:
+        Option<package_compilation::PackageSourceConsumptionCommitment>,
+    pub retained_check: Option<psi_compiler::RetainedCheck>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceAuditRegistration {
     pub identity: String,
