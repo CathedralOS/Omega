@@ -16,8 +16,8 @@
 //! (`declarations/trait_definition/applications/source_fields.rs`,
 //! `declarations/invocations.rs`,
 //! `04_typed-trees-to-checked-trees/.../shape_collector.rs`,
-//! `checking/.../boundary_calls.rs`, `checking/.../value_custody/type_references.rs`,
-//! `checked-trees/.../service_parameter.rs`) and the selected-dispatch
+//! `checking/.../boundary_calls.rs`, `checking/.../value_custody/type_references.rs`)
+//! and the selected-dispatch
 //! `service_custody` traversal with `program_entry_service_requirements`, whose
 //! only constructor of `ExactServiceCarrier` was this recognition.
 

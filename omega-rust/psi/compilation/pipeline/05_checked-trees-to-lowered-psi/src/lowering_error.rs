@@ -44,7 +44,6 @@ pub enum LoweringError {
     DebugSemanticCodec(terminal_codec::CodecError),
     InvalidDebugMap(terminal_codec::DebugMapError),
     InvalidControlGraph(terminal_semantics::control_graph::ControlGraphError),
-    InvalidServiceParameterShape(checked_trees::CheckedServiceParameterError),
     InvalidServiceIdentity(String),
     InvalidFloatMeaningProjection(FloatMeaningProjectionLoweringError),
     InvalidQuotientCorrespondence(Vec<String>),
