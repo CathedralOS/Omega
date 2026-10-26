@@ -435,6 +435,7 @@ fn validate_call(
     validate_types(
         program,
         caller,
+        call,
         arguments,
         symbols,
         diagnostics,
@@ -445,6 +446,7 @@ fn validate_call(
 fn validate_types(
     program: &dyn crate::CheckingInput,
     caller: Option<crate::StaticTypeArgumentOwner<'_>>,
+    source_call: StaticArgumentCall<'_>,
     arguments: &[StaticMachineArgument],
     symbols: &crate::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -468,15 +470,37 @@ fn validate_types(
                     formation_obligations,
                 );
             } else {
-                diagnostics.push(Diagnostic::error(
-                    "structural static type argument has no retained caller type/lifetime context",
+                let owner = source_call.lexical_owner(program);
+                let owner_label = if owner.is_valid() {
+                    format!(
+                        "{:?} `{}`",
+                        program.symbols.get(owner).kind,
+                        program.symbols.name(owner)
+                    )
+                } else {
+                    "<missing>".to_owned()
+                };
+                let target = source_call.registration_operation(program);
+                let target = if target.is_valid() {
+                    program.symbols.name(target)
+                } else {
+                    "<unresolved>"
+                };
+                let mut diagnostic = Diagnostic::error(format!(
+                    "structural static type argument has no retained caller type/lifetime context for `{target}`; lexical owner {owner_label}"
                 ));
+                if let StaticArgumentCall::Expression(handle, _) = source_call {
+                    diagnostic =
+                        diagnostic.with_source_span(program.expression_table.source_span(handle));
+                }
+                diagnostics.push(diagnostic);
             }
         }
         if let Some(application) = &argument.application {
             validate_types(
                 program,
                 caller,
+                source_call,
                 &application.arguments,
                 symbols,
                 diagnostics,
