@@ -343,12 +343,7 @@ pub fn check_integer_affine_witness(
         .iter()
         .zip(&witness.literal_axioms)
     {
-        let proposition = semantic_axioms
-            .get(index)
-            .ok_or(IntegerAffineWitnessError::UnknownSemanticAxiom(index))?;
-        context
-            .validate(proposition)
-            .map_err(IntegerAffineWitnessError::MalformedProposition)?;
+        let proposition = checked_axiom(context, semantic_axioms, index)?;
         let Proposition::Equal(left, right) = proposition else {
             return Err(IntegerAffineWitnessError::DefinitionNotEquality(index));
         };
@@ -585,12 +580,7 @@ fn landed_integer(
             literal: literal_index,
         });
     }
-    let proposition = semantic_axioms.get(literal_index).ok_or(
-        IntegerAffineWitnessError::UnknownSemanticAxiom(literal_index),
-    )?;
-    context
-        .validate(proposition)
-        .map_err(IntegerAffineWitnessError::MalformedProposition)?;
+    let proposition = checked_axiom(context, semantic_axioms, literal_index)?;
     let Proposition::Equal(left, right) = proposition else {
         return Err(IntegerAffineWitnessError::LiteralAxiomNotEquality(
             literal_index,
@@ -640,5 +630,6 @@ pub enum IntegerAffineWitnessError {
 }
 
 crate::debug_display!(IntegerAffineWitnessError);
+crate::checked_axiom!(IntegerAffineWitnessError);
 
 impl std::error::Error for IntegerAffineWitnessError {}

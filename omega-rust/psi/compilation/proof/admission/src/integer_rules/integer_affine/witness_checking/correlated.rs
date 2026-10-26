@@ -30,12 +30,7 @@ fn check_correlated_witness(
     ) {
         ([], []) => (&witness.root, None),
         ([index], [landing]) if matches!(witness.root, ScalarTerm::Value { .. }) => {
-            let axiom = semantic_axioms
-                .get(*index)
-                .ok_or(IntegerAffineWitnessError::UnknownSemanticAxiom(*index))?;
-            context
-                .validate(axiom)
-                .map_err(IntegerAffineWitnessError::MalformedProposition)?;
+            let axiom = checked_axiom(context, semantic_axioms, *index)?;
             let Proposition::Equal(equal_left, equal_right) = axiom else {
                 return Ok(None);
             };

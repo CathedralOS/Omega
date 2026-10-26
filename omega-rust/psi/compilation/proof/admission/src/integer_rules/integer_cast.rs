@@ -71,15 +71,10 @@ pub fn check_integer_cast_chain_witness(
     let mut carriers = vec![root_type];
     let mut values = vec![current.clone()];
     for &index in &witness.definition_axioms {
-        let proposition = semantic_axioms
-            .get(index)
-            .ok_or(IntegerCastChainWitnessError::UnknownSemanticAxiom(index))?;
         // The first cited equality validates the complete root expression and
         // its context before exact operand identity is checked below. This is
         // type validation, not authority to form or evaluate partial arithmetic.
-        context
-            .validate(proposition)
-            .map_err(IntegerCastChainWitnessError::MalformedProposition)?;
+        let proposition = checked_axiom(context, semantic_axioms, index)?;
         let Proposition::Equal(next, definition) = proposition else {
             return Err(IntegerCastChainWitnessError::DefinitionNotEquality(index));
         };
@@ -191,6 +186,7 @@ pub enum IntegerCastChainWitnessError {
 }
 
 crate::debug_display!(IntegerCastChainWitnessError);
+crate::checked_axiom!(IntegerCastChainWitnessError);
 
 impl std::error::Error for IntegerCastChainWitnessError {}
 
