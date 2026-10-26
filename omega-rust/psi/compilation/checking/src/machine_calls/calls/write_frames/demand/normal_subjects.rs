@@ -83,7 +83,12 @@ impl<'program> CallFrameResolver<'program> {
         // decided below from the actual write frame, independently per subject.
         let (state, _, index) =
             caller_statement_owner(program, machine, CallerWriteSite::Expression(expression))?;
-        let writes = self.expression_may_write_paths(machine, expression)?;
+        // The observer has completed the operands and captured their origins.
+        // Preservation is across the callee operation, not a replay of the
+        // whole expression's earlier writes or binding-exposure fence.
+        let writes = self
+            .operation_write_frame(machine, expression)
+            .into_complete_paths()?;
         let origins = self.expression_call_write_origins(machine, expression)?;
         if origins.arguments.len() != arguments.len() {
             return None;

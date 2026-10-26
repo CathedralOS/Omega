@@ -1,0 +1,13 @@
+// Expected exit: 0
+// Local type formation consumes the current written scalar value.
+data View<'storage> [copy] { bytes: &'storage [u8]; }
+data Counted<'storage, Count: u64> [copy] where view.bytes.len == Count { view: View<'storage>; }
+machine invalid<'storage>(source: View<'storage>, mut start: u64, end: u64)
+requires start <= end && end == 7 && source.bytes.len == 7
+{
+    start = 0;
+    let value: Counted<'storage, (end - start)> = Counted { view: source };
+}
+machine main() {
+    invalid(View { bytes: "1234567" }, 2, 7);
+}

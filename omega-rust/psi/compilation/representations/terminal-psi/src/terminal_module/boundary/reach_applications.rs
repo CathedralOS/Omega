@@ -15,13 +15,43 @@ pub struct ClosedReachApplication {
     pub template_identity: TerminalIdentityIndex,
     pub template_commitment: [u8; 32],
     pub specialization_commitment: [u8; 32],
+    /// Original declaration kinds, independently of the substituted arguments.
+    /// Tags follow the closed reach telescope wire vocabulary.
+    pub parameter_kinds: Vec<u8>,
     /// Full declaration order, including unused and non-machine parameters.
     pub telescope: Vec<ClosedReachParameter>,
+    /// Conformance capture is a distinct outer substitution. Invocation tuples
+    /// above retain only the method's own arguments, including unused slots.
+    pub capture: Option<ClosedReachCapture>,
     pub fixed: Vec<ServiceId>,
     /// Strictly increasing zero-based positions in the full telescope.
     pub dependencies: Vec<u32>,
     /// Exact consumers, independently joined to operation-side binder markers.
     pub calls: Vec<ClosedReachCall>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClosedReachCapture {
+    pub template_identity: TerminalIdentityIndex,
+    pub template_commitment: [u8; 32],
+    pub specialization_commitment: [u8; 32],
+    pub parameter_kinds: Vec<u8>,
+    pub telescope: Vec<ClosedReachParameter>,
+}
+
+impl ClosedReachApplication {
+    /// Dependency positions are scoped: capture binders precede method-local
+    /// binders. Method invocation tuples never acquire the outer capture slots.
+    pub fn parameters(&self) -> impl Iterator<Item = &ClosedReachParameter> {
+        self.capture
+            .iter()
+            .flat_map(|capture| &capture.telescope)
+            .chain(&self.telescope)
+    }
+
+    pub fn parameter(&self, position: u32) -> Option<&ClosedReachParameter> {
+        self.parameters().nth(position as usize)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,6 +66,11 @@ pub enum ClosedReachParameter {
 pub struct ClosedReachMachineBinding {
     /// None denotes a structural contract with a fixed, non-variable row.
     pub nominal_requirement: Option<String>,
+    /// Complete original trait telescope, including unused proposition and
+    /// declaration-identity arguments. Identities may refer to scoped owner
+    /// binders; the enclosing full substitution supplies those binders.
+    pub requirement_parameter_kinds: Vec<u8>,
+    pub requirement_arguments: Vec<TerminalIdentityIndex>,
     pub upper_bound: Vec<ServiceId>,
     pub selected_identity: TerminalIdentityIndex,
     pub selected_contract_commitment: [u8; 32],

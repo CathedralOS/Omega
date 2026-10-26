@@ -125,6 +125,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
             rebased
                 .iter()
                 .map(|source| StatementBorrowLoan {
+                    formation_owner_path: None,
                     incoming_origin: None,
                     formation_expression: initializer.expression,
                     owner_symbol: local_data.symbol,
@@ -258,6 +259,7 @@ pub(super) fn aggregate_expression_borrow_loans(
             rebased
                 .iter()
                 .map(|source| StatementBorrowLoan {
+                    formation_owner_path: None,
                     incoming_origin: None,
                     formation_expression: expression,
                     owner_symbol: local_data.symbol,
@@ -460,6 +462,7 @@ pub(super) fn result_source_loans(
                         place.segments.extend_from_slice(&projection);
                     }
                     StatementBorrowLoan {
+                        formation_owner_path: None,
                         incoming_origin: None,
                         formation_expression: argument,
                         owner_symbol: local_data.symbol,
@@ -531,6 +534,7 @@ fn transferred_aggregate_loans<'loan>(
             let mut prefixed_owner_path = owner_path_prefix.to_vec();
             prefixed_owner_path.extend(owner_path);
             Some(StatementBorrowLoan {
+                formation_owner_path: None,
                 incoming_origin: None,
                 formation_expression: expression,
                 owner_symbol: local_data.symbol,

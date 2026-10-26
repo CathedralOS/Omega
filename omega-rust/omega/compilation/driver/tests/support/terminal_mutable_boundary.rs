@@ -1,6 +1,9 @@
 //! Source-produced mutable boundary calls retain receiver identity and stored
 //! view lifetimes across host effects and fuel pauses. This provision supplies
 //! an observation sink, not a replacement Build evaluator.
+#[path = "terminal_provision.rs"]
+mod terminal_provision;
+
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerValue};
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_fuel::TerminalFuelMeter;
@@ -11,19 +14,7 @@ use terminal_interpreter::{
 };
 
 pub(super) fn observe(artifact: &CanonicalTerminalArtifact) -> Result<(), String> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| exercise(artifact))).map_err(
-        |failure| {
-            failure
-                .downcast_ref::<String>()
-                .cloned()
-                .or_else(|| {
-                    failure
-                        .downcast_ref::<&str>()
-                        .map(|message| (*message).to_owned())
-                })
-                .unwrap_or_else(|| "mutable boundary provision failed".to_owned())
-        },
-    )
+    terminal_provision::result(|| exercise(artifact), "mutable boundary provision failed")
 }
 
 pub(super) fn field(artifact: &CanonicalTerminalArtifact, name: &str) -> Path {

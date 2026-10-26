@@ -308,8 +308,8 @@ impl TerminalExecution<'_> {
 
     /// Retire precisely the consumed subtree after its cells have been staged.
     pub(crate) fn prune_subtree(&mut self, from: &StructuralRuntimePlace) {
-        crate::structural_storage::prune(&mut self.provider_storage.descriptors, from);
-        crate::structural_storage::prune(&mut self.activation_storage.claim_descriptors, from);
+        crate::structural_storage::prune_rows(&mut self.provider_storage.descriptors, from);
+        crate::structural_storage::prune_rows(&mut self.activation_storage.claim_descriptors, from);
         self.invalidate_stored_provenance(from);
         crate::structural_storage::prune_rows(&mut self.structural_host_atoms, from);
         crate::structural_storage::prune_rows(&mut self.structural_scalar_fields, from);
@@ -2218,9 +2218,7 @@ impl TerminalExecution<'_> {
         else {
             unreachable!("dispatched execute_boolean_structural_field")
         };
-        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-            return Err(malformed());
-        }
+        self.require_boolean_result(operation)?;
         let value = self.read_observed_field(source, path, field, ScalarType::Boolean)?;
         self.store_scalar(operation, value)
     }

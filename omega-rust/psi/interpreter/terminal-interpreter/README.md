@@ -109,8 +109,12 @@ the prepared rows does not request another budget. Activation split/merge funds
 its result case and binding before consuming source claims. The source-produced
 case, byte-field and activation controls check exact/short budgets through fuel
 pauses for borrowed and loaded artifacts, sticky refusal and teardown release.
-Provider/activation ledgers and descriptors, and cumulative result custody,
-are not yet completely accounted;
+Activation frame ledgers, live claims, grants, backing owners, split associations
+and claim descriptors are also charged. Constructor transport carries descriptor
+reservations; split/merge stages every possible result descriptor before retiring
+source claims, then drops the unused case's rows. Ledger growth is funded before
+the foundation's authority operation and release/merge retires the removed cells.
+Provider ledgers/descriptors and cumulative result custody remain unaccounted;
 these partial snapshots must not become production Build usage receipts.
 
 A failed execution retains its exact host fault and unfinished custody. Calling

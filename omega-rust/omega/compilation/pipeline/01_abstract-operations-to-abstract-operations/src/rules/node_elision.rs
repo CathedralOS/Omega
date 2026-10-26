@@ -15,7 +15,9 @@ use optimization_unit::{
 use semantic_vocabulary::{BlockId, OperationId, ScalarType, ValueId};
 
 use super::accepted_obligations::accepted_obligation_fact;
-use crate::rules::control_flow_cleanup::provenance_realized_at;
+use crate::rules::control_flow_cleanup::{
+    node_realized_provenance, provenance_realized_at, record_node_provenance,
+};
 use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -154,12 +156,7 @@ pub(super) fn node_elision_accounting(
     let block = &function.blocks[block_position];
     let removed = block.nodes.get(node_position)?;
     block.nodes.get(node_position.checked_add(1)?)?;
-    let mut provenance = vec![provenance_realized_at(
-        PsiRealizationSite::Node(removed_location),
-        PsiRealizationSite::Node(removed_location),
-        &removed.provenance,
-        &removed.fuel,
-    )];
+    let mut provenance = vec![node_realized_provenance(removed_location, removed)];
     for (index, node) in block.nodes.iter().enumerate().skip(node_position + 1) {
         if node.provenance.is_empty() {
             continue;
@@ -183,22 +180,12 @@ pub(super) fn node_elision_accounting(
     let mut affected = vec![block.id];
     for later in function.blocks.iter().skip(block_position + 1) {
         affected.push(later.id);
-        for (index, node) in later.nodes.iter().enumerate() {
-            if node.provenance.is_empty() {
-                continue;
-            }
-            let site = PsiRealizationSite::Node(NodeLocation {
-                machine: function.machine,
-                block: later.id,
-                node: u32::try_from(index).ok()?,
-            });
-            provenance.push(provenance_realized_at(
-                site,
-                site,
-                &node.provenance,
-                &node.fuel,
-            ));
-        }
+        record_node_provenance(
+            function.machine,
+            later,
+            later.nodes.iter().enumerate(),
+            &mut provenance,
+        )?;
     }
     for use_block in &function.blocks {
         if affected.contains(&use_block.id)
@@ -207,30 +194,14 @@ pub(super) fn node_elision_accounting(
             continue;
         }
         affected.push(use_block.id);
-        for (index, node) in use_block.nodes.iter().enumerate() {
-            if node.provenance.is_empty() {
-                continue;
-            }
-            let site = PsiRealizationSite::Node(NodeLocation {
-                machine: function.machine,
-                block: use_block.id,
-                node: u32::try_from(index).ok()?,
-            });
-            provenance.push(provenance_realized_at(
-                site,
-                site,
-                &node.provenance,
-                &node.fuel,
-            ));
-        }
+        record_node_provenance(
+            function.machine,
+            use_block,
+            use_block.nodes.iter().enumerate(),
+            &mut provenance,
+        )?;
     }
     affected.sort();
-    provenance.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    provenance.sort_by_key(ProvenanceRewrite::canonical_sort_key);
     Some((affected, provenance))
 }

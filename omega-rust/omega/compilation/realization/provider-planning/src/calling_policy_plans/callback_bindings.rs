@@ -298,6 +298,7 @@ pub fn validate_nominal_callback_placement_bindings(
             typed,
             selected_providers,
             nominal_use.registration_operation,
+            nominal_use.registration_requirement_trait,
         ) {
             Ok(registration) => registration,
             Err(reason) => {
@@ -499,6 +500,7 @@ fn selected_callback_registration(
     typed: &TypedTrees,
     selected: &effects::SelectedProviderPlanFacts,
     operation: symbols::SymbolHandle,
+    requirement_trait: Option<symbols::SymbolHandle>,
 ) -> Result<SelectedCallbackRegistration, String> {
     let identity = if let Some((owner, signature)) = typed.trait_machine_signature(operation) {
         if !owner.is_boundary {
@@ -517,6 +519,9 @@ fn selected_callback_registration(
     } else if typed.machine_parameter_signature(operation).is_some() {
         // A checked generic forwarding edge retains its binder declaration.
         // Its eventual concrete selection owns any external materialization.
+        return Ok(SelectedCallbackRegistration::CheckedSource);
+    } else if requirement_trait.and_then(|owner| typed.trait_definition_by_symbol(owner))
+        .is_some_and(|declaration| !declaration.is_boundary) {
         return Ok(SelectedCallbackRegistration::CheckedSource);
     } else {
         return Err(format!(

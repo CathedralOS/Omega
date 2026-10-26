@@ -1,6 +1,6 @@
 //! Once-only scalar observations and live immutable descriptor establishments.
 
-use super::{KnownUnitInteger, LiveDefinitions};
+use super::{KnownUnitInteger, LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::scalar::{
     KnownInteger, KnownScalar, byte_views, element_views, equal_boolean, equal_integer,
@@ -22,13 +22,10 @@ use target_operations::{
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    structural_types: &StructuralTypeLookup<'_>,
+    site: &mut RowSite<'_>,
     prepared: &super::super::function_signature::PreparedFunctionSignature,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    let (function, structural_types, live, operations, provenance) = site.parts();
     let mut values = scalar_values(live, &prepared.scalar_parameters)?;
 
     let lower_byte_observation = |operation, values, provenance_operations| {

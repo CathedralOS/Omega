@@ -7,8 +7,13 @@
 //! transfer window, so unrelated fields, padding and the allocation tail stay
 //! untouched. Snapshot qualifications and capability bindings cannot survive
 //! an arbitrary write: unsupported preservation refuses before changing bytes.
+//! The transfer window reserves its entire byte payload before allocation and
+//! retains that lease through the single commit. Scalar decoding uses bounded
+//! inline storage; neither codec hides another heap payload. Geometry metadata
+//! remains separate from this payload account, not a general RSS bound.
 
-use super::{ProviderStorageBinding, ProviderStorageSlot, ResidentStorageSlot};
+use super::{ProviderStorageBinding, ProviderStorageSlot};
+use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::effects::results::TerminalEffectResult;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
@@ -114,22 +119,8 @@ impl TerminalExecution<'_> {
                 (compatibility, None, None, binding.length)
             }
             ProviderFieldContent::Resident => {
-                let ResidentStorageSlot::Live {
-                    initialized_by,
-                    custody,
-                    compatibility,
-                    ..
-                } = self.provider_storage.residents.get(binding.resident)
-                else {
-                    return Err(malformed());
-                };
-                let initialized = self
-                    .program
-                    .catalogs
-                    .placement_lifecycle_plans
-                    .iter()
-                    .find(|row| row.boundary == *initialized_by)
-                    .ok_or_else(malformed)?;
+                let (initialized, custody, compatibility) =
+                    self.live_resident_custody(binding.resident)?;
                 if initialized.placement != plan.placement
                     || initialized.schema != plan.schema
                     || initialized.policy_identity != plan.policy_identity
@@ -245,14 +236,7 @@ impl TerminalExecution<'_> {
             })
             .ok_or_else(malformed)?;
         let needs_read = write.is_none() || represented_bits != footprint.length_bytes() * 8;
-        let ProviderStorageSlot::Live {
-            allocation,
-            profile,
-            ..
-        } = self.provider_storage.allocations.get(binding.allocation)
-        else {
-            return Err(malformed());
-        };
+        let (allocation, profile, _) = self.provider_storage.live_provider_allocation(&binding)?;
         let loan = allocation
             .extent
             .loan(binding.offset, binding.length)
@@ -288,9 +272,9 @@ impl TerminalExecution<'_> {
         let end = start.checked_add(length).ok_or_else(malformed)?;
         let bytes = allocation.bytes.get(start..end).ok_or_else(malformed)?;
         let mut transfer = if needs_read {
-            bytes.to_vec()
+            ByteSequenceStorage::copy(bytes, self.account.as_ref())?
         } else {
-            vec![0; length]
+            ByteSequenceStorage::zeroed(length, self.account.as_ref())?
         };
         let layout = if projected.is_some() {
             let mut layout = field_window(
@@ -334,11 +318,11 @@ impl TerminalExecution<'_> {
                 None => ScalarFieldValue::new(entry.field(), u16::from(width) * 8, bits),
             }
             .map_err(TerminalInterpretError::ValueImage)?;
-            layout_plans::update_scalar_field(
+            layout_plans::stage_scalar_field(
                 &layout,
                 &value,
                 ByteOrder::LittleEndian,
-                &mut transfer,
+                transfer.bytes_mut(),
             )
             .map_err(TerminalInterpretError::ValueImage)?;
             TerminalEffectResult::Unit
@@ -350,18 +334,18 @@ impl TerminalExecution<'_> {
                 None => AggregateFieldSchema::new(entry.field(), u64::from(width)),
             }
             .map_err(TerminalInterpretError::ValueImage)?;
-            let decoded = layout_plans::decode_aggregate_field(
+            let mut encoded = [0_u8; 16];
+            let decoded = encoded
+                .get_mut(..usize::from(width))
+                .ok_or_else(malformed)?;
+            layout_plans::decode_aggregate_field_into(
                 &layout,
                 &schema,
                 ByteOrder::LittleEndian,
-                &transfer,
+                transfer.bytes(),
+                decoded,
             )
             .map_err(TerminalInterpretError::ValueImage)?;
-            let mut encoded = [0_u8; 16];
-            encoded
-                .get_mut(..decoded.len())
-                .ok_or_else(malformed)?
-                .copy_from_slice(&decoded);
             let value =
                 crate::primitive_storage::encoding::decode(scalar, u128::from_le_bytes(encoded))?;
             if !value.satisfies_field(&value_type) {
@@ -383,7 +367,7 @@ impl TerminalExecution<'_> {
                 .bytes
                 .get_mut(start..end)
                 .ok_or_else(malformed)?
-                .copy_from_slice(&transfer);
+                .copy_from_slice(transfer.bytes());
         }
         Ok(result)
     }

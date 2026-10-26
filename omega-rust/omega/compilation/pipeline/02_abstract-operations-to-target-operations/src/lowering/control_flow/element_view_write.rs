@@ -1,10 +1,9 @@
 //! Indexed scalar-element store through a mutable element view.
-use super::{LiveDefinitions, observations};
+use super::{RowSite, observations};
 use crate::LoweringError;
-use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation};
+use abstract_operations::AbstractOperation;
 use semantic_vocabulary::IntegerSign;
-use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+use target_operations::TargetUnitOperation;
 use terminal_psi::StructuralTypeShape;
 
 /// An indexed element write names one view place verified mutable. The view
@@ -14,13 +13,10 @@ use terminal_psi::StructuralTypeShape;
 /// here on the exclusive loan the verifier approved for the store.
 pub(super) fn lower(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    structural_types: &StructuralTypeLookup<'_>,
+    site: &mut RowSite<'_>,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
-    live: &LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    let (function, structural_types, live, operations, provenance) = site.view();
     let AbstractOperation::ElementViewWrite {
         path,
         psi_operation,

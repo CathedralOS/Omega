@@ -52,17 +52,11 @@ pub struct PeSharedComponentEmissionError {
     diagnostic: Diagnostic,
 }
 
-impl PeSharedComponentEmissionError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-    pub fn into_parts(self) -> (FinalImage, Vec<PeComponentExport>, Diagnostic) {
-        (self.image, self.exports, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(PeSharedComponentEmissionError);
-impl std::error::Error for PeSharedComponentEmissionError {}
+image::rejection_carrier!(
+    PeSharedComponentEmissionError;
+    image: FinalImage,
+    exports: Vec<PeComponentExport>,
+);
 
 /// Emit a separately loadable component without a process entry point.
 /// Failure retains both complete original inputs.

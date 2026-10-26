@@ -2,78 +2,17 @@
 //! `TerminalIdentityIndex` handles into a `TerminalIdentityTable`; text exists
 //! only at declared boundaries. `ALLOWED` pins those boundary declarations by
 //! exact trimmed line so a stored `pub` field can never share a parameter's
-//! exemption.
+//! exemption. The scan itself is shared (`source_audit`); this file owns only
+//! its needles and its boundary exemptions.
 #![cfg(test)]
 
-use std::fs;
-use std::path::Path;
+use source_audit::violations;
+
+/// The crate whose sources these guards pin.
+const CRATE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
 /// No boundary declarations: every identity in this crate is interned.
 const ALLOWED: &[(&str, &str)] = &[];
-
-/// Every `(file, line number, line)` of this crate's non-test sources, outside
-/// line comments (this guard file is test-only and pins text needles).
-fn source_lines() -> Vec<(String, usize, String)> {
-    let mut directories = vec![Path::new(env!("CARGO_MANIFEST_DIR")).join("src")];
-    let mut lines = Vec::new();
-    while let Some(directory) = directories.pop() {
-        let entries = fs::read_dir(&directory)
-            .unwrap_or_else(|error| panic!("cannot read {}: {error}", directory.display()));
-        for entry in entries {
-            let path = entry
-                .unwrap_or_else(|error| panic!("cannot list {}: {error}", directory.display()))
-                .path();
-            let name = path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or_default();
-            if path.is_dir() {
-                if !name.starts_with('.') && !matches!(name, "tests" | "examples" | "target") {
-                    directories.push(path);
-                }
-                continue;
-            }
-            if path.extension().and_then(|extension| extension.to_str()) != Some("rs")
-                || name == "source_guards.rs"
-                || name == "tests.rs"
-                || name.ends_with("_tests.rs")
-            {
-                continue;
-            }
-            let source = fs::read_to_string(&path)
-                .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
-            let file = path.display().to_string();
-            for (line_number, line) in source.lines().enumerate() {
-                if line.trim_start().starts_with("//") {
-                    continue;
-                }
-                lines.push((file.clone(), line_number + 1, line.to_owned()));
-            }
-        }
-    }
-    lines
-}
-
-/// Every `file:line: name` in this crate's non-test sources, outside line
-/// comments, that declares a text identity. `allowed` pairs are
-/// `(file suffix, exact trimmed line)` so only the pinned declaration is
-/// exempt — a `pub` field of the same name still violates.
-fn violations(forbidden: &[&str], allowed: &[(&str, &str)]) -> Vec<String> {
-    let mut violations = Vec::new();
-    for (file, line_number, line) in source_lines() {
-        for name in forbidden {
-            if line.contains(name)
-                && !allowed.iter().any(|(suffix, declaration)| {
-                    file.ends_with(suffix) && line.trim() == *declaration
-                })
-            {
-                violations.push(format!("{file}:{line_number}: {name}"));
-            }
-        }
-    }
-    violations.sort();
-    violations
-}
 
 /// Stored `*identity`/`identities` declarations carry interned
 /// `TerminalIdentityIndex` handles; text identity survives only on the
@@ -81,6 +20,8 @@ fn violations(forbidden: &[&str], allowed: &[(&str, &str)]) -> Vec<String> {
 #[test]
 fn crate_carries_no_string_identity_fields() {
     let violations = violations(
+        CRATE_ROOT,
+        "",
         &[
             concat!("identity", ": String"),
             concat!("identity", ": Option<String>"),

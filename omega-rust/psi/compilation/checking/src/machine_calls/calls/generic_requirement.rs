@@ -4,7 +4,7 @@
 
 use super::{
     Diagnostic, ExpressionHandle, ExpressionNode, Machine, State, StateParameter, ValueEnvironment,
-    WritableRoots, argument_matches_carrier, declared_place_type, declared_reference_access,
+    WritableRoots, argument_matches_call_carrier, declared_place_type, declared_reference_access,
     validate_call_arguments,
 };
 
@@ -156,7 +156,7 @@ pub(super) fn validate_requirement_call_arguments(
                     requirement,
                 );
             }
-            argument_matches_carrier(program, machine.symbol, argument, required, &[])
+            argument_matches_call_carrier(program, machine.symbol, argument, required, &[])
         },
         diagnostics,
     );
@@ -418,6 +418,12 @@ pub(super) fn validate_named_conformance_arguments(
             actual,
             required,
             requirement,
+        ) && !call_value_arguments_match(
+            program,
+            actual,
+            required,
+            requirement,
+            machine_arguments,
         ) {
             diagnostics.push(Diagnostic::error(format!("argument `{}` for conformance requirement `{}::{}` does not match the binder's trait arguments", parameter.name, requirement.application.declaration.name, requirement.signature.name)));
         }
@@ -451,4 +457,54 @@ pub(super) fn unresolved_implementation_call(
             rows.join(", ")
         )
     }
+}
+
+/// Requirement-local const/value arguments inhabit a separate simultaneous
+/// invocation telescope from the enclosing trait. They affect complete
+/// dependent types too, even when no local Type binder needs closing.
+fn call_value_arguments_match(
+    program: &dyn crate::CheckingInput,
+    actual: typed_trees::types::TypeReferenceHandle,
+    required: typed_trees::types::TypeReferenceHandle,
+    requirement: &crate::declarations::traits::GenericBoundRequirement<'_>,
+    selected: &[typed_trees::expression::StaticMachineArgument],
+) -> bool {
+    use typed_trees::data::TypeParameterKind;
+    use typed_trees::type_identity::{IndexIdentityArgument, TypeIdentityRequest};
+    let parameters = program.state_signature_type_parameters(requirement.signature);
+    if parameters.len() != selected.len() {
+        return false;
+    }
+    let arguments = parameters
+        .iter()
+        .zip(selected)
+        .filter_map(|(parameter, actual)| {
+            matches!(
+                parameter.kind,
+                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+            )
+            .then_some((
+                parameter.symbol,
+                IndexIdentityArgument::StaticArgument(actual),
+            ))
+        })
+        .collect::<Vec<_>>();
+    if arguments.is_empty() {
+        return false;
+    }
+    let result = program.scoped_type_identity_with_index_arguments(
+        TypeIdentityRequest {
+            substitutions: &requirement.application.substitutions,
+            ..TypeIdentityRequest::ordinary(required)
+        },
+        &requirement.application.substitution_scope_starts,
+        &arguments,
+    );
+    result
+        .zip(program.scoped_type_identity_with_index_arguments(
+            TypeIdentityRequest::ordinary(actual),
+            &[],
+            &[],
+        ))
+        .is_some_and(|(expected, actual)| actual == expected)
 }

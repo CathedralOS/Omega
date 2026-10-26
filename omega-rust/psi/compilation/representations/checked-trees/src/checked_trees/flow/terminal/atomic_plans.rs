@@ -108,6 +108,8 @@ pub struct CheckedAtomicAccessPlan {
     /// The carrier statement: the assignment for a writing event, the local
     /// for a load. Operand rows are keyed here.
     pub statement_index: u32,
+    /// Exact atomic-resident establishment judgment; never ordinary write authority.
+    pub resident_range_decision: arena::Handle<crate::CheckedIntegerAssignmentDecision>,
     /// Shared access to the record holding the atomic field. Atomic-cell
     /// identity admits mutation; this grants no ordinary shared field store.
     pub receiver: CheckedUnitStructuralArgumentPlan,

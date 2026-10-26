@@ -15,6 +15,10 @@ on:
         description: Qualify libc scalar-record results on Ubuntu and Windows
         type: boolean
         default: false
+      linux_arm64:
+        description: Run the selected cohort on native Linux ARM64
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -22,7 +26,7 @@ permissions:
 # Finish the active observation. GitHub keeps only the newest pending run, so
 # a busy main does not start one cold executable build for every queued PR.
 concurrency:
-  group: compiler-regression-${{ github.ref }}-${{ inputs.cleanup }}-${{ inputs.foreign_records }}
+  group: compiler-regression-${{ github.ref }}-${{ inputs.cleanup }}-${{ inputs.foreign_records }}-${{ inputs.linux_arm64 }}
   cancel-in-progress: false
 
 jobs:
@@ -30,7 +34,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: ${{ fromJSON((inputs.cleanup || inputs.foreign_records) && '["ubuntu-24.04", "windows-2025"]' || '["ubuntu-24.04"]') }}
+        runner: ${{ fromJSON(inputs.linux_arm64 && '["ubuntu-24.04-arm"]' || (inputs.cleanup || inputs.foreign_records) && '["ubuntu-24.04", "windows-2025"]' || '["ubuntu-24.04"]') }}
     runs-on: ${{ matrix.runner }}
     # The measured cold Windows build takes nearly 30 minutes.
     timeout-minutes: 45
@@ -73,6 +77,8 @@ jobs:
           cargo test --locked -p terminal-interpreter scalar_aggregate_tests
           cargo test --locked -p runtime-abi integer_division
           cargo test --locked -p terminal-runtime scalar_record
+          cargo test --locked -p runtime-abi network_address
+          cargo test --locked -p terminal-runtime network_address
       - name: Execute foreign scalar-record results with rejection controls
         if: inputs.foreign_records
         run: python tools/ci/compiler_foreign_records.py

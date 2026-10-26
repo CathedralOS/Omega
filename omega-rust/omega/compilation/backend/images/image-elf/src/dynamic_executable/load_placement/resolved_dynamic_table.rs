@@ -180,19 +180,10 @@ pub struct ElfDynamicAddressApplicationError {
     diagnostic: Diagnostic,
 }
 
-impl ElfDynamicAddressApplicationError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ValidatedElfPlacedSectionHeaderTable, Diagnostic) {
-        (self.placed_section_headers, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfDynamicAddressApplicationError);
-
-impl std::error::Error for ElfDynamicAddressApplicationError {}
+image::rejection_carrier!(
+    ElfDynamicAddressApplicationError;
+    placed_section_headers: ValidatedElfPlacedSectionHeaderTable,
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ElfResolvedDynamicTableContents {

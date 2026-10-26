@@ -54,6 +54,46 @@ pub struct RegisterConstraintKey {
     pub variant: u32,
 }
 
+impl RegisterConstraintKey {
+    /// The family half of a key row is spelled here, once. A catalog or target
+    /// names only the variant it owns, so the family spelling cannot drift
+    /// between the files that mint keys of the same family.
+    pub const fn instruction(variant: u32) -> Self {
+        Self {
+            family: RegisterConstraintFamily::Instruction,
+            variant,
+        }
+    }
+
+    pub const fn call(variant: u32) -> Self {
+        Self {
+            family: RegisterConstraintFamily::Call,
+            variant,
+        }
+    }
+
+    pub const fn ret(variant: u32) -> Self {
+        Self {
+            family: RegisterConstraintFamily::Return,
+            variant,
+        }
+    }
+
+    pub const fn system_call(variant: u32) -> Self {
+        Self {
+            family: RegisterConstraintFamily::SystemCall,
+            variant,
+        }
+    }
+
+    pub const fn inline_assembly(variant: u32) -> Self {
+        Self {
+            family: RegisterConstraintFamily::InlineAssembly,
+            variant,
+        }
+    }
+}
+
 /// Canonical identity bytes for one constraint key: the family tag byte
 /// followed by the variant word. Every identity codec that walks a register
 /// catalog spells this row the same way.
@@ -617,10 +657,7 @@ fn validate_constraint_unit_set(
 
 pub fn call_constraint_keys(variants: std::ops::Range<u16>) -> Vec<RegisterConstraintKey> {
     variants
-        .map(|variant| RegisterConstraintKey {
-            family: RegisterConstraintFamily::Call,
-            variant: u32::from(variant),
-        })
+        .map(|variant| RegisterConstraintKey::call(u32::from(variant)))
         .collect()
 }
 

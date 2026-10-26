@@ -655,57 +655,14 @@ macro_rules! integer_shift_term {
     };
 }
 
+/// The operand-destructuring table behind `operands` and `operands_mut`.
+/// The unary and binary operand rosters come from their shared owner
+/// patterns above, so this composition never restates the variant list.
 macro_rules! scalar_term_operand_table {
     ($self:expr, $borrow:ident) => {
         match $self {
-            Self::BooleanNot { operand }
-            | Self::IntegerBitwiseNot { operand, .. }
-            | Self::IntegerWiden { operand, .. }
-            | Self::IntegerExactCast { operand, .. } => vec![operand.$borrow()],
-            Self::BooleanEqual { left, right, .. }
-            | Self::IntegerEqual { left, right, .. }
-            | Self::IntegerLessThan { left, right, .. }
-            | Self::IntegerLessOrEqual { left, right, .. }
-            | Self::IntegerBitwiseAnd { left, right, .. }
-            | Self::IntegerBitwiseOr { left, right, .. }
-            | Self::IntegerBitwiseXor { left, right, .. }
-            | Self::WrappingIntegerShiftLeft {
-                value: left,
-                count: right,
-                ..
-            }
-            | Self::WrappingIntegerShiftRight {
-                value: left,
-                count: right,
-                ..
-            }
-            | Self::ExactIntegerShiftLeft {
-                value: left,
-                count: right,
-                ..
-            }
-            | Self::ExactIntegerShiftRight {
-                value: left,
-                count: right,
-                ..
-            }
-            | Self::ExactIntegerAdd { left, right, .. }
-            | Self::ExactIntegerSubtract { left, right, .. }
-            | Self::ExactIntegerMultiply { left, right, .. }
-            | Self::ExactIntegerDivide { left, right, .. }
-            | Self::ExactIntegerRemainder { left, right, .. }
-            | Self::WrappingIntegerDivide { left, right, .. }
-            | Self::WrappingIntegerRemainder { left, right, .. }
-            | Self::SaturatingIntegerDivide { left, right, .. }
-            | Self::SaturatingIntegerRemainder { left, right, .. }
-            | Self::WrappingIntegerAdd { left, right, .. }
-            | Self::SaturatingIntegerAdd { left, right, .. }
-            | Self::WrappingIntegerSubtract { left, right, .. }
-            | Self::SaturatingIntegerSubtract { left, right, .. }
-            | Self::WrappingIntegerMultiply { left, right, .. }
-            | Self::SaturatingIntegerMultiply { left, right, .. } => {
-                vec![left.$borrow(), right.$borrow()]
-            }
+            scalar_term_unary_operand!(operand) => vec![operand.$borrow()],
+            scalar_term_binary_operands!(left, right) => vec![left.$borrow(), right.$borrow()],
             _ => Vec::new(),
         }
     };

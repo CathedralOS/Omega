@@ -94,12 +94,11 @@ impl Resolver<'_, '_> {
             } else {
                 let descriptor = self.control.operands.get(selected.capture);
                 let profile = self.profile(descriptor);
-                if profile.is_some_and(|profile| profile.immutable_image)
-                    && self
-                        .control
-                        .retained_roots(descriptor.retention)
-                        .is_some_and(|roots| roots.is_empty())
-                {
+                // Literal-authenticated pointer scope is independent of the
+                // signature's lifetime debts. Those roots remain in retention
+                // for custody; they do not make immutable image bytes overlap
+                // a caller's writable local storage.
+                if profile.is_some_and(|profile| profile.immutable_image) {
                     continue;
                 }
                 if let Some(profile) = profile

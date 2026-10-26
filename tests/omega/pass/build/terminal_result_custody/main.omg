@@ -1,0 +1,26 @@
+// Expected exit: 0
+// Two fields retain one backing when copied from the same byte descriptor;
+// equal bytes produced independently retain two backings.
+data Pair { left: &[u8]; right: &[u8]; }
+data Choice [copy] { case Chosen(value: u32); case Empty; }
+
+machine shared(bytes: &[u8; 5]) -> Pair {
+    let view: &[u8] = &bytes[0..5];
+    Pair { left: view, right: view }
+}
+machine distinct() -> Pair { Pair { left: "omega", right: "omega" } }
+machine selected() -> Choice { Choice::Chosen { value: 37 } }
+machine empty() -> Choice { Choice::Empty }
+machine number() -> u32 { 37 }
+machine done() {}
+machine bad() crashes Trap { crash Trap; }
+
+machine main() crashes Trap {
+    let bytes: [u8; 5] = [111, 109, 101, 103, 97];
+    let first: Pair = shared(&bytes);
+    let second: Pair = distinct();
+    transition first.left.len == 5 && first.right.len == 5 && first.right[4] == 97 && second.left.len == 5 && second.left[0] == 111 && second.right.len == 5 {
+        true -> done()
+        false -> bad()
+    }
+}

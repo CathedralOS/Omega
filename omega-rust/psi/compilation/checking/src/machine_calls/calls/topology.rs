@@ -324,6 +324,9 @@ pub fn call_target_return_type(
     if let Some(slot) = program.dynamic_slot_by_symbol(target_state_symbol) {
         return Some(slot.return_type);
     }
+    if let Some(application) = program.closed_requirement_application(target_state_symbol) {
+        return Some(application.signature.return_type);
+    }
     if let Some((_, signature)) = program.machine_parameter_signature(target_state_symbol) {
         return Some(signature.return_type);
     }
@@ -430,4 +433,91 @@ pub fn target_family_members<'program>(
         }
     }
     Some(&family.members)
+}
+
+/// A whole completing invocation or named arrival, retaining its argument
+/// arena and exact authored call identity. Position is supplied by the consumer;
+/// nested calls are never promoted to transfers by this query. Source admission,
+/// component ranking and cleanup remain independent obligations.
+pub struct CompletingTransfer<'program> {
+    pub state: &'program typed_trees::state::State,
+    pub target: SymbolHandle,
+    pub arguments: &'program [typed_trees::expression::ExpressionHandle],
+    pub expression: typed_trees::expression::ExpressionHandle,
+}
+
+/// A complete invocation can name an abstract callable contract without an
+/// executable state. Consumers that need a concrete arrival refine it below.
+pub struct CompletingInvocation<'program> {
+    pub target: SymbolHandle,
+    pub arguments: &'program [typed_trees::expression::ExpressionHandle],
+    pub expression: typed_trees::expression::ExpressionHandle,
+}
+
+fn completing_call_invocation(
+    program: &dyn crate::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<CompletingInvocation<'_>> {
+    let call = program.expression_table.call_node(expression)?;
+    if call.receiver.is_valid() && !program.call_has_no_runtime_receiver_for_target(call) {
+        return None;
+    }
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    (arguments.len() == call_target_parameters(program, call.target_symbol)?.len()).then_some(
+        CompletingInvocation {
+            target: call.target_symbol,
+            arguments,
+            expression,
+        },
+    )
+}
+
+pub fn completing_transition_invocation(
+    program: &dyn crate::CheckingInput,
+    target: typed_trees::statement::TransitionTargetHandle,
+) -> Option<CompletingInvocation<'_>> {
+    match program.statement_table.transition_target(target) {
+        typed_trees::statement::TransitionTargetNode::Named {
+            path, arguments, ..
+        } => {
+            let arguments = program.statement_table.expression_handles(*arguments);
+            (arguments.len() == call_target_parameters(program, path.symbol)?.len()).then_some(
+                CompletingInvocation {
+                    target: path.symbol,
+                    arguments,
+                    expression: Default::default(),
+                },
+            )
+        }
+        typed_trees::statement::TransitionTargetNode::Value(expression) => {
+            completing_call_invocation(program, *expression)
+        }
+        typed_trees::statement::TransitionTargetNode::Terminal => None,
+    }
+}
+
+fn concrete_transfer<'program>(
+    program: &'program dyn crate::CheckingInput,
+    invocation: CompletingInvocation<'program>,
+) -> Option<CompletingTransfer<'program>> {
+    Some(CompletingTransfer {
+        state: call_target_state(program, invocation.target)?,
+        target: invocation.target,
+        arguments: invocation.arguments,
+        expression: invocation.expression,
+    })
+}
+
+pub fn completing_call_transfer(
+    program: &dyn crate::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<CompletingTransfer<'_>> {
+    concrete_transfer(program, completing_call_invocation(program, expression)?)
+}
+
+pub fn completing_transition_transfer(
+    program: &dyn crate::CheckingInput,
+    target: typed_trees::statement::TransitionTargetHandle,
+) -> Option<CompletingTransfer<'_>> {
+    concrete_transfer(program, completing_transition_invocation(program, target)?)
 }

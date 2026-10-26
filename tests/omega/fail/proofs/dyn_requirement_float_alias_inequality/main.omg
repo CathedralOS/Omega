@@ -1,0 +1,5 @@
+public let upper(value: f64): core::Strict<0> = value <= 0.5;
+public let unlike(value: f64): core::Strict<0> = value != 1.0;
+trait Fraction { machine get() -> f64 ensures upper(result); }
+Quarter satisfies Fraction { machine get() -> f64 ensures unlike(result) { 0.25 } }
+machine main() {}

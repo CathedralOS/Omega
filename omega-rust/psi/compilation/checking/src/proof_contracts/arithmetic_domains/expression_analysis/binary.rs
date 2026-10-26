@@ -967,6 +967,19 @@ impl Operation<'_, '_> {
         if self.has_address_operand() {
             return exact_result_proven;
         }
+        if self.walk.machine.is_none()
+            && self.walk.builtin_binary(self.expression)
+            && super::super::declaration_values::binary_result_fits(
+                self.walk.program,
+                self.walk.lexical_owner,
+                self.walk.parameters,
+                self.walk.declaration_facts,
+                self.expression,
+                primitive,
+            )
+        {
+            return true;
+        }
         let operator = self.operator();
         // The interval route needs every operand already bounded; the
         // relational route proves `x + k` through a composed ceiling operand

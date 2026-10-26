@@ -1,6 +1,6 @@
 //! Service catalogs, root reachability, and structural signatures.
-use crate::OptimizationUnitValidationError;
 use crate::unit_validation::structural_catalog::structural_qualifications_match;
+use crate::{OperationSite, OptimizationUnitValidationError};
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
 use semantic_vocabulary::{
@@ -205,11 +205,9 @@ pub(crate) fn derive_root_service_reach(
             match operation {
                 O::BoundaryCall { boundary, .. } => {
                     let declaration = boundaries.get(boundary).copied().ok_or(
-                        OptimizationUnitValidationError::OperationServiceContractMismatch {
-                            machine: function.machine,
-                            block: function.entry,
-                            node: 0,
-                        },
+                        OptimizationUnitValidationError::OperationServiceContractMismatch(
+                            OperationSite::new(function.machine, function.entry, 0),
+                        ),
                     )?;
                     if let Some(dependency) = dependencies.get(&declaration.identity) {
                         // The published ceiling is the boundary's fixed service

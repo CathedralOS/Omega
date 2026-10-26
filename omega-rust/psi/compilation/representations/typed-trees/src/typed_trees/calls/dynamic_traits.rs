@@ -53,6 +53,9 @@ pub struct DynamicSlotSignature {
     pub declaring_trait: SymbolHandle,
     /// The exact requirement this slot instantiates.
     pub requirement: SymbolHandle,
+    /// Closed call contract when a static family tuple was selected. The
+    /// declaring requirement above remains the roster and table identity.
+    pub call_requirement: SymbolHandle,
     pub parameters: Vec<crate::signature::StateParameter>,
     pub return_type: TypeReferenceHandle,
 }
@@ -73,7 +76,7 @@ impl TypedTrees {
         requirement: SymbolHandle,
     ) -> Option<&DynamicSlotSignature> {
         self.dynamic_slots.iter().find(|slot| {
-            slot.requirement == requirement && slot.interface_identity == interface_identity
+            slot.call_requirement == requirement && slot.interface_identity == interface_identity
         })
     }
 

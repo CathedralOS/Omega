@@ -55,42 +55,18 @@ pub struct SpillChoiceValidationReceipt {
     pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
     pub(crate) policy: SpillChoicePolicy,
     pub(crate) usage: OptimizationWorkUsage,
-    pub(crate) function_count: usize,
-    pub(crate) choice_count: usize,
-    pub(crate) contender_count: usize,
 }
 
 impl SpillChoiceValidationReceipt {
-    pub const fn identity(self) -> SpillChoiceIdentity {
-        self.identity
-    }
-    pub const fn legality(self) -> AllocationLegalityIdentity {
-        self.legality
-    }
-    pub const fn ranges(self) -> LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
-    pub const fn policy(self) -> SpillChoicePolicy {
-        self.policy
-    }
-    pub const fn usage(self) -> OptimizationWorkUsage {
-        self.usage
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn choice_count(self) -> usize {
-        self.choice_count
-    }
-    pub const fn contender_count(self) -> usize {
-        self.contender_count
-    }
+    receipt_accessor_rows!(SpillChoiceValidationReceipt {
+        identity: SpillChoiceIdentity,
+        policy: SpillChoicePolicy,
+        usage: OptimizationWorkUsage,
+        legality: AllocationLegalityIdentity,
+        ranges: LiveRangeIdentity,
+        register_environment: TargetRegisterEnvironmentIdentity,
+        allocator_availability: AllocatorAvailabilityIdentity,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -103,9 +79,9 @@ impl ValidatedSpillChoices {
     pub const fn plan(&self) -> &SpillChoicePlan {
         &self.plan
     }
-    pub const fn receipt(&self) -> SpillChoiceValidationReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(ref ValidatedSpillChoices {
+        receipt: SpillChoiceValidationReceipt,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -6,7 +6,6 @@ use calling_conventions::{BoundaryCallingApplication, CallSignature, ValueShape}
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Path, IntegerSign, IntegerType, ScalarType, StructuralTypeId,
 };
-use target::TargetProfile;
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{TerminalImportSignature, TerminalProgram};
 use terminal_psi::{
@@ -17,59 +16,20 @@ use terminal_psi::{
 pub(super) fn select(
     binding: &NormalizedForeignCallBinding,
 ) -> Result<Option<AllocationOperation>, TerminalRuntimeError> {
-    let Some((locator, _)) = binding.import() else {
-        return Ok(None);
-    };
-    let target = locator.target();
-    let host_matches = match target {
-        TargetProfile::LinuxX64 => cfg!(all(target_os = "linux", target_arch = "x86_64")),
-        TargetProfile::LinuxArm64 => cfg!(all(target_os = "linux", target_arch = "aarch64")),
-        TargetProfile::MacosArm64 => cfg!(all(target_os = "macos", target_arch = "aarch64")),
-        TargetProfile::MacosX64 => cfg!(all(target_os = "macos", target_arch = "x86_64")),
-        _ => false,
-    };
-    if !host_matches {
-        return Ok(None);
-    }
     for (symbol, operation) in [
-        ("calloc", AllocationOperation::Allocate),
-        ("free", AllocationOperation::Release),
+        (b"calloc".as_slice(), AllocationOperation::Allocate),
+        (b"free".as_slice(), AllocationOperation::Release),
     ] {
-        let candidates = match target {
-            TargetProfile::LinuxX64 | TargetProfile::LinuxArm64 => {
-                vec![target::ForeignLocatorCandidate::ElfVersioned {
-                    object: b"libc.so.6".to_vec(),
-                    symbol: symbol.as_bytes().to_vec(),
-                    version: if target == TargetProfile::LinuxX64 {
-                        b"GLIBC_2.2.5".to_vec()
-                    } else {
-                        b"GLIBC_2.17".to_vec()
-                    },
-                }]
-            }
-            TargetProfile::MacosArm64 | TargetProfile::MacosX64 => [
+        if super::super::matches_platform_c_symbol(
+            binding,
+            symbol,
+            &[
                 b"/usr/lib/libSystem.B.dylib".as_slice(),
                 b"libSystem.B.dylib".as_slice(),
-            ]
-            .into_iter()
-            .map(
-                |library| target::ForeignLocatorCandidate::MachODylibSymbol {
-                    install_name: library.to_vec(),
-                    symbol: format!("_{symbol}").into_bytes(),
-                },
-            )
-            .collect(),
-            _ => return Ok(None),
-        };
-        for candidate in candidates {
-            let offered = target::normalize_foreign_locator(candidate, target).map_err(|_| {
-                TerminalRuntimeError::InvalidProvision(
-                    "allocation implementation has an invalid native locator",
-                )
-            })?;
-            if offered == *locator {
-                return Ok(Some(operation));
-            }
+            ],
+            None,
+        )? {
+            return Ok(Some(operation));
         }
     }
     Ok(None)
@@ -209,7 +169,11 @@ fn address_payload(
                     "free owned value must contain exactly one address payload",
                 ));
             };
-            if field.storage.is_some() || matches!(field.field_type, StructuralFieldType::Atomic(_))
+            if field.storage.is_some()
+                || matches!(
+                    field.field_type,
+                    StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
+                )
             {
                 return Err(invalid(
                     "free address payload cannot use atomic or encoded storage",

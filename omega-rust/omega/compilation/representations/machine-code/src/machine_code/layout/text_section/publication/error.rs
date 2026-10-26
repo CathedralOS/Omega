@@ -19,13 +19,4 @@ pub enum FunctionFragmentTextSectionManifestDecodeError {
 
 optimization_core::truncated_from_adapter!(FunctionFragmentTextSectionManifestDecodeError);
 
-impl std::fmt::Display for FunctionFragmentTextSectionManifestDecodeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid function-fragment text-section manifest: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for FunctionFragmentTextSectionManifestDecodeError {}
+register_homes::decode_error_display! { FunctionFragmentTextSectionManifestDecodeError, "invalid function-fragment text-section manifest" }

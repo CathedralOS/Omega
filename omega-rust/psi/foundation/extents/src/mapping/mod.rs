@@ -8,15 +8,8 @@ use crate::identities::{
 use crate::loans::{ExtentLoan, LoanPolarity};
 use crate::roots::root_grants::ValidatedExtentGeometry;
 use crate::roots::root_origins::ExtentRootOrigin;
-
-normalized_extent_identity! {
-
-    MappingGrantId, "mapping-grant"
-}
-normalized_extent_identity! {
-
-    MappingId, "mapping"
-}
+normalized_extent_identity! { MappingGrantId, "mapping-grant" }
+normalized_extent_identity! { MappingId, "mapping" }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MappingSourceMode {
     Owned,
@@ -24,27 +17,16 @@ pub enum MappingSourceMode {
     BorrowedExclusive,
 }
 
-normalized_extent_identity! {
-
-    TranslationActivationFactId, "translation-activation-fact"
-}
+normalized_extent_identity! { TranslationActivationFactId, "translation-activation-fact" }
 /// The translation-activation facts one admitted mapping grant obliges an
 /// activation receipt to establish. See [`NormalizedIdentitySet`].
 pub type TranslationInstallObligations = NormalizedIdentitySet<TranslationActivationFactId>;
-
-normalized_extent_identity! {
-
-    TranslationCompletionFactId, "translation-completion-fact"
-}
+normalized_extent_identity! { TranslationCompletionFactId, "translation-completion-fact" }
 /// The translation-completion facts one admitted mapping grant obliges a
 /// release receipt to establish before either side's authority becomes
 /// reusable. See [`NormalizedIdentitySet`].
 pub type TranslationReleaseObligations = NormalizedIdentitySet<TranslationCompletionFactId>;
-
-normalized_extent_identity! {
-
-    PeerWriteRevocationFactId, "peer-write-revocation-fact"
-}
+normalized_extent_identity! { PeerWriteRevocationFactId, "peer-write-revocation-fact" }
 /// The provider-established facts a shared-custody mapping's revocation
 /// receipt must show before its payload may be read zero-copy: the hostile
 /// peer's write permission was revoked or remapped away and the resulting

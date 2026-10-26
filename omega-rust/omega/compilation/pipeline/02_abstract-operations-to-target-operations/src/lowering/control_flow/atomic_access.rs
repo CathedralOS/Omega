@@ -4,26 +4,21 @@
 //! Fences retain their location-free ordering event; single-attempt exchange
 //! retains its complete structural result and independently derived home.
 
-use super::{KnownUnitInteger, LiveDefinitions};
+use super::{LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractAtomicEvent, AbstractFunction};
-use semantic_vocabulary::{OperationId, ScalarType};
-use target_operations::{
-    TargetUnitOperation, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
-};
-use terminal_psi::{AtomicAccessEvent, StructuralAccess, StructuralFieldType};
+use semantic_vocabulary::OperationId;
+use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+use terminal_psi::{AtomicAccessEvent, StructuralAccess};
 
 pub(super) fn lower(
     operation: OperationId,
     event: &AbstractAtomicEvent,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
+    site: &mut RowSite<'_>,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
     if let AbstractAtomicEvent::Fence { ordering } = event {
         operations.push(TargetUnitOperation::AtomicFence {
             psi_operation: operation,
@@ -128,15 +123,12 @@ pub(super) fn lower(
         location.field,
     )
     .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    let StructuralFieldType::Atomic(ScalarType::Integer(integer)) = field.field_type else {
-        // A bounded field additionally owes a range proof; an atomic event
-        // cannot invent that proof by erasing the field's restriction.
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    };
-    if !matches!(integer.bits(), 8 | 16 | 32 | 64) {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
-    let scalar_type = ScalarType::Integer(integer);
+    let scalar_type = field
+        .field_type
+        .atomic_scalar_type()
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+    let integer = target_operations::operations::atomic_storage_integer_type(access, scalar_type)
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let regions = crate::lowering::structural_layout::reference_projection_regions(
         root,
         &location.path,
@@ -177,21 +169,12 @@ pub(super) fn lower(
             if result.scalar_type != scalar_type {
                 return Err(LoweringError::ValueTypeMismatch(result.value));
             }
-            Ok(TargetUnitScalarHomeRequirement {
-                defining_operation: operation,
-                source_value: result.value,
-                scalar_type,
-                shape: crate::lowering::scalar::scalar_shape(result.value, scalar_type, true)?,
-            })
+            // An atomic observation is an ordinary typed scalar definition.
+            // Retain it in the Boolean or integer home roster according to
+            // its logical type, rather than classifying its physical byte lane.
+            super::primitive_storage::retain_result(operation, result, live)
         })
         .transpose()?;
-    if let Some(home) = result_home {
-        crate::lowering::unit::known_integers::insert_known_unit_integer(
-            &mut live.integers,
-            home.source_value,
-            KnownUnitInteger::Home(home),
-        )?;
-    }
     let outcome_home = if let AbstractAtomicEvent::CompareExchangeOnce { outcome, .. } = event {
         if !event.custody_is_consistent()
             || !outcome.is_unrestricted_plain()

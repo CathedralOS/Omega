@@ -37,8 +37,9 @@ pub struct BlockEntry {
     block: SelectedBlock,
     digest: OnceLock<[u8; 32]>,
     encoding: OnceLock<Arc<CachedBlockEncoding>>,
-    previous_encoding: Option<(Arc<CachedBlockEncoding>, usize)>,
+    previous_encoding: Option<(Arc<CachedBlockEncoding>, usize, usize)>,
     lookup: OnceLock<BlockLookup>,
+    slot_summary: OnceLock<BlockSlotSummary>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlockSlotEvent {
@@ -78,17 +79,23 @@ impl BlockSlotSummary {
 }
 
 #[inline]
-fn set_register_bit(bits: &mut Vec<u64>, register: VirtualRegisterId) {
-    let word = (register.0 as usize) >> 6;
+fn set_u32_bit(bits: &mut Vec<u64>, id: u32) {
+    let word = (id as usize) >> 6;
     if word >= bits.len() {
         bits.resize(word + 1, 0);
     }
-    bits[word] |= 1u64 << (register.0 & 63);
+    bits[word] |= 1u64 << (id & 63);
+}
+
+#[inline]
+fn set_register_bit(bits: &mut Vec<u64>, register: VirtualRegisterId) {
+    set_u32_bit(bits, register.0);
 }
 
 #[derive(Clone)]
 struct BlockLookup {
-    fixed_definitions: Vec<VirtualRegisterId>,
+    fixed_definition_bits: Vec<u64>,
+    materialize_definition_bits: Vec<u64>,
     maximum_instruction: SelectedInstructionId,
     operand_count: Option<usize>,
     transport_count: Option<usize>,
@@ -97,10 +104,10 @@ struct BlockLookup {
     unit_kills: Vec<register_model::RegisterUnitId>,
     unit_writer_indices: Vec<usize>,
     fixed_views: Vec<register_model::RegisterViewId>,
-    instructions_sorted: Vec<(SelectedInstructionId, usize)>,
+    instruction_bits: Vec<u64>,
+    instruction_ids: Vec<u32>,
     referenced_register_bits: Vec<u64>,
     register_instruction_spans: Vec<(u32, u32)>,
-    slot_summary: BlockSlotSummary,
 }
 impl BlockEntry {
     fn new(block: SelectedBlock) -> Arc<Self> {
@@ -110,11 +117,12 @@ impl BlockEntry {
             encoding: OnceLock::new(),
             previous_encoding: None,
             lookup: OnceLock::new(),
+            slot_summary: OnceLock::new(),
         })
     }
     fn new_with_previous_encoding(
         block: SelectedBlock,
-        previous_encoding: Option<(Arc<CachedBlockEncoding>, usize)>,
+        previous_encoding: Option<(Arc<CachedBlockEncoding>, usize, usize)>,
     ) -> Arc<Self> {
         Arc::new(Self {
             block,
@@ -122,6 +130,7 @@ impl BlockEntry {
             encoding: OnceLock::new(),
             previous_encoding,
             lookup: OnceLock::new(),
+            slot_summary: OnceLock::new(),
         })
     }
     fn digest(&self) -> [u8; 32] {
@@ -130,7 +139,7 @@ impl BlockEntry {
                 &self.block,
                 self.previous_encoding
                     .as_ref()
-                    .map(|(enc, prefix)| (enc.as_ref(), *prefix)),
+                    .map(|(enc, prefix, suffix)| (enc.as_ref(), *prefix, *suffix)),
             );
             let _ = self.encoding.set(encoding);
             digest
@@ -138,25 +147,26 @@ impl BlockEntry {
     }
     fn lookup(&self) -> &BlockLookup {
         self.lookup.get_or_init(|| {
-            let mut fixed_definitions = Vec::new();
+            let mut fixed_definition_bits = Vec::new();
+            let mut materialize_definition_bits = Vec::new();
+            let mut implicit_use_mask = 0u64;
+            let mut upward_unit_uses_mask = 0u64;
+            let mut unit_kills_mask = 0u64;
+            let mut fixed_views_mask = 0u64;
             let mut implicit_use_units = Vec::new();
             let mut upward_unit_uses = Vec::new();
             let mut unit_kills = Vec::new();
             let mut unit_writer_indices = Vec::new();
             let mut fixed_views = Vec::new();
-            let mut instructions_sorted = Vec::with_capacity(self.block.instructions.len());
             let bitset_words = (self.block.instructions.len() / 16).max(4);
+            let mut instruction_bits = Vec::with_capacity(bitset_words);
+            let mut instruction_ids = Vec::with_capacity(self.block.instructions.len());
             let mut referenced_register_bits = Vec::with_capacity(bitset_words);
             let record_spans = self.block.instructions.len() >= 64;
             let mut register_instruction_spans: Vec<(u32, u32)> = if record_spans {
                 Vec::with_capacity(self.block.instructions.len())
             } else {
                 Vec::new()
-            };
-            let mut slot_summary = BlockSlotSummary {
-                events: Vec::new(),
-                loads: Vec::new(),
-                non_load_register_bits: Vec::with_capacity(bitset_words),
             };
             let terminator = super::terminator_instruction(&self.block.terminator);
             let mut maximum = terminator.id;
@@ -165,20 +175,39 @@ impl BlockEntry {
                 maximum = maximum.max(instruction.id);
                 operand_count =
                     operand_count.and_then(|total| total.checked_add(instruction.operands.len()));
-                instructions_sorted.push((instruction.id, index));
-                implicit_use_units.extend_from_slice(&instruction.implicit_uses);
+                set_u32_bit(&mut instruction_bits, instruction.id.0);
+                instruction_ids.push(instruction.id.0);
                 for &unit in &instruction.implicit_uses {
-                    if !unit_kills.contains(&unit) && !upward_unit_uses.contains(&unit) {
-                        upward_unit_uses.push(unit);
+                    if (unit.0 as usize) < 64 {
+                        let bit = 1u64 << unit.0;
+                        implicit_use_mask |= bit;
+                        if (unit_kills_mask & bit) == 0 {
+                            upward_unit_uses_mask |= bit;
+                        }
+                    } else {
+                        implicit_use_units.push(unit);
+                        if !unit_kills.contains(&unit) && !upward_unit_uses.contains(&unit) {
+                            upward_unit_uses.push(unit);
+                        }
                     }
                 }
                 for &unit in instruction.implicit_defs.iter().chain(&instruction.clobbers) {
-                    if !unit_kills.contains(&unit) {
+                    if (unit.0 as usize) < 64 {
+                        unit_kills_mask |= 1u64 << unit.0;
+                    } else if !unit_kills.contains(&unit) {
                         unit_kills.push(unit);
                     }
                 }
                 if !instruction.clobbers.is_empty() || !instruction.implicit_defs.is_empty() {
                     unit_writer_indices.push(index);
+                }
+                if matches!(
+                    instruction.kind,
+                    super::SelectedInstructionKind::MaterializeI64 { .. }
+                ) && let [operand] = instruction.operands.as_slice()
+                    && operand.access == register_model::RegisterOperandAccess::Def
+                {
+                    set_register_bit(&mut materialize_definition_bits, operand.virtual_register);
                 }
                 for operand in &instruction.operands {
                     set_register_bit(&mut referenced_register_bits, operand.virtual_register);
@@ -196,12 +225,177 @@ impl BlockEntry {
                         }
                     }
                     if let Some(view) = operand.fixed_view {
-                        fixed_views.push(view);
+                        if (view.0 as usize) < 64 {
+                            fixed_views_mask |= 1u64 << view.0;
+                        } else {
+                            fixed_views.push(view);
+                        }
                         if operand.access != register_model::RegisterOperandAccess::Use {
-                            fixed_definitions.push(operand.virtual_register);
+                            set_register_bit(&mut fixed_definition_bits, operand.virtual_register);
                         }
                     }
                 }
+            }
+            for &unit in &terminator.implicit_uses {
+                if (unit.0 as usize) < 64 {
+                    let bit = 1u64 << unit.0;
+                    implicit_use_mask |= bit;
+                    if (unit_kills_mask & bit) == 0 {
+                        upward_unit_uses_mask |= bit;
+                    }
+                } else {
+                    implicit_use_units.push(unit);
+                    if !unit_kills.contains(&unit) && !upward_unit_uses.contains(&unit) {
+                        upward_unit_uses.push(unit);
+                    }
+                }
+            }
+            for &unit in terminator.implicit_defs.iter().chain(&terminator.clobbers) {
+                if (unit.0 as usize) < 64 {
+                    unit_kills_mask |= 1u64 << unit.0;
+                } else if !unit_kills.contains(&unit) {
+                    unit_kills.push(unit);
+                }
+            }
+            for operand in &terminator.operands {
+                set_register_bit(&mut referenced_register_bits, operand.virtual_register);
+                if let Some(view) = operand.fixed_view {
+                    if (view.0 as usize) < 64 {
+                        fixed_views_mask |= 1u64 << view.0;
+                    } else {
+                        fixed_views.push(view);
+                    }
+                }
+            }
+            let mut transport_count = Some(0usize);
+            for successor in super::terminator_successors(&self.block.terminator) {
+                let edge_transports = successor
+                    .bindings
+                    .len()
+                    .checked_add(successor.structural_bindings.len())
+                    .and_then(|total| {
+                        total.checked_add(
+                            successor
+                                .structural_case
+                                .as_ref()
+                                .map_or(0, |case| case.payloads.len().saturating_add(1)),
+                        )
+                    });
+                transport_count = transport_count
+                    .zip(edge_transports)
+                    .and_then(|(total, edge)| total.checked_add(edge));
+                for binding in &successor.bindings {
+                    if let super::SelectedValueTransport::Registers {
+                        argument,
+                        parameter,
+                    } = binding.transport
+                    {
+                        set_register_bit(&mut referenced_register_bits, argument);
+                        set_register_bit(&mut referenced_register_bits, parameter);
+                    }
+                }
+                for binding in &successor.structural_bindings {
+                    match binding.transport {
+                        super::SelectedStructuralTransport::WholeValue {
+                            argument,
+                            ..
+                        } => {
+                            set_register_bit(&mut referenced_register_bits, argument);
+                        }
+                        super::SelectedStructuralTransport::ScalarReference {
+                            base: super::SelectedAddressBase::Register(argument),
+                            ..
+                        }
+                        | super::SelectedStructuralTransport::Address {
+                            base: super::SelectedAddressBase::Register(argument),
+                            ..
+                        } => {
+                            set_register_bit(&mut referenced_register_bits, argument);
+                        }
+                        _ => {}
+                    }
+                }
+                if let Some(case) = &successor.structural_case {
+                    if let super::SelectedCaseDispatchSource::Borrowed { pointer, .. } = case.source
+                    {
+                        set_register_bit(&mut referenced_register_bits, pointer);
+                    }
+                    for payload in &case.payloads {
+                        match payload.transport {
+                            super::SelectedCasePayloadTransport::Registers {
+                                argument,
+                                parameter,
+                            } => {
+                                set_register_bit(&mut referenced_register_bits, argument);
+                                set_register_bit(&mut referenced_register_bits, parameter);
+                            }
+                            super::SelectedCasePayloadTransport::Unmaterialized { parameter } => {
+                                set_register_bit(&mut referenced_register_bits, parameter);
+                            }
+                            super::SelectedCasePayloadTransport::Unused => {}
+                        }
+                    }
+                }
+            }
+            let mut m = implicit_use_mask;
+            while m != 0 {
+                let bit = m.trailing_zeros() as u16;
+                m &= m - 1;
+                implicit_use_units.push(register_model::RegisterUnitId(bit));
+            }
+            if implicit_use_units.len() > implicit_use_mask.count_ones() as usize {
+                implicit_use_units.sort_unstable();
+                implicit_use_units.dedup();
+            }
+            let mut m = upward_unit_uses_mask;
+            while m != 0 {
+                let bit = m.trailing_zeros() as u16;
+                m &= m - 1;
+                upward_unit_uses.push(register_model::RegisterUnitId(bit));
+            }
+            let mut m = unit_kills_mask;
+            while m != 0 {
+                let bit = m.trailing_zeros() as u16;
+                m &= m - 1;
+                unit_kills.push(register_model::RegisterUnitId(bit));
+            }
+            let mut m = fixed_views_mask;
+            while m != 0 {
+                let bit = m.trailing_zeros() as u16;
+                m &= m - 1;
+                fixed_views.push(register_model::RegisterViewId(bit));
+            }
+            if fixed_views.len() > fixed_views_mask.count_ones() as usize {
+                fixed_views.sort_unstable();
+                fixed_views.dedup();
+            }
+            BlockLookup {
+                fixed_definition_bits,
+                materialize_definition_bits,
+                maximum_instruction: maximum,
+                operand_count,
+                transport_count,
+                implicit_use_units,
+                upward_unit_uses,
+                unit_kills,
+                unit_writer_indices,
+                fixed_views,
+                instruction_bits,
+                instruction_ids,
+                referenced_register_bits,
+                register_instruction_spans,
+            }
+        })
+    }
+    fn slot_summary(&self) -> &BlockSlotSummary {
+        self.slot_summary.get_or_init(|| {
+            let bitset_words = (self.block.instructions.len() / 16).max(4);
+            let mut slot_summary = BlockSlotSummary {
+                events: Vec::new(),
+                loads: Vec::new(),
+                non_load_register_bits: Vec::with_capacity(bitset_words),
+            };
+            for (index, instruction) in self.block.instructions.iter().enumerate() {
                 match instruction.kind {
                     super::SelectedInstructionKind::Store64 {
                         slot: super::FrameStorageSlotId::Local(target),
@@ -287,17 +481,7 @@ impl BlockEntry {
                     }
                 }
             }
-            implicit_use_units.extend_from_slice(&terminator.implicit_uses);
-            for &unit in &terminator.implicit_uses {
-                if !unit_kills.contains(&unit) && !upward_unit_uses.contains(&unit) {
-                    upward_unit_uses.push(unit);
-                }
-            }
-            for &unit in terminator.implicit_defs.iter().chain(&terminator.clobbers) {
-                if !unit_kills.contains(&unit) {
-                    unit_kills.push(unit);
-                }
-            }
+            let terminator = super::terminator_instruction(&self.block.terminator);
             match terminator.kind {
                 super::SelectedInstructionKind::Store64 {
                     slot: super::FrameStorageSlotId::Local(target),
@@ -316,10 +500,6 @@ impl BlockEntry {
                 _ => {}
             }
             for operand in &terminator.operands {
-                set_register_bit(&mut referenced_register_bits, operand.virtual_register);
-                if let Some(view) = operand.fixed_view {
-                    fixed_views.push(view);
-                }
                 if matches!(
                     terminator.kind,
                     super::SelectedInstructionKind::Load64 { byte_offset: 0 }
@@ -335,31 +515,11 @@ impl BlockEntry {
                     );
                 }
             }
-            let mut transport_count = Some(0usize);
             for successor in super::terminator_successors(&self.block.terminator) {
-                let edge_transports = successor
-                    .bindings
-                    .len()
-                    .checked_add(successor.structural_bindings.len())
-                    .and_then(|total| {
-                        total.checked_add(
-                            successor
-                                .structural_case
-                                .as_ref()
-                                .map_or(0, |case| case.payloads.len().saturating_add(1)),
-                        )
-                    });
-                transport_count = transport_count
-                    .zip(edge_transports)
-                    .and_then(|(total, edge)| total.checked_add(edge));
                 for binding in &successor.bindings {
-                    if let super::SelectedValueTransport::Registers {
-                        argument,
-                        parameter,
-                    } = binding.transport
+                    if let super::SelectedValueTransport::Registers { argument, .. } =
+                        binding.transport
                     {
-                        set_register_bit(&mut referenced_register_bits, argument);
-                        set_register_bit(&mut referenced_register_bits, parameter);
                         set_register_bit(&mut slot_summary.non_load_register_bits, argument);
                     }
                 }
@@ -370,7 +530,6 @@ impl BlockEntry {
                             argument,
                             ..
                         } => {
-                            set_register_bit(&mut referenced_register_bits, argument);
                             slot_summary
                                 .events
                                 .push(BlockSlotEvent::Invalidate { slot: destination });
@@ -396,7 +555,6 @@ impl BlockEntry {
                                         .push(BlockSlotEvent::Invalidate { slot: base_slot });
                                 }
                                 super::SelectedAddressBase::Register(argument) => {
-                                    set_register_bit(&mut referenced_register_bits, argument);
                                     set_register_bit(
                                         &mut slot_summary.non_load_register_bits,
                                         argument,
@@ -413,55 +571,19 @@ impl BlockEntry {
                             .events
                             .push(BlockSlotEvent::Invalidate { slot: case_slot });
                     }
-                    if let super::SelectedCaseDispatchSource::Borrowed { pointer, .. } = case.source
-                    {
-                        set_register_bit(&mut referenced_register_bits, pointer);
-                    }
                     for payload in &case.payloads {
-                        match payload.transport {
-                            super::SelectedCasePayloadTransport::Registers {
+                        if let super::SelectedCasePayloadTransport::Registers { argument, .. } =
+                            payload.transport
+                        {
+                            set_register_bit(
+                                &mut slot_summary.non_load_register_bits,
                                 argument,
-                                parameter,
-                            } => {
-                                set_register_bit(&mut referenced_register_bits, argument);
-                                set_register_bit(&mut referenced_register_bits, parameter);
-                                set_register_bit(
-                                    &mut slot_summary.non_load_register_bits,
-                                    argument,
-                                );
-                            }
-                            super::SelectedCasePayloadTransport::Unmaterialized { parameter } => {
-                                set_register_bit(&mut referenced_register_bits, parameter);
-                            }
-                            super::SelectedCasePayloadTransport::Unused => {}
+                            );
                         }
                     }
                 }
             }
-            fixed_definitions.sort_unstable();
-            fixed_definitions.dedup();
-            implicit_use_units.sort_unstable();
-            implicit_use_units.dedup();
-            fixed_views.sort_unstable();
-            fixed_views.dedup();
-            if instructions_sorted.windows(2).any(|w| w[0].0 >= w[1].0) {
-                instructions_sorted.sort_unstable();
-            }
-            BlockLookup {
-                fixed_definitions,
-                maximum_instruction: maximum,
-                operand_count,
-                transport_count,
-                implicit_use_units,
-                upward_unit_uses,
-                unit_kills,
-                unit_writer_indices,
-                fixed_views,
-                instructions_sorted,
-                referenced_register_bits,
-                register_instruction_spans,
-                slot_summary,
-            }
+            slot_summary
         })
     }
 }
@@ -485,6 +607,7 @@ fn detach(entry: &mut Arc<BlockEntry>) -> &mut SelectedBlock {
     entry.encoding.take();
     entry.previous_encoding = None;
     entry.lookup.take();
+    entry.slot_summary.take();
     &mut entry.block
 }
 fn block_of(entry: &Arc<BlockEntry>) -> &SelectedBlock {
@@ -494,11 +617,27 @@ impl SelectedBlocks {
     /// A mechanical negative filter for split admission. Positive candidates
     /// still undergo the complete source/constraint/use audit at its owner.
     pub fn has_fixed_definition(&self, register: VirtualRegisterId) -> bool {
+        let word = (register.0 as usize) >> 6;
+        let mask = 1u64 << (register.0 & 63);
         self.0.iter().any(|entry| {
-            let defs = &entry.lookup().fixed_definitions;
-            defs.first()
-                .is_some_and(|&first| register >= first && register <= *defs.last().unwrap())
-                && defs.binary_search(&register).is_ok()
+            entry
+                .lookup()
+                .fixed_definition_bits
+                .get(word)
+                .is_some_and(|&bits| (bits & mask) != 0)
+        })
+    }
+    /// A mechanical negative filter for rematerialization admission. Positive
+    /// candidates still undergo the complete source/constraint/use audit at its owner.
+    pub fn has_materialize_definition(&self, register: VirtualRegisterId) -> bool {
+        let word = (register.0 as usize) >> 6;
+        let mask = 1u64 << (register.0 & 63);
+        self.0.iter().any(|entry| {
+            entry
+                .lookup()
+                .materialize_definition_bits
+                .get(word)
+                .is_some_and(|&bits| (bits & mask) != 0)
         })
     }
     pub fn maximum_instruction_id(&self) -> Option<SelectedInstructionId> {
@@ -518,6 +657,14 @@ impl SelectedBlocks {
         self.0.iter().try_fold(0usize, |total, entry| {
             total.checked_add(entry.lookup().transport_count?)
         })
+    }
+    /// Maximum 64-bit word count of referenced register bitsets across all blocks.
+    pub fn max_referenced_register_word_count(&self) -> usize {
+        self.0
+            .iter()
+            .map(|entry| entry.lookup().referenced_register_bits.len())
+            .max()
+            .unwrap_or(0)
     }
     /// Inclusive `(first_instruction_index, last_instruction_index)` in `block_index`'s
     /// body instructions where `register` appears as an operand, or `None` when no
@@ -556,22 +703,26 @@ impl SelectedBlocks {
     }
     /// Replace `index`'s instructions and terminator without cloning the old
     /// `SelectedBlock` when the entry is shared, optionally retaining the first
-    /// `unchanged_instruction_prefix` instructions' pre-encoded digest pages.
+    /// `unchanged_instruction_prefix` and last `unchanged_instruction_suffix`
+    /// instructions' pre-encoded digest chunks.
     pub fn replace_block_contents(
         &mut self,
         index: usize,
         instructions: Vec<SelectedInstruction>,
         terminator: SelectedTerminator,
         unchanged_instruction_prefix: usize,
+        unchanged_instruction_suffix: usize,
     ) {
         let entry = &self.0[index];
         let id = entry.block.id;
         let origin = entry.block.origin;
-        let previous_encoding = entry
-            .encoding
-            .get()
-            .cloned()
-            .map(|enc| (enc, unchanged_instruction_prefix));
+        let previous_encoding = entry.encoding.get().cloned().map(|enc| {
+            (
+                enc,
+                unchanged_instruction_prefix,
+                unchanged_instruction_suffix,
+            )
+        });
         self.0[index] = BlockEntry::new_with_previous_encoding(
             SelectedBlock {
                 id,
@@ -585,12 +736,14 @@ impl SelectedBlocks {
     /// Block index containing the body instruction `instruction`, using each
     /// block's memoized instruction index.
     pub fn instruction_block(&self, instruction: SelectedInstructionId) -> Option<usize> {
+        let word = (instruction.0 as usize) >> 6;
+        let mask = 1u64 << (instruction.0 & 63);
         self.0.iter().position(|entry| {
             entry
                 .lookup()
-                .instructions_sorted
-                .binary_search_by_key(&instruction, |&(id, _)| id)
-                .is_ok()
+                .instruction_bits
+                .get(word)
+                .is_some_and(|&bits| (bits & mask) != 0)
         })
     }
     /// Instruction index inside `block_index` for body instruction `instruction`.
@@ -599,14 +752,19 @@ impl SelectedBlocks {
         block_index: usize,
         instruction: SelectedInstructionId,
     ) -> Option<usize> {
-        let sorted = &self.0.get(block_index)?.lookup().instructions_sorted;
-        let mut pos = sorted
-            .binary_search_by_key(&instruction, |&(id, _)| id)
-            .ok()?;
-        while pos > 0 && sorted[pos - 1].0 == instruction {
-            pos -= 1;
+        let lookup = self.0.get(block_index)?.lookup();
+        let word = (instruction.0 as usize) >> 6;
+        if !lookup
+            .instruction_bits
+            .get(word)
+            .is_some_and(|&bits| (bits & (1u64 << (instruction.0 & 63))) != 0)
+        {
+            return None;
         }
-        Some(sorted[pos].1)
+        lookup
+            .instruction_ids
+            .iter()
+            .position(|&id| id == instruction.0)
     }
     /// Memoized implicit-use units and fixed views per block.
     pub fn block_implicit_units_and_fixed_views(
@@ -630,7 +788,7 @@ impl SelectedBlocks {
     }
     /// Memoized slot access summary per block.
     pub fn block_slot_summary(&self, block_index: usize) -> Option<&BlockSlotSummary> {
-        Some(&self.0.get(block_index)?.lookup().slot_summary)
+        Some(self.0.get(block_index)?.slot_summary())
     }
     /// Whether `block_index` references `register` in any instruction, terminator, or edge transport.
     pub fn block_references_register(&self, block_index: usize, register: VirtualRegisterId) -> bool {

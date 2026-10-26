@@ -11,16 +11,13 @@ pub(crate) struct SelectedLoweringRuleCatalogPayload {
 }
 
 impl SelectedLoweringRuleCatalogPayload {
-    pub const fn policy(self) -> LiteralFoldPolicy {
-        self.policy
-    }
-
+    receipt_accessor_rows!(SelectedLoweringRuleCatalogPayload {
+        policy: LiteralFoldPolicy,
     /// Every symbolic instruction-pair rule this exact selection admits, in
     /// catalog order. A selection names one family; a family may cover several
     /// disjoint consumer kinds, as the extension-elimination selection does.
-    pub const fn pairs(self) -> &'static [SelectedInstructionPairRule] {
-        self.pairs
-    }
+        pairs: &'static [SelectedInstructionPairRule],
+    });
 }
 
 pub(crate) type SelectedLoweringRuleCatalogEntry =

@@ -1062,6 +1062,37 @@ impl TypedTrees {
         )
     }
 
+    /// Add one invocation's value arguments to the retained trait application.
+    /// Index replacements are simultaneous caller operands, not type binders
+    /// or inferred receiving annotations. Missing index custody fails closed.
+    /// Regions remain with the independent borrow application judgment; this
+    /// region-free projection cannot equate erased lifetime namespaces.
+    pub fn scoped_type_identity_with_index_arguments(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        scope_starts: &[usize],
+        arguments: &[(SymbolHandle, IndexIdentityArgument<'_>)],
+    ) -> Option<NormalizedTypeIdentity> {
+        let invalid = Cell::new(false);
+        let regions = Cell::new(false);
+        let identity = normalize_type_reference(
+            self,
+            request.type_reference,
+            &TypeIdentityContext {
+                binders: request.binders,
+                substitutions: request.substitutions,
+                substitution_scope_starts: scope_starts,
+                index_substitutions: arguments,
+                invalid_index_argument: Some(&invalid),
+                invalid_application: Some(&invalid),
+                encountered_regions: Some(&regions),
+                qualification: request.qualification,
+                ..TypeIdentityContext::default()
+            },
+        );
+        (!invalid.get() && !regions.get()).then_some(program_intern_type_identity(self, identity))
+    }
+
     /// The ordinary scoped identity only when its entire normalization path
     /// encounters no explicit or elided region. This does not encode regions
     /// portably: it refuses to treat their erased carrier as an exact applied
@@ -1216,15 +1247,23 @@ impl TypedTrees {
         // keep physical slots distinct. That suffix is not part of the
         // authored overload: every body in the family has the same path,
         // including when the declaration belongs to a module.
+        let mut lexical_path = vec![machine.name.as_str().to_owned()];
+        let mut parent = self.symbols.get(machine.symbol).parent;
+        while parent.is_valid() && self.symbols.get(parent).kind == symbols::SymbolKind::Machine {
+            let owner = self.machine_by_symbol(parent)?;
+            lexical_path.push(owner.name.as_str().to_owned());
+            parent = self.symbols.get(parent).parent;
+        }
+        lexical_path.reverse();
+        let lexical_path = lexical_path.join("::");
         let module_path = module.is_valid().then(|| {
             format!(
-                "{}::{}",
-                self.symbols.display_path(module, "::"),
-                machine.name
+                "{}::{lexical_path}",
+                self.symbols.display_path(module, "::")
             )
         });
         Some(self.named_callable_identity_parts(
-            module_path.as_deref().unwrap_or(machine.name.as_str()),
+            module_path.as_deref().unwrap_or(&lexical_path),
             machine.symbol,
             self.machine_type_parameters(machine),
             self.state_parameters(entry),

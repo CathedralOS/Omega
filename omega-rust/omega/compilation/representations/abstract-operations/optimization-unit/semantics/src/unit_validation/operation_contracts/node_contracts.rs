@@ -1,8 +1,8 @@
-use crate::OptimizationUnitValidationError;
 use crate::unit_validation::operation_contracts::scalar_types::operation_scalar_types_match;
 use crate::unit_validation::operation_contracts::service_calls::{
     operation_service_contract_matches, operation_structural_call_contract_matches,
 };
+use crate::{OperationSite, OptimizationUnitValidationError};
 use optimization_unit::{PsiOptimizationFunction, ValueDefinition};
 use semantic_vocabulary::{
     BoundaryMachineId, MachineId, ServiceId, StructuralDomainId, StructuralTypeId, ValueId,
@@ -32,11 +32,11 @@ pub(super) fn validate_node_operation_contracts(
         boundary_machines,
     ) {
         return Err(
-            OptimizationUnitValidationError::ScalarOperationContractMismatch {
-                machine: function.machine,
-                block: block.id,
-                node: u32::try_from(node_index).expect("unit node index fits u32"),
-            },
+            OptimizationUnitValidationError::ScalarOperationContractMismatch(OperationSite::new(
+                function.machine,
+                block.id,
+                u32::try_from(node_index).expect("unit node index fits u32"),
+            )),
         );
     }
     if !operation_structural_call_contract_matches(
@@ -49,11 +49,11 @@ pub(super) fn validate_node_operation_contracts(
         structural_domains,
     ) {
         return Err(
-            OptimizationUnitValidationError::StructuralCallContractMismatch {
-                machine: function.machine,
-                block: block.id,
-                node: u32::try_from(node_index).expect("unit node index fits u32"),
-            },
+            OptimizationUnitValidationError::StructuralCallContractMismatch(OperationSite::new(
+                function.machine,
+                block.id,
+                u32::try_from(node_index).expect("unit node index fits u32"),
+            )),
         );
     }
     if !operation_service_contract_matches(
@@ -65,11 +65,11 @@ pub(super) fn validate_node_operation_contracts(
         services,
     ) {
         return Err(
-            OptimizationUnitValidationError::OperationServiceContractMismatch {
-                machine: function.machine,
-                block: block.id,
-                node: u32::try_from(node_index).expect("unit node index fits u32"),
-            },
+            OptimizationUnitValidationError::OperationServiceContractMismatch(OperationSite::new(
+                function.machine,
+                block.id,
+                u32::try_from(node_index).expect("unit node index fits u32"),
+            )),
         );
     }
     Ok(())

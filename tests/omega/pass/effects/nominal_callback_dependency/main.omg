@@ -9,3 +9,14 @@ machine note() reaches Console {}
 public machine traverse<machine Step>(value: u64) -> u64
 where machine Step satisfies StepContract::step;
 { Step(value) }
+
+machine answer(value: u64) -> u64 satisfies StepContract::step { value }
+
+machine main() crashes Trap {
+    transition traverse<answer>(42u64) == 42u64 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

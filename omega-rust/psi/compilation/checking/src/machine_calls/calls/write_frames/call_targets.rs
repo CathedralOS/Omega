@@ -26,6 +26,40 @@ pub(super) fn call_argument_types(
     site: super::caller_aliases::CallerWriteSite<'_>,
     symbols: &TopLevelSymbols<'_>,
 ) -> Vec<TypeReferenceHandle> {
+    // A dynamic slot has already instantiated its complete operand roster,
+    // including the independent selector. The public declaration omits that
+    // lane, so reading it here would shift every actual's type by one position.
+    if let Some(slot) = program.dynamic_slot_by_symbol(target_symbol) {
+        return slot
+            .parameters
+            .iter()
+            .map(|parameter| parameter.type_reference)
+            .collect();
+    }
+    let explicit_operator_roster = match site {
+        super::caller_aliases::CallerWriteSite::Expression(expression) => program
+            .expression_table
+            .call_node(expression)
+            .is_some_and(|call| program.call_has_no_runtime_receiver_for_target(call)),
+        super::caller_aliases::CallerWriteSite::Call(call) => {
+            typed_trees::operator::selected_named_statement_call_has_no_runtime_receiver(
+                program, call,
+            )
+        }
+        _ => false,
+    };
+    if explicit_operator_roster
+        && let Some(operator) = program.operator_definition_by_symbol(target_symbol)
+    {
+        // Only the authenticated explicit operand roster supplies these types.
+        // A runtime receiver has its own origin lane and cannot shift argument
+        // zero onto self. Writable generic formals remain independently checked.
+        return program
+            .operator_parameters(operator)
+            .iter()
+            .map(|parameter| parameter.type_reference)
+            .collect();
+    }
     let Some((machine, state)) = machine_state_by_symbol(program, target_symbol).or_else(|| {
         receiver
             .is_empty()

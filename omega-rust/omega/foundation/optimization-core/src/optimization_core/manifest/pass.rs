@@ -86,25 +86,13 @@ impl OptimizationPassManifestRecord {
         encoded.extend_from_slice(&self.input.bytes());
         encoded.extend_from_slice(&self.output.bytes());
         encoded.extend_from_slice(&self.ordered_rule_set.bytes());
-        encoded.extend_from_slice(
-            &u32::try_from(self.ordered_rules.len())
-                .expect("pass manifest rule count fits u32")
-                .to_le_bytes(),
-        );
+        crate::codec_bytes::push_count_u32(&mut encoded, self.ordered_rules.len());
         for rule in &self.ordered_rules {
             encoded.extend_from_slice(&rule.bytes());
         }
-        encoded.extend_from_slice(
-            &u32::try_from(decisions.len())
-                .expect("pass manifest decision count fits u32")
-                .to_le_bytes(),
-        );
+        crate::codec_bytes::push_count_u32(&mut encoded, decisions.len());
         for decision in decisions {
-            encoded.extend_from_slice(
-                &u32::try_from(decision.len())
-                    .expect("decision record length fits u32")
-                    .to_le_bytes(),
-            );
+            crate::codec_bytes::push_count_u32(&mut encoded, decision.len());
             encoded.extend_from_slice(&decision);
         }
         encoded.extend_from_slice(&self.work_usage.encode());

@@ -41,6 +41,7 @@ mod primitive_storage;
 mod program_image;
 mod records;
 pub(super) mod references;
+mod row;
 pub(super) mod scalar_arrays;
 pub(super) mod scalar_sources;
 mod selected_boundary_calls;
@@ -48,6 +49,7 @@ mod structural_case;
 mod terminator;
 mod transfers;
 use operations::lower_operation;
+use row::RowSite;
 use target_operations::{TargetControlBlock, TargetControlGraph, TargetScalarBlockParameter};
 use terminator::lower_terminator;
 
@@ -659,11 +661,16 @@ pub(super) fn lower(
                 );
                 lower_operation(
                     operation,
-                    function,
+                    &mut RowSite::new(
+                        function,
+                        structural_types,
+                        &mut live,
+                        &mut operations,
+                        provenance,
+                    ),
                     target,
                     functions,
                     dynamic_dispatch,
-                    structural_types,
                     boundary_machines,
                     settlements,
                     selected_calls,
@@ -671,9 +678,6 @@ pub(super) fn lower(
                     native_callbacks,
                     &prepared,
                     &parameters_by_place,
-                    &mut live,
-                    &mut operations,
-                    provenance,
                 )?;
             }
             live.reference_position = (

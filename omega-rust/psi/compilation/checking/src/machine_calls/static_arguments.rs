@@ -505,9 +505,9 @@ pub fn forwarded_type(
     }
 }
 
-/// A call or field already spelled as a const-expression payload. A `Value`
-/// binder evaluates that expression; it is not a type argument. Names and
-/// evidence-shaped field projections are classified separately.
+/// An ordinary expression retained in the parser's const-expression payload.
+/// Its selected binder determines whether it is runtime-capable or must close
+/// statically. Names and evidence-shaped projections have separate payloads.
 pub fn is_runtime_value_expression(
     program: &dyn crate::CheckingInput,
     argument: &StaticMachineArgument,
@@ -518,10 +518,7 @@ pub fn is_runtime_value_expression(
     else {
         return false;
     };
-    matches!(
-        program.expression_table.expression(*expression),
-        ExpressionNode::Call(_) | ExpressionNode::Member(_)
-    )
+    program.expression_table.expression_is_valid(*expression)
 }
 
 /// The shape of one ordinary runtime subject admissible into a `Value`

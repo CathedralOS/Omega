@@ -1122,10 +1122,17 @@ fn prepare_owners(
             })
             && available(local.symbol, local.statement_index)?
             && !owners.iter().any(|owner| owner.symbol == local.symbol)
+            && !evaluation.retired_structural_homes.iter().any(|retired| {
+                retired.symbol == local.symbol && retired.statement == local.statement_index
+            })
         {
-            return unsupported(
-                "selection transport requires a typed frontier entry for every live owned local",
-            );
+            return Err(LoweringError::MissingSelectionFrontier {
+                machine: checked.symbols.display_path(machine, "::"),
+                state: checked.symbols.display_path(state, "::"),
+                statement_index: statement,
+                local: checked.symbols.display_path(local.symbol, "::"),
+                formation_statement: local.statement_index,
+            });
         }
     }
     Ok(owners)
@@ -2963,7 +2970,8 @@ impl Emission<'_, '_, '_> {
         positions.push((field_index, self.values.len()));
         self.values.push(evaluated);
         let range_obligation =
-            if terminal_semantics::scalar_field_requires_evidence(&field.field_type) {
+            if terminal_semantics::scalar_field_requires_initialization_evidence(&field.field_type)
+            {
                 Some(obligation_id(allocate_dense(
                     &mut self.calls.next_obligation_identity,
                 )?))

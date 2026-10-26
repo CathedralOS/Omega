@@ -4,7 +4,7 @@ use physical_instructions::PostAllocationMachineInstruction;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
     MachineAlternativeFamily, SelectedBlock, SelectedBlockId, SelectedInstruction,
-    SelectedTerminator,
+    SelectedSuccessor, SelectedTerminator,
 };
 use target::Architecture;
 
@@ -14,6 +14,57 @@ use super::super::{
     declared_size_matches,
 };
 use super::plan::{branch_size, unexpected};
+
+/// One selected conditional-branch terminator read as the branch it encodes:
+/// the resolved predicate plus the instruction and the two successor rows the
+/// terminator carries. The resolver, the layout plan's widening check, both
+/// order walks and the independent validator read a block's terminator through
+/// this one owner; `None` names a terminator that is not a conditional branch.
+pub(crate) struct ConditionalBranchDescriptor<'a> {
+    pub(crate) predicate: ResolvedConditionalBranchPredicate,
+    pub(crate) terminator: &'a SelectedInstruction,
+    pub(crate) when_taken: &'a SelectedSuccessor,
+    pub(crate) when_fallthrough: &'a SelectedSuccessor,
+}
+
+pub(crate) fn conditional_branch_descriptor(
+    block: &SelectedBlock,
+) -> Option<ConditionalBranchDescriptor<'_>> {
+    match &block.terminator {
+        SelectedTerminator::ConditionalBranch {
+            instruction,
+            when_nonzero,
+            when_zero,
+        } => Some(ConditionalBranchDescriptor {
+            predicate: ResolvedConditionalBranchPredicate::NonZeroV1,
+            terminator: instruction,
+            when_taken: when_nonzero,
+            when_fallthrough: when_zero,
+        }),
+        SelectedTerminator::ConditionalBranchU64LessThan {
+            instruction,
+            when_less,
+            when_not_less,
+        } => Some(ConditionalBranchDescriptor {
+            predicate: ResolvedConditionalBranchPredicate::U64LessThanV1,
+            terminator: instruction,
+            when_taken: when_less,
+            when_fallthrough: when_not_less,
+        }),
+        SelectedTerminator::ConditionalBranchI64LessThan {
+            instruction,
+            when_less,
+            when_not_less,
+        } => Some(ConditionalBranchDescriptor {
+            predicate: ResolvedConditionalBranchPredicate::I64LessThanV1,
+            terminator: instruction,
+            when_taken: when_less,
+            when_fallthrough: when_not_less,
+        }),
+        SelectedTerminator::Jump { .. }
+        | selected_instructions::terminator_no_successor_pattern!(..) => None,
+    }
+}
 
 /// The machine alternative family one resolved conditional-branch predicate
 /// names: the stage's own guard on the recorded alternative, and the family
@@ -46,104 +97,79 @@ pub(super) fn resolve(
     widened: bool,
 ) -> Result<(Vec<u8>, Option<Box<ResolvedBranchEvidence>>), OptimizedResolvedSelectedFormLayoutError>
 {
-    let (predicate, terminator, when_taken, when_fallthrough) = match &block.terminator {
-        SelectedTerminator::Jump {
-            instruction: jump,
-            successor,
-        } => {
-            if jump.id != instruction.id {
-                return unexpected(instruction.id);
-            }
-            let target_offset = *block_offsets.get(&successor.block).ok_or(
-                OptimizedResolvedSelectedFormLayoutError::BranchFallthroughMismatch(instruction.id),
-            )?;
-            let (bytes, displacement, effects) = match architecture {
-                Architecture::X86_64 => {
-                    let end = instruction_offset
-                        .checked_add(5)
-                        .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
-                    let displacement = super::plan::byte_displacement(target_offset, end)?;
-                    let result = isa_x86_64::encode_x86_64_selected_jump_form(
-                        physical,
-                        machine.alternative.key,
-                        displacement,
-                    )
-                    .map_err(OptimizedResolvedSelectedFormLayoutError::X86_64)?;
-                    (
-                        result.bytes().to_vec(),
-                        displacement,
-                        result.footprint().encoded.clone(),
-                    )
-                }
-                Architecture::Aarch64 => {
-                    let displacement =
-                        super::plan::byte_displacement(target_offset, instruction_offset)?;
-                    let result = isa_aarch64::encode_aarch64_selected_jump_form(
-                        physical,
-                        machine.alternative.key,
-                        displacement,
-                    )
-                    .map_err(OptimizedResolvedSelectedFormLayoutError::Aarch64)?;
-                    (
-                        result.bytes().to_vec(),
-                        displacement,
-                        result.footprint().encoded.clone(),
-                    )
-                }
-            };
-            if effects != machine.alternative.encoded
-                || !declared_size_matches(machine.alternative.size, bytes.len() as u64)
-            {
-                return unexpected(instruction.id);
-            }
-            return Ok((
-                bytes,
-                Some(Box::new(ResolvedBranchEvidence::Jump(
-                    ResolvedJumpEvidence {
-                        source_block: block.id,
-                        target_edge: successor.psi_edge,
-                        target_block: successor.block,
-                        target_offset,
-                        byte_displacement: displacement,
-                        decoded_effects: effects,
-                    },
-                ))),
-            ));
-        }
-        SelectedTerminator::ConditionalBranch {
-            instruction,
-            when_nonzero,
-            when_zero,
-        } => (
-            ResolvedConditionalBranchPredicate::NonZeroV1,
-            instruction,
-            when_nonzero,
-            when_zero,
-        ),
-        SelectedTerminator::ConditionalBranchU64LessThan {
-            instruction,
-            when_less,
-            when_not_less,
-        } => (
-            ResolvedConditionalBranchPredicate::U64LessThanV1,
-            instruction,
-            when_less,
-            when_not_less,
-        ),
-        SelectedTerminator::ConditionalBranchI64LessThan {
-            instruction,
-            when_less,
-            when_not_less,
-        } => (
-            ResolvedConditionalBranchPredicate::I64LessThanV1,
-            instruction,
-            when_less,
-            when_not_less,
-        ),
-        selected_instructions::terminator_no_successor_pattern!(..) => {
+    if let SelectedTerminator::Jump {
+        instruction: jump,
+        successor,
+    } = &block.terminator
+    {
+        if jump.id != instruction.id {
             return unexpected(instruction.id);
         }
+        let target_offset = *block_offsets.get(&successor.block).ok_or(
+            OptimizedResolvedSelectedFormLayoutError::BranchFallthroughMismatch(instruction.id),
+        )?;
+        let (bytes, displacement, effects) = match architecture {
+            Architecture::X86_64 => {
+                let end = instruction_offset
+                    .checked_add(5)
+                    .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+                let displacement = super::plan::byte_displacement(target_offset, end)?;
+                let result = isa_x86_64::encode_x86_64_selected_jump_form(
+                    physical,
+                    machine.alternative.key,
+                    displacement,
+                )
+                .map_err(OptimizedResolvedSelectedFormLayoutError::X86_64)?;
+                (
+                    result.bytes().to_vec(),
+                    displacement,
+                    result.footprint().encoded.clone(),
+                )
+            }
+            Architecture::Aarch64 => {
+                let displacement =
+                    super::plan::byte_displacement(target_offset, instruction_offset)?;
+                let result = isa_aarch64::encode_aarch64_selected_jump_form(
+                    physical,
+                    machine.alternative.key,
+                    displacement,
+                )
+                .map_err(OptimizedResolvedSelectedFormLayoutError::Aarch64)?;
+                (
+                    result.bytes().to_vec(),
+                    displacement,
+                    result.footprint().encoded.clone(),
+                )
+            }
+        };
+        if effects != machine.alternative.encoded
+            || !declared_size_matches(machine.alternative.size, bytes.len() as u64)
+        {
+            return unexpected(instruction.id);
+        }
+        return Ok((
+            bytes,
+            Some(Box::new(ResolvedBranchEvidence::Jump(
+                ResolvedJumpEvidence {
+                    source_block: block.id,
+                    target_edge: successor.psi_edge,
+                    target_block: successor.block,
+                    target_offset,
+                    byte_displacement: displacement,
+                    decoded_effects: effects,
+                },
+            ))),
+        ));
+    }
+    let Some(descriptor) = conditional_branch_descriptor(block) else {
+        return unexpected(instruction.id);
     };
+    let ConditionalBranchDescriptor {
+        predicate,
+        terminator,
+        when_taken,
+        when_fallthrough,
+    } = descriptor;
     if terminator.id != instruction.id {
         return unexpected(instruction.id);
     }

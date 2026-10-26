@@ -173,3 +173,8 @@ the conformance gate.
   while keeping the same selector and requirement leaves both engines at exit
   0, confirming the selector and data lanes are independent operands with no
   receiver attachment.
+
+The [named-contract production](alias_contract/README.md) preserves this same
+fact, bound and subtraction through all nine places when the public result
+guarantee is expressed by a typed mathematical alias. Its separate reject twins
+weaken only that public bound and retain the implementation's stronger guarantee.

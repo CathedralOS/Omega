@@ -1,6 +1,8 @@
 //! Portable corpus provision for resumable cleanup of a source-produced linear owner.
 //! This adapter records the exact authored Console byte boundary. It is a
 //! semantic test sink, not native Console/provider qualification.
+#[path = "terminal_provision.rs"]
+mod terminal_provision;
 
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType};
 use std::sync::{Arc, Mutex};
@@ -17,19 +19,7 @@ const EXPECTED: &[u8] = b"OPBA\n";
 
 /// A failed lifecycle assertion is a red fixture, not an aborted corpus.
 pub(super) fn observe(artifact: &CanonicalTerminalArtifact) -> Result<(), String> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| exercise(artifact))).map_err(
-        |failure| {
-            failure
-                .downcast_ref::<String>()
-                .cloned()
-                .or_else(|| {
-                    failure
-                        .downcast_ref::<&str>()
-                        .map(|message| (*message).to_owned())
-                })
-                .unwrap_or_else(|| "cleanup resume provision failed".to_owned())
-        },
-    )
+    terminal_provision::result(|| exercise(artifact), "cleanup resume provision failed")
 }
 
 fn hook_sites(module: &terminal_psi::TerminalModule, machine: MachineId) -> Vec<FuelChargeSite> {

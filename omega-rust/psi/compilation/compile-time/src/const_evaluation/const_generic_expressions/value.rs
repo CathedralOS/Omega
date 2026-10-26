@@ -1306,7 +1306,21 @@ fn land_anonymous(
         selected_arms,
         |expression| context.has_builtin(program, expression),
     )
-    .ok_or("anonymous constant expression cannot land exactly at the selected integer carrier")?;
+    .ok_or_else(|| {
+        if let Some(value) = validation::evaluate_anonymous_numeric_expression(
+            program,
+            expression,
+            selected_arms,
+            |operand| context.has_builtin(program, operand),
+        ) && value.to_integer_exact().is_none()
+        {
+            return format!(
+                "exact anonymous value `{value}` cannot land in an integer const argument"
+            );
+        }
+        "anonymous constant expression cannot land exactly at the selected integer carrier"
+            .to_owned()
+    })?;
     if let Some(warning) = warning
         && !warnings.contains(&warning)
     {

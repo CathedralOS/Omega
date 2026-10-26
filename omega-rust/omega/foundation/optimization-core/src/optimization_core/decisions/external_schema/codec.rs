@@ -29,11 +29,7 @@ impl ExternalDecisionPoint {
         encoded.extend_from_slice(&self.identity.bytes());
         encoded.extend_from_slice(&self.input.bytes());
         encoded.extend_from_slice(&self.rule.bytes());
-        encoded.extend_from_slice(
-            &u32::try_from(self.legal_candidates.len())
-                .expect("external decision candidate count fits u32")
-                .to_le_bytes(),
-        );
+        crate::codec_bytes::push_count_u32(&mut encoded, self.legal_candidates.len());
         for candidate in &self.legal_candidates {
             encode_candidate_features(&mut encoded, candidate);
         }
@@ -88,18 +84,10 @@ impl ExternalDecisionLog {
         crate::codec_bytes::push_encoded(&mut encoded, VERSION.to_le_bytes());
         encoded.extend_from_slice(&self.identity.bytes());
         encode_context(&mut encoded, self.context);
-        encoded.extend_from_slice(
-            &u32::try_from(self.points.len())
-                .expect("external decision point count fits u32")
-                .to_le_bytes(),
-        );
+        crate::codec_bytes::push_count_u32(&mut encoded, self.points.len());
         for point in &self.points {
             let point = point.encode();
-            encoded.extend_from_slice(
-                &u32::try_from(point.len())
-                    .expect("external decision point encoding fits u32")
-                    .to_le_bytes(),
-            );
+            crate::codec_bytes::push_count_u32(&mut encoded, point.len());
             encoded.extend_from_slice(&point);
         }
         encoded
@@ -140,11 +128,7 @@ fn encode_candidate_features(encoded: &mut Vec<u8>, features: &ExternalCandidate
     encoded.extend_from_slice(&features.summary.candidate.bytes());
     crate::codec_bytes::push_encoded(encoded, features.summary.predicted_cost_delta.to_le_bytes());
     encoded.extend_from_slice(&features.consumed_analyses.encode());
-    encoded.extend_from_slice(
-        &u32::try_from(features.consumed_facts.len())
-            .expect("external candidate fact count fits u32")
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::push_count_u32(encoded, features.consumed_facts.len());
     for fact in &features.consumed_facts {
         encoded.extend_from_slice(&fact.encode());
     }

@@ -332,17 +332,29 @@ pub(crate) fn bind_current_guard(
     {
         return None;
     }
-    let Scalar::Boolean(mut expression) = crate::values::lower_unit_scalar_argument(
+    let mut expression = crate::values::lower_unit_scalar_argument(
         program,
         operators,
         state,
         statement_index,
         expression,
         PrimitiveType::Bool,
-    )?
-    else {
-        return None;
-    };
+    )
+    .and_then(|value| match value {
+        Scalar::Boolean(value) => Some(value),
+        _ => None,
+    })
+    .or_else(|| {
+        crate::values::lower_current_state_predicate(
+            program,
+            operators,
+            machine,
+            state,
+            statement_index,
+            expression,
+        )
+        .map(Box::new)
+    })?;
     let symbols = crate::values::unit_scalar_binding_symbols(program, state, statement_index)?;
     let mut bindings = Vec::new();
     map_observations(&mut expression, &mut |operand| {
@@ -940,6 +952,51 @@ pub(crate) fn map_scalar(
         Scalar::StructuralSequenceLength { .. } | Scalar::ErasedParameter { .. } => return None,
     }
     Some(())
+}
+
+/// A conditional edge owes !guard || requirement. Normalize both formulas
+/// into one exact observation namespace before constructing that goal; equal
+/// operand ordinals from different frames are not equal storage observations.
+/// This creates no premise and changes no contradiction/formation judgment.
+pub(crate) fn guarded_requirement(
+    guard: &BoundPredicate,
+    required: &BoundPredicate,
+) -> Option<BoundPredicate> {
+    let (expressions, observations) = normalize(&[guard.clone(), required.clone()])?;
+    let mut expressions = expressions.into_iter();
+    let guard_expression = expressions.next()?;
+    let required_expression = expressions.next()?;
+    let bindings = observations
+        .into_iter()
+        .enumerate()
+        .map(|(position, (place, primitive_type))| {
+            let source = guard
+                .bindings
+                .iter()
+                .chain(&required.bindings)
+                .find(|binding| {
+                    binding.place == place
+                        && binding.operand.primitive_type() == Some(primitive_type)
+                })?;
+            Some(BoundObservation {
+                operand: Scalar::Parameter {
+                    position,
+                    primitive_type,
+                },
+                place,
+                type_reference: source.type_reference,
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(BoundPredicate {
+        machine: required.machine,
+        entry_state: required.entry_state,
+        expression: Boolean::Or {
+            left: Box::new(Boolean::Not(Box::new(guard_expression))),
+            right: Box::new(required_expression),
+        },
+        bindings,
+    })
 }
 
 /// Prove a whole bound formula, including an implication whose selector is

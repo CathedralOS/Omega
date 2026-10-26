@@ -1,17 +1,6 @@
 //! Canonical home and fixed-site identity bytes; callers own their wire domains.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RegisterHomeIdentity(pub(crate) [u8; 32]);
-
-impl RegisterHomeIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+crate::identity_newtype! { pub struct RegisterHomeIdentity(pub(crate) [u8; 32]); }
 
 use register_model::RegisterOperandAccess;
 use selected_instructions::VirtualFixedConstraintSite;
@@ -51,18 +40,7 @@ pub(crate) fn encode_terminal_register_home_content(plan: &RegisterHomePlan) -> 
     bytes
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct AbstractSpillAccessConstraintPlanIdentity([u8; 32]);
-
-impl AbstractSpillAccessConstraintPlanIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+crate::identity_newtype! { pub struct AbstractSpillAccessConstraintPlanIdentity([u8; 32]); }
 
 pub(crate) fn encode_fixed_constraint_site_identity(
     bytes: &mut Vec<u8>,

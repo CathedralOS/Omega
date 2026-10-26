@@ -456,6 +456,15 @@ pub(crate) fn next_instruction_id(function: &SelectedFunction) -> Option<u32> {
 /// The register twin of [`next_instruction_id`].
 pub(crate) fn next_register_id(function: &SelectedFunction) -> Option<u32> {
     if let Some(last) = function.virtual_registers.last()
+        && last.id.0 as usize + 1 == function.virtual_registers.len()
+        && function
+            .virtual_registers
+            .first()
+            .is_some_and(|first| first.id.0 == 0)
+    {
+        return last.id.0.checked_add(1);
+    }
+    if let Some(last) = function.virtual_registers.last()
         && function.virtual_registers.len() > 1
         && last.id.0 as usize >= function.virtual_registers.len() - 1
         && function
@@ -1534,27 +1543,54 @@ pub(super) fn derive_runtime_spill<'source>(
     let any_flexible = flexible_uses.iter().any(|&flexible| flexible);
     let mut implicit_use_units = std::collections::BTreeSet::new();
     let mut pinned_units = std::collections::BTreeSet::new();
+    let mut base_excluded_mask = 0u64;
+    let mut can_use_unit_mask = false;
     if any_flexible {
         let model = environment.physical().model();
-        let mut seen_units = vec![false; model.units.len()];
-        let mut seen_views = vec![false; model.views.len()];
+        can_use_unit_mask = model
+            .views
+            .iter()
+            .all(|v| v.units.iter().chain(&v.write_units).all(|u| (u.0 as usize) < 64));
+        let mut units_mask = 0u64;
+        let mut views_mask = 0u64;
+        let mut seen_units = Vec::new();
+        let mut seen_views = Vec::new();
         let mut mark_unit = |unit: RegisterUnitId| {
             let idx = usize::from(unit.0);
-            if idx >= seen_units.len() {
-                seen_units.resize(idx + 1, false);
+            if idx < 64 {
+                units_mask |= 1u64 << idx;
+            } else {
+                if idx >= seen_units.len() {
+                    seen_units.resize(idx + 1, false);
+                }
+                seen_units[idx] = true;
             }
-            seen_units[idx] = true;
         };
         let mut mark_view = |view: register_model::RegisterViewId| {
             let idx = usize::from(view.0);
-            if idx >= seen_views.len() {
-                seen_views.resize(idx + 1, false);
+            if idx < 64 {
+                views_mask |= 1u64 << idx;
+            } else {
+                if idx >= seen_views.len() {
+                    seen_views.resize(idx + 1, false);
+                }
+                seen_views[idx] = true;
             }
-            seen_views[idx] = true;
         };
         for register in &function.virtual_registers {
             if let Some(view) = register.entry_fixed_view {
                 mark_view(view);
+            } else if register.id.0 as usize >= 256 {
+                // Reload and split registers appended during recovery never carry
+                // `entry_fixed_view` (`entry_fixed_view: None`), while original
+                // entry-bound registers sit near the front of `virtual_registers`.
+                // Scan the rest only if any holds `entry_fixed_view`.
+                for tail in &function.virtual_registers[register.id.0 as usize..] {
+                    if let Some(view) = tail.entry_fixed_view {
+                        mark_view(view);
+                    }
+                }
+                break;
             }
         }
         for block_index in 0..function.blocks.len() {
@@ -1590,25 +1626,97 @@ pub(super) fn derive_runtime_spill<'source>(
                 mark_unit(unit);
             }
         }
-        for (idx, &seen) in seen_units.iter().enumerate() {
-            if seen && let Ok(id) = u16::try_from(idx) {
-                implicit_use_units.insert(RegisterUnitId(id));
+        can_use_unit_mask &= seen_units.is_empty();
+        if can_use_unit_mask {
+            let mut pinned_mask = 0u64;
+            let mut vm = views_mask;
+            while vm != 0 {
+                let bit = vm.trailing_zeros() as usize;
+                vm &= vm - 1;
+                if let Some(view) = model.views.get(bit) {
+                    for &u in view.units.iter().chain(&view.write_units) {
+                        pinned_mask |= 1u64 << u.0;
+                    }
+                }
+            }
+            for (idx, &seen) in seen_views.iter().enumerate() {
+                if seen && let Some(view) = model.views.get(idx) {
+                    for &u in view.units.iter().chain(&view.write_units) {
+                        pinned_mask |= 1u64 << u.0;
+                    }
+                }
+            }
+            let mut reserved_mask = 0u64;
+            for &u in environment.reservations().reserved_units() {
+                if (u.0 as usize) < 64 {
+                    reserved_mask |= 1u64 << u.0;
+                }
+            }
+            base_excluded_mask = units_mask | pinned_mask | reserved_mask;
+        } else {
+            let mut um = units_mask;
+            while um != 0 {
+                let bit = um.trailing_zeros() as u16;
+                um &= um - 1;
+                implicit_use_units.insert(RegisterUnitId(bit));
+            }
+            for (idx, &seen) in seen_units.iter().enumerate() {
+                if seen && let Ok(id) = u16::try_from(idx) {
+                    implicit_use_units.insert(RegisterUnitId(id));
+                }
+            }
+            let mut pinned_mask = 0u64;
+            let mut vm = views_mask;
+            while vm != 0 {
+                let bit = vm.trailing_zeros() as usize;
+                vm &= vm - 1;
+                if let Some(view) = model.views.get(bit) {
+                    for &u in view.units.iter().chain(&view.write_units) {
+                        if (u.0 as usize) < 64 {
+                            pinned_mask |= 1u64 << u.0;
+                        } else {
+                            pinned_units.insert(u);
+                        }
+                    }
+                }
+            }
+            while pinned_mask != 0 {
+                let bit = pinned_mask.trailing_zeros() as u16;
+                pinned_mask &= pinned_mask - 1;
+                pinned_units.insert(RegisterUnitId(bit));
+            }
+            for (idx, &seen) in seen_views.iter().enumerate() {
+                if seen && let Some(view) = model.views.get(idx) {
+                    for &u in view.units.iter().chain(&view.write_units) {
+                        pinned_units.insert(u);
+                    }
+                }
             }
         }
-        pinned_units = seen_views
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, &seen)| seen.then_some(idx))
-            .flat_map(|idx| {
-                model
-                    .views
-                    .get(idx)
-                    .into_iter()
-                    .flat_map(|view| view.units.iter().chain(&view.write_units))
-            })
-            .copied()
-            .collect();
     }
+    let surviving_home_exists_mask = |excluded_mask: u64| -> bool {
+        let physical = environment.physical().model();
+        physical
+            .classes
+            .iter()
+            .find(|row| row.id == victim.class)
+            .is_some_and(|row| {
+                row.views.iter().any(|view_id| {
+                    physical
+                        .views
+                        .get(usize::from(view_id.0))
+                        .is_some_and(|view| {
+                            view.id == *view_id
+                                && view.allocatable
+                                && view
+                                    .units
+                                    .iter()
+                                    .chain(&view.write_units)
+                                    .all(|unit| (excluded_mask & (1u64 << unit.0)) == 0)
+                        })
+                })
+            })
+    };
     // One reload register stays open for consecutive flexible uses only
     // while the instructions between them cannot destroy register content;
     // a clobber or implicit definition closes it at rewrite time, so under
@@ -1616,13 +1724,17 @@ pub(super) fn derive_runtime_spill<'source>(
     // demands a callee-saved home recovery may not have.
     let empty_writes = std::collections::BTreeSet::new();
     let base_surviving_home = any_flexible
-        && surviving_home_exists(
-            environment,
-            victim.class,
-            &implicit_use_units,
-            &pinned_units,
-            &empty_writes,
-        );
+        && if can_use_unit_mask {
+            surviving_home_exists_mask(base_excluded_mask)
+        } else {
+            surviving_home_exists(
+                environment,
+                victim.class,
+                &implicit_use_units,
+                &pinned_units,
+                &empty_writes,
+            )
+        };
     let shared_reload: Vec<bool> = flexible_uses
         .iter()
         .map(|&flexible| flexible && base_surviving_home)
@@ -1645,43 +1757,70 @@ pub(super) fn derive_runtime_spill<'source>(
     // victim itself, so the held register's value no longer restates it.
     // Where no view survives, the instruction still closes the span and the
     // produced shape degrades to the bounded one.
-    let crossed_unit_writes: Vec<std::collections::BTreeSet<usize>> = function
+    let mut crossed_unit_writes: Vec<std::collections::BTreeSet<usize>> = function
         .blocks
         .iter()
-        .enumerate()
-        .map(|(block_index, block)| {
-            let mut crossed = std::collections::BTreeSet::new();
-            if span_policy == RuntimeSpillSpanPolicy::UnitWriteCrossing
-                && shared_reload[block_index]
-            {
-                let has_structural = structural_uses
-                    .iter()
-                    .any(|pending| pending.block == block_index);
-                let first_unpinned = use_positions[block_index].unpinned.first().copied();
-                let last_unpinned = use_positions[block_index].unpinned.iter().next_back().copied();
-                let mut open = false;
-                let mut written = std::collections::BTreeSet::new();
-                if let Some(start_idx) = first_unpinned {
-                    for (offset, instruction) in
-                        block.instructions[start_idx..].iter().enumerate()
+        .map(|_| std::collections::BTreeSet::new())
+        .collect();
+    if span_policy == RuntimeSpillSpanPolicy::UnitWriteCrossing {
+        for &block_index in &use_blocks {
+            if !shared_reload[block_index] {
+                continue;
+            }
+            let block = &function.blocks[block_index];
+            let has_structural = structural_uses
+                .iter()
+                .any(|pending| pending.block == block_index);
+            let first_unpinned = use_positions[block_index].unpinned.first().copied();
+            let last_unpinned = use_positions[block_index].unpinned.iter().next_back().copied();
+            let mut open = false;
+            let mut written_mask = 0u64;
+            let mut written = std::collections::BTreeSet::new();
+            if let Some(start_idx) = first_unpinned {
+                for (offset, instruction) in
+                    block.instructions[start_idx..].iter().enumerate()
+                {
+                    let index = start_idx + offset;
+                    if !has_structural && last_unpinned.is_none_or(|last| index >= last) {
+                        break;
+                    }
+                    if use_positions[block_index]
+                        .unpinned
+                        .binary_search(&index)
+                        .is_ok()
                     {
-                        let index = start_idx + offset;
-                        if !has_structural && last_unpinned.is_none_or(|last| index >= last) {
-                            break;
+                        open = true;
+                    }
+                    if redefinitions[block_index].contains(&index) {
+                        open = false;
+                        written_mask = 0;
+                        written.clear();
+                        continue;
+                    }
+                    if instruction.clobbers.is_empty() && instruction.implicit_defs.is_empty()
+                        || !open
+                    {
+                        continue;
+                    }
+                    if can_use_unit_mask
+                        && instruction
+                            .clobbers
+                            .iter()
+                            .chain(&instruction.implicit_defs)
+                            .all(|u| (u.0 as usize) < 64)
+                    {
+                        let mut trial_mask = written_mask;
+                        for &u in instruction.clobbers.iter().chain(&instruction.implicit_defs) {
+                            trial_mask |= 1u64 << u.0;
                         }
-                        if use_positions[block_index].unpinned.contains(&index) {
-                            open = true;
-                        }
-                        if redefinitions[block_index].contains(&index) {
+                        if surviving_home_exists_mask(base_excluded_mask | trial_mask) {
+                            written_mask = trial_mask;
+                            crossed_unit_writes[block_index].insert(index);
+                        } else {
                             open = false;
-                            written.clear();
-                            continue;
+                            written_mask = 0;
                         }
-                        if instruction.clobbers.is_empty() && instruction.implicit_defs.is_empty()
-                            || !open
-                        {
-                            continue;
-                        }
+                    } else {
                         let mut trial = written.clone();
                         trial.extend(instruction.clobbers.iter().copied());
                         trial.extend(instruction.implicit_defs.iter().copied());
@@ -1693,7 +1832,7 @@ pub(super) fn derive_runtime_spill<'source>(
                             &trial,
                         ) {
                             written = trial;
-                            crossed.insert(index);
+                            crossed_unit_writes[block_index].insert(index);
                         } else {
                             open = false;
                             written.clear();
@@ -1701,43 +1840,44 @@ pub(super) fn derive_runtime_spill<'source>(
                     }
                 }
             }
-            crossed
-        })
-        .collect();
+        }
+    }
     let crossed_unit_write = crossed_unit_writes.iter().any(|set| !set.is_empty());
     // The shared span-closing decision, computed once: every victim
     // redefinition — the held reload's value stops restating the register —
     // and every unit-writing instruction the policy did not cross. Proposal,
     // replay, and the slot-reuse last-writer walk all consume this set, so
     // the three of them can never disagree about where a span ends.
-    let span_closes: Vec<std::collections::BTreeSet<usize>> = function
+    let mut span_closes: Vec<std::collections::BTreeSet<usize>> = function
         .blocks
         .iter()
-        .enumerate()
-        .map(|(block_index, block)| {
-            if !shared_reload[block_index]
-                && redefinitions[block_index].is_empty()
-                && !structural_uses
-                    .iter()
-                    .any(|pending| pending.block == block_index)
-            {
-                return std::collections::BTreeSet::new();
-            }
-            if let Some(writers) = function.blocks.block_unit_writer_indices(block_index) {
-                let mut closes = redefinitions[block_index].clone();
-                let crossed = &crossed_unit_writes[block_index];
-                if crossed.is_empty() {
-                    closes.extend(writers.iter().copied());
-                } else {
-                    for &index in writers {
-                        if !crossed.contains(&index) {
-                            closes.insert(index);
-                        }
+        .map(|_| std::collections::BTreeSet::new())
+        .collect();
+    for &block_index in &use_blocks {
+        if !shared_reload[block_index]
+            && redefinitions[block_index].is_empty()
+            && !structural_uses
+                .iter()
+                .any(|pending| pending.block == block_index)
+        {
+            continue;
+        }
+        if let Some(writers) = function.blocks.block_unit_writer_indices(block_index) {
+            let mut closes = redefinitions[block_index].clone();
+            let crossed = &crossed_unit_writes[block_index];
+            if crossed.is_empty() {
+                closes.extend(writers.iter().copied());
+            } else {
+                for &index in writers {
+                    if !crossed.contains(&index) {
+                        closes.insert(index);
                     }
                 }
-                return closes;
             }
-            block
+            span_closes[block_index] = closes;
+        } else {
+            let block = &function.blocks[block_index];
+            span_closes[block_index] = block
                 .instructions
                 .iter()
                 .enumerate()
@@ -1748,9 +1888,9 @@ pub(super) fn derive_runtime_spill<'source>(
                             && !crossed_unit_writes[block_index].contains(&index)))
                     .then_some(index)
                 })
-                .collect()
-        })
-        .collect();
+                .collect();
+        }
+    }
     // Every recorded binding must resolve to exactly the snapshot chunk-load
     // stream its transport describes — `ReadPlace` accesses for its edge and
     // source place in the transport's chunk decomposition, each in this

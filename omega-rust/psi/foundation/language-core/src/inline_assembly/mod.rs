@@ -12,7 +12,7 @@ mod scratch_registers;
 pub use register_operations::{AsmRegisterCarrier, AsmRegisterOperation};
 pub use scratch_registers::{
     ASM_SCRATCH_CLOBBERS, ASM_SCRATCH_NAMES, ASM_SCRATCH_SLOT_COUNT, ASM_ZERO_FLAG_SLOT,
-    is_unmodeled_x86_scratch_view,
+    is_unmodeled_aarch64_scratch_view, is_unmodeled_x86_scratch_view, scratch_register,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,6 +37,10 @@ pub enum AsmInstructionShape {
     /// Parity, auxiliary carry, zero and sign follow the wrapped sum. The
     /// decoded destination and the arithmetic status flags change.
     Add,
+    /// Compare modeled u32 registers or a fitting immediate. The subtraction
+    /// result establishes the same arithmetic flags as SUB, without writing
+    /// either operand. Memory and other register views retain their refusals.
+    Compare,
     /// Local conditional transfer consuming the latest zero flag.
     JumpZeroFlag {
         when_set: bool,
@@ -531,14 +535,25 @@ impl AsmSystemRegister {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum AsmTargetApplicability {
+    #[default]
     Any,
     X86_64,
     Aarch64,
 }
 
 impl AsmTargetApplicability {
+    /// A body must satisfy every catalog target demand, including local
+    /// terminators which disappear into ordinary checked control flow.
+    pub fn intersect(self, other: Self) -> Option<Self> {
+        match (self, other) {
+            (Self::Any, target) | (target, Self::Any) => Some(target),
+            (left, right) if left == right => Some(left),
+            _ => None,
+        }
+    }
+
     /// Match the core catalog's concrete target identities. Arbitrary deployment
     /// tags cannot establish an architecture requirement.
     pub fn accepts_target_name(self, target: &str) -> bool {
@@ -800,6 +815,25 @@ impl AsmInstructionContract {
             clobbers,
         }
     }
+
+    /// Contract for one modeled memory-ordering fence. The fence kind is
+    /// both the instruction's shape and the ordering it establishes, and
+    /// the serializing fence carries no authority, operands, flag effect
+    /// or clobbers of its own; each fence mnemonic therefore presents the
+    /// kind once instead of restating the coupling per arm.
+    fn memory_fence(kind: AsmFenceKind) -> Self {
+        Self {
+            availability: AsmInstructionAvailability::UserChecked,
+            shape: AsmInstructionShape::MemoryFence(kind),
+            target: AsmTargetApplicability::X86_64,
+            required_authority: AsmAuthorityRequirement::None,
+            operands: NO_OPERANDS,
+            memory_ordering: AsmMemoryOrdering::Fence(kind),
+            interrupt_flag_effect: AsmInterruptFlagEffect::None,
+            flags_data_flow: AsmFlagsDataFlow::None,
+            clobbers: NO_CLOBBERS,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -843,123 +877,48 @@ const MSR_WRITE_OPERANDS: &[AsmOperandConstraint] = &[
     AsmOperandConstraint::read("MSR index", "ecx", "u32", u32::MAX as u64),
     AsmOperandConstraint::read("value", "edx:eax", "u64", u64::MAX),
 ];
-const CR0_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "cr0",
-    "u64",
-)];
-const CR2_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "cr2",
-    "u64",
-)];
-const CR3_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "cr3",
-    "u64",
-)];
-const CR4_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "cr4",
-    "u64",
-)];
-const CR0_WRITE_OPERANDS: &[AsmOperandConstraint] =
-    &[AsmOperandConstraint::read("value", "cr0", "u64", u64::MAX)];
-const CR3_WRITE_OPERANDS: &[AsmOperandConstraint] =
-    &[AsmOperandConstraint::read("value", "cr3", "u64", u64::MAX)];
-const CR4_WRITE_OPERANDS: &[AsmOperandConstraint] =
-    &[AsmOperandConstraint::read("value", "cr4", "u64", u64::MAX)];
+/// The `destination` place operand a control- or system-register read
+/// presents: one `u64` writable place named by the architectural register
+/// itself, which the mnemonic has already folded out of the operand list.
+const fn register_destination_operand(target_register: &'static str) -> AsmOperandConstraint {
+    AsmOperandConstraint::write_place("destination", target_register, "u64")
+}
+/// The `value` operand a control- or system-register write consumes: one
+/// `u64` read bounded at the type's maximum.
+const fn register_value_operand(target_register: &'static str) -> AsmOperandConstraint {
+    AsmOperandConstraint::read("value", target_register, "u64", u64::MAX)
+}
+const CR0_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("cr0")];
+const CR2_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("cr2")];
+const CR3_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("cr3")];
+const CR4_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("cr4")];
+const CR0_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("cr0")];
+const CR3_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("cr3")];
+const CR4_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("cr4")];
 // AArch64 system-register access folds the named register into the source
 // spelling (`read_sctlr_el1` realizes as `mrs`, `write_sctlr_el1` as `msr`),
 // so each contract carries a single `u64` place or value operand whose
 // architectural target is the register itself.
-const SCTLR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "sctlr_el1",
-    "u64",
-)];
-const TCR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "tcr_el1",
-    "u64",
-)];
-const TTBR0_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "ttbr0_el1",
-    "u64",
-)];
-const TTBR1_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "ttbr1_el1",
-    "u64",
-)];
-const MAIR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "mair_el1",
-    "u64",
-)];
-const VBAR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "vbar_el1",
-    "u64",
-)];
-const TPIDR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "tpidr_el1",
-    "u64",
-)];
-const ESR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "esr_el1",
-    "u64",
-)];
-const FAR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
-    "destination",
-    "far_el1",
-    "u64",
-)];
-const SCTLR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
-    "value",
-    "sctlr_el1",
-    "u64",
-    u64::MAX,
-)];
-const TCR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
-    "value",
-    "tcr_el1",
-    "u64",
-    u64::MAX,
-)];
-const TTBR0_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
-    "value",
-    "ttbr0_el1",
-    "u64",
-    u64::MAX,
-)];
-const TTBR1_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
-    "value",
-    "ttbr1_el1",
-    "u64",
-    u64::MAX,
-)];
-const MAIR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
-    "value",
-    "mair_el1",
-    "u64",
-    u64::MAX,
-)];
-const VBAR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
-    "value",
-    "vbar_el1",
-    "u64",
-    u64::MAX,
-)];
-const TPIDR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
-    "value",
-    "tpidr_el1",
-    "u64",
-    u64::MAX,
-)];
+const SCTLR_EL1_READ_OPERANDS: &[AsmOperandConstraint] =
+    &[register_destination_operand("sctlr_el1")];
+const TCR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("tcr_el1")];
+const TTBR0_EL1_READ_OPERANDS: &[AsmOperandConstraint] =
+    &[register_destination_operand("ttbr0_el1")];
+const TTBR1_EL1_READ_OPERANDS: &[AsmOperandConstraint] =
+    &[register_destination_operand("ttbr1_el1")];
+const MAIR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("mair_el1")];
+const VBAR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("vbar_el1")];
+const TPIDR_EL1_READ_OPERANDS: &[AsmOperandConstraint] =
+    &[register_destination_operand("tpidr_el1")];
+const ESR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("esr_el1")];
+const FAR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("far_el1")];
+const SCTLR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("sctlr_el1")];
+const TCR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("tcr_el1")];
+const TTBR0_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("ttbr0_el1")];
+const TTBR1_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("ttbr1_el1")];
+const MAIR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("mair_el1")];
+const VBAR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("vbar_el1")];
+const TPIDR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("tpidr_el1")];
 const NO_CLOBBERS: &[&str] = &[];
 const PORT_OUT_CLOBBERS: &[&str] = &["rax", "rdx", "r10", "r11", "r15"];
 const PORT_IN_CLOBBERS: &[&str] = &["rax", "rdx", "r10", "r15"];
@@ -1060,15 +1019,15 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     use AsmInstructionSerializationKind::{InstructionSynchronizationBarrier, Serialize};
     use AsmInstructionShape::{
         CacheOperation, DerivedExit, DescriptorTableLoad, FlagsRestore, FlagsSnapshot, Halt,
-        InstructionSerialization, InterruptControl, JumpState, MemoryFence, MemoryTransfer,
-        MsrRead, MsrWrite, PortIn, PortOut, RegisterMove, SchedulingHint,
+        InstructionSerialization, InterruptControl, JumpState, MemoryTransfer, MsrRead, MsrWrite,
+        PortIn, PortOut, RegisterMove, SchedulingHint,
     };
     use AsmInterruptControlKind::{Disable, Enable};
     use AsmInterruptFlagEffect::{
         Disable as DisablesInterrupts, EnableAfterNextInstruction, None as NoInterruptChange,
         RestoreFromOperand as RestoreInterruptFlag,
     };
-    use AsmMemoryOrdering::{Fence, None as NoOrdering};
+    use AsmMemoryOrdering::None as NoOrdering;
     use AsmSchedulingHintKind::{
         Nop, SendEvent, SendEventLocal, SpinPause, WaitForEvent, WaitForInterrupt, Yield,
     };
@@ -1173,6 +1132,24 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             clobbers: &["rflags"],
             ..AsmInstructionContract::without_side_effects(AsmInstructionShape::Subtract, X86_64)
         }),
+        // The structured register operands select x86 RFLAGS or AArch64 NZCV.
+        "cmp" => Contract(AsmInstructionContract {
+            flags_data_flow: AsmFlagsDataFlow::ArithmeticResult,
+            ..AsmInstructionContract::without_side_effects(AsmInstructionShape::Compare, Any)
+        }),
+        "b" => Contract(AsmInstructionContract::without_side_effects(
+            AsmInstructionShape::JumpState,
+            Aarch64,
+        )),
+        "b.eq" | "b.ne" => Contract(AsmInstructionContract {
+            flags_data_flow: AsmFlagsDataFlow::ZeroFlagBranch,
+            ..AsmInstructionContract::without_side_effects(
+                AsmInstructionShape::JumpZeroFlag {
+                    when_set: mnemonic == "b.eq",
+                },
+                Aarch64,
+            )
+        }),
         "add" => Contract(AsmInstructionContract {
             flags_data_flow: AsmFlagsDataFlow::ArithmeticResult,
             clobbers: &["rflags"],
@@ -1216,39 +1193,9 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             flags_data_flow: NoFlagsDataFlow,
             clobbers: PORT_IN_CLOBBERS,
         }),
-        "lfence" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: MemoryFence(Load),
-            target: X86_64,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: Fence(Load),
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
-        "sfence" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: MemoryFence(Store),
-            target: X86_64,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: Fence(Store),
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
-        "mfence" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: MemoryFence(Full),
-            target: X86_64,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: Fence(Full),
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
+        "lfence" => Contract(AsmInstructionContract::memory_fence(Load)),
+        "sfence" => Contract(AsmInstructionContract::memory_fence(Store)),
+        "mfence" => Contract(AsmInstructionContract::memory_fence(Full)),
         "cli" => Contract(AsmInstructionContract {
             availability: UserChecked,
             shape: InterruptControl(Disable),
@@ -1420,7 +1367,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         // unrecognized here.
         "ret" | "retq" | "retn" | "retw" | "retaa" | "retab" | "retf" | "lret" | "iret"
         | "iretd" | "iretw" | "call" | "callq" | "callf" | "lcall" | "jmpq" | "jmpf" | "jmpl"
-        | "ljmp" | "ljmpl" | "br" | "blr" | "b" | "bl" | "bx" | "blx" | "bc" | "braa" | "brab"
+        | "ljmp" | "ljmpl" | "br" | "blr" | "bl" | "bx" | "blx" | "bc" | "braa" | "brab"
         | "braaz" | "brabz" | "blraa" | "blrab" | "blraaz" | "blrabz" | "eretaa" | "eretab"
         | "drps" | "cbz" | "cbnz" | "tbz" | "tbnz" | "loop" | "loope" | "loopne" | "loopz"
         | "loopnz" | "jcxz" | "jecxz" | "jrcxz" | "int" | "int1" | "int3" | "into" | "je"

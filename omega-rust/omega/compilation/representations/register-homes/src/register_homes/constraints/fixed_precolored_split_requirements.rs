@@ -16,18 +16,7 @@ use selected_instructions::{
     LiveRangeEdgeConnector, LiveRangeIdentity, LiveRangePoint, VirtualFixedConstraintSite,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct FixedPrecoloredSplitRequirementPlanIdentity(pub(crate) [u8; 32]);
-
-impl FixedPrecoloredSplitRequirementPlanIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+crate::identity_newtype! { pub struct FixedPrecoloredSplitRequirementPlanIdentity(pub(crate) [u8; 32]); }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FixedPrecoloredSplitRequirementPolicy {

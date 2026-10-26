@@ -5,14 +5,23 @@
 //! checked geometry, never a host pointer or a key used to discover an allocation.
 //! Unlike immutable byte values, provider storage has no clone or copy-on-write
 //! operation.
+//! Each live arena record and descriptor/profile row owns a logical cell.
+//! This accounts records, not the host-supplied byte buffer's allocation or
+//! compiler-owned image scratch payloads; it is not a bound on RSS.
 //!
 //! This is the byte-writing part of lifecycle execution, not its custody gate.
 //! The caller must bind the selected provider occurrence and current Vacant
 //! claim before writing, then transfer the complete source value before
 //! publishing Resident. No method here issues a qualification or source claim.
 
-use access_plans::AdmittedResourceProfile;
+use crate::errors::{TerminalInterpretError, malformed};
+use crate::execution::TerminalExecution;
+use crate::record::owned_value::StagedOwnedValue;
+use crate::runtime_rows::RuntimeRows;
+use access_plans::{AdmittedResourceProfile, InitializationResourceCompatibility};
+use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use extents::Extent;
+use terminal_psi::TerminalPlacementLifecyclePlan;
 
 mod entry;
 mod extraction;
@@ -51,6 +60,7 @@ pub(crate) enum ResidentStorageSlot {
         initialized_by: semantic_vocabulary::BoundaryMachineId,
         custody: crate::record::owned_value::StagedOwnedValue,
         compatibility: access_plans::InitializationResourceCompatibility,
+        _lease: Option<EvaluationStorageLease>,
     },
 }
 
@@ -61,22 +71,29 @@ pub(crate) enum ProviderStorageSlot {
     Live {
         allocation: ProviderByteAllocation,
         profile: AdmittedResourceProfile,
+        _lease: Option<EvaluationStorageLease>,
     },
 }
 
-#[derive(Default)]
 pub(crate) struct RuntimeProviderStorage {
     pub(crate) allocations: arena::Arena<ProviderStorageSlot>,
     pub(crate) residents: arena::Arena<ResidentStorageSlot>,
     pub(crate) descriptors:
-        std::collections::BTreeMap<crate::values::StructuralRuntimePlace, ProviderStorageBinding>,
-    pub(crate) completed_profiles: std::collections::BTreeMap<
-        crate::values::StructuralRuntimePlace,
-        profiles::CompletedResourceProfile,
-    >,
+        RuntimeRows<crate::values::StructuralRuntimePlace, ProviderStorageBinding>,
+    pub(crate) completed_profiles:
+        RuntimeRows<crate::values::StructuralRuntimePlace, profiles::CompletedResourceProfile>,
 }
 
 impl RuntimeProviderStorage {
+    pub(crate) fn new(account: Option<&EvaluationInvocationAccount>) -> Self {
+        Self {
+            allocations: Default::default(),
+            residents: Default::default(),
+            descriptors: RuntimeRows::new(account),
+            completed_profiles: RuntimeRows::new(account),
+        }
+    }
+
     /// Backing liveness is independent of where its enclosing custody lives:
     /// an ordinary frame claim or a complete retained resident value. Callers
     /// still establish that ownership before transporting this association.
@@ -107,6 +124,66 @@ impl RuntimeProviderStorage {
             }
         }
         true
+    }
+
+    /// The live allocation slot a binding names, with the profile admitted for
+    /// its supply and the absolute base of its window. Geometry, loans and
+    /// authority checks stay with each caller's operation.
+    pub(crate) fn live_provider_allocation(
+        &self,
+        binding: &ProviderStorageBinding,
+    ) -> Result<(&ProviderByteAllocation, &AdmittedResourceProfile, u64), TerminalInterpretError>
+    {
+        let ProviderStorageSlot::Live {
+            allocation,
+            profile,
+            ..
+        } = self.allocations.get(binding.allocation)
+        else {
+            return Err(malformed());
+        };
+        let base = allocation
+            .extent
+            .base()
+            .checked_add(binding.offset)
+            .ok_or_else(malformed)?;
+        Ok((allocation, profile, base))
+    }
+}
+
+impl TerminalExecution<'_> {
+    /// The live resident custody a binding names, with the lifecycle plan row
+    /// its initialization boundary declares. Each caller compares the plan and
+    /// custody against its own operation's contract; a retired slot or an
+    /// unknown initialization boundary is malformed private runtime state.
+    pub(crate) fn live_resident_custody(
+        &self,
+        resident: arena::Handle<ResidentStorageSlot>,
+    ) -> Result<
+        (
+            &TerminalPlacementLifecyclePlan,
+            &StagedOwnedValue,
+            &InitializationResourceCompatibility,
+        ),
+        TerminalInterpretError,
+    > {
+        let ResidentStorageSlot::Live {
+            initialized_by,
+            custody,
+            compatibility,
+            ..
+        } = self.provider_storage.residents.get(resident)
+        else {
+            return Err(malformed());
+        };
+        let initialized = self
+            .program
+            .catalogs
+            .placement_lifecycle_plans
+            .iter()
+            .find(|plan| plan.boundary == *initialized_by)
+            .ok_or_else(malformed)?;
+        Ok((initialized, custody, compatibility))
     }
 }
 

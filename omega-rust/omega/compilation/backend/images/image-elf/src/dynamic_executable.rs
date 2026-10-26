@@ -136,58 +136,52 @@ pub enum ElfDynamicExecutableEmissionError {
 }
 
 impl ElfDynamicExecutableEmissionError {
-    pub const fn stage(&self) -> &'static str {
+    /// The failing stage's name paired with the diagnostic its carried
+    /// carrier retains: one row per stage, so a new variant cannot update
+    /// one table and miss the other.
+    const fn failing_stage(&self) -> (&'static str, &Diagnostic) {
         match self {
-            Self::LinkInputs(_) => "link-inputs",
-            Self::DynamicSections(_) => "dynamic-sections",
-            Self::DynamicSectionBytes(_) => "dynamic-section-bytes",
-            Self::DynamicSectionDescriptors(_) => "dynamic-section-descriptors",
-            Self::ProcedureLinkageRelocations(_) => "procedure-linkage-relocations",
-            Self::ProcedureLinkageTemplates(_) => "procedure-linkage-templates",
-            Self::ProcedureLinkageDescriptors(_) => "procedure-linkage-descriptors",
-            Self::DynamicTags(_) => "dynamic-tags",
-            Self::DynamicTableBytes(_) => "dynamic-table-bytes",
-            Self::DynamicTableDescriptor(_) => "dynamic-table-descriptor",
-            Self::SectionNames(_) => "section-names",
-            Self::SectionRoster(_) => "section-roster",
-            Self::SectionHeaderBytes(_) => "section-header-bytes",
-            Self::IndexedPayloads(_) => "indexed-payloads",
-            Self::RelativeLayout(_) => "relative-layout",
-            Self::LoadLayout(_) => "load-layout",
-            Self::PlacedSectionHeaders(_) => "placed-section-headers",
-            Self::ResolvedDynamicTable(_) => "resolved-dynamic-table",
-            Self::FileEnvelope(_) => "file-envelope",
-            Self::ProcedureLinkageApplication(_) => "procedure-linkage-application",
-            Self::FileAssembly(_) => "file-assembly",
-            Self::FinalByteAdmission(_) => "final-byte-admission",
+            Self::LinkInputs(error) => ("link-inputs", error.diagnostic()),
+            Self::DynamicSections(error) => ("dynamic-sections", error.diagnostic()),
+            Self::DynamicSectionBytes(error) => ("dynamic-section-bytes", error.diagnostic()),
+            Self::DynamicSectionDescriptors(error) => {
+                ("dynamic-section-descriptors", error.diagnostic())
+            }
+            Self::ProcedureLinkageRelocations(error) => {
+                ("procedure-linkage-relocations", error.diagnostic())
+            }
+            Self::ProcedureLinkageTemplates(error) => {
+                ("procedure-linkage-templates", error.diagnostic())
+            }
+            Self::ProcedureLinkageDescriptors(error) => {
+                ("procedure-linkage-descriptors", error.diagnostic())
+            }
+            Self::DynamicTags(error) => ("dynamic-tags", error.diagnostic()),
+            Self::DynamicTableBytes(error) => ("dynamic-table-bytes", error.diagnostic()),
+            Self::DynamicTableDescriptor(error) => ("dynamic-table-descriptor", error.diagnostic()),
+            Self::SectionNames(error) => ("section-names", error.diagnostic()),
+            Self::SectionRoster(error) => ("section-roster", error.diagnostic()),
+            Self::SectionHeaderBytes(error) => ("section-header-bytes", error.diagnostic()),
+            Self::IndexedPayloads(error) => ("indexed-payloads", error.diagnostic()),
+            Self::RelativeLayout(error) => ("relative-layout", error.diagnostic()),
+            Self::LoadLayout(error) => ("load-layout", error.diagnostic()),
+            Self::PlacedSectionHeaders(error) => ("placed-section-headers", error.diagnostic()),
+            Self::ResolvedDynamicTable(error) => ("resolved-dynamic-table", error.diagnostic()),
+            Self::FileEnvelope(error) => ("file-envelope", error.diagnostic()),
+            Self::ProcedureLinkageApplication(error) => {
+                ("procedure-linkage-application", error.diagnostic())
+            }
+            Self::FileAssembly(error) => ("file-assembly", error.diagnostic()),
+            Self::FinalByteAdmission(error) => ("final-byte-admission", error.diagnostic()),
         }
     }
 
+    pub const fn stage(&self) -> &'static str {
+        self.failing_stage().0
+    }
+
     pub const fn diagnostic(&self) -> &Diagnostic {
-        match self {
-            Self::LinkInputs(error) => error.diagnostic(),
-            Self::DynamicSections(error) => error.diagnostic(),
-            Self::DynamicSectionBytes(error) => error.diagnostic(),
-            Self::DynamicSectionDescriptors(error) => error.diagnostic(),
-            Self::ProcedureLinkageRelocations(error) => error.diagnostic(),
-            Self::ProcedureLinkageTemplates(error) => error.diagnostic(),
-            Self::ProcedureLinkageDescriptors(error) => error.diagnostic(),
-            Self::DynamicTags(error) => error.diagnostic(),
-            Self::DynamicTableBytes(error) => error.diagnostic(),
-            Self::DynamicTableDescriptor(error) => error.diagnostic(),
-            Self::SectionNames(error) => error.diagnostic(),
-            Self::SectionRoster(error) => error.diagnostic(),
-            Self::SectionHeaderBytes(error) => error.diagnostic(),
-            Self::IndexedPayloads(error) => error.diagnostic(),
-            Self::RelativeLayout(error) => error.diagnostic(),
-            Self::LoadLayout(error) => error.diagnostic(),
-            Self::PlacedSectionHeaders(error) => error.diagnostic(),
-            Self::ResolvedDynamicTable(error) => error.diagnostic(),
-            Self::FileEnvelope(error) => error.diagnostic(),
-            Self::ProcedureLinkageApplication(error) => error.diagnostic(),
-            Self::FileAssembly(error) => error.diagnostic(),
-            Self::FinalByteAdmission(error) => error.diagnostic(),
-        }
+        self.failing_stage().1
     }
 }
 

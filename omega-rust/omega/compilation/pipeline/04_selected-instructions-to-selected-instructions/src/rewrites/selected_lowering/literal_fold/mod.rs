@@ -765,56 +765,21 @@ pub struct LiteralFoldValidationReceipt {
 }
 
 impl LiteralFoldValidationReceipt {
-    pub const fn identity(self) -> LiteralFoldIdentity {
-        self.identity
-    }
-    pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
-    pub const fn spill_choices(self) -> SpillChoiceIdentity {
-        self.spill_choices
-    }
-    pub const fn recovery_classifications(self) -> RecoveryClassificationIdentity {
-        self.recovery_classifications
-    }
-    pub const fn ranges(self) -> LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn legality(self) -> AllocationLegalityIdentity {
-        self.legality
-    }
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
-    /// The validated machine-effect catalog identity the fold's producer and
-    /// independent replay both bound.
-    pub const fn machine_effect_catalog(self) -> MachineEffectCatalogIdentity {
-        self.machine_effect_catalog
-    }
-    pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
-        self.optimization_unit
-    }
-    pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
-        self.fuel_schedule
-    }
-    pub const fn transformed_selected(self) -> SelectedInstructionPlanIdentity {
-        self.transformed_selected
-    }
-    pub const fn policy(self) -> LiteralFoldPolicy {
-        self.policy
-    }
-    pub const fn usage(self) -> OptimizationWorkUsage {
-        self.usage
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn applied_count(self) -> usize {
-        self.applied_count
-    }
+    receipt_accessor_rows!(LiteralFoldValidationReceipt {
+        identity: LiteralFoldIdentity,
+        spill_choices: SpillChoiceIdentity,
+        recovery_classifications: RecoveryClassificationIdentity,
+        /// The validated machine-effect catalog identity the fold's producer and
+        /// independent replay both bound.
+        machine_effect_catalog: MachineEffectCatalogIdentity,
+        policy: LiteralFoldPolicy,
+        usage: OptimizationWorkUsage,
+        function_count: usize,
+        applied_count: usize,
+        source_selected: SelectedInstructionPlanIdentity,
+        transformed_selected: SelectedInstructionPlanIdentity,
+    });
+    shared_analysis_identity_accessors!(pub);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -836,9 +801,9 @@ impl ValidatedLiteralFold {
     pub fn transformed(&self) -> &SelectedInstructionPlan {
         &self.transformed
     }
-    pub const fn receipt(&self) -> LiteralFoldValidationReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(ref ValidatedLiteralFold {
+        receipt: LiteralFoldValidationReceipt,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

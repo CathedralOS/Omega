@@ -111,19 +111,10 @@ pub struct ElfDynamicSectionDescriptorPlanningError {
     diagnostic: Diagnostic,
 }
 
-impl ElfDynamicSectionDescriptorPlanningError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ValidatedElfDynamicSectionPayloads, Diagnostic) {
-        (self.payloads, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfDynamicSectionDescriptorPlanningError);
-
-impl std::error::Error for ElfDynamicSectionDescriptorPlanningError {}
+image::rejection_carrier!(
+    ElfDynamicSectionDescriptorPlanningError;
+    payloads: ValidatedElfDynamicSectionPayloads,
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ElfDynamicSectionDescriptorContents {

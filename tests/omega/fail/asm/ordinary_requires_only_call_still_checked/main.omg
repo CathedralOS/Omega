@@ -1,0 +1,2 @@
+machine needs(value: u32) requires value == 37 {}
+machine main() { needs(0u32); }

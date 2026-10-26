@@ -17,18 +17,7 @@ use crate::{
     TargetFrameProtocolEncodingIdentity, X86BranchRelaxationIdentity,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct WholeFunctionExitContractIdentity([u8; 32]);
-
-impl WholeFunctionExitContractIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+register_homes::identity_newtype! { pub struct WholeFunctionExitContractIdentity([u8; 32]); }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WholeFunctionExitPolicy {

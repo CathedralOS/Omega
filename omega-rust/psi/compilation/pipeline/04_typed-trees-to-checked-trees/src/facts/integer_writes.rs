@@ -25,7 +25,8 @@ pub(super) fn retain_assignment_decision(
         .integer_assignments
         .iter()
         .find_map(|(handle, retained)| {
-            (retained.machine == decision.machine
+            (retained.atomic_resident == decision.atomic_resident
+                && retained.machine == decision.machine
                 && retained.state == decision.state
                 && retained.statement_index == decision.statement_index
                 && retained.target == decision.target

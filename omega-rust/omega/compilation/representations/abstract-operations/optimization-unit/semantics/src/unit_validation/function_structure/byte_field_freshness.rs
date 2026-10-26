@@ -1,8 +1,8 @@
 //! Current-CFG custody of a bounded field's live-length observation.
 //! Original Terminal provenance cannot authorize a stale observation after a rewrite.
 use super::structural_freshness::{structural_metadata_may_change, unchanged_since};
-use crate::OptimizationUnitValidationError;
 use crate::unit_validation::catalog_mismatch;
+use crate::{OperationSite, OptimizationUnitValidationError};
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
@@ -40,17 +40,17 @@ pub(super) fn validate(
             };
             let node = u32::try_from(node_position).map_err(|_| catalog_mismatch(function))?;
             let invalid = if reads {
-                OptimizationUnitValidationError::InvalidByteSequenceRead {
-                    machine: function.machine,
-                    block: block.id,
+                OptimizationUnitValidationError::InvalidByteSequenceRead(OperationSite::new(
+                    function.machine,
+                    block.id,
                     node,
-                }
+                ))
             } else {
-                OptimizationUnitValidationError::InvalidByteSequenceWrite {
-                    machine: function.machine,
-                    block: block.id,
+                OptimizationUnitValidationError::InvalidByteSequenceWrite(OperationSite::new(
+                    function.machine,
+                    block.id,
                     node,
-                }
+                ))
             };
             let exact_path = field_path(function, types, *destination, path, *field)
                 .ok_or_else(|| invalid.clone())?;

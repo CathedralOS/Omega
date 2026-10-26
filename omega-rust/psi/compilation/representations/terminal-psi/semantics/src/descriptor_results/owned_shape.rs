@@ -55,6 +55,7 @@ fn owned_shape<'a>(
             match &field.field_type {
                 StructuralFieldType::Scalar(_)
                 | StructuralFieldType::Atomic(_)
+                | StructuralFieldType::AtomicBoundedInteger(_)
                 | StructuralFieldType::BoundedInteger(_)
                 | StructuralFieldType::RefinedScalar(_)
                 | StructuralFieldType::IeeeFloat(_) => true,

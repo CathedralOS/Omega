@@ -158,13 +158,9 @@ fn syscall_two_word_formals_use_physical_slot_capacity() {
             .copied()
             .zip([4, 8, 8, 8, 8, 8])
             .zip([0, 0, 8, 0, 0, 8])
-            .map(
-                |((register, byte_size), value_byte_offset)| ValueLocation::Register {
-                    register,
-                    value_byte_offset,
-                    byte_size,
-                },
-            )
+            .map(|((register, byte_size), value_byte_offset)| {
+                ValueLocation::register(register, value_byte_offset, byte_size)
+            })
             .collect();
         assert_eq!(
             plan.parameters
@@ -206,21 +202,9 @@ fn syscall_two_word_formals_use_physical_slot_capacity() {
         assert_eq!(
             plan.parameters[0].locations,
             vec![
-                ValueLocation::Register {
-                    register: registers[0],
-                    value_byte_offset: 0,
-                    byte_size: 8
-                },
-                ValueLocation::Register {
-                    register: registers[1],
-                    value_byte_offset: 8,
-                    byte_size: 8
-                },
-                ValueLocation::Register {
-                    register: registers[2],
-                    value_byte_offset: 16,
-                    byte_size: 1
-                },
+                ValueLocation::register(registers[0], 0, 8),
+                ValueLocation::register(registers[1], 8, 8),
+                ValueLocation::register(registers[2], 16, 1),
             ]
         );
         validate_call_plan(&plan, &three_words).expect("partial final word retains exact coverage");

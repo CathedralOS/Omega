@@ -1035,7 +1035,7 @@ pub fn reviewed_repository_fixture_package_inputs(
         && declares_standard_library
         && let Some(target_name) = target_name
     {
-        bindings.extend(memoized_program_entry_binding(
+        bindings.extend(candidate_program_entry_binding(
             target_name,
             &standard_library_root,
             standard_library_identity,
@@ -1450,37 +1450,12 @@ fn accepted_supplier_program_entry_binding(
 /// first fixture charges that check to one record. Later fixtures already hit
 /// the memo and record only their own compile.
 pub fn prewarm_bundled_program_entry(target_name: &str) -> Result<(), Vec<Diagnostic>> {
-    memoized_program_entry_binding(
+    candidate_program_entry_binding(
         target_name,
         &bundled_standard_library_root(),
         fixture_package_identity(2),
     )
     .map(|_| ())
-}
-
-/// The entry binding depends only on the target and the bundled library, and
-/// deriving it reads the library's declarations (1.9 s per fixture on the
-/// measured host), so one process derives it once per target.
-fn memoized_program_entry_binding(
-    target_name: &str,
-    standard_library_root: &Path,
-    standard_library: PackageKeyIdentity,
-) -> Result<Option<AcceptedSemanticBinding>, Vec<Diagnostic>> {
-    static MEMO: std::sync::OnceLock<
-        std::sync::Mutex<HashMap<String, Option<AcceptedSemanticBinding>>>,
-    > = std::sync::OnceLock::new();
-    let memo = MEMO.get_or_init(|| std::sync::Mutex::new(HashMap::new()));
-    if let Ok(memo) = memo.lock()
-        && let Some(binding) = memo.get(target_name)
-    {
-        return Ok(binding.clone());
-    }
-    let binding =
-        candidate_program_entry_binding(target_name, standard_library_root, standard_library)?;
-    if let Ok(mut memo) = memo.lock() {
-        memo.insert(target_name.to_owned(), binding.clone());
-    }
-    Ok(binding)
 }
 
 /// The dangerous-service rows the preliminary checked graph admits, every one

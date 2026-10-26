@@ -31,6 +31,28 @@ pub struct SourceCheckedScalarReceiving {
     pub restriction: terminal_psi::StructuralFieldType,
 }
 
+impl super::PsiOptimizationUnit {
+    /// The accepted fact admitting this exact coordinate: the row owned by
+    /// `owner` carrying `obligation` in `machine`.
+    ///
+    /// The catalog is uniquely keyed by `(machine, owner, obligation)` — the
+    /// attachment boundary sorts by that key and refuses a duplicate owner, and
+    /// unit validation re-checks the canonical order and every row's identity —
+    /// so a coordinate has at most one fact and `None` means nothing admits it.
+    /// Callers read this row (and any further row of their own, such as the
+    /// proposition or the scalar receiving) instead of re-spelling the key.
+    pub fn accepted_obligation_fact(
+        &self,
+        machine: MachineId,
+        owner: PsiProvenance,
+        obligation: Option<ObligationId>,
+    ) -> Option<&AcceptedObligationFact> {
+        self.accepted_obligation_facts.iter().find(|fact| {
+            fact.machine == machine && fact.owner == owner && Some(fact.obligation) == obligation
+        })
+    }
+}
+
 /// Exact verifier owner of one retained proof question. Positional coordinates
 /// are semantic: they prevent equal propositions at distinct source sites from
 /// becoming interchangeable optimizer authority.

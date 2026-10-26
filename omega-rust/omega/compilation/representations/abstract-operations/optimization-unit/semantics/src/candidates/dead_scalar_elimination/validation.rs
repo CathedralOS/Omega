@@ -71,12 +71,14 @@ pub(super) fn validate_dead_scalar_node_candidate(
                         support,
                     } if *support == source_operation && *reference == obligation
                 )
-            }) || !input.accepted_obligation_facts.iter().any(|fact| {
-                fact.identity == identity
-                    && fact.machine == function.machine
-                    && fact.owner == optimization_unit::PsiProvenance::Operation(source_operation)
-                    && fact.obligation == obligation
-            }) {
+            }) || input
+                .accepted_obligation_fact(
+                    function.machine,
+                    optimization_unit::PsiProvenance::Operation(source_operation),
+                    Some(obligation),
+                )
+                .is_none_or(|fact| fact.identity != identity)
+            {
                 return Err(
                     OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch,
                 );

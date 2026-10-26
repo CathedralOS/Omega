@@ -379,6 +379,15 @@ pub enum AbstractAtomicEvent {
 }
 
 impl AbstractAtomicEvent {
+    pub const fn replacement(&self) -> Option<ValueId> {
+        match self {
+            Self::Store { value, .. } | Self::Swap { value, .. } => Some(*value),
+            Self::CompareExchange { replacement, .. }
+            | Self::CompareExchangeOnce { replacement, .. } => Some(*replacement),
+            _ => None,
+        }
+    }
+
     /// Apply `visit` to every `ValueId` the event reads: store and swap
     /// values, the read-modify-write operand, and both compare-exchange
     /// operands. Result bindings (`result`, `prior`, `observed`, `outcome`)

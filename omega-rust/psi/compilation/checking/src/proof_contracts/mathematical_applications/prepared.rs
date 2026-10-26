@@ -106,6 +106,16 @@ pub enum PreparedConstantMeaning {
     AddressBound(SymbolHandle),
     IntegerOperation(BinaryOperator),
     IntegerRelation(BinaryOperator),
+    /// Authenticated IEEE comparison, never the kernel's reflexive identity.
+    FloatRelation {
+        operator: BinaryOperator,
+        format: numerics::literals::FloatFormat,
+        reference: TypeReferenceHandle,
+    },
+    FloatLiteral {
+        format: numerics::literals::FloatFormat,
+        bits: u64,
+    },
     Negation,
     IntegerEmbedding {
         primitive: PrimitiveType,

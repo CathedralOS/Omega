@@ -177,6 +177,7 @@ pub(super) fn analyze(
         machine: Some(machine),
         lexical_owner: machine.symbol,
         parameters: &[],
+        declaration_facts: &[],
         state,
         environment,
         target_primitive,
@@ -197,6 +198,7 @@ pub(super) fn analyze_declaration(
     program: &dyn crate::CheckingInput,
     lexical_owner: symbols::SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
+    prior_facts: &[ExpressionHandle],
     expression: ExpressionHandle,
     environment: &ValueEnvironment,
     target_primitive: Option<PrimitiveType>,
@@ -210,6 +212,7 @@ pub(super) fn analyze_declaration(
         machine: None,
         lexical_owner,
         parameters,
+        declaration_facts: prior_facts,
         state: None,
         environment,
         target_primitive,
@@ -250,6 +253,7 @@ pub(super) fn analyze_arrival(
         machine: Some(machine),
         lexical_owner: machine.symbol,
         parameters: &[],
+        declaration_facts: &[],
         state,
         environment,
         target_primitive,
@@ -285,6 +289,7 @@ pub(super) fn analyze_meaning(
         machine: Some(machine),
         lexical_owner: machine.symbol,
         parameters: &[],
+        declaration_facts: &[],
         state,
         environment: &ValueEnvironment::new(),
         target_primitive: None,
@@ -309,6 +314,7 @@ struct ExpressionWalk<'a> {
     machine: Option<&'a Machine>,
     lexical_owner: symbols::SymbolHandle,
     parameters: &'a [typed_trees::signature::StateParameter],
+    declaration_facts: &'a [ExpressionHandle],
     state: Option<&'a State>,
     environment: &'a ValueEnvironment,
     target_primitive: Option<PrimitiveType>,
@@ -419,6 +425,34 @@ impl ExpressionWalk<'_> {
         analysis
     }
 
+    /// An atomic observation receives only the declaration invariant. Flow
+    /// facts about a previous resident are not facts about this fresh event.
+    fn atomic_load(&self, expression: ExpressionHandle) -> Analysis {
+        let Some(carrier) = crate::atomic_load_carrier(self.program, expression) else {
+            return NEUTRAL;
+        };
+        let Some(machine) = self.machine else {
+            return NEUTRAL;
+        };
+        let Some(reference) =
+            crate::declared_place_type_raw(self.program, machine, self.state, carrier.place)
+        else {
+            return NEUTRAL;
+        };
+        let Some(primitive) = self.program.primitive_type_reference(reference) else {
+            return NEUTRAL;
+        };
+        let interval =
+            super::atomic_resident_interval(self.program, machine, self.state, carrier.place)
+                .unwrap_or(Interval::UNBOUNDED);
+        Analysis {
+            recipe: None,
+            domain: Some(self.program.arithmetic_domain_for_type_reference(reference)),
+            interval,
+            primitive: Some(primitive),
+        }
+    }
+
     /// The value judgment of one node whose children were already checked.
     fn analyze_value(
         &self,
@@ -438,6 +472,7 @@ impl ExpressionWalk<'_> {
             ExpressionNode::Cast(cast) => {
                 cast::analyze(self, expression, cast, diagnostics, decisions)
             }
+            ExpressionNode::Atomic(_) => self.atomic_load(expression),
             ExpressionNode::Call(call) => call::analyze(self, expression, call),
             ExpressionNode::Match(dispatch) => {
                 dispatch::analyze(self, expression, dispatch, diagnostics, decisions)

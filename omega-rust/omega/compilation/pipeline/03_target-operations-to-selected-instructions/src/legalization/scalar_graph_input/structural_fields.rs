@@ -690,6 +690,7 @@ pub(in crate::legalization) fn read(
     if matches!(
         declaration.field_type,
         terminal_psi::StructuralFieldType::Atomic(_)
+            | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
     ) && !matches!(
         access,
         terminal_psi::StructuralAccess::Owned | terminal_psi::StructuralAccess::MutableBorrow

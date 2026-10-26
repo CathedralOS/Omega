@@ -78,49 +78,23 @@ pub struct AllocationLegalityValidationReceipt {
     pub(crate) ranges: LiveRangeIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
-    pub(crate) function_count: usize,
     pub(crate) virtual_register_count: usize,
     pub(crate) point_count: usize,
     pub(crate) candidate_count: usize,
-    pub(crate) early_clobber_point_count: usize,
-    pub(crate) early_clobber_candidate_count: usize,
     pub(crate) entry_transition_count: usize,
 }
 
 impl AllocationLegalityValidationReceipt {
-    pub const fn identity(self) -> AllocationLegalityIdentity {
-        self.identity
-    }
-    pub const fn ranges(self) -> LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn virtual_register_count(self) -> usize {
-        self.virtual_register_count
-    }
-    pub const fn point_count(self) -> usize {
-        self.point_count
-    }
-    pub const fn candidate_count(self) -> usize {
-        self.candidate_count
-    }
-    pub const fn early_clobber_point_count(self) -> usize {
-        self.early_clobber_point_count
-    }
-    pub const fn early_clobber_candidate_count(self) -> usize {
-        self.early_clobber_candidate_count
-    }
-    pub const fn entry_transition_count(self) -> usize {
-        self.entry_transition_count
-    }
+    receipt_accessor_rows!(AllocationLegalityValidationReceipt {
+        identity: AllocationLegalityIdentity,
+        virtual_register_count: usize,
+        point_count: usize,
+        candidate_count: usize,
+        entry_transition_count: usize,
+        ranges: LiveRangeIdentity,
+        register_environment: TargetRegisterEnvironmentIdentity,
+        allocator_availability: AllocatorAvailabilityIdentity,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -138,9 +112,9 @@ impl ValidatedAllocationLegality {
     pub fn plan(&self) -> &AllocationLegalityPlan {
         &self.plan
     }
-    pub const fn receipt(&self) -> AllocationLegalityValidationReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(ref ValidatedAllocationLegality {
+        receipt: AllocationLegalityValidationReceipt,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

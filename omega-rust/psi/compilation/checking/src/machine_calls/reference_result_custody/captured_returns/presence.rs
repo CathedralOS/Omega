@@ -366,7 +366,8 @@ impl Captures<'_> {
                             .retained_roots(descriptor_value.retention)?
                             .is_empty();
                     } else {
-                        let (path, _) = self.structural_path(
+                        let (path, _) = super::super::source_paths::structural_path(
+                            self.program,
                             descriptor_value.type_reference,
                             &descriptor.projection,
                         )?;
@@ -385,7 +386,11 @@ impl Captures<'_> {
             } else {
                 // Actual aggregate structure decides case presence; a type's
                 // declared reference field cannot create an active payload.
-                let (path, _) = self.structural_path(value.type_reference, &selected.projection)?;
+                let (path, _) = super::super::source_paths::structural_path(
+                    self.program,
+                    value.type_reference,
+                    &selected.projection,
+                )?;
                 present |= self.expression_leaf_present(
                     self.program.state_by_symbol(value.state_symbol)?,
                     value.statement_index,

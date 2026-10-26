@@ -10,12 +10,12 @@ use super::super::{request_view::Request, usage::Budget};
 use super::framing::Encoder;
 use super::source::{encode_package_key, encode_source_identity, encode_source_lineage};
 use crate::declarations::AliasName;
-use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::read::{
-    DependencyProjections, DependencyPurpose, PackageSelection, ProjectedDependencies,
+    DependencyProjections, PackageSelection, ProjectedDependencies,
 };
 use crate::resolution::graph::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
+use package_compilation::review_record_encoding::{declaration_kind_tag, purpose_tag};
 use target::TargetProfile;
 
 pub(in super::super) fn encode_subject(
@@ -172,16 +172,8 @@ fn encode_root_selection(
             encoder.fixed(source_context.digest());
         }
     }
-    encode_build_declaration_kind(encoder, root.role);
+    encoder.byte(declaration_kind_tag(root.role));
     encode_source_identity(encoder, &root.selected, limits.maximum_identity_bytes)
-}
-
-fn encode_build_declaration_kind(encoder: &mut Encoder, role: BuildDeclarationKind) {
-    encoder.byte(match role {
-        BuildDeclarationKind::Package => 0,
-        BuildDeclarationKind::Application => 1,
-        BuildDeclarationKind::Workspace => 2,
-    });
 }
 
 fn encode_dependency_selection(
@@ -190,7 +182,7 @@ fn encode_dependency_selection(
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     encode_package_key(encoder, &selection.requester, limits.maximum_identity_bytes)?;
-    encode_dependency_purpose(encoder, selection.purpose);
+    encoder.byte(purpose_tag(selection.purpose));
     encoder.u32(u32::try_from(selection.dependency_index).map_err(|_| {
         CanonicalSourceClosureSubjectError::new("dependency ordinal exceeds canonical range")
     })?);
@@ -230,13 +222,6 @@ pub(super) fn encode_dependency_request(
         }
     }
     Ok(())
-}
-
-pub(super) fn encode_dependency_purpose(encoder: &mut Encoder, purpose: DependencyPurpose) {
-    encoder.byte(match purpose {
-        DependencyPurpose::Product => 0,
-        DependencyPurpose::Build => 1,
-    });
 }
 
 fn encode_package_selection(

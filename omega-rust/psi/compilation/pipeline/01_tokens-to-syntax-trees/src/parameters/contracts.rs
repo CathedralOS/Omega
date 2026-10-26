@@ -261,13 +261,9 @@ fn parse_nominal_requirement_path<'tokens, 'source>(
             break;
         }
     }
-    let mut start = arena::Handle::invalid();
-    let count = u32::try_from(members.len()).expect("nominal requirement path length overflow");
-    for (ordinal, member) in members.into_iter().enumerate() {
-        let handle = syntax_trees.items.append_identifier_path_member(member);
-        if ordinal == 0 {
-            start = handle;
-        }
+    let mut path = crate::handle_spans::HandleSpanBuilder::new();
+    for member in members {
+        path.push(syntax_trees.items.append_identifier_path_member(member));
     }
-    Ok((HandleSpan::from_parts(start, count), trait_arguments, rest))
+    Ok((path.finish(), trait_arguments, rest))
 }

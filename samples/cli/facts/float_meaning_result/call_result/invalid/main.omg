@@ -1,0 +1,27 @@
+// The minimum call's checked IEEE meaning survives transport and discharges require_min for its exact captured result.
+// Expected exit: 0
+// Place: call_result.
+
+use omega::language::core::float_operations;
+
+machine forward(left: f32, right: f32) -> f32
+ensures F32::meaning(result) == FloatSemantics::minimum(F32::meaning(left), F32::meaning(right))
+{
+    F32::maximum(left, right)
+}
+
+machine require_min(value: f32) -> f32
+requires F32::meaning(value) == FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0))
+ensures F32::meaning(result) == FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0))
+{ value }
+
+machine produce() -> f32
+ensures F32::meaning(result) == FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0))
+{ forward(1.0, 2.0) }
+
+machine main() crashes Trap {
+    let result: f32 = require_min(produce());
+    transition result == 1.0 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

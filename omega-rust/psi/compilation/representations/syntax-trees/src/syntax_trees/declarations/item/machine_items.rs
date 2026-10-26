@@ -2,6 +2,8 @@ use super::*;
 
 #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct Machine {
+    /// Lexically scoped independent declarations, retained until resolution.
+    pub nested_machines: Vec<Machine>,
     pub name: Identifier,
     /// Exact authored template token for a method cloned onto closed generic
     /// data. Empty on authored declarations and other synthesis families.
@@ -94,7 +96,7 @@ pub struct Machine {
     pub states: HandleSpan<StateHandle>,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub struct State {
     pub name: Identifier,
     pub parameters: HandleSpan<StateParameterHandle>,
@@ -147,7 +149,7 @@ pub struct TraitRefinementClause {
     pub signature: StateSignature,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub struct StateSignature {
     pub name: Identifier,
     /// Fixed token owned by this trait requirement, when any. Implementing

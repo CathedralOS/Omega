@@ -235,7 +235,9 @@ fn parse_statement_handle<'tokens, 'source>(
         );
     }
 
-    if input.at_punctuation(PunctuationKind::RightBrace) {
+    if input.at_punctuation(PunctuationKind::RightBrace)
+        || input.at_keyword(tokens::KeywordKind::Machine)
+    {
         return Ok((
             syntax_trees
                 .statements

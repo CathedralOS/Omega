@@ -1,0 +1,1 @@
+linear value `pair.second` reaches scope exit without being consumed or transferred

@@ -114,9 +114,9 @@ impl StagedOptimizedAllocationLegality {
     pub const fn allocator_availability(&self) -> &ValidatedAllocatorAvailability {
         &self.availability
     }
-    pub const fn custody(&self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
-        self.custody
-    }
+    receipt_accessor_rows!(ref StagedOptimizedAllocationLegality {
+        custody: StagedOptimizedAllocationLegalityCustodyReceipt,
+    });
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -127,46 +127,18 @@ pub struct StagedOptimizedAllocationLegalityCustodyReceipt {
     liveness: selected_instructions::LivenessIdentity,
     ranges: selected_instructions::LiveRangeIdentity,
     legality: AllocationLegalityIdentity,
-    function_count: usize,
-    virtual_register_count: usize,
-    point_count: usize,
-    candidate_count: usize,
-    entry_transition_count: usize,
 }
 
 impl StagedOptimizedAllocationLegalityCustodyReceipt {
     target_operations_to_selected_instructions::staging_custody_core_accessors!();
 
-    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
-    pub const fn selected(self) -> SelectedInstructionPlanIdentity {
-        self.selected
-    }
-    pub const fn liveness(self) -> selected_instructions::LivenessIdentity {
-        self.liveness
-    }
-    pub const fn ranges(self) -> selected_instructions::LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn legality(self) -> AllocationLegalityIdentity {
-        self.legality
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn virtual_register_count(self) -> usize {
-        self.virtual_register_count
-    }
-    pub const fn point_count(self) -> usize {
-        self.point_count
-    }
-    pub const fn candidate_count(self) -> usize {
-        self.candidate_count
-    }
-    pub const fn entry_transition_count(self) -> usize {
-        self.entry_transition_count
-    }
+    receipt_accessor_rows!(StagedOptimizedAllocationLegalityCustodyReceipt {
+        allocator_availability: AllocatorAvailabilityIdentity,
+        ranges: selected_instructions::LiveRangeIdentity,
+        legality: AllocationLegalityIdentity,
+        selected: SelectedInstructionPlanIdentity,
+        liveness: selected_instructions::LivenessIdentity,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

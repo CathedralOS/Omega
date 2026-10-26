@@ -66,6 +66,24 @@ def command(arguments):
     return subprocess.check_output(arguments, cwd=ROOT, text=True).strip()
 
 
+def observation_golden(output, *, both, target):
+    name = f"corpus_both_{target}.txt" if both else "corpus_outcomes.txt"
+    published = ROOT / "tests/omega" / name
+    if published.is_file():
+        return published
+    if not both or not target:
+        raise ValueError("source checking requires its published corpus baseline")
+    # A first matching-host observation has no historical rows to compare.
+    # Keep that absence explicit in the report; fixture oracles and the exact
+    # runtime/rejection roster remain mandatory. Never borrow another host's
+    # observations or write a fabricated result into the repository's golden.
+    initial = output / ("initial-" + name)
+    initial.write_text(
+        f"# No prior combined observations for {target}; authored oracles apply.\n",
+        encoding="utf-8")
+    return initial
+
+
 def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES):
     revision = command(["git", "rev-parse", "HEAD"])
     if command(["git", "status", "--porcelain"]):
@@ -110,7 +128,9 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES):
     def corpus(name, fixtures, both=False):
         report_path = output / f"{name}.json"
         arguments = [sys.executable, "tools/corpus_gate.py", "--runner", str(retained),
-                     "--filter", ",".join(fixtures), "--json", str(report_path)]
+                     "--filter", ",".join(fixtures), "--json", str(report_path),
+                     "--golden", str(observation_golden(
+                         output, both=both, target=summary["target"]))]
         if both:
             arguments.append("--both")
         result = subprocess.run(arguments, cwd=ROOT, stdin=subprocess.DEVNULL,

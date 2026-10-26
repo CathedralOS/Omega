@@ -5,68 +5,28 @@
 use calling_conventions::{
     BoundaryCallingApplication, BoundaryValueClass, BoundaryValueGraph, CallSignature, ValueShape,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, StructuralTypeId};
-use target::TargetProfile;
+use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::TerminalImportSignature;
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind, StructuralAccess,
-    StructuralMultiplicity,
 };
 
-use super::{AddressOperation, TerminalRuntimeError};
+use super::{AddressContract, AddressOperation, TerminalRuntimeError};
 
 pub(super) fn select(
     binding: &NormalizedForeignCallBinding,
 ) -> Result<Option<AddressOperation>, TerminalRuntimeError> {
-    let Some((locator, _)) = binding.import() else {
-        return Ok(None);
-    };
-    let target = locator.target();
-    // An exact target's runtime supply cannot be borrowed from another host.
-    let host = match target {
-        TargetProfile::LinuxX64 => cfg!(all(target_os = "linux", target_arch = "x86_64")),
-        TargetProfile::LinuxArm64 => cfg!(all(target_os = "linux", target_arch = "aarch64")),
-        TargetProfile::MacosArm64 => cfg!(all(target_os = "macos", target_arch = "aarch64")),
-        TargetProfile::MacosX64 => cfg!(all(target_os = "macos", target_arch = "x86_64")),
-        TargetProfile::WindowsX64 => cfg!(all(target_os = "windows", target_arch = "x86_64")),
-        _ => false,
-    };
-    if !host {
-        return Ok(None);
-    }
     for (symbol, operation) in [
-        ("inet_makeaddr", AddressOperation::Make),
-        ("inet_lnaof", AddressOperation::Host),
+        (b"inet_makeaddr".as_slice(), AddressOperation::Make),
+        (b"inet_lnaof".as_slice(), AddressOperation::Host),
     ] {
-        let candidate = match target {
-            TargetProfile::LinuxX64 | TargetProfile::LinuxArm64 => {
-                target::ForeignLocatorCandidate::ElfVersioned {
-                    object: b"libc.so.6".to_vec(),
-                    symbol: symbol.as_bytes().to_vec(),
-                    version: if target == TargetProfile::LinuxX64 {
-                        b"GLIBC_2.2.5".to_vec()
-                    } else {
-                        b"GLIBC_2.17".to_vec()
-                    },
-                }
-            }
-            TargetProfile::MacosArm64 | TargetProfile::MacosX64 => {
-                target::ForeignLocatorCandidate::MachODylibSymbol {
-                    install_name: b"/usr/lib/libSystem.B.dylib".to_vec(),
-                    symbol: format!("_{symbol}").into_bytes(),
-                }
-            }
-            TargetProfile::WindowsX64 => target::ForeignLocatorCandidate::PeByName {
-                library: runtime_abi::WINDOWS_INTERNET_PROVIDER_LIBRARY.to_vec(),
-                export: symbol.as_bytes().to_vec(),
-            },
-            _ => return Ok(None),
-        };
-        let offered = target::normalize_foreign_locator(candidate, target).map_err(|_| {
-            TerminalRuntimeError::InvalidProvision("inet implementation has an invalid locator")
-        })?;
-        if offered == *locator {
+        if super::super::matches_platform_c_symbol(
+            binding,
+            symbol,
+            &[b"/usr/lib/libSystem.B.dylib".as_slice()],
+            Some(runtime_abi::WINDOWS_INTERNET_PROVIDER_LIBRARY),
+        )? {
             return Ok(Some(operation));
         }
     }
@@ -79,7 +39,7 @@ pub(super) fn validate(
     application: Option<&BoundaryCallingApplication>,
     signature: &TerminalImportSignature,
     operation: AddressOperation,
-) -> Result<(StructuralTypeId, [u8; 32]), TerminalRuntimeError> {
+) -> Result<AddressContract, TerminalRuntimeError> {
     let invalid = TerminalRuntimeError::InvalidProvision;
     let application = application.ok_or(TerminalRuntimeError::InvalidProvision(
         "inet adapter requires the complete admitted opaque calling application",
@@ -87,21 +47,20 @@ pub(super) fn validate(
     let word = IntegerType::new(IntegerSign::Unsigned, 32)
         .map_err(|_| invalid("inet native u32 type is not admitted"))?;
     let scalar = ScalarType::Integer(word);
-    let (structural_type, root) = match operation {
+    let (structural_type, root, multiplicity) = match operation {
         AddressOperation::Make => {
             let BoundaryMachineResult::Structural(result) = &signature.result else {
                 return Err(invalid("inet_makeaddr requires one structural result"));
             };
             if signature.scalar_parameters != [scalar, scalar]
                 || !signature.structural_parameters.is_empty()
-                || result.multiplicity != StructuralMultiplicity::Affine
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || declaration.parameter_order != [BoundaryParameterKind::Scalar; 2]
                 || application.signature.parameters.len() != 2
             {
                 return Err(invalid(
-                    "inet_makeaddr requires two u32 scalars and an unqualified affine result",
+                    "inet_makeaddr requires two u32 scalars and an unqualified result",
                 ));
             }
             for root in &application.signature.parameters {
@@ -125,6 +84,7 @@ pub(super) fn validate(
                     .signature
                     .result
                     .ok_or_else(|| invalid("inet_makeaddr native result shape is absent"))?,
+                result.multiplicity,
             )
         }
         AddressOperation::Host => {
@@ -135,14 +95,13 @@ pub(super) fn validate(
             };
             if !signature.scalar_parameters.is_empty()
                 || signature.result != BoundaryMachineResult::Scalar(scalar.into())
-                || parameter.multiplicity != StructuralMultiplicity::Affine
                 || parameter.access != StructuralAccess::Owned
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
                 || declaration.parameter_order != [BoundaryParameterKind::Structural]
             {
                 return Err(invalid(
-                    "inet_lnaof requires one unqualified owned affine argument and a u32 result",
+                    "inet_lnaof requires one unqualified owned argument and a u32 result",
                 ));
             }
             let [root] = application.signature.parameters.as_slice() else {
@@ -163,7 +122,7 @@ pub(super) fn validate(
                     "inet_lnaof native result must be an aligned four-byte integer",
                 ));
             }
-            (parameter.structural_type, *root)
+            (parameter.structural_type, *root, parameter.multiplicity)
         }
     };
     let envelope = super::super::native_word::native_word_envelope(&application.signature, root)
@@ -207,8 +166,9 @@ pub(super) fn validate(
             })?,
     };
     super::super::admit_exact_foreign_call(signature, declaration, binding, &native_signature)?;
-    Ok((
+    Ok(AddressContract {
         structural_type,
-        application.opaque_applications[0].selected_application_commitment,
-    ))
+        application: application.opaque_applications[0].selected_application_commitment,
+        multiplicity,
+    })
 }

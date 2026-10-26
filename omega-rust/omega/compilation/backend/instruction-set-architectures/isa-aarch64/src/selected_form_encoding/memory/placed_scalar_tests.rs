@@ -4,6 +4,25 @@ use selected_instructions::{
     MachineSemanticKind, PlacedScalarForm, SelectedInstructionKind,
 };
 
+/// The exact request one placed-scalar form encodes. The substitution pins
+/// rebuild both halves from a changed form through this owner rather than
+/// re-spelling the request.
+fn placed_scalar_request(
+    form: PlacedScalarForm,
+) -> (SelectedInstructionKind, MachineAlternativeKey) {
+    (
+        SelectedInstructionKind::PlacedScalarAccess {
+            form,
+            contract: [3; 32],
+            byte_offset: 8,
+        },
+        MachineAlternativeKey {
+            family: MachineAlternativeFamily::PlacedScalarAccess(form),
+            variant: 0,
+        },
+    )
+}
+
 #[test]
 fn placed_scalar_forms_decode_one_exact_width_transfer() {
     let physical =
@@ -24,15 +43,7 @@ fn placed_scalar_forms_decode_one_exact_width_transfer() {
     let base = physical.model().view_named("x1").unwrap().id;
     let data = physical.model().view_named("x2").unwrap().id;
     for form in PlacedScalarForm::ALL {
-        let alternative = MachineAlternativeKey {
-            family: MachineAlternativeFamily::PlacedScalarAccess(form),
-            variant: 0,
-        };
-        let kind = SelectedInstructionKind::PlacedScalarAccess {
-            form,
-            contract: [3; 32],
-            byte_offset: 8,
-        };
+        let (kind, alternative) = placed_scalar_request(form);
         let declaration = catalog
             .catalog()
             .declaration_by_semantic(MachineSemanticKind::PlacedScalarAccess(form))
@@ -81,7 +92,10 @@ fn placed_scalar_forms_decode_one_exact_width_transfer() {
                 bytes,
             )
         };
-        verify(kind, alternative, &[base, data], 8, encoded.bytes()).unwrap();
+        let verify_request = |kind: SelectedInstructionKind, alternative: MachineAlternativeKey| {
+            verify(kind, alternative, &[base, data], 8, encoded.bytes())
+        };
+        verify_request(kind, alternative).unwrap();
         assert!(verify(kind, alternative, &[data, base], 8, encoded.bytes()).is_err());
         assert!(verify(kind, alternative, &[data, data], 8, encoded.bytes()).is_err());
         assert!(verify(kind, alternative, &[base, data], 16, encoded.bytes()).is_err());
@@ -92,57 +106,19 @@ fn placed_scalar_forms_decode_one_exact_width_transfer() {
             write: !form.write,
             bytes: form.bytes,
         };
-        assert!(
-            verify(
-                SelectedInstructionKind::PlacedScalarAccess {
-                    form: changed,
-                    contract: [3; 32],
-                    byte_offset: 8
-                },
-                MachineAlternativeKey {
-                    family: MachineAlternativeFamily::PlacedScalarAccess(changed),
-                    variant: 0
-                },
-                &[base, data],
-                8,
-                encoded.bytes()
-            )
-            .is_err()
-        );
+        let (changed_kind, changed_alternative) = placed_scalar_request(changed);
+        assert!(verify_request(changed_kind, changed_alternative).is_err());
         let changed = PlacedScalarForm {
             write: form.write,
             bytes: if form.bytes == 8 { 4 } else { 8 },
         };
-        assert!(
-            verify(
-                SelectedInstructionKind::PlacedScalarAccess {
-                    form: changed,
-                    contract: [3; 32],
-                    byte_offset: 8
-                },
-                MachineAlternativeKey {
-                    family: MachineAlternativeFamily::PlacedScalarAccess(changed),
-                    variant: 0
-                },
-                &[base, data],
-                8,
-                encoded.bytes()
-            )
-            .is_err()
-        );
-        assert!(
-            verify(
-                kind,
-                MachineAlternativeKey {
-                    family: alternative.family,
-                    variant: 1
-                },
-                &[base, data],
-                8,
-                encoded.bytes()
-            )
-            .is_err()
-        );
+        let (changed_kind, changed_alternative) = placed_scalar_request(changed);
+        assert!(verify_request(changed_kind, changed_alternative).is_err());
+        let undeclared = MachineAlternativeKey {
+            family: alternative.family,
+            variant: 1,
+        };
+        assert!(verify(kind, undeclared, &[base, data], 8, encoded.bytes()).is_err());
         for bit in 0..encoded.bytes().len() * 8 {
             let mut changed = encoded.bytes().to_vec();
             changed[bit / 8] ^= 1 << (bit % 8);

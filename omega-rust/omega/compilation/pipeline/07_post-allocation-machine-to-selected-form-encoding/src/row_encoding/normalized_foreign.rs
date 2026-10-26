@@ -9,7 +9,9 @@ use isa_x86_64::{
 };
 use physical_instructions::PostAllocationMachineInstruction;
 use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionKind};
+use selected_instructions::{
+    SelectedFunction, SelectedInstructionId, SelectedInstructionKind, SelectedNormalizedForeignCall,
+};
 use target::{Architecture, NativeTarget};
 
 use super::SelectedFormEncodedRowDraft;
@@ -18,6 +20,35 @@ use machine_code::{
     SelectedFormEncodingState, SelectedFormNormalizedForeignCallFixup,
     SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
 };
+
+/// Resolve one selected `{boundary, ordinal}` binding onto its selected
+/// function's normalized-foreign-call roster row, admitting only the row that
+/// names this instruction, boundary and target with a valid entry mechanism.
+/// The producer resolves the row before encoding and the replay resolves it
+/// before re-deriving bytes, so the binding admission has one owner; every
+/// byte, fixup and effect check stays per side.
+pub(crate) fn normalized_foreign_call_record<'a>(
+    target: NativeTarget,
+    instruction: SelectedInstructionId,
+    kind: SelectedInstructionKind,
+    selected_function: &'a SelectedFunction,
+) -> Result<&'a SelectedNormalizedForeignCall, OptimizedSelectedFormEncodingError> {
+    let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = kind else {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    };
+    let record = selected_function
+        .normalized_foreign_calls
+        .get(ordinal as usize)
+        .ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+    if record.instruction != instruction
+        || record.call.boundary != boundary
+        || record.call.binding.native_target() != Some(target)
+        || !record.call.binding.has_valid_entry_mechanism()
+    {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    }
+    Ok(record)
+}
 
 /// Encode the selected entry mechanism. Kernel entries materialize the exact
 /// retained number and are fully encoded here; imports remain unresolved.
@@ -35,20 +66,7 @@ pub(super) fn encode(
     physical: &ValidatedPhysicalRegisterModel,
     selected_function: &SelectedFunction,
 ) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
-    let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = kind else {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-    };
-    let record = selected_function
-        .normalized_foreign_calls
-        .get(ordinal as usize)
-        .ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
-    if record.instruction != instruction
-        || record.call.boundary != boundary
-        || record.call.binding.native_target() != Some(target)
-        || !record.call.binding.has_valid_entry_mechanism()
-    {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-    }
+    let record = normalized_foreign_call_record(target, instruction, kind, selected_function)?;
     let views = machine
         .operands
         .iter()
@@ -124,7 +142,7 @@ pub(super) fn encode(
             SelectedFormEncodingState::Encoded,
         );
     }
-    let destinations = callback_destinations(selected_function, instruction, kind)?;
+    let destinations = callback_destinations(record)?;
     let (bytes, effects, fixup) = match target.architecture {
         Architecture::X86_64 => {
             let destinations = destinations
@@ -308,26 +326,11 @@ pub(super) fn encode(
     )
 }
 
-/// Resolve the instruction's `{boundary, ordinal}` to its custody roster row
-/// and derive each private callback's materialization destination from the
-/// evaluated `NativePlace` the roster row retains.
+/// Derive each private callback's materialization destination from the
+/// evaluated `NativePlace` the caller's resolved roster row retains.
 fn callback_destinations(
-    selected_function: &SelectedFunction,
-    instruction: SelectedInstructionId,
-    kind: SelectedInstructionKind,
+    record: &SelectedNormalizedForeignCall,
 ) -> Result<Vec<machine_code::CallbackAddressDestination>, OptimizedSelectedFormEncodingError> {
-    let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = kind else {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-    };
-    let Some(record) = selected_function
-        .normalized_foreign_calls
-        .get(ordinal as usize)
-    else {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-    };
-    if record.instruction != instruction || record.call.boundary != boundary {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-    }
     record
         .call
         .callbacks

@@ -19,6 +19,8 @@ pub enum MachineBodyStatus {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Machine {
+    /// Declaration roster coordinate of the lexical parent, before symbol assignment.
+    pub lexical_parent: Option<usize>,
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub generic_data_origin: GenericDataMachineOrigin,
@@ -264,6 +266,7 @@ pub(crate) fn test_program_with_guarded_transition()
 #[cfg(test)]
 pub(crate) fn test_machine(states: HandleSpan<Handle<State>>) -> Machine {
     Machine {
+        lexical_parent: None,
         symbol: SymbolHandle::invalid(),
         generic_data_origin: Default::default(),
         trait_default_origin: Default::default(),

@@ -117,16 +117,7 @@ impl TerminalExecution<'_> {
                 "placement profile belongs to a different or retired allocation window",
             ));
         }
-        let super::ProviderStorageSlot::Live { allocation, .. } =
-            self.provider_storage.allocations.get(binding.allocation)
-        else {
-            return Err(malformed());
-        };
-        let base = allocation
-            .extent()
-            .base()
-            .checked_add(binding.offset)
-            .ok_or_else(malformed)?;
+        let (_, _, base) = self.provider_storage.live_provider_allocation(&binding)?;
         if !self.provider_storage_geometry_matches(&home, &plan.storage, base, binding.length) {
             return Err(TerminalInterpretError::ContentTransformationMismatch(
                 "placement descriptor changed its captured allocation geometry",
@@ -217,7 +208,7 @@ impl TerminalExecution<'_> {
                 backing: pending.backing,
                 result_type: pending.result_type,
             },
-        );
+        )?;
         Ok(())
     }
 }
