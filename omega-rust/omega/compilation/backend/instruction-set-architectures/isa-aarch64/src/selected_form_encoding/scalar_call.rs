@@ -616,18 +616,8 @@ fn expected_call_mechanics(
             })
             .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
         let mut expected = expected_effects(abi, physical, 0);
-        expected.external_operand_reads = row
-            .operands
-            .iter()
-            .filter(|operand| operand.access == register_model::RegisterOperandAccess::Use)
-            .map(|operand| operand.operand)
-            .collect();
-        expected.external_operand_writes = row
-            .operands
-            .iter()
-            .filter(|operand| operand.access == register_model::RegisterOperandAccess::Def)
-            .map(|operand| operand.operand)
-            .collect();
+        expected.external_operand_reads = row.operand_reads();
+        expected.external_operand_writes = row.operand_writes();
         expected.implicit_unit_uses = row.implicit_uses.clone();
         expected.implicit_unit_defs = row.implicit_defs.clone();
         expected.implicit_unit_clobbers = row.clobbers.clone();
