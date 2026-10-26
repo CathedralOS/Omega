@@ -713,6 +713,15 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
             drop(instance);
             let requests = host.into_executed().unwrap();
             if machine == "build" {
+                let requests: Vec<_> = requests
+                    .iter()
+                    .map(|request| match request {
+                        language_semantics::declaration_selection::ExecutedBuildProductRequest::RootBinding(binding) => binding,
+                        language_semantics::declaration_selection::ExecutedBuildProductRequest::DeclarationSelection(_) => {
+                            panic!("entry binding fixture emitted a declaration selection")
+                        }
+                    })
+                    .collect();
                 assert_eq!(
                     requests
                         .iter()
