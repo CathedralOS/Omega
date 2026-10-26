@@ -80,8 +80,11 @@ macos_arm64 machine countdown(seed: u32) -> u32 requires seed == 2 ensures resul
 data Carrier { value: u32; }
 machine finished() {}
 machine failed() crashes Trap { crash Trap; }
+machine observe_zero(value: u32) crashes Trap requires value == 0 {
+    transition value == 0 { true -> finished() false -> failed() }
+}
 machine main() crashes Trap {
     let carrier: Carrier = Carrier { value: countdown(2) };
     let value: u32 = carrier.value;
-    transition value == 0 { true -> finished() false -> failed() }
+    observe_zero(value);
 }

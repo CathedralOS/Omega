@@ -80,7 +80,10 @@ macos_arm64 machine countdown(seed: u32) -> u32 requires seed == 2 ensures resul
 const SEED: u32 = 2;
 machine finished() {}
 machine failed() crashes Trap { crash Trap; }
+machine observe_zero(value: u32) crashes Trap requires value == 0 {
+    transition value == 0 { true -> finished() false -> failed() }
+}
 machine main() crashes Trap {
     let value: u32 = countdown(SEED);
-    transition value == 0 { true -> finished() false -> failed() }
+    observe_zero(value);
 }

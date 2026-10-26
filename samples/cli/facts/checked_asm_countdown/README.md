@@ -15,6 +15,10 @@ the historical `macos_x86_64` binding. Each declares `Expected exit: 0`. Label
 `done` requires the counter to be 0 and proves `output == 0` after the store;
 the selected countdown body then proves its ordinary `result == 0` contract.
 The consuming operation receives that fact before any runtime oracle branch.
+Transported outputs enter `observe_zero` with `requires value == 0`; parameter
+and nested-machine consumers owe the same precondition. The match join publishes
+its zero guarantee and both selected results enter that consumer. An equality
+branch inside the consumer is only the runtime oracle, after arrival is proved.
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |

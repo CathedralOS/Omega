@@ -82,8 +82,12 @@ machine joined(branch: bool) -> u32 ensures result == 0 {
 }
 machine finished() {}
 machine failed() crashes Trap { crash Trap; }
+machine observe_zero(value: u32) crashes Trap requires value == 0 {
+    transition value == 0 { true -> finished() false -> failed() }
+}
 machine main() crashes Trap {
     let left: u32 = joined(true);
     let right: u32 = joined(false);
-    transition left == 0 && right == 0 { true -> finished() false -> failed() }
+    observe_zero(left);
+    observe_zero(right);
 }
