@@ -89,7 +89,7 @@ impl CallViewReturnContract<'_> {
         match self.source(program) {
             ViewReturnSource::Fields { fields } => Some(fields),
             ViewReturnSource::Parameter { parameter_index } => Some(vec![ViewReturnFieldSource {
-                lifetime_access: None,
+                lifetime_only: false,
                 source: validation::borrow_contracts::ViewReturnInputSource::Referent,
                 owner_path: Vec::new(),
                 source_path: Vec::new(),
