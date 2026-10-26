@@ -191,27 +191,13 @@ pub(crate) fn decode_byte_sequence_carrier(
 ) -> Result<ByteSequenceCarrier, CodecError> {
     match reader.u8()? {
         1 => Ok(ByteSequenceCarrier::BorrowedView {
-            access: match reader.u8()? {
-                0 => None,
-                1 => Some(terminal_psi::StructuralAccess::Owned),
-                2 => Some(terminal_psi::StructuralAccess::SharedBorrow),
-                3 => Some(terminal_psi::StructuralAccess::MutableBorrow),
-                4 => Some(terminal_psi::StructuralAccess::WriteOnlyBorrow),
-                tag => return Err(CodecError::InvalidTag("StructuralAccess", tag)),
-            },
+            access: super::structural_signature_wire::decode_optional_structural_access(reader)?,
         }),
         2 => Ok(ByteSequenceCarrier::BoundedOwned {
             capacity: reader.u64()?,
         }),
         3 => Ok(ByteSequenceCarrier::BoundedView {
-            access: match reader.u8()? {
-                0 => None,
-                1 => Some(terminal_psi::StructuralAccess::Owned),
-                2 => Some(terminal_psi::StructuralAccess::SharedBorrow),
-                3 => Some(terminal_psi::StructuralAccess::MutableBorrow),
-                4 => Some(terminal_psi::StructuralAccess::WriteOnlyBorrow),
-                tag => return Err(CodecError::InvalidTag("StructuralAccess", tag)),
-            },
+            access: super::structural_signature_wire::decode_optional_structural_access(reader)?,
             capacity: reader.u64()?,
         }),
         tag => Err(CodecError::InvalidTag("ByteSequenceCarrier", tag)),

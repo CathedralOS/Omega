@@ -10,6 +10,10 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageCompilationInputError {
+    InvalidDependencyAcquisition {
+        root: PackageKeyIdentity,
+        reason: String,
+    },
     InvalidRootRole {
         role: BuildDeclarationKind,
     },
@@ -118,6 +122,11 @@ pub enum PackageCompilationInputError {
 impl fmt::Display for PackageCompilationInputError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidDependencyAcquisition { root, reason } => write!(
+                formatter,
+                "invalid acquired dependency requests for {}: {reason}",
+                display_identity(*root)
+            ),
             Self::InvalidRootRole { role } => write!(
                 formatter,
                 "package compilation root has inadmissible declaration role {role:?}"

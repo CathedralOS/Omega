@@ -360,6 +360,17 @@ pub(super) fn instantiated_selected_fact_judgment(
             StructuralJudgment::Unknown => {}
         }
     }
+    // Bind completed operands before walking a descriptor path: a symbolic
+    // formal alone cannot authorize its stored shared-reference crossings.
+    if judge.has_runtime_body_values()
+        && machine_map.is_empty()
+        && matches!(
+            judge.captured_metadata_predicate_judgment(callee_owner, callee_parameters, fact, map),
+            StructuralJudgment::Proven
+        )
+    {
+        return StructuralJudgment::Proven;
+    }
     let Some(binary) = program.expression_table.binary_node(fact) else {
         return StructuralJudgment::Unknown;
     };

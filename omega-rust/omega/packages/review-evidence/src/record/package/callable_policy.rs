@@ -26,12 +26,7 @@ pub struct PackagePolicyCallables {
 }
 
 impl PackagePolicyCallables {
-    pub const fn package(&self) -> PackageKeyIdentity {
-        self.package
-    }
-    pub const fn target(&self) -> TargetProfile {
-        self.target
-    }
+    crate::record::accessors::record_accessors!(package, target);
     pub fn callables(&self) -> &[PackagePolicyCallable] {
         &self.callables
     }

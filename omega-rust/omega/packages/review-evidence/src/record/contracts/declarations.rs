@@ -27,10 +27,7 @@ pub(crate) struct PackageReviewOperatorShape {
 }
 
 impl PackageReviewConstShape {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
-
+    crate::record::accessors::record_accessors!(identity);
     pub const fn declared_type(&self) -> &PackageReviewTypeIdentity {
         &self.declared_type
     }

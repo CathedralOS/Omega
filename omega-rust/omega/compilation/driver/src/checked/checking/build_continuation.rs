@@ -16,6 +16,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 pub(super) struct BuildSourceInvocation {
+    parsed: compilation_products::PreparedCheckedSource,
     frontier: TypedCompilationFrontier,
     evaluation: build_evaluation::PreparedBuildEvaluation,
     package_inputs: Option<PackageCompilationInputs>,
@@ -30,6 +31,7 @@ pub(super) struct BuildSourceInvocation {
 pub(super) fn prepare_build_invocation(
     root_path: &Path,
     child: CheckedExecutionRequest<'_>,
+    parsed: compilation_products::PreparedCheckedSource,
     frontier: TypedCompilationFrontier,
     mut timings: CompileTimings,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
@@ -79,6 +81,7 @@ pub(super) fn prepare_build_invocation(
         &mut timings,
     )?;
     Ok(BuildSourceInvocation {
+        parsed,
         frontier: TypedCompilationFrontier {
             source,
             anonymous_source,
@@ -108,15 +111,31 @@ impl BuildSourceInvocation {
         joined_inputs: Option<&PackageCompilationInputs>,
         product_target: Option<target::TargetProfile>,
     ) -> Result<compilation_products::PreparedBuild, CompileFailure> {
+        let settled = self.settle(returned, joined_inputs, product_target)?;
+        let inputs = settled.package_inputs.clone();
+        prepare_settled_product(settled, inputs.as_ref())
+    }
+
+    pub(super) fn settle(
+        self,
+        mut returned: Option<build_evaluation::ReturnedBuild>,
+        joined_inputs: Option<&PackageCompilationInputs>,
+        product_target: Option<target::TargetProfile>,
+    ) -> Result<compilation_products::SettledBuildSource, CompileFailure> {
         let Self {
+            parsed,
             frontier,
             evaluation,
             package_inputs,
             selected_target_profile,
             build_execution_profile,
-            mut timings,
+            timings,
             started,
         } = self;
+        let original_assembly = package_compilation::SourceAssemblyInputs::new(
+            package_inputs.as_ref(),
+            build_execution_profile,
+        );
         if let (Some(original), Some(joined)) = (package_inputs.as_ref(), joined_inputs)
             && original != joined
         {
@@ -126,6 +145,11 @@ impl BuildSourceInvocation {
             .into());
         }
         let initially_unbound = package_inputs.is_none();
+        if let (Some(inputs), Some(returned)) = (package_inputs.as_ref(), returned.as_mut()) {
+            returned
+                .join_preacquired_sources(inputs)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        }
         let selected_target_profile = if initially_unbound {
             product_target.or(selected_target_profile)
         } else {
@@ -172,24 +196,72 @@ impl BuildSourceInvocation {
                 .into());
             }
         }
-        let completed = complete_build_source(
+        Ok(compilation_products::SettledBuildSource {
+            parsed,
             frontier,
             evaluated,
-            package_inputs,
+            package_inputs: package_inputs.cloned(),
+            original_assembly,
             build_execution_profile,
-            &mut timings,
-        )
-        .map_err(|failure| super::attribute_failure(failure, &initial_sources, package_inputs))?;
-        timings.add_completed(
-            artifacts::compile_timings::BUILD_AND_CHECKED_CONTINUATION,
-            started.elapsed().as_micros(),
-        );
-        Ok(compilation_products::PreparedBuild {
-            built: completed.0,
-            build_sources: completed.1,
             timings,
+            build_elapsed_micros: started.elapsed().as_micros(),
         })
     }
+}
+
+pub(super) fn prepare_settled_product(
+    settled: compilation_products::SettledBuildSource,
+    inputs: Option<&PackageCompilationInputs>,
+) -> Result<compilation_products::PreparedBuild, CompileFailure> {
+    if settled
+        .package_inputs
+        .as_ref()
+        .map(PackageCompilationInputs::source_inputs)
+        != inputs.map(PackageCompilationInputs::source_inputs)
+    {
+        return Err(vec![Diagnostic::error(
+            "Product preparation cannot replace its settled Build source graph",
+        )]
+        .into());
+    }
+    let started = std::time::Instant::now();
+    let mut timings = settled.timings;
+    let frontier = if settled.frontier.product_sources.is_some()
+        || settled.original_assembly
+            == package_compilation::SourceAssemblyInputs::new(
+                inputs,
+                settled.build_execution_profile,
+            ) {
+        settled.frontier
+    } else {
+        // A default Build may already have typed its Product prefix. Different
+        // source-routing inputs need a fresh judgment from retained parsing,
+        // never a retagged typed program or another Build execution.
+        let (frontier, prepared_timings) =
+            super::prepare_typed_frontier(settled.parsed, inputs, settled.build_execution_profile)?;
+        timings = prepared_timings;
+        frontier
+    };
+    let initial_sources = frontier.base_sources.clone();
+    let completed = complete_build_source(
+        frontier,
+        settled.evaluated,
+        inputs,
+        settled.build_execution_profile,
+        &mut timings,
+    )
+    .map_err(|failure| super::attribute_failure(failure, &initial_sources, inputs))?;
+    timings.add_completed(
+        artifacts::compile_timings::BUILD_AND_CHECKED_CONTINUATION,
+        settled
+            .build_elapsed_micros
+            .saturating_add(started.elapsed().as_micros()),
+    );
+    Ok(compilation_products::PreparedBuild {
+        built: completed.0,
+        build_sources: completed.1,
+        timings,
+    })
 }
 
 fn complete_build_source(

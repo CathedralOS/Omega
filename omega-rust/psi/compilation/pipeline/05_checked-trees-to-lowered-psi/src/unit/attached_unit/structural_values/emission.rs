@@ -555,7 +555,12 @@ pub(crate) fn emit<'source>(
             access: StructuralAccess::Owned,
         };
         let projected = structural_values(checked).nodes.get(storage_value);
-        storage_memberships.push((projected.qualification_decisions, projected.expression));
+        if matches!(
+            projected.kind,
+            CheckedStructuralValueKind::Projection { .. }
+        ) {
+            storage_memberships.push((projected.qualification_decisions, projected.expression));
+        }
         for (decisions, expression) in storage_memberships.into_iter().rev() {
             argument = emission.retain_checked_memberships(
                 identities,
@@ -2583,8 +2588,20 @@ impl Emission<'_, '_, '_> {
             consumed_value = *source;
         }
         let node = structural_values(self.checked).nodes.get(consumed_value);
+        let expression = if validation::completed_storage::consumer_captures(
+            &self.checked.facts.flow.control,
+            self.state,
+            self.statement as usize,
+            node.expression,
+        )
+        .is_some()
+        {
+            node.expression
+        } else {
+            structural_values(self.checked).nodes.get(value).expression
+        };
         let source_claims = self
-            .capture_operand(identities, source.clone(), node.expression, first_new_place)?
+            .capture_operand(identities, source.clone(), expression, first_new_place)?
             .claims;
         let block = block_id(allocate_dense(self.next_block)?);
         let place = place_id(allocate_dense(self.environment.next_place)?);

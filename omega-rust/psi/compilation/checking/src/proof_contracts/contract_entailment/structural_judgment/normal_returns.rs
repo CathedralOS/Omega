@@ -132,6 +132,21 @@ impl<'program> StructuralJudge<'program> {
         paths
     }
 
+    fn term_max_captured_occurrence(term: &StructuralTerm) -> Option<usize> {
+        match term.semantic_value() {
+            StructuralTerm::CapturedValue { occurrence, .. } => Some(*occurrence),
+            _ => {
+                let mut max = None;
+                term.for_each_child(|child| {
+                    if let Some(child_occ) = Self::term_max_captured_occurrence(child) {
+                        max = Some(max.map_or(child_occ, |curr: usize| curr.max(child_occ)));
+                    }
+                });
+                max
+            }
+        }
+    }
+
     /// Resolve captured value identities without folding arithmetic or using
     /// caller hypotheses. Discovery needs the producing operand structure;
     /// ring equality cannot replace its intermediate formation obligations.
@@ -230,13 +245,31 @@ impl<'program> StructuralJudge<'program> {
             return value;
         }
         for (left, right) in self.captured_result_equations.iter() {
-            for (pattern, replacement) in [(left, right), (right, left)] {
-                if pattern == &value
-                    && replacement != &value
-                    && !super::super::structural_terms::term_contains(replacement, &value)
-                {
-                    return self.completed_value_identity_at(replacement.clone(), depth + 1);
+            // Orient captured results toward earlier source observations:
+            // normalize a later captured call result toward an earlier
+            // observation or input parameter, avoiding circular flips.
+            let (pattern, replacement) = match (
+                Self::term_max_captured_occurrence(left),
+                Self::term_max_captured_occurrence(right),
+            ) {
+                (Some(left_occ), Some(right_occ)) => {
+                    if left_occ > right_occ {
+                        (left, right)
+                    } else if right_occ > left_occ {
+                        (right, left)
+                    } else {
+                        continue;
+                    }
                 }
+                (Some(_), None) => (left, right),
+                (None, Some(_)) => (right, left),
+                (None, None) => continue,
+            };
+            if pattern == &value
+                && replacement != &value
+                && !super::super::structural_terms::term_contains(replacement, &value)
+            {
+                return self.completed_value_identity_at(replacement.clone(), depth + 1);
             }
         }
         value
@@ -1317,7 +1350,9 @@ impl<'program> StructuralJudge<'program> {
                     if let Some((_, referent)) =
                         inputs.iter().find(|(input, _)| *input == borrow.target)
                     {
-                        value = referent.clone();
+                        value = crate::expression_result_type_reference(program, scope.0, scope.1, expression)
+                            .and_then(|declared| super::super::structural_terms::shared_inline_observation(program, declared, referent.clone()))
+                            .unwrap_or_else(|| referent.clone());
                     }
                 }
                 if scalar_field_read {
@@ -1595,6 +1630,14 @@ impl<'program> StructuralJudge<'program> {
         if !(is_parameter || is_local) || !subject.type_reference.is_valid() {
             return None;
         }
+        let mut current_type = program
+            .state_local_declaration(scope.1, source.root)
+            .map(|(_, local)| local.type_reference)
+            .or_else(|| {
+                program
+                    .state_parameter_by_symbol(scope.1, source.root)
+                    .map(|param| param.type_reference)
+            })?;
         let name = program.symbols.name(source.root);
         let mut roots = environment.iter().filter(|(binding, _)| binding == name);
         let mut value = roots.next()?.1.clone();
@@ -1605,8 +1648,28 @@ impl<'program> StructuralJudge<'program> {
             match segment {
                 facts::PlaceSegment::Field { symbol } => {
                     value = self.observed_field_term(value, program.symbols.name(*symbol), 0)?;
+                    current_type = crate::value_custody::places::project_type_reference_from_segments(
+                        program,
+                        current_type,
+                        std::slice::from_ref(segment),
+                    )?;
                 }
-                // The current structural term owner has no indexed or case
+                facts::PlaceSegment::FixedIndex { index } => {
+                    let index_u64 = u64::try_from(*index).ok()?;
+                    let index_term = StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(index_u64));
+                    value = super::super::observed_projections::project_index(
+                        program,
+                        current_type,
+                        value,
+                        index_term,
+                    )?;
+                    current_type = crate::value_custody::places::project_type_reference_from_segments(
+                        program,
+                        current_type,
+                        std::slice::from_ref(segment),
+                    )?;
+                }
+                // The current structural term owner has no dynamic indexed or case
                 // projection observation. Exact origin/type alone cannot
                 // manufacture its value or erase an active-case obligation.
                 _ => return None,

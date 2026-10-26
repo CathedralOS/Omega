@@ -26,7 +26,6 @@ impl SourceRootRole {
 mod acquisition;
 pub use acquisition::{AcquiredBuildSource, BuildSourceAcquisitionError, BuildSourceAcquisitions};
 mod build_resolution;
-pub(crate) mod build_source_join;
 mod custody;
 pub use build_resolution::{
     AcquiredBuildDependency, BuildSourceAcquisition, DeclaredBuildSource, ExecutedSourceResolution,

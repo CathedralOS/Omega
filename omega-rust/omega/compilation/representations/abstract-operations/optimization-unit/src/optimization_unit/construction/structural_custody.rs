@@ -120,7 +120,9 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         O::ElementViewLength { source, .. } | O::ByteSequenceLength { source, .. } => {
             places.insert(source.place);
         }
-        O::ReleaseActivationClaim { source, .. } => { places.insert(source.place); }
+        O::ReleaseActivationClaim { source, .. } => {
+            places.insert(source.place);
+        }
         O::ReleaseReference { source, .. } => {
             places.insert(*source);
         }
@@ -232,7 +234,11 @@ pub(super) fn collect_operation_structural_places(
     }
 }
 
-pub(super) fn operation_ownership(operation: &AbstractOperation) -> Vec<OwnershipEvent> {
+/// The ownership events one operation publishes, in custody order. This is a
+/// projection of the operation's own rows, so unit construction, a moved
+/// node's replay and the independent validator all rebuild them through this
+/// owner instead of a second spelling that could drift from it.
+pub fn operation_ownership(operation: &AbstractOperation) -> Vec<OwnershipEvent> {
     use AbstractOperation as O;
     match operation {
         O::CallStructural {

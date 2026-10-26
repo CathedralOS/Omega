@@ -40,16 +40,7 @@ pub struct BuildEvaluationRequest<'request> {
     pub retain_check: bool,
 }
 
-/// Evaluated configuration and the exact pre-effect admission observations.
-/// Generated-source continuation and final checking consume this result. It
-/// retains the admitted source commitment, not reusable grants or a live activation.
-pub struct EvaluatedBuild {
-    pub configuration: Arc<crate::ComputedBuildConfig>,
-    pub restricted_build_requests: Vec<RestrictedBuildRequest>,
-    pub base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
-    /// Optional invocation-local language judgment, separate from configuration.
-    pub retained_check: Option<psi_compiler::RetainedCheck>,
-}
+pub use compilation_products::EvaluatedBuild;
 
 enum BuildEvaluationState {
     Complete(Arc<crate::ComputedBuildConfig>),

@@ -139,6 +139,11 @@ impl CurrentScalarValues<'_> {
                 TypeReferenceNode::Named {
                     symbol: selected, ..
                 } if selected.is_valid() => symbol = *selected,
+                TypeReferenceNode::Named { symbol: selected, name } if !selected.is_valid() => {
+                    if let Ok(value) = name.as_str().parse::<i128>() {
+                        return Some(ScopedArithmeticValue::Integer(BigInt::from_i128(value)));
+                    }
+                }
                 _ => {}
             }
         }

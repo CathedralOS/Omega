@@ -728,6 +728,21 @@ fn validate<'program>(
                     &value_environment,
                     call_frames.as_ref(),
                 );
+                if let Some(local) = statement.as_local_data()
+                    && !local.type_is_inferred
+                    && !local.is_operand_capture
+                {
+                    statements::validate_local_type_reference(
+                        program,
+                        machine,
+                        Some(state),
+                        &state.name,
+                        local,
+                        &symbols,
+                        &value_environment,
+                        &mut diagnostics,
+                    );
+                }
                 // R5 value-call frame: conservatively apply the aggregate
                 // may-write set of every call nested in this statement before
                 // checking general value uses. Transition arguments retain

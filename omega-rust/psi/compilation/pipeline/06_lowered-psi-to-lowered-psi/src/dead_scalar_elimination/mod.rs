@@ -20,44 +20,20 @@ use lowered_psi::LoweredPsi;
 pub(super) fn eliminate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
     let mut after = before.clone();
     // These are semantic uses even when no executable operand reads the
-    // value: proof projections and retained suspension frontiers survive
+    // value: proof projections, retained suspension frontiers, boundary
+    // results and the quotient catalogue's correspondence endpoints survive
     // publication unchanged.
-    let mut retained_values = Vec::new();
-    retained_values.extend(crate::retained_identities::quotient_call_results(
-        &before.semantic_module,
-    ));
+    let mut retained_values =
+        crate::retained_identities::record_named_rows(&before.semantic_module).values;
     retained_values.extend(crate::retained_identities::boundary_application_results(
         &before.semantic_module,
     ));
-    for projection in &before.semantic_module.float_meaning_projections {
-        match &projection.source {
-            terminal_psi::FloatMeaningSource::DirectOperationResult(result) => {
-                retained_values.push(result.result)
-            }
-            terminal_psi::FloatMeaningSource::DirectCallResult(result) => {
-                retained_values.push(result.result)
-            }
-            terminal_psi::FloatMeaningSource::DirectBlockParameter(parameter) => {
-                retained_values.push(parameter.parameter)
-            }
-            terminal_psi::FloatMeaningSource::TransitionalInput(_)
-            | terminal_psi::FloatMeaningSource::DirectMachineParameter(_)
-            | terminal_psi::FloatMeaningSource::DirectMachineResult(_)
-            | terminal_psi::FloatMeaningSource::DirectStructuralLeaf(_)
-            | terminal_psi::FloatMeaningSource::ExactBinary32Literal(_)
-            | terminal_psi::FloatMeaningSource::ExactBinary64Literal(_)
-            | terminal_psi::FloatMeaningSource::SemanticApplication(_) => {}
-        }
-    }
-    for plan in &before.semantic_module.suspension_call_plans {
-        plan.visit_value_ids(|value| retained_values.push(value));
-    }
     // Join predicates remain the same proof questions. A value explicitly
     // named by a retained header is a semantic use, even when no executable
     // operation reads it after the selected rewrite.
     for invariant in &before.semantic_module.scalar_block_invariants {
         invariant.predicate.visit_value_ids(|value| {
-            retained_values.push(value);
+            retained_values.insert(value);
         });
     }
     for machine in &mut after.semantic_module.machines {

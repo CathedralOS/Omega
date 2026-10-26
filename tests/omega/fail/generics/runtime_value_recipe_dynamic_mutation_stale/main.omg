@@ -1,0 +1,4 @@
+trait Updating {machine update(slot:&mut u32);}
+Updater satisfies Updating {machine update(slot:&mut u32) {slot=9;}}
+machine one(value:u32) requires value==1 {}
+machine main() {let mut slot:u32=1; Updating::update(Updater as dyn Updating,&mut slot); one(slot);}

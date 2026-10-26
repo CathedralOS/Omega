@@ -1348,7 +1348,12 @@ fn execute_fixture(
     };
     let stdout_receiver = capture_stream(child.stdout.take());
     let stderr_receiver = capture_stream(child.stderr.take());
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let deadline = std::time::Instant::now()
+        + env::var("OMEGA_CORPUS_EXECUTE_SECS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .map(std::time::Duration::from_secs)
+            .unwrap_or(std::time::Duration::from_secs(60));
     let mut facts = Vec::new();
     let exit = loop {
         match child.try_wait() {

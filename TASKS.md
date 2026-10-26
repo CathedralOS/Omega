@@ -314,6 +314,12 @@ helper that passes does not close an item.
       execution (zero selections retain structural eligibility; repeated
       identical selections invoke once; distinct inherited/conjoined selections
       reject).
+    - Red place on main: `samples/cli/facts/domain_selected_cleanup/erased_predicates`
+      (explicit predicate erasure) refuses native compilation since its landing
+      (#165, `f8645229c43`); the probe at the landing commit fails too, so the
+      place never ran green. Terminal Psi lowering reports `InvalidUnitMachinePlan`
+      — "resident membership home has no exact source projection"
+      (`pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_values/emission/current_memberships.rs`).
   Acceptance: a nine-place fact row for `dropped by` with observable cleanup side
   effects passes `omega run --both` (with reject twins for conflicting machine
   applications, erasure bypass, missing inherited obligations, unauthorized
@@ -1122,7 +1128,11 @@ narrows realization only.
   reject; private dependency machines remain inaccessible. Captured dependency
   bytes no longer imply root-only Build metadata authority. Reconciliation keeps
   its scope/alias/cycle/limit checks; compiler completion refuses any unjoined
-  request. Project preparation now retains transaction recovery, lock selection
+  request. Pre-acquired source inputs retain the exact request value, purpose,
+  ordinal and selected source; bound compilation rejoins those receipts against
+  the executed ledger rather than treating an alias graph as settlement. The
+  same validation serves post-execution acquisition, and changed locators still
+  refuse with unchanged aliases. Project preparation retains recovery, lock selection
   and concurrent-edit checks across application-owned source execution; its
   begin/finish boundary accepts the actual acquired graph without parsing Build
   declarations. Application source discovery now drives the executed traversal
@@ -1148,6 +1158,15 @@ narrows realization only.
   occurrences. Final Product context now chooses its target at source join;
   the SDK completes a foreign-target dependency graph after host discovery,
   then selects and executes the host product. Pre-admitted targets remain fixed.
+  Build settlement is now a separate opaque result before Product preparation:
+  source-request/output settlement consumes the actual return, while independent
+  Product contexts resolve and type from the same captured input under their own
+  admitted semantic bindings. The SDK exercises accepted review and executable
+  contexts after live-source deletion, refusing missing entry acceptance and a
+  replaced request graph without replay or additional Build fuel. Default Builds
+  reprepare changed compilation purposes from retained parsing. The ordinary
+  composite route consumes this same sequence; this phase boundary does not yet
+  complete the production retained-discovery cutover above.
   Execution-time profile, staging, snapshots/outputs, sponsors and grant guards
   now travel as one owned `BuildExecutionInputs` from package admission through
   the compiler facade into Build evaluation; repeated field-by-field forwarding
@@ -2045,9 +2064,14 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   rows, the named acceptance fixtures, and the forwarded descriptor production
   under `runtime_index_application/forwarded` (including same-index mutable
   loans and reference forwarding). Construction/bounds/retag and static-kind
-  controls reject. Keep this outcome open: the other three hosted execution
-  environments have not been observed; explicit-target image production is not
-  native/Terminal execution on those hosts.
+  controls reject. Keep this outcome open: general computed-data formation,
+  independently proved runtime/result index equality, selected-operator result
+  guarantees and nested composition still require whole-item qualification.
+  CI candidate `7ad3806d0f45` additionally observed 57 native/Terminal agreements
+  and 97 intended rejects on Linux ARM64 and macOS ARM64, using the existing
+  hosted runners. Windows execution and the later capture/nested-result source
+  changes remain unqualified. Explicit-target image production supplies no
+  native/Terminal execution evidence on another host.
 
 - **STRUCTURAL-GENERIC-MATCHING.** Complete
   [static type equality](wiki/spec/language/generics.md#static-type-equality),

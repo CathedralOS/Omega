@@ -5,10 +5,59 @@
 use super::ReturnedBuild;
 use build_declarations::{BuildDeclaration, BuildRequest, DependencyPurpose};
 use package_compilation::PackageCompilationInputs;
+use semantic_vocabulary::PackageKeyIdentity;
 
-pub use package_compilation::BuildDependencySelection;
+/// One package-manager selection at an issued purpose-local request ordinal.
+/// Selections retain request order within each purpose.
+pub struct BuildDependencySelection {
+    pub purpose: DependencyPurpose,
+    pub request_ordinal: usize,
+    pub package: PackageKeyIdentity,
+}
 
 impl ReturnedBuild {
+    /// Rejoin sources acquired before this bound compilation began. They must
+    /// retain the exact request values as well as the alias graph; a graph alone
+    /// never settles an issued request. Anonymous discovery still joins through
+    /// its resolver after executing the selected sources.
+    pub fn join_preacquired_sources(
+        &mut self,
+        inputs: &PackageCompilationInputs,
+    ) -> Result<(), String> {
+        if self.source_join.is_some() {
+            return self.validate_source_join(Some(inputs), false);
+        }
+        if inputs.dependency_acquisitions().is_empty() {
+            return if self
+                .requests
+                .iter()
+                .any(|issued| matches!(issued.request(), BuildRequest::Dependency { .. }))
+            {
+                Err(
+                    "dependency requests require coordinator settlement before Product compilation"
+                        .into(),
+                )
+            } else {
+                Ok(())
+            };
+        }
+        let selections = inputs
+            .dependency_acquisitions()
+            .iter()
+            .map(|acquired| {
+                let BuildRequest::Dependency { purpose, .. } = acquired.request else {
+                    return Err("acquired source record is not a dependency request".to_owned());
+                };
+                Ok(BuildDependencySelection {
+                    purpose,
+                    request_ordinal: acquired.request_ordinal,
+                    package: acquired.package,
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        self.join_dependency_sources(inputs, &selections)
+    }
+
     /// The host resolver supplies the sources it acquired for these actual
     /// requests. This joins every ordinal and alias, then retains the exact
     /// graph; it neither acquires sources nor accepts a static declaration roster.
@@ -40,13 +89,39 @@ impl ReturnedBuild {
         let mut build_selections = selections
             .iter()
             .filter(|selection| selection.purpose == DependencyPurpose::Build);
+        let mut product_acquisitions = inputs.dependency_acquisitions().iter().filter(|acquired| {
+            matches!(
+                &acquired.request,
+                BuildRequest::Dependency {
+                    purpose: DependencyPurpose::Product,
+                    ..
+                }
+            )
+        });
+        let mut build_acquisitions = inputs.dependency_acquisitions().iter().filter(|acquired| {
+            matches!(
+                &acquired.request,
+                BuildRequest::Dependency {
+                    purpose: DependencyPurpose::Build,
+                    ..
+                }
+            )
+        });
         for issued in &self.requests {
             let BuildRequest::Dependency { purpose, alias, .. } = issued.request() else {
                 continue;
             };
-            let (ordinal, selected) = match purpose {
-                DependencyPurpose::Product => (&mut product_count, product_selections.next()),
-                DependencyPurpose::Build => (&mut build_count, build_selections.next()),
+            let (ordinal, selected, acquired) = match purpose {
+                DependencyPurpose::Product => (
+                    &mut product_count,
+                    product_selections.next(),
+                    product_acquisitions.next(),
+                ),
+                DependencyPurpose::Build => (
+                    &mut build_count,
+                    build_selections.next(),
+                    build_acquisitions.next(),
+                ),
             };
             let selected = selected.ok_or_else(|| {
                 format!(
@@ -69,9 +144,20 @@ impl ReturnedBuild {
                     "acquired dependency does not match its executed alias and purpose".into(),
                 );
             }
+            let acquired =
+                acquired.ok_or("issued dependency has no exact acquired request custody")?;
+            if acquired.request_ordinal != *ordinal
+                || &acquired.request != issued.request()
+                || acquired.package != selected.package
+            {
+                return Err(
+                    "issued dependency differs from its exact acquired source request".into(),
+                );
+            }
             *ordinal += 1;
         }
         if selections.len() != product_count + build_count
+            || inputs.dependency_acquisitions().len() != product_count + build_count
             || inputs
                 .direct_dependencies(DependencyPurpose::Product)
                 .count()

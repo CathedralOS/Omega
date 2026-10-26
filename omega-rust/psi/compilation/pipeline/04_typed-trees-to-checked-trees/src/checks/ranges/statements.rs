@@ -65,6 +65,33 @@ pub(super) fn check_statement<'program>(
                 assignment.value,
             );
         }
+        fn needs_transition_target(&self, target: TransitionTargetHandle) -> bool {
+            if !target.is_valid() {
+                return false;
+            }
+            match self.program.statement_table.transition_target(target) {
+                typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => self
+                    .program
+                    .statement_table
+                    .expression_handles(*arguments)
+                    .iter()
+                    .any(|argument| {
+                        super::expression_transfer::expression_has_sink_effect(
+                            self.program,
+                            *argument,
+                            true,
+                        )
+                    }),
+                typed_trees::statement::TransitionTargetNode::Value(value) => {
+                    super::expression_transfer::expression_has_sink_effect(
+                        self.program,
+                        *value,
+                        true,
+                    )
+                }
+                typed_trees::statement::TransitionTargetNode::Terminal => false,
+            }
+        }
         fn visit_transition_target(
             &mut self,
             facts: &mut RangeFacts<'_>,

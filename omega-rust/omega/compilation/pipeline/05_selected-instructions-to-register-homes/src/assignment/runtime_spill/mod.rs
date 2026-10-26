@@ -8,9 +8,11 @@ use optimization_core::{
     SelectedLoweringOptimizationCompletionIdentity,
 };
 pub(crate) use recovery::{
-    assign_source, recover, recover_after_active_resident_rematerialization,
-    recover_after_declined_fixed_view_probe, recover_after_fixed_view_copies,
-    recover_after_pre_allocation, recover_after_selected_lowering,
+    assign_source, assign_source_reusing, recover,
+    recover_after_active_resident_rematerialization, recover_after_declined_fixed_view_probe,
+    recover_after_fixed_view_copies, recover_after_pre_allocation,
+    recover_after_pre_allocation_with_reuse, recover_after_selected_lowering,
+    recover_after_selected_lowering_with_reuse, recover_with_reuse,
 };
 use register_homes::{
     PostAllocationOptimizationManifestError, PostAllocationSelectedTransformation,

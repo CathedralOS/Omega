@@ -14,12 +14,7 @@ use super::super::scoped_paths::{
     resolve_path_members_from_head, resolve_state_scoped_table_path,
     resolve_state_scoped_table_path_member_symbols,
 };
-use super::super::targets::{
-    assign_assumed_binding_argument_symbol, assign_provider_selection_argument_symbol,
-    assign_representation_selection_argument_symbol, assign_runtime_subject_argument_symbol,
-    assign_static_argument_symbols, build_operand_route,
-};
-use language_semantics::declaration_selection::BuildOperation;
+use super::super::targets::assign_call_machine_argument_symbols;
 
 /// A case is a member of its carrier, never an expected-type-dependent bare
 /// value. Reject the exact unresolved spelling here so no later consumer can
@@ -233,44 +228,14 @@ pub(super) fn assign_call_symbol(
         call.target_symbol = target_symbol;
         // `exclude_service<Trait>()` names one exact declaration the same way
         // a provider slot does; build harvesting requires a boundary trait.
-        let operand_route = build_operand_route(call.target.as_str(), target_symbol);
-        for (index, argument) in call.machine_arguments.iter_mut().enumerate() {
-            match operand_route {
-                Some(BuildOperation::AssumedBindingContract) => {
-                    assign_assumed_binding_argument_symbol(symbols, argument);
-                }
-                Some(BuildOperation::RepresentationSelection) => {
-                    assign_representation_selection_argument_symbol(symbols, argument, index == 0);
-                }
-                Some(operation) => assign_provider_selection_argument_symbol(
-                    symbols,
-                    argument,
-                    matches!(
-                        operation,
-                        BuildOperation::ProviderSelection | BuildOperation::BoundaryAcceptance
-                    ) && index == 0,
-                ),
-                None => {
-                    let proof_static = target_symbol.is_valid()
-                        && matches!(
-                            symbols.get(target_symbol).kind,
-                            SymbolKind::Proposition
-                                | SymbolKind::PropositionParameter
-                                | SymbolKind::MathematicalDefinition
-                        );
-                    assign_static_argument_symbols(
-                        symbols,
-                        machine.symbol,
-                        machine.type_parameters,
-                        argument,
-                        proof_static,
-                    );
-                    if !proof_static {
-                        assign_runtime_subject_argument_symbol(symbols, state_symbol, argument);
-                    }
-                }
-            }
-        }
+        assign_call_machine_argument_symbols(
+            symbols,
+            machine,
+            state_symbol,
+            &call.target,
+            target_symbol,
+            &mut call.machine_arguments,
+        );
     }
 }
 

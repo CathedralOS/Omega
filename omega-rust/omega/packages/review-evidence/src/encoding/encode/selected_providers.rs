@@ -12,7 +12,7 @@ mod signature;
 pub(super) use service::method as encode_service_method;
 
 use super::{
-    encoder::Encoder,
+    encoder::{Encoder, encode_canonical_component},
     values::{identity::encode_nominal, providers::encode_compiler_intrinsic_execution},
 };
 use crate::encoding::{
@@ -21,14 +21,11 @@ use crate::encoding::{
 };
 
 impl PackagePolicySelectedProviders {
-    pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
-        Encoder::policy_bytes(
-            SELECTED_PROVIDER_POLICY_MAGIC,
-            PACKAGE_SELECTED_PROVIDER_POLICY_VERSION,
-            self,
-            policy,
-        )
-    }
+    encode_canonical_component!(
+        SELECTED_PROVIDER_POLICY_MAGIC,
+        PACKAGE_SELECTED_PROVIDER_POLICY_VERSION,
+        policy,
+    );
 }
 
 pub(super) fn policy(

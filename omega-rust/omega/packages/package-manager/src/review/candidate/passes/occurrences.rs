@@ -381,17 +381,7 @@ impl<'pass> PackageReviewRound<'pass> {
         if self.carry_prior_compile(&occurrence, &inputs, &assembled)? {
             return Ok(None);
         }
-        let dependency_source_join = crate::resolution::source::build_source_join::prepare(
-            self.closure,
-            occurrence.key,
-            &inputs,
-        )
-        .map_err(|reason| CompileResolvedPackageReviewsError::Compilation {
-            package: occurrence.key.clone(),
-            diagnostics: vec![Diagnostic::error(reason)],
-        })?;
         let request = CheckedCompileRequest {
-            dependency_source_join: Some(dependency_source_join),
             package_inputs: Some(inputs),
             build: package_compilation::BuildExecutionInputs {
                 profile: self.execution_profile,

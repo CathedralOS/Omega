@@ -218,6 +218,7 @@ impl PackageCompilationInputs {
                     root,
                     root_role,
                     packages: canonical_packages,
+                    dependency_acquisitions: Vec::new(),
                 }),
                 target: PackageCompilationTargetInputs::default(),
             })

@@ -145,10 +145,12 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                 }))
         }
         resolved::types::TypeReferenceNode::ConstExpression(expression) => {
-            let expression = crate::expressions::expression::lower_expression_handle_from_table(
+            let expression = crate::expressions::expression::lower_expression_handle_from_table_with_symbol_substitution(
+                Some(source_trees),
                 &source_trees.tables.bodies.expressions,
                 typed_trees,
                 *expression,
+                None,
             )?;
             Ok(typed_trees
                 .type_reference_table

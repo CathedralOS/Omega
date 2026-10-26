@@ -23,8 +23,9 @@ preserve it intact as a stable reference. Create and work exclusively in an isol
 based on fetched `origin/main`.
 
 Apply the selection order in [AGENTS.md](../../../AGENTS.md#the-sample-loop):
-known main regressions, explicit user scope, the existing capability continuation,
-then an actionable board outcome by priority and release dependencies. Compiler
+explicit user scope, the existing capability continuation, an unclaimed active
+`main` regression (only when unassigned and the newest completed `Post-merge smoke`
+run on `main` failed), then an actionable board outcome by priority and release dependencies. Compiler
 advancement then selects the witness only from `samples/cli/facts`. One fact
 is one folder. The nine places are local, field, parameter, call result,
 match join, const name, another state, another machine, and another target
@@ -175,9 +176,13 @@ work. Name its workflow, baseline and adequate target first; a minor
 incidental slowdown is not permission to abandon a sample.
 Read live claims and in-flight assignments before choosing unassigned work.
 Prefer distinct capability outcomes with demonstrated acceptance; shared
-implementation paths do not exclude them. A named assignment, continuation or
-known regression keeps its priority even when another session claims it: read
-the note, reuse available repairs and reconcile at rebase. Do not invent unrelated
+implementation paths do not exclude them. An explicit user-named assignment or
+same-session continuation keeps its priority even when another session claims
+it: read the note, reuse available repairs and reconcile at rebase. A `main`
+regression is single-owner (`REGRESSION-<sha>`): if another live session has
+already claimed it, skip it and take normal unassigned work. Sessions with an
+active capability or user assignment never pivot to unrelated `main`
+regressions or check out historical `main` commits. Do not invent unrelated
 programs to fill capacity when the current fact witnesses are already assigned.
 
 Claim the parent item (`claim --board TASKS.md --item <ID> --owner "<label>"
@@ -185,10 +190,10 @@ Claim the parent item (`claim --board TASKS.md --item <ID> --owner "<label>"
 standalone sample work, claim `--item <sample path>` without inventing a board
 entry. Existing sample tickets remain valid; add the parent context in the note
 rather than discarding ownership. Inspect the registration's `overlaps`: if an
-automatic assignment duplicates a just-claimed outcome, choose another ready
-outcome before implementation. This preference
+automatic assignment (including a regression) duplicates a just-claimed outcome,
+choose another ready outcome before implementation. This preference
 for distinct automatic assignments grants no veto and requires no permission;
-named samples, continuations and known main regressions still proceed.
+explicitly user-named samples and same-session continuations still proceed.
 Overlapping paths are informational.
 Renew long work and release it when finished for any reason, recording the
 remaining frontier if interrupted. An unavailable registry means ownership is
