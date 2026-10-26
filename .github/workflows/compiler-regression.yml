@@ -12,7 +12,7 @@ on:
         type: boolean
         default: false
       foreign_records:
-        description: Qualify libc scalar-record results on Ubuntu and Windows
+        description: Qualify foreign scalar and opaque carriers on Linux, Windows and macOS ARM64
         type: boolean
         default: false
       linux_arm64:
@@ -34,7 +34,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: ${{ fromJSON(inputs.linux_arm64 && '["ubuntu-24.04-arm"]' || (inputs.cleanup || inputs.foreign_records) && '["ubuntu-24.04", "windows-2025"]' || '["ubuntu-24.04"]') }}
+        runner: ${{ fromJSON(inputs.linux_arm64 && '["ubuntu-24.04-arm"]' || inputs.foreign_records && '["ubuntu-24.04", "windows-2025", "macos-15"]' || inputs.cleanup && '["ubuntu-24.04", "windows-2025"]' || '["ubuntu-24.04"]') }}
     runs-on: ${{ matrix.runner }}
     # The measured cold Windows build takes nearly 30 minutes.
     timeout-minutes: 45

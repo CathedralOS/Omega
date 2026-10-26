@@ -21,6 +21,17 @@ POSITIVES += tuple(f"pass/facts/opaque_independent_closed_carrier_through_{p}_ex
 # Linear transport carries one actual whole claim across the same component edge.
 POSITIVES += tuple(f"pass/facts/opaque_independent_linear_through_{p}_exit" for p in PLACES)
 NEGATIVES += tuple(f"fail/facts/opaque_independent_linear_through_{p}_unconsumed" for p in PLACES)
+# Qualified results preserve their actual domains, including stronger actual
+# results; a shared component view retains its original opaque-backed referent.
+POSITIVES += tuple(f"pass/facts/opaque_qualified_carrier_through_{p}_exit" for p in PLACES)
+NEGATIVES += tuple(f"fail/facts/opaque_qualified_carrier_through_{p}_rejected" for p in PLACES)
+POSITIVES += tuple(f"pass/facts/opaque_borrowed_carrier_through_{p}_exit" for p in PLACES)
+NEGATIVES += tuple(f"fail/facts/opaque_borrowed_carrier_through_{p}_rejected" for p in PLACES)
+for control in ("opaque_qualified_two_parameter_control", "opaque_qualified_stronger_result",
+                "opaque_borrowed_carrier_identity", "opaque_borrowed_carrier_overlapping_views"):
+    POSITIVES += (f"pass/facts/{control}_exit",)
+    NEGATIVES += (f"fail/facts/{control}_rejected",)
+NEGATIVES += ("fail/facts/opaque_qualified_raw_issuer_rejected",)
 
 
 def authenticate_windows_lldiv(output):
