@@ -82,34 +82,58 @@ def main():
     os.environ["OMEGA_LIBRARY_ROOT"] = str(ROOT / "source/library")
     name = "omega.exe" if os.name == "nt" else "omega"
     built = Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "target")) / "debug" / name
+    observations = []
+    retained = None
     for fact_name, controls, reject_controls in FACTS:
-        fact = ROOT / "samples/cli/facts" / fact_name
-        cohort = output / fact_name
-        cohort.mkdir(parents=True, exist_ok=True)
-        provider = cohort / "provider"
-        prepared = subprocess.run([sys.executable, str(fact / "fixture/prepare.py"),
-                                   "--output", str(provider)], cwd=ROOT,
-                                  capture_output=True, text=True, timeout=180)
-        (cohort / "provider.stdout.json").write_text(prepared.stdout, encoding="utf-8")
-        (cohort / "provider.stderr.txt").write_text(prepared.stderr, encoding="utf-8")
-        if prepared.returncode:
-            raise ValueError(f"{fact_name}: matching-host C fixture failed: {prepared.stderr}")
-        key = ("PATH" if os.name == "nt" else "DYLD_LIBRARY_PATH"
-               if sys.platform == "darwin" else "LD_LIBRARY_PATH")
-        os.environ[key] = str(provider) + (os.pathsep + os.environ[key] if os.environ.get(key) else "")
-        positives = tuple(f"pass/facts/{fact_name}_{place}" for place in PLACES + controls)
-        negatives = tuple(f"fail/facts/{fact_name}_{place}" for place in PLACES + reject_controls)
-        status = compiler_pilot.run_suite("compiler-retained-foreign/" + fact_name,
-                                          positives, negatives)
-        if status:
-            return status
-        retained = cohort / name
-        shutil.copy2(built, retained)
-        samples(cohort, compiler_pilot.corpus_gate.host_target(), retained, fact, controls)
-        if fact_name == "foreign_retained_mutable_borrow":
-            uncovered_qualification(cohort, compiler_pilot.corpus_gate.host_target(), retained, fact)
-    unoffered_descriptor(output, compiler_pilot.corpus_gate.host_target(), retained)
-    return 0
+        observation = dict(fact=fact_name, passed=False)
+        observations.append(observation)
+        try:
+            retained = qualify_cohort(output, built, fact_name, controls, reject_controls)
+            observation["passed"] = True
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            observation["error"] = str(error)
+            print(f"retained foreign: {fact_name}: {error}", file=sys.stderr)
+    if retained is not None:
+        try:
+            unoffered_descriptor(output, compiler_pilot.corpus_gate.host_target(), retained)
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            observations.append(dict(fact="unoffered_descriptor", passed=False, error=str(error)))
+    passed = all(row["passed"] for row in observations)
+    (output / "summary.json").write_text(json.dumps(dict(
+        candidate=compiler_pilot.command(["git", "rev-parse", "HEAD"]),
+        target=compiler_pilot.corpus_gate.host_target(),
+        observations=observations, passed=passed), indent=2) + "\n", encoding="utf-8")
+    return 0 if passed else 1
+
+
+def qualify_cohort(output, built, fact_name, controls, reject_controls):
+    """A failed cohort stays red without hiding later independent observations."""
+    fact = ROOT / "samples/cli/facts" / fact_name
+    cohort = output / fact_name
+    cohort.mkdir(parents=True, exist_ok=True)
+    provider = cohort / "provider"
+    prepared = subprocess.run([sys.executable, str(fact / "fixture/prepare.py"),
+                               "--output", str(provider)], cwd=ROOT,
+                              capture_output=True, text=True, timeout=180)
+    (cohort / "provider.stdout.json").write_text(prepared.stdout, encoding="utf-8")
+    (cohort / "provider.stderr.txt").write_text(prepared.stderr, encoding="utf-8")
+    if prepared.returncode:
+        raise ValueError(f"{fact_name}: matching-host C fixture failed: {prepared.stderr}")
+    key = ("PATH" if os.name == "nt" else "DYLD_LIBRARY_PATH"
+           if sys.platform == "darwin" else "LD_LIBRARY_PATH")
+    os.environ[key] = str(provider) + (os.pathsep + os.environ[key] if os.environ.get(key) else "")
+    positives = tuple(f"pass/facts/{fact_name}_{place}" for place in PLACES + controls)
+    negatives = tuple(f"fail/facts/{fact_name}_{place}" for place in PLACES + reject_controls)
+    status = compiler_pilot.run_suite("compiler-retained-foreign/" + fact_name,
+                                      positives, negatives)
+    if status:
+        raise ValueError(f"corpus checking or native/Terminal execution failed (exit {status})")
+    retained = cohort / built.name
+    shutil.copy2(built, retained)
+    samples(cohort, compiler_pilot.corpus_gate.host_target(), retained, fact, controls)
+    if fact_name == "foreign_retained_mutable_borrow":
+        uncovered_qualification(cohort, compiler_pilot.corpus_gate.host_target(), retained, fact)
+    return retained
 
 
 def uncovered_qualification(output, target, cli, fact):
