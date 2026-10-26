@@ -285,6 +285,14 @@ pub(super) fn check_statement_borrows<'p>(
                             !final_holds
                                 .iter()
                                 .any(|(ended, held_until)| ended == loan && *held_until < position)
+                                && !super::selected_retirement::before_evaluation(
+                                    program,
+                                    facts,
+                                    state_flow,
+                                    statement.statement_index,
+                                    occurrence.evaluation,
+                                    *loan,
+                                )
                         })
                         .collect::<Vec<_>>();
                     super::reads::check_storage_read(
