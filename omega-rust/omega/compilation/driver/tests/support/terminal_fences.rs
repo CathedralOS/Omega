@@ -277,7 +277,7 @@ fn observe_target(
     {
         return Err("completed retry repeated a fence or charge".into());
     }
-    paused.close().map_err(|error| error.to_string())?;
-    reference.close().map_err(|error| error.to_string())?;
+    paused.close().map_err(|error| format!("{error:?}"))?;
+    reference.close().map_err(|error| format!("{error:?}"))?;
     Ok(())
 }
