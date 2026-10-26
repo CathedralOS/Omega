@@ -446,7 +446,7 @@ pub struct DescriptorMachine {
     /// Exact constructor tags and selected case edges, in the current typed
     /// executable graph. These facts grant neither descriptor nor claim custody.
     pub case_constructors: BTreeMap<DescriptorPosition, Vec<DescriptorCasePredicate>>,
-    pub case_successors: BTreeMap<DescriptorPosition, Vec<DescriptorCasePredicate>>,
+    pub case_successors: BTreeMap<DescriptorPosition, Vec<(DescriptorCasePredicate, bool)>>,
     pub originations: BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, DescriptorCallOrigin)>>,
     pub projections:
         BTreeMap<(DescriptorPosition, DescriptorLocation, DescriptorLocation), Projection>,
@@ -505,6 +505,7 @@ pub struct DescriptorMachine {
 }
 
 /// A typed tag observation at an exact storage subject, before edge binding.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DescriptorCasePredicate {
     pub subject: DescriptorLocation,
     pub case: semantic_vocabulary::StructuralCaseId,

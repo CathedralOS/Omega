@@ -80,6 +80,7 @@ pub(super) enum Refusal {
     IngressCarrierTypeMismatch,
     LocalOriginWithoutResident,
     EmptyOrigins,
+    StorageInterference,
 }
 
 impl Refusal {
@@ -112,6 +113,7 @@ impl Refusal {
             Self::IngressCarrierTypeMismatch => "incoming slot has a different carrier type",
             Self::LocalOriginWithoutResident => "local reference origin has no resident occurrence",
             Self::EmptyOrigins => "observed reference origins are empty",
+            Self::StorageInterference => "descriptor storage access conflicts with a retained loan",
         }
     }
 
@@ -181,6 +183,7 @@ impl Refusal {
                 storage,
                 resident_path,
                 resident_referent,
+                interference: None,
                 origin_count: observation
                     .and_then(|observation| observation.origins.as_ref().map(Vec::len)),
             }),

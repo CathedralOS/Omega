@@ -61,14 +61,18 @@ pub(super) fn prepare(
 ) -> Result<Observations, LegalizationError> {
     let types = &plan.structural_types[..];
     if !function
-        .blocks
+        .structural_parameters
         .iter()
-        .flat_map(|block| &block.nodes)
-        .any(|node| {
-            node.operation
-                .structural_result()
-                .is_some_and(|(_, result)| contains_reference(types, result.structural_type))
-        })
+        .any(|parameter| contains_reference(types, parameter.structural_type))
+        && !function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .any(|node| {
+                node.operation
+                    .structural_result()
+                    .is_some_and(|(_, result)| contains_reference(types, result.structural_type))
+            })
     {
         return Ok(Observations::default());
     }
@@ -103,11 +107,36 @@ pub(super) fn prepare(
         return Ok(observations);
     };
     let current = descriptor_machine(&graph, function.machine).ok_or_else(|| invalid())?;
+    // Record actual case queries at every program point, including empty
+    // forwarding blocks where an inactive payload is never read. The roster
+    // comes from evaluated case conditions, not guessed descriptor absence.
+    let conditions = current
+        .case_successors
+        .values()
+        .flatten()
+        .map(|(predicate, _)| {
+            (
+                (predicate.subject.clone(), predicate.case),
+                predicate.clone(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>()
+        .into_values()
+        .collect::<Vec<_>>();
     let mut analysis = DescriptorAnalysis::new(types, &graph);
     observations.flow = analysis.flow_feasibility(function.machine);
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
             let position = (block.id, u32::try_from(node_index).map_err(|_| invalid())?);
+            for predicate in &conditions {
+                capture_predicate_feasibility(
+                    &mut observations,
+                    &mut analysis,
+                    function.machine,
+                    position,
+                    predicate,
+                );
+            }
             for (ordinal, edge) in node.successors.iter().enumerate() {
                 if observations
                     .edges
@@ -222,13 +251,23 @@ fn capture_case_feasibility(
             subject: subject.clone(),
             case: *case,
         };
-        if analysis.case_feasibility(machine, position, &predicate)
-            == terminal_semantics::descriptor_results::FlowFeasibility::ProvedImpossible
-        {
-            observations
-                .inactive_cases
-                .insert((position, subject, *case));
-        }
+        capture_predicate_feasibility(observations, analysis, machine, position, &predicate);
+    }
+}
+
+fn capture_predicate_feasibility(
+    observations: &mut Observations,
+    analysis: &mut DescriptorAnalysis<'_>,
+    machine: semantic_vocabulary::MachineId,
+    position: DescriptorPosition,
+    predicate: &terminal_semantics::descriptor_results::DescriptorCasePredicate,
+) {
+    if analysis.case_feasibility(machine, position, predicate)
+        == terminal_semantics::descriptor_results::FlowFeasibility::ProvedImpossible
+    {
+        observations
+            .inactive_cases
+            .insert((position, predicate.subject.clone(), predicate.case));
     }
 }
 

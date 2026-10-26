@@ -15,9 +15,7 @@ use crate::machine_calls::calls::write_frames::place_paths::{
     same_place_origin, split_place_root,
 };
 use crate::machine_calls::calls::write_frames::reference_origins;
-use crate::machine_calls::calls::write_frames::transparent_effects::{
-    expression_is_effectful_for_transparent_result, frame_place_root_symbol,
-};
+use crate::machine_calls::calls::write_frames::transparent_effects::expression_is_effectful_for_transparent_result;
 use crate::machine_calls::calls::write_frames::transparent_results::transparent_callee_result_origins;
 use crate::machine_calls::calls::write_frames::type_capabilities::type_reference_is_reference;
 use crate::machine_calls::calls::write_frames::value_expressions::ValuePosition;
@@ -230,14 +228,16 @@ fn parameter_relative_place_origins_in(
             },
             parameter_symbol: SymbolHandle::invalid(),
         }],
-        ExpressionNode::Name(_) => parameter_relative_name_origins(
-            program,
-            current_machine,
-            expression,
-            parameters,
-            aliases,
-            admit_carrier_roots,
-        )?,
+        ExpressionNode::Name(_) | ExpressionNode::SavedSubject(_) => {
+            parameter_relative_declared_origins(
+                program,
+                current_machine,
+                expression,
+                parameters,
+                aliases,
+                admit_carrier_roots,
+            )?
+        }
         ExpressionNode::Call(call) => parameter_relative_call_result_origins(
             program,
             current_machine,
@@ -295,13 +295,17 @@ fn parameter_relative_place_origins_in(
     (!origins.is_empty()).then_some(origins)
 }
 
-/// A bare name resolves to the parameter place it spells, or to every
+/// A declared place resolves to its parameter home, or to every
 /// candidate the earlier local reference alias still admits. A divergent
 /// binding keeps the exact finite union rather than selecting one route.
+/// Saved subjects use the same authenticated storage coordinates as named
+/// places: a moved noncopy subject retains its home, while a copied descriptor
+/// keeps its separate captured identity. Re-evaluating the source would lose
+/// that distinction and could select a subsequently replaced reference leaf.
 /// With `admit_carrier_roots`, a by-value parameter that owns a declared
 /// reference leaf also names its own carrier place: the spelled path then
 /// describes which leaf inside the carrier the route selects.
-fn parameter_relative_name_origins(
+fn parameter_relative_declared_origins(
     program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     expression: ExpressionHandle,
@@ -311,10 +315,10 @@ fn parameter_relative_name_origins(
 ) -> Option<Vec<ParameterRelativeFrameOrigin>> {
     reference_origins::declared_origin_root(program, current_machine, expression)?;
     let place = frame_place_path(program, expression)?;
-    let root_symbol = frame_place_root_symbol(program, expression);
+    let root_symbol = place.source.root;
     let (_, suffix) = split_place_root(&place.path);
     if let Some(parameter) = parameters.iter().find(|parameter| {
-        (root_symbol == Some(parameter.symbol))
+        (root_symbol == parameter.symbol)
             && (admit_carrier_roots
                 || type_reference_is_reference(program, parameter.type_reference))
     }) {
@@ -324,8 +328,7 @@ fn parameter_relative_name_origins(
         }]);
     }
     let parents = aliases.iter().find_map(|(_, symbol, origins)| {
-        let exact_symbol =
-            root_symbol.is_some_and(|root| root.is_valid() && symbol.is_valid() && root == *symbol);
+        let exact_symbol = root_symbol.is_valid() && symbol.is_valid() && root_symbol == *symbol;
         exact_symbol.then_some(origins)
     })?;
     Some(
