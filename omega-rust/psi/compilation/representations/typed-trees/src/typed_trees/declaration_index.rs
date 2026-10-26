@@ -374,6 +374,31 @@ impl super::TypedTrees {
             .map(|position| &self.machines()[position])
     }
 
+    /// The exact declaration supplying lexical type and lifetime binders.
+    /// Private checking projections can omit an executable root while its
+    /// authored calls and declaration remain in the arenas. Prefer the current
+    /// root; without one, require a unique retained declaration. This does not
+    /// make an omitted body an admitted executable call target.
+    pub fn machine_declaration_for_lexical_scope(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<&machine::Machine> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        if let Some(machine) = self.machine_by_symbol(symbol) {
+            return Some(machine);
+        }
+        let mut declarations = self
+            .tables
+            .machines
+            .iter()
+            .map(|(_, machine)| machine)
+            .filter(|machine| machine.symbol == symbol);
+        let declaration = declarations.next()?;
+        declarations.next().is_none().then_some(declaration)
+    }
+
     /// Position of `state` inside `machine`'s state span. Freshness covers
     /// both tables: a machine append or a state-table rewrite rebuilds.
     pub fn state_position_by_symbol(

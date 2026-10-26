@@ -14,7 +14,7 @@ impl<'program> StaticTypeArgumentOwner<'program> {
         program: &'program dyn crate::CheckingInput,
         owner: SymbolHandle,
     ) -> Option<Self> {
-        if let Some(machine) = program.machine_by_symbol(owner) {
+        if let Some(machine) = program.machine_declaration_for_lexical_scope(owner) {
             return Some(Self::Machine(machine));
         }
         if let Some(data) = program.data_definition_by_symbol(owner) {
@@ -65,7 +65,7 @@ fn constant_parameters(
     let mut lifetimes = Vec::new();
     let mut enclosing = program.declaration_scope_parent(constant);
     while enclosing.is_valid() {
-        if let Some(machine) = program.machine_by_symbol(enclosing) {
+        if let Some(machine) = program.machine_declaration_for_lexical_scope(enclosing) {
             let (outer_types, outer_lifetimes) = program
                 .machine_type_reference_scope(machine, |left, right| left.name == right.name);
             append_scope(&mut types, &mut lifetimes, &outer_types, &outer_lifetimes);

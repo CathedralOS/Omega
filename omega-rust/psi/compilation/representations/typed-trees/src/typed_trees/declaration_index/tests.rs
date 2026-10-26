@@ -12,6 +12,102 @@ fn parameter(symbol: SymbolHandle, kind: TypeParameterKind) -> TypeParameter {
 }
 
 #[test]
+fn lexical_machine_scope_retains_header_without_executable_root() {
+    let symbol = SymbolHandle::from_parts(3, 1);
+    let other_generation = SymbolHandle::from_parts(3, 2);
+    let mut program = TypedTrees::default();
+    let retained = program.tables.machines.insert(crate::machine::Machine {
+        symbol,
+        ..crate::machine::Machine::default()
+    });
+    assert!(program.machine_by_symbol(symbol).is_none());
+    assert_eq!(
+        program.machine_declaration_for_lexical_scope(symbol),
+        Some(program.tables.machines.get(retained))
+    );
+    assert!(
+        program
+            .machine_declaration_for_lexical_scope(other_generation)
+            .is_none()
+    );
+    assert!(
+        program
+            .machine_declaration_for_lexical_scope(SymbolHandle::invalid())
+            .is_none()
+    );
+
+    let duplicate = program.tables.machines.insert(crate::machine::Machine {
+        symbol,
+        ..crate::machine::Machine::default()
+    });
+    assert!(
+        program
+            .machine_declaration_for_lexical_scope(symbol)
+            .is_none()
+    );
+    assert!(program.tables.machines.free(duplicate));
+    assert_eq!(
+        program.machine_declaration_for_lexical_scope(symbol),
+        Some(program.tables.machines.get(retained))
+    );
+    program.tables.machines.get_mut(retained).symbol = other_generation;
+    assert!(
+        program
+            .machine_declaration_for_lexical_scope(symbol)
+            .is_none()
+    );
+    assert_eq!(
+        program.machine_declaration_for_lexical_scope(other_generation),
+        Some(program.tables.machines.get(retained))
+    );
+}
+
+#[test]
+fn lexical_machine_scope_prefers_current_header_and_tracks_projection() {
+    let symbol = SymbolHandle::from_parts(5, 1);
+    let mut program = TypedTrees::default();
+    let retained = program.tables.machines.insert(crate::machine::Machine {
+        symbol,
+        name: crate::name::Identifier::from("retained"),
+        ..crate::machine::Machine::default()
+    });
+    program.push_machine(crate::machine::Machine {
+        symbol,
+        name: crate::name::Identifier::from("current"),
+        ..crate::machine::Machine::default()
+    });
+    assert_eq!(
+        program.machine_declaration_for_lexical_scope(symbol),
+        program.machine_by_symbol(symbol)
+    );
+    assert_eq!(
+        program.machine_by_symbol(symbol).unwrap().name.as_str(),
+        "current"
+    );
+    let mut projection = program.clone();
+    projection.roots.machines = arena::HandleSpan::empty();
+    assert!(projection.machine_by_symbol(symbol).is_none());
+    assert!(
+        projection
+            .machine_declaration_for_lexical_scope(symbol)
+            .is_none()
+    );
+    assert!(projection.tables.machines.free(retained));
+    assert_eq!(
+        projection
+            .machine_declaration_for_lexical_scope(symbol)
+            .unwrap()
+            .name
+            .as_str(),
+        "current"
+    );
+    assert_eq!(
+        program.machine_by_symbol(symbol).unwrap().name.as_str(),
+        "current"
+    );
+}
+
+#[test]
 fn parameter_occurrences_select_before_testing_binder_kind() {
     let symbol = SymbolHandle::from_parts(1, 1);
     let reference = TypeReferenceHandle::from_parts(1, 1);
