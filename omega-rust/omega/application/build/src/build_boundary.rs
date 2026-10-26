@@ -7,6 +7,7 @@ fn package_audit_owns_session_and_target_execution_in_build() {
         "PackageInspectionTransaction::open(options)",
         "BuildSession::create(",
         "transaction.prepare(None)",
+        "resolve_inspection_sources(&inspection, &mut session)",
         "for target in inspection.targets().to_vec()",
         "inspection.review_target(",
         "inspection.finish()",
@@ -46,6 +47,8 @@ fn review_policy_admits_work_and_application_executes_it() {
         ".publish_component(",
         "PendingReviewBuild",
         "run_closure_pass(",
+        "into_execution_request",
+        "reserve_build_directory",
     ] {
         assert!(
             !policy.contains(forbidden),
@@ -57,7 +60,8 @@ fn review_policy_admits_work_and_application_executes_it() {
         "plan.begin_round(",
         "plan.occurrences()",
         "round.admit_occurrence(",
-        "crate::build_execution::execute_package_build(",
+        ".require_execution_contract(",
+        ".prepare_package_product(",
         ".review_package_build(",
         ".publish_component(",
         "round.retain(",
@@ -69,7 +73,7 @@ fn review_policy_admits_work_and_application_executes_it() {
     }
     assert!(execution.contains("pending_builds.push(PendingReviewBuild"));
     assert!(execution.contains("recovered.push(round.into_retained())"));
-    assert!(execution.contains("completion.reserve_build_directory(session)"));
+    assert!(!execution.contains("execute_package_build("));
     let retention = execution.find("round.retain(").unwrap();
     let cache_publication = execution.find("cache_write.component_source()").unwrap();
     assert!(

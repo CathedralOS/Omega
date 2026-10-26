@@ -26,7 +26,7 @@ pub use accepted_compilation::{
 };
 pub use inspect_packages::{
     PackageInspectionError, PackageInspectionOptions, PackageInspectionOutcome,
-    PackageInspectionTransaction, PreparedPackageInspection,
+    PackageInspectionSources, PackageInspectionTransaction, PreparedPackageInspection,
 };
 pub(crate) use inspect_source::PackageSourceRequest;
 pub use inspect_source::{SourceAdapter, inspect_package_source_locator};

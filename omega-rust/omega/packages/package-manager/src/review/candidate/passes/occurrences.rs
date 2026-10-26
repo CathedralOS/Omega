@@ -5,7 +5,7 @@
 //! own target, generated sources, bindings and review. The same source-roster
 //! contract drives production, lock comparison and independent reconstruction.
 
-use crate::build_session::{PackageBuildSession, dependency_first_package_order};
+use crate::build_session::dependency_first_package_order;
 use compilation_products::CompileFailure;
 
 use super::super::semantic_bindings::projection_error;
@@ -169,7 +169,6 @@ struct ReviewPackage<'pass> {
 /// a compiler into package-owned resource accounting.
 pub type PackageReviewExecutor<'execution> = dyn for<'pass> FnMut(
         PackageReviewPass<'pass>,
-        &mut PackageBuildSession,
         &mut PackageSourceBindings,
     ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError>
     + 'execution;
@@ -386,7 +385,6 @@ impl<'pass> PackageReviewRound<'pass> {
                 profile: self.execution_profile,
                 snapshot: Some(assembled.build_snapshot.clone()),
             },
-            collect_timings: self.source_bindings.collect_timings,
             permit_unsettled_fused_service_fields: self.discovery
                 == TargetEntryDiscovery::Dependencies,
             entry: assembled.entry.clone(),
@@ -1050,43 +1048,13 @@ pub struct PackageReviewWork<'occurrence> {
 }
 
 /// An admitted Product judgment and the execution obligations it consumes.
-/// No resource grant is issued here: retained Builds must satisfy the contract,
-/// while callers still migrating to this lifecycle explicitly execute it.
+/// No resource grant is issued here: retained Builds must satisfy the contract.
 pub struct PackageReviewRequest {
     pub inputs: PackageCompilationInputs,
     pub execution: package_compilation::build_execution::BuildExecutionContract,
     pub target: target::TargetProfile,
     pub entry: std::path::PathBuf,
-    pub collect_timings: bool,
     pub permit_unsettled_fused_service_fields: bool,
-}
-
-impl PackageReviewRequest {
-    /// Issue sponsors only for a caller that really needs a fresh activation.
-    /// Retained review never calls this or reserves another staging directory.
-    pub fn into_execution_request(
-        self,
-        session: &PackageBuildSession,
-        directory: std::path::PathBuf,
-    ) -> compilation_products::CheckedCompileRequest {
-        compilation_products::CheckedCompileRequest {
-            package_inputs: Some(self.inputs),
-            build: package_compilation::BuildExecutionInputs {
-                profile: self.execution.profile,
-                snapshot: self.execution.snapshot,
-                directory: Some(directory),
-                filesystem_sponsor: Some(session.filesystem_sponsor().clone()),
-                evaluation_sponsor: Some(session.evaluation_sponsor().clone()),
-                ..Default::default()
-            },
-            permit_unsettled_fused_service_fields: self.permit_unsettled_fused_service_fields,
-            collect_timings: self.collect_timings,
-            ..compilation_products::CheckedCompileRequest::new(
-                &self.entry,
-                Some(self.target.target_name()),
-            )
-        }
-    }
 }
 
 pub struct PackageReviewCompletion<'occurrence> {
@@ -1097,19 +1065,6 @@ pub struct PackageReviewCompletion<'occurrence> {
 }
 
 impl PackageReviewCompletion<'_> {
-    /// Reserve staging only when Build will really execute. A resumed opaque
-    /// continuation keeps its original staging and charges no second grant.
-    pub fn reserve_build_directory(
-        &self,
-        session: &mut PackageBuildSession,
-    ) -> Result<std::path::PathBuf, CompileResolvedPackageReviewsError> {
-        session.create_occurrence_directory(
-            self.occurrence.key,
-            self.occurrence.custody.resolution(),
-            self.occurrence.purpose,
-        )
-    }
-
     pub fn compilation_failure(
         &self,
         failure: CompileFailure,

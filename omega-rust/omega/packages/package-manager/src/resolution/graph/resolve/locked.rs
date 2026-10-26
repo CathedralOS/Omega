@@ -5,7 +5,25 @@ mod comparison;
 mod errors;
 mod paths;
 
+pub(crate) use comparison::mutable_local_graph_matches;
 pub(crate) use errors::ResolveLockedPackageClosureError;
+
+/// The same pre-acquisition join applies to statically projected and executed
+/// ledgers. A changed request cannot refresh a selector during inspection.
+pub(crate) fn admit_locked_source_request(
+    subject: &CanonicalSourceClosureSubject,
+    pending: &super::super::reconcile::PendingSourceResolution,
+) -> Result<(), ResolveLockedPackageClosureError> {
+    comparison::edge(
+        subject,
+        pending.requester(),
+        pending.purpose(),
+        pending.dependency_index(),
+        pending.source(),
+        RootPolicy::MutableLocal,
+    )?;
+    Ok(())
+}
 
 use super::super::reconcile::resolve_package_source_closure_with_indexed_limits;
 use super::super::{

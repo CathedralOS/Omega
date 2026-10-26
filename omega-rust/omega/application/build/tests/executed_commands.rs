@@ -3,7 +3,8 @@
 //! the execution counter measures the complete invocation.
 
 use artifacts::compile_timings::counters;
-use omega_build::{BuildSession, execute_package_command};
+use omega_build::{BuildSession, execute_package_command, inspect_packages};
+use package_manager::operations::{PackageInspectionOptions, PackageInspectionOutcome};
 use package_manager::{
     PackageCommand, PackageCommandKind, PackageCommandOptions, PackageCommandStatus,
 };
@@ -68,6 +69,22 @@ fn command_and_accept(project: &Path, command: PackageCommand, executions: u64) 
         if outcome.status == PackageCommandStatus::Published {
             break;
         }
+        // Audit the live project without resuming or accepting its pending
+        // candidate. In particular, its decision documents stay byte-identical.
+        let pending = std::fs::read(project.join("build/package-manager/proposal")).unwrap();
+        let decisions: Vec<_> = outcome
+            .review_paths
+            .iter()
+            .map(|path| std::fs::read(path).unwrap())
+            .collect();
+        let _ = audit(project, None);
+        assert_eq!(
+            std::fs::read(project.join("build/package-manager/proposal")).unwrap(),
+            pending
+        );
+        for (path, before) in outcome.review_paths.iter().zip(decisions) {
+            assert_eq!(std::fs::read(path).unwrap(), before);
+        }
         accept_decisions(&outcome.review_paths);
         options.targets.clear();
         let before = counters::build_execution_count();
@@ -93,6 +110,62 @@ fn command_and_accept(project: &Path, command: PackageCommand, executions: u64) 
     session.close().unwrap();
 }
 
+fn audit(project: &Path, executions: Option<u64>) -> PackageInspectionOutcome {
+    audit_with_options(
+        PackageInspectionOptions {
+            project_root: project.to_path_buf(),
+            targets: ["linux_x86_64", "macos_arm64"]
+                .map(|name| TargetProfile::from_canonical_target_name(name).unwrap())
+                .to_vec(),
+            details: false,
+            offline: true,
+            build_inputs: None,
+        },
+        executions,
+    )
+}
+
+fn audit_with_options(
+    options: PackageInspectionOptions,
+    executions: Option<u64>,
+) -> PackageInspectionOutcome {
+    let project = &options.project_root;
+    let files = [
+        project.join("build.omg"),
+        project.join("omega.lock"),
+        project.join("build/package-manager/proposal"),
+    ];
+    let before: Vec<_> = files.iter().map(std::fs::read).collect();
+    let builds = counters::build_execution_count();
+    let outcome = inspect_packages(options).unwrap();
+    if let Some(executions) = executions {
+        assert_eq!(
+            counters::build_execution_count() - builds,
+            executions,
+            "two-target inspection must not replay Build: {}",
+            outcome.report
+        );
+    }
+    for (file, before) in files.iter().zip(before) {
+        match before {
+            Ok(before) => assert_eq!(std::fs::read(file).unwrap(), before),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => assert!(!file.exists()),
+            Err(error) => panic!("cannot capture {}: {error}", file.display()),
+        }
+    }
+    assert_eq!(
+        outcome
+            .report
+            .lines()
+            .filter(|line| line.starts_with("target "))
+            .count(),
+        2,
+        "every requested target needs a result: {}",
+        outcome.report
+    );
+    outcome
+}
+
 #[test]
 fn dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished() {
     let workspace = TemporaryDirectory::create("executed-commands", false).unwrap();
@@ -104,6 +177,8 @@ fn dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished() 
     );
     let project = root.join("executed_project_identity_exit");
     let source = std::fs::read(project.join("build.omg")).unwrap();
+    let unlocked = audit(&project, Some(1));
+    assert!(unlocked.complete, "{}", unlocked.report);
     command_and_accept(
         &project,
         PackageCommand::Update {
@@ -113,6 +188,23 @@ fn dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished() 
         1,
     );
     assert_eq!(std::fs::read(project.join("build.omg")).unwrap(), source);
+    let accepted = audit(&project, Some(1));
+    assert!(
+        accepted.complete && !accepted.requires_decision,
+        "{}",
+        accepted.report
+    );
+
+    // An edited root is auditable, but its unchanged authority is not silent
+    // acceptance of new source. No automatic update or publication occurs.
+    std::fs::write(
+        project.join("build.omg"),
+        [source.as_slice(), b"\n// root edit\n"].concat(),
+    )
+    .unwrap();
+    let edited = audit(&project, Some(1));
+    assert!(edited.complete, "{}", edited.report);
+    std::fs::write(project.join("build.omg"), &source).unwrap();
 
     copy_project(
         root,
@@ -135,11 +227,91 @@ fn dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished() 
     );
     let lock = std::fs::read(project.join("omega.lock")).unwrap();
     let source = std::fs::read_to_string(project.join("build.omg")).unwrap();
+    let accepted = audit(&project, Some(2));
+    assert!(
+        accepted.complete && !accepted.requires_decision,
+        "{}",
+        accepted.report
+    );
+
+    // Dependency content is locked, unlike the editable root. The same
+    // source mismatch must be visible for both targets, never an empty review.
+    let dependency = root.join("executed_dependency_source_library/main.omg");
+    let contents = std::fs::read(&dependency).unwrap();
+    std::fs::write(
+        &dependency,
+        [contents.as_slice(), b"\n// dependency drift\n"].concat(),
+    )
+    .unwrap();
+    let drift = audit(&project, Some(2));
+    assert!(
+        !drift.complete && drift.report.contains("executed source graph differs"),
+        "{}",
+        drift.report
+    );
+    std::fs::write(&dependency, contents).unwrap();
+
+    // Narrowing root inputs never narrows the selected dependency's inventory.
+    let selected_inputs = package_compilation::BuildSourceCaptureRequest::new(
+        ["main.omg", "build.omg"].map(|name| {
+            (
+                name.as_bytes().to_vec(),
+                package_compilation::BuildSourceCaptureObligation::Required,
+            )
+        }),
+    )
+    .unwrap();
+    let scoped = audit_with_options(
+        PackageInspectionOptions {
+            project_root: project.clone(),
+            targets: ["linux_x86_64", "macos_arm64"]
+                .map(|name| TargetProfile::from_canonical_target_name(name).unwrap())
+                .to_vec(),
+            details: true,
+            offline: true,
+            build_inputs: Some(selected_inputs),
+        },
+        Some(2),
+    );
+    assert!(scoped.complete, "{}", scoped.report);
+
+    // Changed requests are refused before acquisition even online. This URI
+    // must never reach Git; graph admission supplies the failure instead.
+    std::fs::write(project.join("build.omg"), source.replace(
+        "Source::Path { location: \"../executed_dependency_source_library\" }",
+        "Source::Git { repository: \"https://invalid.invalid/never-fetch.git\", revision: \"main\", selection: PackageSelection::Root }",
+    )).unwrap();
+    let changed_request = audit_with_options(
+        PackageInspectionOptions {
+            project_root: project.clone(),
+            targets: ["linux_x86_64", "macos_arm64"]
+                .map(|name| TargetProfile::from_canonical_target_name(name).unwrap())
+                .to_vec(),
+            details: false,
+            offline: false,
+            build_inputs: None,
+        },
+        Some(1),
+    );
+    assert!(
+        !changed_request.complete
+            && changed_request
+                .report
+                .contains("dependency projection differs"),
+        "{}",
+        changed_request.report
+    );
     std::fs::write(
         project.join("build.omg"),
         source.replace("transition true", "transition false"),
     )
     .unwrap();
+    let refused = audit(&project, Some(1));
+    assert!(
+        !refused.complete && refused.report.contains("dependency projection differs"),
+        "{}",
+        refused.report
+    );
     let mut session = BuildSession::create(&project.join("build/package-manager")).unwrap();
     let error = execute_package_command(
         PackageCommand::Update {

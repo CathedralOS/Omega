@@ -3,11 +3,11 @@
 
 use compiler::PackageBuild;
 use diagnostics::Diagnostic;
+use package_manager::PackageSourceBindings;
 use package_manager::review::{
     CompileResolvedPackageReviewsError, PackageReviewComponent, PackageReviewPass,
     PackageReviewRound, PackageReviewWork, RetainedPackageReviews,
 };
-use package_manager::{PackageBuildSession, PackageSourceBindings};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
@@ -17,13 +17,6 @@ struct PendingReviewBuild {
     snapshot: Option<package_compilation::BuildSnapshotRequest>,
 }
 
-/// Command review consumes already executed Build work. Audit still admits
-/// fresh execution until its source discovery migrates to that same lifecycle.
-pub(super) enum ReviewBuilds<'session> {
-    Execute,
-    Retained(&'session mut [compiler::CompletedBuild]),
-}
-
 /// A demanded cache record may lack an executable component description.
 /// Refresh that dependency while retaining completed reviews and the waiting
 /// consumer's Build. Each restart adds a newly demanded occurrence; exact
@@ -31,23 +24,15 @@ pub(super) enum ReviewBuilds<'session> {
 pub(super) fn execute_pass(
     plan: PackageReviewPass<'_>,
     compiler: &mut compiler::CompilationSession,
-    session: &mut PackageBuildSession,
     source_bindings: &mut PackageSourceBindings,
-    mut builds: ReviewBuilds<'_>,
+    builds: &mut [compiler::CompletedBuild],
 ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
     let mut fresh_components = BTreeSet::new();
     let mut recovered = Vec::new();
     let mut pending_builds = Vec::new();
     loop {
         let mut round = plan.begin_round(source_bindings, &fresh_components, &recovered);
-        let result = execute_round(
-            &plan,
-            &mut round,
-            compiler,
-            session,
-            &mut pending_builds,
-            &mut builds,
-        );
+        let result = execute_round(&plan, &mut round, compiler, &mut pending_builds, builds);
         match result {
             Ok(()) => return round.finish(),
             Err(error) => {
@@ -69,15 +54,14 @@ fn execute_round<'pass>(
     plan: &'pass PackageReviewPass<'_>,
     round: &mut PackageReviewRound<'pass>,
     compiler: &mut compiler::CompilationSession,
-    session: &mut PackageBuildSession,
     pending_builds: &mut Vec<PendingReviewBuild>,
-    builds: &mut ReviewBuilds<'_>,
+    builds: &mut [compiler::CompletedBuild],
 ) -> Result<(), CompileResolvedPackageReviewsError> {
     for occurrence in plan.occurrences() {
         let Some(work) = round.admit_occurrence(occurrence)? else {
             continue;
         };
-        complete_occurrence(work, round, compiler, session, pending_builds, builds)?;
+        complete_occurrence(work, round, compiler, pending_builds, builds)?;
     }
     Ok(())
 }
@@ -86,9 +70,8 @@ fn complete_occurrence(
     work: PackageReviewWork<'_>,
     round: &mut PackageReviewRound<'_>,
     compiler: &mut compiler::CompilationSession,
-    session: &mut PackageBuildSession,
     pending_builds: &mut Vec<PendingReviewBuild>,
-    builds: &mut ReviewBuilds<'_>,
+    builds: &mut [compiler::CompletedBuild],
 ) -> Result<(), CompileResolvedPackageReviewsError> {
     let PackageReviewWork {
         request,
@@ -113,42 +96,34 @@ fn complete_occurrence(
     });
     let build = match pending {
         Some(pending) => pending.build,
-        None => match builds {
-            ReviewBuilds::Retained(completed) => {
-                let source = completed
-                    .iter_mut()
-                    .find(|source| source.package_inputs().root() == request.inputs.root())
-                    .ok_or_else(|| {
-                        completion.compilation_failure(
-                            vec![Diagnostic::error(
-                                "review request has no settled source Build",
-                            )]
-                            .into(),
-                        )
-                    })?;
-                source
-                    .require_execution_contract(&request.execution)
-                    .map_err(|failure| completion.compilation_failure(failure))?;
-                compiler
-                    .prepare_package_product(
-                        source,
-                        request.target,
-                        request.inputs,
-                        compiler::PackageProductOptions {
-                            permit_unsettled_fused_service_fields: request
-                                .permit_unsettled_fused_service_fields,
-                            ..Default::default()
-                        },
+        None => {
+            let source = builds
+                .iter_mut()
+                .find(|source| source.package_inputs().root() == request.inputs.root())
+                .ok_or_else(|| {
+                    completion.compilation_failure(
+                        vec![Diagnostic::error(
+                            "review request has no settled source Build",
+                        )]
+                        .into(),
                     )
-                    .map_err(|failure| completion.compilation_failure(failure))?
-            }
-            ReviewBuilds::Execute => {
-                let directory = completion.reserve_build_directory(session)?;
-                let request = request.into_execution_request(session, directory);
-                crate::build_execution::execute_package_build(compiler, request)
-                    .map_err(|failure| completion.compilation_failure(failure))?
-            }
-        },
+                })?;
+            source
+                .require_execution_contract(&request.execution)
+                .map_err(|failure| completion.compilation_failure(failure))?;
+            compiler
+                .prepare_package_product(
+                    source,
+                    request.target,
+                    request.inputs,
+                    compiler::PackageProductOptions {
+                        permit_unsettled_fused_service_fields: request
+                            .permit_unsettled_fused_service_fields,
+                        ..Default::default()
+                    },
+                )
+                .map_err(|failure| completion.compilation_failure(failure))?
+        }
     };
 
     let descriptions = component_descriptions(&build, &completion, round);

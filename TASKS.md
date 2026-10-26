@@ -896,9 +896,8 @@ narrows realization only.
   `omega-rust/psi/compilation/driver/`,
   `omega-rust/omega/compilation/native-production/`, and workspace architecture
   gates (`tools/check_native_boundary.py` and `cargo metadata` guards).
-  - Migrate audit source discovery and review from static graphs
-    and fresh Build requests to the same retained lifecycle, remove superseded
-    routes, and unify ordinary one-shot execution loops with the shared session.
+  - Unify ordinary one-shot execution loops with the shared session and remove
+    their superseded static source-preparation route.
   - Implement pre-execution dependency input assignment and shared-node conflict
     checks at dependency activation admission without inheriting the root's
     slots (keeping required-output path byte results refused).

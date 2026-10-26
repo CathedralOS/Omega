@@ -18,10 +18,12 @@ pub(crate) use reconcile::{
     DependencyRequestPath, ExactTargetPackageSourceClosure, PackageSourceClosureLimits,
     PackageSourceClosureResolutionError, ResolvedPackageSourceClosure,
 };
-pub(crate) use resolve::resolve_locked_local_project_closure;
 pub(crate) use resolve::{
     GitDependencyPins, GitResolutionOptions, ResolveDependencySourceError,
     ResolveExternalLocalPackageClosureError, resolve_external_local_project_closure,
+};
+pub(crate) use resolve::{
+    admit_locked_source_request, mutable_local_graph_matches, resolve_locked_local_project_closure,
 };
 pub(crate) use root_request::PackageRootSourceRequest;
 use std::collections::{BTreeMap, BTreeSet};
