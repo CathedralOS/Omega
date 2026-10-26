@@ -28,8 +28,8 @@ observed output has its own explicit `&mut u64` contract.
 
 The fixture declares imports and program-entry bindings for all four hosted
 target slots. Its preparation script builds the matching ELF, Mach-O or PE
-library and checks the same C lifecycle. Native execution is observed on Linux
-x86-64 and macOS ARM64; Windows and Linux ARM64 remain unmeasured here.
+library and checks the same C lifecycle. Native process controls require the
+actual deliberate trap status; Python exception translation is not that oracle.
 
 ```sh
 python3 samples/cli/facts/foreign_retained_shared_borrow/fixture/prepare.py
@@ -51,12 +51,12 @@ across calls; neither per-call snapshots nor token values establish backing or
 completion authority. Embedders opt in with an explicit worker command; absence
 provides no native execution. Modeled host services retain their own bindings.
 
-All nine places now reach actual `native exit 0` and `interp exit: 0` on macOS
-ARM64. The shared-alias, enclosing-allocation and resident-whole-move controls
-also pass in both engines there. Windows and both Linux targets still need the
-complete current adapter path measured; earlier native-only or physical worker
-results do not establish that agreement. The row remains open until those
-matching-host executions and intended rejects are recorded.
+All nine places and the shared-alias, enclosing-allocation and resident-whole-move
+controls reach actual native/Terminal zero exits on macOS ARM64 and both Linux
+targets. The pinned corpus and fresh public CLI projects exercise both engines;
+the nine intended loan rejects still reject. Windows still needs the complete
+current adapter path measured. Earlier native-only or physical worker results
+do not establish that agreement, so the row remains open.
 
 `tools/ci/compiler_retained_foreign.py` prepares and self-tests the matching C
 library, checks the nine intended rejects and pinned positives through the
@@ -116,10 +116,12 @@ foreign effects and executes in both engines.
   pointer. Protocol tokens remain ordinary transparent one-word records.
 - Omega 03–06: native calls use ordinary register/stack and activation homes;
   suspended callers retain their frame backing while helpers transport tokens.
-- Omega 07–09/emission: Linux ELF and macOS Mach-O imports execute the authored
-  C lifecycle and native oracle. Current full Terminal agreement outside macOS
-  ARM64 remains unverified.
+- Omega 07–09/emission: both Linux ELF profiles and macOS Mach-O imports execute
+  the authored C lifecycle with native/Terminal agreement. Windows PE agreement
+  remains unverified.
 
-This covers the direct shared fixed-record rung. Moved backing, explicit
-snapshots, mutable retention, wider/recursive graphs, more general retained
-provider installations and wider resident codecs remain open.
+This covers the direct shared fixed-record rung. The whole-move control covers
+ordinary owned movement between completed registrations. Transferring backing
+ownership into a foreign protocol, explicit snapshots, mutable retention,
+wider/recursive graphs, more general retained provider installations and wider
+resident codecs remain open.
