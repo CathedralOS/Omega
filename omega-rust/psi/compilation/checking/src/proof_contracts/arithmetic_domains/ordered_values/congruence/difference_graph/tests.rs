@@ -114,7 +114,51 @@ fn compact_difference_rows_match_symbolic_walk_with_cycles_and_overflow() {
                 );
             }
         }
+        let endpoints = graph.operands().to_vec();
+        for (source, from) in endpoints.iter().enumerate() {
+            let forward = reference_gaps(&relations, from);
+            for (destination, to) in endpoints.iter().enumerate() {
+                let reverse = reference_gaps(&relations, to);
+                let expected = from == to
+                    || (forward
+                        .iter()
+                        .any(|(operand, gap)| operand == to && *gap >= 0)
+                        && reverse
+                            .iter()
+                            .any(|(operand, gap)| operand == from && *gap >= 0));
+                assert_eq!(
+                    graph.mutual_nonnegative_gap_indexed(source, destination),
+                    expected,
+                    "indexed mutual case {case}, {from:?} <-> {to:?}, relations {relations:?}"
+                );
+            }
+        }
     }
+}
+
+#[test]
+fn endpoint_order_retains_unequal_vertices_and_original_edge_order() {
+    let first = place(3);
+    let second = place(1);
+    let third = place(2);
+    let relations = [
+        Relation {
+            left: first.clone(),
+            right: second.clone(),
+            constraint: RelationConstraint::Unequal,
+        },
+        relation(third.clone(), second.clone(), i64::MAX),
+        relation(second.clone(), third.clone(), i64::MIN),
+        relation(third.clone(), second.clone(), 0),
+    ];
+    let mut graph = DifferenceGraph::new(&relations);
+    assert_eq!(graph.operands(), [&first, &second, &third]);
+    assert_eq!(
+        graph.indexed_relations().collect::<Vec<_>>(),
+        [(2, 1, i64::MAX), (1, 2, i64::MIN), (2, 1, 0)]
+    );
+    assert!(graph.mutual_nonnegative_gap_indexed(0, 0));
+    assert!(!graph.mutual_nonnegative_gap_indexed(0, 1));
 }
 
 #[test]
