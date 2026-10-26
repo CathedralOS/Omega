@@ -163,22 +163,22 @@ impl<'program> CaseEvidence<'program> {
                 continue;
             };
             if root_is_plain_without_cleanup {
-                // A whole affine claim stays outside its case namespaces.
-                // Only complete ordinary copy payloads make those namespaces
-                // irrelevant. Reuse exact original type answers at this one
-                // immutable cut, never across writes or joins.
-                let no_case_cleanup = if let Some((_, answer)) = subject_cleanup_types
+                // No claim or descriptor lies below a complete unrestricted
+                // subject, so its case namespaces cannot affect affine sibling
+                // or ancestor custody. Reuse only exact original type answers
+                // in this immutable batch, never across writes or joins.
+                let no_owned_cleanup = if let Some((_, answer)) = subject_cleanup_types
                     .iter()
                     .find(|(retained, _)| *retained == reference)
                 {
                     *answer
                 } else {
                     let answer =
-                        validation::case_payloads_have_no_owned_cleanup(self.program, reference);
+                        validation::has_no_owned_cleanup_obligations(self.program, reference);
                     subject_cleanup_types.push((reference, answer));
                     answer
                 };
-                if no_case_cleanup {
+                if no_owned_cleanup {
                     continue;
                 }
             }

@@ -488,6 +488,9 @@ pub struct CheckingMemos {
     pub(crate) claim_frontiers:
         OnceLock<crate::value_custody::type_properties::ClaimFrontierQueries>,
     pub(crate) establishment: OnceLock<crate::value_custody::type_properties::EstablishmentQueries>,
+    /// Cleanup selection and carrier custody may observe finalized context.
+    /// Unlike typed-tree-only indexes, these answers reset with that context.
+    pub(crate) cleanup_types: OnceLock<crate::value_custody::cleanup::CleanupTypeQueries>,
     pub(crate) call_destinations:
         OnceLock<crate::machine_calls::calls::signature_queries::CallDestinationQueries>,
     pub(crate) operational: OnceLock<Arc<flow_effects::OperationalPlan>>,
@@ -760,4 +763,54 @@ pub(crate) fn frozen_memo<T>(
 /// Proof-only classification, shared by consumers of this checking context.
 pub fn proof_only_classification(program: &dyn CheckingInput) -> Arc<ProofOnlyClassification> {
     program.proof_only_classification()
+}
+
+#[cfg(test)]
+mod cleanup_query_tests {
+    use super::*;
+    use crate::value_custody::cleanup::has_no_owned_cleanup_obligations;
+    use typed_trees::types::TypeReferenceNode;
+
+    #[test]
+    fn cleanup_queries_reset_for_unique_and_shared_context_substitutions() {
+        let mut program = TypedTrees::default();
+        let reference = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        for share_previous in [false, true] {
+            let context = CheckingContext::new(&program);
+            let answer = has_no_owned_cleanup_obligations(&context, reference);
+            assert!(context.memos.cleanup_types.get().is_some());
+            let previous = share_previous.then(|| context.memos.clone());
+
+            let substituted = context.with_prepared_mathematics(None);
+            assert!(substituted.memos.cleanup_types.get().is_none());
+            assert_eq!(
+                has_no_owned_cleanup_obligations(&substituted, reference),
+                answer
+            );
+            if let Some(previous) = previous {
+                assert!(previous.cleanup_types.get().is_some());
+            }
+        }
+    }
+
+    #[test]
+    fn cleanup_queries_do_not_cross_borrow_contexts_or_bare_inputs() {
+        let mut program = TypedTrees::default();
+        let reference = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        assert!(program.checking_memos().is_none());
+        let uncached = has_no_owned_cleanup_obligations(&program, reference);
+        let context = CheckingContext::new(&program);
+        assert!(context.memos.cleanup_types.get().is_none());
+        assert_eq!(
+            has_no_owned_cleanup_obligations(&context, reference),
+            uncached
+        );
+
+        let substituted = context.with_retained_borrow_custodies(Arc::from([]));
+        assert!(substituted.memos.cleanup_types.get().is_none());
+        assert_eq!(
+            has_no_owned_cleanup_obligations(&substituted, reference),
+            uncached
+        );
+    }
 }
