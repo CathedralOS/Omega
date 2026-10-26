@@ -193,7 +193,12 @@ The optimized producer from fixed source
 That is the formation gap after the constant-custody repair in PR 253.
 The first repair candidate, `f2dcd8f0c3adc0ed943d2987aa49af7097cf1f87`,
 executes the unchanged root with native exit 0 and Terminal exit 0. The full
-transport row and its new corpus pins still require qualification.
+new production is now pinned at optimized producer
+`3c2ec6aaf4ddff261c9d25f85b2a664a440a3da0`: its root, nine transports and six
+compositions observe native exit 0 and Terminal exit 0 on Intel macOS, and its
+22 invalid controls reach their intended obligations. Full-fact public acceptance,
+affected-consumer checks and exact independent review remain in the current
+qualification ledger; these observations do not close the parent capability.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -215,11 +220,26 @@ The same selected-tuple mechanism also has positive compositions for an unused
 an unused [copy bound](constant_initializer/applied_callback/type_bound/main.omg),
 [opposite results from two applications of one provider](constant_initializer/applied_callback/opposite_instances/main.omg),
 [a repeated recipe](constant_initializer/applied_callback/repeated_recipe/main.omg)
-and [forwarding through another binder](constant_initializer/applied_callback/forwarded_applied/main.omg).
+and [forwarding through another binder](constant_initializer/applied_callback/forwarded_applied/main.omg),
+plus an unused [structural array type](constant_initializer/applied_callback/structural_type_argument/main.omg).
 Each has a premise-false twin. Additional controls pin an unused type-bound
 violation, an out-of-range const argument, a stronger callback premise, a wider
 crash contract, and an incorrect result selected by a different application.
 Those controls must reach their own obligations; a missing tuple is insufficient.
+
+The structural array production exposed a second declaration-context gap after
+the numeric and named-type cases passed. The unchanged source
+`apply<witness<[u8; 4]>>(true)` still refused at fixed source 37 and the historical
+CCA producer with no retained caller type/lifetime context. A private checking
+projection omitted its compiler-created probe root, while arena span relocation
+left four identical declaration headers. Lexical type formation now reads the
+exact supplying declaration independently of executable root membership. All
+retained copies must agree on the complete declaration; conflicting revisions
+refuse, and reading a header grants no executable body. The structural positive
+now observes both exits at 0, its [premise-false twin](constant_initializer/applied_callback/structural_type_argument/invalid/main.omg)
+rejects the premise, and an [undeclared lifetime](constant_initializer/applied_callback/undeclared_structural_lifetime/main.omg)
+still rejects ordinary type formation. This region-free array and the negative
+lifetime control do not establish general projected reference-lifetime support.
 
 The repair prepares the ordinary occurrence-owned provider view for retained
 constant recipes. It preserves the authored arguments for replay and consumes
