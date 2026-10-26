@@ -2,7 +2,10 @@
 
 use crate::OptimizationUnitValidationError;
 use abstract_operations::{AbstractOperation as O, ValueBinding};
-use optimization_unit::{OptimizationNode, PsiOptimizationFunction};
+use optimization_unit::{
+    OptimizationNode, PsiOptimizationFunction, PsiRewriteCandidate, ScalarSubstitution,
+    ValueDefinition,
+};
 use semantic_vocabulary::{BlockId, EdgeId};
 
 mod block_merging;
@@ -61,4 +64,39 @@ pub(super) fn require_scalar_bindings(
         return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
     }
     Ok(())
+}
+
+/// The candidate's scalar substitution roster for one jump: every destination
+/// parameter row must consume its own binding, `admits` carries the rule's own
+/// obligation on that pair, and the candidate's claim must match the
+/// canonically ordered roster exactly.
+pub(super) fn checked_scalar_substitutions<'bindings>(
+    candidate: &PsiRewriteCandidate,
+    parameters: &[ValueDefinition],
+    bindings: &'bindings [ValueBinding],
+    admits: impl Fn(&ValueDefinition, &'bindings ValueBinding) -> bool,
+) -> Result<Vec<ScalarSubstitution>, OptimizationUnitValidationError> {
+    if parameters.len() != bindings.len() {
+        return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
+    }
+    let mut substitutions = parameters
+        .iter()
+        .zip(bindings)
+        .map(|(parameter, binding)| {
+            (binding.parameter == parameter.value
+                && binding.scalar_type == parameter.scalar_type
+                && admits(parameter, binding))
+            .then_some(ScalarSubstitution {
+                from: parameter.value,
+                to: binding.argument,
+                scalar_type: parameter.scalar_type,
+            })
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or(OptimizationUnitValidationError::CandidateIncomingBindingMismatch)?;
+    substitutions.sort();
+    if candidate.substitutions() != substitutions {
+        return Err(OptimizationUnitValidationError::CandidateSubstitutionMismatch);
+    }
+    Ok(substitutions)
 }

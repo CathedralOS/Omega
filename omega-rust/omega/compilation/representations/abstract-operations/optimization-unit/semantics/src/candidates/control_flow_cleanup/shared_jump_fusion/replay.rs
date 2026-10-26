@@ -1,6 +1,8 @@
 //! Independent shared terminal-jump fusion replay mechanics.
 use crate::candidates::accept_region_rewrite;
-use crate::candidates::control_flow_cleanup::{patched_jump_bindings, require_scalar_bindings};
+use crate::candidates::control_flow_cleanup::{
+    checked_scalar_substitutions, patched_jump_bindings, require_scalar_bindings,
+};
 use crate::candidates::rewrite_accounting::adjacent_merge::reconstruct_adjacent_merge_ownership_is_identity;
 use crate::candidates::rewrite_accounting::rewrite_scalar_substitutions;
 use crate::candidates::rewrite_accounting::terminal_fusion::reconstruct_shared_terminal_fusion_accounting;
@@ -10,7 +12,7 @@ use crate::unit_validation::derived_metadata::{
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use optimization_unit::{
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRewriteCandidate,
-    PsiRewritePatch, ScalarSubstitution,
+    PsiRewritePatch,
 };
 use semantic_vocabulary::BlockId;
 use std::collections::{BTreeMap, BTreeSet};
@@ -74,27 +76,9 @@ pub(super) fn validate(
     if !independently_post_dominates(function, patch.predecessor.block, patch.target) {
         return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
     }
-    if target.parameters.len() != bindings.len() {
-        return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
-    }
-    let mut substitutions = target
-        .parameters
-        .iter()
-        .zip(bindings)
-        .map(|(parameter, binding)| {
-            (binding.parameter == parameter.value && binding.scalar_type == parameter.scalar_type)
-                .then_some(ScalarSubstitution {
-                    from: parameter.value,
-                    to: binding.argument,
-                    scalar_type: parameter.scalar_type,
-                })
-        })
-        .collect::<Option<Vec<_>>>()
-        .ok_or(OptimizationUnitValidationError::CandidateIncomingBindingMismatch)?;
-    substitutions.sort();
-    if candidate.substitutions() != substitutions {
-        return Err(OptimizationUnitValidationError::CandidateSubstitutionMismatch);
-    }
+    // The fused jump admits every binding that names its parameter's value.
+    let substitutions =
+        checked_scalar_substitutions(candidate, &target.parameters, bindings, |_, _| true)?;
     if !reconstruct_adjacent_merge_ownership_is_identity(
         input,
         function,
