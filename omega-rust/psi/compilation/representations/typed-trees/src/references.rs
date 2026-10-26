@@ -1764,11 +1764,10 @@ fn visit_call_expression(
     if let Some(layout) = &call.private_layout_operation {
         visit_static_argument(program, retained, &layout.selected_slot);
     }
-    if let Some(query) = &call.native_code_layout {
-        visit_static_argument(program, retained, &query.operand);
+    for operand in call.layout_query_operands() {
+        visit_static_argument(program, retained, operand);
     }
     if let Some(query) = &call.layout_query {
-        visit_static_argument(program, retained, &query.operand);
         visit_type_reference(program, retained, query.carrier);
     }
     for argument in program.expression_table.expression_handles(call.arguments) {

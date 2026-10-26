@@ -26,19 +26,35 @@ machine Policy::plan(schema: Schema) -> Plan {
     }
 }
 
+machine measured_extent<T>() -> u64 { size_of<T>() }
+machine measured_alignment<T>() -> u64 { align_of<T>() }
+machine forwarded_extent<T>() -> u64 { measured_extent<T>() }
+machine computed_array_extent<const Count: u64>() -> u64
+    requires Count < 16u64;
+{
+    forwarded_extent<[u8; Count + 1u64]>()
+}
+
 machine good() {}
 machine bad() crashes Trap { crash Trap; }
 machine main() crashes Trap {
     let mut view: View;
     view.payload.value = 51;
     let extent: u64 = size_of<View>();
+    let generic_extent: u64 = measured_extent<View>();
+    let generic_alignment: u64 = measured_alignment<View>();
+    let other_extent: u64 = measured_extent<u64>();
+    let computed_extent: u64 = computed_array_extent<11u64>();
+    let other_computed_extent: u64 = computed_array_extent<3u64>();
     // A reference measures its own carrier; an array excludes runtime headers.
     let reference_extent: u64 = size_of<&mut View>();
     let reference_alignment: u64 = align_of<&mut View>();
     let array_extent: u64 = size_of<[u8; 12]>();
     transition view.payload.value == 51u32 && extent == 12u64
         && reference_extent == 8u64 && reference_alignment == 8u64
-        && array_extent == 12u64 {
+        && array_extent == 12u64 && generic_extent == 12u64
+        && generic_alignment == 4u64 && other_extent == 8u64
+        && computed_extent == 12u64 && other_computed_extent == 4u64 {
         true -> good()
         false -> bad()
     }

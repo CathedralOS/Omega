@@ -71,7 +71,15 @@ pub(crate) fn for_each_type_reference(
                     }
                 }
             }
-            TypeReferenceNode::FixedArray { element_type, .. } => pending.push(*element_type),
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                pending.push(*element_type);
+                if let typed_trees::types::FixedArrayLength::Expression(reference) = length {
+                    pending.push(*reference);
+                }
+            }
             TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
             TypeReferenceNode::Generic { arguments, .. } => pending.extend(
                 program

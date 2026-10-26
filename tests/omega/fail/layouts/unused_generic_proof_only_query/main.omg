@@ -1,0 +1,7 @@
+data P {
+    case Z;
+    case S(prev: P);
+}
+
+machine unused<T>() -> u64 { size_of<P>() }
+machine main() {}

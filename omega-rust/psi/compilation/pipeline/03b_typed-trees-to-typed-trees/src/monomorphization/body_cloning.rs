@@ -1072,6 +1072,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
                 handle,
                 call.machine_arguments.clone(),
                 call.native_code_layout.clone(),
+                call.layout_query.clone(),
                 typed_trees::references::StaticArgumentCall::Expression(handle, call)
                     .applications(),
                 call.requirement_application,
@@ -1080,8 +1081,15 @@ pub(super) fn copy_cloned_expression_type_payloads(
             _ => None,
         })
         .collect::<Vec<_>>();
-    for (handle, mut arguments, mut native_query, applications, requirement, coercion_target) in
-        calls
+    for (
+        handle,
+        mut arguments,
+        mut native_query,
+        mut data_query,
+        applications,
+        requirement,
+        coercion_target,
+    ) in calls
     {
         // These are type-table payloads too: the applied trait qualifier and
         // exact-coercion destination belong to this specialized caller, not
@@ -1101,19 +1109,34 @@ pub(super) fn copy_cloned_expression_type_payloads(
             copy_application_binding_type_payloads(source, program, application, symbols);
         }
         copy_static_argument_type_payloads(source, program, &mut arguments, symbols);
-        if let Some(query) = &mut native_query {
+        let unbound_carrier = data_query
+            .as_ref()
+            .is_some_and(|query| query.carrier == query.operand.type_reference);
+        let query_operands = data_query
+            .iter_mut()
+            .map(|query| &mut query.operand)
+            .chain(native_query.iter_mut().map(|query| &mut query.operand));
+        for operand in query_operands {
             copy_static_argument_type_payloads(
                 source,
                 program,
-                std::slice::from_mut(&mut query.operand),
+                std::slice::from_mut(operand),
                 symbols,
             );
+        }
+        if let Some(query) = &mut data_query {
+            query.carrier = if unbound_carrier {
+                query.operand.type_reference
+            } else {
+                copy_type_reference(source, program, query.carrier, symbols)
+            };
         }
         let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
             unreachable!();
         };
         call.machine_arguments = arguments;
         call.native_code_layout = native_query;
+        call.layout_query = data_query;
         call.requirement_application = requirement;
         call.exact_coercion_target = coercion_target;
     }

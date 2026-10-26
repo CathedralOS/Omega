@@ -49,9 +49,15 @@ impl TypeReferenceTable {
                     target_expressions,
                     *element_type,
                 );
+                let length = match length {
+                    FixedArrayLength::Expression(reference) => FixedArrayLength::Expression(
+                        self.copy_from(source, source_expressions, target_expressions, *reference),
+                    ),
+                    other => other.clone(),
+                };
                 self.insert(TypeReferenceNode::FixedArray {
                     element_type,
-                    length: length.clone(),
+                    length,
                 })
             }
             TypeReferenceNode::Slice { element_type } => {
@@ -171,6 +177,9 @@ impl TypeReferenceTable {
                 length,
             } => {
                 self.remap_symbols_in(element_type, expressions, symbols);
+                if let FixedArrayLength::Expression(reference) = length {
+                    self.remap_symbols_in(reference, expressions, symbols);
+                }
                 if let FixedArrayLength::ConstParameter { symbol, .. } = length
                     && let TypeReferenceNode::FixedArray { length, .. } =
                         self.type_references.get_mut(type_reference)

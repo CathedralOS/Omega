@@ -211,6 +211,40 @@ fn fold_queries(
             _ => None,
         })
         .collect();
+    // Formation belongs to every selected occurrence, including an unused
+    // open callable. A known proof-only subject cannot acquire storage merely
+    // because its enclosing template has no executable application yet.
+    for (_, query, reference) in &queries {
+        if let Some(held) = proof_only.proof_only_mention(program, query.carrier) {
+            let spelling = query.kind.target_name();
+            return Err(vec![
+                Diagnostic::error(format!(
+                    "`{spelling}` cannot measure a proof-only carrier: `{held}` has no runtime layout"
+                ))
+                .with_source_span(*reference),
+            ]);
+        }
+    }
+    // An open callable is checked as a template, not evaluated as an
+    // executable application. Its exact query operands become physical work
+    // on the ordinary specialized copy. Keep the full declaration catalog
+    // available for lookup; only this evaluation's work roots are narrowed.
+    let templates = program
+        .machines()
+        .iter()
+        .filter(|machine| program.callable_body_has_open_parameters(machine))
+        .map(|machine| machine.symbol)
+        .collect::<Vec<_>>();
+    let physical_expressions = if templates.is_empty() {
+        owned_expressions
+    } else {
+        let templates = typed_trees::references::DeclarationSelection::from_symbols(templates);
+        let selection = selection.excluding(&templates);
+        checked_trees::typed_trees::references::collect_selected_program_references(
+            program, &selection,
+        )
+        .expressions
+    };
     // The physical backend consumes invariant geometry. A family needs one
     // private layout view closed under this exact profile; source alternatives
     // remain intact for Terminal production. All queries borrow that same view.
@@ -247,16 +281,11 @@ fn fold_queries(
         });
     let mut inputs = LayoutContextInputs::Ready;
     for (handle, query, reference) in queries {
+        if !physical_expressions.contains(&handle) {
+            continue;
+        }
         let operand = query.carrier;
         let spelling = query.kind.target_name();
-        if let Some(held) = proof_only.proof_only_mention(program, operand) {
-            return Err(vec![
-                Diagnostic::error(format!(
-                    "`{spelling}` cannot measure a proof-only carrier: `{held}` has no runtime layout"
-                ))
-                .with_source_span(reference),
-            ]);
-        }
         if matches!(
             scope,
             QueryScope::Selected {

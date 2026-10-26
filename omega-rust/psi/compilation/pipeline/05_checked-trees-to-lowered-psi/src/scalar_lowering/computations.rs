@@ -855,6 +855,13 @@ impl<'a> Expansion<'a> {
                 carrier_identity,
                 ..
             } => {
+                if !self
+                    .checked
+                    .type_reference_table
+                    .contains_type_reference(operand)
+                {
+                    return unsupported("layout observation lost its exact checked type operand");
+                }
                 let carrier = if matches!(
                     self.checked.type_reference_table.type_reference(operand),
                     typed_trees::types::TypeReferenceNode::Unit

@@ -301,8 +301,8 @@ impl ExpressionTable {
                     unreachable!();
                 };
                 call.target_symbol = remapped(call.target_symbol, symbols);
-                if let Some(query) = &mut call.native_code_layout {
-                    query.operand.remap_symbols(symbols);
+                for operand in call.layout_query_operands_mut() {
+                    operand.remap_symbols(symbols);
                 }
                 for argument in &mut call.machine_arguments {
                     argument.remap_symbols(symbols);

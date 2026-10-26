@@ -300,12 +300,23 @@ pub(crate) fn rewrite_cloned_calls(
         let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
             continue;
         };
-        if let Some(query) = &mut call.native_code_layout {
+        let query_type = call
+            .layout_query
+            .as_ref()
+            .map(|query| query.operand.type_reference);
+        for operand in call.layout_query_operands_mut() {
             substitute_forwarded_machine_arguments(
-                std::slice::from_mut(&mut query.operand),
+                std::slice::from_mut(operand),
                 &static_argument_rewrites,
                 &argument_rewrites,
             );
+        }
+        if let (Some(type_reference), Some(query)) = (query_type, &mut call.layout_query) {
+            // Forwarded nominal arguments may keep only a symbol/path. A data
+            // query owns the complete type graph already copied and substituted
+            // above; forwarding its name cannot replace that exact type with a
+            // code/const argument encoding or discard its stored carrier.
+            query.operand.type_reference = type_reference;
         }
         if candidate
             .template

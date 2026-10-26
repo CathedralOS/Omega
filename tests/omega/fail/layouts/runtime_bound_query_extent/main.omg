@@ -1,0 +1,5 @@
+machine measured_extent<Count: u64>() -> u64 {
+    size_of<[u8; Count + 1u64]>()
+}
+machine forward(count: u64) -> u64 { measured_extent<count>() }
+machine main() { let extent: u64 = forward(11u64); }

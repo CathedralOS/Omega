@@ -1,6 +1,30 @@
 use crate::expression::TableCallExpression;
 
 impl TableCallExpression {
+    /// Exact static subjects of compiler-owned layout observations. These
+    /// remain distinct from the ordinary call's authored machine arguments.
+    pub fn layout_query_operands(
+        &self,
+    ) -> impl Iterator<Item = &crate::expression::StaticMachineArgument> {
+        self.layout_query
+            .iter()
+            .map(|query| &query.operand)
+            .chain(self.native_code_layout.iter().map(|query| &query.operand))
+    }
+
+    pub fn layout_query_operands_mut(
+        &mut self,
+    ) -> impl Iterator<Item = &mut crate::expression::StaticMachineArgument> {
+        self.layout_query
+            .iter_mut()
+            .map(|query| &mut query.operand)
+            .chain(
+                self.native_code_layout
+                    .iter_mut()
+                    .map(|query| &mut query.operand),
+            )
+    }
+
     /// Whether the call reaches its callee through the ordinary nominal route,
     /// so `target_symbol` alone names the operation that runs.
     ///

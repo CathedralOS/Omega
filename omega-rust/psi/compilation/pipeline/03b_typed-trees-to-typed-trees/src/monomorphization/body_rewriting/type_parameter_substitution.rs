@@ -409,8 +409,11 @@ pub(crate) fn collect_expression_type_roots(
             }
             ExpressionNode::Call(call) => {
                 collect_static_argument_type_roots(&call.machine_arguments, roots);
-                if let Some(query) = &call.native_code_layout {
-                    collect_static_argument_type_roots(std::slice::from_ref(&query.operand), roots);
+                for operand in call.layout_query_operands() {
+                    collect_static_argument_type_roots(std::slice::from_ref(operand), roots);
+                }
+                if let Some(query) = &call.layout_query {
+                    roots.push(query.carrier);
                 }
             }
             ExpressionNode::ZeroValue(type_reference) => roots.push(*type_reference),
@@ -445,11 +448,12 @@ pub(crate) fn runtime_bound_occurrence_in(
         |program, node| match node {
             TypeReferenceNode::Named { symbol, .. }
             | TypeReferenceNode::DynamicTrait { symbol, .. } => *symbol == parameter_symbol,
-            TypeReferenceNode::FixedArray { length, .. } => matches!(
-                length,
-                typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. }
-                    if *symbol == parameter_symbol
-            ),
+            TypeReferenceNode::FixedArray { length, .. } => match length {
+                typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. } => {
+                    *symbol == parameter_symbol
+                }
+                _ => false,
+            },
             TypeReferenceNode::ConstExpression(expression) => {
                 name_mentions_symbol(program, *expression, parameter_symbol)
             }

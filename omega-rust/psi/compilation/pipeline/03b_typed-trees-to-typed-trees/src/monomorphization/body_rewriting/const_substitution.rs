@@ -108,6 +108,20 @@ pub(crate) fn substitute_const_index_expression_parameters(
         };
         replacements.push((*parameter, binding, carrier));
     }
+    let array_expressions = program
+        .type_reference_table
+        .fixed_array_lengths()
+        .filter(|(handle, _)| handle.arena_index() as usize >= type_start)
+        .filter_map(|(handle, length)| match length {
+            typed_trees::types::FixedArrayLength::Expression(reference) => {
+                match program.type_reference_table.type_reference(*reference) {
+                    TypeReferenceNode::ConstExpression(expression) => Some((handle, *expression)),
+                    _ => None,
+                }
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
     let roots = program
         .type_reference_table
         .const_expression_sites()
@@ -135,6 +149,24 @@ pub(crate) fn substitute_const_index_expression_parameters(
                     .to_owned()
             })?;
         *program.expression_table.expression_mut(expression) = value;
+    }
+    // A fixed-array expression is a static type operand too. Substitute its
+    // cloned binders above, then ask the existing numeric owner for its exact
+    // selected meaning; no spelling-based arithmetic or runtime binding can
+    // create an extent. Unclosed inputs retain their ordinary obligations.
+    let owner = source.unwrap_or(program).machines()[candidate.template.machine_index].symbol;
+    for (reference, expression) in array_expressions {
+        if let Some(value) = program
+            .closed_integer_expression_value_in(expression, owner)
+            .and_then(|value| value.to_u64())
+        {
+            let value = usize::try_from(value).map_err(|_| {
+                "fixed array extent exceeds the executor's addressable size".to_owned()
+            })?;
+            program
+                .type_reference_table
+                .set_fixed_array_length(reference, value);
+        }
     }
     Ok(())
 }

@@ -122,60 +122,17 @@ impl<'program> LayoutBuilder<'program> {
                             .layout_generic_data_definition(definition, *arguments, bindings);
                     }
 
-                    // A `Policy<Schema>` application over a NON-generic data is a
-                    // plan-laid instantiation, not the policy's own (usually
-                    // empty) record. Field and parameter spellings arrive as the
-                    // synthesized instance through the plan-laid desugar, but a
-                    // `size_of<Policy<Schema>>()` operand lowers its type
-                    // argument symbol-side and reaches here as this Generic
-                    // node; resolve the installed instance so the query answers
-                    // the validated plan layout rather than the policy shell.
-                    if !arguments.is_empty()
-                        && let Some(plan) = self.program.plan_laid_layouts.iter().find(|plan| {
-                            plan.policy_symbol == *base_symbol
-                                && self
-                                    .program
-                                    .type_reference_table
-                                    .type_reference_handles(*arguments)
-                                    .iter()
-                                    .any(|argument| {
-                                        self.program.type_reference_symbol(*argument)
-                                            == plan.schema_symbol
-                                    })
-                        })
-                    {
-                        return self.layout_data_definition(plan.data_symbol);
-                    }
-
-                    // When the operand's `Policy<Schema>` is the only mention, the
-                    // syntax-level desugar never instantiated it, so no validated
-                    // plan exists to measure. Answering the policy's own record
-                    // layout would return a wrong `(0, 1)`-class answer for a
-                    // type the program never admits; a policy application without
-                    // an installed instance has no runtime layout.
-                    if !arguments.is_empty()
-                        && let Some(plan_machine) = self.program.machines().iter().find(|machine| {
-                            machine.attached_data_symbol == *base_symbol
-                                && machine.name.as_str() == format!("{}::plan", definition.name)
-                        })
-                    {
-                        return Err(Diagnostic::error(format!(
-                            "`{base_name}` is a layout policy application, but its \
-                             schema instance has no runtime layout: the type was never \
-                             instantiated in a value position ({plan_machine} produced \
-                             no layout plan for it)",
-                            plan_machine = plan_machine.name.as_str()
-                        )));
-                    }
-
-                    // A surviving `Data<Args>` over a non-generic, non-policy data
-                    // is a malformed operand the query's symbol-side lowering never
-                    // validated; answering the base record's layout would silently
-                    // drop the argument list.
+                    // The producing type application owns its stored carrier.
+                    // Layout consumes that exact association; it cannot recover
+                    // an application by matching a policy name or one argument.
                     if !arguments.is_empty() {
+                        if let Some(application) =
+                            self.program.data_application_definition(type_reference)
+                        {
+                            return self.layout_data_definition(application.symbol);
+                        }
                         return Err(Diagnostic::error(format!(
-                            "`{base_name}` is not a generic data type and owns no `plan` \
-                             machine, so `{base_name}<...>` names no layout"
+                            "`{base_name}<...>` has no bound data application: its schema instance has no runtime layout"
                         )));
                     }
 
