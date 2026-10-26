@@ -24,3 +24,10 @@ padding, overlapping exclusive uses, and independent original-backing readback.
 The `placed_stable_write` row exercises all nine subordinate transports and
 their permission twins. These exercise private hosted RAM, not device-provider
 or Atomic establishment.
+
+The placement policy uses ordinary nested machines and passes Schema, access
+and entries explicitly. Terminal calls inside its data-qualified declaration
+use the same argument, result, effect and cleanup contracts as other calls.
+The [ordinary-call witness](../../calls/attached_terminal_machine_call_exit/main.omg)
+and its [unproved-input twin](../../../fail/calls/free_machine_named_transition_rejected/main.omg)
+pin that rule independently of the placed-view policy.

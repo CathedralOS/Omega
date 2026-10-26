@@ -103,3 +103,10 @@ placed views and later writes to either the selected or unselected input of a
 reference-returning call. An unrelated later write executes with both engines.
 These controls pin the distinction between pointer geometry and declared lifetime
 debt; an enclosure cannot supply value equality or access authority.
+
+Lowering retains the placed interpretation beside each exact captured borrowed
+source. A region-level result may conservatively overlap its entire original
+inline allocation; it cannot become an address or permission grant. Pointer
+crossings, unknown element families and unresolved roots remain conservative.
+The `placed_reference_results/two_live` pin distinguishes independent backing,
+while its overlap, stale-write and wrong-backing controls retain loan checks.

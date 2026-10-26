@@ -85,8 +85,21 @@ repaired macOS bridge executed the root, all nine places and two-occurrence
 control with native/Terminal exit 0 and exact original-backing observations;
 all twins and storage controls refused their own obligations. Final producer-bound
 qualification records retain actual sources, target and engine observations.
-Linux x86-64 retains its existing physical lender; actual native observations on
-other hosts are unverified. Unsupported native lenders still refuse explicitly.
+Linux x86-64 and Windows x86-64 qualification records execute the row and the
+source-access customer with actual native/Terminal agreement and independent
+original-backing readback. The Windows lender follows the Microsoft ABI,
+keeps platform calls on the original loader stack, and uses a separate checked
+activation stack for the application. Its final PE adapter has an independent
+instruction reader. A process-bound private pipe carries a bounded complete
+observation after normal return; stdout/stderr and child execution are bounded
+separately.
+
+The [stack-argument witness](stack_entry_occurrence/main.omg) lends five distinct
+occurrences, crossing the first Windows stack-argument boundary after four
+register arguments. Only occurrence four changes its transmit byte to 9.
+Current records do not establish fresh macOS execution or Linux ARM64 lending;
+unsupported native lenders still refuse explicitly. This is private hosted RAM,
+not a device-provider or Atomic establishment claim.
 
 The companion [free local-state row](../free_entry_local_state/README.md) proves
 ordinary local ownership and executable cleanup without supplied parameters.

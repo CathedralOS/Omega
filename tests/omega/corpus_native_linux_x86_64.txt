@@ -7240,7 +7240,6 @@ pass/layouts/placed_reference_results/nested built 6052ms exit:0 @a92f16431042
 pass/layouts/placed_reference_results/returned built 5139ms exit:0 @a92f16431042
 pass/layouts/placed_reference_results/two_live built 6181ms exit:0 @a92f16431042
 pass/layouts/placed_view_call_custody checked 49668ms terminal-inspections:match @a92f16431042
-pass/layouts/placed_view_source_access_compile checked 7617ms @a92f16431042
 pass/layouts/portable_data_layout_queries built 3007ms exit:0 @a92f16431042
 pass/layouts/private_callback_slot_demand_compile checked 4246ms @a92f16431042
 pass/layouts/private_callback_slot_untaken_compile checked 2896ms @a92f16431042
