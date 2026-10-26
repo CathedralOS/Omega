@@ -104,7 +104,7 @@ impl PackageCompilationInputs {
             }
         }
 
-        append_overlapping_source_roots(&roots, &mut errors);
+        append_overlapping_source_roots(&roots, &canonical_packages, &mut errors);
 
         if !canonical_packages.contains_key(&root) {
             errors.push(PackageCompilationInputError::MissingRootPackage { root });
@@ -309,6 +309,7 @@ impl PackageCompilationInputs {
 
 pub(super) fn append_overlapping_source_roots(
     roots: &BTreeMap<PathBuf, PackageKeyIdentity>,
+    packages: &BTreeMap<PackageKeyIdentity, PackageCompilationSourceRecord>,
     errors: &mut Vec<PackageCompilationInputError>,
 ) {
     let mut overlaps = Vec::new();
@@ -318,6 +319,34 @@ pub(super) fn append_overlapping_source_roots(
         // Only actual ancestor roots can overlap; disjoint pairs are not visited.
         for ancestor in root.ancestors().skip(1) {
             if let Some((ancestor_root, ancestor_identity)) = roots.get_key_value(ancestor) {
+                // In-memory acquisition retains the authored routing roots. A
+                // dependency may live inside its requester's directory, but
+                // mounting it must not replace any captured observation. The
+                // exact subtree comparison includes absent entries, link data
+                // and executable flags. Physical or differing roots still
+                // overlap ambiguously and reject below.
+                if let (Some(parent), Some(child)) = (
+                    packages[ancestor_identity].captured_source.as_ref(),
+                    packages[identity].captured_source.as_ref(),
+                ) {
+                    let relative = root
+                        .strip_prefix(ancestor_root)
+                        .expect("ancestor is a component prefix");
+                    let directory = parent.entries().any(|(path, node)| {
+                        path == relative && matches!(node, source::CapturedSourceNode::Directory)
+                    });
+                    if directory
+                        && parent
+                            .entries()
+                            .filter_map(|(path, node)| {
+                                let member = path.strip_prefix(relative).ok()?;
+                                (!member.as_os_str().is_empty()).then_some((member, node))
+                            })
+                            .eq(child.entries())
+                    {
+                        continue;
+                    }
+                }
                 overlaps.push((ancestor_root, root, ancestor_identity, identity));
             }
         }
