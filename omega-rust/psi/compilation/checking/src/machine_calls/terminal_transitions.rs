@@ -47,17 +47,6 @@ pub fn normalize_terminal_transition_calls(
                             program.symbols.get(path.receiver_symbol).kind,
                             SymbolKind::Conformance | SymbolKind::ConformanceParameter
                         );
-                    // Attached machines require an explicit value-call spelling
-                    // for a bare foreign-machine name. Keep that independent
-                    // source-admission refusal visible to its validator.
-                    if callable
-                        && machine.attached_data.is_some()
-                        && members.len() == 1
-                        && (program.machine_by_symbol(path.symbol).is_some()
-                            || program.machine_holding_state(path.symbol).is_some())
-                    {
-                        continue;
-                    }
                     if path.symbol.is_valid()
                         && !callable
                         && !implementation_namespace
