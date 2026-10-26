@@ -97,7 +97,36 @@ def main():
     retained = output / name
     shutil.copy2(built, retained)
     samples(output, compiler_pilot.corpus_gate.host_target(), retained)
+    unoffered_descriptor(output, compiler_pilot.corpus_gate.host_target(), retained)
     return 0
+
+
+def unoffered_descriptor(output, target, cli):
+    """Actual finite input reaches native C; unavailable Terminal I/O declines."""
+    if target not in ("linux_x86_64", "linux_arm64"):
+        return
+    authored = ROOT / "tests/omega/pass/boundary/native_provider_unoffered_read"
+    replay = output / "unoffered-descriptor"
+    replay.mkdir(exist_ok=False)
+    for name in ("main.omg", "build.omg"):
+        shutil.copy2(authored / name, replay / name)
+    failure, review = sample_native_gate.accept_review(str(cli), str(replay), target, 180)
+    (output / "unoffered-descriptor.review.log").write_text(review, encoding="utf-8")
+    if failure:
+        raise ValueError(f"unoffered descriptor: package preparation failed: {failure}")
+    supplied = output / "letter.stdin"
+    supplied.write_bytes(b"A")
+    results = output / "descriptor-results"
+    arguments = [str(cli), "run", "--both", "--input", str(supplied),
+                 "--outputs", str(results), str(replay / "main.omg")]
+    result = subprocess.run(arguments, cwd=ROOT, stdin=subprocess.DEVNULL,
+                            capture_output=True, text=True, timeout=180)
+    (output / "unoffered-descriptor.stdout.txt").write_text(result.stdout, encoding="utf-8")
+    (output / "unoffered-descriptor.stderr.txt").write_text(result.stderr, encoding="utf-8")
+    table = (results / "results.tsv").read_text(encoding="utf-8")
+    if (result.returncode or "letter\t0\tdeclined\t" not in table
+            or "descriptor operation requires its explicit modeled I/O capability" not in result.stderr):
+        raise ValueError(f"unoffered descriptor: missing native zero / explicit Terminal refusal: {table} {result.stderr}")
 
 
 if __name__ == "__main__":

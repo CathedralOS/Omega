@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Build and exercise the matching-host C fixture; supplies no compiler semantics."""
 import argparse
-import ctypes
 import hashlib
 import json
 import os
@@ -9,7 +8,6 @@ from pathlib import Path
 import platform
 import signal
 import subprocess
-import sys
 
 LIBRARIES = {'Linux': 'libomega_retention_fixture.so',
              'Darwin': 'libomega_retention_fixture.dylib',
@@ -18,63 +16,11 @@ CONTROLS = ['exhausted', 'null_root', 'stale', 'duplicate_register',
             'duplicate_complete', 'release_live', 'null_output',
             'duplicate_release', 'stale_pending']
 
-def invalid_control(library, case):
-    if os.name == 'nt':
-        # Deliberate illegal-instruction controls must not open a crash dialog.
-        ctypes.windll.kernel32.SetErrorMode(0x0001 | 0x0002 | 0x8000)
-    else:
-        import resource
-        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-    provider = ctypes.CDLL(str(library))
-    provider.retention_acquire.restype = ctypes.c_uint64
-    provider.retention_register.restype = ctypes.c_uint64
-    provider.retention_register.argtypes = [ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64)]
-    provider.retention_complete.restype = ctypes.c_uint64
-    provider.retention_complete.argtypes = provider.retention_register.argtypes
-    provider.retention_release.argtypes = [ctypes.c_uint64]
-    capacity = provider.retention_acquire()
-    value, observed = ctypes.c_uint64(37), ctypes.c_uint64()
-    pointer = ctypes.byref(value)
-    output = ctypes.byref(observed)
-    if case == 'exhausted':
-        provider.retention_acquire()
-        provider.retention_acquire()
-    elif case == 'null_root':
-        provider.retention_register(capacity, None)
-    elif case == 'stale':
-        provider.retention_release(capacity)
-        provider.retention_acquire()
-        provider.retention_register(capacity, pointer)
-    elif case == 'duplicate_register':
-        provider.retention_register(capacity, pointer)
-        provider.retention_register(capacity, pointer)
-    elif case == 'duplicate_complete':
-        pending = provider.retention_register(capacity, pointer)
-        provider.retention_complete(pending, output)
-        provider.retention_complete(pending, output)
-    elif case == 'release_live':
-        provider.retention_register(capacity, pointer)
-        provider.retention_release(capacity)
-    elif case == 'null_output':
-        pending = provider.retention_register(capacity, pointer)
-        provider.retention_complete(pending, None)
-    elif case == 'duplicate_release':
-        provider.retention_release(capacity)
-        provider.retention_release(capacity)
-    elif case == 'stale_pending':
-        old = provider.retention_register(capacity, pointer)
-        provider.retention_complete(old, output)
-        provider.retention_register(capacity, pointer)
-        provider.retention_complete(old, output)
-    raise SystemExit('invalid lifecycle transition returned normally')
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path)
     parser.add_argument('--cc', default=os.environ.get('CC') or
                         ('clang' if platform.system() == 'Windows' else 'cc'))
-    parser.add_argument('--control', choices=CONTROLS)
-    parser.add_argument('--library', type=Path)
     arguments = parser.parse_args()
     system, machine = platform.system(), platform.machine().lower()
     if system not in LIBRARIES or machine not in ('x86_64', 'amd64', 'aarch64', 'arm64'):
@@ -83,12 +29,6 @@ def main():
         parser.error('the Windows fixture requires x86-64')
     if system == 'Darwin' and machine not in ('arm64', 'aarch64'):
         parser.error('the macOS fixture requires ARM64')
-    if arguments.control:
-        if arguments.library is None:
-            parser.error('--control requires --library')
-        invalid_control(arguments.library.resolve(), arguments.control)
-    if arguments.library is not None:
-        parser.error('--library is only used with --control')
     fixture = Path(__file__).resolve().parent
     output = (arguments.output or fixture.parents[4] / 'build/foreign_retained_fixture').resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -114,7 +54,10 @@ def main():
     # An ordinary failure exit or access violation is not this lifecycle oracle.
     trap = -signal.SIGTRAP if machine in ('arm64', 'aarch64') else -signal.SIGILL
     for case in CONTROLS:
-        command = [sys.executable, str(Path(__file__).resolve()), '--control', case, '--library', str(library)]
+        # A native executable observes the actual deliberate trap. Windows
+        # ctypes catches SEH as a Python OSError instead of terminating with
+        # the native exception status, so it is not this process-exit oracle.
+        command = [str(executable), case]
         result = subprocess.run(command, capture_output=True, text=True, timeout=10)
         expected_trap = ((result.returncode & 0xffffffff) == 0xc000001d
                          if system == 'Windows' else result.returncode == trap)
