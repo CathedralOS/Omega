@@ -43,6 +43,7 @@ pub(crate) fn validate_structural_root_operations(
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     structural_domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
     predecessors: &BTreeMap<semantic_vocabulary::BlockId, BTreeSet<semantic_vocabulary::BlockId>>,
+    view_graph: Option<&[terminal_semantics::descriptor_results::DescriptorMachine]>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let shared_descriptor_result = function.result.structural().is_some_and(|result| {
         result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
@@ -65,21 +66,19 @@ pub(crate) fn validate_structural_root_operations(
         Some(None) => false,
         Some(Some(slots)) => {
             slots.is_empty()
-                || crate::descriptor_results::owned_aggregate_descriptor_returns(
+                || crate::descriptor_results::owned_aggregate_descriptor_returns_with_graph(
                     function,
-                    unit.functions.iter(),
-                    &unit.boundary_machines,
+                    view_graph,
                     &unit.structural_types,
-                    &unit.dynamic_dispatch,
                 )
         }
     };
     let descriptor_origins_valid = aggregate_origins_valid
         && (!shared_descriptor_result
-            || crate::descriptor_results::optimized_graph(unit).is_some_and(|graph| {
+            || view_graph.is_some_and(|graph| {
                 terminal_semantics::descriptor_results::reconstruct_result_origins(
                     &unit.structural_types,
-                    &graph,
+                    graph,
                     function.machine,
                 )
                 .is_some()
@@ -159,7 +158,14 @@ pub(crate) fn validate_structural_root_operations(
     for (block_position, block) in function.blocks.iter().enumerate() {
         for (node_index, node) in block.nodes.iter().enumerate() {
             let node_index = u32::try_from(node_index).expect("unit node index fits u32");
-            if !view_memberships_match(unit, function, block.id, node_index, &node.operation) {
+            if !view_memberships_match(
+                unit,
+                function,
+                block.id,
+                node_index,
+                &node.operation,
+                view_graph,
+            ) {
                 return Err(catalog_mismatch(function));
             }
             primitive_locals::validate(
@@ -732,9 +738,9 @@ pub(crate) fn validate_structural_root_operations(
                             if source.access == terminal_psi::StructuralAccess::SharedBorrow
                                 && result.projected_qualifications.iter().any(|row| !captured.contains(row))
                             {
-                                let Some(graph) = crate::descriptor_results::optimized_graph(unit) else { return false; };
+                                let Some(graph) = view_graph else { return false; };
                                 let Ok(current) = terminal_semantics::descriptor_results::current_selected_payload_contract(
-                                    &unit.structural_types, &unit.structural_domains, &graph,
+                                    &unit.structural_types, &unit.structural_domains, graph,
                                     function.machine, (block.id, node_index), source.place, path,
                                     &|place| crate::unit_validation::operation_contracts::structural_source_contract(function, place)
                                         .map(|contract| contract.payload_contract()),
@@ -1010,10 +1016,10 @@ pub(crate) fn validate_structural_root_operations(
                             "transfer requires the same owned carrier, multiplicity and fresh result without issuance",
                         ));
                     }
-                    let graph = crate::descriptor_results::optimized_graph(unit)
+                    let graph = view_graph
                         .ok_or_else(|| invalid("descriptor flow graph is malformed"))?;
                     let contract = terminal_semantics::descriptor_results::current_selected_payload_contract(
-                        &unit.structural_types, &unit.structural_domains, &graph,
+                        &unit.structural_types, &unit.structural_domains, graph,
                         function.machine, (block.id, node_index), source.place, &source.path,
                         &|place| crate::unit_validation::operation_contracts::structural_source_contract(function, place)
                             .map(|contract| contract.payload_contract()),
@@ -1201,7 +1207,16 @@ pub(crate) fn validate_structural_root_operations(
                             == terminal_psi::StructuralMultiplicity::Unrestricted
                             || owned_case_copy
                             || shared_descriptor_copy)
-                            && copy_memberships_match(unit, function, block.id, node_index, *source, path, result)
+                            && copy_memberships_match(
+                                unit,
+                                function,
+                                block.id,
+                                node_index,
+                                *source,
+                                path,
+                                result,
+                                view_graph,
+                            )
                             && result.claims.is_empty()
                             && matches!(
                                 place_kinds.get(&result.place),
@@ -1671,6 +1686,7 @@ fn view_memberships_match(
     block: semantic_vocabulary::BlockId,
     node: u32,
     operation: &O,
+    view_graph: Option<&[terminal_semantics::descriptor_results::DescriptorMachine]>,
 ) -> bool {
     let (source, result) = match operation {
         O::EstablishElementView { source, result, .. }
@@ -1689,10 +1705,10 @@ fn view_memberships_match(
         else {
             return None;
         };
-        let graph = crate::descriptor_results::optimized_graph(unit)?;
+        let graph = view_graph?;
         let mut analysis = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
             &unit.structural_types,
-            &graph,
+            graph,
         );
         terminal_semantics::descriptor_results::element_payload_memberships_in(
             &unit.structural_types,
@@ -1748,6 +1764,7 @@ fn copy_memberships_match(
     source: PlaceId,
     path: &abstract_operations::StructuralCopyPath,
     result: &terminal_psi::StructuralOperationResult,
+    view_graph: Option<&[terminal_semantics::descriptor_results::DescriptorMachine]>,
 ) -> bool {
     if result.qualifications.is_empty() && result.projected_qualifications.is_empty() {
         return true;
@@ -1756,10 +1773,10 @@ fn copy_memberships_match(
         return false;
     };
     let memberships = (|| {
-        let graph = crate::descriptor_results::optimized_graph(unit)?;
+        let graph = view_graph?;
         let mut analysis = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
             &unit.structural_types,
-            &graph,
+            graph,
         );
         let root = crate::unit_validation::operation_contracts::structural_source_contract(
             function, source,

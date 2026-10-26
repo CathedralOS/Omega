@@ -13,15 +13,19 @@ mod terminator;
 /// Project one function. `current_operation` records the node this projection
 /// has reached, so the caller's attribution can name it on a refusal raised
 /// anywhere beneath; it is cleared outside any one node.
-pub(super) fn derive(
+pub(super) fn derive<'a, 'g>(
     target: &target_operations::TargetFunction,
     abstracted: &abstract_operations::AbstractFunction,
     optimized: &optimization_unit::PsiOptimizationFunction,
-    native: &TargetOperationPlan,
-    plan: &AbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
+    native: &'a TargetOperationPlan,
+    plan: &'a AbstractOperationPlan,
+    unit: &'a PsiOptimizationUnit,
     current_operation: &mut Option<semantic_vocabulary::OperationId>,
-) -> Result<LegalizedScalarFunction, LegalizationError> {
+    call_descriptor_origins: &mut scalar_graph_input::byte_views::CallDescriptorOrigins<'a, 'g>,
+) -> Result<LegalizedScalarFunction, LegalizationError>
+where
+    'a: 'g,
+{
     // Target lowering already chose addresses, homes and call placements.
     // Selection consumes those rows; reconstructing loan legality here both
     // duplicates Psi and loses relationships the target producer retained.
@@ -73,7 +77,13 @@ pub(super) fn derive(
                 *current_operation =
                     scalar_graph_input::instruction(node).map(|(operation, _)| operation);
                 instructions.push(instruction::project(
-                    node, optimized, native, plan, unit, row,
+                    node,
+                    optimized,
+                    native,
+                    plan,
+                    unit,
+                    row,
+                    call_descriptor_origins,
                 )?);
             }
             *current_operation = None;
