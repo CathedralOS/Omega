@@ -6,15 +6,14 @@ use optimization_core::{
     OptimizationSafetyClass,
 };
 use optimization_unit::{
-    IntegerConstantRewrite, NodeLocation, PsiOptimizationUnit, PsiRealizationSite,
-    PsiRewriteCandidate,
+    IntegerConstantRewrite, NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate,
 };
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, IntegerType, IntegerValue};
 
 use crate::rules::PROOF_CHECK_ELISION_PASS_NAME;
 use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::catalog::BuiltInRuleRegistration;
-use crate::rules::control_flow_cleanup::provenance_realized_at;
+use crate::rules::control_flow_cleanup::node_realized_provenance;
 use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
 
 mod divide_by_one;
@@ -151,18 +150,12 @@ fn propose_proof_certified_remainder_by_constant(
                     block: block.id,
                     node: node_index,
                 };
-                let site = PsiRealizationSite::Node(location);
                 candidates.push(
                     PsiRewriteCandidate::new_literal_proof_certified_integer_constant_replacement(
                         unit.identity,
                         contract,
                         vec![block.id],
-                        vec![provenance_realized_at(
-                            site,
-                            site,
-                            &node.provenance,
-                            &node.fuel,
-                        )],
+                        vec![node_realized_provenance(location, node)],
                         constant_fact,
                         obligation_fact,
                         -1,

@@ -1,0 +1,13 @@
+machine left() -> u64 {
+    transition { _ -> helper(7) }
+    machine helper(value: u64) -> u64 { value }
+}
+machine right() -> bool {
+    transition { _ -> helper(true) }
+    machine helper(value: bool) -> bool { value }
+}
+machine main() crashes Trap {
+    transition left() == 7 && right() { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

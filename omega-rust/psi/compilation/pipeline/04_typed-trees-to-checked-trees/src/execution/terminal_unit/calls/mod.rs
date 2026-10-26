@@ -106,8 +106,8 @@ pub(crate) use computation_arguments::{
     structural_computation_argument, subslice_computation_argument,
 };
 pub(crate) use signatures::{
-    ambient_self_scalar_signature, entry_claims, free_structural_scalar_signature,
-    free_structural_scalar_signature_traced, parameter_signatures,
-    structural_scalar_signature_traced, structural_signature,
+    ambient_self_scalar_signature, entry_claims, free_structural_scalar_entry_signature_traced,
+    free_structural_scalar_signature, free_structural_scalar_signature_traced,
+    parameter_signatures, structural_scalar_signature_traced, structural_signature,
 };
 pub(crate) use structural_arguments::{call_claim_transfers, computed_call_claim_transfers};

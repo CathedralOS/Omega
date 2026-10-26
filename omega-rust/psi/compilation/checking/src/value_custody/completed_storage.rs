@@ -74,3 +74,15 @@ pub use reference_captures::{reference_captures_at_path, reference_sources_at_pa
 
 mod frozen_references;
 pub use frozen_references::{FrozenReferenceSelection, frozen_reference_leaf};
+mod descriptor_extents;
+pub use descriptor_extents::descriptor_extent;
+
+mod predecessors;
+pub use predecessors::{
+    predecessors, predecessors_in_control, predecessors_in_flow, terminal_alternatives,
+};
+mod memberships;
+pub use memberships::completed_membership;
+
+mod occurrences;
+pub use occurrences::consumer_captures;

@@ -149,6 +149,7 @@ pub(super) fn prepare<'a>(
                 if matches!(
                     field.field_type,
                     terminal_psi::StructuralFieldType::Atomic(_)
+                        | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
                 ) {
                     continue;
                 }

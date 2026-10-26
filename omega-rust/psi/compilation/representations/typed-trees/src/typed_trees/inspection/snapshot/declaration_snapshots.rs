@@ -226,6 +226,8 @@ pub struct DataDefinitionSnapshot {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub generic_instance: Option<TypeReferenceSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub cleanup_selection: Option<CleanupSelectionSnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub quotient: Option<QuotientDefinitionSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub retired_identities: Vec<u64>,
@@ -277,10 +279,23 @@ pub struct DataPayloadFieldSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AppliedDomainSnapshot {
+    pub semantic_id: u32,
+    pub arguments: Vec<TypeReferenceSnapshot>,
+    pub target_type: TypeReferenceSnapshot,
+    pub facts: Vec<ProofFactSnapshot>,
+    pub cleanup_selection: Option<CleanupSelectionSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DomainDefinitionSnapshot {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub applied_instances: Vec<AppliedDomainSnapshot>,
     pub name: String,
     pub subject_name: String,
     pub has_subject_symbol: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cleanup_selection: Option<CleanupSelectionSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub type_parameters: Vec<DomainTypeParameterSnapshot>,
     pub target_type: TypeReferenceSnapshot,
@@ -361,6 +376,10 @@ pub(crate) fn data_definition_snapshot(
     data: &DataDefinition,
 ) -> DataDefinitionSnapshot {
     DataDefinitionSnapshot {
+        cleanup_selection: data
+            .cleanup_selection
+            .as_ref()
+            .map(|selection| cleanup_selection_snapshot(program, selection)),
         name: data.name.to_string(),
         is_public: data.is_public,
         supply: match data.supply_mode {
@@ -450,6 +469,30 @@ pub(crate) fn domain_definition_snapshot(
     domain: &DomainDefinition,
 ) -> DomainDefinitionSnapshot {
     DomainDefinitionSnapshot {
+        applied_instances: program
+            .applied_domain_applications
+            .iter()
+            .filter(|application| application.declaration == domain.symbol)
+            .map(|application| AppliedDomainSnapshot {
+                semantic_id: application.theory.semantic_id.0,
+                arguments: application
+                    .arguments
+                    .iter()
+                    .map(|argument| type_reference_snapshot(program, *argument))
+                    .collect(),
+                target_type: type_reference_snapshot(program, application.theory.target_type),
+                facts: domain_fact_snapshots(program, &application.theory),
+                cleanup_selection: application
+                    .theory
+                    .cleanup_selection
+                    .as_ref()
+                    .map(|selection| cleanup_selection_snapshot(program, selection)),
+            })
+            .collect(),
+        cleanup_selection: domain
+            .cleanup_selection
+            .as_ref()
+            .map(|selection| cleanup_selection_snapshot(program, selection)),
         name: domain.name.to_string(),
         subject_name: domain.subject_name.to_string(),
         has_subject_symbol: domain.subject_symbol.is_valid(),
@@ -773,5 +816,41 @@ pub(crate) fn measure_snapshot(
         return_type: type_reference_snapshot(program, measure.return_type),
         lexicographic: measure.lexicographic,
         body: expression_span_snapshot(program, measure.body),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CleanupSelectionSnapshot {
+    pub target: String,
+    pub arguments: Vec<super::StaticArgumentSnapshot>,
+    pub subject: TypeReferenceSnapshot,
+    pub has_executable: bool,
+    pub has_authorization: bool,
+}
+
+fn cleanup_selection_snapshot(
+    program: &TypedTrees,
+    selection: &crate::domain::CleanupSelection,
+) -> CleanupSelectionSnapshot {
+    let application = program
+        .expression_table
+        .static_machine_application(selection.application);
+    CleanupSelectionSnapshot {
+        target: program
+            .symbols
+            .display_path(application.registration_operation, "::"),
+        arguments: program
+            .expression_table
+            .static_machine_application_arguments(selection.application)
+            .iter()
+            .map(|argument| {
+                super::statement_and_expression_snapshots::snapshot_static_argument(
+                    program, argument,
+                )
+            })
+            .collect(),
+        subject: type_reference_snapshot(program, selection.subject),
+        has_executable: selection.executable.is_valid(),
+        has_authorization: selection.authorization.is_some(),
     }
 }

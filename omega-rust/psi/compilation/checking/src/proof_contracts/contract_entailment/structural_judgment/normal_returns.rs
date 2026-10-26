@@ -533,6 +533,39 @@ impl<'program> StructuralJudge<'program> {
             &mut Vec::new(),
             NormalValueDemand::Location,
         )?;
+        if let Some(event) = crate::value_custody::atomic_operations::atomic_assignment_carrier(
+            self.program,
+            assignment,
+        ) {
+            // An atomic event evaluates its authored operands, never the
+            // synthetic resident-update expression. Its write retires storage
+            // observations but establishes no stable ordinary-store equation.
+            let frame = self
+                .frame_resolver()?
+                .assignment_write_frame(scope.0, statement);
+            let mut paths = destinations;
+            for operand in event.operands {
+                let mut next = Vec::new();
+                for path in paths {
+                    next.extend(path.judge.evaluate_normal_paths(
+                        operand,
+                        environment,
+                        scope,
+                        0,
+                        &mut NormalObservation::None,
+                        NormalValueDemand::Value,
+                    )?);
+                }
+                paths = next;
+            }
+            for path in &mut paths {
+                path.judge
+                    .observe_storage_effects(scope.1, frame.complete_paths())?;
+            }
+            // Statement assignment consumers discard the last operand value;
+            // an observed prior is owned separately by the event result carrier.
+            return Some(paths);
+        }
         let mut paths = Vec::new();
         for destination in destinations {
             let captured = destination
@@ -1649,6 +1682,13 @@ impl<'program> StructuralJudge<'program> {
         self.intake_current_storage_fields(scope.0, scope.1, expression, &value);
         if let StructuralTerm::CapturedValue { result_type, .. } = &value {
             self.intake_admitted_scalar_bounds(*result_type, &value);
+            self.intake_atomic_observation_bounds(
+                scope.0,
+                scope.1,
+                expression,
+                *result_type,
+                &value,
+            );
         }
         if let ExpressionNode::String(bytes) = self.program.expression_table.expression(expression)
             && let StructuralTerm::CapturedValue { result_type, .. } = &value
@@ -2089,6 +2129,9 @@ impl<'program> StructuralJudge<'program> {
             } else {
                 value.clone()
             };
+            // The normal boundary restores declared predicates on these fresh
+            // returned contents; retired pre-call observations supply none.
+            self.intake_admitted_value_predicates(subject.type_reference, value.clone());
             if let Some(parameter) = parameters.iter().find(|parameter| {
                 parameter.symbol == subject.parameter
                     && !parameter.is_mutable
@@ -2128,11 +2171,15 @@ impl<'program> StructuralJudge<'program> {
         };
         // Carrier equality is checked under the exact public application.
         // A policy adapter still cannot donate a raw declaration's equation.
+        // Share constructed_results' exact public/applied result telescope.
+        // This immutable type correspondence never re-observes actual values.
+        let applied_result_parameters = site.parameters(program, scope.0.symbol);
         let result_presentation = application.runtime_result_presentation(
             program,
             &owner,
             call,
             observed_type,
+            applied_result_parameters,
             callable,
             parameters,
             &bindings,

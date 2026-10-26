@@ -36,7 +36,7 @@ impl ObservationPath<'_> {
             .map(|projection| match projection {
                 ScalarReadProjection::Referent => Some(CanonicalStructuralPathSegment::Referent),
                 ScalarReadProjection::Static(segment) => Some(*segment),
-                ScalarReadProjection::Index(_) => None,
+                ScalarReadProjection::Index(_) | ScalarReadProjection::Extent => None,
             })
             .collect()
     }

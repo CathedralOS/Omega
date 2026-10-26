@@ -228,6 +228,10 @@ impl<'execution> ConstructorValue<'execution> {
 }
 
 pub(crate) struct ConstructorStorage {
+    original_roots: RuntimeRows<
+        StructuralRuntimePlace,
+        crate::effects::original_storage::TerminalOriginalStorageRoot,
+    >,
     completed_profiles: RuntimeRows<
         StructuralRuntimePlace,
         crate::provider_storage::profiles::CompletedResourceProfile,
@@ -238,7 +242,7 @@ pub(crate) struct ConstructorStorage {
         RuntimeRows<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
     host_atoms:
         RuntimeRows<StructuralRuntimePlace, crate::structural_storage::HostStructuralPayload>,
-    scalars: RuntimeRows<StructuralScalarRuntimeField, TerminalScalarValue>,
+    scalars: crate::scalar_storage::ScalarStorageRows<StructuralScalarRuntimeField>,
     bytes: RuntimeRows<
         StructuralByteSequenceRuntimeField,
         crate::byte_sequences::binding::ByteSequenceBinding,
@@ -247,7 +251,7 @@ pub(crate) struct ConstructorStorage {
     byte_descriptors:
         RuntimeRows<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
     references: RuntimeRows<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
-    primitives: RuntimeRows<StructuralRuntimePlace, TerminalScalarValue>,
+    primitives: crate::scalar_storage::ScalarStorageRows<StructuralRuntimePlace>,
     byte_arrays: RuntimeRows<StructuralRuntimePlace, ByteSequenceView>,
     owner_writes: Vec<(
         crate::byte_sequences::binding::ByteOwnerHome,
@@ -262,6 +266,38 @@ pub(crate) struct ConstructorStorage {
 /// Fresh-identity storage has no writes through pinned pre-existing owners.
 /// Install its funded rows before committing source custody or external writes.
 pub(crate) struct DetachedConstructorStorage(ConstructorStorage);
+
+struct ConstructorResidentWrites {
+    scalars: crate::scalar_storage::ResidentReplacementWrites<StructuralScalarRuntimeField>,
+    primitives: crate::scalar_storage::ResidentReplacementWrites<StructuralRuntimePlace>,
+}
+
+impl ConstructorResidentWrites {
+    fn commit(self, storage: &mut ConstructorStorage) -> Result<(), TerminalInterpretError> {
+        self.scalars.commit(&mut storage.scalars)?;
+        self.primitives.commit(&mut storage.primitives)?;
+        Ok(())
+    }
+}
+
+/// Boundary writeback retains the complete admitted replacement, including
+/// original resident endpoints, before any input or result commits.
+pub(crate) struct PreparedConstructorReplacement {
+    root: StructuralRuntimePlace,
+    storage: ConstructorStorage,
+    residents: ConstructorResidentWrites,
+}
+
+impl PreparedConstructorReplacement {
+    pub(crate) fn publish(
+        mut self,
+        execution: &mut TerminalExecution<'_>,
+    ) -> Result<(), TerminalInterpretError> {
+        self.residents.commit(&mut self.storage)?;
+        execution.prune_subtree(&self.root);
+        self.storage.publish(execution)
+    }
+}
 
 impl DetachedConstructorStorage {
     pub(crate) fn install(
@@ -300,6 +336,7 @@ impl ConstructorStorage {
         custody: &mut crate::result_custody::ResultCustody<'storage>,
     ) -> Result<(), TerminalInterpretError> {
         for count in [
+            self.original_roots.len(),
             self.completed_profiles.len(),
             self.provider_descriptors.len(),
             self.activation_descriptors.len(),
@@ -346,16 +383,17 @@ impl ConstructorStorage {
         account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
     ) -> Self {
         Self {
+            original_roots: RuntimeRows::new(account),
             completed_profiles: RuntimeRows::new(account),
             provider_descriptors: RuntimeRows::new(account),
             activation_descriptors: RuntimeRows::new(account),
             host_atoms: RuntimeRows::new(account),
-            scalars: RuntimeRows::new(account),
+            scalars: crate::scalar_storage::ScalarStorageRows::new(account),
             bytes: RuntimeRows::new(account),
             views: RuntimeRows::new(account),
             byte_descriptors: RuntimeRows::new(account),
             references: RuntimeRows::new(account),
-            primitives: RuntimeRows::new(account),
+            primitives: crate::scalar_storage::ScalarStorageRows::new(account),
             byte_arrays: RuntimeRows::new(account),
             owner_writes: Vec::new(),
             cases: RuntimeRows::new(account),
@@ -395,6 +433,9 @@ impl ConstructorStorage {
                 path,
             })
         };
+        for (home, root) in &original.original_roots {
+            self.original_roots.insert(relocate(home)?, *root)?;
+        }
         for (home, binding) in &original.provider_descriptors {
             if !execution.provider_storage.binding_is_live(*binding) {
                 return Err(
@@ -900,6 +941,16 @@ impl ConstructorStorage {
             })
         };
         if transfers_custody {
+            // Relocate an existing complete allocation association. Scalar Rc
+            // equality cannot prove this whole-subtree custody transfer: a
+            // disjoint projected move can leave other loans on its old parent.
+            for (home, original) in
+                crate::structural_storage::cells(&execution.original_storage_roots, source)
+            {
+                if let Some(target) = relocate(home) {
+                    self.original_roots.insert(target, *original)?;
+                }
+            }
             for (home, profile) in crate::structural_storage::cells(
                 &execution.provider_storage.completed_profiles,
                 source,
@@ -992,7 +1043,10 @@ impl ConstructorStorage {
             crate::structural_storage::cells(&execution.structural_scalar_fields, source)
         {
             if let Some(parent) = relocate(&field.parent) {
-                self.scalars.insert(field.relocated(parent), *scalar)?;
+                self.scalars.insert_cell(
+                    field.relocated(parent),
+                    scalar.relocated(transfers_custody)?,
+                )?;
             }
         }
         for (field, bytes) in
@@ -1014,7 +1068,8 @@ impl ConstructorStorage {
             crate::structural_storage::cells(&execution.structural_primitive_storage, source)
         {
             if let Some(target) = relocate(home) {
-                self.primitives.insert(target, *value)?;
+                self.primitives
+                    .insert_cell(target, value.relocated(transfers_custody)?)?;
             }
         }
         for (home, bytes) in
@@ -1039,6 +1094,76 @@ impl ConstructorStorage {
         Ok(())
     }
 
+    /// Prepare original resident endpoints before an in-place replacement
+    /// retires the old subtree. All shape and funding checks precede writes.
+    pub(crate) fn preserve_replaced_residents(
+        &mut self,
+        execution: &TerminalExecution<'_>,
+        root: &StructuralRuntimePlace,
+    ) -> Result<(), TerminalInterpretError> {
+        self.preserve_original_roots(execution, root)?;
+        self.prepare_resident_writes(execution, root)?.commit(self)
+    }
+
+    pub(crate) fn prepare_replacement(
+        mut self,
+        execution: &TerminalExecution<'_>,
+        root: StructuralRuntimePlace,
+    ) -> Result<PreparedConstructorReplacement, TerminalInterpretError> {
+        self.preserve_original_roots(execution, &root)?;
+        let residents = self.prepare_resident_writes(execution, &root)?;
+        Ok(PreparedConstructorReplacement {
+            root,
+            storage: self,
+            residents,
+        })
+    }
+
+    fn preserve_original_roots(
+        &mut self,
+        execution: &TerminalExecution<'_>,
+        root: &StructuralRuntimePlace,
+    ) -> Result<(), TerminalInterpretError> {
+        for (home, original) in
+            crate::structural_storage::cells(&execution.original_storage_roots, root)
+        {
+            if self
+                .original_roots
+                .get(home)
+                .is_some_and(|incoming| incoming != original)
+            {
+                return Err(TerminalInterpretError::ResidentStorage(
+                    crate::TerminalEffectRejection::new(
+                        "replacement cannot substitute another original allocation",
+                    ),
+                ));
+            }
+            self.original_roots.insert(home.clone(), *original)?;
+        }
+        Ok(())
+    }
+
+    fn prepare_resident_writes(
+        &self,
+        execution: &TerminalExecution<'_>,
+        root: &StructuralRuntimePlace,
+    ) -> Result<ConstructorResidentWrites, TerminalInterpretError> {
+        self.validate_publication(execution)?;
+        let scalars = self
+            .scalars
+            .prepare_resident_replacement(&execution.structural_scalar_fields, Some(root))?;
+        let primitives = self
+            .primitives
+            .prepare_resident_replacement(&execution.structural_primitive_storage, Some(root))?;
+        for (home, _) in &self.owner_writes {
+            execution.byte_owner_bytes(home)?;
+        }
+        Ok(ConstructorResidentWrites {
+            scalars,
+            primitives,
+        })
+    }
+
     pub(crate) fn publish(
         mut self,
         execution: &mut TerminalExecution,
@@ -1059,6 +1184,9 @@ impl ConstructorStorage {
         &self,
         execution: &TerminalExecution<'_>,
     ) -> Result<(), TerminalInterpretError> {
+        execution
+            .original_storage_roots
+            .validate_append(&self.original_roots)?;
         execution
             .provider_storage
             .descriptors
@@ -1104,6 +1232,9 @@ impl ConstructorStorage {
         execution: &mut TerminalExecution<'_>,
     ) -> Result<(), TerminalInterpretError> {
         self.validate_publication(execution)?;
+        execution
+            .original_storage_roots
+            .append(&mut self.original_roots)?;
         execution
             .structural_scalar_fields
             .append(&mut self.scalars)?;

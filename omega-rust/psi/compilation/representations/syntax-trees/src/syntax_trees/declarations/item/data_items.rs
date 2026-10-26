@@ -22,6 +22,8 @@ pub struct DataDefinition {
     /// any number of facts, holding at every observation. Parsed and
     /// stored; the syntax->resolved lowering refuses them loudly until R2
     /// rung 2 consumes the model (never a silent drop).
+    /// Owner-authored exact independent cleanup application.
+    pub cleanup_selection: Option<crate::expression::StaticMachineArgument>,
     pub where_facts: HandleSpan<ProofFact>,
     pub members: HandleSpan<DataMember>,
 }
@@ -262,6 +264,8 @@ pub struct DomainDefinition {
     pub alias: Option<DomainAliasDefinition>,
     /// Exact trait-requirement paths authored by `established by`. These
     /// are establishment alternatives, independent from predicate facts.
+    /// Owner-authored exact independent cleanup application.
+    pub cleanup_selection: Option<crate::expression::StaticMachineArgument>,
     pub authored_routes: Vec<Vec<Identifier>>,
     /// Closed compiler-owned semantics selected by `satisfies` immediately
     /// after the domain head. This is independent from ordinary conformances.
@@ -288,6 +292,7 @@ impl Default for DomainDefinition {
             index_arguments: HandleSpan::empty(),
             is_public: false,
             alias: None,
+            cleanup_selection: None,
             authored_routes: Vec::new(),
             classification: None,
             predicate_body: language_core::DomainPredicateBody::Bodyless,

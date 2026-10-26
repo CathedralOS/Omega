@@ -75,6 +75,7 @@ pub(crate) fn validate_trait_application_obligations(
                 *argument,
                 caller_scope,
                 &[],
+                None,
                 diagnostics,
                 formation_obligations,
             ),

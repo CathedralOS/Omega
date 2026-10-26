@@ -146,7 +146,7 @@ fn fields_are_disposable<'types>(
             // This judge consumes a complete owned, claim-free value into
             // exclusive storage. Retiring its atomic cells is not a shared
             // resident observation or permission to copy a borrowed cell.
-            | StructuralFieldType::Atomic(_) => true,
+            | StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_) => true,
             StructuralFieldType::Structural(identity) => {
                 disposable_storage(types.clone(), *identity, descriptor_cleanup, visiting)
             }

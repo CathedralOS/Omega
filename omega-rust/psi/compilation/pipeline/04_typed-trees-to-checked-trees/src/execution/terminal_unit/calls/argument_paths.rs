@@ -733,7 +733,7 @@ fn constant_local_index(
     usize::try_from(
         program
             .expression_table
-            .constant_integer_value(local.initial_value)?,
+            .constant_integer_value(local.ordinary_value_initializer()?)?,
     )
     .ok()
 }
@@ -842,18 +842,6 @@ fn runtime_index_field_selector(
 
 /// The shared owner under the ordinary rule: the projected type must carry the
 /// target parameter's exact normalized identity.
-pub(crate) fn projected_argument_path_for_identity(
-    program: &dyn ::validation::CheckingInput,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    place: &validation::CanonicalPlace,
-    target_identity: typed_trees::type_identity::TypeIdentityId,
-) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
-    let (projected, path) =
-        projected_argument_path(program, state_symbol, statement_index, place, None, None)?;
-    (base_type_identity(program, projected, &[], &[])? == target_identity).then_some(path)
-}
-
 /// The literal element count of a fixed array reached through any number of
 /// domain constraints and borrows. A length that is not an authored literal
 /// bounds no fixed index here.

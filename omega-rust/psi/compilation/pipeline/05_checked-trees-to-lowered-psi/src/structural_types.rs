@@ -70,6 +70,9 @@ pub(crate) fn lower_field_type(
         } => StructuralFieldType::RefinedScalar(scalar_refinements::lower(
             identities, *primitive, predicate,
         )?),
+        CheckedUnitStructuralFieldType::AtomicBoundedInteger(integer) => {
+            StructuralFieldType::AtomicBoundedInteger(*integer)
+        }
         CheckedUnitStructuralFieldType::Atomic(primitive) => {
             StructuralFieldType::Atomic(terminal_scalar_type(*primitive)?)
         }

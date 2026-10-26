@@ -127,21 +127,17 @@ pub(crate) fn lower_sequence_extent_term(
     if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
         return unsupported("closed sequence extent requires readable access");
     }
-    let (root, path, carrier) = if path.is_empty() {
-        (
-            parameter.place,
-            Vec::new(),
-            terminal_psi::StructuralFieldType::Structural(parameter.structural_type),
-        )
-    } else {
-        crate::proofs::crash_routes::lower_structural_member_path(
-            identities,
-            parameter_position,
-            path,
-            parameters,
-            structural_types,
-        )?
-    };
+    // Inline coordinates and executable crossings come from one declaration
+    // walk. An extent behind a reference is an observation at that exact
+    // descriptor, not an inline field or an inferred capacity.
+    let selected = structural_observation_path(
+        identities,
+        parameter.structural_type,
+        parameter.access,
+        path,
+        structural_types,
+    )?;
+    let carrier = observation_field_type(&selected)?;
     let carrier = match carrier {
         terminal_psi::StructuralFieldType::Structural(identity) => {
             let declaration = terminal_psi::find_structural_type(structural_types, identity)
@@ -181,7 +177,15 @@ pub(crate) fn lower_sequence_extent_term(
     .ok_or(LoweringError::Unsupported(
         "sequence extent is not an integer",
     ))?;
-    Ok(ScalarTerm::view_extent(root, path, integer))
+    if let Some(path) = selected.canonical {
+        return Ok(ScalarTerm::view_extent(parameter.place, path, integer));
+    }
+    let mut path = selected.observation.ok_or(LoweringError::Unsupported(
+        "sequence extent has no exact descriptor observation path",
+    ))?;
+    path.push(semantic_vocabulary::ScalarReadProjection::Extent);
+    ScalarTerm::structural_read(parameter.place, path, ScalarType::Integer(integer))
+        .map_err(LoweringError::InvalidCrashPredicate)
 }
 
 /// Indexed observations retain each selector in the contract's scalar

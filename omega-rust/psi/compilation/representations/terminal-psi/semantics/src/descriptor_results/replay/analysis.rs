@@ -408,10 +408,33 @@ impl<'a> DescriptorAnalysis<'a> {
         position: DescriptorPosition,
         origin: &DescriptorSourceOrigin,
     ) -> Option<Vec<DescriptorSourceOrigin>> {
+        self.substitute_call_source_with_target(identity, position, origin, false)
+    }
+    /// A selected body's resource demands retain their own formal namespace;
+    /// this cannot expose its private returned-origin or scalar guarantees.
+    pub fn substitute_stored_effect_source(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+        origin: &DescriptorSourceOrigin,
+    ) -> Option<Vec<DescriptorSourceOrigin>> {
+        self.substitute_call_source_with_target(identity, position, origin, true)
+    }
+    fn substitute_call_source_with_target(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+        origin: &DescriptorSourceOrigin,
+        stored_effects: bool,
+    ) -> Option<Vec<DescriptorSourceOrigin>> {
         self.replay.prepare_states(identity)?;
         let machine = self.replay.machine(identity)?;
         let call = machine.calls.get(&position)?;
-        let callee = self.replay.machine(call.callee()?)?;
+        let callee = self.replay.machine(if stored_effects {
+            call.stored_effects_callee()?
+        } else {
+            call.callee()?
+        })?;
         let exported = match origin {
             DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Invocation {
                 carrier_type,
@@ -512,7 +535,7 @@ impl<'a> DescriptorAnalysis<'a> {
         self.replay.prepare_states(identity)?;
         let machine = self.replay.machine(identity)?;
         let call = machine.calls.get(&position)?;
-        let callee = self.replay.machine(call.callee()?)?;
+        let callee = self.replay.machine(call.stored_effects_callee()?)?;
         let (parameter, _, ty) = self.replay.parameter(callee, *source)?;
         let relative = crate::descriptor_lifetimes::descriptor_location(
             self.replay.types,

@@ -32,6 +32,7 @@ pub(crate) struct LoweredDynamicCallBinding {
     pub(crate) slot: symbols::SymbolHandle,
     pub(crate) interface_identity: typed_trees::type_identity::TypeIdentityId,
     pub(crate) requirement_identity: typed_trees::type_identity::CallableIdentityId,
+    pub(crate) family_tuple: Vec<String>,
     pub(crate) result_type: QualifiedScalarType,
     pub(crate) selector: LoweredDirectExpression,
     pub(crate) arguments: Vec<LoweredDirectExpression>,
@@ -53,12 +54,20 @@ pub(super) fn emit_dynamic_call_binding(
     if !call.result_type.qualifications.is_empty() {
         return unsupported("a selector call's result carries qualifications");
     }
-    if !call.family_actuals.is_empty() {
+    if !call.family_actuals.is_empty() && call.family_tuple.is_empty() {
         return unsupported("finite-family selector call outside its dispatch expansion");
     }
-    let (interface, slot) = operations
-        .dynamic_dispatch
-        .resolve_slot(&call.interface_identity, &call.requirement_identity)?;
+    let (interface, slot) = if call.family_tuple.is_empty() {
+        operations
+            .dynamic_dispatch
+            .resolve_slot(&call.interface_identity, &call.requirement_identity)?
+    } else {
+        operations.dynamic_dispatch.resolve_tuple(
+            &call.interface_identity,
+            &call.requirement_identity,
+            &call.family_tuple,
+        )?
+    };
     let selector =
         emit_direct_expression(&call.selector, parameters, next_value_identity, operations);
     let arguments = call
@@ -167,6 +176,7 @@ pub(crate) fn emit_dynamic_call_leaf(
 pub(crate) fn emit_completed_dynamic_call(
     interface_identity: &typed_trees::type_identity::TypeIdentityId,
     requirement_identity: &typed_trees::type_identity::CallableIdentityId,
+    family_tuple: &[String],
     operands: &[ValueDeclaration],
     family_actuals: &[ValueDeclaration],
     structural_arguments: Vec<terminal_psi::StructuralArgument>,
@@ -186,15 +196,23 @@ pub(crate) fn emit_completed_dynamic_call(
     let (selector, arguments) = operands.split_first().ok_or(LoweringError::Unsupported(
         "selector call has no evaluated selector operand",
     ))?;
-    let (interface, slot) = operations
-        .dynamic_dispatch
-        .resolve_slot(interface_identity, requirement_identity)?;
+    let (interface, slot) = if family_tuple.is_empty() {
+        operations
+            .dynamic_dispatch
+            .resolve_slot(interface_identity, requirement_identity)?
+    } else {
+        operations.dynamic_dispatch.resolve_tuple(
+            interface_identity,
+            requirement_identity,
+            family_tuple,
+        )?
+    };
     let arguments = arguments.iter().map(|value| value.id).collect::<Vec<_>>();
     let actuals = family_actuals
         .iter()
         .map(|value| value.id)
         .collect::<Vec<_>>();
-    if family_actuals.is_empty() {
+    if family_actuals.is_empty() || !family_tuple.is_empty() {
         emit_dynamic_call_leaf(
             selector.id,
             interface,

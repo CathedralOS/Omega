@@ -614,10 +614,7 @@ impl TerminalExecution<'_> {
             .copied()
             .filter(|place| {
                 !self.live_affine_discard_at(*place).is_some()
-                    && !self
-                        .live_claims
-                        .values()
-                        .any(|claim| claim.place == Some(*place))
+                    && !crate::custody::place_is_claimed(&self.live_claims, *place)
             })
             .collect::<Vec<_>>();
         for place in retired {
@@ -719,10 +716,7 @@ impl TerminalExecution<'_> {
             || self.scalar_array_values.contains_key(&result.place)
             || self.byte_sequence_values.contains_key(&result.place)
             || self.element_view_values.contains_key(&result.place)
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(result.place))
+            || crate::custody::place_is_claimed(&self.live_claims, result.place)
             || self.live_affine_discard_at(result.place).is_some()
         {
             return Err(malformed());
@@ -886,14 +880,7 @@ impl TerminalExecution<'_> {
             }
             self.structural_values
                 .insert(result.place, descriptor_value)?;
-            if multiplicity == StructuralMultiplicity::Affine {
-                self.live_affine_frontier
-                    .insert(terminal_psi::StructuralAffineDiscard {
-                        place: result.place,
-                        path: Vec::new(),
-                        structural_type: result.structural_type,
-                    });
-            }
+            self.track_affine_result(result);
             return Ok(OperationFlow::Advance);
         }
         if let StructuralTypeShape::FixedArray {
@@ -928,14 +915,7 @@ impl TerminalExecution<'_> {
                     path: Vec::new(),
                 },
             )?;
-            if multiplicity == StructuralMultiplicity::Affine {
-                self.live_affine_frontier
-                    .insert(terminal_psi::StructuralAffineDiscard {
-                        place: result.place,
-                        path: Vec::new(),
-                        structural_type: result.structural_type,
-                    });
-            }
+            self.track_affine_result(result);
             return Ok(OperationFlow::Advance);
         }
         let collection = collection.ok_or_else(malformed)?;
@@ -1067,14 +1047,7 @@ impl TerminalExecution<'_> {
         }
         self.structural_values
             .insert(result.place, descriptor_value)?;
-        if multiplicity == StructuralMultiplicity::Affine {
-            self.live_affine_frontier
-                .insert(terminal_psi::StructuralAffineDiscard {
-                    place: result.place,
-                    path: Vec::new(),
-                    structural_type: result.structural_type,
-                });
-        }
+        self.track_affine_result(result);
         Ok(OperationFlow::Advance)
     }
 
@@ -1230,7 +1203,8 @@ impl TerminalExecution<'_> {
             let value = self
                 .structural_scalar_fields
                 .get(&field)
-                .copied()
+                .map(crate::scalar_storage::ScalarCell::read)
+                .transpose()?
                 .ok_or_else(malformed)?;
             if value.scalar_type() != stored_type {
                 return Err(malformed());
@@ -1289,7 +1263,7 @@ impl TerminalExecution<'_> {
             if stored.scalar_type() != scalar.scalar_type() {
                 return Err(malformed());
             }
-            *stored = scalar;
+            stored.write(scalar)?;
             Ok(())
         } else {
             if let Some(home) = &view.home {
@@ -1553,10 +1527,8 @@ impl TerminalExecution<'_> {
                 .get(&result.structural_type)
                 .is_some_and(|row| matches!(row.shape, StructuralTypeShape::ElementView { .. }))
             || !result.claims.is_empty()
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(source.place) || claim.place == Some(result.place))
+            || crate::custody::place_is_claimed(&self.live_claims, source.place)
+            || crate::custody::place_is_claimed(&self.live_claims, result.place)
             || self.live_affine_discard_at(result.place).is_some()
         {
             return Err(malformed());
@@ -1575,12 +1547,7 @@ impl TerminalExecution<'_> {
             _ => return Err(malformed()),
         }
         let mut identity_cursor = self.local_structural_identities.cursor();
-        let mut destination = TerminalStructuralValue::minted(
-            self.local_structural_identities
-                .allocate_staged(&mut identity_cursor)?,
-            result.structural_type,
-            Vec::new(),
-        );
+        let mut destination = self.mint_staged(&mut identity_cursor, result.structural_type)?;
         destination.projected_qualifications = result.projected_qualifications.clone();
         let window = view
             .subslice(start, end, access)
@@ -1590,14 +1557,7 @@ impl TerminalExecution<'_> {
             .commit_cursor(identity_cursor);
         self.element_view_values.insert(result.place, window)?;
         self.structural_values.insert(result.place, destination)?;
-        if result.multiplicity == StructuralMultiplicity::Affine {
-            self.live_affine_frontier
-                .insert(terminal_psi::StructuralAffineDiscard {
-                    place: result.place,
-                    path: Vec::new(),
-                    structural_type: result.structural_type,
-                });
-        }
+        self.track_affine_result(result);
         Ok(())
     }
 }

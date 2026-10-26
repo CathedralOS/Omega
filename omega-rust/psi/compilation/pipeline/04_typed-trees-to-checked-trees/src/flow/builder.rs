@@ -268,10 +268,12 @@ fn sweep<'plans>(
     }
 }
 
-/// Roster positions connected by machine calls. Callable non-entry states must
-/// meet unknown invocation edges alongside their internal arrivals. Grouping
-/// settles those dependencies without importing caller actuals as body premises.
-/// Roster order is preserved within and across groups for page adoption.
+/// Roster positions grouped by an invocation that writes another machine's
+/// `state_value_inputs`: a call to a non-entry state of another machine, or an
+/// extracted lexical region and its origin machine. Ordinary machine-entry
+/// calls check the callee under its declared premises and do not couple the
+/// two machines' value-input fixed points. Groups keep roster order, inside and
+/// across groups, so adopted pages publish in that order.
 fn machine_groups(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
@@ -293,18 +295,33 @@ fn machine_groups(
         }
     }
     let mut owner = (0..machines.len()).collect::<Vec<_>>();
+    for (position, machine) in machines.iter().enumerate() {
+        if let Some(origin) = machine.lexical_region_origin
+            && let Some(origin_position) = program.machine_position_by_symbol(origin.machine)
+            && origin_position != position
+        {
+            let (left, right) = (
+                root(&mut owner, position),
+                root(&mut owner, origin_position),
+            );
+            owner[left.max(right)] = left.min(right);
+        }
+    }
     for (_, row) in borrow.states.iter() {
         let Some(caller) = program.machine_position_by_symbol(row.machine_symbol) else {
             continue;
         };
         for call in borrow.calls.span_or_empty(row.calls) {
-            let Some(callee) = state_locations
-                .get(&call.target_symbol)
-                .map(|(machine, _)| *machine)
-                .or_else(|| program.machine_position_by_symbol(call.target_symbol))
-            else {
+            let Some(&(callee, state_position)) = state_locations.get(&call.target_symbol) else {
                 continue;
             };
+            let callee_machine = &machines[callee];
+            if callee_machine.lexical_region_origin.is_none()
+                && super::state_values::entry_state_index(program, callee_machine)
+                    == Some(state_position)
+            {
+                continue;
+            }
             // Keep every authored family body in the same dependency group.
             // Each body is checked under its declared premises; grouping grants
             // no selected-case or scalar assumption from a caller.

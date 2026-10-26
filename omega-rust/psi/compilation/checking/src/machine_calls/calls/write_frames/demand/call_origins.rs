@@ -134,7 +134,7 @@ impl<'program> CallFrameResolver<'program> {
         let (state, statement, _) = caller_statement_owner(program, machine, site)?;
         let (target, name, receiver_expression, receiver_members, arguments) = match site {
             CallerWriteSite::Call(call) => (
-                call.target_symbol,
+                crate::machine_calls::calls::CallSite::Statement(call).target_symbol(program),
                 call.target.as_str(),
                 ExpressionHandle::invalid(),
                 crate::machine_calls::calls::signature_queries::call_receiver_member_names(
@@ -146,9 +146,10 @@ impl<'program> CallFrameResolver<'program> {
                 let Some(call) = program.expression_table.call_node(expression) else {
                     return None;
                 };
+                let target = typed_trees::operator::resolve_named_expression_call(program, call)
+                    .map_or(call.target_symbol, |operator| operator.symbol);
                 (
-                    typed_trees::operator::resolve_named_expression_call(program, call)
-                        .map_or(call.target_symbol, |operator| operator.symbol),
+                    target,
                     call.target.as_str(),
                     call.receiver,
                     frames::receiver_member_chain(program, call.receiver).unwrap_or_default(),
@@ -224,6 +225,7 @@ impl<'program> CallFrameResolver<'program> {
                                 .is_some_and(|call| {
                                     program.call_has_no_runtime_receiver_for_target(call)
                                 }),
+                            CallerWriteSite::Call(call) => typed_trees::operator::selected_named_statement_call_has_no_runtime_receiver(program, call),
                             _ => false,
                         }
                         || frames::boundary_calls::boundary_trait_signature_and_receiver(

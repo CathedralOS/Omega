@@ -1,0 +1,34 @@
+// Expected exit: 0.
+// Bounded production: the selected atomic resident remains <= 100 on every outcome.
+// A single-attempt exchange reports success or the instruction-observed failure value at its exact atomic cell.
+use omega::language::core::layout;
+data Cells where selected <= 100 { selected: AtomicU32; untouched: AtomicU32; }
+data Held { outcome: AtomicCompareExchangeOnceOutcome<u32>; }
+machine probe(cells: &Cells) -> bool {
+    cells.selected.store(10, NoOrdering);
+    cells.untouched.store(17, NoOrdering);
+    let raw: AtomicCompareExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(10, 99, ReceivePublish, Receive);
+    let held: Held = Held { outcome: raw };
+    transition held.outcome {
+        AtomicCompareExchangeOnceOutcome::Exchanged -> (cells.selected.load(NoOrdering) == 99 && cells.untouched.load(NoOrdering) == 17)
+        AtomicCompareExchangeOnceOutcome::Mismatched { observed } -> (false)
+        AtomicCompareExchangeOnceOutcome::Uncommitted { observed } -> (observed == 10 && cells.selected.load(NoOrdering) == 10 && cells.untouched.load(NoOrdering) == 17)
+    }
+}
+machine mismatch(cells: &Cells) -> bool {
+    cells.selected.store(10, NoOrdering);
+    cells.untouched.store(17, NoOrdering);
+    let raw: AtomicCompareExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(9, 99, ReceivePublish, Receive);
+    let held: Held = Held { outcome: raw };
+    transition held.outcome {
+        AtomicCompareExchangeOnceOutcome::Mismatched { observed } -> (observed == 10 && cells.selected.load(NoOrdering) == 10 && cells.untouched.load(NoOrdering) == 17)
+        AtomicCompareExchangeOnceOutcome::Exchanged -> (false)
+        AtomicCompareExchangeOnceOutcome::Uncommitted { observed } -> (false)
+    }
+}
+machine main() crashes Trap {
+    let cells: Cells;
+    transition probe(&cells) && mismatch(&cells) { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

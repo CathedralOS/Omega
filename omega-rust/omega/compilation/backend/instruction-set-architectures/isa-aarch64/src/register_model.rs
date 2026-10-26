@@ -27,7 +27,7 @@ pub use call_keys::{
     aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_normalized_foreign_call_keys,
     aarch64_darwin_register_call_keys, aarch64_darwin_register_unit_call_keys,
     aarch64_preservation_convention_for_target, aarch64_register_aggregate_call_keys,
-    aarch64_register_aggregate_return_keys,
+    aarch64_register_aggregate_return_keys, aarch64_register_unit_call_keys,
 };
 pub(crate) use constraint_catalog::aarch64_register_constraint_catalog_for;
 pub use constraint_catalog::{
@@ -38,7 +38,7 @@ pub use float_scalar_calls::{aarch64_float_scalar_call_keys, aarch64_float_scala
 pub use indirect_results::aarch64_indirect_aggregate_call_keys;
 pub use mixed_calls::{
     aarch64_aapcs64_mixed_unit_call_keys, aarch64_darwin_mixed_unit_call_keys,
-    aarch64_mixed_aggregate_call_keys,
+    aarch64_mixed_aggregate_call_keys, aarch64_mixed_unit_call_keys,
 };
 pub use operation_keys::{
     AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE, AARCH64_ADDRESS_OFFSET,

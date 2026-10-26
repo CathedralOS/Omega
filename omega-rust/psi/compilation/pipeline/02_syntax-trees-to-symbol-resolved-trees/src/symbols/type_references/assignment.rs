@@ -71,7 +71,7 @@ fn trait_parameter_slots(
 pub(crate) fn assign_nominal_machine_requirement_arguments(
     program: &mut SymbolResolvedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    use super::super::scope::{ConformanceTypeScopes, declaration_type_scope};
+    use super::super::scope::{DeclarationTypeScopes, declaration_type_scope};
     use symbol_resolved_trees::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
     struct ArgumentScope {
         trait_definition: SymbolHandle,
@@ -113,7 +113,7 @@ pub(crate) fn assign_nominal_machine_requirement_arguments(
             }
         }
     }
-    let captures = ConformanceTypeScopes::of(program)?;
+    let captures = DeclarationTypeScopes::of(program)?;
     let mut scopes = Vec::new();
     for machine in program.machines.iter() {
         let attached = program
@@ -206,6 +206,18 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) {
+    // Static operands resolve callable entries. A domain cleanup clause owns
+    // the independent machine application, not an arbitrary state inside it.
+    // Normalize only actual entry-state selections; non-entry states retain
+    // their identity so ordinary cleanup validation can reject them.
+    let cleanup_entries = program
+        .machines
+        .iter()
+        .filter_map(|machine| {
+            let entry = program.machine_state_handles(machine.states).first()?;
+            Some((program.machine_state(*entry).symbol, machine.symbol))
+        })
+        .collect::<Vec<_>>();
     let trait_proposition_slots = trait_parameter_slots(program, |parameter| {
         matches!(
             parameter.kind,
@@ -245,6 +257,29 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
             let type_parameters = data_type_parameters
                 .span_or_empty(data_definition.type_parameters)
                 .to_vec();
+            let declaration_symbol = data_definition.symbol;
+            if let Some(selection) = &mut data_definition.cleanup_selection {
+                assign_cleanup_operand_types(
+                    symbols,
+                    child_type_references,
+                    type_constraints,
+                    &type_parameters,
+                    selection,
+                );
+                crate::symbols::targets::assign_static_argument_symbols(
+                    symbols,
+                    declaration_symbol,
+                    &type_parameters,
+                    selection,
+                    false,
+                );
+                if let Some((_, machine)) = cleanup_entries
+                    .iter()
+                    .find(|(entry, _)| *entry == selection.symbol)
+                {
+                    selection.symbol = *machine;
+                }
+            }
             assign_type_parameter_constraint_symbols(
                 symbols,
                 child_type_references,
@@ -389,6 +424,28 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
         let type_parameters = data_type_parameters
             .span_or_empty(domain.type_parameters)
             .to_vec();
+        if let Some(selection) = &mut domain.cleanup_selection {
+            assign_cleanup_operand_types(
+                symbols,
+                child_type_references,
+                type_constraints,
+                &type_parameters,
+                selection,
+            );
+            crate::symbols::targets::assign_static_argument_symbols(
+                symbols,
+                domain.symbol,
+                &type_parameters,
+                selection,
+                false,
+            );
+            if let Some((_, machine)) = cleanup_entries
+                .iter()
+                .find(|(entry, _)| *entry == selection.symbol)
+            {
+                selection.symbol = *machine;
+            }
+        }
         assign_type_parameter_constraint_symbols(
             symbols,
             child_type_references,
@@ -969,4 +1026,32 @@ fn resolve_type_symbol(
         .find(|parameter| parameter.name.as_str() == name.as_str())
         .map(|parameter| parameter.symbol)
         .unwrap_or_else(|| top_level_type_symbol_for_source(symbols, name))
+}
+
+/// Structural operands introduced by generic data substitution retain type
+/// handles instead of declaration paths. Resolve their entire type graph in
+/// the selecting declaration's telescope before static argument selection.
+fn assign_cleanup_operand_types(
+    symbols: &SymbolTable,
+    types: &mut Arena<symbol_resolved_trees::types::TypeReference>,
+    constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
+    parameters: &[symbol_resolved_trees::data::TypeParameter],
+    argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
+) {
+    if argument.type_reference.is_valid() {
+        let mut reference = std::mem::take(types.get_mut(argument.type_reference));
+        assign_type_reference_symbol_with_locals_and_constraints(
+            symbols,
+            types,
+            constraints,
+            parameters,
+            &mut reference,
+        );
+        *types.get_mut(argument.type_reference) = reference;
+    }
+    if let Some(application) = &mut argument.application {
+        for nested in &mut application.arguments {
+            assign_cleanup_operand_types(symbols, types, constraints, parameters, nested);
+        }
+    }
 }

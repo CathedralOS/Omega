@@ -216,13 +216,15 @@ impl Operand {
         state: Option<&State>,
         written: &[String],
     ) -> bool {
-        if self.survives(written) {
+        // A call's conservative storage frame cannot retarget an immutable
+        // copied scalar or private descriptor observation. Their declaration-
+        // checked snapshot identity supplies this distinction, never spelling.
+        if self.survives(written)
+            || state.is_some_and(|state| self.is_immutable_snapshot(program, state))
+        {
             return true;
         }
         match self {
-            Self::CollectionLength(_) => {
-                state.is_some_and(|state| self.is_immutable_snapshot(program, state))
-            }
             Self::Binary { operands, .. } => operands
                 .iter()
                 .all(|value| value.survives_storage_writes(program, state, written)),

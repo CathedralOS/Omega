@@ -731,6 +731,7 @@ impl AppliedProofBindings {
         owner: &SelectedCallContract<'scope>,
         call: &TableCallExpression,
         observed: TypeReferenceHandle,
+        applied_result_parameters: Option<&[typed_trees::signature::StateParameter]>,
         parameter_owner: SymbolHandle,
         parameters: &'scope [typed_trees::signature::StateParameter],
         bindings: &'scope [(SymbolHandle, StructuralTerm)],
@@ -740,7 +741,13 @@ impl AppliedProofBindings {
         };
         let SelectedCallContract::DynamicSlot { slot, signature } = owner else {
             return Some(AppliedResultPresentation {
-                type_reference: self.runtime_result_type(program, owner, call, observed)?,
+                type_reference: self.runtime_result_type(
+                    program,
+                    owner,
+                    call,
+                    observed,
+                    applied_result_parameters,
+                )?,
                 parameter_owner,
                 parameters,
                 bindings: std::borrow::Cow::Borrowed(bindings),
@@ -940,6 +947,7 @@ impl AppliedProofBindings {
         owner: &SelectedCallContract<'_>,
         call: &TableCallExpression,
         observed: TypeReferenceHandle,
+        applied_result_parameters: Option<&[typed_trees::signature::StateParameter]>,
     ) -> Option<TypeReferenceHandle> {
         use typed_trees::type_identity::{
             AppliedTypeIdentityScope, IndexIdentityArgument, applied_declared_carrier_identity,
@@ -978,11 +986,12 @@ impl AppliedProofBindings {
             .collect::<Vec<_>>();
         let static_count = application.len();
         let arguments = program.expression_table.expression_handles(call.arguments);
-        let parameters = typed_trees::static_applications::result_operand_parameters(
-            program,
-            call.target_symbol,
-            arguments.len(),
-        );
+        // The producer applies ordinary operands only under this exact
+        // CallSite public/applied telescope and complete explicit arity.
+        // Missing or nonmatching rosters retain declaration vocabulary there,
+        // so they cannot become an invented positional map here.
+        let parameters =
+            applied_result_parameters.filter(|parameters| parameters.len() == arguments.len());
         for (parameter, argument) in parameters.into_iter().flatten().zip(arguments) {
             if !parameter.symbol.is_valid()
                 || application

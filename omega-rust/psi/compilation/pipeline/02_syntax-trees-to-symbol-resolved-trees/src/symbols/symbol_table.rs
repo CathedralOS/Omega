@@ -72,6 +72,9 @@ pub(super) fn extend_symbol_table(
     }
     for index in roots.machines..program.machines.len() {
         let machine = program.machines[index].clone();
+        if machine.lexical_parent.is_valid() {
+            continue;
+        }
         let symbol = extension.insert_top_level([machine_symbol_seed(&machine, has_sources)])[0];
         program.machines[index].symbol = symbol;
     }
@@ -169,7 +172,7 @@ pub(super) fn extend_symbol_table(
 }
 
 pub(super) fn build_symbol_table(
-    program: &SymbolResolvedTrees,
+    program: &mut SymbolResolvedTrees,
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     const_declarations: &[crate::resolution::lowerer::PendingConstDeclaration],
@@ -219,6 +222,7 @@ pub(super) fn build_symbol_table(
                 program
                     .machines
                     .iter()
+                    .filter(|machine| !machine.lexical_parent.is_valid())
                     .map(|machine| machine_symbol_seed(machine, has_sources)),
             )
             .chain(program.propositions.iter().map(|proposition| {
@@ -318,8 +322,10 @@ pub(super) fn build_symbol_table(
     }
     // Machine children require namespace-aware attachment selection. Their root
     // headers already exist; publish children after the namespace is installed.
-    for _ in &program.machines {
-        let _ = root_children.next();
+    for index in 0..program.machines.len() {
+        if !program.machines[index].lexical_parent.is_valid() {
+            program.machines[index].symbol = root_children.next().unwrap_or_default();
+        }
     }
     for proposition in &program.propositions {
         if let Some(proposition_symbol) = root_children.next() {
@@ -377,27 +383,32 @@ pub(super) fn build_symbol_table(
 /// Add the selected declaration cohort's own children after root identities
 /// exist. Carrier qualification supplies neither field aliases nor storage.
 pub(super) fn insert_selected_machine_children(
-    program: &SymbolResolvedTrees,
+    program: &mut SymbolResolvedTrees,
     table: SymbolTable,
     sources: Option<Arc<SourceMap>>,
     first_machine: usize,
     has_sources: bool,
 ) -> SymbolTable {
-    let selections = table
-        .child_handles(table.root())
-        .into_iter()
-        .flatten()
-        .filter(|handle| table.get(*handle).kind == SymbolKind::Machine)
-        .zip(program.machines.iter())
-        .skip(first_machine)
-        .collect::<Vec<_>>();
     let mut extension = table.begin_extension(sources.clone(), Vec::new());
-    for (symbol, machine) in selections {
+    // Lowering appends a parent before its descendants. Mint each lexical head
+    // under that exact parent, preserving existing child handles on reentry.
+    // All heads exist before any body resolution, including forward siblings.
+    for index in first_machine..program.machines.len() {
+        let machine = program.machines[index].clone();
+        let symbol = if machine.lexical_parent.is_valid() {
+            let parent = program.machines.get(machine.lexical_parent).symbol;
+            let children =
+                extension.append_children(parent, [machine_symbol_seed(&machine, has_sources)]);
+            program.machines[index].symbol = children.start();
+            children.start()
+        } else {
+            machine.symbol
+        };
         insert_machine_symbol_children(
             &mut extension,
             program,
             symbol,
-            machine,
+            &machine,
             has_sources,
             sources.as_deref(),
         );

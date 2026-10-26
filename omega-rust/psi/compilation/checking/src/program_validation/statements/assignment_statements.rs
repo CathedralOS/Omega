@@ -267,6 +267,18 @@ pub(super) fn validate<'a, 'p>(
             }
         }
     }
+    // Replacement-style atomic events establish their authored replacement.
+    // A failed exchange preserves the already-valid resident. The carrier's
+    // synthetic arithmetic is never a separately evaluated store value.
+    let resident_replacement = atomic.as_ref().and_then(|event| {
+        use access_plans::AtomicAccessOperation as A;
+        match event.operation {
+            A::Store(_) | A::Swap(_) => event.operands.first().copied(),
+            A::CompareExchange { .. } => event.operands.get(1).copied(),
+            _ => None,
+        }
+    });
+    let established_value = resident_replacement.unwrap_or(assignment.value);
     let before = diagnostics.len();
     let first_checked_interval = arithmetic_decisions.expression_values.len();
     let assignment_target_domain = assignment_target_type
@@ -277,7 +289,7 @@ pub(super) fn validate<'a, 'p>(
             arithmetic_domains::validate_anonymous_integer_range(
                 program,
                 places::assignment_value_type(program, destination),
-                assignment.value,
+                established_value,
                 &owner,
                 diagnostics,
             )
@@ -287,7 +299,7 @@ pub(super) fn validate<'a, 'p>(
                 program,
                 machine,
                 current_state,
-                assignment.value,
+                established_value,
                 value_environment,
                 assignment_target_primitive,
                 assignment_target_domain,
@@ -312,7 +324,7 @@ pub(super) fn validate<'a, 'p>(
         program,
         machine,
         current_state,
-        assignment.value,
+        established_value,
         source_primitive,
         source_domain,
     );
@@ -330,7 +342,7 @@ pub(super) fn validate<'a, 'p>(
         let observation = arithmetic_domains::IntegerValueObservation {
             machine,
             state: current_state,
-            expression: assignment.value,
+            expression: established_value,
             environment: value_environment,
             interval,
         };
@@ -339,7 +351,7 @@ pub(super) fn validate<'a, 'p>(
             machine,
             current_state,
             assignment.target,
-            assignment.value,
+            established_value,
             scope.local_write_origins,
             interval,
             source_primitive,
@@ -357,7 +369,7 @@ pub(super) fn validate<'a, 'p>(
                 machine,
                 current_state,
                 handle,
-                assignment.value,
+                established_value,
                 value_environment,
                 &owner,
                 diagnostics,
@@ -391,12 +403,13 @@ pub(super) fn validate<'a, 'p>(
                 && diagnostics.len() == before
                 && let (Some(state), Some(target_type)) =
                     (current_state, assignment_target_type_raw)
-                && let Some(decision) = checked_integer_assignment(
+                && let Some(decision) = super::integer_establishment::checked_integer_establishment(
                     program,
                     machine,
                     state,
                     scope.statement_index,
-                    assignment,
+                    assignment.target,
+                    assignment.value,
                     target_type,
                     stated,
                 )
@@ -456,11 +469,40 @@ pub(super) fn validate<'a, 'p>(
     {
         return;
     }
+    if let Some(event) = atomic.as_ref().filter(|event| event.result.is_valid()) {
+        let observed = arithmetic_domains::atomic_resident_interval(
+            program,
+            machine,
+            current_state,
+            event.place,
+        )
+        .unwrap_or(arithmetic_domains::Interval::UNBOUNDED);
+        arithmetic_domains::record_assignment(
+            value_environment,
+            arithmetic_domains::place_path(program, event.result),
+            observed,
+            None,
+        );
+    }
     let assignment_path = arithmetic_domains::place_path(program, assignment.target);
     arithmetic_domains::record_assignment(
         value_environment,
         assignment_path.clone(),
-        interval,
+        // CAS failure does not establish the replacement's exact value.
+        if atomic.is_some() {
+            current_state
+                .and_then(|state| {
+                    crate::proof_contracts::default_domains::stored_field_where_interval(
+                        program,
+                        machine,
+                        state,
+                        assignment.target,
+                    )
+                })
+                .unwrap_or(arithmetic_domains::Interval::UNBOUNDED)
+        } else {
+            interval
+        },
         places::declared_place_type_raw(program, machine, current_state, assignment.target)
             .and_then(|handle| arithmetic_domains::enforced_declared_range(program, handle)),
     );
@@ -536,39 +578,4 @@ fn assignment_root_symbol(
         return symbols::SymbolHandle::default();
     }
     symbol
-}
-
-fn checked_integer_assignment(
-    program: &dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    assignment: &typed_trees::statement::TableAssignment,
-    target_type: typed_trees::types::TypeReferenceHandle,
-    stated: arithmetic_domains::Interval,
-) -> Option<checked_trees::CheckedIntegerAssignmentDecision> {
-    let primitive = program.primitive_type_reference(target_type)?;
-    let (mut minimum, mut maximum) =
-        crate::proof_contracts::proof_embeddings::primitive_range(primitive)?;
-    for interval in std::iter::once(stated).chain(arithmetic_domains::enforced_declared_range(
-        program,
-        target_type,
-    )) {
-        if let Some(lower) = interval.low() {
-            minimum = minimum.max(numerics::bignum::BigInt::from_i64(lower));
-        }
-        if let Some(upper) = interval.high() {
-            maximum = maximum.min(numerics::bignum::BigInt::from_i64(upper));
-        }
-    }
-    (minimum <= maximum).then_some(checked_trees::CheckedIntegerAssignmentDecision {
-        machine: machine.symbol,
-        state: state.symbol,
-        statement_index,
-        target: assignment.target,
-        value: assignment.value,
-        target_type,
-        minimum,
-        maximum,
-    })
 }

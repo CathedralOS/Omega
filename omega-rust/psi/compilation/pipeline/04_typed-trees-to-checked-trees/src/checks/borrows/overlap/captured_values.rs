@@ -28,47 +28,66 @@ pub(super) fn equalities(
     // A named or preparation-captured selector may retain a call result.
     // Follow its produced stored operand, including copied locals, instead
     // of treating the initializer's spelling as surviving value provenance.
-    for &symbol in left_symbols.iter().chain(&right_symbols) {
-        let Some((state, operand)) = stored_copy(program, captures, symbol) else {
-            continue;
-        };
-        let Some(values) = crate::flow::captured_operand_values(
-            program,
-            captures.flow,
-            captures.semantic,
-            state,
-            operand,
-            operand.type_reference,
-            &[],
-        ) else {
-            continue;
-        };
-        let [value] = values.as_slice() else {
-            continue;
-        };
-        let Some(NormalizedBound::CallResult {
-            expression,
-            mut segments,
-        }) = normalized_bound(program, lookup, value.projection.expression)
-        else {
-            continue;
-        };
-        segments.extend_from_slice(&value.projection.remaining);
-        if !segments.iter().all(|segment| {
-            matches!(
-                segment,
-                PlaceSegment::Field { .. } | PlaceSegment::FixedIndex { .. }
-            )
-        }) {
-            continue;
+    let mut symbols = left_symbols.clone();
+    for &symbol in &right_symbols {
+        if !symbols.contains(&symbol) {
+            symbols.push(symbol);
         }
+    }
+    for symbol in symbols {
+        let Some(source) = stored_call_source(program, captures, symbol, lookup) else {
+            continue;
+        };
+        let origin = source.origin.clone();
         premises.push(StatedOrderingPremise::captured_equality(
             NormalizedBound::Symbol { symbol, offset: 0 },
-            NormalizedBound::CallResult {
-                expression,
-                segments,
-            },
+            origin.clone(),
         ));
+        if !source.has_read_epoch
+            && let Some(value) =
+                completed_scalar(program, captures, source.selector, &origin, source.operand)
+        {
+            premises.push(StatedOrderingPremise::captured_equality(
+                NormalizedBound::Symbol { symbol, offset: 0 },
+                NormalizedBound::Integer(value),
+            ));
+        }
+    }
+    // Inline selectors need not have a preparation local. Rejoin their exact
+    // occurrence through the same completed observations; every retained
+    // capture must agree, and the arena-owned index stays fresh after writes.
+    let mut queried = Vec::new();
+    for path in [left, right] {
+        for segment in path {
+            let PlaceSegment::Index { expression } = *segment else {
+                continue;
+            };
+            let selectors = match program.expression_table.expression(expression) {
+                typed_trees::expression::ExpressionNode::Range(range) => {
+                    vec![range.start, range.end]
+                }
+                _ => vec![expression],
+            };
+            for selector in selectors {
+                let Some(bound @ NormalizedBound::CallResult { .. }) =
+                    normalized_bound(program, lookup, selector)
+                else {
+                    continue;
+                };
+                let query = (selector, bound.clone());
+                if queried.contains(&query) {
+                    continue;
+                }
+                queried.push(query);
+                let integer = exact_bound_integer(program, captures, lookup, selector, &bound);
+                if let Some(integer) = integer {
+                    premises.push(StatedOrderingPremise::captured_equality(
+                        bound,
+                        NormalizedBound::Integer(integer),
+                    ));
+                }
+            }
+        }
     }
     // Only the bounds used in this spatial comparison participate. Building
     // an all-local pair table would do quadratic work unrelated to this query.
@@ -89,6 +108,121 @@ pub(super) fn equalities(
         }
     }
     premises
+}
+
+/// Freeze only an immutable/call value with complete captured evidence. A
+/// mutable storage query is deliberately outside this value vocabulary.
+pub(super) fn captured_storage_index(
+    program: &dyn validation::CheckingInput,
+    captures: StorageSelectorFacts<'_>,
+    lookup: &validation::ImmutableBoundLookup<'_>,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<usize> {
+    let bound = normalized_bound(program, lookup, expression)?;
+    usize::try_from(exact_bound_integer(
+        program, captures, lookup, expression, &bound,
+    )?)
+    .ok()
+}
+
+struct StoredCallSource<'facts> {
+    origin: NormalizedBound,
+    selector: typed_trees::expression::ExpressionHandle,
+    operand: &'facts FlowOperandFact,
+    has_read_epoch: bool,
+}
+
+fn stored_call_source<'facts>(
+    program: &dyn validation::CheckingInput,
+    captures: StorageSelectorFacts<'facts>,
+    symbol: SymbolHandle,
+    lookup: &validation::ImmutableBoundLookup<'_>,
+) -> Option<StoredCallSource<'facts>> {
+    let (state, operand) = stored_copy(program, captures, symbol)?;
+    let values = crate::flow::captured_operand_values(
+        program,
+        captures.flow,
+        captures.semantic,
+        state,
+        operand,
+        operand.type_reference,
+        &[],
+    )?;
+    let [value] = values.as_slice() else {
+        return None;
+    };
+    let NormalizedBound::CallResult {
+        expression,
+        mut segments,
+    } = normalized_bound(program, lookup, value.projection.expression)?
+    else {
+        return None;
+    };
+    segments.extend_from_slice(&value.projection.remaining);
+    if !segments.iter().all(|segment| {
+        matches!(
+            segment,
+            PlaceSegment::Field { .. } | PlaceSegment::FixedIndex { .. }
+        )
+    }) {
+        return None;
+    }
+    Some(StoredCallSource {
+        origin: NormalizedBound::CallResult {
+            expression,
+            segments,
+        },
+        selector: value.projection.expression,
+        operand: value.operand,
+        has_read_epoch: value.producer_epoch.is_some(),
+    })
+}
+
+fn exact_bound_integer(
+    program: &dyn validation::CheckingInput,
+    captures: StorageSelectorFacts<'_>,
+    lookup: &validation::ImmutableBoundLookup<'_>,
+    selector: typed_trees::expression::ExpressionHandle,
+    bound: &NormalizedBound,
+) -> Option<i64> {
+    match bound {
+        NormalizedBound::Integer(value) => Some(*value),
+        NormalizedBound::Symbol { symbol, offset } => {
+            let source = stored_call_source(program, captures, *symbol, lookup)?;
+            if source.has_read_epoch {
+                return None;
+            }
+            completed_scalar(
+                program,
+                captures,
+                source.selector,
+                &source.origin,
+                source.operand,
+            )?
+            .checked_add(*offset)
+        }
+        NormalizedBound::CallResult { expression, .. } => captures
+            .flow
+            .control
+            .with_expression_operands(*expression, |operands| {
+                let mut value = None;
+                for operand in operands {
+                    let incoming = completed_scalar(
+                        program,
+                        captures,
+                        selector,
+                        bound,
+                        captures.flow.control.operands.get(*operand),
+                    )?;
+                    if value.is_some_and(|previous| previous != incoming) {
+                        return None;
+                    }
+                    value = Some(incoming);
+                }
+                value
+            }),
+        _ => None,
+    }
 }
 
 fn bound_symbols(
@@ -250,4 +384,95 @@ fn stored_copy<'facts>(
         })
         .flatten()
         .map(|value| (state_flow, value))
+}
+
+/// The reaching-value selector above supplies one complete owned completion.
+/// Its typed integer observation belongs to that operand's captured epoch;
+/// borrowing its contents or consulting a later value cannot supply equality.
+fn completed_scalar(
+    program: &dyn validation::CheckingInput,
+    captures: StorageSelectorFacts<'_>,
+    selector: typed_trees::expression::ExpressionHandle,
+    bound: &NormalizedBound,
+    operand: &FlowOperandFact,
+) -> Option<i64> {
+    let NormalizedBound::CallResult {
+        expression,
+        segments,
+    } = bound
+    else {
+        return None;
+    };
+    if operand.expression != *expression
+        || !segments.iter().all(|segment| {
+            matches!(
+                segment,
+                PlaceSegment::Field { .. } | PlaceSegment::FixedIndex { .. }
+            )
+        })
+    {
+        return None;
+    }
+    let control = &captures.flow.control;
+    let state = control.state_by_symbol(operand.state_symbol)?;
+    let machine = program.machine_by_symbol(state.machine_symbol)?;
+    let typed_state = program.state_by_symbol(state.state_symbol)?;
+    if !control.calls.span(state.calls)?.iter().any(|call| {
+        call.authored_expression == *expression && call.statement_index == operand.statement_index
+    }) || !validation::has_builtin_bound_expression_meaning(
+        program,
+        machine,
+        Some(typed_state),
+        selector,
+    ) {
+        return None;
+    }
+    // An owned scalar field is a detached value. A path crossing a reference
+    // instead needs its actual read epoch, not the pointer producer's facts.
+    for depth in 0..=segments.len() {
+        let prefix = validation::project_type_reference_from_segments(
+            program,
+            operand.type_reference,
+            &segments[..depth],
+        )?;
+        if validation::reference_shell(program, prefix).is_some() {
+            return None;
+        }
+    }
+    let selected = validation::project_type_reference_from_segments(
+        program,
+        operand.type_reference,
+        segments,
+    )?;
+    if !program
+        .primitive_type_reference(selected)?
+        .is_fixed_integer()
+    {
+        return None;
+    }
+    let facts::ScalarValue::Integer(integer) = crate::values::scalar_value_at_place(
+        program,
+        captures.semantic,
+        captures
+            .flow
+            .contexts
+            .constraint_refs
+            .span(operand.constraints)?
+            .iter()
+            .filter_map(|reference| {
+                let checked_trees::FlowConstraintKind::SemanticContext { context } = reference.kind
+                else {
+                    return None;
+                };
+                Some(captures.semantic.contexts.get(context))
+            }),
+        &validation::CanonicalPlace {
+            root: PlaceRoot::Expression(*expression),
+            segments: segments.clone(),
+        },
+    )?
+    else {
+        return None;
+    };
+    integer.to_i64()
 }

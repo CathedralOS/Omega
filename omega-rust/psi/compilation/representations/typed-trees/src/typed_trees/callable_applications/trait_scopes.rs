@@ -104,6 +104,28 @@ impl TypedTrees {
         dispatch: Option<&crate::typed_trees::StaticRequirementDispatch>,
         requirement_application: crate::types::TypeReferenceHandle,
     ) -> Option<&signature::StateSignature> {
+        // A source evidence child is not the declaring trait's state symbol.
+        // Rejoin its exact authored bound before reading the prepared public
+        // view, including when its caller-owned type operands remain symbolic.
+        if let Some(machine) = self.machine_by_symbol(lexical_owner)
+            && let Some(bound) = self.conformance_target_requirement(machine, target).ok()?
+        {
+            if requirement_application.is_valid() {
+                let written = self
+                    .applied_requirement_scope(lexical_owner, requirement_application)?
+                    .declaring_scope(self, bound.application.declaration.symbol)?;
+                if !bound.application.same_application(self, &written) {
+                    return None;
+                }
+            }
+            return self
+                .applied_callable_signature(&bound.application, bound.signature.symbol)
+                .or_else(|| {
+                    (bound.application.substitutions.is_empty()
+                        && bound.application.declaration.lifetime_parameters.is_empty())
+                    .then_some(bound.signature)
+                });
+        }
         let (declaration, signature) = self.trait_machine_signature(target)?;
         if let Some(dispatch) = dispatch {
             // A map qualifier supplies an independent outer telescope even

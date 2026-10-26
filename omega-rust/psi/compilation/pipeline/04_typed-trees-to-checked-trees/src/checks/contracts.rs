@@ -143,6 +143,10 @@ pub(super) fn check_flow_call_contracts(
     static STRUCT_TRACE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     let struct_trace =
         *STRUCT_TRACE.get_or_init(|| std::env::var_os("OMEGA_STRUCT_TRACE").is_some());
+    let has_activation_claim = program
+        .data_definitions()
+        .iter()
+        .any(|data| validation::activation_claim_byte_carrier(program, data.symbol).is_some());
 
     for (_, state_flow) in facts.flow.control.states.iter() {
         let caller_is_proof = struct_trace && is_proof_machine(state_flow.machine_symbol);
@@ -191,9 +195,17 @@ pub(super) fn check_flow_call_contracts(
         }
         for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {
             let _s = phase_profile::guard("05.d.7.3b.2.exits");
-            phase_profile::scope("05.d.7.3b.2.exits.a.activation_return", || {
-                return_values::check_activation_return(program, facts, exit_flow, &mut diagnostics)
-            });
+            if has_activation_claim {
+                phase_profile::scope("05.d.7.3b.2.exits.a.activation_return", || {
+                    return_values::check_activation_return(
+                        program,
+                        facts,
+                        state_flow,
+                        exit_flow,
+                        &mut diagnostics,
+                    )
+                });
+            }
             phase_profile::scope("05.d.7.3b.2.exits.b.boundary_refutations", || {
                 boundary_refutations.check(program, facts, exit_flow, call_frames, &mut diagnostics)
             });

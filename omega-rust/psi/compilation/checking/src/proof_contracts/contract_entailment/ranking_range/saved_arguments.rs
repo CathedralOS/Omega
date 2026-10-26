@@ -58,7 +58,7 @@ pub(super) fn install(
         let Some(local) = statement.as_local_data() else {
             continue;
         };
-        if !local.initial_value.is_valid()
+        if local.ordinary_value_initializer().is_none()
             || lengths::binding_is_exclusively_exposed(program, state, local.symbol)
             || lengths::binding_is_written(
                 program,
@@ -276,7 +276,7 @@ fn saved_local<'a>(
     symbol: SymbolHandle,
 ) -> Option<&'a typed_trees::statement::TableLocalData> {
     let (_, local) = program.state_local_declaration(state, symbol)?;
-    (local.initial_value.is_valid()
+    (local.ordinary_value_initializer().is_some()
         && !lengths::binding_is_exclusively_exposed(program, state, symbol)
         && !lengths::binding_is_written(
             program,

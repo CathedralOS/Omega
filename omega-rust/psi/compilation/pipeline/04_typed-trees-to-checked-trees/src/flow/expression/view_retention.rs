@@ -13,6 +13,48 @@ use typed_trees::expression::ExpressionHandle;
 use validation::CanonicalPlace;
 
 impl Execution<'_, '_, '_> {
+    /// A reference value retains both its actual storage lifetime and the
+    /// admitted contents of an incoming carrier. Completed values and reaching
+    /// stores remain authoritative, including explicit unknown profiles.
+    /// Incoming contents supply lifetime debt only: no child evaluation,
+    /// descriptor address or permission is manufactured from their type.
+    pub(super) fn captured_reference_retention(
+        &mut self,
+        capture: &FlowOperandFact,
+        completed: Option<Handle<FlowOperandRetention>>,
+    ) -> Option<Handle<FlowOperandRetention>> {
+        completed
+            .or_else(|| self.stored_operand_retention(capture.expression))
+            .or_else(|| {
+                let source = validation::canonical_place_from_expression_in_state(
+                    self.program,
+                    self.state.symbol,
+                    capture.statement_index,
+                    capture.expression,
+                )?;
+                let carrier = validation::reference_result_custody::input_carrier_type(
+                    self.program,
+                    capture.type_reference,
+                )?;
+                if validation::borrow_contracts::borrow_carrying_owner_paths(self.program, carrier)?
+                    .is_empty()
+                {
+                    return None;
+                }
+                let retention = self.incoming_value_retention(&source, capture.storage_snapshot)?;
+                let contents = FlowOperandFact {
+                    type_reference: carrier,
+                    state_symbol: capture.state_symbol,
+                    statement_index: capture.statement_index,
+                    storage_snapshot: capture.storage_snapshot,
+                    retention,
+                    ..Default::default()
+                };
+                let backing = self.context.control.operands.insert(*capture);
+                Some(self.capture_storage_retention(&contents, Some(retention), backing))
+            })
+    }
+
     /// Forming a view retains its evaluated address, independently of whether
     /// the contents of that storage have a known completed-value profile.
     /// Preserve that profile for later projections, but never use an unknown
@@ -364,14 +406,22 @@ impl Execution<'_, '_, '_> {
     fn incoming_value_retention(
         &mut self,
         source: &CanonicalPlace,
+        snapshot: Handle<checked_trees::FlowStorageSnapshot>,
     ) -> Option<Handle<FlowOperandRetention>> {
         let parameter = self
             .program
             .state_parameter_by_symbol(self.state, source.root.as_symbol()?)?;
-        let paths = validation::borrow_contracts::borrow_carrying_owner_paths(
+        // This is the resident value profile beneath an input's storage
+        // access. A borrowed record's outer loan retains its container; its
+        // contents have their own complete carried-reference frontier. Using
+        // the outer reference here records only the empty owner path and
+        // loses every stored descriptor when a call or field read selects it.
+        let carrier = validation::reference_result_custody::input_carrier_type(
             self.program,
             parameter.type_reference,
         )?;
+        let paths =
+            validation::borrow_contracts::borrow_carrying_owner_paths(self.program, carrier)?;
         let mut leaves = Vec::new();
         for path in paths {
             let path = crate::borrow::owner_place_segments(&path);
@@ -390,7 +440,7 @@ impl Execution<'_, '_, '_> {
                 self.program,
                 &self.context.control,
                 self.state,
-                self.storage_snapshot,
+                snapshot,
                 &leaf,
             ) {
                 Some(super::super::stored_values::StoredOperand::Value {
@@ -565,7 +615,9 @@ impl Execution<'_, '_, '_> {
                 }
                 Some(_) => return self.append_retention(&roots),
                 None => {
-                    if let Some(retention) = self.incoming_value_retention(&source) {
+                    if let Some(retention) =
+                        self.incoming_value_retention(&source, capture.storage_snapshot)
+                    {
                         value.retention = retention;
                     }
                 }
@@ -633,7 +685,9 @@ impl Execution<'_, '_, '_> {
                     }
                 }
                 None => {
-                    let Some(retention) = self.incoming_value_retention(&source) else {
+                    let Some(retention) =
+                        self.incoming_value_retention(&source, capture.storage_snapshot)
+                    else {
                         return Handle::invalid();
                     };
                     value.retention = retention;
@@ -711,7 +765,7 @@ impl Execution<'_, '_, '_> {
                 super::super::stored_values::StoredObservation::Binding,
             ) {
                 Some(stored) => self.retention_from_stored_operand(stored),
-                None => match self.incoming_value_retention(&place) {
+                None => match self.incoming_value_retention(&place, capture.storage_snapshot) {
                     Some(retention) => retention,
                     None => return Handle::invalid(),
                 },

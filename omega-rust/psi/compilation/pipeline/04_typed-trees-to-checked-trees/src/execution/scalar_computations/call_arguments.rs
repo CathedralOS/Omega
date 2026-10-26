@@ -321,6 +321,7 @@ impl Builder<'_, '_> {
             crate::execution::terminal_unit::calls::computed_call_claim_transfers(
                 self.program,
                 self.flow,
+                self.plans,
                 self.machine,
                 self.state,
                 self.flow.control.calls.get(source_call),

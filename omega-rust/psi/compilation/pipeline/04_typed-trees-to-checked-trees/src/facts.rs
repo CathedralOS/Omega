@@ -71,7 +71,7 @@ pub(crate) fn crash_entry_operand(
 use crate::borrow::build_borrow_facts;
 use crate::facts::capabilities::build_capability_facts;
 use crate::facts::contract_plan_facts::{build_contract_plans, build_mutation_facts};
-use crate::facts::dynamic_conformance::build_dynamic_conformance_facts;
+pub(crate) use crate::facts::dynamic_conformance::build_dynamic_conformance_facts;
 use crate::facts::machine_facts::{
     build_blocking_facts, build_suspension_facts, build_synchronous_invocation_facts,
     build_termination_facts,
@@ -160,6 +160,7 @@ pub(crate) fn build_check_facts(
         proof
             .integer_assignments
             .append(checked_trees::CheckedIntegerAssignmentDecision {
+                atomic_resident: false,
                 machine: assignment.machine_symbol,
                 state: assignment.state_symbol,
                 statement_index: assignment.statement_index,

@@ -13,6 +13,8 @@ use terminal_psi::{
 
 use crate::lowering::LoweringError;
 
+use super::unique_row;
+
 /// Resolve the declared parameter independently of its physical carrier.
 /// State parameters retain their own block/place correspondence, never an entry
 /// parameter's position. The observing operation checks access, custody and its
@@ -49,14 +51,7 @@ pub(super) fn owned_state_storage_parameter(
     semantic_vocabulary::BlockId,
     &terminal_psi::StructuralParameterDeclaration,
 )> {
-    let mut declarations = machine
-        .structural_places
-        .iter()
-        .filter(|row| row.id == place);
-    let declaration = declarations.next()?;
-    if declarations.next().is_some() {
-        return None;
-    }
+    let declaration = unique_row(&machine.structural_places, |row| row.id == place)?;
     let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
         return None;
     };
@@ -91,22 +86,9 @@ fn owned_result(
     machine: &TerminalMachine,
     place: PlaceId,
 ) -> Option<(&Operation, &StructuralOperationResult)> {
-    let mut declarations = machine
-        .structural_places
-        .iter()
-        .filter(|entry| entry.id == place);
-    let declaration = declarations.next()?;
-    if declarations.next().is_some() {
-        return None;
-    }
+    let declaration = unique_row(&machine.structural_places, |entry| entry.id == place)?;
     let (producer, structural_type) = declaration.kind.as_operation_result()?;
-    let mut operations = machine
-        .operations()
-        .filter(|operation| operation.id == producer);
-    let operation = operations.next()?;
-    if operations.next().is_some() {
-        return None;
-    }
+    let operation = unique_row(machine.operations(), |operation| operation.id == producer)?;
     let result = operation.result.structural()?;
     (result.place == place && result.structural_type == structural_type)
         .then_some((operation, result))

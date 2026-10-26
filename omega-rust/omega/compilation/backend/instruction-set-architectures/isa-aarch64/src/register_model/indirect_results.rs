@@ -1,9 +1,6 @@
 //! Hidden aggregate destinations are call inputs in X8, not scalar result definitions.
 
-use super::{
-    aarch64_aapcs64_mixed_unit_call_keys, aarch64_aapcs64_register_unit_call_keys,
-    aarch64_darwin_mixed_unit_call_keys, aarch64_darwin_register_unit_call_keys,
-};
+use super::{aarch64_mixed_unit_call_keys, aarch64_register_unit_call_keys};
 use register_model::{
     RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
     RegisterOperandConstraint, ValidatedPhysicalRegisterModel, find_register_constraint,
@@ -23,16 +20,8 @@ pub(super) fn append_constraints(
         return;
     };
     for darwin in [false, true] {
-        let inputs = if darwin {
-            aarch64_darwin_register_unit_call_keys()
-        } else {
-            aarch64_aapcs64_register_unit_call_keys()
-        };
-        let mixed = if darwin {
-            aarch64_darwin_mixed_unit_call_keys()
-        } else {
-            aarch64_aapcs64_mixed_unit_call_keys()
-        };
+        let inputs = aarch64_register_unit_call_keys(darwin);
+        let mixed = aarch64_mixed_unit_call_keys(darwin);
         for (input, key) in inputs
             .into_iter()
             .chain(mixed)

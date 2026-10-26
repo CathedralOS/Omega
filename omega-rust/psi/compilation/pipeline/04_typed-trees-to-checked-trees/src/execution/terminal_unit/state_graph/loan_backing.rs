@@ -10,7 +10,8 @@
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     BorrowLoanFact, CheckFacts, CheckedCallBorrowLoanSource, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralPathSegment, FlowConstraintRef,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralPathSegment, FlowConstraintRef,
 };
 use facts::PlaceRoot;
 use symbols::SymbolHandle;
@@ -55,8 +56,11 @@ fn selected_call(
 /// provenance. Replaying descriptor constructors here would lose those edges.
 pub(super) struct RetainedStorage {
     pub(super) backing: Option<u32>,
-    pub(super) parents: Vec<(u32, u32)>,
-    pub(super) operand_parents: Vec<u32>,
+    pub(super) parents: Vec<(
+        CheckedUnitStructuralArgumentSourcePlan,
+        CheckedUnitStructuralArgumentSourcePlan,
+    )>,
+    pub(super) operand_parents: Vec<CheckedUnitStructuralArgumentSourcePlan>,
 }
 
 pub(super) fn retained_storage(
@@ -69,6 +73,7 @@ pub(super) fn retained_storage(
     arguments: &[ExpressionHandle],
     argument_position: usize,
     operations: &[CheckedUnitEffectOperationPlan],
+    address_source: Option<CheckedUnitStructuralArgumentSourcePlan>,
 ) -> Result<RetainedStorage, &'static str> {
     let call_handle = selected_call(program, facts, machine, state, statement, target, arguments)
         .ok_or("state loan: exact captured call")?;
@@ -81,7 +86,7 @@ pub(super) fn retained_storage(
         .handles()
         .nth(argument_position)
         .ok_or("state loan: captured operand position")?;
-    let (parents, operand_parents) = retained_parents(
+    let (parents, mut operand_parents) = retained_parents(
         program,
         facts,
         machine,
@@ -90,6 +95,7 @@ pub(super) fn retained_storage(
         call_handle,
         operand,
         operations,
+        address_source,
     )?;
     let mut roots = facts
         .borrow
@@ -118,13 +124,13 @@ pub(super) fn retained_storage(
             operand_parents,
         });
     };
-    // Every origin must agree on the state-owned home retained for cleanup.
-    // Distinct caller-owned referents all require no local home; their captured
-    // descriptor supplies the address and their complete parent resources above
-    // retain permission. Never choose one referent from the origin alternatives.
+    // A selected descriptor can retain several independently owned homes.
+    // Keep every possibility without choosing an address or granting relocation.
+    // Opaque incoming permissions remain caller/provider custody, not the
+    // owned carrier slot which may share their root name.
+    let resources = std::iter::once(resource).chain(roots).collect::<Vec<_>>();
     let local_backing = |resource: &checked_trees::CheckedCallBorrowLoanResource| {
         if resource.backing_incoming_reference.is_valid() {
-            // retained_parents authenticated the exact incoming permission.
             Ok(None)
         } else {
             local_backing_binding(
@@ -138,11 +144,28 @@ pub(super) fn retained_storage(
         }
     };
     let backing = local_backing(resource)?;
-    for candidate in roots {
-        if local_backing(candidate)? != backing {
-            return Err("state loan: distinct backing alternatives");
+    let mut common_backing = true;
+    for candidate in &resources {
+        common_backing &= local_backing(candidate)? == backing;
+    }
+    if !common_backing {
+        for resource in resources {
+            if !resource.backing_incoming_reference.is_valid()
+                && let Some(parent) = owned_parent_source(
+                    program,
+                    facts,
+                    state,
+                    statement,
+                    operations,
+                    resource.parent_lifetime.root,
+                )?
+                && !operand_parents.contains(&parent)
+            {
+                operand_parents.push(parent);
+            }
         }
     }
+    let backing = common_backing.then_some(backing).flatten();
     Ok(RetainedStorage {
         backing,
         parents,
@@ -238,7 +261,18 @@ fn retained_parents(
     call_handle: Handle<checked_trees::FlowCallFact>,
     operand: Handle<checked_trees::FlowOperandFact>,
     operations: &[CheckedUnitEffectOperationPlan],
-) -> Result<(Vec<(u32, u32)>, Vec<u32>), &'static str> {
+    address_source: Option<CheckedUnitStructuralArgumentSourcePlan>,
+) -> Result<
+    (
+        Vec<(
+            CheckedUnitStructuralArgumentSourcePlan,
+            CheckedUnitStructuralArgumentSourcePlan,
+        )>,
+        Vec<CheckedUnitStructuralArgumentSourcePlan>,
+    ),
+    &'static str,
+> {
+    let call = facts.flow.control.calls.get(call_handle);
     let capture = facts.flow.control.operands.get(operand);
     // State ingress already owns opaque carried permissions, not fresh local
     // loan rows. Replacements still supply their current stored-loan resources.
@@ -319,7 +353,7 @@ fn retained_parents(
             }
         }
     }
-    if roots.is_empty() && shared_backings.is_empty() {
+    if roots.is_empty() && shared_backings.is_empty() && address_source.is_none() {
         return Ok((Vec::new(), Vec::new()));
     }
     let borrow_state = facts
@@ -328,6 +362,34 @@ fn retained_parents(
         .ok_or("state loan parents: source borrow state")?;
     let mut captured = Vec::new();
     let mut operand_parents = Vec::new();
+    if let Some(CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }) =
+        address_source
+    {
+        let operation = operations
+            .iter()
+            .find(|operation| {
+                operation
+                    .structural_result_binding()
+                    .is_some_and(|binding| binding.binding_ordinal == binding_ordinal)
+            })
+            .ok_or("state loan parents: address source production")?;
+        let root = super::super::cleanup::normal_edges::producer_root(facts, state, operation)
+            .ok_or("state loan parents: address source storage")?;
+        let dependencies = Dependencies {
+            program,
+            facts,
+            state,
+            statement: capture.statement_index,
+            borrow_state,
+            question: StorageQuestion::RetainForArrival,
+            forbidden: &[],
+            ingress: &ingress,
+            ingress_storage: &ingress_storage,
+        };
+        if !dependencies.contents(root, call.entry_constraints, &mut Vec::new(), &mut captured) {
+            return Err("state loan parents: incomplete address storage dependencies");
+        }
+    }
     for resource in roots {
         if !facts.flow.control.operands.is_valid(resource.operand) {
             return Err("state loan parents: stale captured leaf");
@@ -351,9 +413,20 @@ fn retained_parents(
         // A moved enclosing value carries its stored leaves even though the
         // enclosing value itself has no direct-reference resource. The emitted
         // target parameter owns this dependency, including inline constructions.
+        let incoming_referent = resource.backing_incoming_reference.is_valid()
+            || match resource.source {
+                CheckedCallBorrowLoanSource::StoredLoan { loan } => {
+                    if !facts.borrow.loans.is_valid(loan) {
+                        return Err("state loan parents: stale stored resource");
+                    }
+                    facts.borrow.loans.get(loan).incoming_reference.is_valid()
+                }
+                CheckedCallBorrowLoanSource::CallAccess { .. } => false,
+            };
         if !resource.owner_path.is_empty()
+            && !incoming_referent
             && let Some(parent) =
-                owned_parent_binding(program, facts, state, statement, operations, root)?
+                owned_parent_source(program, facts, state, statement, operations, root)?
             && !operand_parents.contains(&parent)
         {
             operand_parents.push(parent);
@@ -401,7 +474,7 @@ fn retained_parents(
     };
     for root in shared_backings {
         if let Some(parent) =
-            owned_parent_binding(program, facts, state, statement, operations, root)?
+            owned_parent_source(program, facts, state, statement, operations, root)?
             && !operand_parents.contains(&parent)
         {
             operand_parents.push(parent);
@@ -413,18 +486,20 @@ fn retained_parents(
     let mut parents = Vec::new();
     for (dependent, parent) in captured {
         let Some(parent) =
-            owned_parent_binding(program, facts, state, statement, operations, parent)?
+            owned_parent_source(program, facts, state, statement, operations, parent)?
         else {
             // Caller/provider storage is not owned by this activation.
             continue;
         };
-        let dependent = local_storage_binding(program, facts, state, operations, dependent)?;
+        let dependent =
+            owned_parent_source(program, facts, state, statement, operations, dependent)?;
         let Some(dependent) = dependent else {
             // Incoming storage is retained by its caller, not this local roster.
             continue;
         };
-        if !parents.contains(&(dependent, parent)) {
-            parents.push((dependent, parent));
+        let relation = (dependent, parent);
+        if !parents.contains(&relation) {
+            parents.push(relation);
         }
     }
     Ok((parents, operand_parents))
@@ -474,100 +549,214 @@ fn shared_leaf_lifetime_roots(
 fn ingress_covers_capture_path(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
-    capture: Handle<checked_trees::FlowOperandFact>,
+    operand: Handle<checked_trees::FlowOperandFact>,
     path: &[facts::PlaceSegment],
     ingress: &[(PlaceRoot, &[checked_trees::BorrowLoanOwnerSegment])],
 ) -> bool {
-    fn covers(
-        program: &dyn validation::CheckingInput,
-        facts: &CheckFacts,
-        handle: Handle<checked_trees::FlowOperandFact>,
-        path: &[facts::PlaceSegment],
-        ingress: &[(PlaceRoot, &[checked_trees::BorrowLoanOwnerSegment])],
-        active: &mut Vec<Handle<checked_trees::FlowOperandFact>>,
-    ) -> bool {
-        let control = &facts.flow.control;
-        if !control.operands.is_valid(handle) || active.contains(&handle) {
-            return false;
-        }
-        let capture = control.operands.get(handle);
-        active.push(handle);
-        let result = (|| {
-            // Only an independently proved inactive case has no leaf debt.
-            if crate::flow::literal_value_path_is_inactive(
-                program,
-                capture.expression,
-                capture.type_reference,
-                path,
-            ) {
-                return true;
-            }
-            if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion
-            {
-                let Some(alternatives) = control
-                    .operand_alternatives
-                    .span(alternatives)
-                    .filter(|alternatives| !alternatives.is_empty())
-                else {
-                    return false;
-                };
-                return alternatives.iter().all(|alternative| {
-                    alternative.source_arm.is_valid()
-                        && covers(program, facts, alternative.value, path, ingress, active)
-                });
-            }
-            if !path.is_empty()
-                && matches!(
-                    capture.completion,
-                    checked_trees::FlowOperandCompletion::Constructed(_)
-                )
-            {
-                let Some(children) =
-                    validation::completed_storage::captured_operand_children_at_path(
-                        program, control, handle, path,
-                    )
-                else {
-                    return false;
-                };
-                return children.iter().all(|child| {
-                    covers(
-                        program,
-                        facts,
-                        child.capture,
-                        &child.projection,
-                        ingress,
-                        active,
-                    )
-                });
-            }
-            let Some(mut source) = validation::canonical_place_from_expression_in_state(
-                program,
-                capture.state_symbol,
-                capture.statement_index,
-                capture.expression,
-            ) else {
-                return false;
-            };
-            source.segments.extend_from_slice(path);
-            let selected = crate::borrow::owner_path_from_place_segments(program, &source.segments);
-            ingress
-                .iter()
-                .any(|(root, path)| *root == source.root && *path == selected)
-        })();
-        active.pop();
-        result
+    if !facts.flow.control.operands.is_valid(operand) {
+        return false;
     }
-    covers(program, facts, capture, path, ingress, &mut Vec::new())
+    ingress_covers_capture_path_inner(
+        program,
+        facts,
+        operand,
+        path,
+        ingress,
+        facts.flow.control.operands.get(operand).storage_snapshot,
+        &mut Vec::new(),
+    )
 }
 
-fn owned_parent_binding(
+fn ingress_covers_capture_path_inner(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    operand: Handle<checked_trees::FlowOperandFact>,
+    path: &[facts::PlaceSegment],
+    ingress: &[(PlaceRoot, &[checked_trees::BorrowLoanOwnerSegment])],
+    current: Handle<checked_trees::FlowStorageSnapshot>,
+    active: &mut Vec<(
+        Handle<checked_trees::FlowOperandFact>,
+        Vec<facts::PlaceSegment>,
+    )>,
+) -> bool {
+    let key = (operand, path.to_vec());
+    if !facts.flow.control.operands.is_valid(operand) || active.contains(&key) {
+        return false;
+    }
+    active.push(key);
+    let covered =
+        ingress_covers_capture_path_body(program, facts, operand, path, ingress, current, active);
+    active.pop();
+    covered
+}
+
+fn ingress_covers_capture_path_body(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    operand: Handle<checked_trees::FlowOperandFact>,
+    path: &[facts::PlaceSegment],
+    ingress: &[(PlaceRoot, &[checked_trees::BorrowLoanOwnerSegment])],
+    current: Handle<checked_trees::FlowStorageSnapshot>,
+    active: &mut Vec<(
+        Handle<checked_trees::FlowOperandFact>,
+        Vec<facts::PlaceSegment>,
+    )>,
+) -> bool {
+    let control = &facts.flow.control;
+    let capture = control.operands.get(operand);
+    if crate::flow::literal_value_path_is_inactive(
+        program,
+        capture.expression,
+        capture.type_reference,
+        path,
+    ) {
+        return true;
+    }
+    if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion {
+        let Some(rows) = control
+            .operand_alternatives
+            .span(alternatives)
+            .filter(|rows| !rows.is_empty())
+        else {
+            return false;
+        };
+        return rows.iter().all(|row| {
+            row.source_arm.is_valid()
+                && ingress_covers_capture_path_inner(
+                    program, facts, row.value, path, ingress, current, active,
+                )
+        });
+    }
+    if !path.is_empty()
+        && matches!(
+            capture.completion,
+            checked_trees::FlowOperandCompletion::Constructed(_)
+        )
+    {
+        let Some(children) = validation::completed_storage::captured_operand_children_at_path(
+            program, control, operand, path,
+        ) else {
+            return false;
+        };
+        return children.iter().all(|child| {
+            ingress_covers_capture_path_inner(
+                program,
+                facts,
+                child.capture,
+                &child.projection,
+                ingress,
+                current,
+                active,
+            )
+        });
+    }
+    // Completed helper results retain exact supplier occurrences. A missing
+    // association in any alternative cannot be covered by another supplier.
+    if let Some(profiles) = validation::completed_storage::captured_retention_profiles_at_path(
+        program, control, capture, path,
+    ) {
+        let suppliers = profiles
+            .iter()
+            .map(|profile| {
+                validation::completed_storage::descriptor_suppliers(
+                    control,
+                    *profile,
+                    &mut Vec::new(),
+                )
+            })
+            .collect::<Vec<_>>();
+        if suppliers.iter().any(Option::is_some) {
+            return !suppliers.is_empty()
+                && suppliers.into_iter().all(|suppliers| {
+                    suppliers.is_some_and(|suppliers| {
+                        !suppliers.is_empty()
+                            && suppliers.iter().all(|supplier| {
+                                ingress_covers_capture_path_inner(
+                                    program,
+                                    facts,
+                                    supplier.operand,
+                                    control
+                                        .operand_retained_paths
+                                        .span_or_empty(supplier.projection),
+                                    ingress,
+                                    current,
+                                    active,
+                                )
+                            })
+                    })
+                });
+        }
+    }
+    if let Some(stored) = validation::completed_storage::reference_captures_at_path(
+        program, control, operand, path, current,
+    ) {
+        let Some(captures) = stored.captures() else {
+            return false;
+        };
+        return !captures.is_empty()
+            && captures.iter().all(|selected| {
+                // A view descriptor can select itself. Only exact unchanged
+                // ingress below can cover that terminal query; never assume it.
+                if selected.capture == operand && selected.projection == path {
+                    return unchanged_ingress_capture(program, control, capture, path, ingress);
+                }
+                ingress_covers_capture_path_inner(
+                    program,
+                    facts,
+                    selected.capture,
+                    &selected.projection,
+                    ingress,
+                    current,
+                    active,
+                )
+            });
+    }
+    unchanged_ingress_capture(program, control, capture, path, ingress)
+}
+
+fn unchanged_ingress_capture(
+    program: &dyn validation::CheckingInput,
+    control: &checked_trees::FlowControlFacts,
+    capture: &checked_trees::FlowOperandFact,
+    path: &[facts::PlaceSegment],
+    ingress: &[(PlaceRoot, &[checked_trees::BorrowLoanOwnerSegment])],
+) -> bool {
+    let Some(mut source) = validation::canonical_place_from_expression_in_state(
+        program,
+        capture.state_symbol,
+        capture.statement_index,
+        capture.expression,
+    ) else {
+        return false;
+    };
+    source.segments.extend_from_slice(path);
+    // A matching input spelling cannot cover a replaced binding. Query this
+    // completed value's cut; later rebindings cannot retarget an earlier copy.
+    if validation::completed_storage::at_snapshot(
+        program,
+        control,
+        capture.storage_snapshot,
+        &source,
+        validation::completed_storage::StoredObservation::Binding,
+    )
+    .is_some()
+    {
+        return false;
+    }
+    let selected = crate::borrow::owner_path_from_place_segments(program, &source.segments);
+    ingress
+        .iter()
+        .any(|(root, path)| *root == source.root && *path == selected)
+}
+
+fn owned_parent_source(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     state: SymbolHandle,
     statement: usize,
     operations: &[CheckedUnitEffectOperationPlan],
     root: PlaceRoot,
-) -> Result<Option<u32>, &'static str> {
+) -> Result<Option<CheckedUnitStructuralArgumentSourcePlan>, &'static str> {
     if is_image_storage_root(program, root) {
         return Ok(None);
     }
@@ -586,7 +775,34 @@ fn owned_parent_binding(
     {
         return Ok(None);
     }
-    local_storage_binding(program, facts, state, operations, root)
+    let typed_state = program
+        .state_by_symbol(state)
+        .ok_or("state loan parents: source state")?;
+    if let Some(symbol) = root.as_symbol()
+        && let Some(parameter) = program.state_parameter_by_symbol(typed_state, symbol)
+    {
+        // Borrowed ingress denotes storage retained by the caller. An owned
+        // input instead belongs to this activation even after a local move.
+        if validation::reference_shell(program, parameter.type_reference).is_some() {
+            return Ok(None);
+        }
+        let parameters = program.state_parameters(typed_state);
+        let authored = parameters
+            .iter()
+            .position(|parameter| parameter.symbol == symbol)
+            .ok_or("state loan parents: owned input position")?;
+        let parameter_index =
+            super::super::types::dense_structural_parameter_index(program, parameters, authored)
+                .ok_or("state loan parents: owned input namespace")?;
+        return Ok(Some(CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index,
+        }));
+    }
+    Ok(
+        local_storage_binding(program, facts, state, operations, root)?.map(|binding_ordinal| {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }
+        }),
+    )
 }
 
 pub(super) fn retired_carrier_backing(

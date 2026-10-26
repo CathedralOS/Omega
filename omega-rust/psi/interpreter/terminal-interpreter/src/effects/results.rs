@@ -11,7 +11,6 @@ use terminal_psi::BoundaryMachineDeclaration;
 use terminal_psi::BoundaryMachineResult;
 use terminal_psi::CrashCause;
 use terminal_psi::OperationResult;
-use terminal_psi::StructuralAffineDiscard;
 use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::StructuralTypeShape;
@@ -22,8 +21,9 @@ pub enum TerminalEffectResult {
     Crash(CrashCause),
     Unit,
     Scalar(TerminalScalarValue),
-    /// An exact scalar record or selected sum case and its actual scalar payload. No opaque
-    /// host allocation identity, grants, claims or qualifications are inferred.
+    /// An exact scalar record or selected sum case and its actual scalar
+    /// payload. The payload supplies no authority: normal completion and the
+    /// admitted boundary declaration own any result claims or qualifications.
     ScalarAggregate(TerminalScalarAggregateValue),
     /// The same opaque, target-neutral value used for structural entry inputs.
     /// This does not provide a sum discriminator or materialized payload fields.
@@ -109,13 +109,8 @@ impl TerminalExecution<'_> {
         &self,
         result: &terminal_psi::StructuralOperationResult,
     ) -> bool {
-        result.qualifications.is_empty()
-            && result.projected_qualifications.is_empty()
-            && result.claims.is_empty()
-            && matches!(
-                result.multiplicity,
-                terminal_psi::nonlinear_multiplicity_pair_pattern!()
-            )
+        result.projected_qualifications.is_empty()
+            && (result.claims.is_empty() || result.multiplicity == StructuralMultiplicity::Linear)
             && self
                 .program
                 .structural_types()
@@ -187,6 +182,7 @@ pub(crate) fn requires_materialized_host_custody(
                 terminal_psi::StructuralFieldType::Structural(child) => pending.push(child),
                 terminal_psi::StructuralFieldType::Scalar(_)
                 | terminal_psi::StructuralFieldType::Atomic(_)
+                | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
                 | terminal_psi::StructuralFieldType::IeeeFloat(_)
                 | terminal_psi::StructuralFieldType::ByteSequence(_)
                 | terminal_psi::StructuralFieldType::PredicateByteSequence { .. }
@@ -256,13 +252,7 @@ impl TerminalExecution<'_> {
                     crate::structural_storage::HostStructuralPayload::Opaque(value.opaque_identity),
                 )?;
                 self.structural_values.insert(declaration.place, value)?;
-                if declaration.multiplicity == StructuralMultiplicity::Affine {
-                    self.live_affine_frontier.insert(StructuralAffineDiscard {
-                        place: declaration.place,
-                        path: Vec::new(),
-                        structural_type: declaration.structural_type,
-                    });
-                }
+                self.track_affine_result(declaration);
             }
             _ => return Err(malformed()),
         }

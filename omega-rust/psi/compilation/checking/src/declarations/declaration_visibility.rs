@@ -71,10 +71,13 @@ pub(crate) fn collect_declaration_visibility_diagnostics(
         // public-interface selections. Resolution-stratum visibility still applies.
         // Package declaration admission independently checks author custody,
         // private cross-package access, and direct dependency for every kind.
-        if selection.kind() == AuthoredDeclarationSelectionKind::DomainIssuerAuthorization
-            && program
-                .symbols
-                .source_reference_can_see_symbol(selection.source_span(), symbol)
+        if matches!(
+            selection.kind(),
+            AuthoredDeclarationSelectionKind::DomainIssuerAuthorization
+                | AuthoredDeclarationSelectionKind::DomainCleanupSelection
+        ) && program
+            .symbols
+            .source_reference_can_see_symbol(selection.source_span(), symbol)
         {
             continue;
         }

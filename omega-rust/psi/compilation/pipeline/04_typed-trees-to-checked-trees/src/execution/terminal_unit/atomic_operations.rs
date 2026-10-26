@@ -44,40 +44,10 @@ pub(super) fn result_placeholder(
     statement_index: usize,
     local: &typed_trees::statement::TableLocalData,
 ) -> bool {
-    if local.is_mutable {
-        return false;
-    }
-    let Some(StatementNode::Assignment(assignment)) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index + 1)
-    else {
-        return false;
-    };
-    validation::atomic_assignment_carrier(program, assignment)
-        .is_some_and(|carrier| names_local(program, carrier.result, local))
-}
-
-/// Whether the carrier's generated result name binds `local`: its resolved
-/// symbol when the desugar left one, otherwise its spelling.
-fn names_local(
-    program: &dyn ::validation::CheckingInput,
-    result: typed_trees::expression::ExpressionHandle,
-    local: &typed_trees::statement::TableLocalData,
-) -> bool {
-    if !program.expression_table.expression_is_valid(result) {
-        return false;
-    }
-    let Some(path) = program.expression_table.name_path_node(result) else {
-        return false;
-    };
-    if path.symbol.is_valid() {
-        return path.symbol == local.symbol;
-    }
-    matches!(
-        program.expression_table.name_path_members(path.members),
-        [member] if *member == local.name
-    )
+    program
+        .state_local_declaration(state, local.symbol)
+        .is_some_and(|(ordinal, _)| ordinal == statement_index)
+        && validation::atomic_result_placeholder(program, state, local).is_some()
 }
 
 /// The writing event the carrier assignment at `statement_index` denotes.
@@ -185,6 +155,13 @@ pub(super) fn writing_event(
     };
     Some(CheckedAtomicAccessPlan {
         statement_index,
+        resident_range_decision: facts.proof.integer_assignment_at(
+            machine.symbol,
+            state.symbol,
+            statement_index as usize,
+            assignment.target,
+            assignment.value,
+        ),
         receiver: place.receiver,
         receiver_root_type_identity: place.receiver_root_type_identity,
         field_case: place.field_case,
@@ -252,6 +229,13 @@ pub(super) fn once_event(
     )?;
     Some(CheckedAtomicAccessPlan {
         statement_index,
+        resident_range_decision: facts.proof.integer_assignment_at(
+            machine.symbol,
+            state.symbol,
+            statement_index as usize,
+            carrier.place,
+            local.initial_value,
+        ),
         receiver: place.receiver,
         receiver_root_type_identity: place.receiver_root_type_identity,
         field_case: place.field_case,

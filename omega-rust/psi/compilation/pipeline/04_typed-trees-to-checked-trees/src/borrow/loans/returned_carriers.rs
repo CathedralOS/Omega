@@ -120,6 +120,7 @@ impl CompletedReturnSource {
                 let mut path = owner_prefix.to_vec();
                 path.append(&mut owner_path);
                 vec![StatementBorrowLoan {
+                    formation_owner_path: None,
                     incoming_origin: None,
                     formation_expression: local.initial_value,
                     representation_address: None,
@@ -644,6 +645,7 @@ pub(super) fn relative_result_loans(
         // evaluated during invocation; it is not the returned value's ancestry.
         for loan in &mut loans {
             loan.formation_expression = expression;
+            loan.formation_owner_path = Some(loan.owner_path.clone());
             if let Some(retained) = &mut loan.retained_operand
                 && !retained.formation_expression.is_valid()
             {

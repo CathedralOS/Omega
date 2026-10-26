@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 189 even when every table
+order below. This layout uses semantic format marker 190 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -371,6 +371,9 @@ first-class reference; it does not select inline storage in the carrier.
 Canonical predicate paths retain their separate `Referent` segment; conversion
 into a scalar read produces this explicit tag. A nested static-reference
 spelling is noncanonical and rejects rather than selecting another dialect.
+Tag `6` is `Extent`, has no payload, and ends the path by observing the
+selected readable byte/element descriptor's current `u64` count. A scalar or
+fixed-array leaf cannot supply a live descriptor extent.
 The path is nonempty. Dynamic indices keep their own fixed-integer
 carriers, excluding addresses; they do not become static geometry. The exact
 root declaration and each selected member or element determine the leaf type.

@@ -113,6 +113,9 @@ pub(super) struct FlowBuildContext<'plans> {
     pub(super) operators: &'plans checked_trees::CheckedOperatorFacts,
     pub(super) exact_integer_casts: &'plans [validation::ExactIntegerCastFact],
     pub(super) call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
+    /// Immutable constructor/row receipts, never a closed-world roster of
+    /// possible incoming selectors. Only a completed value can select a row.
+    pub(super) dynamic_conformances: Option<checked_trees::DynamicConformanceFacts>,
     pub(super) state_value_inputs: Vec<super::state_values::StateValues>,
     pub(super) dirty_state_value_inputs: Vec<SymbolHandle>,
     pub(super) new_state_field_input_height: usize,
@@ -353,6 +356,7 @@ impl<'plans> FlowBuildContext<'plans> {
             operators,
             exact_integer_casts,
             call_frames,
+            dynamic_conformances: crate::facts::build_dynamic_conformance_facts(program).ok(),
             state_value_inputs: Vec::new(),
             dirty_state_value_inputs: Vec::new(),
             new_state_field_input_height: 0,

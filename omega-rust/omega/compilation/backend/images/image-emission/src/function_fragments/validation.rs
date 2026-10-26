@@ -121,6 +121,11 @@ fn validate(
         return Err(Error::Mismatch("shared object text geometry changed"));
     }
     let fragments = source::fragments(source);
+    let temporary_stack_bytes = if text.functions.is_empty() {
+        std::collections::BTreeMap::new()
+    } else {
+        source::temporary_stack_bytes_by_function(source)?
+    };
     let mut attribution_cursor = 0usize;
     for ((placed, function), (symbol_handle, symbol)) in text
         .functions
@@ -209,7 +214,9 @@ fn validate(
                     frame.is_some_and(|frame| frame.contains_call),
                 ),
                 text.target.architecture,
-                source::temporary_stack_bytes(source, placed.machine)?,
+                *temporary_stack_bytes.get(&placed.machine).ok_or(Error::Mismatch(
+                    "missing selected function for temporary stack replay",
+                ))?,
                 &calls,
                 function.unit_stack,
                 function.scalar_stack,

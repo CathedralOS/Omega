@@ -694,7 +694,11 @@ fn structural_field_shape(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<ValueShape, LoweringError> {
-    if matches!(field, StructuralFieldType::Atomic(_)) && field.atomic_scalar_type().is_none() {
+    if matches!(
+        field,
+        StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
+    ) && field.atomic_scalar_type().is_none()
+    {
         return Err(LoweringError::UnknownStructuralType(owner));
     }
     match field {
@@ -715,7 +719,8 @@ fn structural_field_shape(
                 size.next_power_of_two().min(16),
             ))
         }
-        StructuralFieldType::BoundedInteger(bounds) => {
+        StructuralFieldType::BoundedInteger(bounds)
+        | StructuralFieldType::AtomicBoundedInteger(bounds) => {
             let integer = bounds.integer_type();
             let size = integer.bits().div_ceil(8);
             Ok(ValueShape::integer(

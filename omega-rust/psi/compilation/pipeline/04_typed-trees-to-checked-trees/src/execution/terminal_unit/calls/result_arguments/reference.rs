@@ -1,7 +1,7 @@
 //! Calls borrow through the stored descriptor published by an ordinary result
 //! binding. Source checking already owns formation and lifetime admission;
 //! this operation retains the descriptor crossing and selected referent path.
-use crate::execution::terminal_unit::calls::argument_paths::projected_borrowed_path;
+use crate::execution::terminal_unit::calls::argument_paths::projected_evaluated_path;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::structural_access_for_type_reference;
 use checked_trees::{
@@ -36,6 +36,11 @@ pub(crate) fn argument(
     parameter: &StateParameter,
     target_identity: typed_trees::type_identity::TypeIdentityId,
     trace: &LocalConstructionTrace,
+    selectors: Option<
+        &dyn Fn(
+            typed_trees::expression::ExpressionHandle,
+        ) -> Option<CheckedUnitStructuralPathSegment>,
+    >,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let phase = |description| {
         trace.phase(description);
@@ -66,8 +71,24 @@ pub(crate) fn argument(
         referent
     } else {
         phase("result reference argument: projected referent path");
-        let (selected, suffix) =
-            projected_borrowed_path(program, machine, state.symbol, statement_index, place)?;
+        // This operand owns its selector evaluation. Stored-reference roots
+        // use that occurrence's captured scalar slots just like other result
+        // projections, rather than reloading an invocation-entry parameter.
+        let (_, prefix) = super::super::argument_paths::borrowed_argument_endpoint(
+            program,
+            referent,
+            path,
+            parameter.type_reference,
+        )?;
+        path = prefix;
+        let (selected, suffix) = projected_evaluated_path(
+            program,
+            machine,
+            state.symbol,
+            statement_index,
+            place,
+            selectors,
+        )?;
         path.extend(suffix);
         selected
     };

@@ -305,6 +305,7 @@ impl Emission<'_, '_, '_> {
         expression: typed_trees::expression::ExpressionHandle,
         first_new_place: u64,
     ) -> Result<StructuralArgument, LoweringError> {
+        let source = self.refresh_memberships(identities, source, expression, first_new_place)?;
         let memberships = self
             .checked
             .facts
@@ -388,7 +389,7 @@ impl Emission<'_, '_, '_> {
                 projected_qualifications,
             );
         }
-        self.copied_leaf_place(&source, decisions)
+        self.copied_leaf_place(identities, &source, decisions, expression)
             .map(|place| StructuralArgument {
                 place,
                 path: Vec::new(),

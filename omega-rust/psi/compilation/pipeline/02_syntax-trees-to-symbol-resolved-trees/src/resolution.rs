@@ -468,7 +468,7 @@ fn finish_resolved_tables(
 pub fn resolve_call_result_selection(
     request: ResolutionRequest,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    let (syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete)?;
+    let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
     index_declarations(&mut lowerer, &syntax)?;
     let inputs = crate::symbols::assign_lexical_inputs(
         &mut lowerer,

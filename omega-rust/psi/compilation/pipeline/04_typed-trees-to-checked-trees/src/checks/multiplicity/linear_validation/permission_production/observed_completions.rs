@@ -75,10 +75,15 @@ pub(super) fn complete_at(
             permission_events,
         );
         if permission_events.len() == completion_start {
+            // Observing bytes does not consume the residual nominal claims.
+            // A known live debt must report the ordinary linear obligation;
+            // incomplete authority still retains its separate refusal below.
             if let Some(place) = places.iter().find(|place| {
                 place.root == root
                     && place.multiplicity == Multiplicity::Linear
                     && place.live
+                    && place.ever_established
+                    && !place.case_excluded
                     && remaining.is_present(root, &place.path)
             }) {
                 return Err(super::super::unconsumed_linear_value_diagnostic(

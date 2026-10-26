@@ -725,8 +725,19 @@ impl<'program> StructuralJudge<'program> {
         &self,
         binary: &typed_trees::expression::TableBinaryExpression,
     ) -> Option<ObservedEqualityTerms> {
-        let left = self.declaration_term(binary.left)?;
-        let right = self.declaration_term(binary.right)?;
+        let source_term = |expression, side| {
+            let term = self.declaration_term(expression);
+            if super::struct_trace() && term.is_none() {
+                eprintln!(
+                    "STRUCT equality-part-refused caller={:?} side={side} expression={}",
+                    self.machine_symbol,
+                    self.program.expression_table.display_name(expression)
+                );
+            }
+            term
+        };
+        let left = source_term(binary.left, "left")?;
+        let right = source_term(binary.right, "right")?;
         // Anonymous literals have no standalone declaration type. Resolve the
         // selected binary's operand carriers together, just as guarantee
         // capture does; an untyped literal must not erase an entry equation.
@@ -747,6 +758,12 @@ impl<'program> StructuralJudge<'program> {
                 reference,
                 &resolved,
             ) {
+                if super::struct_trace() {
+                    eprintln!(
+                        "STRUCT equality-observation-refused caller={:?} reference={reference:?} source={term:?} resolved={resolved:?}",
+                        self.machine_symbol
+                    );
+                }
                 return None;
             }
             Some(resolved)
@@ -1832,15 +1849,25 @@ impl<'program> StructuralJudge<'program> {
         &self,
         call: &typed_trees::expression::TableCallExpression,
     ) -> bool {
-        self.specification_terms
-            && specification_application_candidate(
-                self.program,
-                self.machine_symbol,
-                call.target_symbol,
-                &call.machine_arguments,
-                self.frame_resolver(),
-            )
-            .is_ok()
+        if !self.specification_terms {
+            return false;
+        }
+        let candidate = specification_application_candidate(
+            self.program,
+            self.machine_symbol,
+            call.target_symbol,
+            &call.machine_arguments,
+            self.frame_resolver(),
+        );
+        if super::struct_trace()
+            && let Err(reason) = candidate
+        {
+            eprintln!(
+                "STRUCT specification-call-refused caller={:?} target={:?} reason={reason}",
+                self.machine_symbol, call.target_symbol
+            );
+        }
+        candidate.is_ok()
     }
 
     fn callee_term(
@@ -1897,6 +1924,13 @@ impl<'program> StructuralJudge<'program> {
             return Some(measure);
         }
         if self.storage_observation_invalidated(expression) {
+            if super::struct_trace() {
+                eprintln!(
+                    "STRUCT term-storage-refused caller={:?} expression={}",
+                    self.machine_symbol,
+                    program.expression_table.display_name(expression)
+                );
+            }
             return None;
         }
         if let Some((_, argument)) =
@@ -2152,23 +2186,41 @@ impl<'program> StructuralJudge<'program> {
                 super::structural_terms::zero_value_structural_term(program, *type_reference)
             }
             ExpressionNode::Call(call) => {
-                if (self.runtime_body_values
+                let refusal = if self.runtime_body_values
                     && !normal_returns::call_has_mathematical_denotation(
                         program,
                         scope.map_or(self.machine_symbol, |(machine, _, _)| machine.symbol),
                         call,
                     )
-                    && !self.specification_call_candidate(call))
-                    || (call.receiver.is_valid()
-                        && !super::structural_terms::static_call_receiver(
-                            program,
-                            scope.map_or(self.machine_symbol, |(machine, _, _)| machine.symbol),
-                            call,
-                        ))
-                    || !call.evidence_arguments.is_empty()
-                    || (call.static_requirement_dispatch.is_some()
-                        && super::structural_terms::realized_requirement_state(call).is_none())
+                    && !self.specification_call_candidate(call)
                 {
+                    Some("value-identity")
+                } else if call.receiver.is_valid()
+                    && !super::structural_terms::static_call_receiver(
+                        program,
+                        scope.map_or(self.machine_symbol, |(machine, _, _)| machine.symbol),
+                        call,
+                    )
+                {
+                    Some("runtime-receiver")
+                } else if !call.evidence_arguments.is_empty() {
+                    Some("evidence-telescope")
+                } else if call.static_requirement_dispatch.is_some()
+                    && super::structural_terms::realized_requirement_state(call).is_none()
+                {
+                    Some("unrealized-static-requirement")
+                } else {
+                    None
+                };
+                if let Some(reason) = refusal {
+                    if super::struct_trace() {
+                        eprintln!(
+                            "STRUCT term-call-refused caller={:?} expression={} target={:?} reason={reason}",
+                            self.machine_symbol,
+                            program.expression_table.display_name(expression),
+                            call.target_symbol
+                        );
+                    }
                     return None;
                 }
                 let selected_target = static_observations
@@ -2670,9 +2722,23 @@ impl<'program> StructuralJudge<'program> {
                     return if holds { StructuralJudgment::Proven } else { StructuralJudgment::Refuted };
                 }
                 if !self.has_identity_equality_meaning(fact) {
+                    if super::struct_trace() {
+                        eprintln!(
+                            "STRUCT equality-refused caller={:?} fact={} reason=identity-authority",
+                            self.machine_symbol,
+                            program.expression_table.display_name(fact)
+                        );
+                    }
                     return StructuralJudgment::Unknown;
                 }
                 let Some(terms) = self.declaration_term_pair(binary) else {
+                    if super::struct_trace() {
+                        eprintln!(
+                            "STRUCT equality-refused caller={:?} fact={} reason=term-formation",
+                            self.machine_symbol,
+                            program.expression_table.display_name(fact)
+                        );
+                    }
                     return StructuralJudgment::Unknown;
                 };
                 // No facts change between the authority check and judgment.

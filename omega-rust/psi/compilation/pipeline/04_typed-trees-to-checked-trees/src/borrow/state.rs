@@ -296,6 +296,10 @@ pub(super) fn append_carrier_loans(
                 statement_index,
                 established_by_call,
                 formation_expression: pending.formation_expression,
+                formation_owner_path: pending
+                    .formation_owner_path
+                    .as_ref()
+                    .map(|path| arenas.owner_segments.insert_many(path.iter().copied())),
                 retained_operand: pending.retained_operand,
                 last_use_statement_index: statement_index,
                 owner_symbol: pending.owner_symbol,
@@ -390,6 +394,7 @@ fn grouped_carrier_loans(mut loans: Vec<StatementBorrowLoan>) -> Vec<StatementBo
             .find(|previous| {
                 previous.incoming_origin == loan.incoming_origin
                     && previous.formation_expression == loan.formation_expression
+                    && previous.formation_owner_path == loan.formation_owner_path
                     && previous.storage_owner == loan.storage_owner
                     && previous.source_owner_symbol == loan.source_owner_symbol
                     && previous.supplying_loans.is_empty() == loan.supplying_loans.is_empty()

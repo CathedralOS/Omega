@@ -59,9 +59,8 @@ pub(super) fn native_word_envelope(
     Err("native word envelope graph is cyclic")
 }
 
-/// Resolve one public scalar leaf through single-runtime-field records. This
-/// identifies a by-value payload only: references, atomic/encoded fields,
-/// recursive values and additional runtime fields never become scalar words.
+/// Exact semantic leaf below an owned native integer-word envelope. Geometry
+/// is authenticated separately against the evaluated calling application.
 pub(super) fn scalar_payload_path(
     program: &terminal_interpreter::TerminalProgram,
     root: semantic_vocabulary::StructuralTypeId,
@@ -81,14 +80,14 @@ fn scalar_payload(
 ) -> Result<(), super::TerminalRuntimeError> {
     let invalid = super::TerminalRuntimeError::InvalidProvision;
     if visiting.contains(&root) {
-        return Err(invalid("native scalar payload contains a recursive value"));
+        return Err(invalid("native word payload contains a recursive value"));
     }
     visiting.push(root);
     let declaration = program
         .structural_type(root)
-        .ok_or(invalid("native scalar payload type is absent"))?;
+        .ok_or(invalid("native word payload type is absent"))?;
     match &declaration.shape {
-        terminal_psi::StructuralTypeShape::PrimitiveScalar(actual) if *actual == scalar => {}
+        terminal_psi::StructuralTypeShape::PrimitiveScalar(value) if *value == scalar => {}
         terminal_psi::StructuralTypeShape::Record { fields, .. } => {
             let relevant: Vec<_> = fields
                 .iter()
@@ -96,7 +95,7 @@ fn scalar_payload(
                 .collect();
             let [field] = relevant.as_slice() else {
                 return Err(invalid(
-                    "native scalar value must contain exactly one runtime field",
+                    "native owned value must contain exactly one scalar payload",
                 ));
             };
             if field.storage.is_some()
@@ -106,7 +105,7 @@ fn scalar_payload(
                 )
             {
                 return Err(invalid(
-                    "native scalar payload cannot use atomic or encoded storage",
+                    "native word payload cannot use atomic or encoded storage",
                 ));
             }
             path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
@@ -115,16 +114,10 @@ fn scalar_payload(
             if let Some(child) = field.field_type.as_structural() {
                 scalar_payload(program, child, scalar, visiting, path)?;
             } else if field.field_type.scalar_type() != Some(scalar) {
-                return Err(invalid(
-                    "native scalar payload differs from its declared scalar type",
-                ));
+                return Err(invalid("free owned payload is not the exact scalar type"));
             }
         }
-        _ => {
-            return Err(invalid(
-                "native scalar value is not a public scalar payload",
-            ));
-        }
+        _ => return Err(invalid("native owned value is not a public scalar payload")),
     }
     visiting.pop();
     Ok(())

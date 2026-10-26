@@ -153,26 +153,6 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
-- **STATIC-CALLBACK-REACH-RETENTION.** Retain static callback reach dependencies
-  end to end through `samples/cli/facts/` witnesses and `omega run --both` under
-  [static callback reach dependencies](wiki/spec/language/effects.md#static-callback-reach-dependencies).
-  Owners: `omega-rust/psi/compilation/checking/src/machine_calls/static_machine_call_contracts.rs`
-  and `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/closed_reach_applications.rs`.
-  - `retain_closed_reach_applications` skips proposition and requirement-identity
-    binders, and `prune_incomplete_closed_reach_applications` removes incomplete
-    annotations and their dependents. Retain the original dependency and
-    telescope instead, including for inlined or absent emitted callees, reusing
-    exact specialization/contract identities.
-  Acceptance: nine-place fact witnesses and corpus fixtures (covering a named
-  traversal with pure and Console callbacks, nested/private helpers, recursive
-  components, selected generic schemas, and unused selections) execute via
-  `omega run --both`, while selections exceeding requirement bounds, redirected
-  same-shaped calls, and incomplete telescopes reject. Inlining or a missing
-  callee never removes reach coverage, and the pure callback's ordinary callers
-  see its specialized empty row without consuming the generic definition. Keep
-  `tests/omega/pass/effects/{nominal_callback_dependency,generic_callback_schema_reach,structural_callback_reach}`
-  passing.
-
 - **CHECKED-PACKAGE-REUSE.** (new-scope) A dependent's check re-judges its
   dependencies' bodies (`std` is checked once at package review, then re-judged
   in dependents). Dependents must consume that judgment through compiler-private
@@ -422,10 +402,8 @@ defines the complete product bar.
     reference-valued locals from every admitted producer keep their loan
     identity, backing, and access through reads, calls, and explicit state
     transfers with no implicit backing copies. Qualify the remaining routes on
-    Linux x86-64 and Windows x86-64, carry
-    `samples/cli/facts/scalar_tag_field_loan` through remaining matching hosts,
-    and run `samples/cli/systems/descriptor_walk/main.omg` through
-    `omega run --both` (exit 50 in both engines after local package review).
+    Linux x86-64 and Windows x86-64, and carry
+    `samples/cli/facts/scalar_tag_field_loan` through remaining matching hosts.
     Keep the local symbol as the loan subject and compose its captured
     projection at use; shared loans cannot gain mutation authority by widening
     the exclusive `receiver_aliases` match.
@@ -440,15 +418,15 @@ defines the complete product bar.
     `pass/calls/runtime_*_reference_*_result_exit`, and
     `fail/calls/terminal_call_result_type_mismatch_rejected`) at their oracles.
   - **Aggregate construction, replacement, and claim-bearing results:** finish
-    remaining runtime/case compositions and opaque incoming referents lacking
-    retained inner-loan evidence, preserving `samples/cli/facts/replaced_field_loan`,
+    remaining runtime/case compositions and additional inner-loan capture or
+    escape through opaque incoming referents, preserving `samples/cli/facts/replaced_field_loan`,
     `samples/cli/facts/case_payload_stored_loan`,
     `samples/cli/facts/descriptor_replacement_order`, and
     `samples/cli/facts/stored_exclusive_byte_view` across all nine places, plus
     the `pass/ownership/linear_*` and `fail/ownership/linear_*` controls.
-  - **Saved observations, arithmetic, and patterns:** finish pinning the three
-    remaining float fixture pairs for `samples/cli/facts/exclusive_observation_exposure`
-    and complete remaining case/generic/reference composition, preserving
+  - **Saved observations, arithmetic, and patterns:** preserve the pinned float
+    fixture pairs for `samples/cli/facts/exclusive_observation_exposure` and
+    complete remaining case/generic/reference composition, preserving
     `samples/cli/facts/saved_observation_snapshot`,
     `samples/cli/facts/narrowed_integer_write`, and single-evaluation pattern
     destructuring (`pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit`,
@@ -1361,6 +1339,29 @@ decision (`SourceChecked`) into stage 05 and stage 00.
 
 ## P2 - Materialization and placed access
 
+- **DEFERRED-RECAST-ESTABLISHMENT.** Implement the ratified
+  [exclusive storage-cast window](wiki/spec/layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts)
+  through checking, Terminal Psi and native execution. Reuse exact place/version,
+  loan, invariant-window and partial-initialization custody; do not add a header,
+  IPC or source-shape-specific cast exception. Source: the existing recast owner
+  and [implementation note](omega-rust/psi/compilation/checking/recasts.md).
+  - Prove geometry/access/exclusion before the cast; track pending target facts,
+    occupied source obligations and source handback separately. Promote only after
+    complete authorized establishment; preserve strict shared/placed-view rules.
+  - Establish a restrictive boundary-data shape in exclusive byte backing, use it,
+    and safely return/reuse backing. Cover checked validation and initialized-field
+    reasoning without reading invalid tags/references or assuming whole-domain facts.
+  - Reject premature typed use/call/publication, bad geometry, surviving aliases,
+    stale facts, unauthorized minting/access and widened atomic authority. Exercise
+    failed initial establishment with partial linear fields and occupied-source
+    restoration; no whole-value destructor, silent rollback or lost resource.
+
+  Acceptance: same establishment fact across the nine places under
+  `samples/cli/facts`, matching `tests/omega/{pass,fail}/facts` controls and actual
+  `omega run --both` agreement. Pending views cannot cross valid-value interfaces;
+  only established results travel. No implementation completion is claimed by the
+  documentation ratification.
+
 - **PLAN-LAID-VIEWS.** Complete externally established placed-view entry
   lending, subordinate placed-input reborrowing, and retirement end to end (`Psi
   04–07` and `Omega 00–09`) under
@@ -1585,11 +1586,12 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     The [Linear continuation](samples/cli/facts/opaque_closed_carrier_exchange/independent_linear/README.md)
     carries actual whole ownership claims through independent inputs and returns
     across all nine places on all four targets.
-  - Connect stage 05 `retention/retained_borrow_custody.rs` and native
-    marshaling to installed-provider custody and default Terminal adapters for
-    moved, lifetime-borrowed, and permitted-snapshot boundaries so all nine
-    places of `samples/cli/facts/foreign_retained_shared_borrow` pass `omega run
-    --both`.
+  - Complete installed-provider custody and native marshaling for moved
+    backing, mutable retention, permitted snapshots and the wider resident/view
+    codecs those boundaries require. Preserve the complete lifetime, range and
+    revision/lease records through stage 05
+    `retention/retained_borrow_custody.rs` and the selected provider; private
+    per-call captures cannot supply original backing.
 
   Acceptance: `samples/cli/facts/opaque_closed_carrier_exchange`,
   `samples/cli/facts/foreign_retained_shared_borrow`, and the `providers/foreign_*`
@@ -1989,6 +1991,13 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   and `tests/omega/pass/generics/{omitted_data_binder_range_equation,runtime_generic_carrier_equation_exit}`
   pass `omega run --both`, while repeated/explicit conflicts, missing indices,
   occurs cycles, kind mismatches, and unmet conformances reject.
+
+  Closed mixed callback/value/conformance selections now complete the
+  `inferred_array_equation_call/mixed_binders` nine-place row on Windows x86-64,
+  with explicit-capacity conflicts and lexical/kind/carrier controls. The same
+  selected value index composes through formal and result types. This covers
+  closed mixed selections only; the broader alternatives above and matching
+  native observations on the other hosted targets remain open.
 
 - **FINITE-GENERIC-DISPATCH.** Select a finite generic instance at runtime end
   to end (`Psi 02–07` and `Omega 00–09`) under the

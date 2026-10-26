@@ -492,9 +492,10 @@ pub(crate) fn validate(
             && argument.path.iter().any(|segment| match segment {
                 terminal_psi::StructuralPathSegment::Field(_)
                 | terminal_psi::StructuralPathSegment::FixedIndex(_) => false,
-                terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => {
-                    argument.access == terminal_psi::StructuralAccess::Owned
-                }
+                // Owned children use the same completed selector coordinates.
+                // Exact type, geometry, operand roster and ABI replay below
+                // remain independent of the argument's custody mode.
+                terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => false,
                 terminal_psi::StructuralPathSegment::Referent => {
                     argument.access == terminal_psi::StructuralAccess::Owned
                 }

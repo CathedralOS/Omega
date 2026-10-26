@@ -106,6 +106,7 @@ pub fn rematerialize_selected_runtime_value(
                     } else if !block.instructions.is_empty() {
                         instructions.extend_from_slice(&block.instructions);
                     }
+                    let pre_terminator_len = instructions.len();
                     // Terminator operand uses regenerate after the last block instruction.
                     // Their materializations occupy the end-of-block gap, so the closing
                     // boundary and instruction positions are pushed only after they are
@@ -152,11 +153,21 @@ pub fn rematerialize_selected_runtime_value(
                                 .ok_or(RuntimeRematerializationError::SourceMismatch)?;
                         }
                     }
+                    let unchanged_suffix = if instructions.len() == pre_terminator_len {
+                        active_window
+                            .map_or(block.instructions.len(), |(_, end)| {
+                                block.instructions.len() - (end + 1)
+                            })
+                            .min(block.instructions.len() - unchanged_prefix)
+                    } else {
+                        0
+                    };
                     blocks.replace_block_contents(
                         block_index,
                         instructions,
                         terminator,
                         unchanged_prefix,
+                        unchanged_suffix,
                     );
                 }
                 Ok(())

@@ -212,7 +212,7 @@ pub(in crate::selection) fn scale_at_site(
 /// What a footprint's write stores: a named scalar `value` (a primitive or
 /// scalar field store), a structural element byte copy (a borrowed window's
 /// reseat — chunks carry no single semantic value), or nothing (a read).
-pub(super) enum Written {
+pub(in crate::selection) enum Written {
     None,
     Scalar(ValueId),
     Structural,
@@ -222,7 +222,7 @@ pub(super) enum Written {
 /// extent for a static projection, or one row per runtime element, in path
 /// order, whose certificate proves that element's selector inside its array.
 /// A write names the stored value on each element row.
-pub(super) fn footprint(
+pub(in crate::selection) fn footprint(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
     place: PlaceId,

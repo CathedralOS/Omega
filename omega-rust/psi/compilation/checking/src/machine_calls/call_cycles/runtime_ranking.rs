@@ -51,6 +51,37 @@ pub struct ValidatedRuntimeNaturalComponent {
     pub edges: Vec<ValidatedRuntimeNaturalEdge>,
 }
 
+/// Runtime recurrence requires a terminal transfer at every exact internal
+/// occurrence, independently of whether the author promises termination.
+pub(super) fn require_tail_component(
+    program: &dyn crate::CheckingInput,
+    component: &[usize],
+) -> Result<(), &'static str> {
+    let dispatched = dispatched_implementations(program);
+    for position in component {
+        let machine = &program.machines()[*position];
+        for state in program.machine_states(machine) {
+            for (ordinal, statement) in program
+                .statement_table
+                .indexed_statements(state.statement_nodes)
+            {
+                if matches!(statement, StatementNode::AssemblyFact(_)) {
+                    continue;
+                }
+                occurrences::require_classified_tail_occurrences(
+                    program,
+                    machine,
+                    state,
+                    ordinal,
+                    component,
+                    &dispatched,
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn extend_runtime_adjacency(
     program: &dyn crate::CheckingInput,
     proof_only: &ProofOnlyClassification,
@@ -325,14 +356,6 @@ pub(super) fn project_component(
                 if !relevance.requires_rank(state.symbol) {
                     continue;
                 }
-                occurrences::require_classified_tail_occurrences(
-                    program,
-                    machine,
-                    state,
-                    statement_ordinal,
-                    component,
-                    &dispatched,
-                )?;
                 let Some(transition) = statement.as_transition() else {
                     if prefix::preserves_rank(
                         program,

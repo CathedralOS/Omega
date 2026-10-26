@@ -1,0 +1,26 @@
+// The selected cleanup application retains code == 7 and its exclusive output reference through transport, then writes 7 to the original backing exactly once.
+// Place: other_state.
+// Expected exit: 0.
+data Seed [copy] { code: u64; }
+data Counter { value: u64; invocations: u64 in Wrapping; }
+data Keeper dropped by release_keeper { output: &mut Counter; code: u64; }
+machine release_keeper(keeper: &mut Keeper) requires keeper.code == 7 {
+    keeper.output.value = keeper.code;
+    keeper.output.invocations = keeper.output.invocations + 1;
+}
+machine observe(keeper: &Keeper) {}
+machine check(output: &Counter) crashes Trap {
+    transition output.value == 7 && output.invocations == 1 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
+machine forward(keeper: Keeper) requires keeper.code == 7 {
+    relay(keeper);
+    machine relay(keeper: Keeper) requires keeper.code == 7 { next(keeper); }
+    machine next(keeper: Keeper) requires keeper.code == 7 {}
+}
+machine main() crashes Trap {
+    let mut output: Counter = Counter { value: 0, invocations: 0 };
+    forward(Keeper { output: &mut output, code: 6 });
+    check(&output);
+}

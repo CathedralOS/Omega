@@ -27,7 +27,7 @@ ensures result == left + right
     block Operations::combine(left, right)
 }
 
-// Place: another state. A successor state receives both bounded operands and dispatches combine.
+// Place: nested machine. An independent lexical declaration receives both bounded operands and dispatches combine.
 // Expected exit: 0
 machine probe(a: i32, b: i32) -> i32
 blocks;
@@ -35,10 +35,12 @@ requires 0 <= a && a <= 50
 requires 0 <= b && b <= 50
 ensures result == a + b
 {
-    transition { _ -> step(a, b) }
-    state step(left: i32, right: i32) -> i32
+    block step(a, b)
+    machine step(left: i32, right: i32) -> i32
+    blocks;
     requires 0 <= left && left <= 50
     requires 0 <= right && right <= 50
+    ensures result == left + right
     {
         block apply<Selected>(left, right)
     }

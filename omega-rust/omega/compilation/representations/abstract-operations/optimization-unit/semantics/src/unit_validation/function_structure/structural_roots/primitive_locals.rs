@@ -7,7 +7,7 @@ use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralOperationResult};
 
-use crate::OptimizationUnitValidationError;
+use crate::{OperationSite, OptimizationUnitValidationError};
 
 pub(super) fn validate(
     function: &PsiOptimizationFunction,
@@ -123,11 +123,9 @@ pub(super) fn validate(
     if valid {
         Ok(())
     } else {
-        Err(OptimizationUnitValidationError::InvalidPrimitiveLocal {
-            machine: function.machine,
-            block,
-            node,
-        })
+        Err(OptimizationUnitValidationError::InvalidPrimitiveLocal(
+            OperationSite::new(function.machine, block, node),
+        ))
     }
 }
 

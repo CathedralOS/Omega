@@ -24,6 +24,9 @@
 //! derives range constraint intervals and containment and
 //! `return_ranges.rs` infers and enforces return ranges.
 
+mod atomic_observations;
+pub(crate) use atomic_observations::{atomic_resident_interval, atomic_result_interval};
+
 mod abstract_shift_count;
 mod declared_float_facts;
 pub(crate) use declared_float_facts::record_declared_float_fields;
@@ -53,7 +56,7 @@ pub(super) mod division_definedness;
 mod domain_exclusions;
 pub(crate) mod domain_intervals;
 mod expression_analysis;
-pub(crate) use declaration_values::validate_declaration_value_range;
+pub(crate) use declaration_values::{LocalValueFormation, validate_declaration_value_range};
 mod float_arithmetic;
 mod float_contracts;
 pub use float_contracts::{float_return_postcondition, normal_return_float_predicates};

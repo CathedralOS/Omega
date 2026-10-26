@@ -224,7 +224,7 @@ pub(crate) fn validate_local_data_names(
         };
         // Coverage markers name field sets, not bindings. Two patterns may
         // cover the same fields while introducing distinct authored locals.
-        if local_data.role != language_core::LocalBindingRole::Value {
+        if !local_data.role.is_runtime_binding() {
             continue;
         }
 
@@ -244,7 +244,7 @@ pub(crate) fn validate_local_data_names(
             matches!(
                 previous,
                 StatementNode::LocalData(previous)
-                    if previous.role == language_core::LocalBindingRole::Value
+                    if previous.role.is_runtime_binding()
                         && previous.name == local_data.name
             )
         }) {

@@ -22,6 +22,10 @@
 //! Executed descriptor disposal removes residency but retains parent ancestry
 //! while descendants survive. Formation identity distinguishes replacements
 //! of the same slot; retired ancestry grants no readable storage or permission.
+//! Calls capture result permissions before consuming inputs, then account for
+//! both returned and stored outputs before retiring untransferred occurrences.
+//! Return completion closes local ancestry; an unchanged original borrowed
+//! entry anchor remains in the caller's scope rather than needing local disposal.
 use super::{
     AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit,
 };
@@ -304,6 +308,66 @@ impl Custody {
         path: &[StructuralPathSegment],
     ) -> Option<&Leaf> {
         self.leaves.get(&(place, path.to_vec()))
+    }
+
+    /// Copy the actual shared descriptor while retaining its backing and parents.
+    /// Borrowed contents never become resident input permissions; guarded absent
+    /// slots remain absent under the same observation used for ordinary copies.
+    fn copied_reference(
+        &self,
+        function: &PsiOptimizationFunction,
+        types: &[StructuralTypeDeclaration],
+        source: &StructuralArgument,
+        operation: OperationId,
+        result: &StructuralOperationResult,
+        path: &[StructuralPathSegment],
+    ) -> Result<Option<Leaf>, LegalizationError> {
+        let observed = call_paths::observe_reference_custody(function, self, types, source)?;
+        if observed.descriptors.is_empty() && observed.borrowed.is_empty() {
+            return Ok(None);
+        }
+        if source.access != StructuralAccess::SharedBorrow
+            || !leaf_type(types, result.structural_type, path)
+                .and_then(|leaf| find_structural_type(types, leaf))
+                .is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        StructuralTypeShape::Reference {
+                            access: StructuralAccess::SharedBorrow,
+                            ..
+                        }
+                    )
+                })
+        {
+            return Err(invalid());
+        }
+        let expected = leaf_referent(types, result.structural_type, path).ok_or(invalid())?;
+        let mut alternatives = Vec::with_capacity(observed.descriptors.len());
+        for descriptor in observed.descriptors {
+            let source_leaf = self.leaves.get(&descriptor).ok_or(invalid())?;
+            if source_leaf.referent != expected {
+                return Err(invalid());
+            }
+            let mut leaf = source_leaf.clone();
+            leaf.identity =
+                OccurrenceIdentity::operation(&(result.place, path.to_vec()), operation);
+            leaf.reform(operation, result);
+            alternatives.push(leaf);
+        }
+        for borrowed in observed.borrowed {
+            if borrowed.referent != expected {
+                return Err(invalid());
+            }
+            alternatives.push(Leaf::formed(
+                (result.place, path.to_vec()),
+                borrowed.root,
+                borrowed.parents,
+                operation,
+                result,
+                expected,
+            ));
+        }
+        combine_alternatives(alternatives).map(Some)
     }
 
     /// Observation needs the carrier's current permission, not merely its
@@ -1427,21 +1491,42 @@ fn call_arguments(
     Ok(moved)
 }
 
-/// Apply the staged argument moves once every other call check succeeded.
-/// Moves are keyed by current carrier path, so result leaves re-established
-/// under a moved identity survive the commit.
-fn commit_argument_moves(
+/// Record only inputs consumed after every normal output has been installed.
+/// Alternative resident paths must agree on the original occurrence.
+fn retire_consumed_arguments(
     custody: &mut Custody,
     moved: &BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
-) {
-    for key in moved.keys() {
-        custody.leaves.remove(key);
+    operation: OperationId,
+) -> Result<(), LegalizationError> {
+    let mut occurrences = BTreeMap::new();
+    for leaf in moved.values() {
+        if occurrences
+            .insert(&leaf.identity, leaf)
+            .is_some_and(|previous| previous != leaf)
+        {
+            return Err(invalid());
+        }
     }
+    for leaf in occurrences.into_values() {
+        // Normal completion accounts for result and stored-output transfers.
+        // Only a consumed occurrence absent from both becomes disposal history.
+        if !custody
+            .leaves
+            .values()
+            .any(|returned| returned.identity == leaf.identity)
+        {
+            custody.retire(
+                leaf.clone(),
+                retirements::DisposalEvent::NormalCall(operation),
+            )?;
+        }
+    }
+    Ok(())
 }
 
 /// Establish the declared result reference roster of a structural-result
 /// `CallStructural` whose result carries reference custody, resolved against
-/// the already-committed `moved` argument leaves. Returns the ordered resolved
+/// the captured pre-call argument leaves. Returns the ordered resolved
 /// leaf roster the target row must carry.
 fn call_results(
     function: &PsiOptimizationFunction,
@@ -1544,27 +1629,28 @@ fn call_results(
                 return Err(invalid());
             }
             let mut leaf = if transfers_existing {
-                // An owned-carrier ingress mapping relocates one of the leaves the
-                // moved arguments just transferred; the leaf keeps its identity,
-                // root and parent, and lands at the declared result path.
+                // Exact descriptor transport preserves moved occurrences or
+                // copies an actually observed shared descriptor. Declared
+                // geometry cannot turn borrowed contents into a moved owner.
                 let Some((StructuralPathSegment::Referent, carrier_path)) =
                     source.path.split_last()
                 else {
                     return Err(invalid());
                 };
-                let Some(leaf) = moved.get(&(source.place, carrier_path.to_vec())) else {
-                    // A guarded formal slot need not be resident in this
-                    // actual. Only reconstructed input custody contributes
-                    // an origin to the returned descriptor relation.
-                    if !carrier_path
-                        .iter()
-                        .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
-                    {
-                        return Err(invalid());
-                    }
+                if let Some(leaf) = moved.get(&(source.place, carrier_path.to_vec())) {
+                    leaf.clone()
+                } else if let Some(leaf) = custody.copied_reference(
+                    function,
+                    types,
+                    source,
+                    psi_operation,
+                    result,
+                    &mapping.path,
+                )? {
+                    leaf
+                } else {
                     continue;
-                };
-                leaf.clone()
+                }
             } else {
                 let (root, parents) = normalized_source(function, custody, types, source)?;
                 let root = root.projected_family(&binding.suffix, binding.extent);
@@ -2132,59 +2218,20 @@ pub(in crate::legalization) fn apply(
                 selected.extend_from_slice(relative);
                 let mut observation = selected.clone();
                 observation.push(StructuralPathSegment::Referent);
-                // Observation authenticates current permission and descriptor
-                // storage without minting a reborrow of the source identity.
-                let observed = call_paths::observe_reference_custody(
+                if let Some(leaf) = custody.copied_reference(
                     function,
-                    custody,
                     types,
                     &StructuralArgument {
                         place: *source,
                         path: observation,
                         access: StructuralAccess::SharedBorrow,
                     },
-                )?;
-                if observed.descriptors.is_empty() && observed.borrowed.is_empty() {
-                    // Only a declaration's conditional case leaves can be
-                    // absent; the observation rejects every missing ordinary
-                    // slot and every permission mismatch independently.
-                    continue;
+                    *psi_operation,
+                    result,
+                    relative,
+                )? {
+                    copied.push(((result.place, relative.clone()), leaf));
                 }
-                let expected =
-                    leaf_referent(types, result.structural_type, relative).ok_or(invalid())?;
-                let mut alternatives = Vec::with_capacity(observed.descriptors.len());
-                for descriptor in observed.descriptors {
-                    let source_leaf = custody.leaves.get(&descriptor).ok_or(invalid())?;
-                    if source_leaf.referent != expected {
-                        return Err(invalid());
-                    }
-                    let mut leaf = source_leaf.clone();
-                    leaf.identity = OccurrenceIdentity::operation(
-                        &(result.place, relative.clone()),
-                        *psi_operation,
-                    );
-                    leaf.reform(*psi_operation, result);
-                    alternatives.push(leaf);
-                }
-                for borrowed in observed.borrowed {
-                    if borrowed.referent != expected {
-                        return Err(invalid());
-                    }
-                    // The copy owns a new carrier. Its borrowed source never
-                    // becomes resident here, and enclosing parents stay live.
-                    alternatives.push(Leaf::formed(
-                        (result.place, relative.clone()),
-                        borrowed.root,
-                        borrowed.parents,
-                        *psi_operation,
-                        result,
-                        expected,
-                    ));
-                }
-                copied.push((
-                    (result.place, relative.clone()),
-                    combine_alternatives(alternatives)?,
-                ));
             }
             if custody.leaves.keys().any(|(carrier, selected)| {
                 *carrier == *source
@@ -2849,6 +2896,15 @@ fn transfer_return_custody(
     // Case alternatives of one carrier are one residency (validated with the
     // custody): it is returned by any alternative and disposed only when every
     // alternative is disposed.
+    // Borrowed entry anchors remain in the caller's scope. Keep their in-body
+    // access/restoration inventory, but do not demand their disposal to close
+    // this activation. Establishment identity excludes local replacements.
+    let external = custody
+        .leaves
+        .iter()
+        .filter(|((carrier, path), leaf)| leaf.is_external_entry_anchor(function, *carrier, path))
+        .map(|(_, leaf)| leaf.identity.clone())
+        .collect::<BTreeSet<_>>();
     let mut occurrences = Vec::<terminal_semantics::ReferenceCompletionOccurrence<'_, _>>::new();
     for ((carrier, path), leaf) in &custody.leaves {
         let returned = *carrier == source && owned_relative_path(path, &[]).is_some();
@@ -2866,7 +2922,10 @@ fn transfer_return_custody(
         }
         occurrences.push(terminal_semantics::ReferenceCompletionOccurrence {
             identity: &leaf.identity,
-            parents: leaf.obligations().collect(),
+            parents: leaf
+                .obligations()
+                .filter(|parent| !external.contains(*parent))
+                .collect(),
             returned,
             disposed,
         });
@@ -2874,7 +2933,11 @@ fn transfer_return_custody(
     occurrences.extend(custody.retired.values().map(|retired| {
         terminal_semantics::ReferenceCompletionOccurrence {
             identity: &retired.leaf.identity,
-            parents: retired.leaf.obligations().collect(),
+            parents: retired
+                .leaf
+                .obligations()
+                .filter(|parent| !external.contains(*parent))
+                .collect(),
             returned: false,
             // These are replayed disposal operations on this exact path, not
             // missing residents inferred to have been disposed at some point.
@@ -3644,7 +3707,6 @@ fn call_transition(
         operation,
         &moved,
     )?;
-    commit_argument_moves(custody, &moved);
     let results = match (result_contract, result) {
         (Some(contract), Some(result)) => call_results(
             caller, callee, contract, types, result, operation, arguments, custody, &moved,
@@ -3652,6 +3714,9 @@ fn call_transition(
         (None, None) => Vec::new(),
         _ => return Err(invalid()),
     };
+    for coordinate in moved.keys() {
+        custody.leaves.remove(coordinate).ok_or_else(|| invalid())?;
+    }
     stored_calls::commit(
         caller,
         types,
@@ -3659,6 +3724,7 @@ fn call_transition(
         custody,
         stored,
     )?;
+    retire_consumed_arguments(custody, &moved, operation)?;
     Ok(results)
 }
 

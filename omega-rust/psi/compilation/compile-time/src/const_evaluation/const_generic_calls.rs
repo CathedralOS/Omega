@@ -159,10 +159,9 @@ fn evaluate_application_group(
         }
     }
 
-    // The probe needs the same generic-template normalization as the real
-    // program, but the call results are not known yet. Provisional leaves let
-    // the frontend discover exact dependencies, never authorize execution with
-    // those layouts. Retained use keys below fence admission until settlement.
+    // Demand only private probe declarations. Surrounding applications retain
+    // their authored pending indices until their own evaluation settles; no
+    // provisional index may discharge a structural equation or select layout.
     let mut probe = syntax.clone();
     crate::syntax_probes::defer_pending_const_qualifications(
         &mut probe,
@@ -171,22 +170,12 @@ fn evaluate_application_group(
             .map(|(argument, ..)| *argument)
             .collect::<Vec<_>>(),
     );
-    // Application arguments get the same placeholder the scalar probes use:
-    // `false` on a bool carrier, `0` on every integer carrier. The authored
-    // expression survives whole inside the appended probe machine.
-    for (type_reference, _, destination, _) in &application_destinations {
-        let placeholder = match syntax.type_references.type_reference(*destination) {
-            TypeReferenceNode::Named(name) if name.as_str(&syntax) == "bool" => "false",
-            _ => "0",
-        };
-        probe.type_references.replace_type_reference(
-            *type_reference,
-            TypeReferenceNode::Named(Identifier::generated(placeholder)),
-        );
+    for (type_reference, ..) in &application_destinations {
         probe
             .type_references
             .retain_pending_const_argument_uses(*type_reference);
     }
+    let declaration_frontier = probe.root_item_handles().len();
     let owners = application_destinations
         .iter()
         .enumerate()
@@ -199,23 +188,26 @@ fn evaluate_application_group(
             )
         })
         .collect::<Vec<_>>();
-    let probe = crate::syntax_probes::normalize_generic_data(
+    let declarations = probe.root_item_handles()[declaration_frontier..].to_vec();
+    let probe = crate::syntax_probes::normalize_initializer_probe_data(
         probe,
         sources.clone(),
         source_scoped_top_level_bindings,
         None,
+        &declarations,
     )?;
     let endpoint_references = endpoint_leaves
         .iter()
         .map(|(_, source)| *source)
         .collect::<Vec<_>>();
-    let frontier = syntax_trees_to_symbol_resolved_trees::resolve_deferred(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: probe,
-            sources,
-            top_level_bindings: source_scoped_top_level_bindings.to_vec(),
-        },
-    )?;
+    let frontier =
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_initializer_probe(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: probe,
+                sources,
+                top_level_bindings: source_scoped_top_level_bindings.to_vec(),
+            },
+        )?;
     let owner_symbols = owners
         .iter()
         .map(|owner| owner.resolve(frontier.trees()))

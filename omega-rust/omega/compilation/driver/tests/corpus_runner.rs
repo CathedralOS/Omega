@@ -796,6 +796,10 @@ fn interpret_fixture(
     if checked_interpreter_leg() {
         return interpret_checked_fixture(root_path, fixture_dir, build_dir, &target, rollback);
     }
+    let fuel_allowance = match terminal_execution::fuel_allowance(fixture_dir) {
+        Ok(allowance) => allowance,
+        Err(error) => return terminal_execution::Observation::failure(error),
+    };
     let leg = match produce_terminal_semantic(root_path, build_dir, Some(target.clone()), rollback)
     {
         Ok(leg) => leg,
@@ -818,7 +822,7 @@ fn interpret_fixture(
         None,
         Some(&target),
         fixture_dir,
-        1_000_000,
+        fuel_allowance,
         input,
     )
 }
@@ -872,6 +876,26 @@ fn interpret_checked_fixture(
     if let Err(error) = std::io::Read::read_to_end(&mut input, &mut input_bytes) {
         return terminal_execution::Observation::failure(error);
     }
+    // The realization owner chose `target` for this fixture's check leg; a call
+    // bound to a target family runs the member body selected for that target,
+    // the same member native realization binds.
+    let machine_bodies: Vec<checked_interpreter::SelectedBuildTimeMachineBody> = checked
+        .execution()
+        .program
+        .typed
+        .target_machine_families
+        .iter()
+        .filter_map(|family| {
+            family
+                .members
+                .iter()
+                .find(|member| member.target.as_str() == target)
+                .map(|member| checked_interpreter::SelectedBuildTimeMachineBody {
+                    family: family.canonical,
+                    body: member.machine,
+                })
+        })
+        .collect();
     let outcome = checked_interpreter::interpret_entry(
         &checked.execution().program,
         checked_interpreter::BuildMachineEntry::Symbol(entry.machine_symbol()),
@@ -879,6 +903,7 @@ fn interpret_checked_fixture(
         checked_interpreter::InterpretOptions {
             boundary_adapters: &checked.execution().dispatch.boundary_adapters,
             float_comparisons: &checked.execution().dispatch.float_comparisons,
+            machine_bodies: &machine_bodies,
             ..checked_interpreter::InterpretOptions::default()
         },
     );
@@ -982,6 +1007,10 @@ fn observe_retained_terminal(
     fixture_dir: &Path,
     roots: &[&compilation_products::TerminalRuntimeProvisions],
 ) -> terminal_execution::Observation {
+    let fuel_allowance = match terminal_execution::fuel_allowance(fixture_dir) {
+        Ok(allowance) => allowance,
+        Err(error) => return terminal_execution::Observation::failure(error),
+    };
     let mut observation = if interpreter_leg() && !checked_interpreter_leg() {
         match fixture_input(fixture_dir) {
             Ok(input) => terminal_execution::interpret(
@@ -989,7 +1018,7 @@ fn observe_retained_terminal(
                 provisions,
                 target,
                 fixture_dir,
-                1_000_000,
+                fuel_allowance,
                 input,
             ),
             Err(error) => terminal_execution::Observation::failure(error),
@@ -1003,7 +1032,7 @@ fn observe_retained_terminal(
             proposals,
             roots,
             fixture_dir,
-            1_000_000,
+            fuel_allowance,
         );
         observation.facts.extend(installations.facts);
         observation.diagnostics.extend(installations.diagnostics);
@@ -2391,6 +2420,7 @@ fn prior_millis() -> std::collections::HashMap<String, u64> {
 }
 
 fn main() {
+    terminal_runtime::run_native_provider_worker_if_requested();
     if env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
         if env::args_os().count() != 2 {
             eprintln!("corpus_runner --build-profile takes no arguments");

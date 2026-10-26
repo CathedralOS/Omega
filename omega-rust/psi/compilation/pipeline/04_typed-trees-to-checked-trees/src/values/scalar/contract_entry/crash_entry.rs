@@ -4,6 +4,8 @@
 //! integer or IEEE family and the same resolution lowers it.
 use crate::values::operator_is_builtin;
 
+mod logical_matches;
+
 use checked_trees::{
     CheckedBooleanExpression, CheckedOperatorFacts, CheckedScalarExpression,
     CheckedStructuralPredicatePathSegment,
@@ -34,9 +36,44 @@ pub(crate) fn lower_machine_entry_crash_contract_expression(
         remaining: 4096,
         subjects: None,
         proof_context: true,
+        logical_captures: Vec::new(),
     }
     .boolean(expression, 0)?;
     Some(predicate)
+}
+
+/// Read pure logical predicates against the current state's declared frame.
+/// This supplies no entry-value equation and never rereads local initializers;
+/// the caller binds observations at its actual statement and live contexts.
+pub(crate) fn lower_current_state_predicate(
+    program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<CheckedBooleanExpression> {
+    if statement_index
+        > program
+            .statement_table
+            .statements(state.statement_nodes)
+            .len()
+    {
+        return None;
+    }
+    Reader {
+        program,
+        operators,
+        machine: Some(machine),
+        state: Some(state),
+        owner: state.symbol,
+        parameters: program.state_parameters(state),
+        remaining: 4096,
+        subjects: None,
+        proof_context: false,
+        logical_captures: Vec::new(),
+    }
+    .boolean(expression, 0)
 }
 
 type EntrySubjectResolver<'program> = dyn FnMut(ExpressionHandle) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)>
@@ -63,6 +100,7 @@ pub(crate) fn lower_entry_predicate(
         remaining: 4096,
         subjects: Some(subjects),
         proof_context: false,
+        logical_captures: Vec::new(),
     }
     .boolean(expression, 0)?;
     validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
@@ -117,6 +155,7 @@ pub(crate) fn lower_entry_scalar(
         remaining: 4096,
         subjects: None,
         proof_context: true,
+        logical_captures: Vec::new(),
     };
     crate::values::lower_unit_scalar_argument_for_places(
         program,
@@ -176,6 +215,7 @@ struct Reader<'program> {
     remaining: usize,
     subjects: Option<&'program mut EntrySubjectResolver<'program>>,
     proof_context: bool,
+    logical_captures: Vec<LogicalMatchBinding>,
 }
 
 /// Bodyless requirements have an exact signature namespace, not a synthetic
@@ -231,6 +271,7 @@ fn lower_declaration_crash_contract_expression(
         remaining: 4096,
         subjects: None,
         proof_context: true,
+        logical_captures: Vec::new(),
     }
     .boolean(expression, 0)
 }
@@ -262,11 +303,14 @@ pub(crate) fn lower_operator_crash_contract_expression(
     )
 }
 
+#[derive(Clone)]
 struct FieldPath {
     parameter_position: usize,
     path: Vec<CheckedStructuralPredicatePathSegment>,
     type_reference: TypeReferenceHandle,
 }
+
+type LogicalMatchBinding = validation::LogicalMatchBinding<FieldPath>;
 
 /// One comparison operand, resolved once: its carrier selects the comparison
 /// family and the same resolution lowers it.
@@ -356,7 +400,11 @@ impl<'program> Reader<'program> {
         }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
-            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            ExpressionNode::Match(_) => self.logical_match_boolean(expression, depth + 1),
+            ExpressionNode::Name(_)
+            | ExpressionNode::Member(_)
+            | ExpressionNode::Indexed(_)
+            | ExpressionNode::SavedSubject(_) => {
                 let subject = self.subject(expression, depth + 1)?;
                 if self.primitive(subject.type_reference, depth + 1)?
                     != Some((PrimitiveType::Bool, BuiltinTypeAtom::Bool))
@@ -516,6 +564,7 @@ impl<'program> Reader<'program> {
             return None;
         }
         match self.program.expression_table.expression(expression) {
+            ExpressionNode::Match(_) => self.logical_match_operand(expression, depth + 1),
             ExpressionNode::Float(literal) => {
                 let reference = validation::parameter_expression_result_type_reference(
                     self.program,
@@ -529,7 +578,10 @@ impl<'program> Reader<'program> {
                 Some(ComparisonOperand::FloatLiteral { value, reference })
             }
             ExpressionNode::Integer(_) => Some(ComparisonOperand::IntegerLiteral),
-            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            ExpressionNode::Name(_)
+            | ExpressionNode::Member(_)
+            | ExpressionNode::Indexed(_)
+            | ExpressionNode::SavedSubject(_) => {
                 // Only a read with no runtime selector has an IEEE form.
                 let static_subject = self.subject(expression, depth + 2);
                 let (value, reference, atom) =
@@ -742,6 +794,9 @@ impl<'program> Reader<'program> {
     }
 
     fn subject(&mut self, expression: ExpressionHandle, depth: usize) -> Option<FieldPath> {
+        if !self.logical_captures.is_empty() && self.is_saved_projection(expression) {
+            return self.logical_saved_path(expression, depth + 1);
+        }
         if let Some(resolve) = self.subjects.as_deref_mut() {
             let (position, path) = resolve(expression)?;
             let parameter = self.parameters.get(usize::try_from(position).ok()?)?;

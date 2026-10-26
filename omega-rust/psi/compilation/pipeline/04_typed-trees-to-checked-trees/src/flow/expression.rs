@@ -45,6 +45,7 @@ mod reference_projection;
 mod result_facts;
 mod returned_descriptors;
 mod returned_regions;
+mod selected_call_stores;
 mod stored_call_values;
 mod transitions;
 mod view_footprints;
@@ -552,6 +553,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 ExpressionHandle::invalid()
             }
         };
+        call.invocation_storage = self.storage_snapshot;
         let binding_writes = writes
             .as_deref()
             .and_then(|writes| writes.descriptor_stores());
@@ -806,9 +808,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 capture.type_reference,
             );
         if binds_view {
-            if let Some(retention) = completed.retention {
-                capture.retention = retention;
-            } else if let Some(retention) = self.stored_operand_retention(expression) {
+            if let Some(retention) =
+                self.captured_reference_retention(&capture, completed.retention)
+            {
                 capture.retention = retention;
             }
         } else {
@@ -1008,9 +1010,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             capture.reference_leaves = self.publish_returned_reference_leaves(&capture, leaves);
         }
         if expression != self.reference_slot_target && produces_view {
-            if let Some(retention) = completed.retention {
-                capture.retention = retention;
-            } else if let Some(retention) = self.stored_operand_retention(expression) {
+            if let Some(retention) =
+                self.captured_reference_retention(&capture, completed.retention)
+            {
                 capture.retention = retention;
             }
         } else {

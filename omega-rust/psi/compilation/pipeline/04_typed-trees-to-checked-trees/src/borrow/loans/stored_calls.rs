@@ -100,6 +100,7 @@ pub(in crate::borrow) fn from_effects(
                     )
             }) {
                 loans.push(StatementBorrowLoan {
+                    formation_owner_path: None,
                     incoming_origin: None,
                     formation_expression: Default::default(),
                     representation_address: None,
@@ -148,6 +149,7 @@ pub(in crate::borrow) fn from_effects(
                 });
                 if let Some((machine, state, carrier_type)) = supplied {
                     loans.push(StatementBorrowLoan {
+                        formation_owner_path: None,
                         incoming_origin: Some(super::PendingIncomingReference {
                             identity: checked_trees::IncomingReferenceIdentity {
                                 machine_symbol: machine.symbol,
@@ -258,6 +260,7 @@ pub(in crate::borrow) fn from_effects(
                 // authority; otherwise retain the backing conflict without
                 // inventing a parent.
                 loans.push(StatementBorrowLoan {
+                    formation_owner_path: None,
                     incoming_origin: None,
                     formation_expression: Default::default(),
                     representation_address: None,

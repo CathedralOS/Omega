@@ -15,7 +15,7 @@ use super::{ProviderStorageSlot, ResidentStorageSlot};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
-use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
+use crate::values::StructuralRuntimePlace;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     BoundaryMachineDeclaration, Operation, OperationKind, StructuralAccess,
@@ -143,12 +143,7 @@ impl TerminalExecution<'_> {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
             }
         }
-        let mut value = TerminalStructuralValue::minted(
-            self.local_structural_identities
-                .allocate_staged(&mut identity_cursor)?,
-            result.structural_type,
-            Vec::new(),
-        );
+        let mut value = self.mint_staged(&mut identity_cursor, result.structural_type)?;
         let destination_path = vec![
             StructuralPathSegment::Case(ready.id),
             StructuralPathSegment::Field(field.identity),
@@ -310,12 +305,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         let mut identity_cursor = self.local_structural_identities.cursor();
-        let mut value = TerminalStructuralValue::minted(
-            self.local_structural_identities
-                .allocate_staged(&mut identity_cursor)?,
-            result.structural_type,
-            Vec::new(),
-        );
+        let mut value = self.mint_staged(&mut identity_cursor, result.structural_type)?;
         let root = StructuralRuntimePlace::from(&value);
         let mut storage = ConstructorStorage::new(self.account.as_ref());
         storage.stage_case(root.clone(), result.structural_type, rejected.id)?;

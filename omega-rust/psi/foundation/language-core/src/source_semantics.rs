@@ -17,13 +17,23 @@ pub enum LocalBindingRole {
     /// A dispatch evaluates its subject before arm selection. Typed preparation
     /// chooses an owned copy or an address-preserving place observation.
     DispatchSubject,
+    /// A reserved immutable binding established by the immediately associated
+    /// atomic event. Its synthetic initializer is not a source value.
+    AtomicObservedResult,
     RecordPattern,
     ArmPattern,
 }
 
 impl LocalBindingRole {
-    /// Both ordinary values and pending dispatch subjects require result inference.
-    pub const fn is_value_binding(self) -> bool {
+    pub const fn is_runtime_binding(self) -> bool {
+        matches!(
+            self,
+            Self::Value | Self::DispatchSubject | Self::AtomicObservedResult
+        )
+    }
+    /// Pending dispatch subjects still own an ordinary evaluated initializer;
+    /// an atomic observation receives its value from the associated event.
+    pub const fn has_ordinary_initializer(self) -> bool {
         matches!(self, Self::Value | Self::DispatchSubject)
     }
 }

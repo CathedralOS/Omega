@@ -723,6 +723,7 @@ pub(crate) fn emit_direct_expression(
                 event: terminal_psi::AtomicAccessEvent::Load {
                     ordering: *ordering,
                 },
+                resident_obligation: None,
             },
             *scalar_type,
             next_value_identity,

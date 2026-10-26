@@ -64,7 +64,10 @@ with exact command, source/producer hashes, diagnostics and saved artifacts.
 The source fixture is the durable replay input. The selected-identity, terminal
 guarantee and recursive-entry repairs landed in PR #145, published as
 `3c1b7104e4f62b22ddd31502f076fb3bf5ab7bef`. Follow-on retention changes
-remain under qualification in PR #168.
+landed in PR #168 as
+`9677cee552010c3c5083198f5d80c81b66f7e5a8`, with submitted source
+`6328c4a7274a59ff7fe7f3aae0b714adcded3cdd`. Both publications were
+verified on fetched main.
 
 On the Linux x86-64 executor, the ordinary CLI sample sequence produced nine
 native exits 0, nine Terminal exits 0, nine successful saved-artifact reloads,
@@ -187,8 +190,9 @@ and nine checked positives plus eleven intended rejects recorded through the
 published-base-plus-staged-source procedure. The three required existing effects
 fixtures pass their applicable checks; nominal and generic-schema witnesses also
 execute in both engines. Scoped Clippy and independent semantic source review
-pass. Full outcome acceptance still requires verified landing of the follow-on
-source. An open PR does not supply main acceptance.
+pass. The follow-on source is published on main, completing this task
+item's retained-data and executable witness acceptance. Other-host runtime
+qualification remains unmeasured, as stated above.
 
 Run a place after ordinary package preparation:
 

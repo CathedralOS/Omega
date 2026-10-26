@@ -334,13 +334,12 @@ pub(crate) fn lower_unit_closure(
         catalog::scalar_field_types(identities, checked, plans, &type_ids, &structural_types)?;
     // One scalar qualification namespace for every machine the closure
     // emits; every body's signature declares against it.
-    let qualification_bodies = admission::source_machines(&admitted_bodies);
     let qualifications =
         crate::expression_preparation::qualifications::PreparedScalarQualifications::prepare(
             identities,
             checked,
             &[],
-            &qualification_bodies,
+            &call_catalog.source_machines,
             &boundary_signatures,
             &scalar_fields,
         )?;

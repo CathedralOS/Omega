@@ -29,6 +29,18 @@ impl CompletedOperand {
 
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn capture_operand(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        argument: terminal_psi::StructuralArgument,
+        expression: typed_trees::expression::ExpressionHandle,
+        first_new_place: u64,
+    ) -> Result<CompletedOperand, LoweringError> {
+        let argument =
+            self.refresh_memberships(identities, argument, expression, first_new_place)?;
+        self.capture_operand_claims(identities, argument, expression, first_new_place)
+    }
+
+    pub(super) fn capture_operand_claims(
         &self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         argument: terminal_psi::StructuralArgument,

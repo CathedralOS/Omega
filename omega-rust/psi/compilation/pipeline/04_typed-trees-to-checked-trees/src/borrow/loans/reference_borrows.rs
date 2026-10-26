@@ -61,6 +61,7 @@ pub(super) fn reference_local_borrow_loans(
         && reference_borrow_access_kind(program, contract.return_type_reference(program)).is_some()
     {
         return vec![StatementBorrowLoan {
+            formation_owner_path: None,
             incoming_origin: Some(super::PendingIncomingReference {
                 identity: checked_trees::IncomingReferenceIdentity {
                     machine_symbol,
@@ -238,10 +239,19 @@ pub(super) fn reference_local_borrow_loans(
             checked_trees::expression::ExpressionNode::Call(_)
         );
     let retained_access = geometry.retained_access(program, &local_access);
-    let rebased = rebase_borrow_geometry_through_local_loans(program, geometry, loan_trackers);
+    let rebased = rebase_reference_formation_geometry(
+        program,
+        state.symbol,
+        statement_index,
+        local_data.initial_value,
+        local_data.type_reference,
+        geometry,
+        loan_trackers,
+    );
     rebased
         .iter()
         .map(|source| StatementBorrowLoan {
+            formation_owner_path: None,
             incoming_origin: None,
             formation_expression: local_data.initial_value,
             representation_address: source.representation_address.clone(),

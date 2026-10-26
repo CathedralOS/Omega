@@ -375,6 +375,7 @@ impl PreparedScalarQualifications {
             })
             .map(|(position, _)| {
                 self.parameter_value_type(
+                    checked,
                     state.symbol,
                     u32::try_from(position).map_err(|_| {
                         LoweringError::Unsupported("scalar formal position exceeds u32")

@@ -28,6 +28,10 @@ pub struct InterpretOptions<'bindings> {
     /// Explicit Product execution associations, separate from immutable Psi.
     pub boundary_adapters: &'bindings [checked_trees::CheckedBoundaryAdapterDispatch],
     pub float_comparisons: &'bindings [checked_trees::CheckedSelectedFloatComparisonExecution],
+    /// The realization owner's exact family-body selections for this target.
+    /// A call bound to a target family resolves to the selected member's
+    /// checked body through these, never to a body the interpreter invents.
+    pub machine_bodies: &'bindings [SelectedBuildTimeMachineBody],
     /// Exact externally selected wait requirements, served only by virtual time.
     pub virtual_clock_bindings: Vec<crate::VirtualClockBinding>,
     pub filesystem: FilesystemAccess,
@@ -710,6 +714,12 @@ fn interpret_on_current_thread(
     let mut evaluator = Evaluator::new_checked(checked, stdin);
     evaluator.boundary_adapter_dispatch = options.boundary_adapters;
     evaluator.selected_product_float_comparisons = Some(options.float_comparisons);
+    if let Err(message) =
+        SelectedBuildTimeMachineBody::validate_all(&checked.typed, options.machine_bodies)
+    {
+        return evaluator.error_outcome(message);
+    }
+    evaluator.selected_build_time_machine_bodies = options.machine_bodies;
     if checked
         .facts
         .operators

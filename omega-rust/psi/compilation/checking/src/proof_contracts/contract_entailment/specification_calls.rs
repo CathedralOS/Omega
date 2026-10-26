@@ -558,6 +558,7 @@ fn validate_specification_expression(
                 {
                     let operand_path = |mut source| {
                         let mut nodes = Vec::new();
+                        let mut name_authentication = Vec::new();
                         for _ in 0..6 {
                             if !program.expression_table.expression_is_valid(source) {
                                 nodes.push(("Invalid", source, SymbolHandle::invalid()));
@@ -567,7 +568,22 @@ fn validate_specification_expression(
                                 .expression_table
                                 .expression(source)
                             {
-                                ExpressionNode::Name(path) => ("Name", path.symbol, None),
+                                ExpressionNode::Name(path) => {
+                                    let members = program
+                                        .expression_table
+                                        .name_path_member_symbols(path.member_symbols);
+                                    name_authentication.push((
+                                        source,
+                                        path.head_symbol,
+                                        program
+                                            .expression_table
+                                            .name_path_members(path.members)
+                                            .len(),
+                                        members.len(),
+                                        members.iter().take(8).copied().collect::<Vec<_>>(),
+                                    ));
+                                    ("Name", path.symbol, None)
+                                }
                                 ExpressionNode::Member(member) => {
                                     ("Member", member.member_symbol, Some(member.receiver))
                                 }
@@ -592,7 +608,7 @@ fn validate_specification_expression(
                             };
                             source = next;
                         }
-                        nodes
+                        (nodes, name_authentication)
                     };
                     let parameter_keys = parameters
                         .iter()

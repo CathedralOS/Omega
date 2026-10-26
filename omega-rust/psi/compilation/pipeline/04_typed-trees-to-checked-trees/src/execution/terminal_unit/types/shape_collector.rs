@@ -403,7 +403,7 @@ impl<'program> ShapeCollector<'program> {
         // shape is distinct from the pointer carrier recorded above; stored
         // reference fields do not recursively demand their targets' storage.
         let shell = validation::reference_shell(self.program, reference)?;
-        self.add_type(shell.referee, binders, &[])?;
+        self.add_stored_type(shell.referee, binders, &[])?;
         Some(identity)
     }
 
@@ -575,7 +575,6 @@ impl<'program> ShapeCollector<'program> {
             return Some(identity);
         }
         if validation::stores_reference_shape(self.program, reference, substitutions) {
-            structural_access_for_type_reference(self.program, reference)?;
             let shell = validation::reference_shell(self.program, reference)?;
             return self.add_view_type_for_substitutions(
                 reference,
@@ -1619,6 +1618,7 @@ fn authored_field_storage(
         field_type,
         CheckedUnitStructuralFieldType::Scalar(_)
             | CheckedUnitStructuralFieldType::Atomic(_)
+            | CheckedUnitStructuralFieldType::AtomicBoundedInteger(_)
             | CheckedUnitStructuralFieldType::BoundedInteger(_)
             | CheckedUnitStructuralFieldType::RefinedScalar { .. }
     );

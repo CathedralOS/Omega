@@ -56,9 +56,19 @@ pub(crate) fn build_boundary_machine(
     // made `Opaque::operation(value)` demand a representation of Opaque even
     // when no argument or result contained it. All boundary storage and
     // custody come from the explicit signature, exactly as for checked bodies.
-    let (structural_parameters, scalar_parameters) =
+    let signature = if machine.target_family_interface {
+        super::super::calls::free_structural_scalar_entry_signature_traced(
+            program,
+            shapes,
+            state,
+            &binders,
+            &LocalConstructionTrace::default(),
+        )
+    } else {
         free_structural_scalar_signature(program, shapes, state, &binders)
-            .ok_or("boundary explicit parameters have no runtime signature")?;
+    };
+    let (structural_parameters, scalar_parameters) =
+        signature.ok_or("boundary explicit parameters have no runtime signature")?;
     let domain_requirements = boundary_domain_requirements(
         program,
         shapes,
@@ -230,6 +240,21 @@ pub(crate) fn build_dynamic_slot_plans(
         else {
             continue;
         };
+        let family_tuple = if let Some(application) =
+            program.closed_requirement_application(slot.call_requirement)
+        {
+            let Some(tuple) = application
+                .local_arguments
+                .iter()
+                .map(|argument| program.static_const_type_reference_identity(*argument))
+                .collect::<Option<Vec<_>>>()
+            else {
+                continue;
+            };
+            tuple
+        } else {
+            Vec::new()
+        };
         plans.push(checked_trees::CheckedDynamicSlotPlan {
             slot: slot.symbol,
             interface_identity: slot.interface_identity.clone(),
@@ -237,6 +262,7 @@ pub(crate) fn build_dynamic_slot_plans(
             requirement: slot.requirement,
             requirement_identity: program
                 .trait_requirement_callable_identity(definition, requirement),
+            family_tuple,
             structural_parameters,
             entry_claim_paths,
             scalar_parameters,

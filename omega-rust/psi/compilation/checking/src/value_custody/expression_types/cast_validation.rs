@@ -27,6 +27,18 @@ pub(crate) fn validate_cast_types(
         return;
     }
     if let Some(state) = state {
+        // Each value-cast formation owes cleanup preservation, including when
+        // the cast is nested in a match, constructor, or discarded expression.
+        // The outer result's erased type cannot discharge its operand's debt.
+        crate::value_custody::cleanup::validate_cleanup_delivery(
+            program,
+            machine,
+            state,
+            cast.value,
+            cast.target_type,
+            "explicit qualification cast",
+            diagnostics,
+        );
         super::validate_exact_float_coercion(
             program,
             machine,

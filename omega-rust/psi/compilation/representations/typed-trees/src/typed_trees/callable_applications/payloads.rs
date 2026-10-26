@@ -604,7 +604,7 @@ impl CallableApplication {
         Ok(copied)
     }
 
-    fn static_arguments(
+    pub(super) fn static_arguments(
         &mut self,
         program: &mut TypedTrees,
         arguments: &mut [expression::StaticMachineArgument],

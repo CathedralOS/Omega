@@ -89,14 +89,21 @@ impl DynamicDispatchIndex {
                         let mut called = slot_plans
                             .iter()
                             .filter(|plan| &plan.interface_identity == interface)
-                            .map(|plan| plan.requirement_identity.clone())
+                            .map(|plan| {
+                                (plan.requirement_identity.clone(), plan.family_tuple.clone())
+                            })
                             .collect::<Vec<_>>();
                         called.sort();
                         called.dedup();
+                        let concrete = called
+                            .iter()
+                            .filter(|(_, tuple)| !tuple.is_empty())
+                            .map(|(identity, _)| *identity)
+                            .collect::<Vec<_>>();
+                        called.retain(|(identity, tuple)| {
+                            !tuple.is_empty() || !concrete.contains(identity)
+                        });
                         called
-                            .into_iter()
-                            .map(|identity| (identity, Vec::new()))
-                            .collect()
                     }
                 }
             })
@@ -176,6 +183,36 @@ impl DynamicDispatchIndex {
                 "selector call names a requirement absent from its interface",
             ))?;
         Ok((interface, slot))
+    }
+
+    /// Resolve a statically selected exact row without treating another tuple's
+    /// ABI as a possible call branch. The full interface roster stays intact.
+    pub(crate) fn resolve_tuple(
+        &self,
+        interface_identity: &typed_trees::type_identity::TypeIdentityId,
+        requirement_identity: &typed_trees::type_identity::CallableIdentityId,
+        tuple: &[String],
+    ) -> Result<(u32, u32), LoweringError> {
+        let interface = self
+            .interface(interface_identity)
+            .ok_or(LoweringError::Unsupported(
+                "static family call names no interface",
+            ))?;
+        let position = self
+            .interface_slots(interface)
+            .and_then(|slots| {
+                slots.iter().position(|(requirement, candidate)| {
+                    requirement == requirement_identity && candidate == tuple
+                })
+            })
+            .ok_or(LoweringError::Unsupported(
+                "static family call names no exact tuple",
+            ))?;
+        Ok((
+            interface,
+            u32::try_from(position)
+                .map_err(|_| LoweringError::Unsupported("static family slot overflows"))?,
+        ))
     }
 
     /// The tuple roster of a finite-family call: the contiguous run of the
@@ -294,12 +331,17 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
         for (slot, (requirement_identity, family_tuple)) in
             index.slots[interface_id as usize].iter().enumerate()
         {
-            let Some(plan) = slot_plans.iter().find(|plan| {
+            let mut matching = slot_plans.iter().filter(|plan| {
                 plan.interface_identity == *interface_identity
                     && plan.requirement_identity == *requirement_identity
-            }) else {
-                return unsupported("dynamic interface slot has no checked call shape");
+                    && plan.family_tuple == *family_tuple
+            });
+            let Some(plan) = matching.next() else {
+                return unsupported("dynamic family tuple has no checked public call shape");
             };
+            if matching.next().is_some() {
+                return unsupported("dynamic family tuple has multiple checked public call shapes");
+            }
             slots.push(lower_slot(
                 identities,
                 checked,

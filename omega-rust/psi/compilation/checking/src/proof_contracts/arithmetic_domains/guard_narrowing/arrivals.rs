@@ -1191,6 +1191,15 @@ impl ArrivalWalk<'_, '_> {
                     }
                 }
                 StatementNode::LocalData(local) => {
+                    if local.role == language_core::LocalBindingRole::AtomicObservedResult {
+                        record_assignment(
+                            environment,
+                            Some(local.name.to_string()),
+                            Interval::UNBOUNDED,
+                            None,
+                        );
+                        continue;
+                    }
                     self.expression(source, local.initial_value, environment);
                     let copied_float = super::super::capture_float_assignment(
                         self.program,
@@ -1259,6 +1268,49 @@ impl ArrivalWalk<'_, '_> {
                 StatementNode::Assignment(assignment) => {
                     self.expression(source, assignment.target, environment);
                     self.expression(source, assignment.value, environment);
+                    if let Some(event) = crate::atomic_assignment_carrier(self.program, assignment)
+                    {
+                        let written = self.frames.and_then(|frames| {
+                            frames
+                                .assignment_write_frame(self.machine, statement)
+                                .into_complete_paths()
+                        });
+                        if let Some(written) = written {
+                            environment.invalidate_assignment_paths(
+                                self.program,
+                                self.machine,
+                                Some(source),
+                                statement,
+                                self.frames,
+                                &written,
+                            );
+                        } else {
+                            environment.invalidate_unknown_writes(self.program, Some(source));
+                        }
+                        let observed = super::super::atomic_resident_interval(
+                            self.program,
+                            self.machine,
+                            Some(source),
+                            event.place,
+                        )
+                        .unwrap_or(Interval::UNBOUNDED);
+                        record_assignment(
+                            environment,
+                            place_path(self.program, event.place),
+                            observed,
+                            None,
+                        );
+                        if event.result.is_valid() {
+                            record_assignment(
+                                environment,
+                                place_path(self.program, event.result),
+                                observed,
+                                None,
+                            );
+                        }
+                        continue;
+                    }
+
                     let copied_float = super::super::capture_float_assignment(
                         self.program,
                         self.machine,
@@ -1469,7 +1521,9 @@ impl ArrivalWalk<'_, '_> {
                 );
             }
             StatementNode::LocalData(local) => {
-                self.expression(source, local.initial_value, environment);
+                if let Some(initializer) = local.ordinary_value_initializer() {
+                    self.expression(source, initializer, environment);
+                }
             }
             StatementNode::Assignment(assignment) => {
                 self.expression(source, assignment.target, environment);
@@ -1712,7 +1766,11 @@ fn state_has_in_machine_arrivals(
                     }
                 }
             }
-            StatementNode::LocalData(local) => stack.push(local.initial_value),
+            StatementNode::LocalData(local) => {
+                if let Some(initializer) = local.ordinary_value_initializer() {
+                    stack.push(initializer);
+                }
+            }
             StatementNode::Assignment(assignment) => {
                 stack.push(assignment.target);
                 stack.push(assignment.value);

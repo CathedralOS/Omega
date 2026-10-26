@@ -40,6 +40,18 @@ pub(crate) fn storage_path_compatibility(
     place_segments_compatibility(program, left, right, &premises, &mut Some(lookup))
 }
 
+/// The storage-transfer producer freezes a known selector once, before any
+/// custody consumer records exclusions. The proof is the same completed-value
+/// observation used by spatial equality, never a current mutable query.
+pub(crate) fn captured_storage_index(
+    program: &dyn validation::CheckingInput,
+    captures: StorageSelectorFacts<'_>,
+    lookup: &validation::ImmutableBoundLookup<'_>,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<usize> {
+    captured_values::captured_storage_index(program, captures, lookup, expression)
+}
+
 /// Cleanup must separate its selected receiver from moved storage in every
 /// incoming occurrence. Only immutable captured-value relations supplement the
 /// context-free spatial judgment; current mutable selector facts cannot do so.

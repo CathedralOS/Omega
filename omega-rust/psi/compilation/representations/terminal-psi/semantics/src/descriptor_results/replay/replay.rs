@@ -1044,6 +1044,16 @@ impl<'a> Replay<'a> {
     ) -> Option<Summary> {
         match &call.target {
             DescriptorInvocationTarget::Machine(machine) => self.summary(*machine, depth),
+            target @ DescriptorInvocationTarget::Public {
+                effects_machine: Some(machine),
+                ..
+            } => {
+                let effects = self.summary(*machine, depth)?;
+                let mut summary = direct_target_summary(target)?;
+                summary.effects = effects.effects;
+                summary.invalidates_contents |= effects.invalidates_contents;
+                Some(summary)
+            }
             DescriptorInvocationTarget::Public { realizations, .. } if !realizations.is_empty() => {
                 let summaries = realizations
                     .iter()
@@ -1061,6 +1071,16 @@ impl<'a> Replay<'a> {
     pub(super) fn cached_invocation_summary(&self, call: &DescriptorInvocation) -> Option<Summary> {
         match &call.target {
             DescriptorInvocationTarget::Machine(machine) => self.summaries.get(machine)?.clone(),
+            target @ DescriptorInvocationTarget::Public {
+                effects_machine: Some(machine),
+                ..
+            } => {
+                let effects = self.summaries.get(machine)?.as_ref()?;
+                let mut summary = direct_target_summary(target)?;
+                summary.effects = effects.effects.clone();
+                summary.invalidates_contents |= effects.invalidates_contents;
+                Some(summary)
+            }
             DescriptorInvocationTarget::Public { realizations, .. } if !realizations.is_empty() => {
                 let summaries = realizations
                     .iter()

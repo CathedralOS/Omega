@@ -56,13 +56,15 @@ pub(super) fn architectural_units(
                 let slot = ensure_unit(unit, &mut unit_indices, &mut rows, &mut open_unit_end);
                 open_unit_end[slot] = block_end;
             }
-            for instruction in block.instructions.iter().rev() {
+            let mut unit_effect_indices = Vec::new();
+            for (inst_idx, instruction) in block.instructions.iter().enumerate().rev() {
                 if instruction.unit_defs.is_empty()
                     && instruction.unit_clobbers.is_empty()
                     && instruction.unit_uses.is_empty()
                 {
                     continue;
                 }
+                unit_effect_indices.push(inst_idx);
                 let _before = before_point(function_index, instruction.position)?.0;
                 let after = after_point(function_index, instruction.position)?.0;
                 for &killed in instruction
@@ -112,13 +114,8 @@ pub(super) fn architectural_units(
             for (slot, first_frag) in touched_units.drain(..) {
                 rows[slot].fragments[first_frag..].reverse();
             }
-            for instruction in &block.instructions {
-                if instruction.unit_uses.is_empty()
-                    && instruction.unit_defs.is_empty()
-                    && instruction.unit_clobbers.is_empty()
-                {
-                    continue;
-                }
+            for &inst_idx in unit_effect_indices.iter().rev() {
+                let instruction = &block.instructions[inst_idx];
                 let before = before_point(function_index, instruction.position)?;
                 let after = after_point(function_index, instruction.position)?;
                 for (kind, values, point) in [

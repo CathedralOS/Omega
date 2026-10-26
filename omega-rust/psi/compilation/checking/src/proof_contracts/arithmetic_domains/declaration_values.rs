@@ -6,11 +6,22 @@ use super::{ArithmeticDomain, Diagnostic, ExpressionHandle, PrimitiveType, Value
 use symbols::SymbolHandle;
 use typed_trees::signature::StateParameter;
 
+/// A local type recipe is formed at this statement's current value epoch.
+/// Its environment has already lost facts invalidated by earlier effects;
+/// declaration entry assumptions cannot stand in for this prefix.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct LocalValueFormation<'program> {
+    pub machine: &'program typed_trees::machine::Machine,
+    pub state: Option<&'program typed_trees::state::State>,
+    pub environment: &'program ValueEnvironment,
+}
+
 pub(crate) fn validate_declaration_value_range(
     program: &dyn crate::CheckingInput,
     lexical_owner: SymbolHandle,
     parameters: &[StateParameter],
     prior_facts: &[ExpressionHandle],
+    local_formation: Option<LocalValueFormation<'_>>,
     expression: ExpressionHandle,
     target_primitive: Option<PrimitiveType>,
     target_domain: ArithmeticDomain,
@@ -102,18 +113,33 @@ pub(crate) fn validate_declaration_value_range(
         }
         crate::expression_traversal::children(program, node, |child| pending.push(child));
     }
-    let analysis = super::expression_analysis::analyze_declaration(
-        program,
-        lexical_owner,
-        parameters,
-        prior_facts,
-        expression,
-        &ValueEnvironment::new(),
-        target_primitive,
-        target_domain,
-        owner,
-        diagnostics,
-    );
+    let analysis = if let Some(local) = local_formation {
+        super::expression_analysis::analyze(
+            program,
+            local.machine,
+            local.state,
+            expression,
+            local.environment,
+            target_primitive,
+            target_domain,
+            owner,
+            false,
+            diagnostics,
+        )
+    } else {
+        super::expression_analysis::analyze_declaration(
+            program,
+            lexical_owner,
+            parameters,
+            prior_facts,
+            expression,
+            &ValueEnvironment::new(),
+            target_primitive,
+            target_domain,
+            owner,
+            diagnostics,
+        )
+    };
     formation_obligations.extend(analysis.decisions.integer_range_obligations);
 }
 

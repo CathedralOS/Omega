@@ -752,7 +752,8 @@ fn plain_storage<'types>(
                 terminal_psi::StructuralFieldType::Structural(child) => {
                     plain_storage(types.clone(), child, active)
                 }
-                terminal_psi::StructuralFieldType::Atomic(_) => false,
+                terminal_psi::StructuralFieldType::Atomic(_)
+                | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_) => false,
                 _ => field
                     .field_type
                     .scalar_type()

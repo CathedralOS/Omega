@@ -192,6 +192,7 @@ fn collect_field_leaves(
         }
         StructuralFieldType::Scalar(_)
         | StructuralFieldType::Atomic(_)
+        | StructuralFieldType::AtomicBoundedInteger(_)
         | StructuralFieldType::RefinedScalar(_)
         | StructuralFieldType::BoundedInteger(_) => {
             let leaf = field_shape(field, declarations, cache, active)?;
@@ -489,7 +490,11 @@ fn field_shape(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<ValueShape, InvalidStructuralShape> {
-    if matches!(field, StructuralFieldType::Atomic(_)) && field.atomic_scalar_type().is_none() {
+    if matches!(
+        field,
+        StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
+    ) && field.atomic_scalar_type().is_none()
+    {
         return Err(InvalidStructuralShape);
     }
     match field {
@@ -509,7 +514,8 @@ fn field_shape(
                 bytes.next_power_of_two().min(16),
             ))
         }
-        StructuralFieldType::BoundedInteger(bounds) => {
+        StructuralFieldType::BoundedInteger(bounds)
+        | StructuralFieldType::AtomicBoundedInteger(bounds) => {
             let integer = bounds.integer_type();
             let bytes = integer.bits().div_ceil(8);
             Ok(ValueShape::integer(

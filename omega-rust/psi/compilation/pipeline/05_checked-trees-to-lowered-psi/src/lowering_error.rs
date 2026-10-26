@@ -71,7 +71,6 @@ pub enum LoweringError {
     DebugSemanticCodec(terminal_codec::CodecError),
     InvalidDebugMap(terminal_codec::DebugMapError),
     InvalidControlGraph(terminal_semantics::control_graph::ControlGraphError),
-    InvalidServiceParameterShape(checked_trees::CheckedServiceParameterError),
     InvalidServiceIdentity(String),
     InvalidFloatMeaningProjection(FloatMeaningProjectionLoweringError),
     InvalidQuotientCorrespondence(Vec<String>),
@@ -104,6 +103,11 @@ pub enum LoweringError {
     /// Preserve the actual graph entry rather than merging duplicate edge,
     /// argument-frame, and ordered-cleanup failures into one static message.
     InvalidSelectedCleanupEntry(Box<SelectedCleanupEntryMismatch>),
+    MissingScalarParameterQualification {
+        state: String,
+        source_position: u32,
+        prepared_positions: Vec<u32>,
+    },
     MissingSelectionFrontier {
         machine: String,
         state: String,

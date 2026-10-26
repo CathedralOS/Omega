@@ -137,7 +137,8 @@ impl TerminalExecution<'_> {
             let value = self
                 .structural_scalar_fields
                 .get(&field)
-                .copied()
+                .map(crate::scalar_storage::ScalarCell::read)
+                .transpose()?
                 .ok_or_else(malformed)?;
             if value.scalar_type() != stored_type {
                 return Err(malformed());
@@ -213,10 +214,10 @@ impl TerminalExecution<'_> {
                 .structural_scalar_fields
                 .get_mut(&field)
                 .ok_or_else(malformed)?;
-            if !checked_value(*stored, source) {
+            if !checked_value(stored.read()?, source) {
                 return Err(malformed());
             }
-            *stored = value;
+            stored.write(value)?;
             Ok(())
         } else {
             if let Some(home) = &typed.home {

@@ -99,6 +99,7 @@ fn finite_cleanup_type(
                     }
                     StructuralFieldType::Scalar(_)
                     | StructuralFieldType::Atomic(_)
+                    | StructuralFieldType::AtomicBoundedInteger(_)
                     | StructuralFieldType::IeeeFloat(_)
                     | StructuralFieldType::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },

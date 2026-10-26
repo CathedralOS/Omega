@@ -193,10 +193,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 })?;
                 if let OperationResult::Structural(result) = &operation.result {
                     if self.structural_values.contains_key(&result.place)
-                        || self
-                            .live_claims
-                            .values()
-                            .any(|claim| claim.place == Some(result.place))
+                        || crate::custody::place_is_claimed(&self.live_claims, result.place)
                         || self
                             .live_affine_frontier
                             .iter()

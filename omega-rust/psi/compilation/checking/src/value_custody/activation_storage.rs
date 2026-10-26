@@ -101,6 +101,9 @@ pub fn exact_toolchain_activation_storage_contract(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Option<ActivationStorageContract> {
+    if machine.body_is_present || machine.supply_mode != MachineSupplyMode::Boundary {
+        return None;
+    }
     let operation = if sealed_machine(program, machine, "toolchain::Activation::try_claim") {
         ActivationStorageOperation::Establish
     } else if sealed_machine(program, machine, "toolchain::ActivationClaim::bytes") {

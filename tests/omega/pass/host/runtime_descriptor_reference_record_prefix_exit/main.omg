@@ -57,7 +57,8 @@ machine publish(cell: &Cell) {
 }
 
 machine observe(cell: &Cell) -> u64 in Wrapping {
-    let resident: u64 in Wrapping = cell.counter.load(NoOrdering);
+    let resident_atomic_observed: u64 = cell.counter.load(NoOrdering);
+    let resident: u64 in Wrapping = resident_atomic_observed as u64 in Wrapping;
     transition { _ -> (resident) }
 }
 
@@ -66,7 +67,8 @@ machine publish_packet(packet: &Packet) {
 }
 
 machine observe_packet(packet: &Packet) -> u64 in Wrapping {
-    let resident: u64 in Wrapping = packet.counter.load(NoOrdering);
+    let resident_atomic_observed: u64 = packet.counter.load(NoOrdering);
+    let resident: u64 in Wrapping = resident_atomic_observed as u64 in Wrapping;
     transition { _ -> (resident) }
 }
 

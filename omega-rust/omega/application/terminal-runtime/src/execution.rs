@@ -53,6 +53,10 @@ use terminal_interpreter::{
 };
 
 pub struct TerminalRuntimeRequest<'program> {
+    /// Explicit private native sponsor. Its executable must dispatch the
+    /// runtime worker hook before normal arguments. None admits no native C
+    /// execution. This worker supplies no standard stream or external service.
+    pub native_provider: Option<std::process::Command>,
     pub x86_flags: Option<terminal_interpreter::TerminalX86FlagsEnvironment>,
     pub artifact: &'program terminal_codec::CanonicalTerminalArtifact,
     /// Exact deployment tag admitted by this invocation. Absence permits only
@@ -336,7 +340,11 @@ pub fn execute_sliced(
             ..Default::default()
         })
         .map_err(TerminalRuntimeError::Artifact)?;
-    let host = host_imports::HostContext::new(request.standard_input, request.clock);
+    let host = host_imports::HostContext::new(
+        request.standard_input,
+        request.clock,
+        request.native_provider,
+    );
     let component_slots = request
         .provisions
         .map(|provisions| {
@@ -411,6 +419,7 @@ pub fn execute_sliced(
         .observe_private_entry_ram()
         .map_err(TerminalRuntimeError::Execution)?;
     let effects = instance.effects().to_vec();
+    host.finish_native_provider()?;
     Ok(TerminalRuntimeObservation {
         fuel_usage: fuel.into_usage(),
         fuel_suspensions,

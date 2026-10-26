@@ -431,11 +431,36 @@ pub(super) fn check_statement_borrows<'p>(
             )));
             continue;
         };
+        // A borrowed formal denotes its ingress referent when read or lent.
+        // Rebinding a mutable shared-reference formal instead writes the
+        // callee's descriptor slot. Those are distinct storage occurrences;
+        // the copied ingress pointer never borrowed that local slot. This
+        // distinction does not cover fields, local descriptors or RHS effects.
+        let ingress_slot = binding_replacement
+            && mutated_place.segments.is_empty()
+            && program
+                .state_by_symbol(state_flow.state_symbol)
+                .is_some_and(|state| {
+                    mutated_place
+                        .root
+                        .as_symbol()
+                        .and_then(|root| program.state_parameter_by_symbol(state, root))
+                        .is_some_and(|parameter| {
+                            parameter.is_mutable
+                                && validation::reference_shell(program, parameter.type_reference)
+                                    .is_some_and(|shell| {
+                                        shell.access == language_semantics::ReferenceAccess::Shared
+                                    })
+                        })
+                });
         // A write through an unselected parent still conflicts with the child.
         for loan_handle in facts
             .flow
             .borrow_loan_constraints(statement.pre_store_constraints)
         {
+            if ingress_slot && facts.borrow.loans.get(loan_handle).root == mutated_place.root {
+                continue;
+            }
             if !super::place_access::access_interferes(
                 program,
                 &facts.borrow,

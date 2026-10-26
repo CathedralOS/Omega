@@ -308,6 +308,22 @@ fn reference_leaves_with_projection(
             )?
         }
     };
+    // Prefix tracking also knows loaded slots behind references. A stored
+    // value transports its pointer descriptors, not those pointee contents.
+    // Remove only a proved crossing; an unresolved owned region stays unknown
+    // instead of becoming an empty reference/case/move frontier.
+    let owned = |path: &[PlaceSegment]| {
+        !(0..path.len()).any(|length| {
+            projected_storage_type(program, actual, &path[..length]).is_some_and(|reference| {
+                super::super::type_reference_is_reference(program, reference)
+            })
+        })
+    };
+    projected
+        .references
+        .retain(|leaf| owned(&leaf.local_segments));
+    projected.cases.retain(|path| owned(path));
+    projected.moves.retain(|value| owned(&value.local_segments));
     for leaf in &mut projected.references {
         if let Some(origin) = &mut leaf.origin {
             origin.place_mut().source.builtin_coordinates &= source.builtin_coordinates;

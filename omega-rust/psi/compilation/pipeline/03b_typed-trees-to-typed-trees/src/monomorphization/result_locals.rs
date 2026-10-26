@@ -96,7 +96,7 @@ pub(super) fn refresh_generic_call_results(
                 {
                     continue;
                 }
-                if !local.type_is_inferred || !local.role.is_value_binding() {
+                if !local.type_is_inferred || !local.role.has_ordinary_initializer() {
                     continue;
                 }
                 let Some(selection) = selections.iter().find(|selection| {
@@ -274,7 +274,7 @@ pub(crate) fn refresh(
                 let Some(local) = statement.as_local_data() else {
                     continue;
                 };
-                if !local.type_is_inferred || !local.role.is_value_binding() {
+                if !local.type_is_inferred || !local.role.has_ordinary_initializer() {
                     continue;
                 }
                 let is_call = program

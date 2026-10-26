@@ -353,6 +353,16 @@ impl Execution<'_, '_, '_> {
                     }
                 }
             }
+            let has_image = effect.has_static_values || source_images.iter().any(Option::is_some);
+            let has_local = effect.sources.iter().enumerate().any(|(position, source)| {
+                source.lifetime_access.is_none()
+                    && source_images.get(position).is_none_or(Option::is_none)
+            });
+            if has_image && has_local {
+                // Local alternatives cannot locate an unknown image address. Keep
+                // all suppliers and lifetime debts, withholding joined geometry.
+                known = false;
+            }
             if (!known || origins.is_empty())
                 && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
             {

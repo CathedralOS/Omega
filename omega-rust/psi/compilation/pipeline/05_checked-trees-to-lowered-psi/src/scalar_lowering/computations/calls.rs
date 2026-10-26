@@ -593,6 +593,18 @@ impl Expansion<'_> {
             ..
         } = callee
         {
+            let slot_plan = self
+                .checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .dynamic_slots
+                .iter()
+                .find(|plan| plan.slot == *slot)
+                .ok_or(LoweringError::Unsupported(
+                    "selector call has no exact checked shape",
+                ))?;
+            let family_tuple = slot_plan.family_tuple.clone();
             let requirement_identity = self
                 .checked
                 .facts
@@ -653,6 +665,7 @@ impl Expansion<'_> {
                     slot: *slot,
                     interface_identity: interface_identity.clone(),
                     requirement_identity,
+                    family_tuple,
                     result_type,
                     selector: selector_actual.ok_or(LoweringError::Unsupported(
                         "selector call lost its dispatch operand",

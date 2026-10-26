@@ -1,5 +1,5 @@
 //! Activation-local primitive backing and fresh storage observations.
-use super::{KnownUnitInteger, LiveDefinitions};
+use super::{KnownUnitInteger, LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::function_signature::PreparedFunctionSignature;
 use abstract_operations::{AbstractFunction, AbstractOperation};
@@ -7,9 +7,7 @@ use calling_conventions::ValueShape;
 use semantic_vocabulary::{IntegerSign, IntegerType, OperationId, ScalarType, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
-use target_operations::{
-    TargetUnitOperation, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
-};
+use target_operations::{TargetUnitOperation, TargetUnitScalarHomeRequirement};
 use terminal_psi::{
     StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralTypeDeclaration,
     StructuralTypeShape,
@@ -214,13 +212,10 @@ pub(super) fn retain_result(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    types: &crate::lowering::structural_type_lookup::StructuralTypeLookup<'_>,
+    site: &mut RowSite<'_>,
     prepared: &PreparedFunctionSignature,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
     let scalar_matches = |identity, scalar_type| {
         types.get(&identity).is_some_and(|declaration|
             matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(expected) if expected == scalar_type))
@@ -416,8 +411,10 @@ pub(super) fn lower(
                 field,
             )
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            if matches!(declaration.field_type, StructuralFieldType::Atomic(_))
-                && !matches!(access, terminal_psi::mutating_access_pair_pattern!())
+            if matches!(
+                declaration.field_type,
+                StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
+            ) && !matches!(access, terminal_psi::mutating_access_pair_pattern!())
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }

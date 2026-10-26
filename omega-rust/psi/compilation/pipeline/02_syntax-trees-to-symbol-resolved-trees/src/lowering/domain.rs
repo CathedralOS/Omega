@@ -134,6 +134,7 @@ pub(crate) fn lower_domain_definition(
         index_arguments,
         is_public: domain.is_public,
         alias,
+        cleanup_selection: domain.cleanup_selection.as_ref().map(|selection| crate::lowering::expression::lower_static_machine_argument(lowerer, syntax_trees, selection)).transpose()?,
         authored_routes,
         classification: domain.classification,
         predicate_body: domain.predicate_body,

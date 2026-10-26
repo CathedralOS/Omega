@@ -82,6 +82,30 @@ pub(crate) fn lower_machine_into(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
 ) -> Result<(), Diagnostic> {
+    lower_lexical_machine_into(lowerer, syntax_trees, machine, Handle::invalid())
+}
+
+fn lower_lexical_machine_into(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    machine: &syntax::item::Machine,
+    lexical_parent: Handle<Machine>,
+) -> Result<(), Diagnostic> {
+    if lexical_parent.is_valid()
+        && (machine.is_public
+            || machine.attached_data.is_some()
+            || machine.boundary
+            || machine.spelling.is_some())
+    {
+        return Err(Diagnostic::error(
+            "a nested machine is a private independent lexical declaration",
+        ));
+    }
+    if !machine.nested_machines.is_empty()
+        && (!machine.type_parameters.is_empty() || !machine.lifetime_parameters.is_empty())
+    {
+        return Err(Diagnostic::error("nested machines retaining an enclosing static telescope are not yet supported"));
+    }
     // OPERATOR-MACHINE-SUPPLY: `machine.spelling` (the optional fixed token
     // after `machine`) is copied onto the symbol-resolved declaration below
     // and flows through the typed machine record, where the typed lowering
@@ -271,8 +295,9 @@ pub(crate) fn lower_machine_into(
             machine.clone(),
         ));
     }
-    lowerer.symbol_resolved_trees.machines.push(Machine {
+    let declaration = lowerer.symbol_resolved_trees.machines.push(Machine {
         symbol: SymbolHandle::invalid(),
+        lexical_parent,
         name: machine_name,
         generic_data_origin: symbol_resolved_trees::machine::GenericDataMachineOrigin {
             template_source: crate::lowering::name::lower_name(
@@ -340,6 +365,14 @@ pub(crate) fn lower_machine_into(
         },
     });
     lowerer.current_compiler_selection_partition = None;
+    for child in machine.nested_machines.handles() {
+        let syntax::item::Item::Machine(child) = syntax_trees.items.item(child) else {
+            return Err(Diagnostic::error(
+                "a machine lexical scope contains a non-machine declaration",
+            ));
+        };
+        lower_lexical_machine_into(lowerer, syntax_trees, child, declaration)?;
+    }
     Ok(())
 }
 

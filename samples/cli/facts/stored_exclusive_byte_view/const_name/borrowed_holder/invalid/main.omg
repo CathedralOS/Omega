@@ -1,0 +1,22 @@
+// An exclusive byte view stored in a fixed array preserves its one-byte extent and byte 19 through owned transport.
+// Expected rejection: an empty view cannot establish the required one-byte extent.
+// Place: const_name.
+const FIRST: u64 = 0;
+data Shelf<'outer, 'bytes> { windows: &'outer mut [&'bytes mut [u8]; 1]; }
+machine observe(shelf: &mut Shelf) -> bool
+requires shelf.windows[FIRST].len == 1
+{
+    shelf.windows[FIRST][FIRST] == 19 && shelf.windows[FIRST].len == 1
+}
+
+machine main() crashes Trap {
+    let mut backing: [u8; 1] = [19];
+    let mut windows: [&mut [u8]; 1] = [&mut backing[..0]];
+    let mut shelf: Shelf = Shelf { windows: &mut windows };
+    let first: bool = observe(&mut shelf);
+    let second: bool = observe(&mut shelf);
+    let observed: bool = first && second && backing[0] == 19;
+    transition observed { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

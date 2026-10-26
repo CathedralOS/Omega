@@ -50,10 +50,12 @@ pub(crate) fn bind(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     structural_values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     arguments: &[TerminalStructuralScalarFieldValue],
-    mut values: RuntimeRows<StructuralScalarRuntimeField, TerminalScalarValue>,
+    mut values: crate::scalar_storage::ScalarStorageRows<StructuralScalarRuntimeField>,
     zero_initialized_arguments: &[u32],
-) -> Result<RuntimeRows<StructuralScalarRuntimeField, TerminalScalarValue>, TerminalInterpretError>
-{
+) -> Result<
+    crate::scalar_storage::ScalarStorageRows<StructuralScalarRuntimeField>,
+    TerminalInterpretError,
+> {
     for argument in arguments {
         let invalid = || TerminalInterpretError::StructuralScalarFieldArgumentInvalid {
             argument_index: argument.argument_index,

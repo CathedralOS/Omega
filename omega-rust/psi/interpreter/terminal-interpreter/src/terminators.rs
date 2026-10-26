@@ -261,8 +261,8 @@ impl TerminalExecution<'_> {
                     payload_root.clone(),
                     *field,
                 ))
-                .copied()
-                .ok_or(malformed())?;
+                .ok_or(malformed())?
+                .read()?;
             if scalar.scalar_type() != parameter.scalar_type {
                 return Err(malformed());
             }

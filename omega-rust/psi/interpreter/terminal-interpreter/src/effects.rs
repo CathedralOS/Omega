@@ -12,6 +12,7 @@
 pub(crate) mod boundary_predicates;
 pub(crate) mod byte_buffers;
 pub(crate) mod crash_outcome;
+pub(crate) mod original_storage;
 pub(crate) mod results;
 pub(crate) mod scalar_loans;
 pub(crate) mod storage_inputs;
@@ -68,6 +69,26 @@ pub enum TerminalEffect {
 /// Injected semantic effect sink used by the oracle and tests. Native provider
 /// selection and hardware realization remain outside the Psi interpreter.
 pub trait TerminalEffectHandler {
+    /// Whether borrowed storage must lend its actual original homes to this
+    /// host binding. Ordinary semantic buffer adapters keep staged restoration.
+    fn requires_original_storage(&self, _boundary: BoundaryMachineId) -> bool {
+        false
+    }
+    /// Realize the already checked invocation's original allocations. The
+    /// returned rows match requests and their scalar cells exactly. Preparing
+    /// backing performs no provider call and supplies no claims or lifetimes.
+    /// An actual original route must reject unsupported geometry before
+    /// dispatching native code.
+    fn prepare_original_storage(
+        &mut self,
+        _boundary: BoundaryMachineId,
+        _requests: &[original_storage::TerminalOriginalStorageRequest],
+    ) -> Result<original_storage::TerminalOriginalScalarBackings, TerminalEffectRejection> {
+        Err(TerminalEffectRejection::new(
+            "handler does not supply original storage homes",
+        ))
+    }
+
     /// Request captured semantic storage of these structural arguments before
     /// host dispatch. Owned arguments supply immutable payload snapshots;
     /// reading borrows retain their existing restoration protocol. This selects

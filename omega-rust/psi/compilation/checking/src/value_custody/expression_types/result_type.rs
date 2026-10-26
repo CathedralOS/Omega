@@ -482,8 +482,11 @@ fn result_type(
                     })
             })()
         }
-        ExpressionNode::Member(member) => result_type(program, owner, member.receiver, active)
-            .and_then(|receiver| {
+        ExpressionNode::Member(member) => {
+            let receiver_type = result_type(program, owner, member.receiver, active);
+            let mut phase = "receiver";
+            let projected = receiver_type.and_then(|receiver| {
+                phase = "measure";
                 // A compiler-owned measure (`len`, `capacity`) of a fixed array
                 // or slice is a `u64` count, not a declared data field.
                 if crate::collection_operations::collection_measure_member(
@@ -498,6 +501,7 @@ fn result_type(
                         BuiltinTypeAtom::U64,
                     );
                 }
+                phase = "field";
                 let field = crate::value_custody::places::applied_data_member_field(
                     program, receiver, member,
                 )?;
@@ -505,6 +509,7 @@ fn result_type(
                 // still contain the receiver's generic binders before closed
                 // storage preparation. The shared projection owner applies
                 // those arguments while retaining the selected field identity.
+                phase = "projection";
                 crate::project_type_reference_from_segments(
                     program,
                     receiver,
@@ -512,7 +517,24 @@ fn result_type(
                         symbol: field.symbol,
                     }],
                 )
-            }),
+            });
+            if projected.is_none()
+                && active.len() <= 6
+                && let ExpressionOwner::Declaration { owner_symbol, .. } = owner
+                && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+            {
+                eprintln!(
+                    "CHECKSITE declaration-member-type-refusal owner={:?} expression={:?} receiver={:?} receiver_type={:?} member={:?} phase={}",
+                    owner_symbol,
+                    expression,
+                    member.receiver,
+                    receiver_type,
+                    member.member_symbol,
+                    phase,
+                );
+            }
+            projected
+        }
         ExpressionNode::Indexed(indexed) => (|| {
             let operands = [indexed.collection, indexed.index]
                 .map(|operand| result_type(program, owner, operand, active));

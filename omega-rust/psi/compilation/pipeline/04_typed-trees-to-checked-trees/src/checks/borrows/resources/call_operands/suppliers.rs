@@ -186,7 +186,10 @@ pub(super) fn collect(
                         ));
                         for loan in facts.flow.borrow_loan_constraints(leaf.constraints) {
                             let row = facts.borrow.loans.get(loan);
-                            if !facts.borrow.state_owns_loan(borrow_state, loan)
+                            if matches!(
+                                row.lineage,
+                                checked_trees::BorrowLoanLineage::LifetimeDependency
+                            ) || !facts.borrow.state_owns_loan(borrow_state, loan)
                                 || row.storage_owner != source_place.root
                                 || facts.borrow.loan_owner_path(row) != source_path
                             {
@@ -235,6 +238,24 @@ pub(super) fn collect(
         selected.is_some_and(|selected| {
             !selected.is_empty()
                 && selected.into_iter().all(|selected| {
+                    // Opaque inline leaves can retain the exact completed occurrence
+                    // without disclosing a descriptor supplier. Its checked formation
+                    // loan is authority; selecting the same subtree again is a cycle.
+                    if selected.capture == source && selected.projection == projection {
+                        return collect_formed_projection(
+                            program,
+                            facts,
+                            state,
+                            call,
+                            owner_operand,
+                            operand,
+                            capture,
+                            projection,
+                            path,
+                            output_access,
+                            output,
+                        );
+                    }
                     collect(
                         program,
                         facts,
@@ -303,7 +324,10 @@ pub(super) fn collect(
                 // exact occurrence, rather than the current slot path or backing
                 // geometry, identifies the permission carried by this capture.
                 for (loan, row) in facts.borrow.state_loans(borrow_state).filter(|(_, row)| {
-                    capture.expression.is_valid()
+                    !matches!(
+                        row.lineage,
+                        checked_trees::BorrowLoanLineage::LifetimeDependency
+                    ) && capture.expression.is_valid()
                         && row.formation_expression == capture.expression
                         && row.statement_index == capture.statement_index
                 }) {
@@ -427,4 +451,98 @@ fn collect_invocation_accesses(
         }
     }
     InvocationAccessCoverage::Complete
+}
+
+/// Retain the existing loan of one completed result leaf. Public backing
+/// regions are deliberately absent from this lookup: they cannot identify a
+/// supplier or create permission. Destination storage prefixes do not identify
+/// the formation leaf either, so the checker records that relative path once.
+#[allow(clippy::too_many_arguments)]
+fn collect_formed_projection(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: Handle<FlowCallFact>,
+    owner_operand: Handle<FlowOperandFact>,
+    operand: Handle<FlowOperandFact>,
+    capture: &FlowOperandFact,
+    projection: &[facts::PlaceSegment],
+    path: &[BorrowLoanOwnerSegment],
+    output_access: &checked_trees::BorrowAccessKind,
+    output: &mut Vec<ResourceDraft>,
+) -> bool {
+    if capture.state_symbol != state.state_symbol
+        || !capture.expression.is_valid()
+        || projection.iter().any(|segment| {
+            !matches!(
+                segment,
+                facts::PlaceSegment::Field { .. }
+                    | facts::PlaceSegment::Case { .. }
+                    | facts::PlaceSegment::FixedIndex { .. }
+            )
+        })
+    {
+        return false;
+    }
+    let Some(declared) = validation::expression_type_reference_in_state(
+        program,
+        capture.state_symbol,
+        capture.statement_index,
+        capture.expression,
+    ) else {
+        return false;
+    };
+    if !validation::storage_origin_types_match(program, declared, capture.type_reference) {
+        return false;
+    }
+    let Some((_, borrow_state)) = facts
+        .borrow
+        .first_state_borrow(state.machine_symbol, state.state_symbol)
+    else {
+        return false;
+    };
+    let before = output.len();
+    for (loan, row) in facts.borrow.state_loans(borrow_state) {
+        let Some(formed) = row.formation_owner_path else {
+            continue;
+        };
+        // The formation cut can retain lifetime debts alongside descriptor loans.
+        // A keepalive row never supplies a physical address or reborrow permission.
+        if matches!(
+            row.lineage,
+            checked_trees::BorrowLoanLineage::LifetimeDependency
+        ) || row.formation_expression != capture.expression
+            || row.statement_index != capture.statement_index
+            || row.kind.direct_reborrow_effect(output_access).is_none()
+            || crate::borrow::owner_place_segments(
+                facts.borrow.owner_segments.span_or_empty(formed),
+            ) != projection
+        {
+            continue;
+        }
+        output.push(ResourceDraft {
+            resource: CheckedCallBorrowLoanResource {
+                machine_symbol: state.machine_symbol,
+                state_symbol: state.state_symbol,
+                call,
+                owner_operand,
+                operand,
+                source: CheckedCallBorrowLoanSource::StoredLoan { loan },
+                access: output_access.clone(),
+                parent_lifetime: CheckedDirectBorrowParentLifetime {
+                    machine_symbol: state.machine_symbol,
+                    state_symbol: state.state_symbol,
+                    root: row.root,
+                },
+                ..Default::default()
+            },
+            path: path.to_vec(),
+            backing: checked_trees::CapturedPlace {
+                incoming_reference: row.incoming_reference,
+                root: row.root,
+                segments: facts.borrow.loan_segments(row).to_vec(),
+            },
+        });
+    }
+    output.len() > before
 }

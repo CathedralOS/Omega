@@ -44,7 +44,7 @@ mod details;
 mod overlap;
 mod place_access;
 pub(crate) use overlap::{
-    StorageSelectorFacts, captured_storage_paths_are_disjoint, storage_path_compatibility,
+    StorageSelectorFacts, captured_storage_index, captured_storage_paths_are_disjoint, storage_path_compatibility,
 };
 mod simultaneous;
 

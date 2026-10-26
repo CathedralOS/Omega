@@ -145,11 +145,11 @@ pub(crate) fn capture(
     {
         return None;
     }
-    // Call projections end at their selected carrier. Reference formation
-    // instead names the storage it lends: cross every stored reference shell
-    // at that leaf. An ordinary storage endpoint needs no additional crossing.
-    // Stage05 preserves this ending marker independently of ordinary argument
-    // projections; omitting it would borrow a descriptor rather than its referent.
+    // Formation lends the authored referee's storage. Cross stored reference
+    // shells only until that exact storage is reached: a reference to a
+    // descriptor must retain the descriptor, whereas a reborrow of its referent
+    // owes the corresponding load. Equal peeled identities cannot distinguish
+    // those operations. Stage05 consumes these explicit physical crossings.
     let mut endpoint = backing_type;
     // A whole borrowed formal denotes ingress referent storage, not a stored
     // pointer value. Only subsequent reference shells are physical crossings.
@@ -176,7 +176,7 @@ pub(crate) fn capture(
         if !selected_storage.is_valid() {
             return None;
         }
-        if selected_storage == requested_storage {
+        if !is_view && selected_storage == requested_storage {
             break;
         }
         let Some(shell) = validation::reference_shell(program, endpoint) else {
@@ -286,7 +286,22 @@ pub(crate) fn capture(
                 if declaration_index >= statement_index || owner.relevance.is_erased() {
                     return None;
                 }
-                if let Some(shell) = validation::reference_shell(program, owner.type_reference) {
+                if validation::reference_shell(program, owner.type_reference).is_some()
+                    && path.is_empty()
+                    && validation::stored_structural_type_identity(
+                        program,
+                        owner.type_reference,
+                        &[],
+                        &[],
+                    ) == validation::stored_structural_type_identity(program, endpoint, &[], &[])
+                {
+                    // The owned binding is the selected storage, including
+                    // when it stores a reference. Its inner access grants no
+                    // permission to replace that binding or its referent.
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: root }
+                } else if let Some(shell) =
+                    validation::reference_shell(program, owner.type_reference)
+                {
                     let supplied = CheckedStructuralAccess::from(shell.access);
                     if !matches!(
                         (supplied, access),
@@ -309,7 +324,7 @@ pub(crate) fn capture(
                             // Whole-root presentation stops at that exact slot.
                             validation::stored_structural_type_identity(program, endpoint, &[], &[])
                         } else {
-                            validation::logical_structural_type_identity(
+                            validation::stored_structural_type_identity(
                                 program,
                                 shell.referee,
                                 &[],

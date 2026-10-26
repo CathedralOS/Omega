@@ -90,6 +90,7 @@ pub(super) struct PendingIncomingReference {
 pub(super) struct StatementBorrowLoan {
     pub(super) incoming_origin: Option<PendingIncomingReference>,
     pub(super) formation_expression: ExpressionHandle,
+    pub(super) formation_owner_path: Option<Vec<BorrowOwnerSegment>>,
     pub(super) owner_symbol: SymbolHandle,
     pub(super) storage_owner: facts::PlaceRoot,
     pub(super) owner_name: Identifier,

@@ -1609,7 +1609,10 @@ pub(crate) fn scalar_field_fragments<'declarations>(
     declarations: &'declarations [StructuralTypeDeclaration],
 ) -> Option<&'declarations semantic_vocabulary::AuthoredBitFragments> {
     let field = scalar_field_declaration(root, path, field, declarations)?;
-    if matches!(field.field_type, StructuralFieldType::Atomic(_)) {
+    if matches!(
+        field.field_type,
+        StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
+    ) {
         return None;
     }
     let semantic_vocabulary::AuthoredFieldStorage::Fragmented(fragments) =
@@ -1637,7 +1640,9 @@ pub(crate) fn field_shape(
 ) -> Option<ValueShape> {
     match field {
         StructuralFieldType::Scalar(scalar) => scalar_shape(*scalar),
-        StructuralFieldType::Atomic(_) => scalar_shape(field.atomic_scalar_type()?),
+        StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_) => {
+            scalar_shape(field.atomic_scalar_type()?)
+        }
         // Geometry follows the carrier, not the restriction's endpoints.
         // Store admission below still requires separate restricted-field evidence.
         StructuralFieldType::BoundedInteger(bounds) => {
@@ -2351,7 +2356,10 @@ fn scalar_field_geometry(
                 candidate.storage.as_ref()
         {
             if observes_byte_length
-                || matches!(candidate.field_type, StructuralFieldType::Atomic(_))
+                || matches!(
+                    candidate.field_type,
+                    StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
+                )
                 || candidate.field_type.scalar_type() != Some(scalar)
             {
                 return None;
@@ -2427,7 +2435,8 @@ fn scalar_field_geometry(
                 StructuralFieldType::IeeeFloat(format) => {
                     !observes_byte_length && ScalarType::IeeeFloat(format) == scalar
                 }
-                StructuralFieldType::BoundedInteger(bounds) => {
+                StructuralFieldType::BoundedInteger(bounds)
+                | StructuralFieldType::AtomicBoundedInteger(bounds) => {
                     !observes_byte_length && ScalarType::Integer(bounds.integer_type()) == scalar
                 }
                 StructuralFieldType::RefinedScalar(ref refinement) => {

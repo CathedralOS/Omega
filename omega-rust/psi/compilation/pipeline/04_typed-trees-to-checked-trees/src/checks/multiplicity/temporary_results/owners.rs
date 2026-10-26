@@ -90,10 +90,12 @@ fn owned_value_type(
             statement_index,
             &place,
         ) && validation::find_state(program, state_symbol).is_some_and(|(machine, state)| {
+            let statements = program.statement_table.statements(state.statement_nodes);
+            let walk = super::super::borrowed_windows::StorageWalk::new(
+                program, machine, state, statements,
+            );
             super::super::borrowed_windows::authored_route_exclusive(
-                program,
-                machine,
-                state,
+                &walk,
                 statement_index,
                 place.root,
                 &place.segments,

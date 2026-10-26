@@ -290,7 +290,13 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         return proposition_parameter;
     }
 
-    resolve_free_call_target_symbol(symbols, target)
+    match crate::symbols::lookup::lexical_machine_lookup(symbols, machine.symbol, target.as_str()) {
+        SymbolLookup::Unique(declaration) => {
+            machine_entry_symbol(symbols, declaration, target.as_str())
+        }
+        SymbolLookup::Ambiguous { .. } => SymbolHandle::invalid(),
+        SymbolLookup::NotFound => resolve_free_call_target_symbol(symbols, target),
+    }
 }
 
 /// A visible authored callable shadows the outermost builtin. Ambiguity and
@@ -421,7 +427,11 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
         if concrete_type.is_valid() {
             return concrete_type;
         }
-        return resolve_free_machine_entry_state_symbol(symbols, target);
+        return match crate::symbols::lookup::lexical_machine_lookup(symbols, machine_symbol, target.as_str()) {
+            SymbolLookup::Unique(declaration) => machine_entry_symbol(symbols, declaration, target.as_str()),
+            SymbolLookup::Ambiguous { .. } => SymbolHandle::invalid(),
+            SymbolLookup::NotFound => resolve_free_machine_entry_state_symbol(symbols, target),
+        };
     }
 
     let owner = owner.joined_path();

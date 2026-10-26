@@ -43,6 +43,9 @@ pub use value_custody::places::declared_reference_access;
 pub use value_custody::places::{
     applied_data_member_field, declaration_type_reference, declared_case_projection_field,
 };
+pub use value_custody::static_inline_storage::{
+    runtime_inline_array_extent, validate_prepared_inline_storage,
+};
 
 pub use declarations::selection_resolution;
 pub use declarations::source_completion;
@@ -107,8 +110,9 @@ pub use proof_contracts::contract_entailment::{
     completed_value_content_conservation_dependencies,
     completed_value_has_content_conservation_candidate, completed_value_is_bounded_by_static,
     completed_value_preserves_entry_projection, completed_value_proves_backing_addresses,
-    completed_value_proves_content_conservation, completed_value_proves_domain_predicate,
-    completed_value_refutes_domain, owned_contract_subject, unique_literal_field,
+    completed_value_proves_bound_domain_predicate, completed_value_proves_content_conservation,
+    completed_value_proves_domain_predicate, completed_value_refutes_domain,
+    owned_contract_subject, unique_literal_field,
 };
 pub use proof_contracts::contract_results::{
     ReservedResultPlace, callable_contract_scopes, reserved_result_owner, reserved_result_place,
@@ -179,7 +183,8 @@ pub use access_plans::AtomicAccessOperation;
 pub use value_custody::atomic_operations::{
     AtomicCarrierAccess, atomic_assignment_carrier, atomic_execution_children, atomic_load_carrier,
     atomic_once_carrier, atomic_once_operands, atomic_once_result_type, atomic_once_write_place,
-    atomic_resident_type_reference, atomic_value_operands, place_is_atomic_storage,
+    atomic_resident_type_reference, atomic_result_placeholder, atomic_value_operands,
+    place_is_atomic_storage,
 };
 pub use value_custody::places::{
     AttachedStorageRoot, StructuralScalarField, StructuralSource, assignment_target_indexes,
@@ -369,6 +374,10 @@ pub use value_custody::literals::{
     closed_literal_array_elements, closed_record_scalar_projection, closed_scalar_place_projection,
     is_closed_primitive_array_type, peel_arithmetic_policy, scalar_array_elements,
     scalar_array_preserves_memberships,
+};
+pub use value_custody::logical_matches::{
+    LogicalMatchBinding, LogicalRecordCapture, expression_has_closed_value_captures,
+    logical_record_match_capture, logical_saved_subject_projection,
 };
 pub use value_custody::places::ownership_place_from_expression_in_state;
 pub use value_custody::places::{assignment_value_type, declared_place_type_raw};
@@ -600,7 +609,9 @@ pub use proof_contracts::arithmetic_domains::{
 pub use machine_calls::contract_dependencies::{
     independent_call_application, independent_call_site,
 };
-pub use value_custody::type_references::normalize_closed_const_expression;
+pub use value_custody::type_references::{
+    check_closed_const_expression, normalize_closed_const_expression,
+};
 
 pub use value_custody::const_expressions::{
     ImmutableConstRecordProjection, immutable_record_projection,
@@ -609,3 +620,5 @@ pub use value_custody::const_expressions::{
 // One produced-storage association serves checking and flow consumers.
 pub use value_custody::completed_storage;
 pub use value_custody::places::storage_path_relations;
+
+pub use value_custody::membership_evidence;

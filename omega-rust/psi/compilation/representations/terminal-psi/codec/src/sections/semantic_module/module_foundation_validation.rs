@@ -1030,6 +1030,7 @@ fn validate_operation_foundation(
             path,
             field,
             event,
+            resident_obligation,
         } => {
             if !event.ordering_is_legal() {
                 return malformed("atomic access has an illegal ordering");
@@ -1039,18 +1040,36 @@ fn validate_operation_foundation(
                     "atomic location has no declared root".into(),
                 )
             })?;
-            let resident = terminal_semantics::projected_field_declaration(
+            let declaration = terminal_semantics::projected_field_declaration(
                 module.structural_types.iter(),
                 root,
                 path,
                 *field,
             )
-            .and_then(|field| field.field_type.atomic_scalar_type())
             .ok_or_else(|| {
                 CodecError::MalformedStructuralFoundation(
                     "atomic location is not an atomic cell".into(),
                 )
             })?;
+            let resident = declaration.field_type.atomic_scalar_type().ok_or_else(|| {
+                CodecError::MalformedStructuralFoundation(
+                    "atomic location is not an atomic cell".into(),
+                )
+            })?;
+            let bounded = matches!(
+                declaration.field_type,
+                terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
+            );
+            if bounded && event.modifies_resident() && event.replacement().is_none() {
+                return malformed(
+                    "bounded atomic fetch requires universal resident-transition evidence",
+                );
+            }
+            if resident_obligation.is_some() != (bounded && event.modifies_resident()) {
+                return malformed(
+                    "atomic resident establishment obligation disagrees with its declaration and event",
+                );
+            }
             if event
                 .operands()
                 .iter()

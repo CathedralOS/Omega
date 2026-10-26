@@ -44,9 +44,5 @@ fn encode_family(bytes: &mut Vec<u8>, functions: &[crate::FunctionFixedPrecolore
 }
 
 fn length(bytes: &mut Vec<u8>, value: usize) {
-    bytes.extend_from_slice(
-        &u64::try_from(value)
-            .expect("fixed/precolored interval length fits u64")
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::length(bytes, value, "fixed/precolored interval");
 }

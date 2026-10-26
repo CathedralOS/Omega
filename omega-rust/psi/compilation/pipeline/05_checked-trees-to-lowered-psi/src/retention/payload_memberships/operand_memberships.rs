@@ -12,11 +12,14 @@ pub(super) fn retained(
     machine: &terminal_psi::TerminalMachine,
     operation: &terminal_psi::Operation,
     position: (semantic_vocabulary::BlockId, u32),
-    history: &mut descriptors::PayloadMembershipHistory<'_>,
     analysis: &mut descriptors::DescriptorAnalysis<'_>,
+    history: &mut descriptors::PayloadMembershipHistory<'_>,
     memberships: &super::membership_reachability::MembershipReachability,
 ) -> Option<PayloadMembershipContract> {
     let result = operation.result.structural()?;
+    if !memberships.may_contain(result.structural_type) {
+        return None;
+    }
     let shape = &module.structural_type(result.structural_type)?.shape;
     let mut projected_qualifications = Vec::new();
     match &operation.kind {
@@ -88,8 +91,12 @@ pub(super) fn retained(
             // an otherwise legal later mutation would have to preserve.
             if source.access == terminal_psi::StructuralAccess::SharedBorrow
                 && memberships.may_contain(root.carrier)
-                && let Ok(current) =
-                    history.current_selected_payload_contract(position, source.place, path)
+                && let Ok(current) = history.current_selected_payload_contract_in(
+                    analysis,
+                    position,
+                    source.place,
+                    path,
+                )
             {
                 StructuralPathQualification::append_under(
                     &current.qualifications,
@@ -151,6 +158,9 @@ pub(super) fn retained(
             )?;
         }
         _ => return None,
+    }
+    if projected_qualifications.is_empty() {
+        return None;
     }
     projected_qualifications.sort();
     projected_qualifications.dedup();

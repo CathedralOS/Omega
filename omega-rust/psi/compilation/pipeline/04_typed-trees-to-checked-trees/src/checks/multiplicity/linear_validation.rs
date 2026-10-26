@@ -50,12 +50,13 @@ fn unconsumed_linear_value_diagnostic(
     state: symbols::SymbolHandle,
     place: &super::linear_obligations::LinearPlace,
 ) -> Diagnostic {
-    Diagnostic::error(format!(
-        "linear value `{}` reaches scope exit without being consumed or transferred in machine `{}` state `{}`",
-        place.name,
+    let mut diagnostic = place.unconsumed_scope_exit();
+    diagnostic.message.push_str(&format!(
+        " in machine `{}` state `{}`",
         program.symbols.name(machine),
-        program.symbols.name(state)
-    ))
+        program.symbols.name(state),
+    ));
+    diagnostic
 }
 
 pub(crate) fn validate_linear_permission_events(

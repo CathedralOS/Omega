@@ -274,6 +274,7 @@ fn lower_data_definition_with_argument_origins(
                 carry: data_definition.properties.carry,
                 multiplicity: data_definition.properties.multiplicity,
             },
+            cleanup_selection: data_definition.cleanup_selection.as_ref().map(|selection| crate::lowering::expression::lower_static_machine_argument(lowerer, syntax_trees, selection)).transpose()?,
             quotient,
             where_facts,
             zero_gated,

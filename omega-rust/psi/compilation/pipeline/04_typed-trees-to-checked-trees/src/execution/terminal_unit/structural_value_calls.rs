@@ -429,10 +429,7 @@ fn prepare_root(
     let source_calls = facts.flow.control.calls.span(source_flow.calls)?;
     for operation in operations {
         let Some(result) = operation.structural_result_binding() else {
-            let statement = operation
-                .call()
-                .map(|call| call.coordinate.statement_index)
-                .or_else(|| operation.store_statement_index());
+            let statement = operation.source_statement_index();
             if statement.is_some_and(|statement| {
                 order.precedes(statement as usize, root.statement_ordinal as usize)
             }) {

@@ -823,6 +823,14 @@ impl Execution<'_, '_, '_> {
         }) {
             return HandleSpan::empty();
         }
+        // A selector is an independently completed value even when builtin
+        // indexing has no selected operator row to retain its actuals. Keep
+        // that exact epoch for later storage identity and custody judgments.
+        for operand in [Some(start), end].into_iter().flatten() {
+            if operand.expression.is_valid() {
+                self.context.control.operands.insert(*operand);
+            }
+        }
         let indexed = self.program.expression_table.indexed_node(expression);
         let Some(indexed) = indexed else {
             return HandleSpan::empty();
@@ -950,9 +958,24 @@ impl Execution<'_, '_, '_> {
             self.state,
             operand.expression,
             |expression, place| {
-                // Authored literals belong to the arithmetic engine. Only
-                // actual storage observations can bind its captured places.
-                if !matches!(place.root, PlaceRoot::Symbol(_)) {
+                // Authored literals belong to the arithmetic engine. A
+                // typed completed expression can also carry an observation
+                // (for example its call result); its own captured constraints
+                // supply that value, never a replay of its producer.
+                if !matches!(place.root, PlaceRoot::Symbol(_))
+                    && place
+                        .root
+                        .as_expression()
+                        .and_then(|expression| {
+                            validation::declared_place_type_raw(
+                                self.program,
+                                self.machine,
+                                Some(self.state),
+                                expression,
+                            )
+                        })
+                        .is_none()
+                {
                     return None;
                 }
                 let place = super::super::observations::completed_copy_read_place(

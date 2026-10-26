@@ -143,7 +143,7 @@ impl ConsumedOwners {
             return;
         }
         let consumed = ConsumedPlace {
-            spelling: place_spelling(program, machine, state, place.root, &place.segments),
+            spelling: place_spelling(program, place.root, &place.segments),
             root: place.root,
             path: place.segments,
             moved_statement: statement_index,
@@ -173,7 +173,7 @@ impl ConsumedOwners {
         let Some(consumed) = self.consumed_through(&place, route) else {
             return;
         };
-        let spelling = place_spelling(program, machine, state, place.root, &place.segments);
+        let spelling = place_spelling(program, place.root, &place.segments);
         push_once(
             diagnostics,
             consumed_use_message(
@@ -216,7 +216,7 @@ impl ConsumedOwners {
                 && target.segments.len() > consumed.path.len()
                 && place_paths_overlap(&target.segments, &consumed.path)
         }) {
-            let spelling = place_spelling(program, machine, state, target.root, &target.segments);
+            let spelling = place_spelling(program, target.root, &target.segments);
             push_once(
                 diagnostics,
                 format!(

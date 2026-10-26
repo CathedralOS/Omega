@@ -57,6 +57,7 @@ fn main() {
         let name = format!("{ordinal:02}");
         let input = fs::read(inputs.join(format!("{name}.stdin"))).unwrap();
         let observation = terminal_runtime::execute(TerminalRuntimeRequest {
+            native_provider: None,
             x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             artifact,
             target: Some("linux_x86_64"),

@@ -4,6 +4,14 @@ The [recast contract](../../../../wiki/spec/layouts/recasts.md) defines the
 representation judgment. `src/value_custody/recasts.rs` and its child modules implement the
 supported source subset; their restrictions are not new language semantics.
 
+The owner ratified [deferred target establishment](../../../../wiki/spec/layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts)
+for exclusive storage casts on 2026-10-25. A pending target-shaped place must carry
+exact establishment and source-restoration debt, not publish valid-value facts or
+fall through an unchecked cast. The accepted rule does not relax shared casts,
+geometry, domain authority, atomic access or placed-view restrictions. This docs
+settlement does not establish implementation coverage; `DEFERRED-RECAST-ESTABLISHMENT`
+under P2 in TASKS.md owns the source-to-native acceptance, including failure cleanup.
+
 An explicit reference qualification change keeps its descriptor, exact backing
 loan and live routed evidence. Same-carrier domain implication permits forgetting
 non-owning qualifications, not minting provenance. Writable views and shared

@@ -283,7 +283,7 @@ pub(crate) fn nominal_cleanup_target_matches(
     let [receiver] = program.state_parameters(state) else {
         return false;
     };
-    let TypeReferenceNode::Reference { access, .. } = program
+    let TypeReferenceNode::Reference { access, referee, .. } = program
         .type_reference_table
         .type_reference(receiver.type_reference)
     else {
@@ -291,7 +291,9 @@ pub(crate) fn nominal_cleanup_target_matches(
     };
     access.is_readable()
         && access.is_exclusive()
-        && program.parameter_declares_attached_data(machine, receiver)
+        // The selected plan names the exact owned subject. Namespace
+        // attachment is not authority for an independent cleanup machine.
+        && program.normalized_type_identity(*referee) == type_identity
         && !receiver.is_const
         && machine.lifetime_parameters.is_empty()
         && program.machine_type_parameters(machine).is_empty()

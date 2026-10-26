@@ -19,7 +19,6 @@ pub mod flow;
 pub mod keyed_rows;
 pub mod operators;
 pub mod proof;
-pub mod service_parameter;
 pub mod statement;
 pub mod values;
 
@@ -154,7 +153,6 @@ pub use proof::{
     ProofOutputEvidenceArgumentFact, ProofOutputFact, ProofOutputRuntimeCallFact,
     QuantifiedBoundFact, QuantifiedRangeFact, StaticRequirementDispatchFact,
 };
-pub use service_parameter::{CheckedServiceParameterCarrier, CheckedServiceParameterError};
 pub use values::{
     CheckedArrayConstructionSource, CheckedBooleanExpression, CheckedByteSequenceOperand,
     CheckedDispatchSubject, CheckedElementViewRegion, CheckedErasedProofParameterPlan,

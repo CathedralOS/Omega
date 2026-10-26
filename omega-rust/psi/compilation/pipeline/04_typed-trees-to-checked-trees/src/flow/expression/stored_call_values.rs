@@ -34,19 +34,26 @@ impl Execution<'_, '_, '_> {
         if matches!(site, InvocationSite::Transition(_)) {
             return Vec::new();
         }
-        let (parameters, effects) = if let Some(slot) =
-            self.program.dynamic_slot_by_symbol(call.target_symbol)
-        {
-            let Some(effects) = self
-                .context
-                .call_frames
-                .and_then(|frames| frames.dynamic_stored_reference_effects(slot.symbol))
-            else {
-                return Vec::new();
-            };
-            (slot.parameters.as_slice(), std::rc::Rc::new(effects))
+        let mut inputs = inputs;
+        let contract = if let Some(slot) = self.program.dynamic_slot_by_symbol(call.target_symbol) {
+            if let Some((machine, state, selected)) = self.selected_store_target(call, inputs) {
+                inputs = selected;
+                validation::ReferenceSlotContract::CheckedBody { machine, state }
+            } else {
+                let Some(effects) = self
+                    .context
+                    .call_frames
+                    .and_then(|frames| frames.dynamic_stored_reference_effects(slot.symbol))
+                else {
+                    return Vec::new();
+                };
+                validation::ReferenceSlotContract::Opaque {
+                    parameters: slot.parameters.as_slice(),
+                    effects,
+                }
+            }
         } else {
-            let contract = self.context.call_frames.and_then(|frames| {
+            let Some(contract) = self.context.call_frames.and_then(|frames| {
                 frames.reference_slot_contract(
                     self.machine,
                     self.state,
@@ -55,43 +62,42 @@ impl Execution<'_, '_, '_> {
                     call.target_symbol,
                     call.authored_expression,
                 )
-            });
-            let Some(contract) = contract else {
+            }) else {
                 return Vec::new();
             };
-            match contract {
-                validation::ReferenceSlotContract::CheckedBody { machine, state } => {
-                    let parameters = self.program.state_parameters(state);
-                    if inputs.len() != parameters.len() {
-                        return Vec::new();
-                    }
-                    // A complete ordinary empty union has no descriptor slot to
-                    // refine. Reuse that target memo before observing scalar cuts.
-                    // Unavailable relations are not empty and continue below.
-                    if self
-                        .context
-                        .stored_reference_effects(machine, state, &[])
-                        .is_some_and(|effects| effects.is_empty())
-                    {
-                        return Vec::new();
-                    }
-                    let Some(indices) = self.captured_argument_indices(parameters, inputs.iter())
-                    else {
-                        return Vec::new();
-                    };
-                    let Some(effects) = self
-                        .context
-                        .stored_reference_effects(machine, state, &indices)
-                    else {
-                        return Vec::new();
-                    };
-                    (parameters, effects)
+            contract
+        };
+        let (parameters, effects) = match contract {
+            validation::ReferenceSlotContract::CheckedBody { machine, state } => {
+                let parameters = self.program.state_parameters(state);
+                if inputs.len() != parameters.len() {
+                    return Vec::new();
                 }
-                validation::ReferenceSlotContract::Opaque {
-                    parameters,
-                    effects,
-                } => (parameters, std::rc::Rc::new(effects)),
+                // An established empty body relation has no descriptor slot to refine.
+                // Unavailable is not empty; scalar cuts are read only when needed.
+                if self
+                    .context
+                    .stored_reference_effects(machine, state, &[])
+                    .is_some_and(|effects| effects.is_empty())
+                {
+                    return Vec::new();
+                }
+                let Some(indices) = self.captured_argument_indices(parameters, inputs.iter())
+                else {
+                    return Vec::new();
+                };
+                let Some(effects) = self
+                    .context
+                    .stored_reference_effects(machine, state, &indices)
+                else {
+                    return Vec::new();
+                };
+                (parameters, effects)
             }
+            validation::ReferenceSlotContract::Opaque {
+                parameters,
+                effects,
+            } => (parameters, std::rc::Rc::new(effects)),
         };
         if inputs.len() != parameters.len() {
             return Vec::new();

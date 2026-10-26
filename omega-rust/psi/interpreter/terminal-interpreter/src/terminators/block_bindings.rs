@@ -257,7 +257,7 @@ impl BlockBindings {
                         place,
                     )
                     .map(|value| value.structural_type)?;
-                    if claims.values().any(|claim| claim.place == Some(place))
+                    if crate::custody::place_is_claimed(&claims, place)
                         || frontier
                             .iter()
                             .filter(|entry| entry.place == place)
@@ -392,11 +392,6 @@ impl TerminalExecution<'_> {
             .enumerate()
         {
             if usize::try_from(parameter.position).ok() != Some(position)
-                || (parameter.access != StructuralAccess::Owned
-                    && self
-                        .live_claims
-                        .values()
-                        .any(|claim| claim.place == Some(argument.place)))
                 || argument.access != parameter.access
             {
                 return Err(malformed());
@@ -751,10 +746,7 @@ impl TerminalExecution<'_> {
         // A destination may already name a source of this simultaneous move,
         // but may not overwrite any independently held claim or owned value.
         for parameter in &block.structural_parameters {
-            if self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(parameter.place))
+            if crate::custody::place_is_claimed(&self.live_claims, parameter.place)
                 && !owned_sources.contains(&parameter.place)
             {
                 return Err(malformed());

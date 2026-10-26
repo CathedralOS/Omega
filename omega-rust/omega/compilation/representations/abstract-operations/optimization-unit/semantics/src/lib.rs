@@ -27,7 +27,7 @@ mod error;
 pub mod placed_references;
 mod unit_validation;
 
-pub use error::OptimizationUnitValidationError;
+pub use error::{OperationSite, OptimizationUnitValidationError};
 
 // Declaration custody shared by validation and target realization. This query
 // grants neither current availability nor permission for a particular access.

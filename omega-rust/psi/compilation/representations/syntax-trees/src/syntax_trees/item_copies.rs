@@ -352,6 +352,10 @@ impl SyntaxCopy<'_> {
                             .map(|constituent| self.copy_item_identifier_span(other, *constituent))
                             .collect(),
                     }),
+                cleanup_selection: domain
+                    .cleanup_selection
+                    .as_ref()
+                    .map(|selection| self.copy_static_machine_argument(other, selection)),
                 authored_routes: domain.authored_routes.clone(),
                 classification: domain.classification,
                 predicate_body: domain.predicate_body,
@@ -424,6 +428,10 @@ impl SyntaxCopy<'_> {
         DataDefinition {
             name: data.name.clone(),
             is_public: data.is_public,
+            cleanup_selection: data
+                .cleanup_selection
+                .as_ref()
+                .map(|selection| self.copy_static_machine_argument(other, selection)),
             supply_mode: data.supply_mode,
             lifetime_parameters: data.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, data.type_parameters),
@@ -514,6 +522,16 @@ impl SyntaxCopy<'_> {
     }
 
     fn copy_machine(&mut self, other: &SyntaxTrees, machine: &Machine) -> Machine {
+        let children = machine
+            .nested_machines
+            .handles()
+            .map(|handle| self.copy_item(other, other.items.item(handle)))
+            .collect::<Vec<_>>();
+        let mut nested_machines = HandleSpan::empty();
+        for child in children {
+            let handle = self.items.append_item(child);
+            nested_machines.push_contiguous(handle);
+        }
         Machine {
             target_family_interface: machine.target_family_interface,
             name: machine.name.clone(),
@@ -578,6 +596,7 @@ impl SyntaxCopy<'_> {
             admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
             contracts: self.copy_capability_contract_span(other, machine.contracts),
             states: self.copy_state_handle_span(other, machine.states),
+            nested_machines,
         }
     }
 

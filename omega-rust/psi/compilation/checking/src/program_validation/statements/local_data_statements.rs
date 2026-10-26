@@ -24,7 +24,7 @@ pub(super) fn validate(
     // move and rejects qualified subjects as implicit domain weakening. The
     // destructure checker validates coverage; actual field bindings retain the
     // Value role and all ordinary store, access, and qualification obligations.
-    if local_data.role != language_core::LocalBindingRole::Value {
+    if !local_data.role.is_runtime_binding() {
         return;
     }
     let StatementScope {
@@ -50,6 +50,8 @@ pub(super) fn validate(
         diagnostics,
         TypeReferenceOwner::StateLocalData {
             machine,
+            current_state,
+            value_environment,
             state: state_name,
             local: local_data.name.as_str(),
             generic_depth: 0,
@@ -81,6 +83,81 @@ pub(super) fn validate(
         machine.name,
         local_data.name.as_str()
     );
+    if local_data.role == language_core::LocalBindingRole::AtomicObservedResult {
+        let Some(state) = current_state else {
+            diagnostics.push(Diagnostic::error("atomic result requires its source state"));
+            return;
+        };
+        let Some(event) = crate::atomic_result_placeholder(program, state, local_data) else {
+            diagnostics.push(Diagnostic::error(
+                "atomic result reservation lost its completing event",
+            ));
+            return;
+        };
+        let mut before_event = event.operands.clone();
+        before_event.push(event.place);
+        crate::expression_traversal::collect_type_expressions(
+            program,
+            local_data.type_reference,
+            &mut Vec::new(),
+            &mut before_event,
+        );
+        if crate::expression_traversal::visit_pre_order(
+            program,
+            before_event,
+            |_, node| matches!(node, typed_trees::expression::ExpressionNode::Name(path) if path.symbol == local_data.symbol || path.head_symbol == local_data.symbol),
+        ) {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} cannot consume its atomic result before the event completes"
+            )));
+            return;
+        }
+        let reference = crate::declared_place_type_raw(program, machine, Some(state), event.place);
+        let primitive = reference.and_then(|reference| program.primitive_type_reference(reference));
+        if primitive.is_none() || primitive != local_target_primitive {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} requires the exact atomic instruction-observed resident type"
+            )));
+            return;
+        }
+        domain_weakening::validate_implicit_domain_weakening(
+            program,
+            machine,
+            Some(state),
+            event.place,
+            local_data.type_reference,
+            &owner,
+            diagnostics,
+        );
+        let interval = arithmetic_domains::atomic_resident_interval(
+            program,
+            machine,
+            Some(state),
+            event.place,
+        )
+        .unwrap_or(arithmetic_domains::Interval::UNBOUNDED);
+        arithmetic_domains::check_range_containment(
+            program,
+            local_data.type_reference,
+            arithmetic_domains::IntegerValueObservation {
+                machine,
+                state: Some(state),
+                expression: event.result,
+                environment: value_environment,
+                interval,
+            },
+            &owner,
+            diagnostics,
+        );
+        // The reserved name has no initializer value, literal equality or alias.
+        arithmetic_domains::record_assignment(
+            value_environment,
+            Some(local_data.name.to_string()),
+            arithmetic_domains::Interval::UNBOUNDED,
+            None,
+        );
+        return;
+    }
     if let Some(carrier) = crate::atomic_once_carrier(program, local_data.initial_value) {
         let resident = crate::value_custody::places::declared_place_type(
             program,
@@ -96,6 +173,16 @@ pub(super) fn validate(
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type"
             )));
+        } else {
+            super::atomic_establishment::validate_once_resident(
+                scope,
+                local_data,
+                &carrier,
+                value_environment,
+                arithmetic_decisions,
+                &owner,
+                diagnostics,
+            );
         }
     }
     // Unit is not storage for an initializer's value. Generated

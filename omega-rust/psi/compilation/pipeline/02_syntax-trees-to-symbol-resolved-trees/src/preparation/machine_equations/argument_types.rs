@@ -16,6 +16,8 @@ use symbol_resolved_trees::{SymbolResolvedTrees, expression, statement, types};
 use symbols::{SymbolHandle, SymbolKind};
 use syntax_trees::{SyntaxTrees, types::TypeReferenceHandle};
 
+mod projections;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DeclaredTypeOrigin {
     Parameter(Handle<symbol_resolved_trees::signature::StateParameter>),
@@ -196,62 +198,14 @@ fn expression_types<'trees>(
             declared_type(syntax, trees, sources, name.symbol, false)
                 .map(|reference| vec![reference])
         }
-        expression::ExpressionNode::Member(member) => {
-            if member.member_symbol.is_valid() {
-                return declared_type(syntax, trees, sources, member.member_symbol, false)
-                    .map(|reference| vec![reference]);
-            }
-            // General value projections can wait until typing to acquire a
-            // member symbol. Their declared receiver still selects one exact
-            // nominal owner here. The selector names a child of THAT owner;
-            // neither a global leaf-name search nor initializer shape is used.
-            // Case payloads require their separately selected case identity.
-            if member.case_variant.is_some() {
-                return None;
-            }
-            let Some(receivers) = expression_types(
-                syntax,
-                trees,
-                sources,
-                member.receiver,
-                selection,
-                pending_diagnostics,
-            ) else {
-                return None;
-            };
-            let mut fields = Vec::new();
-            for (_, mut reference) in receivers {
-                loop {
-                    reference = match reference {
-                        types::TypeReference::Reference(reference) => {
-                            trees.child_type_reference(reference.referee)
-                        }
-                        types::TypeReference::Constrained(reference) => {
-                            trees.child_type_reference(reference.base_type)
-                        }
-                        _ => break,
-                    };
-                }
-                let types::TypeReference::Named { symbol, .. } = reference else {
-                    return None;
-                };
-                if trees.data_definition_by_symbol(*symbol).is_none() {
-                    return None;
-                }
-                let Some(field) = trees.symbols.find_child_by_name_and_kind(
-                    *symbol,
-                    member.member.as_str(),
-                    SymbolKind::Field,
-                ) else {
-                    return None;
-                };
-                let Some(field) = declared_type(syntax, trees, sources, field, false) else {
-                    return None;
-                };
-                fields.push(field);
-            }
-            Some(fields)
-        }
+        expression::ExpressionNode::Member(member) => projections::member_types(
+            syntax,
+            trees,
+            sources,
+            member,
+            selection,
+            pending_diagnostics,
+        ),
         expression::ExpressionNode::Call(call) => {
             if let Some(reference) = declared_type(syntax, trees, sources, call.target_symbol, true)
             {

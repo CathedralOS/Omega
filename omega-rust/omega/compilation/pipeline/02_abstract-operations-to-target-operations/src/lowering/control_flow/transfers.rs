@@ -239,7 +239,9 @@ fn address_join_argument(
         (home.place() == argument.place
             && (parameter.access == terminal_psi::StructuralAccess::SharedBorrow
                 || home.access() == terminal_psi::StructuralAccess::Owned)
-            && !home.has_claims()
+            // A loan leaves the owning home and its claims in place.
+            // Current ownership and loan checks authenticate availability;
+            // the address carrier does not transfer those claim identities.
             && home.multiplicity() != terminal_psi::StructuralMultiplicity::Linear
             && accessible(home.structural_type(), home.multiplicity(), home.access()))
         .then(|| home.structural_type())

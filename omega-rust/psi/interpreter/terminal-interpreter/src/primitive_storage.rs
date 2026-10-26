@@ -333,6 +333,21 @@ fn local_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTyp
 }
 
 impl TerminalExecution<'_> {
+    /// Native completion already changed these original bytes. Commit only
+    /// their ordinary provenance invalidation; replaying a staged snapshot
+    /// would overwrite the provider's actual result.
+    pub(crate) fn record_original_scalar_write(
+        &mut self,
+        storage: &PrimitiveStorage,
+    ) -> Result<(), TerminalInterpretError> {
+        let changed = match &storage.endpoint {
+            PrimitiveStorageEndpoint::Scalar(home) => home,
+            PrimitiveStorageEndpoint::ScalarField(field) => &field.parent,
+            _ => return Err(malformed()),
+        };
+        self.invalidate_stored_provenance(changed);
+        Ok(())
+    }
     /// Prepare the same original endpoint for ordinary calls and host staging.
     /// In particular, a local array's scalar payload stays in its owner's
     /// activation; its observation descriptor never creates another scalar row.
@@ -1394,6 +1409,7 @@ impl TerminalExecution<'_> {
                         && (!matches!(
                             field.field_type,
                             terminal_psi::StructuralFieldType::Atomic(_)
+                                | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
                         ) || matches!(observation, ScalarStorageObservation::ExclusiveSnapshot))
                         && field.field_type.scalar_type() == Some(scalar_type)
                     {
@@ -1410,6 +1426,9 @@ impl TerminalExecution<'_> {
                                 || matches!(
                                     field.field_type,
                                     terminal_psi::StructuralFieldType::Atomic(_)
+                                        | terminal_psi::StructuralFieldType::AtomicBoundedInteger(
+                                            _
+                                        )
                                 )
                             {
                                 return Err(malformed());
@@ -1745,6 +1764,7 @@ impl TerminalExecution<'_> {
         if matches!(
             field.field_type,
             terminal_psi::StructuralFieldType::Atomic(_)
+                | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
         ) {
             return Err(malformed());
         }
@@ -1812,7 +1832,8 @@ impl TerminalExecution<'_> {
         let mut value = self
             .structural_scalar_fields
             .get(&observed.cell)
-            .copied()
+            .map(crate::scalar_storage::ScalarCell::read)
+            .transpose()?
             .ok_or(TerminalInterpretError::StructuralScalarFieldMissing {
                 source,
                 field: observed.declaration.id,
@@ -1989,18 +2010,20 @@ impl TerminalExecution<'_> {
             PrimitiveStorageEndpoint::Scalar(storage) => self
                 .structural_primitive_storage
                 .get(&storage)
-                .copied()
+                .map(crate::scalar_storage::ScalarCell::read)
+                .transpose()?
                 .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
                     source,
                 )),
-            PrimitiveStorageEndpoint::ScalarField(field) => {
-                self.structural_scalar_fields.get(&field).copied().ok_or(
-                    TerminalInterpretError::StructuralScalarFieldMissing {
-                        source,
-                        field: field.field,
-                    },
-                )
-            }
+            PrimitiveStorageEndpoint::ScalarField(field) => self
+                .structural_scalar_fields
+                .get(&field)
+                .map(crate::scalar_storage::ScalarCell::read)
+                .transpose()?
+                .ok_or(TerminalInterpretError::StructuralScalarFieldMissing {
+                    source,
+                    field: field.field,
+                }),
             PrimitiveStorageEndpoint::ViewByte { bytes, index } => {
                 let Some(integer) = scalar_type.as_integer() else {
                     return Err(malformed());
@@ -2250,7 +2273,7 @@ impl TerminalExecution<'_> {
                         field: field.field,
                     },
                 )?;
-                *stored = scalar;
+                stored.write(scalar)?;
             }
             PrimitiveStorageEndpoint::ArrayElement { array, index } => {
                 let TerminalScalarValue::Integer {
@@ -2309,10 +2332,7 @@ impl TerminalExecution<'_> {
             .map(|result| result.place)
         {
             if self.live_affine_discard_at(place).is_some()
-                || self
-                    .live_claims
-                    .values()
-                    .any(|claim| claim.place == Some(place))
+                || crate::custody::place_is_claimed(&self.live_claims, place)
             {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }

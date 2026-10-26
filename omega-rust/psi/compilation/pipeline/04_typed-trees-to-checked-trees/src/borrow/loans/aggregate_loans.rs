@@ -69,7 +69,10 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
     match initializer.kind {
-        BorrowedInitializerKind::Reference { access } => {
+        BorrowedInitializerKind::Reference {
+            access,
+            type_reference,
+        } => {
             let kind = checked_trees::BorrowAccessKind::from(access);
             if let Some(mut loans) = super::returned_carriers::result_loans(
                 program,
@@ -111,11 +114,19 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
                 return Vec::new();
             };
             let retained_access = geometry.retained_access(program, &kind);
-            let rebased =
-                rebase_borrow_geometry_through_local_loans(program, geometry, loan_trackers);
+            let rebased = rebase_reference_formation_geometry(
+                program,
+                state_symbol,
+                statement_index,
+                initializer.expression,
+                type_reference,
+                geometry,
+                loan_trackers,
+            );
             rebased
                 .iter()
                 .map(|source| StatementBorrowLoan {
+                    formation_owner_path: None,
                     incoming_origin: None,
                     formation_expression: initializer.expression,
                     representation_address: source.representation_address.clone(),
@@ -259,6 +270,7 @@ pub(super) fn aggregate_expression_borrow_loans(
             rebased
                 .iter()
                 .map(|source| StatementBorrowLoan {
+                    formation_owner_path: None,
                     incoming_origin: None,
                     formation_expression: expression,
                     representation_address: None,
@@ -304,14 +316,30 @@ pub(super) fn aggregate_expression_borrow_loans(
             ) else {
                 return Vec::new();
             };
-            transferred_aggregate_loans(
-                program,
-                local_data,
-                expression,
-                &source,
-                owner_path_prefix,
-                loan_trackers.iter(),
-            )
+            // Copy the selected aggregate's descriptor leaves, not the
+            // containing pointer's whole-reference loan. Rebase every checked
+            // containing boundary before selecting leaf owner paths; each leaf
+            // keeps its historical supplier and independent activation below.
+            // A lifetime-only dependency is not a pointer to follow: preserve
+            // its original source occurrence for ordinary custody checking.
+            rebase_borrow_places_through_local_loans(program, source, loan_trackers)
+                .iter()
+                .flat_map(|source| {
+                    let storage = if source.lifetime_only {
+                        &source.source_place
+                    } else {
+                        &source.place
+                    };
+                    transferred_aggregate_loans(
+                        program,
+                        local_data,
+                        expression,
+                        storage,
+                        owner_path_prefix,
+                        loan_trackers.iter(),
+                    )
+                })
+                .collect()
         }
         checked_trees::expression::ExpressionNode::Cast(cast) if !cast.form.is_recast() => {
             // A same-carrier value cast preserves denotation and can erase only
@@ -451,6 +479,7 @@ pub(super) fn result_source_loans(
                             place.segments.extend_from_slice(&projection);
                         }
                         StatementBorrowLoan {
+                            formation_owner_path: None,
                             incoming_origin: None,
                             formation_expression: argument,
                             representation_address: None,
@@ -522,6 +551,7 @@ fn transferred_aggregate_loans<'loan>(
             let mut prefixed_owner_path = owner_path_prefix.to_vec();
             prefixed_owner_path.extend(owner_path);
             Some(StatementBorrowLoan {
+                formation_owner_path: None,
                 incoming_origin: None,
                 formation_expression: expression,
                 representation_address: None,

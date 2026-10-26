@@ -155,6 +155,10 @@ pub struct FlowControlFacts {
     pub copied_values: Arena<super::FlowCopiedValue>,
     pub copied_value_uses: Arena<super::FlowCopiedValueUse>,
     pub captured_reference_leaves: Arena<super::FlowCapturedReferenceLeaf>,
+    /// Captured occurrences grouped by their actual evaluated expression.
+    /// The shared index follows the operand arena's exact mutation revision.
+    pub operands_by_expression:
+        KeyedRows<typed_trees::expression::ExpressionHandle, super::FlowOperandFact>,
     pub operand_children: Arena<super::FlowOperandChild>,
     pub operand_alternatives: Arena<super::FlowOperandAlternative>,
     pub operand_child_paths: Arena<facts::PlaceSegment>,
@@ -187,6 +191,19 @@ pub struct FlowControlFacts {
 }
 
 impl FlowControlFacts {
+    pub fn with_expression_operands<R>(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+        run: impl FnOnce(&[arena::Handle<super::FlowOperandFact>]) -> R,
+    ) -> R {
+        self.operands_by_expression.with_rows(
+            &self.operands,
+            |operand| operand.expression,
+            &expression,
+            run,
+        )
+    }
+
     /// Complete captured lifetime dependencies, never exact address evidence.
     pub fn retained_roots(
         &self,
@@ -223,6 +240,7 @@ impl FlowControlFacts {
             copied_values: Arena::default(),
             copied_value_uses: Arena::default(),
             captured_reference_leaves: Arena::default(),
+            operands_by_expression: KeyedRows::default(),
             operand_children: Arena::default(),
             operand_alternatives: Arena::default(),
             operand_child_paths: Arena::default(),
@@ -518,6 +536,6 @@ paged_flow_roots!(FlowControlFacts {
         exit_parameter_origins,
         states,
     ],
-    indexes: [],
+    indexes: [operands_by_expression],
     lists: [retired_calls],
 });

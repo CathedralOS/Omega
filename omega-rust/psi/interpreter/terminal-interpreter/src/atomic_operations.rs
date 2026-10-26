@@ -90,12 +90,15 @@ impl TerminalExecution<'_> {
                 .ok_or(TerminalInterpretError::VerifiedValueMissing(value))
         };
         let prior = if event.observes_resident() {
-            let prior = self.structural_scalar_fields.get(&cell).copied().ok_or(
-                TerminalInterpretError::StructuralScalarFieldMissing {
+            let prior = self
+                .structural_scalar_fields
+                .get(&cell)
+                .map(crate::scalar_storage::ScalarCell::read)
+                .transpose()?
+                .ok_or(TerminalInterpretError::StructuralScalarFieldMissing {
                     source: place,
                     field,
-                },
-            )?;
+                })?;
             if prior.scalar_type() != scalar_type {
                 return Err(malformed());
             }

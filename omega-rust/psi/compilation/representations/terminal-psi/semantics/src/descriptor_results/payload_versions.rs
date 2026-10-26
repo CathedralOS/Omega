@@ -689,3 +689,96 @@ mod tests {
         );
     }
 }
+
+/// Recover actual scalar operands stored into the exact version observed by a
+/// read. Arithmetic facts and call guarantees cannot create this transport:
+/// the adapter separately authenticates every writer against its operation.
+pub fn unchanged_stored_scalar_sources(
+    types: &[StructuralTypeDeclaration],
+    graph: &[DescriptorMachine],
+    identity: MachineId,
+    value: semantic_vocabulary::ValueId,
+    mut actual_writes: impl FnMut(
+        DescriptorPosition,
+    ) -> Vec<(DescriptorLocation, semantic_vocabulary::ValueId)>,
+) -> Option<Vec<semantic_vocabulary::ValueId>> {
+    let machine = descriptor_machine(graph, identity)?;
+    let mut reads = machine
+        .scalar_payload_reads
+        .iter()
+        .flat_map(|(position, rows)| {
+            rows.iter().filter_map(move |(location, term)| {
+                matches!(term, semantic_vocabulary::ScalarTerm::Value { id, .. } if *id == value)
+                    .then_some((*position, location))
+            })
+        });
+    let (observation, observed) = reads.next()?;
+    if reads.next().is_some() {
+        return None;
+    }
+    let mut analysis = DescriptorAnalysis::with_reference_slots(types, graph);
+    let home = direct_owned_storage(types, machine, observed)
+        .or_else(|| analysis.location(identity, observation, observed))?;
+    let mut sources = Vec::new();
+    for &producer in machine.flow.keys() {
+        if producer == observation {
+            continue;
+        }
+        for (written, id) in actual_writes(producer) {
+            let destinations = if machine.payload_producers.get(&producer) == Some(&written.root) {
+                vec![written.clone()]
+            } else {
+                let Some(destination) = direct_owned_storage(types, machine, &written)
+                    .or_else(|| analysis.location(identity, producer, &written))
+                else {
+                    continue;
+                };
+                vec![destination]
+            };
+            let [destination] = destinations.as_slice() else {
+                continue;
+            };
+            if destination != &home {
+                continue;
+            }
+            if require_unchanged_between(
+                machine,
+                &mut analysis,
+                producer,
+                observation,
+                &DescriptorPayloadTarget::Storage(home.clone()),
+            )
+            .is_ok()
+            {
+                sources.push(id);
+            }
+        }
+    }
+    sources.sort();
+    sources.dedup();
+    (!sources.is_empty()).then_some(sources)
+}
+
+/// A plain local carrier has its own address even if a later unresolved call
+/// prevents whole-machine contents replay. This proves only the address of
+/// its typed scalar/aggregate storage, never the contents or borrow access.
+fn direct_owned_storage(
+    types: &[StructuralTypeDeclaration],
+    machine: &DescriptorMachine,
+    location: &DescriptorLocation,
+) -> Option<DescriptorLocation> {
+    let mut places = machine
+        .places
+        .iter()
+        .filter(|row| row.place == location.root);
+    let place = places.next()?;
+    if places.next().is_some() || !matches!(place.definition, super::DescriptorDefinition::Local) {
+        return None;
+    }
+    let ty = *machine.place_types.get(&location.root)?;
+    if !super::plain_owned_shape(types.iter(), ty) {
+        return None;
+    }
+    crate::descriptor_lifetimes::descriptor_path(types, ty, &location.path)?;
+    Some(location.clone())
+}

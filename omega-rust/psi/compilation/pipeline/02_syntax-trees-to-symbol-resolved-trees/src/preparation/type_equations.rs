@@ -69,6 +69,18 @@ use syntax_trees::types::{
 
 mod type_structure;
 
+pub(crate) fn type_reference_parameter_mentions(
+    syntax: &SyntaxTrees,
+    reference: TypeReferenceHandle,
+    names: &[String],
+) -> Vec<usize> {
+    let mut mentions = Vec::new();
+    if reference.is_valid() {
+        type_structure::collect_binder_mentions(syntax, reference, names, &mut mentions);
+    }
+    mentions
+}
+
 /// One declaration-level `where` fact that states a type equation, by its offset in
 /// the template's fact span. Instances never carry it: applying the template
 /// decides it against the complete argument tuple.
@@ -79,6 +91,22 @@ pub(crate) struct TypeEquation {
 }
 
 impl TypeEquation {
+    /// Keep non-equation telescope slots out of structural matching without
+    /// letting their names be reselected as closed declarations.
+    pub(crate) fn mentions_parameter(
+        &self,
+        syntax: &SyntaxTrees,
+        names: &[String],
+        index: usize,
+    ) -> bool {
+        match &self.shape {
+            EquationShape::Structural {
+                binder, structure, ..
+            } => *binder == index || structure.binder_mentions(syntax, names).contains(&index),
+            EquationShape::KindMismatch { .. } => false,
+        }
+    }
+
     pub(crate) fn validate_kind(&self, declaration: &str) -> Result<(), Diagnostic> {
         if let EquationShape::KindMismatch { span, description } = &self.shape {
             return Err(Diagnostic::error(format!(
@@ -280,12 +308,17 @@ impl Structure {
                 );
             }
             Structure::RangeShell {
+                carrier,
                 carrier_binder,
                 minimum,
                 maximum,
                 ..
             } => {
-                mentions.extend(*carrier_binder);
+                mentions.extend(carrier_binder.or_else(|| {
+                    parameters
+                        .iter()
+                        .position(|parameter| parameter == carrier.as_str(syntax))
+                }));
                 for endpoint in [minimum, maximum] {
                     match endpoint {
                         Endpoint::Binder(index) => mentions.push(*index),
@@ -301,7 +334,11 @@ impl Structure {
                     }
                 }
             }
-            Structure::Name { binder, .. } => mentions.extend(*binder),
+            Structure::Name { name, binder } => mentions.extend(binder.or_else(|| {
+                parameters
+                    .iter()
+                    .position(|parameter| parameter == name.as_str(syntax))
+            })),
         }
         mentions
     }
@@ -651,11 +688,54 @@ fn collect_expression_binder_mentions(
             collect_expression_binder_mentions(syntax, member.receiver, parameters, mentions);
         }
         ExpressionNode::Call(call) => {
+            collect_expression_binder_mentions(syntax, call.receiver, parameters, mentions);
+            if let Some(index) = parameters
+                .iter()
+                .position(|parameter| parameter == call.target.as_str(syntax))
+            {
+                mentions.push(index);
+            }
+            for argument in &call.machine_arguments {
+                collect_static_argument_binder_mentions(syntax, argument, parameters, mentions);
+            }
             for argument in syntax.expressions.expression_handles(call.arguments) {
                 collect_expression_binder_mentions(syntax, *argument, parameters, mentions);
             }
         }
         _ => {}
+    }
+}
+
+fn collect_static_argument_binder_mentions(
+    syntax: &SyntaxTrees,
+    argument: &syntax_trees::expression::StaticMachineArgument,
+    parameters: &[String],
+    mentions: &mut Vec<usize>,
+) {
+    if argument.type_reference.is_valid() {
+        type_structure::collect_binder_mentions(
+            syntax,
+            argument.type_reference,
+            parameters,
+            mentions,
+        );
+    }
+    let name = match (&*argument.path, &argument.evidence_projection) {
+        ([name], _) => Some(name),
+        (_, Some(projection)) => Some(&projection.term),
+        _ => None,
+    };
+    if let Some(name) = name
+        && let Some(index) = parameters
+            .iter()
+            .position(|parameter| parameter == name.as_str(syntax))
+    {
+        mentions.push(index);
+    }
+    if let Some(application) = &argument.application {
+        for argument in &application.arguments {
+            collect_static_argument_binder_mentions(syntax, argument, parameters, mentions);
+        }
     }
 }
 

@@ -89,10 +89,11 @@ changes. When a repair adds or changes a construct, carrier, access
 mode, cleanup disposition, or target rule, complete the entire source-to-native
 path in the same change rather than splitting work by compiler stage.
 
-Read the whole item's acceptance and verify its remaining gap against a fresh
-current-main compiler build (`build/gate-cli`), never an older cached binary
-(`omega-latest.exe`). Record the parent task and the exact requirement the next
-fact will discharge. Do not attach a task ID to an unrelated program after
+Read the whole item's acceptance and verify its remaining gap with an optimized
+exact-source producer for the fixed recorded base. Reuse warm `build/gate-cli`
+artifacts with verified inputs; build only for changed producer inputs or a
+missing valid producer. Never use an unverified cached binary. Record the parent
+task and the exact requirement the next fact will discharge. Do not attach a task ID to an unrelated program after
 choosing it. Never filter discovery solely to folders that already have all nine
 `<place>/main.omg` files and already pass on current main (which yields
 coverage-only commits without advancing `omega-rust/`), and never treat fixing
@@ -194,10 +195,11 @@ remaining frontier if interrupted. An unavailable registry means ownership is
 unknown, never that every sample is free. Report that uncertainty and retain the
 isolated scope required by AGENTS.md; do not claim registration succeeded.
 
-Fetch and inspect incoming main after reducing the failure to its root cause,
-before committing to a long repair or validation run. If another session already
-landed the repair, verify that sample on main and use it rather than duplicating
-its implementation. Repeat integration near publication. An explicitly named
+Keep the recorded base fixed after initial preflight. Inspect peer claims/PRs
+to avoid duplicate repairs. Integrate only a demonstrated actual merge conflict,
+concrete prerequisite or changed affected source, then validate that affected
+closure. Main or queue SHA movement alone does not justify local integration,
+builds or qualification. An explicitly named
 program is the customer for this session. A smaller witness isolates the
 current failure; it does not replace that program. Return to it in the same
 session until its oracle holds. Do not open a second feature while it still
@@ -213,10 +215,10 @@ checkout. After a landed repair, compact when the next assignment is a
 different outcome, and leave the context in place when the next run branches
 from that repair. The rule for cloud pods is in
 [cursor-swarm](../cursor-swarm/SKILL.md#reuse-the-session). When resuming
-saved work after a crash or compaction, rebase first and check whether main
-already carries it (`git log origin/main -S '<distinctive line>'`) before
-reapplying a patch or rerunning its validation. A new obstacle updates this
-frontier; it does not create a task for someone else. Do not split work or
+saved work after a crash or compaction, inspect its existing checkpoint, PR and
+receipts before reapplying a patch or rerunning validation. Preserve its fixed
+base and warm producers; resumption does not require a rebase. A new obstacle
+updates this frontier; it does not create a task for someone else. Do not split work or
 mine tasks to keep a slot occupied.
 
 Choose the capability by its source-to-execution acceptance: "a helper mutates
@@ -325,7 +327,7 @@ authored.
 Use an isolated worktree under `<repository>/.agents/worktree/<short-name>`
 created from the fetched `origin/main`, not from the starting checkout's HEAD
 or local `main`: a checkout that could not fast-forward leaves local `main`
-behind, and a stale base rereads landed work and lengthens the landing rebase.
+behind. Record that initial base once; do not refresh it merely as main moves.
 A continuation retains its existing worktree base. Keep its name short; if a
 generated Windows path fails, measure the actual path before relocating work or
 changing compiler architecture.
@@ -495,8 +497,10 @@ provenance in the PR body when known. Do not invent unknown metadata. Release
 local build slots before waiting. No local publication lease or exact-SHA
 landing receipt remains; main movement alone does not restart author review.
 
-The sample running on main establishes the completed repair. Update its parent
-item in the same change following [board update discipline](../../../TASKS.md#updating-the-boards):
+Focused acceptance on the submitted source plus required GitHub integration CI
+and verified publication establishes the landed repair. Postlanding verification
+is a read-only PR/commit/CI observation, not a compiler rebuild or acceptance
+rerun. Update its parent item in the same change following [board update discipline](../../../TASKS.md#updating-the-boards):
 subtract only requirements established by the evidence, delete the item only
 when its full acceptance is met, and do not add a success narrative or a new
 item per witness. Keep the next remaining requirement in the claim note. A
@@ -512,13 +516,10 @@ native run, and a miss means generalize the operation. A genuine external
 prerequisite pauses only the affected work;
 preserve its frontier and continue other feasible work within user scope.
 
-After publication, return to the recorded starting checkout and recheck its
-branch and status. If it is still clean and on main, fetch and run
-`git merge --ff-only origin/main`, then verify HEAD equals fetched `origin/main`.
-This fast-forward creates no merge commit; the candidate rebase above integrates
-local work. Never reset, auto-stash, switch branches, or rebase unrelated local
-commits to synchronize the starting checkout. If synchronization cannot proceed,
-report why and distinguish published remote main from the local checkout state.
+After publication, observe the merged PR's exact submitted head, published commit
+and GitHub CI. Fetching main to verify published ancestry is read-only observation;
+it does not require moving the starting checkout or building that revision.
+Preserve the starting checkout and any dirty or unpublished work.
 
 Then remove the worktree and local branch this invocation created. From the
 starting checkout, confirm the worktree is clean (including untracked files)

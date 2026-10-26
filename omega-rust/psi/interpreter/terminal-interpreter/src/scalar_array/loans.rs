@@ -142,11 +142,7 @@ impl TerminalExecution<'_> {
         let preserves_membership_carrier = |whole: &[_], projected: &[_]| {
             fixed_array_formal || whole.is_empty() && projected.is_empty()
         };
-        if self
-            .live_claims
-            .values()
-            .any(|claim| claim.place == Some(argument.place))
-        {
+        if crate::custody::place_is_claimed(&self.live_claims, argument.place) {
             return Err(malformed());
         }
         let StructuralTypeShape::FixedArray { length, .. } = self

@@ -149,6 +149,7 @@ impl OperationFrame<'_, '_> {
             crate::emission::operation_emission::dynamic_calls::emit_completed_dynamic_call(
                 interface_identity,
                 &slot_plan.requirement_identity,
+                &slot_plan.family_tuple,
                 inputs
                     .evaluated_scalar_arguments
                     .ok_or(LoweringError::Unsupported(

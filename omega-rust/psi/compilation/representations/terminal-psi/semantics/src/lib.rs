@@ -190,8 +190,9 @@ pub use scalar_array::{
     scalar_array_leaf_declaration, scalar_array_leaf_path, scalar_array_leaf_shape,
 };
 pub use scalar_field_requirements::{
-    scalar_field_accepts_literal, scalar_field_accepts_zero, scalar_field_entails,
-    scalar_field_requirement, scalar_field_requires_evidence,
+    atomic_resident_requirement, scalar_field_accepts_literal, scalar_field_accepts_zero,
+    scalar_field_entails, scalar_field_initialization_requirement, scalar_field_requirement,
+    scalar_field_requires_evidence, scalar_field_requires_initialization_evidence,
 };
 pub use scalar_leaf_schema::{
     GoalFreeScalarLeafSchema, ScalarLeafCrashPolicy, ScalarLeafDenotation, ScalarLeafFactShape,
@@ -279,3 +280,5 @@ pub use primitive_store_memberships::{
 
 pub mod evidence_calls;
 pub use evidence_calls::validate_runtime_evidence_inputs;
+mod unchanged_scalar;
+pub use unchanged_scalar::{UnchangedScalarOrigin, unchanged_scalar_identity};

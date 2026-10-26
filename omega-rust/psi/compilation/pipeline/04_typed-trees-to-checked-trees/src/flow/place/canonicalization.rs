@@ -58,40 +58,7 @@ pub(crate) fn canonical_place_from_symbol(symbol: SymbolHandle) -> Option<Canoni
     })
 }
 
-pub(crate) fn canonical_place_from_semantic_place(
-    program: &dyn ::validation::CheckingInput,
-    semantic: &FactPlan,
-    place: &facts::Place,
-) -> Option<CanonicalPlace> {
-    let mut canonical = match place.root {
-        facts::PlaceRoot::Unknown => return None,
-        facts::PlaceRoot::Symbol(symbol) => canonical_place_from_symbol(symbol)?,
-        root @ (facts::PlaceRoot::InvocationReferent { .. }
-        | facts::PlaceRoot::InvocationOutput(_)) => CanonicalPlace {
-            root,
-            segments: Vec::new(),
-        },
-        facts::PlaceRoot::Expression(expression) => {
-            // A semantic root identifies the value already observed here.
-            // Resolving its source syntax again would turn a completed copy
-            // back into the storage from which it was read. Live referents
-            // retain their separately captured storage roots and write epochs.
-            if !program.expression_table.expression_is_valid(expression) {
-                return None;
-            }
-            CanonicalPlace {
-                root: place.root,
-                segments: Vec::new(),
-            }
-        }
-        facts::PlaceRoot::TypeReference(type_reference) => CanonicalPlace {
-            root: facts::PlaceRoot::TypeReference(type_reference),
-            segments: Vec::new(),
-        },
-    };
-    canonical.extend_segments(semantic.place_segments.span_or_empty(place.segments));
-    Some(canonical)
-}
+pub(crate) use validation::membership_evidence::canonical_place_from_semantic_place;
 
 /// The contract `field_actuals::checked_place` states for a requires leaf:
 /// the receiver chain must stay acyclic and every retained member selection

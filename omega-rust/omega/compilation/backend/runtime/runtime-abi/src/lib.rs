@@ -8,9 +8,15 @@
 mod affine_transform;
 mod borrowed_storage;
 mod descriptor_io;
+mod integer_absolute;
 mod integer_division;
 mod integer_parsing;
+mod native_foreign_frame;
 mod network_address;
+pub use native_foreign_frame::{
+    NATIVE_FOREIGN_FRAME_ARGUMENTS_BYTE_OFFSET, NATIVE_FOREIGN_FRAME_RESULT_BYTE_OFFSET,
+    NativeForeignFrame,
+};
 mod processor_flags;
 mod runtime_abi;
 mod scalar_reference;
@@ -22,8 +28,10 @@ pub use borrowed_storage::{
     NativeStorageCaseTag, NativeStorageRepetition,
 };
 pub use descriptor_io::{
-    DescriptorAbi, DescriptorOperation, descriptor_import, descriptor_system_call,
+    DescriptorAbi, DescriptorOperation, descriptor_import, descriptor_import_identity,
+    descriptor_system_call,
 };
+pub use integer_absolute::host_integer_absolute;
 pub use integer_division::{HostIntegerDivision, host_integer_division};
 pub use integer_parsing::parse_host_long;
 pub use network_address::HostInternetAddress;

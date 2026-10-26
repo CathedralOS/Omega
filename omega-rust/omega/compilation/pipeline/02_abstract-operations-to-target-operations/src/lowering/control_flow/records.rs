@@ -2,12 +2,12 @@
 //! A borrowed view member receives a descriptor value, not owned backing.
 //! Geometry uses the exact carrier declaration for every view access; copying
 //! versus transfer remains the source value's multiplicity and live custody.
-use super::LiveDefinitions;
+use super::{LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation};
+use abstract_operations::AbstractOperation;
 use std::collections::BTreeSet;
-use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+use target_operations::TargetUnitOperation;
 use terminal_psi::{
     StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralTypeShape,
@@ -15,12 +15,9 @@ use terminal_psi::{
 
 pub(super) fn establish(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
+    site: &mut RowSite<'_>,
 ) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
     let (psi_operation, result, fields, result_case, elements) = match operation {
         AbstractOperation::EstablishRecord {
             psi_operation,
@@ -351,12 +348,9 @@ pub(super) fn establish(
 /// its prefix cleanup schedule is not realized here.
 pub(super) fn establish_trivial_affine_local(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
+    site: &mut RowSite<'_>,
 ) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
     let AbstractOperation::EstablishTrivialAffineLocal {
         psi_operation,
         place,
@@ -396,12 +390,9 @@ pub(super) fn establish_trivial_affine_local(
 /// lowering only registers the exact home.
 pub(super) fn establish_structural_local(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
+    site: &mut RowSite<'_>,
 ) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
     let AbstractOperation::EstablishStructuralLocal {
         psi_operation,
         result,
@@ -436,12 +427,9 @@ pub(super) fn establish_structural_local(
 /// carries no element roster, so lowering only registers the exact home.
 pub(super) fn establish_zeroed_structural(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
+    site: &mut RowSite<'_>,
 ) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
     let AbstractOperation::EstablishZeroedStructural {
         psi_operation,
         result,
