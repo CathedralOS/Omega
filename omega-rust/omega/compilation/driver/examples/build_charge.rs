@@ -50,6 +50,13 @@ fn main() {
         ignored_build_request_still_requires_join();
         return;
     }
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--product-contexts")) {
+        deferred_product_uses_captured_imports();
+        completed_build_target_fanout();
+        settled_build_product_contexts();
+        settled_default_build_contexts();
+        return;
+    }
     initial_build_source_isolation();
     deferred_product_uses_captured_imports();
     unbound_build_invocation("separate_build_product_imports_exit");
