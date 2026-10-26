@@ -1,0 +1,3 @@
+cannot use `result`
+after `result` was transferred or consumed
+holds no value

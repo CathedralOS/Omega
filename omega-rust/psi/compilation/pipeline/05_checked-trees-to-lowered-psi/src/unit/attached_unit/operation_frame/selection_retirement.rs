@@ -25,109 +25,114 @@ impl OperationFrame<'_, '_> {
             Vec<terminal_psi::StructuralPathSegment>,
         )>::new();
         for complement in complements {
-            let selections = self
+            let (continuation, selection) = self
                 .evaluation
                 .selection_cleanups
                 .iter()
                 .enumerate()
-                .filter(|(_, cleanup)| cleanup.selection == complement.selection)
-                .collect::<Vec<_>>();
-            if selections.is_empty() {
-                return Err(LoweringError::Unsupported(
+                .find(|(_, cleanup)| cleanup.selection == complement.selection)
+                .ok_or(LoweringError::Unsupported(
                     "selected reference retirement lost its join",
-                ));
-            }
-            // Nested completed values can retain several continuations of
-            // this exact receipt. Keep their operation-local mappings intact;
-            // an empty row cannot hide another row's concrete residual.
-            for (continuation, selection) in selections {
-                for residual in &selection.sources {
-                    let place = residual.storage.place;
-                    let (root_type, _) = self.evaluation.emitted_carrier(place, self.operations)?;
-                    let types = self.structural_types.declarations();
-                    let path = structural_paths::lower_static_argument_path(
+                ))?;
+            // The owning production captured one complete source roster.
+            // Private value joins do not contribute competing correspondences.
+            for residual in &selection.sources {
+                let place = residual.storage.place;
+                let (root_type, _) = self.evaluation.emitted_carrier(place, self.operations)?;
+                let types = self.structural_types.declarations();
+                let captured = terminal_semantics::runtime_structural_path_tip(
+                    types.iter(),
+                    root_type,
+                    &residual.storage.path,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "selected residual lost its captured source projection",
+                ))?;
+                if captured.id != residual.storage.selected_type {
+                    return Err(LoweringError::Unsupported(
+                        "selected residual captured source has a different carrier",
+                    ));
+                }
+                let mut path = residual.storage.path.clone();
+                path.extend(structural_paths::lower_static_argument_path(
+                    identities,
+                    &complement.path,
+                    residual.storage.selected_type,
+                    types,
+                )?);
+                let leaf =
+                    terminal_semantics::runtime_structural_path_tip(types.iter(), root_type, &path)
+                        .ok_or(LoweringError::Unsupported(
+                            "selected residual lost its reference leaf",
+                        ))?;
+                if !matches!(leaf.shape, StructuralTypeShape::Reference { .. }) {
+                    return Err(LoweringError::Unsupported(
+                        "selected complement retirement requires shared descriptor custody",
+                    ));
+                }
+                let mut conditions = Vec::new();
+                for (position, segment) in complement.path.iter().enumerate() {
+                    let CheckedUnitStructuralPathSegment::Case(identity) = segment else {
+                        continue;
+                    };
+                    let (selected_prefix, case) = structural_cases::resolve_at(
                         identities,
-                        &complement.path,
-                        root_type,
                         types,
+                        residual.storage.selected_type,
+                        &complement.path[..position],
+                        identity,
                     )?;
-                    let leaf = terminal_semantics::runtime_structural_path_tip(
+                    let mut prefix = residual.storage.path.clone();
+                    prefix.extend(selected_prefix);
+                    let sum = terminal_semantics::runtime_structural_path_tip(
                         types.iter(),
                         root_type,
-                        &path,
+                        &prefix,
                     )
                     .ok_or(LoweringError::Unsupported(
-                        "selected residual lost its reference leaf",
+                        "selected residual case lost its carrier",
                     ))?;
-                    if !matches!(leaf.shape, StructuralTypeShape::Reference { .. }) {
-                        return Err(LoweringError::Unsupported(
-                            "selected complement retirement requires shared descriptor custody",
-                        ));
-                    }
-                    let mut conditions = Vec::new();
-                    for (position, segment) in complement.path.iter().enumerate() {
-                        let CheckedUnitStructuralPathSegment::Case(identity) = segment else {
-                            continue;
-                        };
-                        let (prefix, case) = structural_cases::resolve_at(
-                            identities,
-                            types,
-                            root_type,
-                            &complement.path[..position],
-                            identity,
-                        )?;
-                        let sum = terminal_semantics::runtime_structural_path_tip(
-                            types.iter(),
-                            root_type,
-                            &prefix,
-                        )
-                        .ok_or(LoweringError::Unsupported(
-                            "selected residual case lost its carrier",
-                        ))?;
-                        conditions.push(CleanupCaseCondition {
-                            place,
-                            path: prefix,
-                            structural_type: sum.id,
-                            case,
-                        });
-                    }
-                    // Resolve and check each row's guarded typed path before
-                    // coalescing the same physical descriptor death. Every row
-                    // still records that retirement for its later normal cleanup.
-                    let duplicate =
-                        retired
-                            .iter()
-                            .any(|(prior_continuation, prior, prior_path)| {
-                                self.evaluation.selection_cleanups[*prior_continuation].selection
-                                    == complement.selection
-                                    && *prior == place
-                                    && prior_path == &path
-                            });
-                    retired.push((continuation, place, path.clone()));
-                    if duplicate {
-                        continue;
-                    }
-                    let action = if path.is_empty() {
-                        self.evaluation
-                            .descriptor_retirement(place, self.operations)?
-                    } else {
-                        TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {
-                            place,
-                            path: path.clone(),
-                            structural_type: leaf.id,
-                        })
-                    };
-                    regions.push(CleanupRegion {
-                        declaration_order: None,
-                        selected_region: Some(terminal_psi::StructuralArgument {
-                            place,
-                            path: path.clone(),
-                            access: StructuralAccess::Owned,
-                        }),
-                        conditions,
-                        action,
+                    conditions.push(CleanupCaseCondition {
+                        place,
+                        path: prefix,
+                        structural_type: sum.id,
+                        case,
                     });
                 }
+                // Repeated requests still validate the exact typed path, but
+                // one physical descriptor has only one death at this cut.
+                let duplicate = retired
+                    .iter()
+                    .any(|(prior_continuation, prior, prior_path)| {
+                        self.evaluation.selection_cleanups[*prior_continuation].selection
+                            == complement.selection
+                            && *prior == place
+                            && prior_path == &path
+                    });
+                retired.push((continuation, place, path.clone()));
+                if duplicate {
+                    continue;
+                }
+                let action = if path.is_empty() {
+                    self.evaluation
+                        .descriptor_retirement(place, self.operations)?
+                } else {
+                    TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {
+                        place,
+                        path: path.clone(),
+                        structural_type: leaf.id,
+                    })
+                };
+                regions.push(CleanupRegion {
+                    declaration_order: None,
+                    selected_region: Some(terminal_psi::StructuralArgument {
+                        place,
+                        path: path.clone(),
+                        access: StructuralAccess::Owned,
+                    }),
+                    conditions,
+                    action,
+                });
             }
         }
         for (continuation, place, path) in retired {

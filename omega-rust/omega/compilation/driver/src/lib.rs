@@ -54,7 +54,6 @@ pub use compilation_products::{
     RetainedBuildOutputs, RetainedNativeArtifact,
 };
 pub use compiler::PreparedCompilation;
-pub use compiler::package::publish_checked_component;
 pub use package_compilation::BuildExecutionInputs;
 pub use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
 pub use product_execution::{CompilationOutput, CompilationProduct, CompilationProductError};

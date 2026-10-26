@@ -1419,6 +1419,7 @@ pub(super) fn lower_unit_structural_domains(
                     cause: Box::new(cause),
                 })?;
             Ok(StructuralDomainDeclaration {
+                complete_predicate_theory: plan.complete_predicate_theory,
                 predicate,
                 byte_predicate: plan.byte_predicate,
                 establishment_routes,
@@ -1494,72 +1495,12 @@ pub(super) fn lower_unit_structural_domains(
     Ok((declarations, domain_ids))
 }
 
-fn establishment_requirement_identity(
-    checked: &CheckedTrees,
-    trait_symbol: symbols::SymbolHandle,
-    requirement_symbol: symbols::SymbolHandle,
-) -> Result<String, LoweringError> {
-    let definition = checked
-        .typed
-        .trait_definition_by_symbol(trait_symbol)
-        .ok_or(LoweringError::Unsupported(
-            "domain establishment route names an absent trait",
-        ))?;
-    let signature = checked
-        .typed
-        .trait_machine_signature_by_symbol(definition, requirement_symbol)
-        .ok_or(LoweringError::Unsupported(
-            "domain establishment route names an absent requirement",
-        ))?;
-    Ok(checked
-        .typed
-        .trait_requirement_callable_identity_text(definition, signature))
-}
-
 fn lower_establishment_route(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     route: language_semantics::DomainEstablishmentRoute,
 ) -> Result<terminal_psi::StructuralEstablishmentRoute, LoweringError> {
-    Ok(match route {
-        language_semantics::DomainEstablishmentRoute::CheckedRequirement {
-            trait_definition,
-            requirement,
-        } => terminal_psi::StructuralEstablishmentRoute::Requirement {
-            requirement: identities.intern(&establishment_requirement_identity(
-                checked,
-                trait_definition,
-                requirement,
-            )?),
-        },
-        language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
-            boundary_trait,
-            requirement,
-        } => terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement {
-            requirement: identities.intern(&establishment_requirement_identity(
-                checked,
-                boundary_trait,
-                requirement,
-            )?),
-        },
-        language_semantics::DomainEstablishmentRoute::ExactMachine { machine } => {
-            let declaration = checked
-                .typed
-                .machine(machine)
-                .ok_or(LoweringError::Unsupported(
-                    "domain establishment route names an absent machine",
-                ))?;
-            let machine = checked
-                .typed
-                .machine_callable_identity_text(declaration)
-                .ok_or(LoweringError::Unsupported(
-                    "domain establishment route machine has no normalized identity",
-                ))?;
-            terminal_psi::StructuralEstablishmentRoute::ExactMachine {
-                machine: identities.intern(&machine),
-            }
-        }
-    })
+    crate::expression_preparation::qualifications::establishment_route(identities, checked, &route)
 }
 
 /// Normalize one authored establishment catalog to its source-free form.
@@ -1715,10 +1656,19 @@ pub(super) fn call_result_qualification_establishments(
         };
         let requirement =
             identities.intern(&checked.trait_requirement_callable_identity_text(owner, signature));
+        let declaration = crate::machine_lowering::declarations::semantic_identity(
+            identities,
+            checked,
+            boundary_callee,
+        )
+        .map_err(|_| {
+            LoweringError::Unsupported("boundary issuer lost its exact declaration owner")
+        })?;
         if let Some(index) = catalog.iter().position(|route| {
             matches!(route, terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement {
-                requirement: candidate,
-            } if *candidate == requirement)
+                requirement_identity: candidate,
+                declaration: candidate_owner,
+            } if *candidate == requirement && candidate_owner.identity() == declaration)
         }) {
             establishments.push(terminal_psi::ResultQualificationEstablishment {
                 domain: lookup_domain_id(domain_ids, *domain)?,

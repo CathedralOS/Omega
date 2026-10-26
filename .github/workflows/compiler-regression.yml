@@ -15,6 +15,10 @@ on:
         description: Qualify libc scalar-record results on Ubuntu and Windows
         type: boolean
         default: false
+      foreign_records_only:
+        description: Run only the scalar/opaque corpus and public CLI controls, omitting broader provider/backing sweeps
+        type: boolean
+        default: false
       runtime_value_generics:
         description: Qualify runtime Value indices on all four existing hosted targets
         type: boolean
@@ -30,7 +34,7 @@ permissions:
 # Finish the active observation. GitHub keeps only the newest pending run, so
 # a busy main does not start one cold executable build for every queued PR.
 concurrency:
-  group: compiler-regression-${{ github.ref }}-${{ inputs.cleanup }}-${{ inputs.foreign_records }}-${{ inputs.linux_arm64 }}-${{ inputs.runtime_value_generics }}
+  group: compiler-regression-${{ github.ref }}-${{ inputs.cleanup }}-${{ inputs.foreign_records }}-${{ inputs.linux_arm64 }}-${{ inputs.runtime_value_generics }}-${{ inputs.foreign_records_only }}
   cancel-in-progress: false
 
 jobs:
@@ -80,10 +84,10 @@ jobs:
         if: ${{ inputs.cleanup && !inputs.foreign_records && !inputs.runtime_value_generics }}
         run: python tools/ci/compiler_cleanup.py
       - name: Check native provider frames and retained mapped homes
-        if: inputs.foreign_records
+        if: ${{ inputs.foreign_records && !inputs.foreign_records_only }}
         run: cargo test --locked -p native-production -p machine-emission -p native-provider-runtime
       - name: Check typed scalar aggregate result boundaries
-        if: ${{ inputs.foreign_records && !inputs.runtime_value_generics }}
+        if: ${{ inputs.foreign_records && !inputs.foreign_records_only && !inputs.runtime_value_generics }}
         run: |
           cargo test --locked -p terminal-interpreter scalar_aggregate_tests
           cargo test --locked -p runtime-abi integer_division
@@ -91,10 +95,10 @@ jobs:
           cargo test --locked -p runtime-abi network_address
           cargo test --locked -p terminal-runtime network_address
       - name: Check native provider record correspondence
-        if: inputs.foreign_records
+        if: ${{ inputs.foreign_records && !inputs.foreign_records_only }}
         run: cargo test --locked -p terminal-runtime native_provider
       - name: Execute retained original foreign backing with rejection controls
-        if: inputs.foreign_records
+        if: ${{ inputs.foreign_records && !inputs.foreign_records_only }}
         run: python tools/ci/compiler_retained_foreign.py
       # These cohorts are independent. Retain an earlier failed observation
       # while still measuring the scalar/opaque rows on this matching host.

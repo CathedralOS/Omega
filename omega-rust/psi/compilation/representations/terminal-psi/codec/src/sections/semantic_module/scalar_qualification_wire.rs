@@ -9,15 +9,10 @@ use super::{
 };
 use semantic_vocabulary::ScalarQualificationSetId;
 use terminal_psi::{
-    ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarDomainPredicate,
-    ScalarFloatRange, ScalarIntegerRange, ScalarQualificationCatalog, ScalarQualificationCoercion,
-    ScalarQualificationSet, ScalarReturnOrigin, ScalarReturnQualification, ScalarReturnSite,
-    TerminalIdentityIndex,
+    ScalarDomainDeclaration, ScalarDomainPredicate, ScalarFloatRange, ScalarIntegerRange,
+    ScalarQualificationCatalog, ScalarQualificationCoercion, ScalarQualificationSet,
+    ScalarReturnOrigin, ScalarReturnQualification, ScalarReturnSite, TerminalIdentityIndex,
 };
-
-const ROUTE_CHECKED_REQUIREMENT: u8 = 0;
-const ROUTE_BOUNDARY_REQUIREMENT: u8 = 1;
-const ROUTE_EXACT_MACHINE: u8 = 2;
 
 pub(crate) fn encode(
     writer: &mut Writer,
@@ -34,30 +29,10 @@ pub(crate) fn encode(
             writer.id(predicate.subject);
             super::encode_proposition(writer, &predicate.proposition, 0)?;
         }
-        writer.len(
-            "scalar domain establishment routes",
-            domain.establishment_routes.len(),
+        super::module_wire::declaration_wire::encode_establishment_routes(
+            writer,
+            &domain.establishment_routes,
         )?;
-        for route in &domain.establishment_routes {
-            match route {
-                ScalarDomainEstablishmentRoute::CheckedRequirement {
-                    requirement_identity,
-                } => {
-                    writer.u8(ROUTE_CHECKED_REQUIREMENT);
-                    writer.u32(requirement_identity.0);
-                }
-                ScalarDomainEstablishmentRoute::BoundaryRequirement {
-                    requirement_identity,
-                } => {
-                    writer.u8(ROUTE_BOUNDARY_REQUIREMENT);
-                    writer.u32(requirement_identity.0);
-                }
-                ScalarDomainEstablishmentRoute::ExactMachine { machine_identity } => {
-                    writer.u8(ROUTE_EXACT_MACHINE);
-                    writer.u32(machine_identity.0);
-                }
-            }
-        }
     }
     writer.len("scalar return qualifications", catalog.returns.len())?;
     for returned in &catalog.returns {
@@ -148,25 +123,8 @@ pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatal
                 } else {
                     None
                 },
-                establishment_routes: decode_counted(reader, |reader| match reader.u8()? {
-                    ROUTE_CHECKED_REQUIREMENT => {
-                        Ok(ScalarDomainEstablishmentRoute::CheckedRequirement {
-                            requirement_identity: TerminalIdentityIndex(reader.u32()?),
-                        })
-                    }
-                    ROUTE_BOUNDARY_REQUIREMENT => {
-                        Ok(ScalarDomainEstablishmentRoute::BoundaryRequirement {
-                            requirement_identity: TerminalIdentityIndex(reader.u32()?),
-                        })
-                    }
-                    ROUTE_EXACT_MACHINE => Ok(ScalarDomainEstablishmentRoute::ExactMachine {
-                        machine_identity: TerminalIdentityIndex(reader.u32()?),
-                    }),
-                    tag => Err(CodecError::InvalidTag(
-                        "ScalarDomainEstablishmentRoute",
-                        tag,
-                    )),
-                })?,
+                establishment_routes:
+                    super::module_wire::declaration_wire::decode_establishment_routes(reader)?,
             })
         })?,
         returns: decode_counted(reader, |reader| {

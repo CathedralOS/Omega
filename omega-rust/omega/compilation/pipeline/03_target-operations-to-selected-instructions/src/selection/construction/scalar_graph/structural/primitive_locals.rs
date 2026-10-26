@@ -1,12 +1,13 @@
 //! Establish and access the original primitive referent in the activation frame.
 use super::{
     Builder, IntegerSign, LegalizedScalarFunction, LegalizedScalarInstruction,
-    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
+    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionProvenance,
+    SelectedMemoryAccessRole, VirtualRegisterId, memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::local_storage;
+use crate::selection::scalar_call_abi::load_transfer;
 use selected_instructions::LocalStorageSlotId;
 
 pub(super) fn write(
@@ -191,33 +192,9 @@ pub(in crate::selection) fn read(
         definition.definition_site,
         definition.scalar_type,
     )?;
-    let (instruction, constraint) = match shape.byte_size {
-        1 => (
-            SelectedInstructionKind::Load8 {
-                byte_offset: displacement,
-            },
-            builder.constraints.keys.load8,
-        ),
-        2 => (
-            SelectedInstructionKind::Load16 {
-                byte_offset: displacement,
-            },
-            builder.constraints.keys.load16,
-        ),
-        4 => (
-            SelectedInstructionKind::Load32 {
-                byte_offset: displacement,
-            },
-            builder.constraints.keys.load32,
-        ),
-        8 => (
-            SelectedInstructionKind::Load64 {
-                byte_offset: displacement,
-            },
-            builder.constraints.keys.load64,
-        ),
-        _ => return Err(invalid()),
-    };
+    let (instruction, constraint) =
+        load_transfer(&builder.constraints.keys, shape.byte_size, displacement)
+            .ok_or_else(invalid)?;
     super::runtime_address::footprint(
         builder,
         row,

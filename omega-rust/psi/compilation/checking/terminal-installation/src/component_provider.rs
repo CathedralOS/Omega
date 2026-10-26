@@ -23,6 +23,7 @@ pub struct AdmittedComponentProvider {
     provider_boundary: BoundaryMachineId,
     candidate: MachineId,
     selection: AdmittedProviderSelections,
+    input_memberships: crate::component_memberships::InputMemberships,
 }
 
 impl AdmittedComponentProvider {
@@ -43,6 +44,20 @@ impl AdmittedComponentProvider {
     }
     pub const fn selection(&self) -> &AdmittedProviderSelections {
         &self.selection
+    }
+
+    /// Translate only an actual input membership through this sealed artifact
+    /// pair. A missing mapping cannot be replaced by the provider's annotation.
+    pub fn input_membership(
+        &self,
+        input: usize,
+        domain: semantic_vocabulary::StructuralDomainId,
+    ) -> Option<semantic_vocabulary::StructuralDomainId> {
+        self.input_memberships
+            .get(input)?
+            .iter()
+            .find(|(source, _)| *source == domain)
+            .map(|(_, target)| *target)
     }
 }
 
@@ -95,6 +110,12 @@ pub fn admit_component_provider(
     }
     let selection = admit_provider_installation(provider, std::slice::from_ref(selected), &[])
         .map_err(|error| format!("component export provider admission: {error:?}"))?;
+    let input_memberships = crate::component_memberships::admit_input_memberships(
+        receiver.module(),
+        receiving,
+        provider.module(),
+        supplying,
+    )?;
     Ok(AdmittedComponentProvider {
         receiver: receiver.identity(),
         receiving_boundary,
@@ -102,5 +123,6 @@ pub fn admit_component_provider(
         provider_boundary: selected.boundary,
         candidate: selected.candidate,
         selection,
+        input_memberships,
     })
 }

@@ -301,19 +301,32 @@ fn complete_build_source(
         // Successful Build return currently implies its dependency requests
         // have all joined (the executor refuses any unresolved request). Final
         // ownership precedes Product typing; never retag the private judgment.
-        let (count, syntax) = pending.assemble(package_inputs, timings)?;
-        let diagnostic_sources = syntax.sources.clone();
-        let product = lower_typed_frontier(
-            count,
-            syntax,
-            build_execution_profile,
-            package_inputs,
-            timings,
-        )
-        .map_err(|mut diagnostics| {
-            super::attribute_diagnostics(&mut diagnostics, &diagnostic_sources, package_inputs);
-            diagnostics
-        })?;
+        let inputs =
+            package_compilation::ProductSourceInputs::new(package_inputs, build_execution_profile);
+        let product = match pending.retained(&inputs, package_inputs)? {
+            Some(product) => product,
+            None => {
+                let (count, syntax) = pending.sources().assemble(package_inputs, timings)?;
+                let diagnostic_sources = syntax.sources.clone();
+                let product = lower_typed_frontier(
+                    count,
+                    syntax,
+                    build_execution_profile,
+                    package_inputs,
+                    timings,
+                )
+                .map_err(|mut diagnostics| {
+                    super::attribute_diagnostics(
+                        &mut diagnostics,
+                        &diagnostic_sources,
+                        package_inputs,
+                    );
+                    diagnostics
+                })?;
+                pending.retain(inputs, &product)?;
+                product
+            }
+        };
         // The retained parsed input preserves declaration source coordinates.
         // No display name, allocation order or old typed handle selects a body
         // in this distinct Product context.
@@ -405,7 +418,9 @@ pub(super) fn lower_typed_frontier(
     Ok(TypedCompilationFrontier {
         source,
         anonymous_source: syntax.anonymous_owner,
-        product_sources: syntax.product_sources,
+        product_sources: syntax
+            .product_sources
+            .map(compilation_products::DeferredProductCompilation::new),
         build_source_id,
         source_file_count,
         generated_source_custody,

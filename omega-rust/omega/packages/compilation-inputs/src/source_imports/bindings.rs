@@ -61,9 +61,9 @@ impl PendingPackageImport {
 
     pub fn physical_source(
         &self,
-        filesystem: &source::SourceFileSystem,
+        packages: &PackageCompilationInputs,
     ) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
-        self.request.physical_source(filesystem)
+        self.request.physical_source(packages)
     }
 
     pub(crate) fn resolve_for_exact_target(

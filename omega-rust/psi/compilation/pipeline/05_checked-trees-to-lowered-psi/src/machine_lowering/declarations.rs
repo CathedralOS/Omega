@@ -117,6 +117,8 @@ pub(crate) fn identity(
             Ok::<_, &'static str>(CheckedMachineSpecialization {
                 capture: capture_identity(identities, checked, machine)?,
                 template: nominal(identities, checked, sources, template)?,
+                template_semantic_declaration: semantic_identity(identities, checked, template)
+                    .map_err(|_| "checked specialization lost its template declaration owner")?,
                 template_callable: identities.intern(
                     &checked
                         .machine(template)

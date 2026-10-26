@@ -323,30 +323,25 @@ impl CompilationSession {
                 .into_iter()
                 .map(|(owner, build)| (owner, build.source))
                 .collect();
-            let checked = self
-                .select_build_batch(builds)
-                .into_iter()
-                .map(|(owner, selected)| {
-                    (
-                        owner,
-                        selected
-                            .install()
-                            .result
-                            .map_err(CompileFailure::into_diagnostics),
-                    )
-                })
-                .collect();
+            let mut requests = Vec::new();
+            for (owner, selected) in self.select_build_batch(builds) {
+                let request = match selected.install().result {
+                    Ok(checked) => Ok(crate::product_execution::ProductRequest::Component(checked)),
+                    Err(failure) => Err(crate::CompilationProductError::Production(
+                        failure.into_diagnostics(),
+                    )),
+                };
+                requests.push((owner, request));
+            }
             let mut completed = Vec::new();
-            for (owner, product) in
-                crate::compiler::package::publish_checked_component_products(checked)
-            {
-                let description = match product {
+            for (owner, product) in crate::compiler::produce_products(requests) {
+                let description = match product.and_then(crate::CompilationOutput::into_component) {
                     Ok(product) => {
                         let description = product.description().clone();
                         self.retain_component_product(product);
                         Ok(description)
                     }
-                    Err(diagnostics) => Err(diagnostics),
+                    Err(error) => Err(error.into_diagnostics()),
                 };
                 completed.push((owner, description));
             }
@@ -381,12 +376,14 @@ impl CompilationSession {
             for ((owner, root, product, permissions), selected) in self.select_build_batch(builds) {
                 let request = selected
                     .result
-                    .map(|realization| crate::product_execution::ProductRequest {
-                        realization,
-                        root,
-                        product,
-                        permissions,
-                    })
+                    .map(
+                        |realization| crate::product_execution::ProductRequest::Requested {
+                            realization,
+                            root,
+                            product,
+                            permissions,
+                        },
+                    )
                     .map_err(|failure| {
                         crate::CompilationProductError::Production(failure.into_diagnostics())
                     });

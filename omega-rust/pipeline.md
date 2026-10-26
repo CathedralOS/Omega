@@ -138,12 +138,20 @@ one roster through the same Terminal producer as standalone requests.
 Package-manager batches supply dependency-ordered custody/consent plans; the
 compiler owns generated-output joins, Build/Product continuations and independent
 component publication. Target plans enter together; matching post-Build root
-continuations share source completion. Package operations supply requested
+continuations share source completion. The captured Build prefix retains its
+deferred Product frontend by exact source and semantic inputs. Siblings validate
+live custody before borrowing it, then rejoin their own Build selections and
+receipts; a reused frontend never substitutes another occurrence's return or
+grants. Package operations supply requested
 products and exact root permission consent, and receive reports or inspections,
 not checked activations to resume. Standalone and session products share
 selection, Terminal production, then installation; source checking no longer
 installs the package product ahead of that sequence. Review descriptions supply
-the same borrowed production facts without a second producer mode.
+the same borrowed production facts without a second producer mode. Demanded
+components and lazy review descriptions enter the same product sequence as root
+compilation. Component completion owns its exported plans, description and
+permission evidence, not a second Terminal batch loop or public checked-source
+publication entrance.
 Package preparation advances dependency-first rounds across target rosters;
 demanded component continuations enter the same source batch as their siblings,
 rather than completing one target's entire dependency chain first.

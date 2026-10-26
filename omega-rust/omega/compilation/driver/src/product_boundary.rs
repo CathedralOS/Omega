@@ -147,7 +147,8 @@ fn package_frontiers_batch_components_without_nested_source_workers() {
     let preparation = include_str!("../../../application/build/src/build_execution.rs");
     assert!(preparation.contains("compiler.complete_package_components(builds)"));
     let completion = include_str!("checked/package_compilation.rs");
-    assert!(completion.contains("publish_checked_component_products(checked)"));
+    assert!(completion.contains("crate::compiler::produce_products(requests)"));
+    assert!(completion.contains("ProductRequest::Component"));
     assert!(!preparation.contains("self.check_build("));
     assert!(!preparation.contains("run_on_compile_thread"));
     let batch = include_str!("checked/product_batch.rs");
@@ -161,12 +162,31 @@ fn package_batches_carry_owners_instead_of_parallel_result_tables() {
         include_str!("../../../application/build/src/build_execution.rs"),
         include_str!("../../../application/build/src/package_compilation.rs"),
         include_str!("checked/product_batch.rs"),
-        include_str!("compiler/package.rs"),
+        include_str!("product_execution/component.rs"),
     ] {
         assert!(!source.contains("map(|_| None)"));
         assert!(!source.contains("outcomes["));
         assert!(!source.contains(".zip("));
     }
+}
+
+#[test]
+fn components_use_the_shared_product_sequence() {
+    for source in [
+        include_str!("checked/package_compilation.rs"),
+        include_str!("checked/package_review.rs"),
+    ] {
+        assert!(source.contains("ProductRequest::Component"));
+        assert!(source.contains("crate::compiler::produce_products("));
+        assert!(!source.contains("produce_retained_terminal_artifacts("));
+    }
+    let component = include_str!("product_execution/component.rs");
+    assert!(!component.contains("produce_retained_terminal_artifacts("));
+    assert!(!component.contains("TerminalProductionRequest"));
+    assert!(component.contains("finish_terminal_application("));
+    assert!(component.contains("accepted_terminal_authority_permission_policy("));
+    assert!(!include_str!("lib.rs").contains("publish_checked_component"));
+    assert!(!include_str!("compiler.rs").contains("mod package"));
 }
 
 #[test]
@@ -238,6 +258,47 @@ fn terminal_consumers_call_psi_without_a_product_wrapper() {
     );
     let policy = include_str!("terminal/behavior_exclusions.rs");
     assert!(policy.contains("impl psi_compiler::TerminalCompositionAdmission"));
+}
+
+#[test]
+fn exclusion_source_resolution_stays_out_of_terminal_policy() {
+    let selection = include_str!("checked/checking/product_selections.rs");
+    assert!(selection.contains("exclusions::resolve("));
+    let source = include_str!("checked/checking/product_selections/exclusions.rs");
+    assert!(source.contains("pub(super) fn resolve("));
+    assert!(source.contains("resolve_product_path("));
+    let policy = include_str!("terminal/behavior_exclusions.rs");
+    assert!(policy.contains("establish_behavior_exclusions("));
+    for source_owner in [
+        "typed_trees::",
+        "checked_trees::",
+        "resolve_product_path(",
+        "trust_model::",
+    ] {
+        assert!(
+            !policy.contains(source_owner),
+            "{source_owner} crossed the Terminal policy boundary"
+        );
+    }
+    let trust = include_str!("../../realization/trust-model/src/lib.rs");
+    assert!(!trust.contains("mod behavior_exclusions;"));
+    assert!(!trust.contains("harvest_behavior_exclusions"));
+    assert!(!trust.contains("verify_entry_behavior_exclusions"));
+    let manifest = include_str!("../../realization/trust-model/Cargo.toml");
+    for unrelated_owner in [
+        "build-time-evaluation =",
+        "checked-interpreter =",
+        "typed-trees-to-checked-trees =",
+        "terminal-installation =",
+        "terminal-psi =",
+        "target =",
+        "semantic-vocabulary =",
+    ] {
+        assert!(
+            !manifest.contains(unrelated_owner),
+            "{unrelated_owner} returned to grant reconstruction"
+        );
+    }
 }
 
 #[test]

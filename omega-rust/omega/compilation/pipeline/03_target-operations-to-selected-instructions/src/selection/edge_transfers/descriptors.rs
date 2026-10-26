@@ -10,6 +10,7 @@
 use super::emission::{Emission, provenance};
 use crate::SelectedInstructionError;
 use crate::selection::edge_transfers::{chunks, invalid, stored_transport};
+use crate::selection::scalar_call_abi::load_transfer;
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedInstructionKind, SelectedLocalStorageSlot,
     SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
@@ -212,32 +213,8 @@ fn copy(emission: &mut Emission<'_>, extent: CopyExtent) -> Result<(), SelectedI
             .lineage_offset
             .checked_add(cursor)
             .ok_or_else(|| invalid(function))?;
-        let (kind, key) = match width {
-            8 => (
-                SelectedInstructionKind::Load64 {
-                    byte_offset: displacement,
-                },
-                emission.constraints.keys.load64,
-            ),
-            4 => (
-                SelectedInstructionKind::Load32 {
-                    byte_offset: displacement,
-                },
-                emission.constraints.keys.load32,
-            ),
-            2 => (
-                SelectedInstructionKind::Load16 {
-                    byte_offset: displacement,
-                },
-                emission.constraints.keys.load16,
-            ),
-            _ => (
-                SelectedInstructionKind::Load8 {
-                    byte_offset: displacement,
-                },
-                emission.constraints.keys.load8,
-            ),
-        };
+        let (kind, key) = load_transfer(&emission.constraints.keys, u32::from(width), displacement)
+            .ok_or_else(|| invalid(function))?;
         let value = emission.emit(
             kind,
             key.ok_or_else(|| invalid(function))?,

@@ -19,7 +19,7 @@ mod request;
 #[cfg(test)]
 mod pipeline_boundary;
 
-pub use compiler::{compile, compile_with_components};
+pub use compiler::compile;
 pub use realization::{
     ComponentExportImage, ComponentExportRequest, ComponentNativeCall, ComponentNativeExport,
     RealizedNativeProduct, emit_component_exports,

@@ -591,13 +591,11 @@ pub(in crate::legalization) fn window_regions(
     path: &[StructuralPathSegment],
     access: StructuralAccess,
 ) -> Result<Vec<(PlaceId, Vec<StructuralPathSegment>)>, LegalizationError> {
-    let Some(crossing) = path
-        .iter()
-        .rposition(|segment| *segment == StructuralPathSegment::Referent)
-    else {
-        return Ok(vec![(place, path.to_vec())]);
-    };
-    let observed = call_paths::call_reference_custody(
+    // A borrowed block parameter already transports an address. Substitute
+    // its captured storage before interpreting relative selectors: `.field`
+    // through that parameter must update the original slot, not temporary
+    // parameter storage that disappears at the next control-flow join.
+    let sources = borrowed_arrivals::captured_storage(
         function,
         custody,
         types,
@@ -606,7 +604,33 @@ pub(in crate::legalization) fn window_regions(
             path: path.to_vec(),
             access,
         },
-    )?;
+    )
+    .ok_or_else(|| invalid())?;
+    let mut regions = Vec::new();
+    for source in sources {
+        for region in window_regions_in_storage(function, custody, types, &source)? {
+            if !regions.contains(&region) {
+                regions.push(region);
+            }
+        }
+    }
+    Ok(regions)
+}
+
+fn window_regions_in_storage(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    source: &borrowed_arrivals::CapturedStorage,
+) -> Result<Vec<(PlaceId, Vec<StructuralPathSegment>)>, LegalizationError> {
+    let StructuralArgument { place, path, .. } = &source.argument;
+    let Some(crossing) = path
+        .iter()
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)
+    else {
+        return Ok(vec![(*place, path.to_vec())]);
+    };
+    let observed = call_paths::captured_reference_custody(function, custody, types, source)?;
     let mut regions = Vec::new();
     for root in &observed.origins {
         for origin in storage_origins(function, custody, types, root, observed.referent)? {
@@ -1127,8 +1151,17 @@ fn storage_access_conflicts_beneath_argument(
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
     argument: &StructuralArgument,
-) -> bool {
-    custody
+) -> Result<bool, LegalizationError> {
+    // A borrowed arrival names an already captured permission, rather than a
+    // fresh access to every external address its imprecise geometry may alias.
+    // Its exact grant and descendants still govern access. Unrelated pointer
+    // origins are not proof of a duplicate permission (as in call arguments).
+    let captured = custody
+        .borrowed_sources
+        .contains_key(&argument.place)
+        .then(|| normalized_source(function, custody, types, argument))
+        .transpose()?;
+    Ok(custody
         .leaves
         .iter()
         .any(|((leaf_place, leaf_path), reference)| {
@@ -1142,9 +1175,12 @@ fn storage_access_conflicts_beneath_argument(
                 && reference.backing.iter().all(|backing| {
                     matches!(backing, descriptor_backing::Backing::Source(Root::Place(_)))
                 });
-            !own_key
-                && !owned_alias
-                && leaf_storage_access_conflicts(
+            if own_key || owned_alias {
+                return false;
+            }
+            if let Some((root, parents)) = &captured {
+                // Lifetime anchors remain independent of delegated access.
+                if lifetime_storage_access_conflicts(
                     function,
                     custody,
                     types,
@@ -1152,8 +1188,46 @@ fn storage_access_conflicts_beneath_argument(
                     argument.place,
                     &argument.path,
                     argument.access,
-                )
-        })
+                ) {
+                    return true;
+                }
+                if borrowed_arrivals::lends_from(
+                    custody,
+                    argument.place,
+                    &reference.identity,
+                    argument.access,
+                ) || shared_source_compatible(
+                    function,
+                    custody,
+                    types,
+                    leaf_place,
+                    leaf_path,
+                    argument.access,
+                ) {
+                    return false;
+                }
+                if parents.iter().any(|parent| {
+                    custody.descends_from(reference, parent)
+                        || custody.lifetime_access_conflicts(reference, parent, argument.access)
+                }) {
+                    return true;
+                }
+                return reference.backing.iter().any(|backing| {
+                    descriptor_backing::matches_return(std::slice::from_ref(backing), &|backing| {
+                        roots_definitely_overlap(backing, root)
+                    })
+                });
+            }
+            leaf_storage_access_conflicts(
+                function,
+                custody,
+                types,
+                reference,
+                argument.place,
+                &argument.path,
+                argument.access,
+            )
+        }))
 }
 
 /// Interference is a property of retained backing, not the path spelling used
@@ -1495,7 +1569,7 @@ fn call_arguments(
         // arrival alias of the same storage (a state's own data parameter,
         // which names the place this access path resolves to). A genuinely
         // distinct overlapping leaf still refuses here.
-        if storage_access_conflicts_beneath_argument(function, custody, types, argument) {
+        if storage_access_conflicts_beneath_argument(function, custody, types, argument)? {
             return Err(invalid());
         }
         let (root, _) = normalized_source(function, custody, types, argument)?;
@@ -2133,46 +2207,6 @@ fn relocate_subtree_leaves<'a>(
     Ok(())
 }
 
-/// Reconstruct the sole-leaf move from owned ingress independently of target
-/// rows. Other establishments retain their parent as ordinary reborrows.
-fn transferred_ingress_leaf(
-    function: &PsiOptimizationFunction,
-    custody: &Custody,
-    types: &[StructuralTypeDeclaration],
-    source: &StructuralArgument,
-) -> Option<(PlaceId, Vec<StructuralPathSegment>)> {
-    let parameter = function
-        .structural_parameter(source.place)
-        .filter(|parameter| parameter.access == StructuralAccess::Owned)?;
-    if matches!(
-        find_structural_type(types, parameter.structural_type)?.shape,
-        StructuralTypeShape::Reference { .. }
-    ) {
-        return None;
-    }
-    let (StructuralPathSegment::Referent, path) = source.path.split_last()? else {
-        return None;
-    };
-    let paths = leaf_paths(types, parameter.structural_type, custody.leaves.len())?;
-    if paths.len() != 1 || paths[0].as_slice() != path {
-        return None;
-    }
-    let key = (source.place, path.to_vec());
-    let leaf = custody.leaves.get(&key)?;
-    (leaf.parents.is_empty()
-        && custody
-            .leaves
-            .keys()
-            .filter(|(carrier, _)| *carrier == source.place)
-            .count()
-            == 1
-        && !custody
-            .leaves
-            .values()
-            .any(|child| custody.descends_from(child, &leaf.identity)))
-    .then_some(key)
-}
-
 /// Apply one operation's custody effect after its target row validated.
 /// Admission was proven upstream; this replay keeps only enough state to
 /// resolve later `.., Referent` spellings and result rosters independently.
@@ -2453,11 +2487,11 @@ pub(in crate::legalization) fn apply(
             {
                 return Err(invalid());
             }
-            let transferred = transferred_ingress_leaf(function, custody, types, source);
+            // Formation is a reborrow even when the owning aggregate has only
+            // one reference leaf. Only explicit move operations transfer its
+            // permission; layout cardinality cannot consume the parent.
             let leaf =
-                if let Some(key) = transferred {
-                    custody.leaves.remove(&key).ok_or_else(|| invalid())?
-                } else {
+                {
                     let (mut root, parents) = normalized_source(function, custody, types, source)?;
                     if let Some(storage) = storage {
                         // The source operation, not its signature, issues the
@@ -3365,13 +3399,18 @@ pub(in crate::legalization) fn block_entry_states(
     queued[entry_position] = true;
     let mut final_arrivals = vec![Vec::new(); blocks.len()];
     let mut deferred = BTreeSet::new();
-    while let Some(position) = pending.pop_front() {
+    // An early predecessor can reach a consumer before the path that installs
+    // its current descriptor. A refusal on that provisional entry is not a
+    // fixed-point result. Retain it, replay on changed arrivals, and reject
+    // every unresolved refusal before any entry is published below.
+    let mut failures = BTreeMap::new();
+    'worklist: while let Some(position) = pending.pop_front() {
         queued[position] = false;
         let block = &blocks[position];
         let mut custody = entries.get(&block.id).cloned().ok_or_else(|| invalid())?;
         for (node_index, node) in blocks[position].nodes.iter().enumerate() {
             custody.set_position(block.id, node_index)?;
-            if matches!(
+            let result = if matches!(
                 node.operation,
                 abstract_operations::return_or_return_unit_pattern!(..)
                     | AbstractOperation::ReturnStructural { .. }
@@ -3380,13 +3419,19 @@ pub(in crate::legalization) fn block_entry_states(
                     | AbstractOperation::StructuralCase { .. }
                     | AbstractOperation::ExternalCompletion { .. }
             ) {
-                apply_terminator(&mut custody, &node.operation, function, plan)?;
+                apply_terminator(&mut custody, &node.operation, function, plan)
             } else {
-                apply(&mut custody, node, function, native, plan, unit).map_err(|error| {
-                    error.attributed(function.machine, node.operation.psi_operation())
-                })?;
+                apply(&mut custody, node, function, native, plan, unit)
+            };
+            if let Err(error) = result {
+                failures.insert(
+                    block.id,
+                    error.attributed(function.machine, node.operation.psi_operation()),
+                );
+                continue 'worklist;
             }
         }
+        failures.remove(&block.id);
         let terminator = block.nodes.last().ok_or_else(|| invalid())?;
         let mut arrivals = Vec::with_capacity(terminator.successors.len());
         for edge in &terminator.successors {
@@ -3469,6 +3514,9 @@ pub(in crate::legalization) fn block_entry_states(
                 queued[target_position] = true;
             }
         }
+    }
+    if let Some((_, error)) = failures.into_iter().next() {
+        return Err(error);
     }
     for block in blocks {
         if impossible_context

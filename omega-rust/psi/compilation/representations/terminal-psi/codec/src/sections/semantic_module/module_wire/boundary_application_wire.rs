@@ -81,6 +81,7 @@ mod tests {
                 capture: None,
                 template: nominal("owner::template"),
                 template_callable: TerminalIdentityIndex(8),
+                template_semantic_declaration: TerminalIdentityIndex(9),
                 commitment: [4; 32],
             }),
         ] {

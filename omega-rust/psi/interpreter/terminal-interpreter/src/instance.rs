@@ -450,7 +450,7 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
     }
 
     /// Drive the entry invocation until it completes, crashes, or pauses on
-    /// the fuel meter.
+    /// the fuel meter or an explicitly checked host-readiness crossing.
     ///
     /// The whole demanded-import roster must be established first: a missing
     /// binding rejects before the first guest operation, so no host effect
@@ -635,6 +635,13 @@ impl<'a, 'host> ImportDispatch<'a, 'host> {
 }
 
 impl TerminalEffectHandler for ImportDispatch<'_, '_> {
+    fn poll_effect_readiness(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<bool, TerminalEffectRejection> {
+        self.adapter_for(effect)?.poll_effect_readiness(effect)
+    }
+
     fn requires_original_storage(&self, boundary: BoundaryMachineId) -> bool {
         self.bindings
             .get(&boundary)

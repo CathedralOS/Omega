@@ -48,7 +48,7 @@ mod wire_codec_sources;
 
 pub use build_declarations::BuildDeclarationKind;
 pub use checked_source_cache::{CheckedSourceCache, CheckedSourceCacheLimits};
-pub use compilation_reuse::SourceAssemblyInputs;
+pub use compilation_reuse::{ProductSourceInputs, SourceAssemblyInputs};
 pub use package_compilation::{
     IndependentComponentDescription, PackageCompilationInputError, PackageCompilationInputs,
     PackageCompilationSourceInputs, PackageCompilationTargetInputs, PackageDependencyAcquisition,

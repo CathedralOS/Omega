@@ -418,6 +418,11 @@ fn compare_interpretation(
                             .to_owned(),
                     );
                 }
+                TerminalExecutionStatus::AwaitingEffect(site) => {
+                    return InterpreterComparison::Declined(format!(
+                        "Terminal reference execution awaits host readiness at {site:?}"
+                    ));
+                }
                 TerminalExecutionStatus::Crashed(crash) => {
                     return match native_exit.matches_crash_presentation(crash.cause) {
                         Some(true) => InterpreterComparison::AgreesCrash { cause: crash.cause },

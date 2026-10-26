@@ -1616,13 +1616,13 @@ fn adapt(
                             case.psi_edge == edge.psi_edge && case.target == edge.target
                         });
                         let case = matching.next()?;
-                        matching
-                            .next()
-                            .is_none()
-                            .then_some(kernel::DescriptorCasePredicate {
+                        matching.next().is_none().then_some((
+                            kernel::DescriptorCasePredicate {
                                 subject: subject.clone(),
                                 case: case.case,
-                            })
+                            },
+                            true,
+                        ))
                     })
                     .collect::<Option<Vec<_>>>()?;
                 graph.case_successors.insert(position, predicates);
@@ -1797,6 +1797,7 @@ fn adapt(
             }
         }
     }
+    scalar_expressions.retain_case_conditions(types, &mut graph);
     Some(graph)
 }
 

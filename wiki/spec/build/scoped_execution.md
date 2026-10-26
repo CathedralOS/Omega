@@ -13,7 +13,7 @@ shipped signatures or wire compatibility.
 | Question | Required behavior |
 | --- | --- |
 | One builder or two? | One `Build`; scope and authority are enforced at individual operations. |
-| Build-only code? | Nonblocking `build_depend`/`build_depend_as` requests plus explicit `suspend Build::await_provider<R>` readiness; separate host/product nameability and checked instances. |
+| Build-only code? | Nonblocking `build_depend`/`build_depend_as` requests plus explicit `suspend Build::await_provider<R, Backing>` readiness; separate host/product nameability and checked instances. |
 | Reference target code from a host build? | Existing designated product operands plus qualified, non-callable product descriptions; no general host import of target code. |
 | Filesystem default? | Exact read-only input tree, append-and-seal staging, deterministic logical metadata, no implicit symlink traversal or ambient services. |
 | Extra host files? | Independently supplied captured inputs; live-host protocols are not added by this slice. |
@@ -96,7 +96,7 @@ machine build(builder: &mut Build) {
         location: "../payment-protocol"
     });
 
-    suspend Build::await_provider<TopologyBuild>(builder, "topology");
+    suspend Build::await_provider<TopologyBuild, topology::DiagnosticTopology>(builder);
     configure_products(builder);
 }
 ```
@@ -104,7 +104,9 @@ machine build(builder: &mut Build) {
 Here `configure_products` is an ordinary helper from the local
   `build_support::configuration` module. `TopologyBuild` is a pre-known exact
   requirement application; its operations use ordinary qualified static calls.
-  The dependency request may proceed while local work continues.
+  `topology::DiagnosticTopology` explicitly selects the backing; no default or
+  unique-satisfier search selects it. The dependency request may proceed while
+  local work continues.
   Readiness suspends only if the checked implementation is not installed yet, then
   resumes this same call site. `configure_products` calls exact
   `TopologyBuild::operation(arguments)` requirements statically; no routing value
@@ -114,7 +116,9 @@ Here `configure_products` is an ordinary helper from the local
 
 The root is initially checked without static names from newly requested
 packages. Arbitrary top-of-file imports of those packages therefore reject;
-requesting an alias does not retroactively change name resolution. Package
+requesting an alias does not retroactively change name resolution. The qualified
+backing is an [inert designated selection](provider_selection.md#build-provider-readiness),
+not an ordinary import or callable reference to unresolved code. Package
 coordination resolves immutable closures as requests are observed. Before
 installing an exact provider slot, Psi checks the selected implementation
 against `R` and admits its effects, reach, and resources. The Terminal interpreter owns the
@@ -132,7 +136,7 @@ root or builder state.
 
 | Occurrence | Selectable dependency code | Execution context |
 | --- | --- | --- |
-| Build entry and transitive helpers | Its package-local build sources, core, and exact static provider slots installed through `Build::await_provider<R>` | Admitted build evaluator on the host |
+| Build entry and transitive helpers | Its package-local build sources, core, and exact static provider slots installed through `Build::await_provider<R, Backing>` | Admitted build evaluator on the host |
 | Product source and its generated source | Its package-local product sources, core, and its ordinary dependencies | Selected product target |
 
 Core's exact toolchain vocabulary is directly available. Std is an ordinary
@@ -629,7 +633,7 @@ dependency or input frontier by serializing a new manifest as output.
 | Case | Required result |
 | --- | --- |
 | Build dependency declared but never used by Build code | Request may complete without suspending; Build return still joins and records it. |
-| Provider readiness requested before dependency work completes | Suspend at `Build::await_provider<R>`, install only the admitted implementation into the exact static slot, and resume the same continuation without replay. |
+| Provider readiness requested before dependency work completes | Suspend at `Build::await_provider<R, Backing>`, install only the explicitly named admitted backing into the exact static slot, and resume the same continuation without replay. |
 | Dependency declaration in a local helper or conditional | Execute normally; only the requests actually emitted belong to this Build result. |
 | Static import or call into a newly requested build dependency | Reject initial Build checking; await its implementation through a pre-known exact requirement application before calling that static slot. |
 | Local multi-file build helper | Checked in the build context with exact Build vocabulary and normal visibility. |

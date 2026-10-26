@@ -2,14 +2,16 @@
 //!
 //! Ordinary argument presentation and affine partitioning stay authoritative.
 //! Only an actual unchanged host atom crosses this initial closed-Inert lane;
-//! materialized backing, loans, routed claims and memberships need their own
-//! transfer carriers. Preparing these values executes nothing and changes no
+//! materialized backing, loans, routed claims and projected memberships need
+//! their own transfer carriers. Whole memberships use the installation's sealed
+//! domain-theory relation, never a provider annotation or a copied dense ID.
+//! Preparing these values executes nothing and changes no
 //! parent custody. The caller commits the staged frontier only after a real
 //! installed child has accepted the tuple.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{BoundaryMachineId, ClaimId, MachineId, PlaceId};
+use semantic_vocabulary::{ClaimId, PlaceId};
 use terminal_psi::{
     BoundaryMachineDeclaration, CompletionReceipt, StructuralAccess, StructuralAffineDiscard,
     StructuralArgument, StructuralMultiplicity,
@@ -34,14 +36,13 @@ impl<'artifact> TerminalExecution<'artifact> {
         completion_receipts: &[CompletionReceipt],
         receiver: &BoundaryMachineDeclaration,
         provider: &TerminalProgram<'artifact>,
-        provider_boundary: BoundaryMachineId,
-        provider_entry: MachineId,
+        selected: &terminal_installation::AdmittedComponentProvider,
     ) -> Result<PreparedComponentArguments, TerminalInterpretError> {
         let reject = |reason| TerminalInterpretError::UnsupportedSemanticVariant(reason);
         let supplied = provider
             .program
-            .verified_boundary_machine(&provider_boundary)?;
-        let entry = provider.program.verified_machine(provider_entry)?;
+            .verified_boundary_machine(&selected.provider_boundary())?;
+        let entry = provider.program.verified_machine(selected.candidate())?;
         if receiver.structural_parameters.len() != supplied.structural_parameters.len()
             || arguments.len() != receiver.structural_parameters.len()
             || entry.structural_parameters.len() != arguments.len()
@@ -89,11 +90,8 @@ impl<'artifact> TerminalExecution<'artifact> {
                 || required.access != StructuralAccess::Owned
                 || supplied.access != StructuralAccess::Owned
                 || required.multiplicity != supplied.multiplicity
-                || !required.qualifications.is_empty()
-                || !supplied.qualifications.is_empty()
                 || !required.projected_qualifications.is_empty()
                 || !supplied.projected_qualifications.is_empty()
-                || !value.qualifications.is_empty()
                 || !value.projected_qualifications.is_empty()
                 || receiver_type.owns_linear_claim != linear
                 || provider_type.owns_linear_claim != linear
@@ -132,10 +130,10 @@ impl<'artifact> TerminalExecution<'artifact> {
                 .entry_claims
                 .iter()
                 .filter(|claim| claim.input == formal.place);
-            let argument_index = u32::try_from(argument_index).map_err(|_| malformed())?;
+            let receipt_index = u32::try_from(argument_index).map_err(|_| malformed())?;
             let mut receipts = completion_receipts
                 .iter()
-                .filter(|receipt| receipt.argument_index == argument_index);
+                .filter(|receipt| receipt.argument_index == receipt_index);
             let carried_claim = if linear {
                 let claim = entry_claims
                     .next()
@@ -209,6 +207,23 @@ impl<'artifact> TerminalExecution<'artifact> {
                     "component input requires actual unchanged opaque host storage",
                 ));
             }
+            // The caller binder authenticated these exact occurrence facts
+            // before custody staging. Installation joined their full nominal
+            // theories once across both artifacts. Unknown extra memberships
+            // cannot be erased, and child entry binding still checks its own
+            // obligations before the parent commits any consumption.
+            value.qualifications = value
+                .qualifications
+                .iter()
+                .map(|domain| {
+                    selected
+                        .input_membership(argument_index, *domain)
+                        .ok_or_else(|| {
+                            reject("component input membership has no admitted destination theory")
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            value.qualifications.sort();
             value.structural_type = supplied.structural_type;
             if required.multiplicity == StructuralMultiplicity::Affine {
                 self.consume_affine_call_argument(&mut remaining_affine, argument)?;

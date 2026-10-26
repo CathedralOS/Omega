@@ -276,6 +276,18 @@ fn lower_static_requirement_dispatch(
             row.realization_state,
         )? {
             expected_rows.push(terminal_psi::ClosedConformanceRow {
+                requirement_declaration: terminal_psi::NominalDeclarationIdentity::new(
+                    crate::machine_lowering::declarations::semantic_identity(
+                        identities,
+                        checked,
+                        row.requirement,
+                    )
+                    .map_err(|_| {
+                        LoweringError::Unsupported(
+                            "conformance requirement lost its declaration owner",
+                        )
+                    })?,
+                ),
                 declaring_trait_identity: identities.intern(&declaring_trait_identity.clone()),
                 public_requirement_identity: identities
                     .intern(&public_requirement_identity.clone()),
