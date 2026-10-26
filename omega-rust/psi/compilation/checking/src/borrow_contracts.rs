@@ -205,7 +205,7 @@ pub fn resolve_applied_signature_view_return_source(
                 source: ViewReturnInputSource::Referent,
                 source_type: parameter.type_reference,
                 parameter_index: *position as usize,
-                kind: checked_trees::BorrowAccessKind::Read,
+                kind: checked_trees::BorrowAccessKind::from(custody.access),
             }],
         };
     }
