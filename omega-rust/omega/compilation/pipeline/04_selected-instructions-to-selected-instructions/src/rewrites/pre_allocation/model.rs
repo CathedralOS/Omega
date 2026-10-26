@@ -396,9 +396,9 @@ pub struct StagedOptimizedPreAllocationAttempt {
 }
 
 impl StagedOptimizedPreAllocationAttempt {
-    pub const fn source_selected(&self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
+    receipt_accessor_rows!(ref StagedOptimizedPreAllocationAttempt {
+        source_selected: SelectedInstructionPlanIdentity,
+    });
     pub const fn candidates(&self) -> usize {
         self.candidates
     }
@@ -534,18 +534,12 @@ impl StagedPreAllocationOptimizationCustodyReceipt {
     pub const fn attempt(&self) -> StagedOptimizedPreAllocationAttemptReceipt {
         self.attempt
     }
-    pub const fn final_selected(&self) -> SelectedInstructionPlanIdentity {
-        self.final_selected
-    }
-    pub const fn final_liveness(&self) -> LivenessIdentity {
-        self.final_liveness
-    }
-    pub const fn final_ranges(&self) -> LiveRangeIdentity {
-        self.final_ranges
-    }
-    pub const fn final_legality(&self) -> register_homes::AllocationLegalityIdentity {
-        self.final_legality
-    }
+    receipt_accessor_rows!(ref StagedPreAllocationOptimizationCustodyReceipt {
+        final_selected: SelectedInstructionPlanIdentity,
+        final_liveness: LivenessIdentity,
+        final_ranges: LiveRangeIdentity,
+        final_legality: register_homes::AllocationLegalityIdentity,
+    });
     pub const fn final_virtual_register_count(&self) -> usize {
         self.final_virtual_register_count
     }
@@ -566,9 +560,13 @@ pub struct StagedOptimizedPreAllocationIterationReceipt {
 }
 
 impl StagedOptimizedPreAllocationIterationReceipt {
-    pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
+    receipt_accessor_rows!(StagedOptimizedPreAllocationIterationReceipt {
+        source_selected: SelectedInstructionPlanIdentity,
+        transformed_selected: SelectedInstructionPlanIdentity,
+        fresh_liveness: LivenessIdentity,
+        fresh_ranges: LiveRangeIdentity,
+        fresh_legality: register_homes::AllocationLegalityIdentity,
+    });
     pub const fn transformation(self) -> PreAllocationTransformationIdentity {
         self.transformation
     }
@@ -578,18 +576,6 @@ impl StagedOptimizedPreAllocationIterationReceipt {
     /// The source-side identity of the instruction the step rewrote.
     pub const fn instruction(self) -> SelectedInstructionId {
         self.instruction
-    }
-    pub const fn transformed_selected(self) -> SelectedInstructionPlanIdentity {
-        self.transformed_selected
-    }
-    pub const fn fresh_liveness(self) -> LivenessIdentity {
-        self.fresh_liveness
-    }
-    pub const fn fresh_ranges(self) -> LiveRangeIdentity {
-        self.fresh_ranges
-    }
-    pub const fn fresh_legality(self) -> register_homes::AllocationLegalityIdentity {
-        self.fresh_legality
     }
     pub const fn declined(self) -> usize {
         self.declined
@@ -607,9 +593,9 @@ pub struct StagedOptimizedPreAllocationAttemptReceipt {
 }
 
 impl StagedOptimizedPreAllocationAttemptReceipt {
-    pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
+    receipt_accessor_rows!(StagedOptimizedPreAllocationAttemptReceipt {
+        source_selected: SelectedInstructionPlanIdentity,
+    });
     pub const fn candidates(self) -> usize {
         self.candidates
     }

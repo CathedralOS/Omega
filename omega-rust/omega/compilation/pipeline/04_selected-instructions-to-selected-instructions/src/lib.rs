@@ -47,6 +47,19 @@ macro_rules! shared_analysis_identity_accessors {
     };
 }
 
+/// One owner row per receipt accessor: the field's own name read back as its
+/// own type. A receipt whose rows are not one of the shared identity blocks
+/// lists them here instead of restating the body at the site; `ref` selects
+/// the `&self` receiver for receipts whose callers hold a reference.
+macro_rules! receipt_accessor_rows {
+    (ref $name:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
+        $( $(#[$meta])* pub const fn $field(&self) -> $ty { self.$field } )*
+    };
+    ($name:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
+        $( $(#[$meta])* pub const fn $field(self) -> $ty { self.$field } )*
+    };
+}
+
 /// The validated analyses a staged optimization keeps: liveness, live
 /// ranges, and allocation legality.
 macro_rules! validated_analysis_accessors {
@@ -110,8 +123,8 @@ pub(crate) use analyses::materialize_allocator_availability;
 pub use analyses::{
     AllocationLegalityError, LiveRangeError, LivenessError, MachineEffectStageError,
     OptimizedAllocationLegalityCustodyError, OptimizedSelectedReanalysisError,
-    OwnedSelectedProgram, RecoveryClassificationError, RecoveryReanalysisError,
-    SelectedProgramRef, SpillChoiceError, StagedOptimizedAllocationLegality,
+    OwnedSelectedProgram, RecoveryClassificationError, RecoveryReanalysisError, SelectedProgramRef,
+    SpillChoiceError, StagedOptimizedAllocationLegality,
     StagedOptimizedAllocationLegalityCustodyReceipt, StagedOptimizedLiveRanges,
     StagedOptimizedSelectedReanalysis, StagedOptimizedSelectedReanalysisCustodyReceipt,
     UnsealedRecoveryFacts, ValidatedAllocationLegality, ValidatedAllocatorAvailability,
@@ -178,8 +191,8 @@ pub use rewrites::{
     probe_optimized_fixed_precolored_segment_homes, rematerialize_selected_active_resident,
     rematerialize_selected_runtime_value, selected_allocation_recovery_rule,
     spill_selected_runtime_value, spill_selected_runtime_value_with_crossing_status,
-    spill_selected_runtime_value_with_span_policy,
-    stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies,
+    spill_selected_runtime_value_with_span_policy, stage_optimized_fixed_precolored_segment_homes,
+    stage_optimized_fixed_view_copies,
 };
 pub(crate) use rewrites::{
     FixedViewCopyDestination, FixedViewCopyValidationReceipt, FunctionLiteralFold,

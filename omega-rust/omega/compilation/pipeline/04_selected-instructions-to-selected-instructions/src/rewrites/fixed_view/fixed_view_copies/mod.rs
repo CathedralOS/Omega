@@ -108,18 +108,13 @@ impl StagedOptimizedFixedViewCopyCustodyReceipt {
     pub const fn allocator_availability(self) -> register_homes::AllocatorAvailabilityIdentity {
         self.allocator_availability
     }
-    pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
-    pub const fn source_liveness(self) -> selected_instructions::LivenessIdentity {
-        self.source_liveness
-    }
-    pub const fn source_ranges(self) -> selected_instructions::LiveRangeIdentity {
-        self.source_ranges
-    }
-    pub const fn source_legality(self) -> register_homes::AllocationLegalityIdentity {
-        self.source_legality
-    }
+    receipt_accessor_rows!(StagedOptimizedFixedViewCopyCustodyReceipt {
+        source_selected: SelectedInstructionPlanIdentity,
+        source_liveness: selected_instructions::LivenessIdentity,
+        source_ranges: selected_instructions::LiveRangeIdentity,
+        source_legality: register_homes::AllocationLegalityIdentity,
+        transformed_selected: SelectedInstructionPlanIdentity,
+    });
     pub const fn fixed_intervals(self) -> register_homes::FixedPrecoloredIntervalPlanIdentity {
         self.fixed_intervals
     }
@@ -133,9 +128,6 @@ impl StagedOptimizedFixedViewCopyCustodyReceipt {
     }
     pub const fn transformation(self) -> FixedViewCopyIdentity {
         self.transformation
-    }
-    pub const fn transformed_selected(self) -> SelectedInstructionPlanIdentity {
-        self.transformed_selected
     }
     pub const fn policy(self) -> FixedViewCopyPolicy {
         self.policy

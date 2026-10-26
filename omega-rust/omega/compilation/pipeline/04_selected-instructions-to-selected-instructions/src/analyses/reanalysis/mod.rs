@@ -94,15 +94,11 @@ impl StagedOptimizedSelectedReanalysisCustodyReceipt {
     pub const fn source(self) -> StagedOptimizedFixedViewCopyCustodyReceipt {
         self.source
     }
-    pub const fn transformed_liveness(self) -> selected_instructions::LivenessIdentity {
-        self.transformed_liveness
-    }
-    pub const fn transformed_ranges(self) -> selected_instructions::LiveRangeIdentity {
-        self.transformed_ranges
-    }
-    pub const fn transformed_legality(self) -> register_homes::AllocationLegalityIdentity {
-        self.transformed_legality
-    }
+    receipt_accessor_rows!(StagedOptimizedSelectedReanalysisCustodyReceipt {
+        transformed_liveness: selected_instructions::LivenessIdentity,
+        transformed_ranges: selected_instructions::LiveRangeIdentity,
+        transformed_legality: register_homes::AllocationLegalityIdentity,
+    });
     pub const fn allocator_availability(self) -> register_homes::AllocatorAvailabilityIdentity {
         self.allocator_availability
     }

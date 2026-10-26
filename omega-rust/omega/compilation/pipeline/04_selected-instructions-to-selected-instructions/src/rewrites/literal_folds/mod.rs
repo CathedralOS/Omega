@@ -252,15 +252,12 @@ pub struct StagedOptimizedLiteralFoldAttemptReceipt {
 }
 
 impl StagedOptimizedLiteralFoldAttemptReceipt {
-    pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
-    pub const fn source_ranges(self) -> selected_instructions::LiveRangeIdentity {
-        self.source_ranges
-    }
-    pub const fn source_legality(self) -> register_homes::AllocationLegalityIdentity {
-        self.source_legality
-    }
+    receipt_accessor_rows!(StagedOptimizedLiteralFoldAttemptReceipt {
+        source_selected: SelectedInstructionPlanIdentity,
+        source_ranges: selected_instructions::LiveRangeIdentity,
+        source_legality: register_homes::AllocationLegalityIdentity,
+        transformed_selected: SelectedInstructionPlanIdentity,
+    });
     pub const fn choices(self) -> register_homes::SpillChoiceIdentity {
         self.choices
     }
@@ -291,9 +288,6 @@ impl StagedOptimizedLiteralFoldAttemptReceipt {
     pub const fn applied_count(self) -> usize {
         self.applied_count
     }
-    pub const fn transformed_selected(self) -> SelectedInstructionPlanIdentity {
-        self.transformed_selected
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -319,18 +313,12 @@ impl StagedOptimizedLiteralFoldCustodyReceipt {
     pub fn transformations(&self) -> &[LiteralFoldIdentity] {
         &self.transformations
     }
-    pub const fn final_selected(&self) -> SelectedInstructionPlanIdentity {
-        self.final_selected
-    }
-    pub const fn final_liveness(&self) -> selected_instructions::LivenessIdentity {
-        self.final_liveness
-    }
-    pub const fn final_ranges(&self) -> selected_instructions::LiveRangeIdentity {
-        self.final_ranges
-    }
-    pub const fn final_legality(&self) -> register_homes::AllocationLegalityIdentity {
-        self.final_legality
-    }
+    receipt_accessor_rows!(ref StagedOptimizedLiteralFoldCustodyReceipt {
+        final_selected: SelectedInstructionPlanIdentity,
+        final_liveness: selected_instructions::LivenessIdentity,
+        final_ranges: selected_instructions::LiveRangeIdentity,
+        final_legality: register_homes::AllocationLegalityIdentity,
+    });
     pub const fn final_virtual_register_count(&self) -> usize {
         self.final_virtual_register_count
     }
@@ -360,15 +348,15 @@ pub struct StagedOptimizedLiteralFoldIterationReceipt {
 }
 
 impl StagedOptimizedLiteralFoldIterationReceipt {
-    pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
-    pub const fn source_ranges(self) -> selected_instructions::LiveRangeIdentity {
-        self.source_ranges
-    }
-    pub const fn source_legality(self) -> register_homes::AllocationLegalityIdentity {
-        self.source_legality
-    }
+    receipt_accessor_rows!(StagedOptimizedLiteralFoldIterationReceipt {
+        source_selected: SelectedInstructionPlanIdentity,
+        source_ranges: selected_instructions::LiveRangeIdentity,
+        source_legality: register_homes::AllocationLegalityIdentity,
+        transformed_selected: SelectedInstructionPlanIdentity,
+        fresh_liveness: selected_instructions::LivenessIdentity,
+        fresh_ranges: selected_instructions::LiveRangeIdentity,
+        fresh_legality: register_homes::AllocationLegalityIdentity,
+    });
     pub const fn choices(self) -> register_homes::SpillChoiceIdentity {
         self.choices
     }
@@ -395,18 +383,6 @@ impl StagedOptimizedLiteralFoldIterationReceipt {
     }
     pub const fn fold_usage(self) -> OptimizationWorkUsage {
         self.fold_usage
-    }
-    pub const fn transformed_selected(self) -> SelectedInstructionPlanIdentity {
-        self.transformed_selected
-    }
-    pub const fn fresh_liveness(self) -> selected_instructions::LivenessIdentity {
-        self.fresh_liveness
-    }
-    pub const fn fresh_ranges(self) -> selected_instructions::LiveRangeIdentity {
-        self.fresh_ranges
-    }
-    pub const fn fresh_legality(self) -> register_homes::AllocationLegalityIdentity {
-        self.fresh_legality
     }
 }
 

@@ -288,9 +288,10 @@ impl PressureRematerializationValidationReceipt {
     pub const fn identity(self) -> PressureRematerializationIdentity {
         self.identity
     }
-    pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
+    receipt_accessor_rows!(PressureRematerializationValidationReceipt {
+        source_selected: SelectedInstructionPlanIdentity,
+        transformed_selected: SelectedInstructionPlanIdentity,
+    });
     pub const fn spill_choices(self) -> SpillChoiceIdentity {
         self.spill_choices
     }
@@ -298,9 +299,6 @@ impl PressureRematerializationValidationReceipt {
         self.recovery_classifications
     }
     shared_analysis_identity_accessors!(pub);
-    pub const fn transformed_selected(self) -> SelectedInstructionPlanIdentity {
-        self.transformed_selected
-    }
     pub const fn policy(self) -> PressureRematerializationPolicy {
         self.policy
     }

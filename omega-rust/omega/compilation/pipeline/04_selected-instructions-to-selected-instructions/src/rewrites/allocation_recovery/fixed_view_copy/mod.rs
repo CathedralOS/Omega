@@ -89,15 +89,12 @@ impl FixedViewCopyValidationReceipt {
     pub const fn identity(self) -> FixedViewCopyIdentity {
         self.identity
     }
-    pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
-    pub const fn source_ranges(self) -> LiveRangeIdentity {
-        self.source_ranges
-    }
-    pub const fn source_legality(self) -> AllocationLegalityIdentity {
-        self.source_legality
-    }
+    receipt_accessor_rows!(FixedViewCopyValidationReceipt {
+        source_selected: SelectedInstructionPlanIdentity,
+        source_ranges: LiveRangeIdentity,
+        source_legality: AllocationLegalityIdentity,
+        transformed_selected: SelectedInstructionPlanIdentity,
+    });
     pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
         self.register_environment
     }
@@ -106,9 +103,6 @@ impl FixedViewCopyValidationReceipt {
     }
     pub const fn source_evidence(self) -> FixedViewCopySourceEvidence {
         self.source_evidence
-    }
-    pub const fn transformed_selected(self) -> SelectedInstructionPlanIdentity {
-        self.transformed_selected
     }
     pub const fn optimization_unit(self) -> optimization_core::OptimizationUnitIdentity {
         self.optimization_unit

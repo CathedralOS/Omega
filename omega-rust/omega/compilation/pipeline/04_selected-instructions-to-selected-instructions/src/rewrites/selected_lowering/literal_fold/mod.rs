@@ -768,9 +768,10 @@ impl LiteralFoldValidationReceipt {
     pub const fn identity(self) -> LiteralFoldIdentity {
         self.identity
     }
-    pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
+    receipt_accessor_rows!(LiteralFoldValidationReceipt {
+        source_selected: SelectedInstructionPlanIdentity,
+        transformed_selected: SelectedInstructionPlanIdentity,
+    });
     pub const fn spill_choices(self) -> SpillChoiceIdentity {
         self.spill_choices
     }
@@ -799,9 +800,6 @@ impl LiteralFoldValidationReceipt {
     }
     pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
         self.fuel_schedule
-    }
-    pub const fn transformed_selected(self) -> SelectedInstructionPlanIdentity {
-        self.transformed_selected
     }
     pub const fn policy(self) -> LiteralFoldPolicy {
         self.policy
