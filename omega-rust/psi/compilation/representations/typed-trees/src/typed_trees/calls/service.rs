@@ -12,14 +12,14 @@
 //! unknown, so no program can reach the recognition this module used to perform:
 //! recognition required the exact toolchain source `core/binding.omg`, which no
 //! longer exists. `STATIC-MACHINE-MIGRATION` (TASKS.md) owns deleting what
-//! remains: the call sites whose carrier branch can no longer fire
-//! (`declarations/trait_definition/applications/source_fields.rs`,
-//! `declarations/invocations.rs`,
-//! `04_typed-trees-to-checked-trees/.../shape_collector.rs`,
-//! `checking/.../boundary_calls.rs`, `checking/.../value_custody/type_references.rs`)
-//! and the selected-dispatch
-//! `service_custody` traversal with `program_entry_service_requirements`, whose
-//! only constructor of `ExactServiceCarrier` was this recognition.
+//! remains: carrier-only branches in checked shape collection, boundary call
+//! forwarding and selected dispatch. Ordinary type-head lookup and boundary
+//! trait value checking no longer consult this retired representation.
+//!
+//! Entry service demand is a separate live judgment. Selected dispatch's
+//! `program_entry_service_requirements` reads checked published/inferred/concrete
+//! call reach, not this carrier. Removing these negative classifiers must retain
+//! that demand and authority checking.
 
 use crate::TypedTrees;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};

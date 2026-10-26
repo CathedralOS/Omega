@@ -138,14 +138,6 @@ impl SourceFields<'_> {
             return;
         }
 
-        if let Ok(Some(contract)) =
-            crate::service::inspect_service_carrier_contract(self.program, reference)
-        {
-            if let Some(scope) = contract.application(self.program, owner, enclosing_applications) {
-                self.roots.push(scope);
-            }
-            return;
-        }
         match self.program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => return,
             TypeReferenceNode::Constrained { base_type, .. } => {
