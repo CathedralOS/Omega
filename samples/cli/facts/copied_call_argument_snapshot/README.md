@@ -150,6 +150,15 @@ reference still observe live contents. The additional rejection controls
 `computed_view_store_retains_local_array_backing` check that this preservation
 grants neither stale scalar facts nor permission to mutate borrowed backing.
 
+Completed-call backing resolution retains proven immutable image alternatives
+alongside input suppliers and declared lifetime dependencies. An image has shared
+access and no invented caller address; an unavailable alternative still refuses.
+Returned-origin capture reads copied descriptors from their frozen per-leaf
+referent inventory, then joins those coordinates to the returned loan group.
+Whole-carrier metadata does not replace that inventory or restore overwritten
+storage. This keeps the source-free replacement and recursive carrier forwarding
+on the same completed-value path.
+
 Host acceptance is nine native/Terminal exit-0 agreements and nine twins refusing
 `receive`'s 7 obligation, together with both ownership controls. Windows execution
 remains owner-deferred; Linux execution is unverified.
