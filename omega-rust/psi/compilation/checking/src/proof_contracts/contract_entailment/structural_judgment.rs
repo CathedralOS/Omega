@@ -646,10 +646,8 @@ impl<'program> StructuralJudge<'program> {
             // the same read owner as completed operands. Exact replacements
             // can be observed; retired roots still decline there. Abstract
             // entry terms must never reinterpret an old binder as new contents.
-            let mut specification = self.clone();
-            specification.specification_terms = true;
-            return specification.callee_term_in_scope(
-                Some((machine, state, state.return_type)),
+            return self.predicate_term_in_scope(
+                (machine, state, state.return_type),
                 expression,
                 &environment,
                 0,
@@ -662,6 +660,51 @@ impl<'program> StructuralJudge<'program> {
             expression,
             None,
         )
+    }
+
+    /// The ordinary predicate reader can also consume an executed prefix's
+    /// exact local bindings. These bindings affect the question only; the
+    /// judge's admitted premises and captured storage epochs remain intact.
+    pub(super) fn predicate_term_in_scope(
+        &self,
+        scope: (&Machine, &typed_trees::state::State, TypeReferenceHandle),
+        expression: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        let mut specification = self.clone();
+        specification.specification_terms = true;
+        specification.callee_term_in_scope(Some(scope), expression, environment, depth)
+    }
+
+    /// Judge a Boolean question without replacing a prefix's current bindings
+    /// by declaration parameters. Logical connectives decompose the question;
+    /// no part of that question is installed as a premise for another leaf.
+    pub(super) fn judge_predicate_in_scope(
+        &self,
+        scope: (&Machine, &typed_trees::state::State, TypeReferenceHandle),
+        expression: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        depth: usize,
+    ) -> StructuralJudgment {
+        if depth >= 32 {
+            return StructuralJudgment::Unknown;
+        }
+        if self.has_boolean_connective_meaning(expression)
+            && let Some(binary) = self.program.expression_table.binary_node(expression)
+        {
+            return StructuralJudgment::connective(
+                binary.operator,
+                self.judge_predicate_in_scope(scope, binary.left, environment, depth + 1),
+                self.judge_predicate_in_scope(scope, binary.right, environment, depth + 1),
+            );
+        }
+        let Some(predicate) =
+            self.predicate_term_in_scope(scope, expression, environment, depth + 1)
+        else {
+            return StructuralJudgment::Unknown;
+        };
+        self.judge_observed_predicate(predicate, depth)
     }
 
     pub(super) fn application_is_independent(
@@ -2620,18 +2663,11 @@ impl<'program> StructuralJudge<'program> {
         }
         match binary.operator {
             BinaryOperator::And if self.has_boolean_connective_meaning(fact) => {
-                match (
+                StructuralJudgment::connective(
+                    BinaryOperator::And,
                     self.judge(program, binary.left),
                     self.judge(program, binary.right),
-                ) {
-                    (StructuralJudgment::Proven, StructuralJudgment::Proven) => {
-                        StructuralJudgment::Proven
-                    }
-                    (StructuralJudgment::Refuted, _) | (_, StructuralJudgment::Refuted) => {
-                        StructuralJudgment::Refuted
-                    }
-                    _ => StructuralJudgment::Unknown,
-                }
+                )
             }
             BinaryOperator::Or if self.has_boolean_connective_meaning(fact) => {
                 self.judge_disjunction(binary.left, binary.right)
