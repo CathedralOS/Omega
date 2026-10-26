@@ -37,6 +37,7 @@ pub(crate) use argument_types::DeclaredTypeOrigin;
 pub(crate) struct SourceLinks {
     pub(crate) declared_types: Vec<(DeclaredTypeOrigin, TypeReferenceHandle)>,
     pub(crate) declarations: Vec<(usize, Machine)>,
+    pub(crate) data_declarations: Vec<(syntax_trees::item::ItemHandle, usize)>,
     pub(crate) expressions: Vec<(
         syntax_trees::expression::ExpressionHandle,
         symbol_resolved_trees::expression::ExpressionHandle,
@@ -58,10 +59,12 @@ impl SourceLinks {
         let Self {
             declared_types,
             declarations,
+            data_declarations,
             expressions,
             statements,
         } = self;
         *declared_types == other.declared_types
+            && *data_declarations == other.data_declarations
             && *expressions == other.expressions
             && *statements == other.statements
             && declarations.same_syntax(&other.declarations, left, right)
