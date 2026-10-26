@@ -59,13 +59,11 @@ impl CanonicalPlace {
                 _ => std::cmp::Ordering::Equal,
             })
             .then_with(|| {
-                for (left, right) in self.segments.iter().zip(&other.segments) {
-                    let ordering = segment_key(*left).cmp(&segment_key(*right));
-                    if ordering != std::cmp::Ordering::Equal {
-                        return ordering;
-                    }
-                }
-                self.segments.len().cmp(&other.segments.len())
+                self.segments
+                    .iter()
+                    .copied()
+                    .map(segment_key)
+                    .cmp(other.segments.iter().copied().map(segment_key))
             })
     }
 

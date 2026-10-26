@@ -14,11 +14,24 @@ pub(super) struct CaseExclusions {
 }
 
 impl CaseExclusions {
+    fn compare_observation_identity(
+        left: &CanonicalPlace,
+        right: &CanonicalPlace,
+    ) -> std::cmp::Ordering {
+        // Repeated cuts revisit exact observations. Equality avoids rebuilding
+        // lexicographic keys for those hits; distinct identities retain the
+        // existing complete structural ordering.
+        if left == right {
+            std::cmp::Ordering::Equal
+        } else {
+            left.compare_identity(right)
+        }
+    }
+
     pub(super) fn insert(&mut self, place: &CanonicalPlace) {
-        let Err(position) = self
-            .by_identity
-            .binary_search_by(|&position| self.observations[position].compare_identity(place))
-        else {
+        let Err(position) = self.by_identity.binary_search_by(|&position| {
+            Self::compare_observation_identity(&self.observations[position], place)
+        }) else {
             return;
         };
         self.by_identity.insert(position, self.observations.len());
@@ -27,7 +40,9 @@ impl CaseExclusions {
 
     pub(super) fn contains(&self, place: &CanonicalPlace) -> bool {
         self.by_identity
-            .binary_search_by(|&position| self.observations[position].compare_identity(place))
+            .binary_search_by(|&position| {
+                Self::compare_observation_identity(&self.observations[position], place)
+            })
             .is_ok()
     }
 
