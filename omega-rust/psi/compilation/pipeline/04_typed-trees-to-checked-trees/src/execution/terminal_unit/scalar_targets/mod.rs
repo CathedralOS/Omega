@@ -314,117 +314,19 @@ pub(super) fn available_target(
                 && u32::try_from(call.call_ordinal).ok() == Some(coordinate.call_ordinal)
         });
     let call = calls.next()?;
-    // Rebuild the same roots statement sequencing gave its call arguments:
-    // named locals retain their symbols, while inline constructed or copied
-    // operands retain their exact authored expressions, not the destination
-    // of the enclosing call-result assignment.
-    let caller_state = program.state_by_symbol(caller.state)?;
     let caller_structural_results = caller
         .operations
         .iter()
-        .copied()
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
-                    result,
-                    value,
-                    operand_source:
-                        Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. }),
-                    ..
-                },
-            ) => facts
-                .values
-                .structural_values
-                .nodes
-                .is_valid(*value)
-                .then(|| {
-                    (
-                        result,
-                        Some(facts.values.structural_values.nodes.get(*value).expression),
-                    )
-                }),
-            CheckedUnitEffectOperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
-                    result,
-                    source:
-                        checked_trees::CheckedArrayConstructionSource::CallArgument {
-                            call_ordinal,
-                            parameter_position,
-                        },
-                    ..
-                },
-            ) => {
-                let site = validation::find_call_site(
-                    program,
-                    caller.machine,
-                    caller.state,
-                    result.statement_index as usize,
-                    *call_ordinal as usize,
-                )?;
-                let arguments = validation::call_site_argument_expressions(program, &site);
-                let target = match site {
-                    validation::CallSite::Statement(call) => call.target_symbol,
-                    validation::CallSite::Expression { call, .. } => {
-                        validation::call_target_symbol(program, call)
-                    }
-                    validation::CallSite::TransitionNamed { path, .. } => path.symbol,
-                };
-                let parameters = validation::call_target_parameters(program, target)?;
-                let mut actuals = parameters.iter().enumerate().zip(arguments);
-                let expression = actuals.find_map(|((position, _), expression)| {
-                    (position == *parameter_position as usize).then_some(*expression)
-                })?;
-                Some((result, Some(expression)))
-            }
-            // A nested operand's anonymous result is rooted at its authored
-            // call; a bound result at its local.
-            CheckedUnitEffectOperationPlan::Call(call) => {
-                let result = call.structural_result()?;
-                if result.local.symbol.is_valid() {
-                    return Some((result, None));
-                }
-                let mut producers = facts
-                    .flow
-                    .control
-                    .calls
-                    .span_or_empty(flow.calls)
-                    .iter()
-                    .filter(|producer| {
-                        u32::try_from(producer.statement_index).ok()
-                            == Some(call.coordinate.statement_index)
-                            && u32::try_from(producer.call_ordinal).ok()
-                                == Some(call.coordinate.call_ordinal)
-                    });
-                let producer = producers.next()?;
-                if producers.next().is_some() || !producer.authored_expression.is_valid() {
-                    return None;
-                }
-                Some((result, Some(producer.authored_expression)))
-            }
-            // Named results share one namespace regardless of their producer
-            // (construction, reference formation, or an owned field move).
-            // Rebuilding only literal/call bindings loses the exact local that
-            // statement sequencing already supplied to the argument transfer.
-            _ => operation
-                .statement_structural_result_binding()
-                .filter(|result| result.local.symbol.is_valid())
-                .map(|result| (result, None)),
-        })
-        .filter_map(|(result, expression)| {
-            if let Some(expression) = expression {
-                return Some((result.clone(), facts::PlaceRoot::Expression(expression)));
-            }
-            let crate::execution::terminal_unit::StatementNode::LocalData(local) = program
-                .statement_table
-                .statements(caller_state.statement_nodes)
-                .get(usize::try_from(result.statement_index).ok()?)?
-            else {
-                return None;
-            };
-            if local.symbol != result.local.symbol {
-                return None;
-            }
-            Some((result.clone(), facts::PlaceRoot::Symbol(local.symbol)))
+        .filter_map(|operation| {
+            let result = operation.structural_result_binding()?;
+            let owner = super::calls::structural_result_owner(
+                program,
+                facts,
+                caller.state,
+                facts.flow.control.calls.span_or_empty(flow.calls),
+                operation,
+            )?;
+            Some((result.clone(), owner))
         })
         .collect::<Vec<_>>();
     if calls.next().is_some()

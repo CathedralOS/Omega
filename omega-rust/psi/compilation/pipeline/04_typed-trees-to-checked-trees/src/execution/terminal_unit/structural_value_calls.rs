@@ -444,42 +444,14 @@ fn prepare_root(
             continue;
         }
         count = count.max(result.binding_ordinal as usize + 1);
-        let expression = if let Some(call) = operation.call() {
-            source_calls
-                .iter()
-                .find(|source| {
-                    source.statement_index == call.coordinate.statement_index as usize
-                        && source.call_ordinal == call.coordinate.call_ordinal as usize
-                })
-                .map(|source| source.authored_expression)
-        } else if let CheckedUnitEffectOperationPlan::EstablishLocal(
-            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
-        ) = operation
-        {
-            Some(facts.values.structural_values.nodes.get(*value).expression)
-        } else {
-            match operation {
-                CheckedUnitEffectOperationPlan::EstablishReference {
-                    formation_expression,
-                    ..
-                } => Some(*formation_expression),
-                CheckedUnitEffectOperationPlan::MoveStructuralField { expression, .. }
-                    if expression.is_valid() =>
-                {
-                    Some(*expression)
-                }
-                _ => None,
-            }
-        };
-        // The binding owner was paired at production, not inferred from an
-        // enclosing statement shared by several anonymous child producers.
-        let source = result
-            .local
-            .is_named()
-            .then_some(facts::PlaceRoot::Symbol(result.local.symbol))
-            .or_else(|| expression.map(facts::PlaceRoot::Expression));
-        if let Some(source) = source {
-            results.push((result.clone(), source));
+        if let Some(owner) = super::calls::structural_result_owner(
+            program,
+            facts,
+            state.symbol,
+            source_calls,
+            operation,
+        ) {
+            results.push((result.clone(), owner));
         }
         preceding.push(operation.clone());
     }
