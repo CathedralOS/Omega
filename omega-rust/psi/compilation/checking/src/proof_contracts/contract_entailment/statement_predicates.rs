@@ -134,16 +134,13 @@ impl StructuralPrefixVisitor for Predicate {
 
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
         let (_program, machine, state, judge, environment) = observation;
-        let Some(predicate) = judge.predicate_term_in_scope(
-            (machine, state, state.return_type),
-            self.expression,
-            environment,
-        ) else {
-            self.proven = false;
-            return;
-        };
         self.proven &= matches!(
-            judge.judge_observed_predicate(predicate, 0),
+            judge.judge_predicate_in_scope(
+                (machine, state, state.return_type),
+                self.expression,
+                environment,
+                0,
+            ),
             StructuralJudgment::Proven
         );
     }
