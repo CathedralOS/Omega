@@ -349,11 +349,15 @@ pub(crate) fn cloned_expression_roots(
         .span_or_empty(cloned.declared_type_equations)
     {
         for reference in [equation.parameter, equation.definition] {
-            for (minimum, maximum) in
-                crate::monomorphization::type_reference_endpoints(program, reference)
-            {
-                roots.extend([minimum, maximum]);
-            }
+            crate::monomorphization::for_each_type_reference(
+                program,
+                &[reference],
+                |_, _| false,
+                |_, minimum, maximum| {
+                    roots.extend([minimum, maximum]);
+                    false
+                },
+            );
         }
     }
     for item in program.machine_owned_data(cloned) {
