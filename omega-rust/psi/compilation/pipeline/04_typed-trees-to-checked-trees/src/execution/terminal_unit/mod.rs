@@ -1213,7 +1213,7 @@ fn body_route(
     // A result the graph's vocabulary cannot describe is only a sequence's.
     // The classification uses a scratch shape namespace: choosing a route
     // registers no type.
-    if state_graph::result_plan(program, &mut ShapeCollector::new(program), machine).is_none() {
+    if types::declared_result_plan(program, &mut ShapeCollector::new(program), machine).is_none() {
         return BodyRoute::Sequence;
     }
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -1344,7 +1344,7 @@ pub(super) fn scalar_case_value_shapes(
     let mut shapes = ShapeCollector::new(program);
     // A primitive result owns no structural value shape.
     if let checked_trees::CheckedControlResultPlan::Scalar { .. } =
-        state_graph::returns::signature(program, &mut shapes, reference)?
+        types::declared_result_type(program, &mut shapes, reference)?
     {
         return None;
     }

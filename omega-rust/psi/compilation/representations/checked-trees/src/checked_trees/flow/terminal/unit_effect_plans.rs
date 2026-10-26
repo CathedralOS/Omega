@@ -1077,6 +1077,9 @@ pub struct CheckedUnitParameterStoragePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitEffectMachinePlan {
+    /// Declared callable result, independent of normal-return receiving homes.
+    /// A body with no normal completion still retains its complete signature.
+    pub result: super::CheckedControlResultPlan,
     /// Source-owned normal exits, selected individually by scalar control completion.
     pub normal_exit_cleanups: arena::HandleSpan<super::CheckedNormalExitCleanupPlan>,
     /// Final ordinary scalar binding, mutually exclusive with the other completions.
@@ -1148,9 +1151,7 @@ impl CheckedUnitEffectMachinePlan {
         CheckedUnitCallableEntry {
             machine: self.machine,
             state: self.state,
-            returns_unit: self.scalar_result.is_none()
-                && self.scalar_control.is_none()
-                && self.structural_result.is_none(),
+            returns_unit: self.result == super::CheckedControlResultPlan::Unit,
             attachment_type_identity: self.attachment_type_identity,
             structural_parameters: &self.structural_parameters,
             scalar_parameters: &self.scalar_parameters,

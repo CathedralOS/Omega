@@ -389,9 +389,7 @@ pub(super) fn lower_unit_structural_types_including(
         literal_view |= operands.literal_view;
         let body = UnitBody::find(plans, *symbol)?;
         place_types::collect(checked, plans, body, &mut roots)?;
-        if !matches!(body, UnitBody::Ordinary(plan) if plan.scalar_result.is_some() || plan.scalar_control.is_some())
-            && let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()?
-        {
+        if let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()? {
             roots.push(result.type_identity);
         }
         roots.extend(body.attachment());

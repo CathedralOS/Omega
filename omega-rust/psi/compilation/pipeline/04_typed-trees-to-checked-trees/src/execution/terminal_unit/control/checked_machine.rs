@@ -114,9 +114,7 @@ pub(crate) fn build_checked_machine_residual_parts(
     let (mut structural_parameters, scalar_parameters) =
         free_structural_scalar_signature_traced(program, shapes, state, &binders, trace)?;
     trace.phase("signature: authored result domains");
-    super::super::types::register_authored_result_domains(
-        program, shapes, machine, state, &binders,
-    )?;
+    let result = super::super::types::declared_result_plan(program, shapes, machine)?;
     trace.phase("signature: parameter storage");
     let parameter_storage =
         parameter_storage_plans(program, shapes, state, &binders, &scalar_parameters)?;
@@ -363,6 +361,7 @@ pub(crate) fn build_checked_machine_residual_parts(
         crate::execution::terminal_unit::types::erased_proof_parameter_plans(program, state)?;
     Some((
         CheckedUnitEffectMachinePlan {
+            result,
             normal_exit_cleanups: Default::default(),
             scalar_result,
             scalar_control,

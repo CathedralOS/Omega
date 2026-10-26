@@ -515,51 +515,42 @@ pub(super) fn emit(
             )?
         }
     };
-    let mut external_result = None;
-    let mut parameter_cleanup = Vec::new();
-    let (scalar_return, structural_return) = if let Some(terminator) =
-        operations.take_invocation_completion(&mut next_edge)?
-    {
-        external_result = Some(if let Some(result) = &plan.structural_result {
+    // A declaration is not an executed result: preserve it before choosing
+    // normal completion or suspension, including zero-return bodies.
+    let declared_result = match &plan.result {
+        checked_trees::CheckedControlResultPlan::Unit => TerminalMachineResult::Unit,
+        checked_trees::CheckedControlResultPlan::Scalar { primitive_type } => {
+            let declared = super::parameters::unit_scalar_result_type(
+                checked,
+                plan.state,
+                terminal_scalar_type(*primitive_type)?,
+                prepared_scalar_qualifications,
+            )?;
+            TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: declared.qualifications,
+                id: value_id(allocate_dense(&mut next_value_identity)?),
+                scalar_type: declared.scalar_type,
+            })
+        }
+        checked_trees::CheckedControlResultPlan::Structural(_) => {
             TerminalMachineResult::Structural(lower_structural_result_declaration(
                 identities,
                 checked,
                 plan,
-                result,
                 parameters,
                 structural_types,
                 type_ids,
                 domain_ids,
                 &mut next_place,
             )?)
-        } else if let Some(primitive_type) = plan
-            .scalar_result
-            .as_ref()
-            .map(|result| result.primitive_type)
-            .or_else(|| {
-                plan.scalar_control
-                    .as_ref()
-                    .map(|control| control.primitive_type)
-            })
-        {
-            TerminalMachineResult::Scalar(ValueDeclaration {
-                qualifications: super::parameters::unit_scalar_result_type(
-                    checked,
-                    plan.state,
-                    terminal_scalar_type(primitive_type)?,
-                    prepared_scalar_qualifications,
-                )?
-                .qualifications,
-                id: value_id(allocate_dense(&mut next_value_identity)?),
-                scalar_type: terminal_scalar_type(primitive_type)?,
-            })
-        } else {
-            TerminalMachineResult::Unit
-        });
-        // Result declarations describe the machine's normal-return contract,
-        // not a runtime producer on this abandoned path.
-        // Abandonment seals this path without evaluating a later result,
-        // manufacturing normal receipts, or scheduling implicit cleanup.
+        }
+    };
+    let mut completes_normally = true;
+    let mut parameter_cleanup = Vec::new();
+    if let Some(terminator) = operations.take_invocation_completion(&mut next_edge)? {
+        completes_normally = false;
+        // The exact invocation owns control. Its caller stays suspended, with
+        // no result production, normal receipts or implicit cleanup.
         evaluation.blocks.push(Block {
             id: evaluation.current,
             parameters: evaluation.parameters,
@@ -570,7 +561,6 @@ pub(super) fn emit(
             terminator,
         });
         next_value = next_value_identity;
-        (None, None)
     } else if let Some(control) = &plan.scalar_control {
         // Each selected return owns its checked exit transaction. No cleanup
         // is reconstructed from entry multiplicity or repeated at the join.
@@ -678,17 +668,12 @@ pub(super) fn emit(
         }?;
         borrowed_windows.require_closed()?;
         next_call_obligation = scalar_calls.next_obligation_identity;
-        let declaration = ValueDeclaration {
-            qualifications: super::parameters::unit_scalar_result_type(
-                checked,
-                plan.state,
-                source.scalar_type,
-                prepared_scalar_qualifications,
-            )?
-            .qualifications,
-            id: value_id(allocate_dense(&mut next_value_identity)?),
-            scalar_type: source.scalar_type,
+        let TerminalMachineResult::Scalar(declaration) = &declared_result else {
+            return unsupported("scalar completion differs from the declared result");
         };
+        if source.scalar_type != declaration.scalar_type {
+            return unsupported("scalar completion differs from its declared carrier");
+        }
         next_value = next_value_identity;
         let return_edge = edge_id(allocate_dense(&mut next_edge)?);
         operations.source_returns.push(
@@ -710,7 +695,6 @@ pub(super) fn emit(
                 cleanup_actions: Vec::new(),
             },
         });
-        (Some((source.id, declaration)), None)
     } else {
         let Some(CheckedUnitEffectOperationPlan::Complete {
             trivial_affine_local_discard_ordinals,
@@ -858,24 +842,17 @@ pub(super) fn emit(
                 if source.scalar_type != scalar_type {
                     return unsupported("scalar completion binding has a different carrier");
                 }
-                Ok::<_, LoweringError>((
-                    source.id,
-                    ValueDeclaration {
-                        qualifications: super::parameters::unit_scalar_result_type(
-                            checked,
-                            plan.state,
-                            scalar_type,
-                            prepared_scalar_qualifications,
-                        )?
-                        .qualifications,
-                        id: value_id(allocate_dense(&mut next_value_identity)?),
-                        scalar_type,
-                    },
-                ))
+                let TerminalMachineResult::Scalar(declaration) = &declared_result else {
+                    return unsupported("scalar binding differs from the declared result");
+                };
+                if scalar_type != declaration.scalar_type {
+                    return unsupported("scalar binding differs from its declared carrier");
+                }
+                Ok::<_, LoweringError>((source.id, declaration.clone()))
             })
             .transpose()?;
-        // Completion reserves its own scalar result identity after the body.
-        // Include it before the next helper borrows the shared value allocator.
+        // The declared result identity is already reserved independently of
+        // completion. Keep the shared allocator synchronized for later helpers.
         next_value = next_value_identity;
         let structural_return = plan
             .structural_result
@@ -933,17 +910,19 @@ pub(super) fn emit(
                 )?;
                 Ok::<_, LoweringError>((
                     source,
-                    lower_structural_result_declaration(
-                        identities,
-                        checked,
-                        plan,
-                        result,
-                        parameters,
-                        structural_types,
-                        type_ids,
-                        domain_ids,
-                        &mut next_place,
-                    )?,
+                    match &declared_result {
+                        TerminalMachineResult::Structural(declaration)
+                            if lookup_type_id(type_ids, &result.type_identity)?
+                                == declaration.structural_type =>
+                        {
+                            declaration.clone()
+                        }
+                        _ => {
+                            return unsupported(
+                                "structural completion differs from the declared result",
+                            );
+                        }
+                    },
                     returned_claims,
                 ))
             })
@@ -1066,25 +1045,12 @@ pub(super) fn emit(
             terminator,
         });
         evaluation.blocks.sort_by_key(|block| block.id);
-        (scalar_return, structural_return)
-    };
+    }
     // Operand evaluation can reserve continuation blocks before their parents
     // are sealed. Both normal return and external completion publish identity
     // order, not emission order; abandonment must not skip this common seal.
     evaluation.blocks.sort_by_key(|block| block.id);
     next_operation = operations.next_identity;
-    let completes_normally = external_result.is_none();
-    let declared_result = external_result.unwrap_or_else(|| {
-        if let Some((_, result)) = scalar_return {
-            TerminalMachineResult::Scalar(result)
-        } else {
-            structural_return
-                .as_ref()
-                .map_or(TerminalMachineResult::Unit, |(_, result, _)| {
-                    TerminalMachineResult::Structural(result.clone())
-                })
-        }
-    });
     crate::emission::structural_byte_sequence_store::retain_literal_declarations(
         &operations,
         &mut private_places,
@@ -1154,13 +1120,13 @@ pub(super) fn emit(
     )?;
     // Argument-time view producers interleave with reserved call results.
     // Declaration order is canonical identity order, not execution order.
-    structural_places.sort_by_key(|place| place.id);
     if let TerminalMachineResult::Structural(result) = &declared_result {
         structural_places.push(StructuralPlaceDeclaration {
             id: result.place,
             kind: StructuralPlaceKind::Result,
         });
     }
+    structural_places.sort_by_key(|place| place.id);
     let normal_guarantees = super::normal_guarantees::lower(
         identities,
         checked,
@@ -1301,13 +1267,15 @@ fn lower_structural_result_declaration(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plan: &CheckedUnitEffectMachinePlan,
-    result: &checked_trees::CheckedUnitStructuralReturnPlan,
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     domain_ids: &[StructuralDomainBinding],
     next_place: &mut u64,
 ) -> Result<terminal_psi::StructuralResultDeclaration, LoweringError> {
+    let checked_trees::CheckedControlResultPlan::Structural(result) = &plan.result else {
+        return unsupported("structural declaration has a different result kind");
+    };
     let place = place_id(allocate_dense(next_place)?);
     let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
     let state = typed_trees::state::state_by_symbol(
@@ -1321,8 +1289,8 @@ fn lower_structural_result_declaration(
     .ok_or(LoweringError::Unsupported(
         "structural result has no exact state",
     ))?;
-    // Completion already captured the complete normal-result origin relation.
-    // Lowering publishes that plan, never reconstructs it from old initializers.
+    // Normal completions retain their exact origin relation. A body without
+    // a completed result publishes no fabricated returned-reference receipt.
     let return_type = state.return_type;
     // A byte view result's inside-borrow domains ride the same peeled
     // carrier identity the result spells, so the machine publishes them
@@ -1360,7 +1328,9 @@ fn lower_structural_result_declaration(
         reference_sources: parameters::lower_reference_result_sources(
             identities,
             checked,
-            &result.reference_sources,
+            plan.structural_result
+                .as_ref()
+                .map_or(&[][..], |result| result.reference_sources.as_slice()),
             structural_type,
             structural_types,
             parameters,

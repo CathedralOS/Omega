@@ -52,29 +52,6 @@ pub(super) use successors::{
     EdgeCalls, SuccessorEdge, SuccessorGuard, successor, successor_bindings,
 };
 
-/// The result a state graph describes for `machine`, or `None` when the
-/// machine's result is outside the graph's result vocabulary. Body routing asks
-/// the same question before any builder runs.
-pub(super) fn result_plan(
-    program: &dyn ::validation::CheckingInput,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-) -> Option<checked_trees::CheckedControlResultPlan> {
-    let entry = program.machine_states(machine).first()?;
-    let result = returns::signature(program, shapes, entry.return_type)?;
-    crate::execution::terminal_unit::types::register_authored_result_domains(
-        program,
-        shapes,
-        machine,
-        entry,
-        &crate::execution::terminal_unit::types::machine_binders(program, machine),
-    )?;
-    // Normal-return contracts use the shared checked guarantee owner for
-    // every carrier. Linear results additionally retain exact outgoing claim
-    // custody; their contracts do not turn guarded completion into a sequence.
-    Some(result)
-}
-
 /// Read one retained source observation roster for the authored owners in this
 /// composed graph. Fusion changes control placement, never the chosen measure
 /// coordinate or the source judgment. Weak call-component edges come from its
@@ -216,7 +193,7 @@ pub(super) fn build_traced(
         return None;
     }
     trace.phase("state graph: result signature");
-    let result = result_plan(program, shapes, machine)?;
+    let result = super::types::declared_result_plan(program, shapes, machine)?;
     // State count and the presence of an aggregate initializer do not choose
     // cleanup semantics. Even one Unit state can owe executable normal-exit
     // actions. Plan its graph here; the shared candidate selection keeps one
@@ -283,7 +260,7 @@ pub(super) fn build_traced(
     for &(owner, state) in fused.iter() {
         trace.phase("state graph: state signature: result and contracts");
         trace.state(Some(state.symbol));
-        if returns::signature(program, shapes, state.return_type)? != result {
+        if super::types::declared_result_type(program, shapes, state.return_type)? != result {
             trace.phase("state graph: state signature: result differs");
             return None;
         }
