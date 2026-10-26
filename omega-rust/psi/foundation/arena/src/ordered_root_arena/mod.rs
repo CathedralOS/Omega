@@ -44,19 +44,6 @@ impl<T: Default> OrderedRootArena<T> {
         self.handles.span_or_empty(self.roots).contains(&handle)
     }
 
-    /// Select roots without rebuilding their storage. Durable references to
-    /// retained roots keep their original generational identities.
-    pub fn retain(&mut self, mut keep: impl FnMut(&T) -> bool) {
-        let retained = self
-            .handles
-            .span_or_empty(self.roots)
-            .iter()
-            .copied()
-            .filter(|handle| keep(self.storage.get(*handle)))
-            .collect::<Vec<_>>();
-        self.roots = self.handles.insert_many(retained);
-    }
-
     pub fn iter(&self) -> OrderedRootArenaIter<'_, T> {
         OrderedRootArenaIter {
             storage: &self.storage,
