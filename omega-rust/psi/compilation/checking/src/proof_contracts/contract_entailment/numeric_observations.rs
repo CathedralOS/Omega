@@ -14,7 +14,7 @@
 //! of its memo identity, so a partial request cannot supply another consumer's
 //! omitted facts. Unknown prefixes remain uncacheable for every demand.
 
-use super::ScopedArithmeticValue;
+use crate::ScopedArithmeticValue;
 use super::structural_judgment::{StructuralJudge, StructuralTerm};
 use super::structural_prefix::{
     PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor, observe_runtime_state_prefix,

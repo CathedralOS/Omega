@@ -1755,7 +1755,7 @@ fn arithmetic_requirement(
     arguments: &[ExpressionHandle],
     applied: &AppliedProofBindings,
 ) -> bool {
-    use super::{
+    use crate::{
         ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
         ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
     };
