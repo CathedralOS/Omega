@@ -88,10 +88,17 @@ impl<'artifact> TerminalExecution<'artifact> {
             .invoke(operation.id, arguments, structural_arguments, meter)
             .map_err(&reject)?
         {
-            Some(TerminalExecutionStatus::SponsorExhausted(exhaustion)) => {
-                return Ok(OperationFlow::Yield(
-                    TerminalExecutionStatus::SponsorExhausted(exhaustion),
-                ));
+            Some(status @ TerminalExecutionStatus::SponsorExhausted(_)) => {
+                return Ok(OperationFlow::Yield(status));
+            }
+            Some(status @ TerminalExecutionStatus::AwaitingEffect(_)) => {
+                if operation.suspension_crossing.is_none() {
+                    return Err(reject(
+                        "component readiness requires the caller's checked suspension crossing"
+                            .to_owned(),
+                    ));
+                }
+                return Ok(OperationFlow::Yield(status));
             }
             Some(_) => {
                 // A component crash or domain exit is not normal return. Its

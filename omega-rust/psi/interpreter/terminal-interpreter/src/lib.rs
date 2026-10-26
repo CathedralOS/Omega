@@ -115,8 +115,9 @@ pub use provider_storage::{
     TerminalProviderStorageInput, TerminalProviderStorageRejection, TerminalReturnedProviderStorage,
 };
 pub use results::{
-    TerminalCrash, TerminalCrashSite, TerminalExecutionResult, TerminalExecutionStatus,
-    TerminalExternalCompletion, TerminalScalarCaseResult, TerminalStructuralResult,
+    TerminalCrash, TerminalCrashSite, TerminalEffectWait, TerminalExecutionResult,
+    TerminalExecutionStatus, TerminalExternalCompletion, TerminalScalarCaseResult,
+    TerminalStructuralResult,
 };
 pub use scalar_array::{TerminalScalarArrayResult, TerminalScalarArrayValue};
 pub use scalar_operations::float_result_policy;
