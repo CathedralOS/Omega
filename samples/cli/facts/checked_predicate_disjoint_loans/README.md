@@ -87,7 +87,11 @@ All positives bind all four hosted `ProgramEntry` targets and declare exit 0.
   [signed nonzero control](controls/signed_nonzero/main.omg) keeps both -1 and
   +1 valid; [nonzero does not mean positive](controls/signed_nonzero_not_positive/invalid/main.omg).
   A [disconnected implementation requirement](controls/disconnected_public_envelope/invalid/main.omg)
-  cannot stand for its convex hull in a public contract.
+  cannot stand for its convex hull in a public contract. A
+  [recursive changed-goal control](controls/recursive_changed_goal/invalid/main.omg)
+  returns true whenever its second index is nonzero, independently of the first.
+  A decreasing first index cannot justify reusing a lemma about the original
+  pair unless its instantiated conclusion is still the requested conclusion.
   Unsupported/effectful bodies and exhausted proof work supply no evidence.
 - **Psi 05–07:** admitted loans and stores use the existing Terminal Psi route;
   pure proof reasoning introduces no runtime authority or proof replay. Public

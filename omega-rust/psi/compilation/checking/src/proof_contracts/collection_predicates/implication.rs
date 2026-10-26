@@ -245,7 +245,13 @@ pub(super) fn ordering_consequences(
                 BinaryOperator::GreaterOrEqual,
             ] {
                 let goal = Boolean::Comparison(compare(operator, left.clone(), right.clone()));
-                if proof.activation(
+                // These full-carrier unknowns already are the lemma's formal
+                // frame. Ordinary call activation would freshen them again,
+                // disconnecting the requested relation from the body values.
+                if proof.spend().is_none() {
+                    return consequences;
+                }
+                if proof.generalized_activation(
                     application.machine,
                     0,
                     arguments.clone(),
@@ -1301,6 +1307,14 @@ impl Implication<'_> {
             }
             recurrent = true;
             let replacements = substitutions(self.program, &lemma.arguments, &arguments)?;
+            // The induction hypothesis concludes the instantiated goal. A
+            // decrease alone cannot prove the old goal when that conclusion
+            // mentions a changed formal (P(a - 1, b) need not imply a != b).
+            // Existing observation goals stay outside generalized rank names;
+            // direct relation queries additionally require this exact check.
+            if substitute_boolean(&lemma.goal, &replacements) != *goal {
+                continue;
+            }
             if !lemma
                 .premises
                 .iter()
@@ -1339,19 +1353,7 @@ impl Implication<'_> {
             return None;
         }
         // Keep a dependent transfer inside its enclosing induction scope.
-        let dependent = arguments.iter().any(|argument| {
-            let Value::Integer { value, .. } = argument else {
-                return false;
-            };
-            self.lemmas.iter().any(|lemma| {
-                lemma.arguments.iter().any(|formal| {
-                    let Value::Integer { value: formal, .. } = formal else {
-                        return false;
-                    };
-                    contains(value, formal)
-                })
-            })
-        });
+        let dependent = self.depends_on_enclosing_activation(&arguments);
         let mut generalized = parameters
             .iter()
             .zip(&arguments)
@@ -1451,12 +1453,52 @@ impl Implication<'_> {
             }
             path.comparisons.extend(formal_bounds);
         }
+        self.generalized_activation(machine, state, generalized, path, goal, judgment, depth)
+    }
+
+    fn depends_on_enclosing_activation(&self, arguments: &[Value]) -> bool {
+        arguments.iter().any(|argument| {
+            let Value::Integer { value, .. } = argument else {
+                return false;
+            };
+            self.lemmas.iter().any(|lemma| {
+                lemma.arguments.iter().any(|formal| {
+                    let Value::Integer { value: formal, .. } = formal else {
+                        return false;
+                    };
+                    contains(value, formal)
+                })
+            })
+        })
+    }
+
+    /// Check one already-generalized formal frame. Call activation prepares
+    /// it by freshening caller values; a generic relation query constructs its
+    /// full-carrier formals directly. Both enter the same contract, all-return
+    /// and well-founded induction judgment without changing goal identities.
+    fn generalized_activation(
+        &mut self,
+        machine: usize,
+        state: usize,
+        arguments: Vec<Value>,
+        path: Path,
+        goal: &Boolean,
+        judgment: Judgment,
+        depth: usize,
+    ) -> Option<bool> {
+        let owner = self.program.machines().get(machine)?;
+        let target = self.program.machine_states(owner).get(state)?;
+        let parameters = self.program.state_parameters(target);
+        if parameters.len() != arguments.len() {
+            return None;
+        }
+        let dependent = self.depends_on_enclosing_activation(&arguments);
         let frame = Frame {
             machine,
             state,
             bindings: parameters
                 .iter()
-                .zip(&generalized)
+                .zip(&arguments)
                 .map(|(parameter, value)| (parameter.symbol, value.clone()))
                 .collect(),
         };
@@ -1486,7 +1528,7 @@ impl Implication<'_> {
         let mut result = true;
         for path in paths {
             if !dependent {
-                let measures = generalized
+                let measures = arguments
                     .iter()
                     .enumerate()
                     .filter(|(_, value)| matches!(value, Value::Integer { .. }))
@@ -1500,7 +1542,7 @@ impl Implication<'_> {
                 self.lemmas.push(Lemma {
                     machine,
                     state,
-                    arguments: generalized.clone(),
+                    arguments: arguments.clone(),
                     premises: path.comparisons.clone(),
                     premise_clauses: path.clauses.clone(),
                     measures,
@@ -1753,6 +1795,50 @@ fn substitute(value: &Integer, replacements: &[(Integer, Integer)]) -> Integer {
             right: Box::new(substitute(right, replacements)),
         },
         _ => value.clone(),
+    }
+}
+
+fn substitute_value(value: &Value, replacements: &[(Integer, Integer)]) -> Value {
+    match value {
+        Value::Integer { value, carrier } => Value::Integer {
+            value: substitute(value, replacements),
+            carrier: *carrier,
+        },
+        Value::Collection {
+            identity,
+            length,
+            element,
+        } => Value::Collection {
+            identity: *identity,
+            length: substitute(length, replacements),
+            element: *element,
+        },
+        Value::Boolean(value) => Value::Boolean(substitute_boolean(value, replacements)),
+    }
+}
+
+fn substitute_boolean(value: &Boolean, replacements: &[(Integer, Integer)]) -> Boolean {
+    match value {
+        Boolean::Constant(value) => Boolean::Constant(*value),
+        Boolean::Comparison(comparison) => {
+            Boolean::Comparison(substitute_comparison(comparison, replacements))
+        }
+        Boolean::And(left, right) => Boolean::And(
+            Box::new(substitute_boolean(left, replacements)),
+            Box::new(substitute_boolean(right, replacements)),
+        ),
+        Boolean::Or(left, right) => Boolean::Or(
+            Box::new(substitute_boolean(left, replacements)),
+            Box::new(substitute_boolean(right, replacements)),
+        ),
+        Boolean::Not(value) => Boolean::Not(Box::new(substitute_boolean(value, replacements))),
+        Boolean::Call { machine, arguments } => Boolean::Call {
+            machine: *machine,
+            arguments: arguments
+                .iter()
+                .map(|argument| substitute_value(argument, replacements))
+                .collect(),
+        },
     }
 }
 
