@@ -102,7 +102,7 @@ fn execute_fixture() {
     }
     let log = directory.join("fetch.log");
     foreign_policy_control(&directory, &project, profile, &log);
-    let discover = |session: &mut package_manager::PackageBuildSession, offline| {
+    let discover = |session: &mut omega_build::BuildSession, offline| {
         omega_build::resolve_project_sources(
             session,
             omega_build::ProjectSourceRequest {
@@ -128,13 +128,12 @@ fn execute_fixture() {
             )
             .unwrap();
         }
-        let mut session =
-            package_manager::PackageBuildSession::create(&directory.join(if private_call {
-                "private"
-            } else {
-                "valid"
-            }))
-            .unwrap();
+        let mut session = omega_build::BuildSession::create(&directory.join(if private_call {
+            "private"
+        } else {
+            "valid"
+        }))
+        .unwrap();
         let before = artifacts::compile_timings::counters::build_execution_count();
         let mut resolved = discover(&mut session, false)
             .unwrap_or_else(|error| panic!("Git source discovery: {error:?}"));
@@ -221,8 +220,7 @@ fn execute_fixture() {
         std::fs::copy(fixture.join(name), project.join(name)).unwrap();
     }
     let before = std::fs::read(&log).unwrap();
-    let mut session =
-        package_manager::PackageBuildSession::create(&directory.join("offline")).unwrap();
+    let mut session = omega_build::BuildSession::create(&directory.join("offline")).unwrap();
     let error = discover(&mut session, true)
         .err()
         .expect("unaccepted offline selector refuses even when source is cached");
@@ -256,9 +254,9 @@ fn foreign_policy_control(
     .unwrap()
     .unwrap();
     let acquired = preparation.acquire_root().unwrap();
-    let mut session =
-        package_manager::PackageBuildSession::create(&directory.join("foreign-policy")).unwrap();
+    let mut session = omega_build::BuildSession::create(&directory.join("foreign-policy")).unwrap();
     let request = session
+        .resources()
         .source_build_request(
             acquired.source_capture(),
             &preparation.entry_path(),

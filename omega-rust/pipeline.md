@@ -185,6 +185,7 @@ foundations, product reports and publication keep independent ownership.
 | `omega/application/cli/src/main.rs` | Parse and dispatch; display outcomes |
 | `omega/application/build/src/build.rs` | Request admission, Build lifecycle, requested products, required tests and publication |
 | `omega/application/build/src/build_execution.rs` | Dependency jobs and Build activation readiness; mandatory final join |
+| `omega/application/build/src/build_session.rs` | Invocation compiler lifetime beside independently package-owned staging and aggregate sponsors |
 | `omega/application/build/src/package_commands.rs` | Admitted install/update target-review work; complete findings returned to package-owned publication |
 | `omega/application/build/src/package_review.rs` | Admitted review dependency passes, compiler calls and suspended-Build cache recovery, shared with audit |
 | `omega/application/build/src/package_inspection.rs` | Read-only audit session lifetime and ordered target execution; package-owned pinned resolution and reporting |

@@ -151,7 +151,7 @@ impl PreparedPackageInspection<'_> {
         target: TargetProfile,
         session: &mut PackageBuildSession,
         source_bindings: &mut PackageSourceBindings,
-        execute: crate::review::PackageReviewExecutor,
+        execute: &mut crate::review::PackageReviewExecutor<'_>,
     ) -> Result<(), PackageInspectionError> {
         if self.targets.get(self.completed_targets) != Some(&target) {
             return Err(failure(

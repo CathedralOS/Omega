@@ -23,6 +23,7 @@ struct PendingReviewBuild {
 /// input comparisons decide what work still applies after that refresh.
 pub(super) fn execute_pass(
     plan: PackageReviewPass<'_>,
+    compiler: &mut compiler::CompilationSession,
     session: &mut PackageBuildSession,
     source_bindings: &mut PackageSourceBindings,
 ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
@@ -31,7 +32,7 @@ pub(super) fn execute_pass(
     let mut pending_builds = Vec::new();
     loop {
         let mut round = plan.begin_round(source_bindings, &fresh_components, &recovered);
-        let result = execute_round(&plan, &mut round, session, &mut pending_builds);
+        let result = execute_round(&plan, &mut round, compiler, session, &mut pending_builds);
         match result {
             Ok(()) => return round.finish(),
             Err(error) => {
@@ -52,6 +53,7 @@ pub(super) fn execute_pass(
 fn execute_round<'pass>(
     plan: &'pass PackageReviewPass<'_>,
     round: &mut PackageReviewRound<'pass>,
+    compiler: &mut compiler::CompilationSession,
     session: &mut PackageBuildSession,
     pending_builds: &mut Vec<PendingReviewBuild>,
 ) -> Result<(), CompileResolvedPackageReviewsError> {
@@ -59,7 +61,7 @@ fn execute_round<'pass>(
         let Some(work) = round.admit_occurrence(occurrence, session)? else {
             continue;
         };
-        complete_occurrence(work, round, session, pending_builds)?;
+        complete_occurrence(work, round, compiler, session, pending_builds)?;
     }
     Ok(())
 }
@@ -67,6 +69,7 @@ fn execute_round<'pass>(
 fn complete_occurrence(
     work: PackageReviewWork<'_>,
     round: &mut PackageReviewRound<'_>,
+    compiler: &mut compiler::CompilationSession,
     session: &mut PackageBuildSession,
     pending_builds: &mut Vec<PendingReviewBuild>,
 ) -> Result<(), CompileResolvedPackageReviewsError> {
@@ -102,7 +105,7 @@ fn complete_occurrence(
         Some(pending) => pending.build,
         None => {
             request.build.directory = Some(completion.reserve_build_directory(session)?);
-            crate::build_execution::execute_package_build(session.compiler(), request)
+            crate::build_execution::execute_package_build(compiler, request)
                 .map_err(|failure| completion.compilation_failure(failure))?
         }
     };
@@ -128,8 +131,7 @@ fn complete_occurrence(
         .with_independent_component_descriptions(descriptions)
         .map_err(|errors| completion.input_failure(errors))?;
     let inputs = build.package_inputs().clone();
-    let product = session
-        .compiler()
+    let product = compiler
         .review_package_build(build, maximum_policy_canonical_bytes)
         .map_err(|failure| completion.review_failure(failure))?;
     if let Some(cache_write) = round.retain(completion, product, inputs)? {

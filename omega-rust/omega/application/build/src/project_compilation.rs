@@ -4,7 +4,7 @@
 //! package session through scheduling, then returns it for disposal. Accepted
 //! targets run together, sharing source work and invocation-wide budgets.
 
-use package_manager::PackageBuildSession;
+use crate::BuildSession;
 use package_manager::operations::{
     ProjectCompilationAdmissionRequest, ProjectCompilationOutcome, admit_project_compilation,
 };
@@ -21,7 +21,7 @@ pub(crate) struct ProjectCompilationRequest<'request> {
 }
 
 pub(crate) fn compile(request: ProjectCompilationRequest<'_>) -> Vec<ProjectCompilationOutcome> {
-    let session = PackageBuildSession::create(request.build_directory);
+    let session = BuildSession::create(request.build_directory);
     let request = ProjectCompilationAdmissionRequest {
         prepared: request.prepared,
         target_profiles: request.target_profiles,
@@ -34,7 +34,7 @@ pub(crate) fn compile(request: ProjectCompilationRequest<'_>) -> Vec<ProjectComp
         Ok(session) => session,
         Err(error) => return request.refuse(error.to_string()),
     };
-    let admitted = admit_project_compilation(request, &mut session);
-    let products = crate::compile_packages(session.compiler(), admitted.requests);
-    admitted.completion.complete(products, session)
+    let admitted = admit_project_compilation(request, &mut session.packages);
+    let products = crate::compile_packages(&mut session.compiler, admitted.requests);
+    admitted.completion.complete(products, session.packages)
 }

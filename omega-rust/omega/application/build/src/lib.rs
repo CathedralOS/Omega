@@ -11,11 +11,14 @@
 //! review dependency loop and audit target/session lifecycle also live here.
 //! `build_execution/source_resolution.rs` drives actual source requests while
 //! retaining returned invocations, sharing execution with compilation/review.
+//! `build_session.rs` retains the compiler alongside package-owned resources
+//! across those operations; package policy borrows execution, not a compiler.
 //! Production admission and provider/helper suspension remain migration work.
 
 mod build;
 mod build_directory;
 mod build_execution;
+mod build_session;
 mod check_project;
 mod native_project;
 mod package_commands;
@@ -34,6 +37,7 @@ pub use build_execution::source_resolution::{
     ProjectSourceRequest, ProjectSourceResolutionError, ResolvedPackageBuild,
     ResolvedProjectBuilds, resolve_project_sources,
 };
+pub use build_session::BuildSession;
 pub use check_project::{
     CheckPreparedLocalProjectError, CheckedProjectTargetOutcome, PreparedLocalProjectCheckRequest,
     ProjectInspectionError, check_prepared_local_project_for_targets,

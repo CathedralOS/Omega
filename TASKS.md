@@ -1131,9 +1131,11 @@ narrows realization only.
   first acquired source and Build while every graph edge still reconciles. The
   SDK proves two aliases share one dependency activation, including after its
   live files are deleted, and runs the application route through native/Terminal
-  completion with private-call rejection. Discovery and production admission
-  now use one application-owned package session, compiler and aggregate sponsors;
-  source work cannot replenish a spent result allowance or start after closure.
+  completion with private-call rejection. Discovery, compilation and review share
+  one application Build session; the compiler remains application-owned while
+  package management retains staging and aggregate sponsors. Review callbacks
+  borrow that compiler across passes instead of storing it in package resources.
+  Source work cannot replenish a spent result allowance or start after closure.
   The captured executed graph passes subsequent admission with the same sponsor
   identity after live deletion. Completed Builds can select multiple targets
   with equal source/semantic inputs, retaining the completed configuration and

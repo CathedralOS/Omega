@@ -52,14 +52,6 @@ pub struct PackageBuildSession {
     root: PathBuf,
     filesystem_sponsor: FilesystemSponsor,
     evaluation_sponsor: BuildEvaluationSponsor,
-    /// Completed pure Build evaluations owned by the whole invocation. Review
-    /// rounds and targets adopt this store into their per-command source
-    /// preparation so one occurrence row's evaluation can answer a later
-    /// round's identical request instead of re-executing the same build.
-    /// Membership stays exact input equality: a hit replays no output and
-    /// carries no checked product, entry token, or host grant, and a round
-    /// whose closure no longer matches simply misses.
-    compiler: compiler::CompilationSession,
     next_occurrence: u64,
     active: bool,
 }
@@ -74,12 +66,6 @@ impl std::fmt::Debug for PackageBuildSession {
 }
 
 impl PackageBuildSession {
-    /// Application-owned work uses the invocation's one compiler session;
-    /// source and pure Build reuse do not replenish the package sponsors.
-    pub fn compiler(&mut self) -> &mut compiler::CompilationSession {
-        &mut self.compiler
-    }
-
     /// Reserve private staging and bounded sponsors for one invocation. The
     /// caller owns disposal after all targets and review rounds have finished.
     pub fn create(build_workspace: &Path) -> Result<Self, CompileResolvedPackageReviewsError> {
@@ -143,7 +129,6 @@ impl PackageBuildSession {
                         root: canonical_root,
                         filesystem_sponsor,
                         evaluation_sponsor,
-                        compiler: compiler::CompilationSession::default(),
                         next_occurrence: 0,
                         active: true,
                     });
@@ -260,7 +245,7 @@ impl PackageBuildSession {
     }
 
     /// Release staging before publishing accepted project files. Closing does
-    /// not create another grant, and this owner cannot execute another Build.
+    /// not create another grant, and this owner cannot admit another Build.
     pub fn close(&mut self) -> Result<(), CompileResolvedPackageReviewsError> {
         if !self.active {
             return Ok(());
