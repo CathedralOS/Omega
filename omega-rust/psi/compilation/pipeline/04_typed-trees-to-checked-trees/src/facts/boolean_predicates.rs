@@ -476,15 +476,15 @@ pub(crate) fn domain_predicates_for_subject(
         operators: &checked_trees::CheckedOperatorFacts,
         domain: &typed_trees::domain::DomainDefinition,
         subject: &CanonicalPlace,
-        active: &mut Vec<SymbolHandle>,
+        active: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
     ) -> Option<Vec<BoundPredicate>> {
         if !domain.type_parameters.is_empty()
             || !domain.index_arguments.is_empty()
-            || active.contains(&domain.symbol)
+            || active.contains(&(domain.symbol, domain.semantic_id))
         {
             return None;
         }
-        active.push(domain.symbol);
+        active.push((domain.symbol, domain.semantic_id));
         let parameters = [typed_trees::signature::StateParameter {
             symbol: domain.subject_symbol,
             name: domain.subject_name.clone(),

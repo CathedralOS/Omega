@@ -11,6 +11,7 @@ impl TypedTrees {
         &mut self,
         declaration: SymbolHandle,
         arguments: &[types::TypeReferenceHandle],
+        closed_arguments: &[types::TypeReferenceHandle],
         identity: language_semantics::SemanticDomainId,
     ) -> Result<bool, &'static str> {
         if self.applied_domain_applications.iter().any(|application| {
@@ -28,12 +29,12 @@ impl TypedTrees {
             return Err("applied domain requires its exact generic carrier coordinate");
         }
         let parameters = self.domain_type_parameters(&theory).to_vec();
-        if parameters.len() != arguments.len() {
+        if parameters.len() != arguments.len() || parameters.len() != closed_arguments.len() {
             return Err("applied domain has an incomplete explicit index telescope");
         }
         let substitutions = parameters
             .iter()
-            .zip(arguments)
+            .zip(closed_arguments)
             .map(|(parameter, argument)| (parameter.symbol, *argument))
             .collect::<Vec<_>>();
         let source_subject = theory.subject_symbol;

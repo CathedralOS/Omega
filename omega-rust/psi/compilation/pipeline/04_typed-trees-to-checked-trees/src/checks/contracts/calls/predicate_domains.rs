@@ -13,37 +13,76 @@ use checked_trees::CheckFacts;
 /// theory must already have a complete applied view. Only a theory whose whole content is
 /// predicates over `self` reduces, and then EVERY predicate must be
 /// established, never a subset.
-pub(super) fn predicate_only_domain_predicates(
-    program: &dyn ::validation::CheckingInput,
-    domain: &typed_trees::domain::DomainDefinition,
-) -> Option<Vec<typed_trees::expression::ExpressionHandle>> {
-    // The same list `domain_byte_predicate` enforces, so one definition governs
-    // both grants: an alias expands to constituent requirements, index binders
-    // carry an identity this substitution cannot supply, and `established by`
-    // routes restrict who may mint membership at all.
-    if domain.alias.is_some()
-        || !domain.index_arguments.is_empty()
-        || !domain.establishment_routes.is_empty()
-        || !typed_trees::domain::index_parameters(program, domain).is_empty()
-    {
-        return None;
+pub(super) fn predicate_only_domain_predicates<'program>(
+    program: &'program dyn ::validation::CheckingInput,
+    domain: &'program typed_trees::domain::DomainDefinition,
+) -> Option<
+    Vec<(
+        &'program typed_trees::domain::DomainDefinition,
+        typed_trees::expression::ExpressionHandle,
+    )>,
+> {
+    fn visit<'program>(
+        program: &'program dyn ::validation::CheckingInput,
+        domain: &'program typed_trees::domain::DomainDefinition,
+        active: &mut Vec<(symbols::SymbolHandle, language_semantics::SemanticDomainId)>,
+    ) -> Option<
+        Vec<(
+            &'program typed_trees::domain::DomainDefinition,
+            typed_trees::expression::ExpressionHandle,
+        )>,
+    > {
+        // The same list `domain_byte_predicate` enforces, so one definition governs
+        // both grants: an alias expands to constituent requirements, index binders
+        // carry an identity this substitution cannot supply, and `established by`
+        // routes restrict who may mint membership at all.
+        let instance = (domain.symbol, domain.semantic_id);
+        if active.contains(&instance)
+            || domain.alias.is_some()
+            || !domain.index_arguments.is_empty()
+            || !domain.establishment_routes.is_empty()
+            || !typed_trees::domain::index_parameters(program, domain).is_empty()
+        {
+            return None;
+        }
+        let declared = program.proof_facts(domain);
+        if declared.is_empty() {
+            // A predicate-free domain adds no membership obligation predicates
+            // could discharge; whatever it asks for is not this.
+            return None;
+        }
+        active.push(instance);
+        let mut predicates = Vec::new();
+        for fact in declared {
+            match fact {
+                typed_trees::domain::ProofFact::Expression(expression) => {
+                    predicates.push((domain, *expression));
+                }
+                typed_trees::domain::ProofFact::Membership(membership)
+                    if typed_trees::domain::domain_subject_reference(
+                        program,
+                        domain,
+                        membership.value,
+                    ) =>
+                {
+                    // Inheritance is a conjunction on this exact subject. Every
+                    // inherited theory must be closed and predicate-only too;
+                    // its declaring subject owns each leaf's substitution.
+                    let parent = program.domain_definition_for_instance(
+                        membership.domain_symbol,
+                        membership.semantic_domain,
+                    )?;
+                    predicates.extend(visit(program, parent, active)?);
+                }
+                // Projected membership and propositions require their own proof
+                // judgments. Never discharge an outer domain using a subset.
+                _ => return None,
+            }
+        }
+        active.pop();
+        Some(predicates)
     }
-    let declared = program.proof_facts(domain);
-    if declared.is_empty() {
-        // A predicate-free domain adds no membership obligation predicates
-        // could discharge; whatever it asks for is not this.
-        return None;
-    }
-    declared
-        .iter()
-        .map(|declared_fact| match declared_fact {
-            typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
-            // A nested membership or a proposition needs more than this
-            // substitution gives; refuse the whole domain rather than
-            // establish a subset of its obligations.
-            _ => None,
-        })
-        .collect()
+    visit(program, domain, &mut Vec::new())
 }
 
 /// The predicates a PREDICATE-ONLY domain membership reduces to, each rendered
@@ -66,10 +105,10 @@ pub(super) fn predicate_only_domain_labels(
     Some(
         predicate_only_domain_predicates(program, domain)?
             .iter()
-            .map(|expression| {
+            .map(|(owner, expression)| {
                 super::super::labels::instantiate_domain_expression_label(
                     program,
-                    domain,
+                    owner,
                     *expression,
                     &subject_label,
                 )

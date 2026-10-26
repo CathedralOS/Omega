@@ -65,7 +65,8 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
                 continue;
             }
             let mut canonical = true;
-            for (parameter, argument) in parameters.iter().zip(&arguments) {
+            let mut closed_arguments = arguments.clone();
+            for (index, (parameter, argument)) in parameters.iter().zip(&arguments).enumerate() {
                 if let TypeParameterKind::Const {
                     type_reference: carrier,
                 } = parameter.kind
@@ -91,17 +92,31 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
                             // and lexical implementation-dependent operations.
                             // If that cohort expands, derived theory traversal
                             // must also retain each recipe's supplying scope.
-                            if validation::check_closed_const_expression(
+                            let Some(value) = validation::check_closed_const_expression(
                                 program,
                                 lexical_owner,
                                 *expression,
                                 carrier,
                             )?
-                            .is_none()
-                            {
+                            else {
                                 canonical = false;
                                 break;
-                            }
+                            };
+                            let spelling = match value.decode_encoding() {
+                                Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. }) => value.to_string(),
+                                Some(_) => value.atom(),
+                                None => return Err(vec![Diagnostic::error("closed domain argument lost its canonical value")]),
+                            };
+                            // Only the derived theory consumes this checked
+                            // value. The application retains the source recipe
+                            // and its instance identity independently.
+                            closed_arguments[index] =
+                                program
+                                    .type_reference_table
+                                    .insert(TypeReferenceNode::Named {
+                                        symbol: SymbolHandle::invalid(),
+                                        name: typed_trees::name::Identifier::generated(spelling),
+                                    });
                         }
                         _ => {
                             canonical = false;
@@ -122,7 +137,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
             .map_err(|error| vec![error])?;
             let identity = program.semantic_domains.intern(&identity);
             changed |= program
-                .prepare_closed_domain_application(symbol, &arguments, identity)
+                .prepare_closed_domain_application(symbol, &arguments, &closed_arguments, identity)
                 .map_err(|message| vec![Diagnostic::error(message)])?;
         }
         if !changed {
