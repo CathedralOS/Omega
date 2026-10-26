@@ -312,7 +312,7 @@ pub(crate) fn occurrence_value_environments(
             .into_iter()
             .map(ExpressionObservation::environment)
             .collect(),
-        completed_children: Vec::new(),
+        completed_children: Default::default(),
         infer_call_bodies: true,
         collect_arrivals: false,
     };
@@ -374,7 +374,7 @@ fn expression_observations(
         frames: frames.as_ref(),
         arrivals: Vec::new(),
         observations: Vec::new(),
-        completed_children: Vec::new(),
+        completed_children: Default::default(),
         infer_call_bodies: true,
         collect_arrivals: false,
     };
@@ -530,7 +530,7 @@ pub(super) fn incoming_environments(
                     frames,
                     arrivals: Vec::new(),
                     observations: Vec::new(),
-                    completed_children: Vec::new(),
+                    completed_children: Default::default(),
                     infer_call_bodies: invocation.is_none(),
                     collect_arrivals: true,
                 };
@@ -775,7 +775,7 @@ fn discover_normal_return_interval(
                     interval: None,
                     environment: None,
                 }],
-                completed_children: Vec::new(),
+                completed_children: Default::default(),
                 infer_call_bodies: false,
                 collect_arrivals: false,
             };
@@ -824,7 +824,10 @@ struct ArrivalWalk<'program, 'frames> {
     /// Each arrival this walk delivers, by target state position, in order.
     arrivals: Vec<(usize, ValueEnvironment)>,
     observations: Vec<ExpressionObservation>,
-    completed_children: Vec<super::super::expression_analysis::CheckedIntegerValue>,
+    completed_children: std::collections::BTreeMap<
+        (u32, u32),
+        super::super::expression_analysis::CheckedIntegerValue,
+    >,
     infer_call_bodies: bool,
     collect_arrivals: bool,
 }
@@ -854,13 +857,21 @@ impl ArrivalWalk<'_, '_> {
                 // The end environment can no longer name an earlier child
                 // after a sibling write. Its completed snapshot owns that
                 // payload; post-environment reconstruction cannot overwrite it.
-                values.retain(|value| {
-                    !self
-                        .completed_children
-                        .iter()
-                        .any(|captured| captured.expression == value.expression)
-                });
-                values.extend(self.completed_children.iter().cloned());
+                if matches!(
+                    self.program.expression_table.expression(expression),
+                    ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
+                ) {
+                    // Scalar reevaluations keep their current analysis. A
+                    // shared handle captured as an earlier child cannot retarget
+                    // a later ordinary scalar read to that earlier version.
+                    values.retain(|value| {
+                        !self.completed_children.contains_key(&(
+                            value.expression.arena_index(),
+                            value.expression.generation(),
+                        ))
+                    });
+                    values.extend(self.completed_children.values().cloned());
+                }
                 EvaluatedValue {
                     interval: analysis.value.interval,
                     copied: CopiedIntegerValue::capture(
@@ -911,11 +922,8 @@ impl ArrivalWalk<'_, '_> {
                 .value
                 .range_recipe(self.program, self.machine.symbol, expression)
         });
-        if let Some(previous) = self
-            .completed_children
-            .iter_mut()
-            .find(|previous| previous.expression == expression)
-        {
+        let key = (expression.arena_index(), expression.generation());
+        if let Some(previous) = self.completed_children.get_mut(&key) {
             previous.interval = previous.interval.union(interval);
             previous.recipe = previous
                 .recipe
@@ -923,12 +931,14 @@ impl ArrivalWalk<'_, '_> {
                 .zip(recipe)
                 .map(|(left, right)| left.union(&right));
         } else {
-            self.completed_children
-                .push(super::super::expression_analysis::CheckedIntegerValue {
+            self.completed_children.insert(
+                key,
+                super::super::expression_analysis::CheckedIntegerValue {
                     expression,
                     interval,
                     recipe,
-                });
+                },
+            );
         }
     }
 
@@ -1871,3 +1881,6 @@ fn state_has_in_machine_arrivals(
     }
     false
 }
+
+#[cfg(test)]
+mod tests;
