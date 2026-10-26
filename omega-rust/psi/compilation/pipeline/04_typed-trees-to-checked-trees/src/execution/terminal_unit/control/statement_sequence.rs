@@ -210,19 +210,49 @@ pub(in crate::execution::terminal_unit) fn build(
     // stays in the prefix: it evaluates its call rather than supplying a value
     // to the return owner, independently of the declared result carrier.
     let sequenced = |index: usize, statement: &StatementNode| {
-        (!matches!(statement, StatementNode::Transition(_))
-            || call_occurrences::terminal_call(program, machine, state, index).is_some())
-            && !is_arm_destructure_marker(statement)
-            && !matches!(statement, StatementNode::Expression(expression)
-                if !is_unit(program, state.return_type)
-                    && validation::expression_normal_completion_possible(program, *expression)
-                        != Some(false)
-                    && (!matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_))
-                        || u32::try_from(index).ok().is_some_and(|ordinal| facts.values.scalar_computations.root_at(
-                            state.symbol, ordinal, CheckedScalarExpressionRole::Return,
-                        ).is_some() || facts.values.structural_values.root_for_expression(
-                            state.symbol, ordinal, *expression,
-                        ).is_some())))
+        let terminal_call = matches!(statement, StatementNode::Transition(_))
+            && call_occurrences::terminal_call(program, machine, state, index).is_some();
+        if (matches!(statement, StatementNode::Transition(_)) && !terminal_call)
+            || is_arm_destructure_marker(statement)
+        {
+            return false;
+        }
+        // A normalized terminal invocation and a bare tail expression share
+        // their retained completion owner. The call occurrence ledger already
+        // assigns that owner's nested calls; do not invoke the outer call a
+        // second time through the statement roster.
+        let completion_expression = match statement {
+            StatementNode::Expression(expression) => Some(*expression),
+            StatementNode::Transition(transition) if terminal_call => {
+                match program.statement_table.transition_target(transition.target) {
+                    typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                        Some(*expression)
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        !completion_expression.is_some_and(|expression| {
+            !is_unit(program, state.return_type)
+                && validation::expression_normal_completion_possible(program, expression)
+                    != Some(false)
+                && (!matches!(
+                    program.expression_table.expression(expression),
+                    ExpressionNode::Call(_)
+                ) || u32::try_from(index).ok().is_some_and(|ordinal| {
+                    facts
+                        .values
+                        .scalar_computations
+                        .root_at(state.symbol, ordinal, CheckedScalarExpressionRole::Return)
+                        .is_some()
+                        || facts
+                            .values
+                            .structural_values
+                            .root_for_expression(state.symbol, ordinal, expression)
+                            .is_some()
+                }))
+        })
     };
     let execution_order = program
         .statement_table

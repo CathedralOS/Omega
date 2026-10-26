@@ -262,15 +262,18 @@ pub(super) fn build(
                             )?,
                         }
                     }
-                    // An unconditional terminal machine call already ran as
-                    // this state's last operation (the sequence planned and
-                    // counted it and bound its value); the callee's normal
-                    // result completes this machine here.
-                    TransitionTargetNode::Named { .. } | TransitionTargetNode::Value(_)
-                        if terminal_calls::external_callable(
-                            program, machine, fused, transition,
-                        )
-                        .is_some() =>
+                    // A named transfer or Unit-valued terminal invocation
+                    // ran in the statement sequence. Value-producing calls
+                    // instead complete through their retained value owner,
+                    // exactly like a bare tail expression below.
+                    target @ (TransitionTargetNode::Named { .. }
+                    | TransitionTargetNode::Value(_))
+                        if (matches!(target, TransitionTargetNode::Named { .. })
+                            || result == checked_trees::CheckedControlResultPlan::Unit)
+                            && terminal_calls::external_callable(
+                                program, machine, fused, transition,
+                            )
+                            .is_some() =>
                     {
                         trace.phase("state graph: terminator: terminal call completion");
                         terminal_calls::completion(
