@@ -23,6 +23,38 @@ pub(super) fn merge(
 ) -> Result<Option<Custody>, LegalizationError> {
     let mut arrivals = arrivals.collect::<Vec<_>>();
     let first = arrivals.first().ok_or_else(|| invalid())?;
+    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        let locations = arrivals
+            .iter()
+            .flat_map(|arrival| arrival.leaves.keys())
+            .collect::<BTreeSet<_>>();
+        for location in locations {
+            for arrival in arrivals
+                .iter()
+                .filter(|arrival| !arrival.leaves.contains_key(location))
+            {
+                eprintln!(
+                    "CHECKSITE reference-missing-arrival machine={:?} target={:?} location={:?} position={:?} impossible={} retired={:?}",
+                    function.machine,
+                    target,
+                    location,
+                    arrival.reference_position,
+                    super::descriptor_backing::path_is_impossible(
+                        function,
+                        arrival,
+                        types,
+                        location.0,
+                        &location.1
+                    ),
+                    arrival
+                        .retired
+                        .keys()
+                        .filter(|identity| identity.place == location.0)
+                        .collect::<Vec<_>>()
+                );
+            }
+        }
+    }
     // An unchanged ingress sum retains its declaration across a local join.
     // Its payload may be absent only on predecessors that independently prove
     // that exact case impossible. Validate every missing predecessor before
