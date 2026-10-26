@@ -45,7 +45,8 @@ The callback [formal](callback_formal_shadow/main.omg),
 [static-call argument](callback_static_argument_shadow/main.omg) controls prevent
 a selected machine binder from becoming a same-named global type or integer.
 The evidence [formal](evidence_formal_shadow/main.omg),
-[equation element](evidence_equation_shadow/main.omg) and
+[equation element](evidence_equation_shadow/main.omg),
+[bare equation](evidence_name_shadow/main.omg), and
 [domain](evidence_domain_shadow/main.omg) controls retain the separate evidence
 binder's lexical identity. A [value-as-type](value_type_shadow/main.omg) control
 retains its kind instead of selecting a global data declaration.
@@ -84,13 +85,17 @@ Their exact diagnostic assertions are in sample.json and matching pinned fixture
 The recovered source initially refused on exact current-main producer
 `7df8b4d92070d83d357849fb2eb77e05c61f36a4` with
 `machine equation completion requires type and const binders` in the root and
-all nine places. The optimized Windows candidate producer at
-`0643de8759ed157b4ce53e0d05d339300ef402b9` (SHA256
-`560d6ce6d061c24234213e34b7fd91795b3ac149665be66393a7a4ccefa3d405`)
-then produced 11 exploratory native/Terminal exit-0 agreements. Refusal controls
-were checked separately for their exact reasons. Earlier syntax-authoring failures
-are excluded. Final scoped qualification and independent review are separate
-records; these observations do not mean publication or whole-task completion.
+all nine places. A preliminary Windows candidate produced 11 exploratory
+native/Terminal agreements, but the bare evidence-name control then exposed a
+wrong acceptance in that candidate. Its cached equation classifier had not
+recognized the separately stored lexical evidence binder. The final guard
+rechecks that name within the selected declaration's complete binder roster.
+
+Run records in the owning claim, qualification and submitted change retain exact
+optimized producer revisions/digests, witness hashes, Windows target and both
+engine observations. Earlier syntax-authoring failures and stale diagnostic
+fragments are excluded from acceptance. These records do not establish execution
+on unavailable native hosts or close the parent task.
 
 ## Remaining acceptance
 

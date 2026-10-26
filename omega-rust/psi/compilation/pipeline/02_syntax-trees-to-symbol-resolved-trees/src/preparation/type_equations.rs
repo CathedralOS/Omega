@@ -254,12 +254,17 @@ impl Structure {
                 );
             }
             Structure::RangeShell {
+                carrier,
                 carrier_binder,
                 minimum,
                 maximum,
                 ..
             } => {
-                mentions.extend(*carrier_binder);
+                mentions.extend(carrier_binder.or_else(|| {
+                    parameters
+                        .iter()
+                        .position(|parameter| parameter == carrier.as_str(syntax))
+                }));
                 for endpoint in [minimum, maximum] {
                     match endpoint {
                         Endpoint::Binder(index) => mentions.push(*index),
@@ -275,7 +280,11 @@ impl Structure {
                     }
                 }
             }
-            Structure::Name { binder, .. } => mentions.extend(*binder),
+            Structure::Name { name, binder } => mentions.extend(binder.or_else(|| {
+                parameters
+                    .iter()
+                    .position(|parameter| parameter == name.as_str(syntax))
+            })),
         }
         mentions
     }
