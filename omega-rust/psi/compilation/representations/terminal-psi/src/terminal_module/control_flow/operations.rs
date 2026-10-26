@@ -1149,6 +1149,8 @@ pub enum OperationKind {
         path: Vec<StructuralPathSegment>,
         field: StructuralFieldId,
         event: crate::AtomicAccessEvent,
+        /// Exact atomic resident establishment; no ordinary-store authority.
+        resident_obligation: Option<semantic_vocabulary::ObligationId>,
     },
     /// A place-free ordering event. It defines no value, reads no resident,
     /// and grants no synchronization without a matching atomic observation.

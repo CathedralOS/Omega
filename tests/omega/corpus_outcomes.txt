@@ -379,8 +379,8 @@ fail/asm/atomic_release_disposition_changed_value rejected 2529ms expected @a92f
 	linear value `ack` reaches scope exit without being consumed or transferred
 fail/asm/atomic_release_disposition_impostor rejected 1543ms expected @a92f16431042
 	checked machine `finish` cannot establish proposition ensure `proposition:fact:atomic_release_written<AtomicU64,u64>(shared word.value,ack.nonce)` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
-fail/asm/atomic_release_disposition_missing_store rejected 2882ms expected @a92f16431042
-	cannot prove ensures contract for exit from finish at statement 1: proposition:fact:atomic_release_written<AtomicU64,u64>(shared word.value,ack.nonce)
+fail/asm/atomic_release_disposition_missing_store rejected 1387ms expected @036605466510+wt
+	cannot prove ensures contract for exit from finish at statement 2: proposition:fact:atomic_release_written<AtomicU64,u64>(shared word.value,ack.nonce)
 	linear value `ack` reaches scope exit without being consumed or transferred
 fail/asm/atomic_release_disposition_rebound_descriptor rejected 1929ms expected @a92f16431042
 	cannot prove ensures contract for exit from finish at statement 2: proposition:fact:atomic_release_written<AtomicU64,u64>(shared word.value,ack.nonce); no exact incoming reference origin for word
@@ -613,7 +613,8 @@ fail/atomics/atomic_operand_boolean_arithmetic rejected 443ms expected @03660546
 	machine `replace` state `entry` applies an operator to a boolean and a numeric value -- Omega does not coerce a boolean to a number -- compare booleans directly (`b == true`) or convert a number explicitly (`n != 0`)
 fail/atomics/atomic_operand_call_argument rejected 503ms expected @036605466510+wt
 	argument `value` for state `entry` expects `bool`, got `integer literal`
-fail/atomics/atomic_operand_implicit_narrowing rejected 476ms expected @036605466510+wt
+fail/atomics/atomic_operand_implicit_narrowing rejected 444ms expected @036605466510+wt
+	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
 	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
 	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
 fail/atomics/atomic_record_shared_replacement rejected 420ms expected @036605466510+wt
@@ -4648,6 +4649,34 @@ fail/facts/atomic_boolean_store/parameter rejected 1ms expected @036605466510+wt
 	tests/omega/fail/facts/atomic_boolean_store/parameter/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
 fail/facts/atomic_boolean_store/target_body rejected 1ms expected @036605466510+wt
 	tests/omega/fail/facts/atomic_boolean_store/target_body/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
+fail/facts/atomic_bounded_resident/call_result rejected 496ms expected @036605466510+wt
+	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/atomic_bounded_resident/const_name rejected 516ms expected @036605466510+wt
+	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/atomic_bounded_resident/field rejected 454ms expected @036605466510+wt
+	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/atomic_bounded_resident/load_bound_is_not_current_value rejected 1198ms expected @2e70a865669c+wt
+	cannot prove ensures contract for exit from observe at statement 1: result == 41
+fail/facts/atomic_bounded_resident/load_field_goal_is_not_premise rejected 540ms expected @2e70a865669c+wt
+	data `Held` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/atomic_bounded_resident/load_result_goal_is_not_premise rejected 1254ms expected @2e70a865669c+wt
+	cannot prove ensures contract for exit from observe at statement 0: result <= 100
+fail/facts/atomic_bounded_resident/local rejected 488ms expected @036605466510+wt
+	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/atomic_bounded_resident/match_join rejected 482ms expected @036605466510+wt
+	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/atomic_bounded_resident/other_machine rejected 502ms expected @036605466510+wt
+	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/atomic_bounded_resident/other_state rejected 639ms expected @036605466510+wt
+	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/atomic_bounded_resident/parameter rejected 635ms expected @036605466510+wt
+	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/atomic_bounded_resident/prior_before_event rejected 429ms expected @036605466510+wt
+	machine `reject` state `entry` local `prior` cannot consume its atomic result before the event completes
+fail/facts/atomic_bounded_resident/prior_is_not_zero rejected 411ms expected @036605466510+wt
+	exact arithmetic in machine `reject` state `entry` local `invalid` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/atomic_bounded_resident/target_body rejected 464ms expected @036605466510+wt
+	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/atomic_compare_exchange_once_composition_rejected rejected 2ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_composition_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
 fail/facts/atomic_compare_exchange_once_forged_outcome_rejected rejected 942ms expected @a92f16431042
@@ -18727,10 +18756,10 @@ fail/proofs/ring_rearrange_unlicensed_rejected rejected 1882ms expected @a92f164
 	machine `needs_rearrange` ensures contract proof fact `plus(b, plus(a, c)) == plus(a, plus(b, c))` speaks about proof-only `Peano`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
 fail/proofs/runtime_case_atomic_observations_are_distinct rejected 1571ms expected @a92f16431042
 	cannot prove requires contract for call require_three from main: second == 3 (needs fact `observation == 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/runtime_case_guarantee_replaced_subject rejected 1836ms expected @a92f16431042
-	cannot prove requires contract for call observe from main: choice == constructor:80:package:a8180ccbe9cf822644526cb5335e9e029d1484cb75a96550f151dcdbfaaff0af::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/runtime_case_guarantee_wrong_borrow_subject rejected 1597ms expected @a92f16431042
-	cannot prove requires contract for call observe from main: other == constructor:80:package:54452725eddffb2666ce0048da88855c32c24674d2ae6af117df840cc21bfaf9::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/runtime_case_guarantee_replaced_subject rejected 1117ms expected @036605466510+wt
+	cannot prove requires contract for call observe from main: choice == constructor:80:package:8578d0594ed334b315fbfcad0d9cbd70307cd4576e6713e5633d2d34e1338070::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/runtime_case_guarantee_wrong_borrow_subject rejected 1160ms expected @036605466510+wt
+	cannot prove requires contract for call observe from main: other == constructor:80:package:023667a0442839a0288a7529c32ac2e2131d0e1d93a332e6181639c0e75bf9ee::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/runtime_case_guarantee_wrong_return rejected 1672ms expected @a92f16431042
 	cannot prove ensures contract for exit from make at statement 0: result == Choice::Cell
 fail/proofs/runtime_static_result_projection_effectful_citation rejected 14614ms expected @a92f16431042
@@ -22749,6 +22778,16 @@ pass/facts/atomic_boolean_store/other_machine checked 2014ms check-target:macos_
 pass/facts/atomic_boolean_store/other_state checked 2247ms check-target:macos_arm64 @036605466510+wt
 pass/facts/atomic_boolean_store/parameter checked 2111ms check-target:macos_arm64 @036605466510+wt
 pass/facts/atomic_boolean_store/target_body checked 1989ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/call_result checked 2017ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/composition checked 2171ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/const_name checked 2039ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/field checked 2133ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/local checked 2044ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/match_join checked 2035ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/other_machine checked 1942ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/other_state checked 2284ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/parameter checked 1995ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_bounded_resident/target_body checked 2546ms check-target:macos_arm64 @036605466510+wt
 pass/facts/atomic_compare_exchange_once_composition_exit checked 4403ms check-target:macos_arm64 @a92f16431042
 pass/facts/atomic_compare_exchange_once_high_bit_exit checked 4369ms check-target:macos_arm64 @a92f16431042
 pass/facts/atomic_compare_exchange_once_local_exit checked 4033ms check-target:macos_arm64 @a92f16431042

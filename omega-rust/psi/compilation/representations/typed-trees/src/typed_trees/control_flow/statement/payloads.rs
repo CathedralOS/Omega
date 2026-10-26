@@ -325,7 +325,9 @@ impl TypedTreeTables {
             ),
             StatementNode::Expression(expression) => roots.push((Role::Expression, *expression)),
             StatementNode::LocalData(local) => {
-                roots.push((Role::LocalInitializer, local.initial_value));
+                if local.role != language_core::LocalBindingRole::AtomicObservedResult {
+                    roots.push((Role::LocalInitializer, local.initial_value));
+                }
             }
             StatementNode::Transition(transition) => {
                 if let TransitionGuardNode::When(guard) = transition.guard {

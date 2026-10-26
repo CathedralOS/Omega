@@ -63,7 +63,7 @@ pub(super) fn value_probe_body(
         let StatementNode::LocalData(local) = capture else {
             return Err("initializer probe has an operation outside its value captures".into());
         };
-        if local.is_mutable || !local.initial_value.is_valid() {
+        if local.is_mutable || local.ordinary_value_initializer().is_none() {
             return Err("initializer probe has an incomplete or mutable value capture".into());
         }
         roots.push(local.initial_value);

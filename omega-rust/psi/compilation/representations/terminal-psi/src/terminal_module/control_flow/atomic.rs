@@ -114,6 +114,17 @@ pub enum AtomicAccessEvent {
 }
 
 impl AtomicAccessEvent {
+    /// The authored replacement; failure paths keep the already-valid resident.
+    /// Fetch preservation is universal and cannot be represented by this value.
+    pub const fn replacement(self) -> Option<ValueId> {
+        match self {
+            Self::Store { value, .. } | Self::Swap { value, .. } => Some(value),
+            Self::CompareExchange { replacement, .. }
+            | Self::CompareExchangeOnce { replacement, .. } => Some(replacement),
+            _ => None,
+        }
+    }
+
     pub const fn single_attempt_custody(
         self,
     ) -> Option<language_core::atomic::AtomicCompareExchangeOnceResultCustody> {

@@ -23,6 +23,7 @@ fn check_field_identity_relevance(
     match field.field_type {
         StructuralFieldType::Scalar(_)
         | StructuralFieldType::Atomic(_)
+        | StructuralFieldType::AtomicBoundedInteger(_)
         | StructuralFieldType::BoundedInteger(_)
         | StructuralFieldType::RefinedScalar(_)
         | StructuralFieldType::IeeeFloat(_)
@@ -165,6 +166,7 @@ pub(super) fn validate_type_shape(
                 }
                 match &field.field_type {
                     StructuralFieldType::Atomic(_)
+                    | StructuralFieldType::AtomicBoundedInteger(_)
                         if field.field_type.atomic_scalar_type().is_none() =>
                     {
                         return malformed("atomic field requires a fixed integer or Boolean cell");
@@ -224,6 +226,7 @@ pub(super) fn validate_type_shape(
                 for field in &case.fields {
                     match &field.field_type {
                         StructuralFieldType::Atomic(_)
+                        | StructuralFieldType::AtomicBoundedInteger(_)
                             if field.field_type.atomic_scalar_type().is_none() =>
                         {
                             return malformed(
@@ -276,6 +279,7 @@ pub(super) fn validate_type_shape(
             {
                 match &field.field_type {
                     StructuralFieldType::Atomic(_)
+                    | StructuralFieldType::AtomicBoundedInteger(_)
                         if field.field_type.atomic_scalar_type().is_none() =>
                     {
                         return malformed("atomic field requires a fixed integer or Boolean cell");

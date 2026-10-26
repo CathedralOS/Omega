@@ -1404,6 +1404,7 @@ fn observed_scalar_field(
     if matches!(
         declaration.field_type,
         terminal_psi::StructuralFieldType::Atomic(_)
+            | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
     ) && !matches!(
         access,
         terminal_psi::StructuralAccess::Owned | terminal_psi::StructuralAccess::MutableBorrow
@@ -1423,7 +1424,10 @@ fn relevant_scalar_field(
             .then_some(&candidate.field_type)
             .and_then(|field_type| match field_type {
                 terminal_psi::StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
-                terminal_psi::StructuralFieldType::Atomic(_) => field_type.atomic_scalar_type(),
+                terminal_psi::StructuralFieldType::Atomic(_)
+                | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_) => {
+                    field_type.atomic_scalar_type()
+                }
                 terminal_psi::StructuralFieldType::IeeeFloat(format) => {
                     Some(ScalarType::IeeeFloat(*format))
                 }

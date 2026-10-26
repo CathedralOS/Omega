@@ -259,6 +259,9 @@ pub(crate) fn immutable_integer_expression_interval(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<Interval> {
+    if let Some(observed) = super::atomic_result_interval(program, machine, state, expression) {
+        return Some(observed);
+    }
     if !program
         .machine_states(machine)
         .iter()
@@ -1143,12 +1146,7 @@ fn requires_interval(
             )?;
         Some((
             memos,
-            (
-                machine_pos,
-                state_pos,
-                parameter,
-                include_machine_contracts,
-            ),
+            (machine_pos, state_pos, parameter, include_machine_contracts),
         ))
     });
     if let Some((memos, key)) = key

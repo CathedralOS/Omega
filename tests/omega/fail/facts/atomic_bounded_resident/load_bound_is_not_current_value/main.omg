@@ -1,0 +1,7 @@
+data Cell where value <= 100 { value: AtomicU32; }
+machine observe(cell: &Cell) -> u32
+ensures result == 41
+{
+ cell.value.store(41, Publish);
+ cell.value.load(Receive)
+}

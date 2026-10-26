@@ -10,7 +10,8 @@ machine advance(counter: &Counter, remaining: u32) -> u32 in Wrapping {
         transition { _ -> finished(counter) }
     }
     state finished(counter: &Counter) -> u32 in Wrapping {
-        let result: u32 in Wrapping = counter.value.load(Receive);
+        let result_atomic_observed: u32 = counter.value.load(Receive);
+        let result: u32 in Wrapping = result_atomic_observed as u32 in Wrapping;
         result
     }
 }
@@ -18,7 +19,8 @@ machine main() crashes Trap {
     let counters: Counters = Counters { items: [Counter { value: 11 }, Counter { value: 3 }] };
     publish(&counters.items[1], 37);
     let observed: u32 in Wrapping = advance(&counters.items[1], 5);
-    let untouched: u32 in Wrapping = counters.items[0].value.load(Receive);
+    let untouched_atomic_observed: u32 = counters.items[0].value.load(Receive);
+    let untouched: u32 in Wrapping = untouched_atomic_observed as u32 in Wrapping;
     transition observed == 42 && untouched == 11 { true -> done() false -> bad() }
     state done() {}
     state bad() { crash Trap; }

@@ -118,6 +118,7 @@ fn validate_atomic_access(
             && matches!(
                 field.field_type,
                 terminal_psi::StructuralFieldType::Atomic(_)
+                    | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
             )
     }) || !signature.qualifications.is_empty()
         || !signature.projected_qualifications.is_empty()

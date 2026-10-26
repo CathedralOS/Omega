@@ -27,7 +27,8 @@ machine main() reaches Completion, MachineControl crashes Trap {
  let mut word: Cell;
  let ack: Ack = Ack { nonce: 37 };
  Completion::complete(ack, &word);
- let observed: u64 in Wrapping = word.value.load(Receive);
+ let observed_atomic_observed: u64 = word.value.load(Receive);
+ let observed: u64 in Wrapping = observed_atomic_observed as u64 in Wrapping;
  transition observed == 37 { true -> done() false -> bad() }
  state done() {}
  state bad() { crash Trap; }

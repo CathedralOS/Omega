@@ -1,0 +1,16 @@
+// Expected exit: 0.
+// A shared atomic store preserves its resident bound and ordering, and a load carries that bound into Exact subtraction.
+use omega::language::core::atomic;
+data Cell where value <= 100 { value: AtomicU32; }
+machine publish(cell: &Cell, value: u32) requires value <= 101 { cell.value.store(value, Publish); }
+const STORED: u32 = 41;
+machine main() crashes Trap {
+    let cell: Cell;
+    publish(&cell, STORED);
+    Atomic::fence(FenceOrdering::Receive);
+    let observed: u32 = cell.value.load(Receive);
+    let remaining: u32 = 100 - observed;
+    transition remaining == 59 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
