@@ -38,7 +38,7 @@ pub fn validate_conformance_applications(
     }
     for (handle, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
-            validate_call_arguments(
+            validate_conformance_call_arguments(
                 program,
                 StaticArgumentCall::Expression(handle, call),
                 &mut diagnostics,
@@ -49,7 +49,7 @@ pub fn validate_conformance_applications(
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 if let Some(call) = statement.as_call() {
-                    validate_call_arguments(
+                    validate_conformance_call_arguments(
                         program,
                         StaticArgumentCall::Statement(call),
                         &mut diagnostics,
@@ -65,7 +65,7 @@ pub fn validate_conformance_applications(
     }
 }
 
-fn validate_call_arguments(
+fn validate_conformance_call_arguments(
     program: &dyn crate::CheckingInput,
     call: StaticArgumentCall<'_>,
     diagnostics: &mut Vec<Diagnostic>,

@@ -6,9 +6,10 @@
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId;
 use language_semantics::{
-    MachineSupplyMode, ReferenceAccess, TerminationGuarantee, TerminationInterface,
+    MachineSupplyMode, Multiplicity, ReferenceAccess, TerminationGuarantee, TerminationInterface,
 };
 use std::collections::BTreeSet;
+use std::sync::OnceLock;
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
 use typed_trees::machine::Machine;
@@ -16,6 +17,94 @@ use typed_trees::signature::SignatureContractKind;
 use typed_trees::statement::TransitionTargetNode;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+/// Exact original type answers belong to the complete immutable checking
+/// context. Context substitutions discard these rows, including negative
+/// answers; bare mutable trees always perform an ordinary fresh query.
+pub(crate) struct CleanupTypeQueries {
+    rows: Vec<(TypeReferenceHandle, CleanupTypeAnswers)>,
+}
+
+#[derive(Default)]
+struct CleanupTypeAnswers {
+    plain_without_nominal_cleanup: OnceLock<bool>,
+    no_owned_cleanup_obligations: OnceLock<bool>,
+}
+
+impl CleanupTypeQueries {
+    fn of(program: &dyn crate::CheckingInput) -> Self {
+        let mut rows: Vec<_> = program
+            .type_reference_table
+            .type_reference_rows()
+            .map(|(handle, _)| (handle, CleanupTypeAnswers::default()))
+            .collect();
+        rows.sort_by_key(|(handle, _)| (handle.arena_index(), handle.generation()));
+        Self { rows }
+    }
+
+    fn answers(&self, reference: TypeReferenceHandle) -> Option<&CleanupTypeAnswers> {
+        self.rows
+            .binary_search_by_key(
+                &(reference.arena_index(), reference.generation()),
+                |(handle, _)| (handle.arena_index(), handle.generation()),
+            )
+            .ok()
+            .map(|position| &self.rows[position].1)
+    }
+}
+
+fn cleanup_type_answers(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<&CleanupTypeAnswers> {
+    program
+        .checking_memos()?
+        .cleanup_types
+        .get_or_init(|| CleanupTypeQueries::of(program))
+        .answers(reference)
+}
+
+/// The original qualified type must be a complete plain structure without a
+/// selected hook. Affine whole-value custody remains the caller's obligation;
+/// this judgment grants neither copying nor disposal. Unknown selections and
+/// contents retain ordinary processing.
+pub fn has_plain_contents_without_nominal_cleanup(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    let compute = || {
+        super::storage_contents::has_contents(
+            program,
+            reference,
+            &[],
+            super::storage_contents::ContentsRequirement::PlainOwned,
+        ) && matches!(
+            super::cleanup_selection::selected_application(program, reference),
+            Ok(None)
+        )
+    };
+    match cleanup_type_answers(program, reference) {
+        Some(answers) => *answers.plain_without_nominal_cleanup.get_or_init(compute),
+        None => compute(),
+    }
+}
+
+/// Copyable use alone does not retire materialized loan descriptors. Combine
+/// exact result custody with the complete original contents/cleanup judgment.
+pub fn has_no_owned_cleanup_obligations(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    let compute = || {
+        crate::reference_result_custody::result_multiplicity(program, reference)
+            == Multiplicity::Unrestricted
+            && has_plain_contents_without_nominal_cleanup(program, reference)
+    };
+    match cleanup_type_answers(program, reference) {
+        Some(answers) => *answers.no_owned_cleanup_obligations.get_or_init(compute),
+        None => compute(),
+    }
+}
 
 pub fn type_graph_requires_nominal_drop(
     program: &dyn crate::CheckingInput,

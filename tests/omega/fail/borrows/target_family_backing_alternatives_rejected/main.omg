@@ -1,0 +1,28 @@
+// Every target family's returned origin remains a possible backing.
+// Expected exit: 0
+data Cell { value: i64; }
+windows_x86_64 machine choose<'storage>(first: &'storage mut Cell, second: &'storage mut Cell) -> &'storage mut Cell { second }
+linux_x86_64 machine choose<'storage>(first: &'storage mut Cell, second: &'storage mut Cell) -> &'storage mut Cell { second }
+macos_arm64 machine choose<'storage>(first: &'storage mut Cell, second: &'storage mut Cell) -> &'storage mut Cell { first }
+linux_arm64 machine choose<'storage>(first: &'storage mut Cell, second: &'storage mut Cell) -> &'storage mut Cell { second }
+machine store(target: &mut Cell, value: i64) -> bool requires value == 41 {
+    target.value = value;
+    target.value == 41
+}
+machine store_code(source: &Cell) -> i64 ensures result == 41 {
+    let observation: i64 = source.value;
+    transition observation == 19 { true -> 41 false -> 41 }
+}
+machine main() crashes Trap {
+    let mut first: Cell = Cell { value: 17 };
+    let mut second: Cell = Cell { value: 19 };
+    let spare: Cell = Cell { value: 19 };
+    let selected: &mut Cell = choose(&mut first, &mut second);
+    let written: bool = store(&mut selected, store_code(&second));
+    transition written && ((first.value == 41 && second.value == 19) || (first.value == 17 && second.value == 41)) {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

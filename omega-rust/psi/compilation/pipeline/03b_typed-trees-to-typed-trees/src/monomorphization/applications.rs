@@ -180,22 +180,9 @@ pub(super) fn retain_call(
     if !application.is_valid() {
         return;
     }
-    let authored = program
-        .expression_table
-        .static_machine_application(application)
-        .registration_operation;
-    if authored.is_valid()
-        && program.symbols.get(authored).kind == symbols::SymbolKind::MachineParameter
-    {
-        // The callable parameter owns the authored invocation telescope. Its
-        // selected provider has an independent instance tuple; rewriting the
-        // call cannot replace the requirement's binders with that provider's.
-        program
-            .expression_table
-            .static_machine_application_mut(application)
-            .binding_declaration = authored;
-        return;
-    }
+    // The registration retains the authored callable binder. Once selection
+    // chooses a concrete template, its retained tuple belongs to that exact
+    // template; common argument correspondence transports it to the contract.
     program
         .expression_table
         .static_machine_application_mut(application)
@@ -269,7 +256,7 @@ pub(super) fn retain_instance(
     program: &mut TypedTrees,
     candidate: &Candidate,
     instance: SymbolHandle,
-) -> StaticMachineApplicationHandle {
+) -> Result<StaticMachineApplicationHandle, Vec<super::Diagnostic>> {
     let mut bindings = candidate_bindings(program, candidate);
     // Carrier sharing does not make an instance the author of its operands.
     // Preserve the representative source application's lexical region scope;
@@ -277,16 +264,58 @@ pub(super) fn retain_instance(
     // instances have no source call and retain their declaration context.
     let (lexical_owner, lifetimes) = if candidate.binding_application.is_valid() {
         let origin = source.unwrap_or(program);
-        (
-            origin
-                .expression_table
-                .static_machine_application(candidate.binding_application)
-                .lexical_owner,
-            origin
-                .expression_table
-                .static_machine_application_lifetimes(candidate.binding_application)
-                .to_vec(),
-        )
+        let source_application = origin
+            .expression_table
+            .static_machine_application(candidate.binding_application);
+        let mut lifetimes = origin
+            .expression_table
+            .static_machine_application_lifetimes(candidate.binding_application)
+            .to_vec();
+        let source_declaration = source_application.binding_declaration;
+        let target_declaration = candidate.template.template_symbol;
+        if source_declaration != target_declaration
+            && origin.target_machine_families.iter().any(|family| {
+                let contains = |symbol| {
+                    family.canonical == symbol
+                        || family.members.iter().any(|member| member.machine == symbol)
+                };
+                contains(source_declaration) && contains(target_declaration)
+            })
+        {
+            let source_machine = origin
+                .machine_by_symbol(source_declaration)
+                .ok_or_else(|| {
+                    vec![super::Diagnostic::error(
+                        "family lifetime tuple lost its source declaration",
+                    )]
+                })?;
+            let target_machine = origin
+                .machine_by_symbol(target_declaration)
+                .ok_or_else(|| {
+                    vec![super::Diagnostic::error(
+                        "family lifetime tuple lost its target declaration",
+                    )]
+                })?;
+            if source_machine.lifetime_parameters.len() != target_machine.lifetime_parameters.len()
+            {
+                return Err(vec![super::Diagnostic::error(
+                    "family lifetime telescopes have incompatible positions",
+                )]);
+            }
+            for binding in &mut lifetimes {
+                let ordinal = source_machine
+                    .lifetime_parameters
+                    .iter()
+                    .position(|parameter| parameter == &binding.parameter)
+                    .ok_or_else(|| {
+                        vec![super::Diagnostic::error(
+                            "family lifetime tuple names no source binder",
+                        )]
+                    })?;
+                binding.parameter = target_machine.lifetime_parameters[ordinal].clone();
+            }
+        }
+        (source_application.lexical_owner, lifetimes)
     } else {
         (instance, Vec::new())
     };
@@ -325,5 +354,5 @@ pub(super) fn retain_instance(
     program
         .expression_table
         .set_static_machine_application_lifetimes(application, &lifetimes);
-    application
+    Ok(application)
 }

@@ -81,7 +81,11 @@ pub(crate) fn ordering(
         &facts.flow,
         &facts.semantic,
         state,
-        operand,
+        crate::flow::CapturedOperand::recorded(
+            &facts.flow.control,
+            call.argument_operands().start(),
+        )
+        .ok_or("ordering capture lost its recorded identity")?,
         contract.ordering_type,
         &[],
     )
@@ -93,7 +97,7 @@ pub(crate) fn ordering(
                     program,
                     facts,
                     state,
-                    value.observation,
+                    value.observation.row(),
                     &value.observation_projection.remaining,
                     *case,
                 ) || (value.projection.remaining.is_empty()
@@ -109,7 +113,7 @@ pub(crate) fn ordering(
                         program,
                         facts,
                         state,
-                        value.operand,
+                        value.operand.row(),
                         &value.projection.remaining,
                         *case,
                     )

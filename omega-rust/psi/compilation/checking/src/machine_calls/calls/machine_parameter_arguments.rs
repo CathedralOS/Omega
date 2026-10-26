@@ -18,6 +18,7 @@ pub(super) fn validate_machine_parameter_arguments(
     static_arguments: &[typed_trees::expression::StaticMachineArgument],
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let Some(bindings) = type_arguments::callable_type_arguments(
         program,
@@ -70,5 +71,6 @@ pub(super) fn validate_machine_parameter_arguments(
             argument_matches_call_carrier(program, machine.symbol, argument, required, &bindings)
         },
         diagnostics,
+        formation_obligations,
     );
 }

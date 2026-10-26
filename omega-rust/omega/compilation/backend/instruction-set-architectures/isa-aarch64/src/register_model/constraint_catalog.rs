@@ -209,6 +209,11 @@ pub fn aarch64_register_constraint_catalog(
     let mut constraints = vec![
         instruction_row(
             RegisterConstraintId(0),
+            crate::AARCH64_MEMORY_FENCE,
+            Vec::new(),
+        ),
+        instruction_row(
+            RegisterConstraintId(0),
             crate::AARCH64_ATOMIC_FENCE,
             Vec::new(),
         ),

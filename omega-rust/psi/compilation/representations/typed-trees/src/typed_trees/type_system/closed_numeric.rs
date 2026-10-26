@@ -587,6 +587,15 @@ pub fn has_builtin_anonymous_operands(
                             | symbols::SymbolKind::State
                             | symbols::SymbolKind::Operator
                     ),
+                    // Expanding a membership retains the selected domain on
+                    // the predicate root beside its own operator occurrence.
+                    // That row records membership provenance, not an operator
+                    // override. Every predicate operator still passes this
+                    // same complete occurrence check independently.
+                    Target::Resolved(resolved) if selection.kind() == Kind::DomainMembership => {
+                        program.symbols.get(resolved.selected_symbol()).kind
+                            == symbols::SymbolKind::Domain
+                    }
                     Target::Intrinsic(Intrinsic::BuiltinOperator)
                     | Target::LateBound(LateBinding::CheckedOperator) => true,
                     // A compile-time value declaration retains only

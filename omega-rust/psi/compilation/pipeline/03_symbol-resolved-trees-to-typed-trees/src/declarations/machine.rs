@@ -227,6 +227,7 @@ fn lower_machine_contents(
             .map(crate::lowerer::name::lower_name)
             .collect(),
         type_parameters: arena::HandleSpan::empty(),
+        declared_type_equations: arena::HandleSpan::empty(),
         owned_data: arena::HandleSpan::empty(),
         satisfies: arena::HandleSpan::empty(),
         conformance_bounds: Vec::new(),
@@ -241,6 +242,23 @@ fn lower_machine_contents(
     // enters only with the implementation.
     typed_machine.termination_plan.implementation_witness = None;
     typed_machine.type_parameters = lower_type_parameters(lowerer, machine.type_parameters)?;
+    let mut equations = Vec::with_capacity(machine.declared_type_equations.len());
+    for equation in lowerer
+        .source_trees
+        .tables
+        .declarations
+        .declared_type_equations
+        .span_or_empty(machine.declared_type_equations)
+    {
+        equations.push(typed::machine::DeclaredTypeEquation {
+            parameter: lower_type_reference_into_table(lowerer, &equation.parameter)?,
+            definition: lower_type_reference_into_table(lowerer, &equation.definition)?,
+        });
+    }
+    typed_machine.declared_type_equations = lowerer
+        .typed_trees
+        .declared_type_equations
+        .insert_many(equations);
 
     if let Some(application) = &machine.attached_data_application {
         typed_machine.attached_data_application =

@@ -16,6 +16,26 @@ mod primitive_locals;
 pub(crate) use availability::validate_structural_place_availability;
 pub(crate) use availability::{operation_place_accesses, operation_place_inputs};
 
+/// One disposable declared-reference replay for an entire validation
+/// invocation. Callers own the immutable current graph; functions share its
+/// pre-operation snapshots without cloning the whole unit per function.
+pub(crate) struct ReferenceMembershipValidation<'a> {
+    graph: &'a [terminal_semantics::descriptor_results::DescriptorMachine],
+    analysis: terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
+}
+
+impl<'a> ReferenceMembershipValidation<'a> {
+    pub(crate) fn new(
+        types: &'a [terminal_psi::StructuralTypeDeclaration],
+        graph: &'a [terminal_semantics::descriptor_results::DescriptorMachine],
+    ) -> Self {
+        Self {
+            graph,
+            analysis: terminal_semantics::descriptor_results::DescriptorAnalysis::new(types, graph),
+        }
+    }
+}
+
 pub(crate) fn validate_structural_root_uniqueness(
     function: &PsiOptimizationFunction,
 ) -> Result<(), OptimizationUnitValidationError> {
@@ -43,6 +63,7 @@ pub(crate) fn validate_structural_root_operations(
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     structural_domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
     predecessors: &BTreeMap<semantic_vocabulary::BlockId, BTreeSet<semantic_vocabulary::BlockId>>,
+    mut reference_memberships: Option<&mut ReferenceMembershipValidation<'_>>,
     view_graph: Option<&[terminal_semantics::descriptor_results::DescriptorMachine]>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let shared_descriptor_result = function.result.structural().is_some_and(|result| {
@@ -165,6 +186,12 @@ pub(crate) fn validate_structural_root_operations(
                 node_index,
                 &node.operation,
                 view_graph,
+            ) || !reference_result_memberships_match(
+                unit,
+                function,
+                block.id,
+                node_index,
+                &node.operation,
             ) {
                 return Err(catalog_mismatch(function));
             }
@@ -735,12 +762,22 @@ pub(crate) fn validate_structural_root_operations(
                             ) else {
                                 return false;
                             };
+                            if let Some(context) = reference_memberships.as_deref_mut()
+                                && let Ok(backing) = terminal_semantics::descriptor_results::reference_backing_memberships(
+                                    &unit.structural_types, &unit.structural_domains, &unit.identities,
+                                    &mut context.analysis, function.machine, (block.id, node_index), source, storage.as_ref(), result,
+                                    |place| crate::unit_validation::operation_contracts::structural_source_contract(function, place)
+                                        .map(|contract| contract.payload_contract()),
+                                )
+                            {
+                                captured.extend(backing);
+                            }
                             if source.access == terminal_psi::StructuralAccess::SharedBorrow
                                 && result.projected_qualifications.iter().any(|row| !captured.contains(row))
                             {
-                                let Some(graph) = view_graph else { return false; };
+                                let Some(context) = reference_memberships.as_deref_mut() else { return false; };
                                 let Ok(current) = terminal_semantics::descriptor_results::current_selected_payload_contract(
-                                    &unit.structural_types, &unit.structural_domains, graph,
+                                    &unit.structural_types, &unit.structural_domains, context.graph,
                                     function.machine, (block.id, node_index), source.place, path,
                                     &|place| crate::unit_validation::operation_contracts::structural_source_contract(function, place)
                                         .map(|contract| contract.payload_contract()),
@@ -1016,8 +1053,8 @@ pub(crate) fn validate_structural_root_operations(
                             "transfer requires the same owned carrier, multiplicity and fresh result without issuance",
                         ));
                     }
-                    let graph = view_graph
-                        .ok_or_else(|| invalid("descriptor flow graph is malformed"))?;
+                    let graph =
+                        view_graph.ok_or_else(|| invalid("descriptor flow graph is malformed"))?;
                     let contract = terminal_semantics::descriptor_results::current_selected_payload_contract(
                         &unit.structural_types, &unit.structural_domains, graph,
                         function.machine, (block.id, node_index), source.place, &source.path,
@@ -1355,14 +1392,13 @@ pub(crate) fn validate_structural_root_operations(
                                             .iter()
                                             .filter(|domain| !minted.contains(domain))
                                             .all(|domain| signature.qualifications.contains(domain))
-                                            || projected
-                                                .iter()
-                                                .filter(|projection| {
-                                                    !minted.contains(&projection.domain)
-                                                })
-                                                .cloned()
-                                                .collect::<Vec<_>>()
-                                                != signature.projected_qualifications
+                                            || !terminal_semantics::reference_result_memberships_weaken(
+                                                unit.structural_types.iter(), signature.structural_type,
+                                                &projected.iter()
+                                                    .filter(|projection| !minted.contains(&projection.domain))
+                                                    .cloned().collect::<Vec<_>>(),
+                                                &signature.projected_qualifications,
+                                            )
                                     }
                             },
                         )
@@ -1677,6 +1713,84 @@ fn window_memberships(
         field,
     )?;
     source.restorable_qualifications(&projection.path)
+}
+
+/// Independently replay caller preservation after transformations. Surface
+/// call checks require the public floor; this body owner proves every extra row
+/// from the current origin relation and current normal-completion payload cut.
+fn reference_result_memberships_match(
+    unit: &optimization_unit::PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    block: semantic_vocabulary::BlockId,
+    node: u32,
+    operation: &O,
+) -> bool {
+    let O::CallStructural {
+        callee,
+        structural_arguments,
+        result: AbstractStructuralCallResult::Structural { result, .. },
+        ..
+    } = operation
+    else {
+        return true;
+    };
+    let Some(callee) = callee.machine().and_then(|machine| {
+        unit.functions
+            .iter()
+            .find(|function| function.machine == machine)
+    }) else {
+        return true;
+    };
+    let Some(signature) = callee.result.structural() else {
+        return false;
+    };
+    if result
+        .projected_qualifications
+        .iter()
+        .all(|row| signature.projected_qualifications.contains(row))
+    {
+        return true;
+    }
+    let preserved = (|| {
+        let graph = crate::descriptor_results::optimized_borrowed_storage_catalog_graph(
+            unit.functions.iter(),
+            &unit.boundary_machines,
+            &unit.structural_types,
+            &unit.dynamic_dispatch,
+        )?;
+        let mappings = terminal_semantics::bind_reference_call_results(
+            unit.structural_types.iter(),
+            terminal_semantics::ReferenceCallContract::Machine {
+                parameters: &callee.structural_parameters,
+                sources: &signature.reference_sources,
+            },
+            structural_arguments,
+        )
+        .ok()?;
+        terminal_semantics::reference_call_preserved_memberships(
+            &unit.structural_types,
+            &unit.structural_domains,
+            &graph,
+            function.machine,
+            (block, node),
+            result,
+            signature,
+            &mappings,
+            &|place| {
+                crate::unit_validation::operation_contracts::structural_source_contract(
+                    function, place,
+                )
+                .map(|contract| contract.payload_contract())
+            },
+        )
+        .ok()
+    })();
+    preserved.is_some_and(|preserved| {
+        result
+            .projected_qualifications
+            .iter()
+            .all(|row| signature.projected_qualifications.contains(row) || preserved.contains(row))
+    })
 }
 
 /// Reconstruct the current copied payload independently of producer rosters.

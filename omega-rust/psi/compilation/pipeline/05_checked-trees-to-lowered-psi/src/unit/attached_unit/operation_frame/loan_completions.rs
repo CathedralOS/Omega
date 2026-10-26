@@ -93,7 +93,13 @@ impl OperationFrame<'_, '_> {
                 }
             }
         }
-        crate::emission::loan_completions::emit(&prepared, coordinate, self.operations, self.calls)?;
+        crate::emission::loan_completions::emit(
+            &prepared,
+            coordinate,
+            self.operations,
+            self.calls,
+            &mut self.evaluation.current_claims,
+        )?;
         self.publish_call_ensures_guarantees(identities, coordinate, state)
     }
 
@@ -118,7 +124,8 @@ impl OperationFrame<'_, '_> {
                 continue;
             };
             let place = self.checked.facts.semantic.places.get(place_handle);
-            let Some((_, _, _domain_symbol, semantic_domain)) = fact.payload.domain_membership() else {
+            let Some((_, _, _domain_symbol, semantic_domain)) = fact.payload.domain_membership()
+            else {
                 continue;
             };
             let home = self
@@ -151,13 +158,15 @@ impl OperationFrame<'_, '_> {
             let Some((owner, structural_type)) = home else {
                 continue;
             };
-            let Some(declaration) = terminal_psi::find_structural_type(&types, structural_type) else {
+            let Some(declaration) = terminal_psi::find_structural_type(&types, structural_type)
+            else {
                 continue;
             };
             let (target_carrier, prefix_path) = match declaration.shape {
-                terminal_psi::StructuralTypeShape::Reference { referent, .. } => {
-                    (referent, vec![terminal_psi::StructuralPathSegment::Referent])
-                }
+                terminal_psi::StructuralTypeShape::Reference { referent, .. } => (
+                    referent,
+                    vec![terminal_psi::StructuralPathSegment::Referent],
+                ),
                 _ => (structural_type, Vec::new()),
             };
             let segments = self
@@ -179,11 +188,9 @@ impl OperationFrame<'_, '_> {
                 ) else {
                     continue;
                 };
-                let Ok((fact_path, _)) = validation::structural_owned_path(
-                    &self.checked.typed,
-                    reference,
-                    segments,
-                ) else {
+                let Ok((fact_path, _)) =
+                    validation::structural_owned_path(&self.checked.typed, reference, segments)
+                else {
                     continue;
                 };
                 let Ok(lowered_segments) = crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(

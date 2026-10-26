@@ -115,11 +115,56 @@ pub(super) fn check_statement_borrows<'p>(
                 loan.formation_expression,
             );
             let retained_lineage =
-                super::aliases::retained_lineage(&facts.borrow, borrow_state, loan_handle);
-            for active_loan_handle in facts
-                .flow
-                .borrow_loan_constraints(statement.entry_constraints)
-            {
+                super::aliases::formation_lineage(&facts.borrow, borrow_state, loan_handle);
+            let formation_constraints = if loan.established_by_call.is_valid() {
+                if !facts.borrow.calls.is_valid(loan.established_by_call) {
+                    diagnostics.push(Diagnostic::error(
+                        "reference-slot custody names an unavailable establishing invocation",
+                    ));
+                    continue;
+                }
+                let establishing = facts.borrow.calls.get(loan.established_by_call);
+                let mut actual = facts
+                    .flow
+                    .control
+                    .calls
+                    .span_or_empty(state_flow.calls)
+                    .iter()
+                    .filter(|call| {
+                        call.statement_index == statement.statement_index
+                            && call.call_ordinal == establishing.call_ordinal
+                            && call.target_symbol == establishing.target_symbol
+                            && call.authored_expression == establishing.authored_expression
+                    });
+                let Some(call) = actual.next() else {
+                    // The checking query inventories syntactic alternatives;
+                    // an unevaluated one cannot establish current custody.
+                    continue;
+                };
+                if actual.next().is_some() {
+                    diagnostics.push(Diagnostic::error(
+                        "reference-slot custody has ambiguous normal-exit invocation evidence",
+                    ));
+                    continue;
+                }
+                if !facts
+                    .flow
+                    .borrow_loan_constraints(call.exit_constraints)
+                    .any(|active| active == loan_handle)
+                {
+                    diagnostics.push(Diagnostic::error(
+                        "reference-slot custody is absent from its invocation normal exit",
+                    ));
+                    continue;
+                }
+                call.exit_constraints
+            } else {
+                statement.entry_constraints
+            };
+            for active_loan_handle in facts.flow.borrow_loan_constraints(formation_constraints) {
+                if super::aliases::same_descriptor(&facts.borrow, loan_handle, active_loan_handle) {
+                    continue;
+                }
                 let active_loan = facts.borrow.loans.get(active_loan_handle);
                 let compatibility = borrow_loan_compatibility(
                     program,
@@ -177,13 +222,14 @@ pub(super) fn check_statement_borrows<'p>(
             }
         }
 
-        // Loan rows retain their source formation occurrence. A statement's future result loans cannot be
-        // treated as live before their operands finish. Sibling selection arms
-        // remain alternatives, while loans join after a selection completes.
-        let mut formed: Vec<(
-            arena::Handle<checked_trees::BorrowLoanFact>,
-            Vec<super::super::ownership_occurrences::EvaluationBranch>,
-        )> = Vec::new();
+        // Current descriptor custody follows the same selection cursor as
+        // permission replay. A completed invocation replaces its exact slots;
+        // sibling alternatives restart from entry and reconverge by loan union.
+        let mut current_loans = facts
+            .flow
+            .borrow_loan_constraints(statement.entry_constraints)
+            .collect::<Vec<_>>();
+        let mut selected = crate::checks::ownership_occurrences::SelectedEvaluation::new();
         let occurrences = crate::checks::ownership_occurrences::statement_steps(
             program,
             machine,
@@ -212,52 +258,92 @@ pub(super) fn check_statement_borrows<'p>(
             &occurrences,
             false,
         );
-        let mut staged_operands = super::reads::StagedOperands::default();
         for (position, occurrence) in occurrences.iter().enumerate() {
-            use crate::checks::ownership_occurrences::{StatementStep, routes_compatible};
+            use crate::checks::ownership_occurrences::StatementStep;
+            if let Err(error) = selected.enter(
+                &occurrence.route,
+                &mut current_loans,
+                |_, _| Ok(()),
+                |_, current, sibling| {
+                    for loan in sibling {
+                        if !current.contains(loan) {
+                            current.push(*loan);
+                        }
+                    }
+                    Ok(())
+                },
+            ) {
+                diagnostics.push(error);
+                break;
+            }
             match &occurrence.step {
                 StatementStep::Observe { place, expression } => {
-                    let active: Vec<_> = facts
-                        .flow
-                        .borrow_loan_constraints(statement.entry_constraints)
+                    let active = current_loans
+                        .iter()
+                        .copied()
                         .filter(|loan| {
                             !final_holds
                                 .iter()
                                 .any(|(ended, held_until)| ended == loan && *held_until < position)
+                                && !super::selected_retirement::before_evaluation(
+                                    program,
+                                    facts,
+                                    state_flow,
+                                    statement.statement_index,
+                                    occurrence.evaluation,
+                                    *loan,
+                                )
                         })
-                        .chain(
-                            formed
-                                .iter()
-                                .filter(|(_, route)| routes_compatible(route, &occurrence.route))
-                                .map(|(handle, _)| *handle),
-                        )
-                        .collect();
+                        .collect::<Vec<_>>();
                     super::reads::check_storage_read(
                         program,
                         facts,
                         super::reads::StatementRead {
                             state: state_flow,
-                            borrow_state,
                             statement,
                             place,
                             expression: *expression,
                             active_loans: &active,
                         },
-                        &mut staged_operands,
                         stated_premises,
                         diagnostics,
                         bound_lookup,
                     );
                 }
                 StatementStep::Complete(expression) => {
+                    for call in facts
+                        .borrow
+                        .calls
+                        .span_or_empty(borrow_state.calls)
+                        .iter()
+                        .filter(|call| {
+                            call.statement_index == statement.statement_index
+                                && call.authored_expression == *expression
+                                && (!call.reference_slot_effects.is_empty()
+                                    || !call.completed_reference_loans.is_empty())
+                        })
+                    {
+                        current_loans.retain(|loan| {
+                            !crate::borrow::calls::replaces_reference_loan(
+                                program,
+                                &facts.borrow,
+                                call,
+                                *loan,
+                            )
+                        });
+                        for handle in call.completed_reference_loans.handles() {
+                            if !current_loans.contains(&handle) {
+                                current_loans.push(handle);
+                            }
+                        }
+                    }
                     for (handle, _) in facts.borrow.state_loans(borrow_state).filter(|(_, loan)| {
                         loan.statement_index == statement.statement_index
+                            && !loan.established_by_call.is_valid()
                             && loan.formation_expression == *expression
                     }) {
-                        if !formed.iter().any(|(previous, route)| {
-                            *previous == handle && route == &occurrence.route
-                        }) {
-                            formed.push((handle, occurrence.route.clone()));
+                        if !current_loans.contains(&handle) {
+                            current_loans.push(handle);
                         }
                     }
                 }
@@ -290,15 +376,7 @@ pub(super) fn check_statement_borrows<'p>(
                     {
                         continue;
                     }
-                    let active = facts
-                        .flow
-                        .borrow_loan_constraints(statement.entry_constraints)
-                        .chain(
-                            formed
-                                .iter()
-                                .filter(|(_, route)| routes_compatible(route, &occurrence.route))
-                                .map(|(handle, _)| *handle),
-                        );
+                    let active = current_loans.iter().copied();
                     super::moves::check_storage_move(
                         program,
                         facts,
@@ -388,7 +466,7 @@ pub(super) fn check_statement_borrows<'p>(
         // A write through an unselected parent still conflicts with the child.
         for loan_handle in facts
             .flow
-            .borrow_loan_constraints(statement.entry_constraints)
+            .borrow_loan_constraints(statement.pre_store_constraints)
         {
             if ingress_slot && facts.borrow.loans.get(loan_handle).root == mutated_place.root {
                 continue;
@@ -589,8 +667,8 @@ fn check_call_mutation_borrows<'p>(
     }
 }
 
-/// The loans live *at* a call: the entry constraints of the flow statement the
-/// call belongs to, less the local observations a named jump's source-state
+/// The loans live *at* a call: that invocation's actual entry constraints,
+/// less the local observations a named jump's source-state
 /// exit closes before its successor runs.
 fn loans_live_at_call(
     program: &dyn ::validation::CheckingInput,
@@ -599,30 +677,38 @@ fn loans_live_at_call(
     borrow_call: &checked_trees::BorrowCallFact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<arena::Handle<checked_trees::BorrowLoanFact>> {
-    let Some(statement) = facts
-        .flow
-        .control
-        .statements
-        .span_or_empty(state_flow.statements)
-        .iter()
-        .find(|statement| statement.statement_index == borrow_call.statement_index)
-    else {
-        return Vec::new();
-    };
     let mut loans = facts
         .flow
-        .borrow_loan_constraints(statement.entry_constraints)
+        .borrow_loan_constraints(facts.flow.state_call_entry_constraints(
+            state_flow,
+            borrow_call.statement_index,
+            borrow_call.call_ordinal,
+            borrow_call.target_symbol,
+            borrow_call.receiver_symbol,
+        ))
         .peekable();
     if loans.peek().is_none() {
         return Vec::new();
     }
     let exiting_source =
         source_exiting_without_local_loan_carriers(program, state_flow, borrow_call, call_frames);
-    let ended_before_call =
-        super::reads::loans_ended_before_call(program, facts, state_flow, borrow_call);
+    let boundary = super::calls::InvocationBoundary::at(program, facts, state_flow, borrow_call);
+    let ended_before_call = super::reads::loans_ended_before_call(
+        program,
+        facts,
+        state_flow,
+        borrow_call,
+        boundary.as_ref(),
+    );
     loans
         .filter(|loan_handle| {
-            !ended_before_call.contains(loan_handle)
+            !super::selected_retirement::before_call(
+                program,
+                facts,
+                state_flow,
+                borrow_call,
+                *loan_handle,
+            ) && !ended_before_call.contains(loan_handle)
                 && !exiting_source.is_some_and(|state| {
                     local_loan_ends_before_successor(
                         program,
@@ -818,6 +904,7 @@ pub(super) fn supplier_preserves_loan(
             proven_containment && forming_loan.source_owner_symbol == active_loan.owner_symbol
         }
         checked_trees::BorrowLoanLineage::DirectRoot
+        | checked_trees::BorrowLoanLineage::SuppliedOutput
         | checked_trees::BorrowLoanLineage::LifetimeDependency => false,
     }
 }

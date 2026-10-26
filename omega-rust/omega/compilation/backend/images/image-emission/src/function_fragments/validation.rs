@@ -77,7 +77,9 @@ fn validate(
             .iter()
             .try_fold(false, |required, placed| -> Result<bool, Error> {
                 let (abstracted, _) = source::function(source, placed.machine)?;
-                Ok(required || source::requires_graph_storage_replay(&abstracted.operations))
+                Ok(required
+                    || source::requires_graph_storage_replay(&abstracted.operations)
+                    || super::structural::requires_call_graph_replay(source, placed.machine)?)
             })?;
     if artifact.requires_graph_storage_replay != requires_graph_storage_replay
         || artifact.psi != text.psi
@@ -212,9 +214,11 @@ fn validate(
                     frame.is_some_and(|frame| frame.contains_call),
                 ),
                 text.target.architecture,
-                *temporary_stack_bytes.get(&placed.machine).ok_or(Error::Mismatch(
-                    "missing selected function for temporary stack replay",
-                ))?,
+                *temporary_stack_bytes
+                    .get(&placed.machine)
+                    .ok_or(Error::Mismatch(
+                        "missing selected function for temporary stack replay",
+                    ))?,
                 &calls,
                 function.unit_stack,
                 function.scalar_stack,

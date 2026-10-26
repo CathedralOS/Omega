@@ -265,7 +265,7 @@ pub(crate) fn pending_endpoint_calls_need_operator_selection(
     let prepared = crate::PreparedBuildMachineProgram::prepare_in(typed, domain)?;
     let execution = prepared.typed();
     let facts = validation::derive_pre_flow_operator_selections(execution);
-    let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority);
+    let admission = domain.admission(execution, selection_authority);
     Ok(pending.iter().any(|endpoint| {
         // A type argument awaiting its own bound keeps this application
         // unspecialized. Its original template can still demand a provider;

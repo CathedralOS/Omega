@@ -39,6 +39,10 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                 .identities
                 .text(route.identity())
                 .is_none_or(str::is_empty)
+                || module
+                    .identities
+                    .text(route.declaration().identity())
+                    .is_none_or(str::is_empty)
         }) {
             return malformed("scalar domain lost an issuer identity");
         }
@@ -187,17 +191,19 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                         ),
                     )?;
                     match domain.establishment_routes.get(*route as usize) {
-                        Some(ScalarDomainEstablishmentRoute::ExactMachine { machine_identity }) => {
-                            *machine_identity == declaration.callable
+                        Some(ScalarDomainEstablishmentRoute::ExactMachine { declaration: issuer, machine_identity }) => {
+                            (*machine_identity == declaration.callable && issuer.identity() == declaration.semantic_declaration)
                                 || declaration.specialization.as_ref().is_some_and(|specialization| {
                                     *machine_identity == specialization.template_callable
+                                        && issuer.identity() == specialization.template_semantic_declaration
                                         && module.identities.text(specialization.template_callable).is_some_and(|identity| !identity.is_empty())
                                 })
                         }
-                        Some(ScalarDomainEstablishmentRoute::CheckedRequirement { requirement_identity }) => {
+                        Some(ScalarDomainEstablishmentRoute::CheckedRequirement { declaration: issuer, requirement_identity }) => {
                             module.closed_conformance_applications.iter().any(|application| {
                                 application.rows.iter().any(|row| {
                                     row.public_requirement_identity == *requirement_identity
+                                        && row.requirement_declaration == *issuer
                                         && row.realization_callable_identity == Some(declaration.callable)
                                         && application.realization_callables.iter().any(|callable| {
                                             callable.source_callable_identity == declaration.callable

@@ -78,8 +78,10 @@ pub(super) fn validate_establish_scalar_case(
     let Some(result) = operation.result.structural() else {
         return malformed("scalar case establishment has no structural result");
     };
+    // Common operation-result admission validates whole membership identities
+    // and carriers. A predicate-only qualification does not change case storage
+    // or the selected field roster checked here.
     if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
     {
@@ -137,9 +139,9 @@ pub(super) fn validate_establish_structural_case(
     let Some(result) = operation.result.structural() else {
         return malformed("structural case establishment has no structural result");
     };
-    if !result.qualifications.is_empty() {
-        return malformed("structural case establishment has an invalid result surface");
-    }
+    // Whole memberships use common result admission, as for record
+    // construction. Keep case storage, selected children and claim geometry
+    // independent of that predicate-only metadata.
     validate_constructor_claims(module, result)?;
     if !matches!(
         machine.structural_place(result.place),
@@ -465,7 +467,34 @@ pub(super) fn validate_establish_primitive_local(
     let Some(result) = operation.result.structural() else {
         return malformed("primitive local has no structural result");
     };
-    if !result.is_unrestricted_plain()
+    let source = machine
+        .parameters
+        .iter()
+        .chain(machine.block_parameters())
+        .chain(
+            machine
+                .operations()
+                .filter_map(|operation| operation.result.scalar_ref()),
+        )
+        .find(|declaration| declaration.id == *value)
+        .ok_or(CodecError::MalformedStructuralFoundation(
+            "primitive initializer lost its exact SSA declaration",
+        ))?;
+    let qualifications = terminal_semantics::primitive_scalar_memberships(
+        module.structural_types.iter(),
+        module.structural_domains.iter(),
+        &module.scalar_qualifications,
+        result.structural_type,
+        source,
+    )
+    .ok_or(CodecError::MalformedStructuralFoundation(
+        "primitive initializer lost its exact scalar membership correspondence",
+    ))?;
+    if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !result.claims.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.qualification_establishments.is_empty()
+        || result.qualifications != qualifications
         || !machine.structural_places.iter().any(|place| {
             place.id == result.place
                 && matches!(place.kind,

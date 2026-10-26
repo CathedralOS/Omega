@@ -14,6 +14,48 @@ ensures result.base == 10, result.length == 48
 machine Region::drop(region: &mut Region) {}
 data Holder { parts: Parts; }
 data Parts { left: Region in Owned; right: Region in Owned; }
+machine rebuild_region(region: Region in Owned) -> Region in Owned
+requires region.base <= 58 && region.length <= 58 - region.base
+ensures result.base == region.base, result.length == region.length,
+    Owned::content(old(&region)) == Owned::content(&result)
+{
+    let { base, length } = region;
+    Region { base: base, length: length }
+}
+
+machine retire_empty_tail(left: Region in Owned, right: Region in Owned) -> Region in Owned
+requires left.base <= 58 && left.length <= 58 - left.base
+    && right.base == left.base + left.length && right.length == 0
+ensures result.base == left.base, result.length == left.length,
+    separate(Owned::content(old(&left)), Owned::content(old(&right))) == Owned::content(&result)
+{
+    drop(right);
+    let rebuilt: Region in Owned = rebuild_region(left);
+    rebuilt
+}
+
+machine finish_reunion(whole: Region in Owned) -> Region in Owned
+requires whole.base == 10 && whole.length == 48
+ensures result.base == whole.base, result.length == whole.length,
+    Owned::content(old(&whole)) == Owned::content(&result)
+{
+    let parts: Parts = partition(whole, 48);
+    let joined: Region in Owned = retire_empty_tail(parts.left, parts.right);
+    let { base, length } = joined;
+    Region { base: base, length: length }
+}
+
+machine merge(left: Region in Owned, right: Region in Owned) -> Region in Owned
+requires left.base <= 58 && left.length <= 58 - left.base
+    && right.base == left.base + left.length && right.length <= 58 - right.base
+ensures result.base == left.base, result.length == left.length + right.length,
+    separate(Owned::content(old(&left)), Owned::content(old(&right))) == Owned::content(&result)
+{
+    let { base as left_base, length as left_length } = left;
+    let { base as right_base, length as right_length } = right;
+    Region { base: left_base, length: left_length + right_length }
+}
+
 machine partition(whole: Region in Owned, requested: u64) -> Parts
 requires whole.base <= 58 && whole.length <= 58 - whole.base && requested <= whole.length
 ensures
@@ -34,9 +76,11 @@ ensures result in Owned,
     Owned::content(old(&whole)) == Owned::content(&result)
 {
     let parts: Parts = partition(whole, requested);
-    let { base as left_base, length as left_length } = parts.left;
-    let { base as right_base, length as right_length } = parts.right;
-    Region { base: left_base, length: left_length + right_length }
+    let joined: Region in Owned = merge(parts.left, parts.right);
+    let finished: Region in Owned = finish_reunion(joined);
+    let { base, length } = finished;
+    let reunited: Region = Region { base: base, length: length };
+    reunited
 }
 machine rejoin_field(whole: Region in Owned, requested: u64) -> Region
 requires whole.base == 10 && whole.length == 48 && requested <= whole.length
@@ -45,9 +89,11 @@ ensures result in Owned,
     Owned::content(old(&whole)) == Owned::content(&result)
 {
     let holder: Holder = Holder { parts: partition(whole, requested) };
-    let { base as left_base, length as left_length } = holder.parts.left;
-    let { base as right_base, length as right_length } = holder.parts.right;
-    Region { base: left_base, length: left_length + right_length }
+    let joined: Region in Owned = merge(holder.parts.left, holder.parts.right);
+    let finished: Region in Owned = finish_reunion(joined);
+    let { base, length } = finished;
+    let reunited: Region = Region { base: base, length: length };
+    reunited
 }
 machine rejoin_state(whole: Region in Owned, requested: u64) -> Region
 requires whole.base == 10 && whole.length == 48 && requested <= whole.length
@@ -60,9 +106,11 @@ ensures result in Owned,
     requires whole.base == 10 && whole.length == 48 && requested <= whole.length
     {
     let parts: Parts = partition(whole, requested);
-    let { base as left_base, length as left_length } = parts.left;
-    let { base as right_base, length as right_length } = parts.right;
-    Region { base: left_base, length: left_length + right_length }
+    let joined: Region in Owned = merge(parts.left, parts.right);
+    let finished: Region in Owned = finish_reunion(joined);
+    let { base, length } = finished;
+    let reunited: Region = Region { base: base, length: length };
+    reunited
     }
 }
 machine rejoin_nested(whole: Region in Owned, requested: u64) -> Region
@@ -73,10 +121,12 @@ ensures result in Owned,
 {
     let parts: Parts = partition(whole, requested);
     let tail: Parts = partition(parts.right, 0);
-    let { base as left_base, length as left_length } = parts.left;
-    let { base as middle_base, length as middle_length } = tail.left;
-    let { base as right_base, length as right_length } = tail.right;
-    Region { base: left_base, length: left_length + middle_length + right_length }
+    let reunited_tail: Region in Owned = merge(tail.left, tail.right);
+    let joined: Region in Owned = merge(parts.left, reunited_tail);
+    let finished: Region in Owned = finish_reunion(joined);
+    let { base, length } = finished;
+    let reunited: Region = Region { base: base, length: length };
+    reunited
 }
 machine rejoin_call_result(whole: Region in Owned, requested: u64) -> Region
 requires whole.base == 10 && whole.length == 48 && requested <= whole.length
@@ -86,9 +136,11 @@ ensures result in Owned,
 {
     let returned: Region in Owned = rejoin_state(whole, requested);
     let parts: Parts = partition(returned, requested);
-    let { base as left_base, length as left_length } = parts.left;
-    let { base as right_base, length as right_length } = parts.right;
-    Region { base: left_base, length: left_length + right_length }
+    let joined: Region in Owned = merge(parts.left, parts.right);
+    let finished: Region in Owned = finish_reunion(joined);
+    let { base, length } = finished;
+    let reunited: Region = Region { base: base, length: length };
+    reunited
 }
 machine rejoin_return_local(whole: Region in Owned, requested: u64) -> Region
 requires whole.base == 10 && whole.length == 48 && requested <= whole.length
@@ -97,9 +149,10 @@ ensures result in Owned,
     Owned::content(old(&whole)) == Owned::content(&result)
 {
     let parts: Parts = partition(whole, requested);
-    let { base as left_base, length as left_length } = parts.left;
-    let { base as right_base, length as right_length } = parts.right;
-    let result: Region = Region { base: left_base, length: left_length + right_length };
+    let joined: Region in Owned = merge(parts.left, parts.right);
+    let finished: Region in Owned = finish_reunion(joined);
+    let { base, length } = finished;
+    let result: Region = Region { base: base, length: length };
     result
 }
 machine rejoin_anonymous(whole: Region in Owned, requested: u64) -> Region
@@ -111,9 +164,11 @@ ensures result in Owned,
     let parts: Parts = (Holder { parts: partition(whole, requested) }).parts;
     let left: Region in Owned = parts.left;
     let right: Region in Owned = parts.right;
-    let { base as left_base, length as left_length } = left;
-    let { base as right_base, length as right_length } = right;
-    Region { base: left_base, length: left_length + right_length }
+    let joined: Region in Owned = merge(left, right);
+    let finished: Region in Owned = finish_reunion(joined);
+    let { base, length } = finished;
+    let reunited: Region = Region { base: base, length: length };
+    reunited
 }
 machine exercise(requested: u64) -> bool
 requires requested <= 48

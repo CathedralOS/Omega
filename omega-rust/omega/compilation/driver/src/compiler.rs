@@ -16,70 +16,106 @@ use compilation_products::compile_request::{SharedCompileInputs, ValidatedTarget
 use compilation_products::{CheckedProductSource, RequestedCompileProduct};
 use diagnostics::Diagnostic;
 
-pub(crate) mod package;
-
-/// Compile every requested target, retaining failures alongside successful products.
-/// Invalid requests reject before source acquisition. Shared preparation failures
-/// are reported for every target. Publication remains a separate operation.
-pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnostic>> {
-    let mut session = crate::CompilationSession::default();
-    compile_with_session(&mut session, request)
+/// A validated target roster and one pending source continuation. Target-local
+/// admission errors remain in their original positions while the application
+/// executes the shared Build, if there is any admitted target.
+pub struct PreparedCompilation {
+    shared: std::sync::Arc<SharedCompileInputs>,
+    targets: Vec<(
+        Option<target::TargetProfile>,
+        Result<ValidatedTargetCompilation, Vec<Diagnostic>>,
+    )>,
+    source: Option<Result<crate::SourceCompilation, crate::CompileFailure>>,
 }
 
-pub(crate) fn compile_with_session(
-    session: &mut crate::CompilationSession,
-    request: CompileRequest,
-) -> Result<CompileOutcomes, Vec<Diagnostic>> {
-    run_on_compile_thread(move || {
-        let (shared, targets) = request.validate_for_execution()?.into_parts();
-        // Admission is occurrence-local. A refused target must not prevent an
-        // admitted sibling from preparing the shared source.
-        let mut admitted = Vec::with_capacity(targets.len());
-        for target in targets {
-            let profile = target.profile();
-            let admission = target
-                .checked_execution(&shared.build_directory)
-                .admit_package_inputs();
-            admitted.push((profile, admission.map(|()| target)));
+impl PreparedCompilation {
+    pub fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
+        match &mut self.source {
+            Some(Ok(source)) => source.execution(),
+            _ => None,
         }
+    }
+}
 
-        let first_admitted = admitted.iter().find_map(|(_, target)| target.as_ref().ok());
-        let source = match first_admitted {
-            Some(target) => Some(session.check_shared_source(&shared, target)),
-            None => None,
-        };
-
-        let mut products = Vec::with_capacity(admitted.len());
-        for (profile, target) in admitted {
-            let product = match target {
-                Err(diagnostics) => Err(diagnostics),
-                Ok(target) => match &source {
-                    Some(Ok(source)) => prepare_target(&shared, target, source),
-                    Some(Err(diagnostics)) => Err(diagnostics.clone()),
-                    None => Err(vec![Diagnostic::error(
-                        "admitted target has no shared source preparation",
-                    )]),
-                },
+impl crate::CompilationSession {
+    /// Admit every target before preparing source. No Build effects execute in
+    /// the compiler; the returned continuation retains both refusals and work.
+    pub fn begin_compilation(
+        &mut self,
+        request: CompileRequest,
+    ) -> Result<PreparedCompilation, Vec<Diagnostic>> {
+        run_on_compile_thread(|| {
+            let (shared, targets) = request.validate_for_execution()?.into_parts();
+            let mut admitted = Vec::with_capacity(targets.len());
+            for target in targets {
+                let profile = target.profile();
+                let admission = target
+                    .checked_execution(&shared.build_directory)
+                    .admit_package_inputs();
+                admitted.push((profile, admission.map(|()| target)));
+            }
+            let source = match admitted.iter().find_map(|(_, target)| target.as_ref().ok()) {
+                Some(target) => Some(self.prepare_shared_source(&shared, target)),
+                None => None,
             };
-            products.push((
-                profile,
-                product.map_err(CompilationProductError::Production),
-            ));
-        }
+            Ok(PreparedCompilation {
+                shared,
+                targets: admitted,
+                source,
+            })
+        })
+    }
 
-        let mut outcomes = Vec::with_capacity(products.len());
-        for (profile, product) in produce_products(products) {
-            let report = match product {
-                Ok(output) => output.into_report(),
-                Err(error) => Err(error),
+    /// Join the actual returned Build, check its Product source once, then
+    /// produce every requested target. Failure never drops a sibling's outcome.
+    pub fn complete_compilation(
+        &mut self,
+        prepared: PreparedCompilation,
+        returned: Result<Option<build_evaluation::ReturnedBuild>, crate::CompileFailure>,
+    ) -> Result<CompileOutcomes, Vec<Diagnostic>> {
+        run_on_compile_thread(|| {
+            let PreparedCompilation {
+                shared,
+                targets,
+                source,
+            } = prepared;
+            let source = match source {
+                Some(Ok(source)) => Some(self.check_completed_source(source, returned)),
+                Some(Err(failure)) => Some(Err(failure.into_diagnostics())),
+                None => None,
             };
-            outcomes.push(CompileTargetOutcome::new(
-                profile,
-                report.map_err(CompilationProductError::into_diagnostics),
-            ));
-        }
-        Ok(CompileOutcomes::new(outcomes))
-    })
+            let mut products = Vec::with_capacity(targets.len());
+            for (profile, target) in targets {
+                let product = match target {
+                    Err(diagnostics) => Err(diagnostics),
+                    Ok(target) => match &source {
+                        Some(Ok(source)) => prepare_target(&shared, target, source),
+                        Some(Err(diagnostics)) => Err(diagnostics.clone()),
+                        None => Err(vec![Diagnostic::error(
+                            "admitted target has no shared source preparation",
+                        )]),
+                    },
+                };
+                products.push((
+                    profile,
+                    product.map_err(CompilationProductError::Production),
+                ));
+            }
+
+            let mut outcomes = Vec::with_capacity(products.len());
+            for (profile, product) in produce_products(products) {
+                let report = match product {
+                    Ok(output) => output.into_report(),
+                    Err(error) => Err(error),
+                };
+                outcomes.push(CompileTargetOutcome::new(
+                    profile,
+                    report.map_err(CompilationProductError::into_diagnostics),
+                ));
+            }
+            Ok(CompileOutcomes::new(outcomes))
+        })
+    }
 }
 
 /// Select provider custody without installation. The portable producer still
@@ -101,7 +137,7 @@ fn prepare_target(
             CompilationProduct::Native(target.into_native_product_request())
         }
     };
-    Ok(ProductRequest {
+    Ok(ProductRequest::Requested {
         realization,
         root: shared.root_path.clone(),
         product,

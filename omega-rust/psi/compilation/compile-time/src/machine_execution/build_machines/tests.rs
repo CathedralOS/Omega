@@ -59,9 +59,35 @@ fn checked_constant_runs_transitive_terminal_calls() {
             .expect("answer")
             .symbol;
         let entry = program.entry(symbol).expect("entry");
+        let accounting = crate::evaluation_accounting::EvaluationAccounting::recording();
         let result = program
-            .evaluate_checked_constant(&entry, &[])
+            .evaluate_checked_constant(&entry, &[], &accounting)
             .expect("Terminal execution");
+        let completed = accounting.finish().expect("complete Terminal accounting");
+        assert!(completed.has_complete_usage());
+        let [crate::PureEvaluationRecord::Terminal(receipt)] = completed.receipts() else {
+            panic!("one root Terminal execution must retain one typed receipt");
+        };
+        assert_eq!(receipt.machine(), symbol);
+        let input = program.checked_program().expect("exact checked input");
+        assert!(matches!(
+            receipt.source_program(),
+            crate::PureEvaluationProgram::CheckedClosure {
+                execution,
+                product_declarations,
+            } if execution.as_ref() == input.checked.as_ref()
+                && product_declarations.as_ref() == input.product_declarations.as_ref()
+        ));
+        assert!(receipt.operators().is_empty());
+        assert!(receipt.program().is_some());
+        assert!(receipt.usage().total_units() > 0);
+        assert!(matches!(
+            receipt.outcome(),
+            crate::PureTerminalEvaluationOutcome::Returned { value } if value == &result
+        ));
+        completed
+            .validate_charges()
+            .expect("retained Terminal usage");
         assert!(
             matches!(
                 result,
@@ -87,7 +113,11 @@ fn checked_constant_rejects_another_preparations_entry() {
             .symbol;
         let entry = first.entry(symbol).expect("entry");
         let error = second
-            .evaluate_checked_constant(&entry, &[])
+            .evaluate_checked_constant(
+                &entry,
+                &[],
+                &crate::evaluation_accounting::EvaluationAccounting::default(),
+            )
             .expect_err("foreign entry");
         assert!(error.contains("different prepared program"), "{error}");
     });
@@ -104,7 +134,11 @@ fn checked_constant_retains_unsigned_result_meaning() {
             .symbol;
         let entry = program.entry(symbol).expect("entry");
         let result = program
-            .evaluate_checked_constant(&entry, &[])
+            .evaluate_checked_constant(
+                &entry,
+                &[],
+                &crate::evaluation_accounting::EvaluationAccounting::default(),
+            )
             .expect("Terminal execution");
         assert!(
             matches!(
@@ -133,7 +167,11 @@ fn checked_constant_does_not_install_boundary_imports() {
             .symbol;
         let entry = program.entry(symbol).expect("entry");
         let error = program
-            .evaluate_checked_constant(&entry, &[])
+            .evaluate_checked_constant(
+                &entry,
+                &[],
+                &crate::evaluation_accounting::EvaluationAccounting::default(),
+            )
             .expect_err("no host authority");
         assert!(error.contains("UnboundImports"), "{error}");
     });

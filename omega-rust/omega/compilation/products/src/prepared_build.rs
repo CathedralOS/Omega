@@ -13,6 +13,7 @@ use std::sync::Arc;
 /// The parse prefix supplies fresh contexts; the typed frontier is reusable
 /// only for its own assembly inputs or its still-deferred Product source.
 pub struct SettledBuildSource {
+    pub execution_contract: package_compilation::build_execution::BuildExecutionContract,
     pub parsed: crate::PreparedCheckedSource,
     pub frontier: crate::TypedCompilationFrontier,
     pub evaluated: crate::EvaluatedBuild,
@@ -44,6 +45,7 @@ impl SettledPackageBuild {
             rollback: self.rollback.clone(),
             permit_unsettled_fused_service_fields: self.permit_unsettled_fused_service_fields,
             source: SettledBuildSource {
+                execution_contract: self.source.execution_contract.clone(),
                 parsed: self.source.parsed.fork(),
                 frontier: self.source.frontier.clone(),
                 evaluated: self.source.evaluated.clone(),
@@ -81,6 +83,9 @@ pub struct PreparedBuild {
 /// Complete authored and generated Product source, consumed once by Psi checking.
 /// Realization never receives a mutable copy of this source continuation.
 pub struct PreparedProductSource {
+    /// Real logical charges for authored completion, retained on both cold and
+    /// reused paths. Generated admission and Build charges remain independent.
+    pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub typed: typed_trees::TypedTrees,
     pub pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
@@ -94,6 +99,7 @@ pub struct PreparedProductSource {
 /// The source checker produces this before any target provider is selected.
 #[derive(Clone)]
 pub struct CheckedProductSource {
+    pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub program: Arc<checked_trees::CheckedTrees>,
     /// All authored Product defaults, shared unchanged across target settlement.
     pub provider_defaults:

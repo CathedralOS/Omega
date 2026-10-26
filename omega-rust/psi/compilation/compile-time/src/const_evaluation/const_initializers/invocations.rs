@@ -53,6 +53,7 @@ impl CheckedInitializers {
         prepared: &crate::PreparedBuildMachineProgram,
         authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
         probe_symbols: &[symbols::SymbolHandle],
+        accounting: &crate::evaluation_accounting::EvaluationAccounting,
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut bodies = prepared.typed().clone();
         let (probes, machines): (Vec<_>, Vec<_>) = bodies
@@ -88,7 +89,8 @@ impl CheckedInitializers {
         for probe in probes {
             typed.push_machine(probe);
         }
-        let admission = BuildTimeAdmissionPlan::infer(&typed, authority.clone());
+        let admission = BuildTimeAdmissionPlan::infer(&typed, authority.clone())
+            .with_accounting(accounting.clone());
         Ok(Self {
             typed,
             admission,
@@ -473,7 +475,8 @@ impl ConstantCalls for Invocation<'_> {
                     operator.return_type,
                 );
                 let admission =
-                    crate::BuildTimeAdmissionPlan::infer(&probe, self.program.authority.clone());
+                    crate::BuildTimeAdmissionPlan::infer(&probe, self.program.authority.clone())
+                        .with_accounting(self.program.admission.accounting.clone());
                 admission.evaluate_const_evaluable_machine_symbol_for_invocation(
                     &probe,
                     owner,

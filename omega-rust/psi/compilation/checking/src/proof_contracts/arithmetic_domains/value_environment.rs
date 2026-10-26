@@ -59,8 +59,25 @@ impl FloatInterval {
     }
 }
 
+/// Translate a storage label only through explicitly bound source roots.
+pub(super) fn rebound_paths(path: &str, bindings: &[(String, String)]) -> Vec<String> {
+    bindings
+        .iter()
+        .filter_map(|(source, target)| {
+            if path == source {
+                Some(target.clone())
+            } else {
+                path.strip_prefix(source)
+                    .filter(|suffix| suffix.starts_with('.') || suffix.starts_with('['))
+                    .map(|suffix| format!("{target}{suffix}"))
+            }
+        })
+        .collect()
+}
+
 #[derive(Debug, Default, Clone, PartialEq)]
 pub(crate) struct ValueEnvironment {
+    pub(super) numeric_observations: StatementNumericObservations,
     pub(super) integer_ranges: Vec<StoredIntegerRange>,
     pub(super) boolean_values: Vec<super::guard_narrowing::BooleanValue>,
     pub(super) ordered_values: Vec<ordered_values::Relation>,
@@ -76,6 +93,20 @@ pub(crate) struct ValueEnvironment {
     pub(super) signed_joint_multiply_lower_bounds: BTreeSet<(String, String)>,
     pub(super) signed_joint_multiply_upper_bounds: BTreeSet<(String, String)>,
     pub(super) signed_joint_multiply_negation_bounds: BTreeSet<String>,
+}
+
+/// Proof scope, not a runtime value identity. The normal-value owner has
+/// already intersected these observations over every normal evaluation path.
+/// Expression joins may retain one shared statement batch; state rebinding
+/// starts a new environment and never transports this scope.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub(super) struct StatementNumericObservations {
+    /// The invalid state handle denotes absent observations.
+    state: symbols::SymbolHandle,
+    statement_index: usize,
+    pub(super) integer_operations: Vec<crate::CapturedIntegerOperation>,
+    pub(super) scalar_associations:
+        Vec<crate::proof_contracts::contract_entailment::numeric_observations::CapturedScalarAssociation>,
 }
 
 /// The IEEE portion of one Boolean polarity: the ordered float enclosure,
@@ -94,6 +125,31 @@ pub(in crate::proof_contracts::arithmetic_domains) struct IeeeConditionalFacts {
 impl IeeeConditionalFacts {
     pub(in crate::proof_contracts::arithmetic_domains) fn is_empty(&self) -> bool {
         self.intervals.is_empty() && self.non_nan.is_empty() && self.aliases.is_empty()
+    }
+
+    /// A completed scalar copy records the same current value on both sides.
+    /// Preserve each conditional observation on the copied value before a later
+    /// write withdraws the source path. This never re-evaluates the initializer.
+    fn connect_float_aliases(&mut self, left: &[String], right: &[String]) {
+        let paths = || left.iter().chain(right);
+        let interval = paths()
+            .filter_map(|path| self.intervals.get(path).copied())
+            .reduce(FloatInterval::intersect);
+        let is_non_nan = paths().any(|path| self.non_nan.contains(path));
+        if let Some(interval) = interval {
+            for path in paths() {
+                self.intervals.insert(path.clone(), interval);
+            }
+        }
+        if is_non_nan {
+            self.non_nan.extend(paths().cloned());
+        }
+        for left in left {
+            for right in right {
+                self.aliases
+                    .insert(canonical_path_pair(left.clone(), right.clone()));
+            }
+        }
     }
 
     /// Re-establish these facts on a consumer environment. Alias groups land
@@ -172,6 +228,70 @@ impl IeeeConditionalFacts {
 }
 
 impl ValueEnvironment {
+    pub(crate) fn clear_numeric_observations(&mut self) {
+        self.numeric_observations = StatementNumericObservations::default();
+    }
+
+    /// Both statement checking and collection-bound arrivals consume the same
+    /// prepared normal-value batch. Copies borrow these final-prefix rows;
+    /// they never re-enter the collector for each expression or destination.
+    pub(crate) fn prepare_numeric_observations(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        statement_index: usize,
+        statement: &typed_trees::statement::StatementNode,
+    ) {
+        self.clear_numeric_observations();
+        let binding = matches!(
+            statement,
+            typed_trees::statement::StatementNode::LocalData(_)
+                | typed_trees::statement::StatementNode::Assignment(_)
+        );
+        let needs_observations = binding
+            || program
+                .tables
+                .expression_roots(statement)
+                .into_iter()
+                .any(|(_, root)| {
+                    let mut expressions = Vec::new();
+                    crate::expression_traversal::collect_expression_tree(
+                        program,
+                        root,
+                        &mut expressions,
+                    );
+                    expressions.iter().any(|expression| {
+                        program
+                            .expression_table
+                            .binary_node(*expression)
+                            .is_some_and(|binary| {
+                                binary.operator == typed_trees::expression::BinaryOperator::Subtract
+                            })
+                    })
+                });
+        if needs_observations {
+            let observations = crate::captured_numeric_observations(
+                program,
+                machine,
+                state,
+                statement_index,
+                false,
+                crate::NumericObservationDemand {
+                    scalar_values: false,
+                    integer_operations: true,
+                    scalar_associations: true,
+                },
+            );
+            self.numeric_observations = StatementNumericObservations {
+                state: state.symbol,
+                statement_index,
+                integer_operations: observations.integer_operations,
+                scalar_associations: observations.scalar_associations,
+            };
+        }
+    }
+
     pub(super) fn range_recipe(
         &self,
         program: &dyn crate::CheckingInput,
@@ -205,20 +325,7 @@ impl ValueEnvironment {
     /// Translate only explicitly bound roots. A source root may feed several
     /// target parameters; unrelated same-spelled roots never survive the edge.
     pub(super) fn rebind(&self, bindings: &[(String, String)]) -> Self {
-        let paths = |path: &str| -> Vec<String> {
-            bindings
-                .iter()
-                .filter_map(|(source, target)| {
-                    if path == source {
-                        Some(target.clone())
-                    } else {
-                        path.strip_prefix(source)
-                            .filter(|suffix| suffix.starts_with('.') || suffix.starts_with('['))
-                            .map(|suffix| format!("{target}{suffix}"))
-                    }
-                })
-                .collect()
-        };
+        let paths = |path: &str| rebound_paths(path, bindings);
         let mut rebound = Self::new();
         macro_rules! maps {
             ($($field:ident),* $(,)?) => {$(
@@ -255,6 +362,36 @@ impl ValueEnvironment {
         rebound
     }
 
+    /// Copy the path-based arithmetic observations of one completed value to
+    /// an independently justified equal path. The caller owns that equality's
+    /// lifetime; ordinary write invalidation still applies to the destination.
+    pub(super) fn copy_path_facts(&mut self, source: &str, target: &str) {
+        let rebound = self.rebind(&[(source.to_owned(), target.to_owned())]);
+        for (path, interval) in rebound.intervals {
+            self.narrow(path, interval);
+        }
+        for (path, interval) in rebound.float_intervals {
+            self.narrow_float(path, interval);
+        }
+        self.known_u64_values.extend(rebound.known_u64_values);
+        self.non_nan.extend(rebound.non_nan);
+        self.float_aliases.extend(rebound.float_aliases);
+        self.joint_subtract_bounds
+            .extend(rebound.joint_subtract_bounds);
+        self.signed_joint_subtract_lower_bounds
+            .extend(rebound.signed_joint_subtract_lower_bounds);
+        self.signed_joint_subtract_upper_bounds
+            .extend(rebound.signed_joint_subtract_upper_bounds);
+        self.joint_multiply_bounds
+            .extend(rebound.joint_multiply_bounds);
+        self.signed_joint_multiply_lower_bounds
+            .extend(rebound.signed_joint_multiply_lower_bounds);
+        self.signed_joint_multiply_upper_bounds
+            .extend(rebound.signed_joint_multiply_upper_bounds);
+        self.signed_joint_multiply_negation_bounds
+            .extend(rebound.signed_joint_multiply_negation_bounds);
+    }
+
     pub(crate) fn new() -> Self {
         Self::default()
     }
@@ -262,6 +399,7 @@ impl ValueEnvironment {
     /// Drop all tracked values when no incoming environment can be retained.
     /// Unknown mutation instead preserves existing immutable scalar snapshots.
     pub(crate) fn clear(&mut self) {
+        self.clear_numeric_observations();
         self.integer_ranges.clear();
         self.boolean_values.clear();
         self.intervals.clear();
@@ -534,6 +672,14 @@ impl ValueEnvironment {
                 }
             }
         }
+        // The copy establishes equality now, including conditional facts
+        // saved by earlier Boolean evaluations. Later writes invalidate each
+        // receiving path independently through the ordinary storage fence.
+        for value in &mut self.boolean_values {
+            for facts in &mut value.alternatives {
+                facts.ieee.connect_float_aliases(&left_group, &right_group);
+            }
+        }
         let combined_interval = match (
             self.float_intervals.get(&left).copied(),
             self.float_intervals.get(&right).copied(),
@@ -697,6 +843,16 @@ impl ValueEnvironment {
     /// state from its incoming edge guards.
     pub(crate) fn join(&self, other: &ValueEnvironment) -> ValueEnvironment {
         let mut joined = ValueEnvironment::new();
+        // A branch merge inside one initializer must not erase the completed
+        // result equations its copy will consume. This is the same complete
+        // normal-path batch on BOTH predecessors, not a union of arm facts.
+        // Different statements, absent evidence, or differing batches grant
+        // nothing. rebind() deliberately starts without this occurrence scope.
+        if self.numeric_observations.state.is_valid()
+            && self.numeric_observations == other.numeric_observations
+        {
+            joined.numeric_observations = self.numeric_observations.clone();
+        }
         // Unequal incoming snapshots are forgotten. In particular cyclic
         // arrivals must not grow a fresh symbolic expression every round.
         joined.integer_ranges.extend(

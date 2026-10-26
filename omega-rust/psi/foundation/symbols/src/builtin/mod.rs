@@ -208,6 +208,9 @@ pub enum BuiltinFunction {
     AsmLoadFence,
     AsmStoreFence,
     AsmFullFence,
+    AsmAarch64LoadFence,
+    AsmAarch64StoreFence,
+    AsmAarch64FullFence,
     /// x86 interrupt-enable flag control. Both are unnameable, zero-operand
     /// asm intrinsics with canonical `MachineControl` reach.
     AsmDisableInterrupts,
@@ -342,7 +345,7 @@ pub enum BuiltinFunction {
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 100;
+    pub const COUNT: usize = 103;
 
     /// The closed inventory in slot order: every compiler-installed builtin
     /// function paired with its exact spelling. The array position is the
@@ -359,6 +362,9 @@ impl BuiltinFunction {
         (Self::AsmLoadFence, "asm#lfence"),
         (Self::AsmStoreFence, "asm#sfence"),
         (Self::AsmFullFence, "asm#mfence"),
+        (Self::AsmAarch64LoadFence, "asm#dmb_ld"),
+        (Self::AsmAarch64StoreFence, "asm#dmb_st"),
+        (Self::AsmAarch64FullFence, "asm#dmb_sy"),
         (Self::AsmDisableInterrupts, "asm#cli"),
         (Self::AsmEnableInterrupts, "asm#sti"),
         (Self::AsmSnapshotFlags, "asm#pushfq"),
@@ -646,6 +652,9 @@ impl BuiltinFunction {
             | Self::AsmLoadFence
             | Self::AsmStoreFence
             | Self::AsmFullFence
+            | Self::AsmAarch64LoadFence
+            | Self::AsmAarch64StoreFence
+            | Self::AsmAarch64FullFence
             | Self::AsmSerialize
             | Self::AsmInstructionSyncBarrier
             | Self::AsmSpinPause

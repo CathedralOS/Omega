@@ -37,8 +37,9 @@ pub use build_session::{PackageBuildSession, PackageSourceBindings};
 
 pub use package_manager::{
     PackageCommand, PackageCommandError, PackageCommandKind, PackageCommandOptions,
-    PackageCommandOutcome, PackageCommandReview, PackageCommandReviewRequest, PackageCommandStatus,
-    PackageCommandTransaction, PreparedPackageCommand, discard_package_review,
+    PackageCommandOutcome, PackageCommandPreparation, PackageCommandReview,
+    PackageCommandReviewRequest, PackageCommandStatus, PackageCommandTransaction,
+    PreparedPackageCommand, discard_package_review,
 };
 
 // The unit tests compile real packages on several threads; mimalloc's

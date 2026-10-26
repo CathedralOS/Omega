@@ -17,8 +17,10 @@ use typed_trees::types::PrimitiveType;
 pub(super) fn record(
     program: &dyn validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
+    semantic: &facts::FactPlan,
     flow: &checked_trees::FlowFacts,
     borrow: &checked_trees::BorrowFacts,
+    proof: &checked_trees::ProofFacts,
     pure: &checked_trees::CheckedScalarExpressionPlans,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
     admitted: &checked_trees::CheckedRankArrivalPlan,
@@ -145,8 +147,10 @@ pub(super) fn record(
         let mut builder = Builder {
             program,
             operators,
+            semantic,
             flow,
             borrow,
+            proof,
             pure,
             exact_integer_casts,
             machine: owner.symbol,

@@ -58,6 +58,7 @@ impl From<&StructuralBinding> for StructuralValueStorage {
 }
 
 pub(crate) struct Evaluation {
+    pub(crate) current_claims: crate::emission::current_claims::CurrentClaimNames,
     /// The enclosing emission unit's scalar qualification namespace. A call
     /// result publishes the callee's qualified result in it, so argument
     /// evaluation resolves operand memberships against the same catalog the
@@ -73,10 +74,6 @@ pub(crate) struct Evaluation {
     pub(crate) qualification_coercions: Vec<terminal_psi::ScalarQualificationCoercion>,
     pub(crate) structural_types: std::sync::Arc<[StructuralTypeDeclaration]>,
     pub(crate) structural_value_owners: Vec<StructuralValueOwner>,
-    /// Named physical occurrences ended by an emitted whole-home disposition.
-    /// Historical local declarations alone cannot distinguish dead carriers
-    /// from a missing live frontier after a later selection.
-    pub(crate) retired_structural_homes: Vec<RetiredStructuralHome>,
     pub(crate) selection_cleanups: Vec<SelectionCleanup>,
     pub(crate) structural_locals:
         Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
@@ -84,6 +81,19 @@ pub(crate) struct Evaluation {
     /// Unlike the physical-home inventory, this scope never merges sibling
     /// producers or retains a captured dependency beyond its consuming body.
     pub(crate) completed_operand_scope: Vec<checked_trees::CheckedStructuralValueHandle>,
+    /// Completed anonymous producer geometry retained for checked conditional
+    /// cleanup after a sibling restores its executable source frontier. This
+    /// catalogue is never installed in the operand namespace and grants no
+    /// access, claims, or permission to use a sibling's value.
+    pub(crate) completed_cleanup_homes:
+        Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
+    /// Exact source bindings removed by completed whole-home retirement. These
+    /// negative correspondences belong to the emitted prefix, not a replay of
+    /// later permission events from the same source statement.
+    pub(crate) retired_structural_bindings: Vec<RetiredStructuralBinding>,
+    /// Physical source occurrences retired on this execution path, including
+    /// parameters and anonymous producers that have no local symbol.
+    pub(crate) retired_structural_homes: Vec<PlaceId>,
     /// The view family of each established immutable view local, so scalar
     /// observations rooted at one pick its length and read operations.
     pub(crate) view_locals:
@@ -99,7 +109,6 @@ pub(crate) struct Evaluation {
     pub(crate) observations: Vec<crate::scalar_lowering::computations::observations::Slot>,
     pub(crate) produced_values: Vec<crate::scalar_lowering::computations::produced_values::Slot>,
     pub(crate) literals: Vec<crate::scalar_lowering::computations::literals::Slot>,
-    pub(crate) copies: Vec<crate::scalar_lowering::computations::copies::Slot>,
     pub(crate) cases: Vec<crate::scalar_lowering::computations::cases::Slot>,
     pub(crate) record_fields: Vec<crate::scalar_lowering::computations::fields::Binding>,
     pub(crate) place_observations: std::sync::Arc<
@@ -123,8 +132,9 @@ pub(crate) struct Evaluation {
     /// Current formal bindings, keyed by authored position. Owned replacement
     /// changes this source namespace, never the machine's entry declarations.
     pub structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
-    /// Earlier formal homes remain declaration geometry for captured aliases,
-    /// but no longer resolve a new occurrence of the formal's source name.
+    /// Earlier formal and enclosing block homes retain their source contracts
+    /// for captured aliases. They do not bind a new occurrence of a source name
+    /// or grant access to a retired home.
     pub(crate) previous_parameter_homes: Vec<StructuralParameterDeclaration>,
     pub structural_fields: crate::expression_preparation::bindings::StructuralFieldBindings,
     pub structural_cases:
@@ -147,9 +157,44 @@ pub(crate) struct Evaluation {
     pub blocks: Vec<Block>,
 }
 
-/// Source candidates retain their physical homes until their checked normal
-/// death. Actual private continuations decide which occurrence remains; this
-/// inventory never reconstructs a donor from a compressed residual slot.
+/// Ending an executable source name does not itself finish the physical home.
+/// Only the whole-home disposition can authorize a missing-frontier exemption.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StructuralBindingEnd {
+    ConsumedSource,
+    RetiredHome,
+}
+
+/// A retired source occurrence remains identifiable after its executable local
+/// binding is removed. Rebinding that source name clears this negative fact.
+#[derive(Clone)]
+pub(crate) struct RetiredStructuralBinding {
+    pub(crate) symbol: symbols::SymbolHandle,
+    pub(crate) place: PlaceId,
+    /// Anonymous aliases without a named owner grant no declaration exemption.
+    pub(crate) statement: Option<u32>,
+    pub(crate) end: StructuralBindingEnd,
+}
+
+/// The source correspondence at one control-flow frontier. Emitted blocks and
+/// conditional cleanup debts stay with their owners; a sibling starts with the
+/// same incoming source names, not the previous sibling's completed transfers.
+pub(crate) struct StructuralSourceFrontier {
+    owners: Vec<StructuralValueOwner>,
+    locals: Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
+    retired_bindings: Vec<RetiredStructuralBinding>,
+    retired_homes: Vec<PlaceId>,
+    views: Vec<crate::expression_preparation::bindings::view_locals::ViewLocalBinding>,
+    parameters: Vec<(u32, StructuralParameterDeclaration)>,
+    previous_parameters: Vec<StructuralParameterDeclaration>,
+    fields: crate::expression_preparation::bindings::StructuralFieldBindings,
+    cases: Vec<crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding>,
+}
+
+/// One checked value production captures its complete residual-source roster
+/// before any private continuation changes the source namespace. Nested joins
+/// publish result custody, not another copy of this source correspondence.
+/// Retirement remains separate, admitted work at the checked death edge.
 #[derive(Clone)]
 pub(crate) struct SelectionCleanup {
     pub(crate) selection: arena::Handle<checked_trees::FlowOwnedSelectionReceipt>,
@@ -173,40 +218,27 @@ pub(crate) struct StructuralValueOwner {
     pub(crate) value: terminal_psi::StructuralOperationResult,
 }
 
-/// Exact source occurrence removed by whole-home retirement. A later binding
-/// of the same source symbol establishes a different physical occurrence.
-#[derive(Clone)]
-pub(crate) struct RetiredStructuralHome {
-    pub(crate) symbol: symbols::SymbolHandle,
-    pub(crate) statement: u32,
-    pub(crate) place: PlaceId,
-}
-
-/// The source homes available before choosing a private predecessor. Ending a
-/// home while emitting one arm cannot remove its binding from a sibling arm.
-/// This is lexical lookup state; emitted ownership evidence remains on edges.
-pub(crate) struct AvailableHomes {
-    owners: Vec<StructuralValueOwner>,
-    retired: Vec<RetiredStructuralHome>,
-    locals: Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
-    views: Vec<crate::expression_preparation::bindings::view_locals::ViewLocalBinding>,
-}
-
 impl Evaluation {
-    pub(crate) fn available_homes(&self) -> AvailableHomes {
-        AvailableHomes {
-            owners: self.structural_value_owners.clone(),
-            retired: self.retired_structural_homes.clone(),
-            locals: self.structural_locals.clone(),
-            views: self.view_locals.clone(),
+    /// Capture physical correspondence once for the owning production. A
+    /// private scalar frame may return that same inventory, but may neither
+    /// replace a source home nor publish its branch-local retirement as a fact
+    /// about the enclosing frame.
+    pub(crate) fn capture_selection_sources(
+        &mut self,
+        selection: arena::Handle<checked_trees::FlowOwnedSelectionReceipt>,
+        sources: Vec<CapturedSelectionSource>,
+    ) -> Result<(), LoweringError> {
+        if !selection.is_valid() {
+            if !sources.is_empty() {
+                return unsupported("selected source storage has no checked receipt");
+            }
+            return Ok(());
         }
-    }
-
-    pub(crate) fn restore_available_homes(&mut self, homes: AvailableHomes) {
-        self.structural_value_owners = homes.owners;
-        self.retired_structural_homes = homes.retired;
-        self.structural_locals = homes.locals;
-        self.view_locals = homes.views;
+        self.retain_selection_sources(&[SelectionCleanup {
+            selection,
+            sources,
+            retired_reference_paths: Vec::new(),
+        }])
     }
 
     /// An alias is published from an actual completed value, never a reserved
@@ -229,6 +261,17 @@ impl Evaluation {
             .ok_or(LoweringError::Unsupported(
                 "saved subject has no completed producer home",
             ))?;
+        // The producer catalog also contains completed sibling and retired
+        // homes. Only this frame's current name may acquire a lexical alias.
+        // This is name transport; read/move authority remains with the checked
+        // operand and ordinary custody validation, including partial moves.
+        if self
+            .retired_structural_homes
+            .contains(&completed.argument.place)
+            || self.current_claims.source(&completed.argument)?.is_none()
+        {
+            return unsupported("saved subject lost its completed name in this execution frame");
+        }
         crate::expression_preparation::bindings::retain_completed_structural_homes(
             &mut self.structural_locals,
             &[
@@ -241,6 +284,38 @@ impl Evaluation {
             ],
         )
     }
+    /// Resolve an exact completed value's physical name in this execution
+    /// frame. This is not a liveness or disposal proof: the producing owner,
+    /// its read/copy-only uses, and final frontier validation own those gates.
+    pub(crate) fn saved_value_binding<'operations>(
+        &self,
+        value: checked_trees::CheckedStructuralValueHandle,
+        operations: &'operations OperationBuffer,
+    ) -> Result<
+        &'operations crate::emission::operation_emission::buffer::ComputedValueBinding,
+        LoweringError,
+    > {
+        let binding = operations
+            .computed_values
+            .iter()
+            .rev()
+            .find(|(root, _)| *root == value)
+            .map(|(_, binding)| binding)
+            .ok_or(LoweringError::Unsupported(
+                "saved value has not completed in this execution frame",
+            ))?;
+        if !binding.argument.path.is_empty()
+            || binding.argument.access != StructuralAccess::Owned
+            || self
+                .retired_structural_homes
+                .contains(&binding.argument.place)
+            || self.current_claims.source(&binding.argument)?.is_none()
+        {
+            return unsupported("saved value lost its whole produced name in this execution frame");
+        }
+        Ok(binding)
+    }
+
     /// The evaluation's scalar bindings extended with the storage, local,
     /// parameter and observation context every lowering walker needs.
     pub(crate) fn contextual_bindings(
@@ -288,18 +363,19 @@ impl Evaluation {
         qualifications: &'a crate::expression_preparation::qualifications::PreparedScalarQualifications,
         machine: symbols::SymbolHandle,
         operations: &OperationBuffer,
+        next_place: &'a mut u64,
     ) -> Result<crate::scalar_lowering::computations::Expansion<'a>, LoweringError> {
         Ok(crate::scalar_lowering::computations::Expansion::new(
             checked,
             qualifications,
             machine,
             1,
+            next_place,
         )
         .with_structural_types(&self.structural_types)
         .with_produced_values(&self.produced_values)
         .with_completed_values(self.completed_operand_scope.iter().copied())
         .with_literals(&self.literals)
-        .with_copies(&self.copies)
         .with_call_views(&self.call_views)
         .with_subslices(&self.subslices)
         .with_observations(&self.observations)
@@ -383,6 +459,41 @@ impl Evaluation {
             _ => return unsupported("value storage source has no owned structural storage"),
         };
         Ok(storage)
+    }
+
+    /// Checked cleanup can outlive the source frontier that established an
+    /// anonymous producer. Its conditional schedule names that exact producer;
+    /// only its completed geometry is needed here, never sibling permissions.
+    pub(crate) fn cleanup_value_storage(
+        &self,
+        source: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+        parameters: &[StructuralParameterDeclaration],
+        result: impl FnMut(u32) -> Result<StructuralValueStorage, LoweringError>,
+    ) -> Result<StructuralValueStorage, LoweringError> {
+        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+            expression,
+        } = *source
+        {
+            let root = facts::PlaceRoot::Expression(expression);
+            if crate::expression_preparation::bindings::structural_local_by_root(
+                &self.structural_locals,
+                root,
+            )
+            .is_none()
+                && let Some(home) =
+                    crate::expression_preparation::bindings::structural_local_by_root(
+                        &self.completed_cleanup_homes,
+                        root,
+                    )
+            {
+                return Ok(StructuralValueStorage {
+                    place: home.argument.place,
+                    path: home.argument.path.clone(),
+                    selected_type: home.structural_type,
+                });
+            }
+        }
+        self.value_storage(source, parameters, result)
     }
 
     /// Preserve receipt-bound source storage emitted in a private scalar state.
@@ -493,24 +604,28 @@ impl Evaluation {
 
     /// Start a mutually exclusive branch with the current source namespace.
     /// Completed blocks and their operations remain with the parent; only the
-    /// incoming frontier is shared. Each branch can then move or rebind owners
-    /// without changing the sibling's compile-time view of that frontier.
+    /// incoming frontier is shared. Retain the enclosing block contracts beside
+    /// that frontier: a local may still name their completed receiving home even
+    /// though the branch does not own the blocks that declared it. Each branch
+    /// can then move or rebind owners without changing the sibling's frontier.
     pub(crate) fn branch(&self, block: BlockId, operation_start: usize) -> Self {
         Self {
+            current_claims: self.current_claims.clone(),
             shared_qualifications: self.shared_qualifications.clone(),
             machine: self.machine,
             qualification_coercions: self.qualification_coercions.clone(),
             structural_types: self.structural_types.clone(),
             structural_value_owners: self.structural_value_owners.clone(),
-            retired_structural_homes: self.retired_structural_homes.clone(),
             selection_cleanups: self.selection_cleanups.clone(),
             structural_locals: self.structural_locals.clone(),
             completed_operand_scope: self.completed_operand_scope.clone(),
+            completed_cleanup_homes: self.completed_cleanup_homes.clone(),
+            retired_structural_bindings: self.retired_structural_bindings.clone(),
+            retired_structural_homes: self.retired_structural_homes.clone(),
             view_locals: self.view_locals.clone(),
             element_views: self.element_views.clone(),
             produced_values: self.produced_values.clone(),
             literals: self.literals.clone(),
-            copies: self.copies.clone(),
             call_views: self.call_views.clone(),
             subslices: self.subslices.clone(),
             observations: self.observations.clone(),
@@ -522,7 +637,17 @@ impl Evaluation {
             parameter_storage: self.parameter_storage.clone(),
             scalar_bindings: self.scalar_bindings.clone(),
             structural_parameters: self.structural_parameters.clone(),
-            previous_parameter_homes: self.previous_parameter_homes.clone(),
+            previous_parameter_homes: self
+                .previous_parameter_homes
+                .iter()
+                .chain(self.block_structural_parameters.iter())
+                .chain(
+                    self.blocks
+                        .iter()
+                        .flat_map(|block| block.structural_parameters.iter()),
+                )
+                .cloned()
+                .collect(),
             structural_fields: self.structural_fields.clone(),
             structural_cases: self.structural_cases.clone(),
             erased_scalar_formals: self.erased_scalar_formals.clone(),
@@ -538,11 +663,7 @@ impl Evaluation {
 
     /// Keep one affine owner for an emitted home. A later named binding claims
     /// the anonymous call row; two different locals on one place are refused.
-    fn record_affine_home(&mut self, owner: StructuralValueOwner) -> Result<(), LoweringError> {
-        if owner.symbol.is_valid() {
-            self.retired_structural_homes
-                .retain(|retired| retired.symbol != owner.symbol);
-        }
+    fn record_owned_home(&mut self, owner: StructuralValueOwner) -> Result<(), LoweringError> {
         if let Some(existing) = self
             .structural_value_owners
             .iter_mut()
@@ -606,6 +727,8 @@ impl Evaluation {
                 return unsupported("linear local lost its exact call result custody");
             }
         }
+        self.current_claims
+            .publish(produced.place, produced.claims.clone())?;
         self.establish_structural_binding(result, produced.into(), structural_types, operations)
     }
 
@@ -653,7 +776,7 @@ impl Evaluation {
                 matches!(declaration.shape, StructuralTypeShape::Reference { .. });
             self.structural_fields
                 .adopt_declarations(produced.structural_type(), structural_types);
-            self.structural_locals.push(
+            self.bind_structural_local(
                 crate::expression_preparation::bindings::StructuralLocalBinding {
                     result_binding_ordinal: Some(result.binding_ordinal),
                     root: facts::PlaceRoot::Symbol(local.symbol),
@@ -699,8 +822,12 @@ impl Evaluation {
         // The anonymous result and the named binding are two registrations of
         // that home. A second row would make the next edge transfer the owner
         // twice, so the later named binding claims the existing row.
-        if multiplicity == StructuralMultiplicity::Affine && produced.path().is_empty() {
-            self.record_affine_home(StructuralValueOwner {
+        if matches!(
+            multiplicity,
+            StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
+        ) && produced.path().is_empty()
+        {
+            self.record_owned_home(StructuralValueOwner {
                 symbol: local.symbol,
                 statement: result.statement_index,
                 value: produced.operation_result()?.clone(),
@@ -710,30 +837,153 @@ impl Evaluation {
         Ok(())
     }
 
+    /// Publish one actual source binding in the current execution namespace.
+    /// A new occurrence of a retired name supersedes its negative correspondence;
+    /// earlier captured operands retain their own physical homes.
+    pub(crate) fn bind_structural_local(
+        &mut self,
+        binding: crate::expression_preparation::bindings::StructuralLocalBinding,
+    ) {
+        if let Some(symbol) = binding.root.as_symbol() {
+            self.retired_structural_bindings
+                .retain(|retired| retired.symbol != symbol);
+        }
+        self.retired_structural_homes
+            .retain(|place| *place != binding.argument.place);
+        self.structural_locals.push(binding);
+    }
+
+    pub(crate) fn structural_source_frontier(&self) -> StructuralSourceFrontier {
+        StructuralSourceFrontier {
+            owners: self.structural_value_owners.clone(),
+            locals: self.structural_locals.clone(),
+            retired_bindings: self.retired_structural_bindings.clone(),
+            retired_homes: self.retired_structural_homes.clone(),
+            views: self.view_locals.clone(),
+            parameters: self.structural_parameters.clone(),
+            previous_parameters: self.previous_parameter_homes.clone(),
+            fields: self.structural_fields.clone(),
+            cases: self.structural_cases.clone(),
+        }
+    }
+
+    pub(crate) fn restore_structural_sources(
+        &mut self,
+        frontier: StructuralSourceFrontier,
+    ) -> Result<(), LoweringError> {
+        for home in &self.structural_locals {
+            if matches!(home.root, facts::PlaceRoot::Expression(_)) {
+                crate::expression_preparation::bindings::retain_completed_structural_homes(
+                    &mut self.completed_cleanup_homes,
+                    std::slice::from_ref(home),
+                )?;
+            }
+        }
+        self.structural_value_owners = frontier.owners;
+        self.structural_locals = frontier.locals;
+        self.retired_structural_bindings = frontier.retired_bindings;
+        self.retired_structural_homes = frontier.retired_homes;
+        self.view_locals = frontier.views;
+        self.structural_parameters = frontier.parameters;
+        self.previous_parameter_homes = frontier.previous_parameters;
+        self.structural_fields = frontier.fields;
+        self.structural_cases = frontier.cases;
+        Ok(())
+    }
+
+    /// Commit the actual operands of one emitted operation. Owned presentation
+    /// copies an unrestricted carrier; loans and partial transfers preserve the
+    /// root's remaining storage. Claim transport and checked residual cleanup
+    /// retain their separate path-sensitive owners.
+    pub(crate) fn retire_consumed_structural_arguments<'argument>(
+        &mut self,
+        arguments: impl IntoIterator<Item = &'argument terminal_psi::StructuralArgument>,
+        operations: &OperationBuffer,
+    ) -> Result<(), LoweringError> {
+        for argument in arguments {
+            if argument.access == StructuralAccess::Owned
+                && argument.path.is_empty()
+                && self.carrier_multiplicity(argument.place, operations)?
+                    != StructuralMultiplicity::Unrestricted
+            {
+                self.retire_structural_sources(argument.place);
+            }
+        }
+        Ok(())
+    }
+
+    /// The operation identity is the commit point, never a search through
+    /// historical operands for evidence that a source is no longer live.
+    pub(crate) fn retire_structural_operation_operands(
+        &mut self,
+        operation: semantic_vocabulary::OperationId,
+        operations: &OperationBuffer,
+    ) -> Result<(), LoweringError> {
+        let operation = operations
+            .iter()
+            .find(|emitted| emitted.id == operation)
+            .ok_or(LoweringError::Unsupported(
+                "structural source transfer lost its emitted operation",
+            ))?;
+        self.retire_consumed_structural_arguments(
+            crate::emission::affine_cleanup::structural_operands(&operation.kind),
+            operations,
+        )
+    }
+
     /// Remove a retired physical occurrence from current source and transport
     /// rosters. Historical declarations and shared type geometry stay intact.
     pub(crate) fn retire_structural_home(&mut self, place: PlaceId) {
-        for owner in self
-            .structural_value_owners
-            .iter()
-            .filter(|owner| owner.value.place == place && owner.symbol.is_valid())
+        self.retire_structural_sources(place);
+        for binding in self
+            .retired_structural_bindings
+            .iter_mut()
+            .filter(|binding| binding.place == place)
         {
-            if !self.retired_structural_homes.iter().any(|retired| {
-                retired.symbol == owner.symbol
-                    && retired.statement == owner.statement
-                    && retired.place == place
-            }) {
-                self.retired_structural_homes.push(RetiredStructuralHome {
-                    symbol: owner.symbol,
-                    statement: owner.statement,
-                    place,
-                });
+            binding.end = StructuralBindingEnd::RetiredHome;
+        }
+        self.structural_locals
+            .retain(|local| local.argument.place != place);
+    }
+
+    /// A consuming operation removes executable names, while expression-owner
+    /// coordinates remain available to their already checked completion cleanup.
+    /// Whole-home cleanup removes those historical coordinates afterwards.
+    fn retire_structural_sources(&mut self, place: PlaceId) {
+        if !self.retired_structural_homes.contains(&place) {
+            self.retired_structural_homes.push(place);
+        }
+        for local in self
+            .structural_locals
+            .iter()
+            .filter(|local| local.argument.place == place)
+        {
+            let Some(symbol) = local.root.as_symbol() else {
+                continue;
+            };
+            if !self
+                .retired_structural_bindings
+                .iter()
+                .any(|binding| binding.symbol == symbol && binding.place == place)
+            {
+                let statement = self
+                    .structural_value_owners
+                    .iter()
+                    .find(|owner| owner.symbol == symbol && owner.value.place == place)
+                    .map(|owner| owner.statement);
+                self.retired_structural_bindings
+                    .push(RetiredStructuralBinding {
+                        symbol,
+                        place,
+                        statement,
+                        end: StructuralBindingEnd::ConsumedSource,
+                    });
             }
         }
         self.structural_value_owners
             .retain(|owner| owner.value.place != place);
         self.structural_locals
-            .retain(|local| local.argument.place != place);
+            .retain(|local| local.argument.place != place || local.root.as_symbol().is_none());
         self.view_locals.retain(|view| view.place != place);
     }
 
@@ -829,21 +1079,23 @@ impl Evaluation {
     pub(crate) fn new(next_block: &mut u64) -> Result<Self, LoweringError> {
         let entry = block_id(allocate_dense(next_block)?);
         Ok(Self {
+            current_claims: Default::default(),
             shared_qualifications:
                 crate::expression_preparation::qualifications::PreparedScalarQualifications::empty(),
             machine: None,
             qualification_coercions: Vec::new(),
             structural_types: std::sync::Arc::from([]),
             structural_value_owners: Vec::new(),
-            retired_structural_homes: Vec::new(),
             selection_cleanups: Vec::new(),
             structural_locals: Vec::new(),
             completed_operand_scope: Vec::new(),
+            completed_cleanup_homes: Vec::new(),
+            retired_structural_bindings: Vec::new(),
+            retired_structural_homes: Vec::new(),
             view_locals: Vec::new(),
             element_views: std::collections::BTreeMap::new(),
             produced_values: Vec::new(),
             literals: Vec::new(),
-            copies: Vec::new(),
             call_views: Vec::new(),
             subslices: Vec::new(),
             observations: Vec::new(),
@@ -945,15 +1197,26 @@ impl Evaluation {
         let call = operation
             .call()
             .ok_or(LoweringError::Unsupported("selector has no call"))?;
-        let path = call
-            .structural_arguments
-            .get(argument)
-            .and_then(|argument| argument.call_projection().get(segment))
+        let argument =
+            call.structural_arguments
+                .get(argument)
+                .ok_or(LoweringError::Unsupported(
+                    "selector has no structural actual",
+                ))?;
+        let path = argument
+            .call_projection()
+            .get(segment)
             .ok_or(LoweringError::Unsupported(
                 "selector has no argument path occurrence",
             ))?;
-        let value = match path {
-            checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(root) => {
+        let computation = argument
+            .selector_computation(segment, &checked.facts.values.scalar_computations.operands)
+            .or_else(|| match path {
+                checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(root) => Some(*root),
+                _ => None,
+            });
+        let value = match (computation.as_ref(), path) {
+            (Some(root), _) => {
                 let source = checked
                     .facts
                     .values
@@ -987,9 +1250,12 @@ impl Evaluation {
                     environment,
                 )?
             }
-            checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                index @ (checked_trees::CheckedRuntimeIndex::StructuralField(_)
-                | checked_trees::CheckedRuntimeIndex::StorageRead { .. }),
+            (
+                None,
+                checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    index @ (checked_trees::CheckedRuntimeIndex::StructuralField(_)
+                    | checked_trees::CheckedRuntimeIndex::StorageRead { .. }),
+                ),
             ) => {
                 let bindings = self.contextual_bindings();
                 let expression = match index {
@@ -1223,6 +1489,7 @@ impl Evaluation {
             qualifications,
             machine,
             operations,
+            environment.next_place,
         )?;
         let entry_index = expansion.call_arguments(
             identities,
@@ -1331,6 +1598,7 @@ impl Evaluation {
                 &qualifications,
                 machine,
                 1,
+                environment.next_place,
             )
             .with_structural_types(&self.structural_types)
             .enter_proof_scope(identities, &self.erased_proof_formals);
@@ -1373,6 +1641,7 @@ impl Evaluation {
             qualifications,
             machine,
             operations,
+            environment.next_place,
         )?;
         let entry = expansion.retained_value(
             identities,
@@ -1521,10 +1790,21 @@ impl Evaluation {
                 cleanup_actions: Vec::new(),
             },
         });
+        let mut incoming_names = vec![None; states.len() + 1];
+        *incoming_names
+            .get_mut(entry_index)
+            .ok_or(LoweringError::Unsupported(
+                "computation entry namespace is absent",
+            ))? = Some(self.current_claims.clone());
         for index in scalar_state_emission_order(states, entry_index)? {
             let state = &states[index];
             let mut state_evaluation = self.branch(targets[index + 1], operations.len());
             state_evaluation.qualification_coercions.clear();
+            let reachable = incoming_names[index + 1].is_some();
+            let current_names = incoming_names[index + 1]
+                .clone()
+                .unwrap_or_else(|| self.current_claims.clone());
+            state_evaluation.current_claims = current_names;
             emit_state(
                 identities,
                 checked,
@@ -1555,11 +1835,63 @@ impl Evaluation {
                 &mut self.structural_locals,
                 &state_evaluation.structural_locals,
             )?;
+            crate::expression_preparation::bindings::retain_completed_structural_homes(
+                &mut self.completed_cleanup_homes,
+                &state_evaluation.completed_cleanup_homes,
+            )?;
             self.retain_selection_sources(&state_evaluation.selection_cleanups)?;
             self.qualification_coercions
                 .append(&mut state_evaluation.qualification_coercions);
+            if reachable {
+                state.terminator.for_each_target(|target| {
+                    let mut arriving = state_evaluation.current_claims.clone();
+                    let arguments = state.terminator.owned_successor_arguments();
+                    if let Some(receiving) = target
+                        .checked_sub(1)
+                        .and_then(|position| states.get(position))
+                    {
+                        if arguments.len() == receiving.structural_parameters.len() {
+                            for (argument, parameter) in
+                                arguments.iter().zip(&receiving.structural_parameters)
+                            {
+                                if argument.access == StructuralAccess::Owned {
+                                    let claims = state_evaluation
+                                        .current_claims
+                                        .source(argument)?
+                                        .ok_or(LoweringError::Unsupported(
+                                            "scalar arrival has no completed owned namespace",
+                                        ))?;
+                                    arriving.publish(parameter.place, claims)?;
+                                }
+                            }
+                        } else if arguments
+                            .iter()
+                            .any(|argument| argument.access == StructuralAccess::Owned)
+                        {
+                            return unsupported(
+                                "scalar arrival changes its owned receiving roster",
+                            );
+                        }
+                    }
+                    let receiving =
+                        incoming_names
+                            .get_mut(target)
+                            .ok_or(LoweringError::Unsupported(
+                                "computation successor namespace is absent",
+                            ))?;
+                    if let Some(previous) = receiving {
+                        previous.meet(&arriving)?;
+                    } else {
+                        *receiving = Some(arriving);
+                    }
+                    Ok(())
+                })?;
+            }
         }
-        operations.length_observations.clear();
+        self.current_claims = incoming_names[0].take().ok_or(LoweringError::Unsupported(
+            "computation completion has no reachable namespace",
+        ))?;
+        operations.storage_observations.clear();
         let result = completion_parameters[source_types.len()..].to_vec();
         *values = completion_parameters[..source_types.len()].to_vec();
         self.current = completion;
@@ -1622,6 +1954,7 @@ pub(crate) fn validated_values(
 /// rosters a dispatch expansion closes on its guard terminator and reopens
 /// at the merge block.
 pub(crate) struct BlockEmissionSpan {
+    pub(crate) current_claims: crate::emission::current_claims::CurrentClaimNames,
     pub(crate) erased_scalar_formals: Vec<ValueDeclaration>,
     pub(crate) erased_proof_formals: Vec<terminal_psi::ErasedProofFormal>,
     pub(crate) id: BlockId,

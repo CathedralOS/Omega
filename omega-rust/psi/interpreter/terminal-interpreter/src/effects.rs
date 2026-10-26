@@ -9,6 +9,7 @@
 //! Host buffers never name mutable interpreter storage; scalar restrictions
 //! and endpoint queries remain owned by `scalar_loans.rs`.
 
+pub(crate) mod boundary_predicates;
 pub(crate) mod byte_buffers;
 pub(crate) mod crash_outcome;
 pub(crate) mod original_storage;
@@ -28,6 +29,12 @@ use terminal_psi::{BoundaryMachineResult, CompletionReceipt};
 /// One externally observable terminal-Psi effect in semantic execution order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalEffect {
+    /// A completed compiler-defined ordering event in the supplied private
+    /// sequential model. This is an observation, never a host callback.
+    MemoryFence {
+        operation: OperationId,
+        kind: terminal_psi::MemoryFenceKind,
+    },
     BoundaryCall {
         operation: OperationId,
         boundary: BoundaryMachineId,
@@ -68,6 +75,18 @@ pub enum TerminalEffect {
 /// Injected semantic effect sink used by the oracle and tests. Native provider
 /// selection and hardware realization remain outside the Psi interpreter.
 pub trait TerminalEffectHandler {
+    /// Poll readiness without invoking the operation or changing lent storage.
+    /// A false answer parks only a checked suspending call. The interpreter
+    /// retains its prepared arguments and polls this same invocation on resume;
+    /// `handle_effect_with_buffers` runs exactly once after readiness succeeds.
+    /// Scheduling work here must be idempotent for this retained effect.
+    fn poll_effect_readiness(
+        &mut self,
+        _effect: &TerminalEffect,
+    ) -> Result<bool, TerminalEffectRejection> {
+        Ok(true)
+    }
+
     /// Whether borrowed storage must lend its actual original homes to this
     /// host binding. Ordinary semantic buffer adapters keep staged restoration.
     fn requires_original_storage(&self, _boundary: BoundaryMachineId) -> bool {
@@ -172,6 +191,7 @@ pub use terminal_installation::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalRuntimeSupplies {
     pub(crate) x86_flags: Option<TerminalX86FlagsEnvironment>,
+    pub(crate) memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
     pub(crate) entry: Option<terminal_psi::TargetMachineCallable>,
     pub(crate) terminal_psi: terminal_psi::TerminalPsiIdentity,
     pub(crate) supplies: BTreeMap<BoundaryMachineId, AdmittedBoundarySupply>,
@@ -201,6 +221,8 @@ pub(crate) enum AdmittedBoundarySupply {
 pub struct TerminalRuntimeSupplyRequest<'installation> {
     /// Explicit modeled processor state. Absence supplies no PUSHFQ capability.
     pub x86_flags: Option<TerminalX86FlagsEnvironment>,
+    /// Explicit scoped memory model; absence supplies no catalog fence semantics.
+    pub memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
     /// Requested retained callable; absence selects the artifact's default.
     /// This supplies no parameter backing or host/provider authority.
     pub entry: Option<terminal_psi::TargetMachineCallable>,
@@ -216,6 +238,7 @@ impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntim
     fn from(selected: &terminal_installation::AdmittedProviderSelections) -> Self {
         Self {
             x86_flags: None,
+            memory_ordering: None,
             terminal_psi: selected.terminal_psi(),
             entry: None,
             supplies: selected

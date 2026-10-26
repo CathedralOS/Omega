@@ -29,6 +29,7 @@ pub(crate) fn validate_generic_conformance_bounds(
     machine: &Machine,
     symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     validate_conformance_bounds(
         program,
@@ -43,6 +44,7 @@ pub(crate) fn validate_generic_conformance_bounds(
             lifetime_parameters: &machine.lifetime_parameters,
         },
         diagnostics,
+        formation_obligations,
     );
 }
 
@@ -51,6 +53,7 @@ pub(crate) fn validate_trait_conformance_bounds(
     trait_definition: &TraitDefinition,
     symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     validate_conformance_bounds(
         program,
@@ -65,6 +68,7 @@ pub(crate) fn validate_trait_conformance_bounds(
             lifetime_parameters: &trait_definition.lifetime_parameters,
         },
         diagnostics,
+        formation_obligations,
     );
 }
 
@@ -76,6 +80,7 @@ fn validate_conformance_bounds(
     symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     caller_scope: crate::value_custody::type_references::TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     for bound in bounds {
         if !bound.binder.is_valid() {
@@ -116,6 +121,7 @@ fn validate_conformance_bounds(
             symbols,
             caller_scope,
             diagnostics,
+            formation_obligations,
         );
     }
 }

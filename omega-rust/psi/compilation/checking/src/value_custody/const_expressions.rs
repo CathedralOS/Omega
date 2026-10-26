@@ -21,11 +21,13 @@ pub(crate) fn validate_formation(
     expected: typed_trees::types::TypeReferenceHandle,
     owner: &str,
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let environment = crate::proof_contracts::arithmetic_domains::requires_value_environment(
         program, caller, state,
     );
-    crate::proof_contracts::arithmetic_domains::validate_value_range(
+    let mut decisions = crate::proof_contracts::arithmetic_domains::ArithmeticDecisions::default();
+    crate::proof_contracts::arithmetic_domains::validate_value_range_retaining_decisions(
         program,
         caller,
         Some(state),
@@ -35,7 +37,9 @@ pub(crate) fn validate_formation(
         program.arithmetic_domain_for_type_reference(expected),
         owner,
         diagnostics,
+        &mut decisions,
     );
+    formation_obligations.extend(decisions.integer_range_obligations);
     let anonymous_integer = program
         .primitive_type_reference(expected)
         .is_some_and(|primitive| primitive.accepts_integer_literal())
@@ -58,9 +62,13 @@ pub(crate) fn validate_formation(
             "{owner} has no selected result with its declared carrier"
         )));
     }
-    if let Err(mut failures) =
-        super::struct_literals::validate_value_construction(program, caller, state, expression)
-    {
+    if let Err(mut failures) = super::struct_literals::validate_value_construction(
+        program,
+        caller,
+        state,
+        expression,
+        formation_obligations,
+    ) {
         diagnostics.append(&mut failures);
     }
 }
@@ -72,6 +80,7 @@ pub(crate) fn validate_argument_recipes(
     parameters: &[typed_trees::data::TypeParameter],
     arguments: &[typed_trees::expression::StaticMachineArgument],
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     // Arity and kind errors retain their normal admission diagnostic. An
     // incomplete pack cannot supply a guessed destination to a source recipe.
@@ -112,6 +121,7 @@ pub(crate) fn validate_argument_recipes(
                     caller.name, parameter.name
                 ),
                 diagnostics,
+                formation_obligations,
             );
         }
         if let Some(application) = &argument.application
@@ -124,6 +134,7 @@ pub(crate) fn validate_argument_recipes(
                 program.conformance_type_parameters(declaration),
                 &application.arguments,
                 diagnostics,
+                formation_obligations,
             );
         }
     }

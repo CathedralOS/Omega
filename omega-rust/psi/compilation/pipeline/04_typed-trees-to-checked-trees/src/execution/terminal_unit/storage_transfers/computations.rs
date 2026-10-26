@@ -18,7 +18,7 @@ impl Query<'_> {
         subject: &checked_trees::CheckedDispatchSubject,
     ) -> Option<Transfers> {
         let mut output = Transfers::default();
-        for operand in subject.scalar_operands() {
+        for operand in subject.scalar_operands(&self.facts.values.scalar_computations.operands) {
             output.append(self.computation(operand)?);
         }
         let value = subject.structural_value();
@@ -111,7 +111,9 @@ impl Query<'_> {
         argument: &CheckedUnitStructuralArgumentPlan,
     ) -> Option<Transfers> {
         let mut output = Transfers::default();
-        for operand in argument.computation_operands() {
+        for operand in
+            argument.computation_operands(&self.facts.values.scalar_computations.operands)
+        {
             output.append(self.computation(operand)?);
         }
         Some(output)
@@ -160,6 +162,9 @@ impl Query<'_> {
     }
 
     pub(super) fn computation(&self, root: CheckedScalarComputationHandle) -> Option<Transfers> {
+        if self.completed_computations.contains(&root) {
+            return Some(Transfers::default());
+        }
         let plans = &self.facts.values.scalar_computations;
         if !plans.nodes.is_valid(root) {
             return None;
@@ -193,6 +198,31 @@ impl Query<'_> {
                         )?);
                     }
                 }
+            }
+            CheckedScalarComputationKind::WithOperands {
+                operands, operand, ..
+            } => {
+                let mut scope = self.clone();
+                for dependency in plans.evaluation_operands.span(*operands)? {
+                    match dependency {
+                        checked_trees::CheckedScalarEvaluationOperand::Scalar(value) => {
+                            output.append(scope.computation(*value)?);
+                            scope.completed_computations.push(*value);
+                        }
+                        checked_trees::CheckedScalarEvaluationOperand::Structural(value) => {
+                            output.append(scope.value(
+                                *value,
+                                &[],
+                                false,
+                                ValueReceiver::Unbound,
+                                &[],
+                                &mut Vec::new(),
+                            )?);
+                            scope.established_values.push(*value);
+                        }
+                    }
+                }
+                output.append(scope.computation(*operand)?);
             }
             CheckedScalarComputationKind::Apply { operands, .. }
             | CheckedScalarComputationKind::StorageObservation { operands, .. } => {

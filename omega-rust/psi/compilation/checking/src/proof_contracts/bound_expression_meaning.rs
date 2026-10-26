@@ -577,21 +577,15 @@ pub fn has_exact_case_membership_meaning(
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> bool {
     exact_case_membership_meaning(program, expression, comparison, |subject, owner| {
-        membership_subject_matches_owner(
-            program,
-            Some((machine, state)),
-            subject,
-            owner,
-            |subject| {
-                operand_type(program, machine, state, subject).or_else(|| {
-                    // Reserved result spelling has meaning only at its exact
-                    // authored postcondition occurrence in this machine.
-                    crate::reserved_result_place(program, subject)
-                        .filter(|place| place.machine_symbol == machine.symbol)
-                        .map(|place| place.type_reference)
-                })
-            },
-        )
+        membership_subject_matches_owner(program, subject, owner, |subject| {
+            operand_type(program, machine, state, subject).or_else(|| {
+                // Reserved result spelling has meaning only at its exact
+                // authored postcondition occurrence in this machine.
+                crate::reserved_result_place(program, subject)
+                    .filter(|place| place.machine_symbol == machine.symbol)
+                    .map(|place| place.type_reference)
+            })
+        })
     })
 }
 
@@ -641,11 +635,25 @@ pub fn has_exact_parameter_case_membership_meaning(
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> bool {
     exact_case_membership_meaning(program, expression, comparison, |subject, owner| {
-        membership_subject_matches_owner(program, None, subject, owner, |subject| {
+        membership_subject_matches_owner(program, subject, owner, |subject| {
             crate::value_custody::places::parameter_scoped_type_reference(
                 program, parameters, subject,
             )
         })
+    })
+}
+
+/// A result-typing or selection query already owns the subject's exact scoped
+/// carrier. Reuse the retained case operation and nominal owner checks without
+/// treating its lowered equality node as an overloadable equality occurrence.
+pub fn has_exact_typed_case_membership_meaning(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    comparison: &typed_trees::expression::TableBinaryExpression,
+    subject_type: Option<TypeReferenceHandle>,
+) -> bool {
+    exact_case_membership_meaning(program, expression, comparison, |subject, owner| {
+        membership_subject_matches_owner(program, subject, owner, |_| subject_type)
     })
 }
 
@@ -800,7 +808,6 @@ fn exact_case_reference_owner_position(
 
 fn membership_subject_matches_owner(
     program: &dyn crate::CheckingInput,
-    machine_context: Option<(&Machine, Option<&State>)>,
     subject: ExpressionHandle,
     owner: &DataDefinition,
     subject_type: impl FnOnce(ExpressionHandle) -> Option<TypeReferenceHandle>,
@@ -823,11 +830,7 @@ fn membership_subject_matches_owner(
     // case's type as evidence for an otherwise unknown subject. Field
     // construction and default-domain obligations remain separate checks.
     match program.expression_table.expression(subject) {
-        ExpressionNode::Name(path)
-            if machine_context.is_some_and(|(machine, _)| {
-                path.symbol == machine.symbol && path.head_symbol == machine.symbol
-            }) =>
-        {
+        ExpressionNode::Name(path) if program.machine(path.symbol).is_some() => {
             // A machine declaration does not supply a runtime value whose
             // case tag can be observed.
             return false;
@@ -930,7 +933,7 @@ fn operand_type_at_depth(
                 program, expression,
             )
         }
-        ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {
+        ExpressionNode::Name(path) => {
             crate::value_custody::expression_types::named_value_type_reference(program, path)
         }
         ExpressionNode::Member(_)

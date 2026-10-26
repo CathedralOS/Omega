@@ -1,0 +1,12 @@
+// The completed square is at least its positive operand.
+// Expected exit: 0
+machine square(value: u32) -> u32
+requires value >= 1 && value <= 65535;
+ensures result >= value;
+{ value * value }
+machine main() crashes Trap {
+    let observed: u32 = square(65535);
+    transition observed == 4294836225 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

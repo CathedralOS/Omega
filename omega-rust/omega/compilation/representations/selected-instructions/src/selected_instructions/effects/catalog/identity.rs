@@ -106,6 +106,7 @@ pub fn machine_effect_catalog_identity(
         bytes.push(match declaration.memory {
             crate::MachineMemoryEffect::CopyBytesV1 => 6,
             crate::MachineMemoryEffect::AtomicFenceV1 => 15,
+            crate::MachineMemoryEffect::CatalogFenceV1 => 16,
             crate::MachineMemoryEffect::AtomicPointerV1 => 8,
             crate::MachineMemoryEffect::TemporaryStackStorageV1 => 9,
             crate::MachineMemoryEffect::NoneV1 => 0,
@@ -367,6 +368,7 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
             bytes.identity_bytes(&pointer_operand.to_le_bytes());
         }
         MachineEncodedMemoryEffect::AtomicFenceV1 => bytes.identity_bytes(&[18]),
+        MachineEncodedMemoryEffect::CatalogFenceV1 => bytes.identity_bytes(&[19]),
         MachineEncodedMemoryEffect::AtomicPointerV1 {
             pointer_operand,
             form,
@@ -614,6 +616,7 @@ macro_rules! effect_tag_arms {
             $enum::ControlRegisterRead => 254,
             $enum::ControlRegisterWrite => 255,
             $enum::InterruptControl => 256,
+            $enum::MemoryFence => 257,
 
             $enum::AtomicFence => 238,
             $enum::AtomicAccess(form) => form.machine_tag() as u16,

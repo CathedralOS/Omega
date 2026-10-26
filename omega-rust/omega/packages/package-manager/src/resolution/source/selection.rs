@@ -33,6 +33,7 @@ impl PackageSourceSelectionEvidence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum PackageSourceSelectionEvidenceError {
     Selection(GitWorkspaceSelectionError),
+    Executed(String),
 }
 
 impl fmt::Display for PackageSourceSelectionEvidenceError {
@@ -41,6 +42,10 @@ impl fmt::Display for PackageSourceSelectionEvidenceError {
             Self::Selection(error) => write!(
                 formatter,
                 "retained Git workspace selection no longer replays: {error}"
+            ),
+            Self::Executed(reason) => write!(
+                formatter,
+                "executed workspace selection no longer agrees: {reason}"
             ),
         }
     }

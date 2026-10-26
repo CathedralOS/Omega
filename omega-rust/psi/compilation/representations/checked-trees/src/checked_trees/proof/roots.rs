@@ -94,6 +94,142 @@ pub struct ProofFacts {
 }
 
 impl ProofFacts {
+    /// Authenticate one exact state Requires fact against both declaration and
+    /// checked proof ownership. This identifies a source obligation; it does
+    /// not prove an arrival or promote a state hypothesis into invocation scope.
+    pub fn state_requires_fact(
+        &self,
+        program: &typed_trees::TypedTrees,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        fact: Handle<typed_trees::domain::ProofFact>,
+    ) -> Option<&ContractProofFact> {
+        let (_, declaration) = program.machine_state(machine, state)?;
+        self.declared_contract_fact(
+            program,
+            program.state_contracts(declaration),
+            crate::ContractProofFactOwner::MachineState {
+                machine_symbol: machine,
+                state_symbol: state,
+            },
+            crate::ContractProofFactKind::Requires,
+            fact,
+        )
+    }
+
+    /// Invocation evidence belongs to the machine's declared lane. Internal
+    /// state requirements use the distinct owner above and cannot enter here.
+    pub fn machine_requires_fact(
+        &self,
+        program: &typed_trees::TypedTrees,
+        machine: SymbolHandle,
+        fact: Handle<typed_trees::domain::ProofFact>,
+    ) -> Option<&ContractProofFact> {
+        let declaration = program.machine_by_symbol(machine)?;
+        self.declared_contract_fact(
+            program,
+            program.machine_contracts(declaration),
+            crate::ContractProofFactOwner::Machine {
+                machine_symbol: machine,
+            },
+            crate::ContractProofFactKind::Requires,
+            fact,
+        )
+    }
+
+    /// A named normal guarantee retains the machine's distinct output lane.
+    /// Conditional result-case witnesses keep their separate guarded owner.
+    pub fn machine_ensures_fact(
+        &self,
+        program: &typed_trees::TypedTrees,
+        machine: SymbolHandle,
+        fact: Handle<typed_trees::domain::ProofFact>,
+    ) -> Option<&ContractProofFact> {
+        let declaration = program.machine_by_symbol(machine)?;
+        self.declared_contract_fact(
+            program,
+            program.machine_contracts(declaration),
+            crate::ContractProofFactOwner::Machine {
+                machine_symbol: machine,
+            },
+            crate::ContractProofFactKind::Ensures,
+            fact,
+        )
+    }
+
+    fn declared_contract_fact(
+        &self,
+        program: &typed_trees::TypedTrees,
+        contracts: &[typed_trees::signature::SignatureContract],
+        owner: crate::ContractProofFactOwner,
+        kind: crate::ContractProofFactKind,
+        fact: Handle<typed_trees::domain::ProofFact>,
+    ) -> Option<&ContractProofFact> {
+        if !program.proof_facts.is_valid(fact) {
+            return None;
+        }
+        let signature_kind = match kind {
+            crate::ContractProofFactKind::Requires => {
+                typed_trees::signature::SignatureContractKind::Requires
+            }
+            crate::ContractProofFactKind::Ensures => {
+                typed_trees::signature::SignatureContractKind::Ensures
+            }
+        };
+        let mut authored = None;
+        let mut lane_position = 0usize;
+        for contract in contracts
+            .iter()
+            .filter(|contract| contract.kind == signature_kind)
+        {
+            for candidate in contract.facts.handles() {
+                if candidate == fact {
+                    if authored.is_some() {
+                        return None;
+                    }
+                    authored = Some((contract, lane_position));
+                }
+                if contract.binding.is_some() {
+                    lane_position = lane_position.checked_add(1)?;
+                }
+            }
+        }
+        let (contract, expected_lane) = authored?;
+        let mut recorded = self
+            .contract_facts
+            .iter()
+            .map(|(_, row)| row)
+            .filter(|row| row.owner == owner && row.kind == kind && row.fact == fact);
+        let row = recorded.next()?;
+        if recorded.next().is_some() {
+            return None;
+        }
+        if let Some(binding) = &contract.binding {
+            let term = row.evidence_term?;
+            if !self.evidence_terms.is_valid(term) {
+                return None;
+            }
+            let term = self.evidence_terms.get(term);
+            let proposition = program.proof_facts.get(fact).as_proposition()?;
+            let normalized =
+                program.normalize_nominal_proposition_application(proposition, None)?;
+            let expected = crate::CheckedPropositionApplication::from_normalized(normalized);
+            if term.owner != owner
+                || term.kind != kind
+                || term.lane_position != expected_lane
+                || term.name != binding.as_str()
+                || term.proposition != expected
+                || term.evidence_interface != expected.evidence_interface
+                || term.evidence_interface.is_none()
+            {
+                return None;
+            }
+        } else if row.evidence_term.is_some() {
+            return None;
+        }
+        Some(row)
+    }
+
     /// The last `contract_calls` row recorded under one caller coordinate —
     /// `(machine symbol, state symbol, statement index, call ordinal)`. The
     /// last row recorded under a coordinate wins, matching the linear scan

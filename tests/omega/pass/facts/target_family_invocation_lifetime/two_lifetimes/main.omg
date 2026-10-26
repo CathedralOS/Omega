@@ -1,0 +1,29 @@
+// Every target-family member retains a fresh invocation lifetime and the returned item reference independently of captured context storage.
+// Expected exit: 0.
+data Holder<'held> { reference: &'held u64; }
+machine pick<'call, Context>(context: Context, item: &'call u64) -> &'call u64 { item }
+
+linux_arm64 machine apply<'item, 'held, Context, machine Selected>(context: Holder<'held>, item: &'item u64) -> &'item u64
+where machine Selected<'fresh>(environment: Holder<'held>, value: &'fresh u64) -> &'fresh u64;
+{ Selected(context, item) }
+linux_x86_64 machine apply<'borrow, 'capture, Environment, machine Callback>(context: Holder<'capture>, item: &'borrow u64) -> &'borrow u64
+where machine Callback<'call>(environment: Holder<'capture>, value: &'call u64) -> &'call u64;
+{ Callback(context, item) }
+macos_arm64 machine apply<'scope, 'region, Capture, machine Operation>(context: Holder<'region>, item: &'scope u64) -> &'scope u64
+where machine Operation<'invocation>(environment: Holder<'region>, value: &'invocation u64) -> &'invocation u64;
+{ Operation(context, item) }
+windows_x86_64 machine apply<'storage, 'environment, Captured, machine Action>(context: Holder<'environment>, item: &'storage u64) -> &'storage u64
+where machine Action<'use>(environment: Holder<'environment>, value: &'use u64) -> &'use u64;
+{ Action(context, item) }
+machine relay<'captured, 'value>(context: Holder<'captured>, item: &'value u64) -> &'value u64 {
+    apply<Holder<'captured>, pick<Holder<'captured>>>(context, item)
+}
+machine done() {}
+machine wrong() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let left: u64 = 17;
+    let right: u64 = 42;
+    let context: Holder = Holder { reference: &left };
+    let result: &u64 = relay(context, &right);
+    transition result == 42 { true -> done() false -> wrong() }
+}

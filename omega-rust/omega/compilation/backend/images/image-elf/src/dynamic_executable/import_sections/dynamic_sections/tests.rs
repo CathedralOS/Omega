@@ -254,6 +254,22 @@ fn independent_validation_rejects_every_cross_table_corruption() {
 }
 
 #[test]
+fn pure_component_import_tables_have_no_lookup_candidates() {
+    let contents = super::derive_shared_import_contents(&[]).expect("pure component tables");
+    assert_eq!(contents.dynstr, [0]);
+    assert_eq!(contents.dynsym, [ElfDynamicSymbol::default()]);
+    assert!(contents.needed.is_empty());
+    assert!(contents.bindings.is_empty());
+    assert_eq!(contents.gnu_hash.bloom, [0]);
+    assert_eq!(contents.gnu_hash.buckets, [0]);
+    assert!(contents.gnu_hash.chains.is_empty());
+    validate_gnu_hash_reachability(&contents.gnu_hash, &[]).unwrap();
+    let mut invalid = contents.gnu_hash;
+    invalid.buckets[0] = 1;
+    assert!(validate_gnu_hash_reachability(&invalid, &[]).is_err());
+}
+
+#[test]
 fn gnu_hash_matches_known_vectors_and_exact_canonical_chain() {
     assert_eq!(gnu_hash(b""), 0x0000_1505);
     assert_eq!(gnu_hash(b"exit"), 0x7c96_7e3f);

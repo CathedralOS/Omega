@@ -121,12 +121,7 @@ impl Builder<'_, '_> {
             .is_some_and(|place| matches!(place.root, facts::PlaceRoot::Expression(_)))
             {
                 authority_value = self.structural_value(call.receiver, reference)?;
-                self.retain_structural_root(
-                    u32::try_from(self.statement_index).ok()?,
-                    call.receiver,
-                    reference,
-                    authority_value,
-                );
+                self.retain_structural_value_root(authority_value, reference)?;
             }
         }
         let operands = program

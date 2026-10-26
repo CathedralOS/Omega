@@ -61,6 +61,27 @@ pub struct CheckedMachineDeclaration {
 }
 
 impl CheckedMachineDeclaration {
+    /// The existing proof-facade callable identity, with its exact executable
+    /// specialization commitment when present. Producers and receivers share
+    /// this rendering; declaration names never select an application.
+    pub fn callable_evidence_identity(callable: &str, specialization: Option<&[u8; 32]>) -> String {
+        let Some(commitment) = specialization else {
+            return callable.to_owned();
+        };
+        let mut hexadecimal = String::with_capacity(64);
+        for byte in commitment {
+            use std::fmt::Write;
+            write!(&mut hexadecimal, "{byte:02x}")
+                .expect("writing an identity to String cannot fail");
+        }
+        format!(
+            "specialized-machine|callable={}:{}|application={}",
+            callable.len(),
+            callable,
+            hexadecimal
+        )
+    }
+
     /// Join checked declarations from distinct artifacts without comparing
     /// their table-local coordinates. Contract and specialization commitments
     /// remain exact; matching a name alone cannot substitute another body.
@@ -96,12 +117,21 @@ impl CheckedMachineDeclaration {
                 specialization.commitment == other_specialization.commitment
                     && match (&specialization.capture, &other_specialization.capture) {
                         (None, None) => true,
-                        (Some(left), Some(right)) => left.same_identity_as(identities, right, other_identities),
+                        (Some(left), Some(right)) => {
+                            left.same_identity_as(identities, right, other_identities)
+                        }
                         _ => false,
                     }
                     && identities
                         .text(specialization.template_callable)
                         .zip(other_identities.text(other_specialization.template_callable))
+                        .is_some_and(|(left, right)| !left.is_empty() && left == right)
+                    && identities
+                        .text(specialization.template_semantic_declaration)
+                        .zip(
+                            other_identities
+                                .text(other_specialization.template_semantic_declaration),
+                        )
                         .is_some_and(|(left, right)| !left.is_empty() && left == right)
                     && specialization.template.same_identity_as(
                         identities,
@@ -123,6 +153,9 @@ pub struct CheckedMachineSpecialization {
     /// from the template's nominal declaration path. Issuer routes name this
     /// declaration, not a same-spelled specialization or sibling overload.
     pub template_callable: TerminalIdentityIndex,
+    /// Issuer routes use this semantic declaration coordinate. `template`
+    /// retains the independent nominal encoding and cannot substitute for it.
+    pub template_semantic_declaration: TerminalIdentityIndex,
     pub commitment: [u8; 32],
 }
 

@@ -29,6 +29,7 @@ mod collection_backing;
 pub mod control_graph;
 pub mod descriptor_results;
 pub(crate) use optimization::digest_encoder;
+pub mod nominal_cleanup;
 pub mod owned_structure;
 mod partial_affine;
 mod placed_ram_correspondence;
@@ -56,7 +57,7 @@ pub use placed_view_plans::{
 pub mod content_transformations;
 mod domain_preservation;
 pub use domain_preservation::{
-    domain_predicate_is_closed, domain_write_is_disjoint,
+    domain_predicate_is_closed, domain_predicate_observes_no_storage, domain_write_is_disjoint,
     reference_preserves_ancestor_qualifications, scalar_field_store_preserves_content,
     scalar_field_store_preserves_domain_content, store_preserves_content,
     store_preserves_domain_content, store_preserves_qualifications,
@@ -75,9 +76,10 @@ pub use reference_completion::{
 pub use reference_origins::{
     BorrowedResultLeaf, BorrowedResultLeafKind, ReferenceCallContract, ReferenceCallOrigin,
     ReferenceCallResult, ReferenceCallSource, ReferenceLeaf, ReferenceOriginBinding,
-    bind_reference_call_results, bind_reference_origin, borrowed_result_leaves,
-    captured_reference_origin_type, collection_element_type, reference_leaves,
-    reference_origin_is_covered, reference_origin_paths_may_overlap, reference_origin_type,
+    ReferenceResultMemberships, bind_reference_call_results, bind_reference_origin,
+    borrowed_result_leaves, captured_reference_origin_type, collection_element_type,
+    reference_call_preserved_memberships, reference_leaves, reference_origin_is_covered,
+    reference_origin_paths_may_overlap, reference_origin_type, reference_result_memberships_weaken,
     reference_result_refines_regions, validate_descriptor_result_regions,
     validate_dynamic_reference_regions,
 };
@@ -85,6 +87,8 @@ pub use reference_storage_geometry::{
     ReferenceStorageProjection, ReferenceStorageRegion, reference_storage_layout,
     reference_storage_projection, reference_storage_region, reference_storage_size,
 };
+mod invocation_inputs;
+pub use invocation_inputs::validate_empty_erased_invocation_inputs;
 mod membership_presentations;
 mod scalar_array;
 mod scalar_field_requirements;
@@ -110,7 +114,8 @@ mod zero_valid_storage;
 mod zeroed_structural;
 
 pub use arrival_storage::{
-    StorageNames, arrival_parameter, descriptor_parameter_access, projection_before_edge,
+    StorageNames, arrival_parameter, borrowed_storage_parameter,
+    borrowed_storage_reference_ceiling, descriptor_parameter_access, projection_before_edge,
     root_before_edge, storage_names, view_descriptor_parameter,
     view_descriptor_projected_qualifications,
 };
@@ -172,7 +177,7 @@ pub use record_field::{
     static_field_projection,
 };
 pub use reference_views::{
-    descriptor_reborrow_matches, descriptor_reborrow_shapes_match,
+    descriptor_geometry_matches, descriptor_reborrow_matches, descriptor_reborrow_shapes_match,
     descriptor_source_projection_accessible, descriptor_value_transfer_matches,
     is_copyable_carrier, is_shared_reference_carrier, reference_byte_field_compatible,
     reference_source_compatible, reference_source_projection_accessible,
@@ -180,14 +185,14 @@ pub use reference_views::{
     reference_storage_byte_width, reference_storage_export_byte_width,
     reference_storage_source_compatible, reference_storage_view_is_compatible,
     representation_view_declaration, scalar_reference_view_is_total, scalar_reference_view_value,
-    shared_descriptor_copy_matches,
+    shared_descriptor_copy_matches, stored_reference_access,
 };
 pub use scalar_array::{
     scalar_array_leaf_declaration, scalar_array_leaf_path, scalar_array_leaf_shape,
 };
 pub use scalar_field_requirements::{
     atomic_resident_requirement, scalar_field_accepts_literal, scalar_field_accepts_zero,
-    scalar_field_initialization_requirement, scalar_field_requirement,
+    scalar_field_entails, scalar_field_initialization_requirement, scalar_field_requirement,
     scalar_field_requires_evidence, scalar_field_requires_initialization_evidence,
 };
 pub use scalar_leaf_schema::{
@@ -270,9 +275,11 @@ pub use placed_ram_origins::{PlacedRamFormation, PlacedRamOrigin, PlacedRamOrigi
 
 mod primitive_store_memberships;
 pub use primitive_store_memberships::{
-    primitive_store_byte_predicates, primitive_store_restriction,
-    primitive_store_restriction_with_predicates,
+    primitive_scalar_memberships, primitive_store_byte_predicates,
+    primitive_store_preserves_scalar_memberships, primitive_store_restriction,
 };
 
+pub mod evidence_calls;
+pub use evidence_calls::validate_runtime_evidence_inputs;
 mod unchanged_scalar;
 pub use unchanged_scalar::{UnchangedScalarOrigin, unchanged_scalar_identity};

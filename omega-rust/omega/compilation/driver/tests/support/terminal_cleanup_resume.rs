@@ -162,6 +162,7 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags: None,
+            memory_ordering: None,
             entry: None,
             installation: None,
             host_imports: std::slice::from_ref(slot),

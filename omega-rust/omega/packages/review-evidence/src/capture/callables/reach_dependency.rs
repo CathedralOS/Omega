@@ -71,7 +71,7 @@ pub(super) fn project(
         ));
     }
     let scope = callable_declaration_scope(compilation, machine)?;
-    let parameters = scope.type_parameters;
+    let parameters = scope.type_parameters.as_ref();
     let mut ordinals = Vec::with_capacity(checked_parameters.len());
     for symbol in checked_parameters {
         let mut matches = parameters

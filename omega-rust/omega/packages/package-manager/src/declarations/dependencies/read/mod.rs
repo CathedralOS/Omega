@@ -12,7 +12,6 @@ mod source_literal;
 pub(crate) use aliases::DependencyAliasError;
 pub(crate) use error::DependencyProjectionError;
 pub(crate) use extraction::extract_build_dependency_projection;
-pub(crate) use projection::extract_build_projection_from_source;
 
 use crate::declarations::roles::BuildDeclaration;
 use crate::declarations::{AliasName, PackageName};

@@ -1,4 +1,4 @@
-use checked_trees::{BorrowCallFact, CapturedPlace, CheckFacts, FlowStateFact};
+use checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
 use crate::labels::{borrow_access_label, symbol_name};
@@ -95,26 +95,19 @@ pub(in crate::checks::borrows) fn check_staged_operand_move<'program>(
                         }
                     },
                 };
-                let backings = place_access::place_backings(
+                let backings = place_access::argument_backings(
                     program,
                     facts,
                     state,
-                    statement.statement_index,
+                    call,
                     statement.entry_constraints,
-                    facts
-                        .flow
-                        .borrow_loan_constraints(statement.entry_constraints),
-                    CapturedPlace {
-                        incoming_reference: Default::default(),
-                        root: access.root,
-                        segments: facts.borrow.access_segments(access).to_vec(),
-                    },
+                    access,
                 );
-                let Some(backings) = backings else {
+                let Ok(backings) = backings else {
                     // The call's ordinary loan check reports missing backing.
                     continue;
                 };
-                if backings.iter().all(|backing| {
+                if backings.places.iter().all(|backing| {
                     super::super::overlap::captured_place_compatibility(
                         program,
                         &backing.place,
@@ -164,12 +157,27 @@ pub(super) fn check_call_access_conflicts<'p>(
         borrow_call,
         call_frames,
     );
-    let ended_before_call =
-        super::super::reads::loans_ended_before_call(program, facts, state_flow, borrow_call);
+    let boundary = super::staging::InvocationBoundary::at(program, facts, state_flow, borrow_call);
+    let ended_before_call = super::super::reads::loans_ended_before_call(
+        program,
+        facts,
+        state_flow,
+        borrow_call,
+        boundary.as_ref(),
+    );
     let active_loans: Vec<_> = facts
         .flow
         .borrow_loan_constraints(entry_constraints)
         .filter(|loan| {
+            if super::super::selected_retirement::before_call(
+                program,
+                facts,
+                state_flow,
+                borrow_call,
+                *loan,
+            ) {
+                return false;
+            }
             // The same replayed scope closure applies to forwarded argument
             // authority and to the successor's mutations. Ordinary calls,
             // carried loans and unclosed observations remain active.
@@ -222,36 +230,25 @@ pub(super) fn check_call_access_conflicts<'p>(
     // a read or a write through the same alias is judged.
     let mut operand_backings = Vec::with_capacity(accesses.len());
     for access in &accesses {
-        let place = CapturedPlace {
-            incoming_reference: Default::default(),
-            root: access.root,
-            segments: facts.borrow.access_segments(access).to_vec(),
-        };
-        let Some(backings) = place_access::place_backings(
+        let backings = place_access::argument_backings(
             program,
             facts,
             state_flow,
-            borrow_call.statement_index,
+            borrow_call,
             entry_constraints,
-            active_loans.iter().map(|(handle, _)| *handle),
-            place,
-        ) else {
-            diagnostics.push(Diagnostic::error(format!(
-                "state `{target_name}` receives `{}` without an exact retained backing for its loan",
-                borrow_access_label(program, &facts.borrow, access),
-            )));
-            operand_backings.push(Vec::new());
-            continue;
-        };
-        operand_backings.push(backings);
+            access,
+        );
+        match backings {
+            Ok(backings) => operand_backings.push(backings),
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "state `{target_name}` receives `{}` without an exact retained backing for its loan: {reason}",
+                    borrow_access_label(program, &facts.borrow, access),
+                )));
+                operand_backings.push(place_access::ArgumentBackings::default());
+            }
+        }
     }
-
-    // Resolve pointer geometry only for an actual simultaneous-hold judgment.
-    // A sole reference operand needs no additional address proof merely to
-    // enter a call; its ordinary authority/lifetime checks still run below.
-    let mut held_places = (0..accesses.len())
-        .map(|_| super::held_places::HeldPlaces::default())
-        .collect::<Vec<_>>();
 
     for (index, access) in accesses.iter().enumerate() {
         for (other_index, other_access) in accesses.iter().enumerate().skip(index + 1) {
@@ -310,6 +307,23 @@ pub(super) fn check_call_access_conflicts<'p>(
             {
                 continue;
             }
+            // A completed call result continues its exact input's declared
+            // referent loan. Both rows remain present against every sibling
+            // operand and live loan; only this authenticated supplier/result
+            // pair is one lineage rather than two simultaneous formations.
+            if (operand_backings[other_index].forwards(&operand_backings[index])
+                && access
+                    .kind
+                    .direct_reborrow_effect(&other_access.kind)
+                    .is_some())
+                || (operand_backings[index].forwards(&operand_backings[other_index])
+                    && other_access
+                        .kind
+                        .direct_reborrow_effect(&access.kind)
+                        .is_some())
+            {
+                continue;
+            }
             if matches!(
                 (&access.kind, &other_access.kind),
                 (
@@ -321,27 +335,11 @@ pub(super) fn check_call_access_conflicts<'p>(
                 // of their pointer geometry. Authority checks remain separate.
                 continue;
             }
-            let (earlier, later) = held_places.split_at_mut(other_index);
-            let first = earlier[index].resolve(
-                program,
-                facts,
-                state_flow,
-                borrow_call,
-                access,
-                target_name,
-                diagnostics,
-            );
-            let second = later[0].resolve(
-                program,
-                facts,
-                state_flow,
-                borrow_call,
-                other_access,
-                target_name,
-                diagnostics,
-            );
-            let conflict = first.iter().find_map(|first| {
-                second.iter().find_map(|second| {
+            // The same authenticated frontier supplies ordinary live-loan
+            // checking and this pair judgment. It is a conservative held region,
+            // not an executable address recovered from a missing capture.
+            let conflict = super::held_places::places(&operand_backings[index]).find_map(|first| {
+                super::held_places::places(&operand_backings[other_index]).find_map(|second| {
                     simultaneous_hold_conflict(
                         program,
                         first,
@@ -366,10 +364,52 @@ pub(super) fn check_call_access_conflicts<'p>(
                     },
                 )
             };
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE simultaneous-hold state={:?} statement={} ordinal={} target={:?} first_index={} second_index={} first={:?} second={:?}",
+                    state_flow.state_symbol,
+                    borrow_call.statement_index,
+                    borrow_call.call_ordinal,
+                    borrow_call.target_symbol,
+                    index,
+                    other_index,
+                    access,
+                    other_access,
+                );
+                for (index, backings) in [
+                    (index, &operand_backings[index]),
+                    (other_index, &operand_backings[other_index]),
+                ] {
+                    for backing in &backings.places {
+                        eprintln!(
+                            "CHECKSITE simultaneous-hold-backing index={} place={:?} lineage={:?}",
+                            index, backing.place, backing.lineage,
+                        );
+                    }
+                }
+            }
             diagnostics.push(Diagnostic::error(format!(
                 "state `{target_name}` receives {}",
                 conflict.phrase(label, "another argument in the same call"),
             )));
+        }
+
+        // Earlier nested calls retain their own entry checks. Once their
+        // borrow-free result completes, their direct input accesses are no
+        // longer held by this later invocation. Stored child loans stay in
+        // active_loans and still constrain every continuing access.
+        if boundary.as_ref().is_some_and(|boundary| {
+            boundary.access_finished_before_call(
+                program,
+                facts,
+                state_flow,
+                borrow_call,
+                index,
+                accesses.len(),
+                access,
+            )
+        }) {
+            continue;
         }
 
         for (loan_handle, loan) in &active_loans {
@@ -442,7 +482,7 @@ pub(super) fn check_call_access_conflicts<'p>(
             if !place_access::access_interferes(
                 program,
                 &facts.borrow,
-                &operand_backings[index],
+                &operand_backings[index].places,
                 &access.kind,
                 *loan_handle,
                 stated_premises,

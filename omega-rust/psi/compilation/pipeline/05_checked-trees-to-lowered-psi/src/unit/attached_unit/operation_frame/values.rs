@@ -85,7 +85,11 @@ impl OperationFrame<'_, '_> {
                     .facts
                     .flow
                     .ownership
-                    .owned_selection_at(state, result.statement_index)
+                    .owned_selection_for_expression(
+                        state,
+                        result.statement_index,
+                        occurrence.expression,
+                    )
                     .map(|(handle, _)| handle)
                     .unwrap_or_default(),
                 calls: operand_calls,
@@ -138,8 +142,7 @@ impl OperationEnvironment<'_> {
             .facts
             .values
             .structural_values
-            .root_for_expression(node.state, node.statement_index, node.expression)
-            .filter(|root| root.root == value)
+            .root_for_value(value)
             .ok_or(LoweringError::Unsupported(
                 "computed value lost its complete checked root",
             ))?;
@@ -151,6 +154,15 @@ impl OperationEnvironment<'_> {
             .ok_or(LoweringError::Unsupported(
                 "computed value lost its checked call namespace",
             ))?;
+        let observation = prepare_value_observation(
+            identities,
+            checked,
+            value,
+            &evaluation.contextual_bindings(),
+            self.type_ids,
+            self.structural_types,
+            &mut Vec::new(),
+        );
         let source_value_count = values.len();
         let parent_bindings = operations.structural_values.clone();
         let mut results = self.results.completed_namespace(operations)?.into_owned();
@@ -188,8 +200,7 @@ impl OperationEnvironment<'_> {
                 .facts
                 .flow
                 .ownership
-                .owned_selection_at(node.state, node.statement_index)
-                .filter(|(_, receipt)| receipt.expression == node.expression)
+                .owned_selection_for_expression(node.state, node.statement_index, node.expression)
                 .map(|(handle, _)| handle)
                 .unwrap_or_default();
             structural_values::emit(
@@ -246,6 +257,7 @@ impl OperationEnvironment<'_> {
         let binding = crate::emission::operation_emission::buffer::ComputedValueBinding {
             argument: argument.clone(),
             structural_type: completed.binding.structural_type(),
+            observation,
         };
         if let Some((_, existing)) = operations
             .computed_values
@@ -256,22 +268,148 @@ impl OperationEnvironment<'_> {
         } else {
             operations.computed_values.push((value, binding));
         }
-        // The receiving home is the completed value, not a replacement for the
-        // raw call's operation result or a nested operand's separate expression.
-        let root = facts::PlaceRoot::Expression(node.expression);
-        evaluation
-            .structural_locals
-            .retain(|binding| binding.root != root);
-        crate::expression_preparation::bindings::retain_completed_structural_homes(
-            &mut evaluation.structural_locals,
-            &[StructuralLocalBinding {
-                result_binding_ordinal: None,
-                root,
-                argument,
-                structural_type,
-            }],
-        )?;
+        // A captured copy has its own checked value identity and physical
+        // birth. Its consumers and normal death use computed_values above;
+        // publishing the supplying expression as an alias would conflate it
+        // with the ordinary value produced at that same source coordinate.
+        // Only ordinary roots publish an authored expression home.
+        if !root.captured_copy.is_valid() {
+            // The receiving home is the completed value, not a replacement for the
+            // raw call's operation result or a nested operand's separate expression.
+            let root = facts::PlaceRoot::Expression(node.expression);
+            evaluation
+                .structural_locals
+                .retain(|binding| binding.root != root);
+            crate::expression_preparation::bindings::retain_completed_structural_homes(
+                &mut evaluation.structural_locals,
+                &[StructuralLocalBinding {
+                    result_binding_ordinal: None,
+                    root,
+                    argument,
+                    structural_type,
+                }],
+            )?;
+        }
         values.truncate(source_value_count);
         Ok(())
     }
+}
+
+/// Retain the original typed coordinate without evaluating or selecting another
+/// value. A completed projection preserves its entire prefix, even when its
+/// selected carrier happens to equal an ancestor's carrier.
+fn prepare_value_observation(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &checked_trees::CheckedTrees,
+    value: checked_trees::CheckedStructuralValueHandle,
+    bindings: &crate::expression_preparation::bindings::ScalarBindings,
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    active: &mut Vec<checked_trees::CheckedStructuralValueHandle>,
+) -> Result<crate::emission::operation_emission::buffer::ComputedValueObservation, LoweringError> {
+    use crate::emission::operation_emission::buffer::ComputedValueObservation;
+    use crate::expression_preparation::bindings::structural_paths::{
+        self, PreparedStructuralPathSegment, ProjectionRoot,
+    };
+    use checked_trees::CheckedStructuralValueKind;
+    if !checked.facts.values.structural_values.nodes.is_valid(value) || active.contains(&value) {
+        return unsupported("computed observation has a missing or cyclic source coordinate");
+    }
+    active.push(value);
+    let node = checked.facts.values.structural_values.nodes.get(value);
+    let result = (|| match &node.kind {
+        CheckedStructuralValueKind::Place(source)
+        | CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
+            let (_, state) = crate::declarations::state_declaration(checked, node.state)?;
+            let home =
+                bindings.borrowed_structural_home(source, checked.state_parameters(state))?;
+            let root_type =
+                bindings
+                    .structural_argument_type(&home)
+                    .ok_or(LoweringError::Unsupported(
+                        "computed observation lost its original source carrier",
+                    ))?;
+            let access = home.access;
+            let mut path = home
+                .path
+                .into_iter()
+                .map(PreparedStructuralPathSegment::Static)
+                .collect::<Vec<_>>();
+            path.extend(structural_paths::prepare_structural_argument_path(
+                identities, checked, source, root_type, types,
+            )?);
+            Ok(ComputedValueObservation {
+                root_type,
+                path,
+                access,
+            })
+        }
+        CheckedStructuralValueKind::Projection {
+            source,
+            path,
+            logical_root_type_identity,
+            type_identity,
+            ..
+        } => {
+            let mut coordinate = prepare_value_observation(
+                identities, checked, *source, bindings, type_ids, types, active,
+            )?;
+            let prefix = coordinate
+                .path
+                .iter()
+                .map(|segment| match segment {
+                    PreparedStructuralPathSegment::Static(segment) => Ok(segment.clone()),
+                    _ => Err(LoweringError::Unsupported(
+                        "computed observation source requires an evaluated projection coordinate",
+                    )),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let (_, selected) = terminal_semantics::canonical_static_projection(
+                types.iter(),
+                coordinate.root_type,
+                &prefix,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "computed observation lost its original projection carrier",
+            ))?;
+            let root = if logical_root_type_identity.is_valid() {
+                ProjectionRoot::Borrowed {
+                    published: selected.id,
+                    logical: *logical_root_type_identity,
+                    spelled_reference_hops: 0,
+                }
+            } else {
+                ProjectionRoot::Published(selected.id)
+            };
+            coordinate
+                .path
+                .extend(structural_paths::prepare_projection_path(
+                    identities,
+                    checked,
+                    path,
+                    root,
+                    *type_identity,
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                    types,
+                )?);
+            Ok(coordinate)
+        }
+        _ => {
+            // Calls, constructions and joins publish a whole value under their
+            // own declared root, independent of their source spelling.
+            let identity = validation::stored_structural_type_identity(
+                &checked.typed,
+                node.type_reference,
+                &[],
+                &[],
+            );
+            Ok(ComputedValueObservation {
+                root_type: lookup_type_id(type_ids, &identity)?,
+                path: Vec::new(),
+                access: terminal_psi::StructuralAccess::Owned,
+            })
+        }
+    })();
+    active.pop();
+    result
 }

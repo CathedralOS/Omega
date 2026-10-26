@@ -404,6 +404,19 @@ pub(super) fn clone_single_specialized_machine(
         } else {
             TypeReferenceHandle::invalid()
         };
+    let equations = source
+        .unwrap_or(program)
+        .declared_type_equations
+        .span_or_empty(source_machine.declared_type_equations)
+        .to_vec();
+    let equations = equations
+        .into_iter()
+        .map(|equation| typed_trees::machine::DeclaredTypeEquation {
+            parameter: copy_type_reference(source, program, equation.parameter, &symbol_map),
+            definition: copy_type_reference(source, program, equation.definition, &symbol_map),
+        })
+        .collect::<Vec<_>>();
+    cloned.declared_type_equations = program.declared_type_equations.insert_many(equations);
     if capture.is_none() {
         cloned.conformance_bounds.clear();
     } else {
@@ -741,9 +754,17 @@ pub(super) fn clone_single_specialized_machine(
                 normalized_template_identity: normalized_template_identity.clone(),
                 accepted_template_commitment: accepted_template_commitment.clone(),
                 states,
-                parameters: source.unwrap_or(program).machine_type_parameters(&source_machine)
-                    .iter().map(|parameter| parameter.symbol)
-                    .chain(source_machine.conformance_bounds.iter().map(|bound| bound.binder))
+                parameters: source
+                    .unwrap_or(program)
+                    .machine_type_parameters(&source_machine)
+                    .iter()
+                    .map(|parameter| parameter.symbol)
+                    .chain(
+                        source_machine
+                            .conformance_bounds
+                            .iter()
+                            .map(|bound| bound.binder),
+                    )
                     .map(|parameter| (parameter, remapped_symbol(parameter, &symbol_map)))
                     .collect(),
             },
@@ -914,7 +935,7 @@ pub(super) fn clone_single_specialized_machine(
         // it from the executable candidate would erase that source custody.
         candidate.binding_application
     } else {
-        super::applications::retain_instance(source, program, candidate, instance_symbol)
+        super::applications::retain_instance(source, program, candidate, instance_symbol)?
     };
     if capture.is_none() {
         program

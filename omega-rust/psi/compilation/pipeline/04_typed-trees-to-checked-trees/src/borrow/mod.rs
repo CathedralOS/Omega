@@ -43,7 +43,6 @@ pub(crate) use last_uses::{owner_path_overlaps_place_segments, place_is_used_aft
 pub(crate) use loans::argument_borrow_loan_place;
 pub(crate) use loans::borrow_initializer_expressions;
 pub(crate) use loans::call_reference_lifetime_sources;
-pub(crate) use loans::call_reference_sources;
 pub(crate) use loans::owner_path_from_place_segments;
 pub(crate) use loans::owner_place_segments;
 pub(crate) use loans::owner_segment_matches_place_segment;
@@ -51,7 +50,11 @@ pub(crate) use loans::place_path_covers_owner;
 pub(crate) use loans::returned_body_source_mismatch;
 pub(crate) use loans::store_destination_places;
 pub(crate) use loans::types::reference_borrow_access_kind;
+pub(crate) use loans::{
+    CompletedReturnSource, call_reference_sources, completed_call_reference_sources,
+};
 pub(crate) use owner_geometry::carrier_path;
+pub(crate) use owner_geometry::named_carrier_path;
 pub(crate) use owner_geometry::structural_owner_path;
 pub(crate) use tracker::BorrowOwnerSegment;
 
@@ -73,6 +76,7 @@ pub(crate) fn build_borrow_facts(
     let mut argument_accesses =
         arena::Arena::with_capacity(program.expression_table.expression_count());
     let mut calls = arena::Arena::with_capacity(program.statement_table.statement_count());
+    let mut reference_slot_effects = arena::Arena::new();
     let mut loans = arena::Arena::with_capacity(program.statement_table.statement_count());
     let mut loan_suppliers = arena::Arena::new();
     let mut returned_loans = arena::Arena::new();
@@ -87,6 +91,7 @@ pub(crate) fn build_borrow_facts(
             owner_segments: &mut owner_segments,
             argument_accesses: &mut argument_accesses,
             calls: &mut calls,
+            reference_slot_effects: &mut reference_slot_effects,
             loans: &mut loans,
             loan_suppliers: &mut loan_suppliers,
             returned_loans: &mut returned_loans,
@@ -114,6 +119,7 @@ pub(crate) fn build_borrow_facts(
         owner_segments,
         argument_accesses,
         calls,
+        reference_slot_effects,
         loans,
         loan_suppliers,
         returned_loans,

@@ -285,6 +285,13 @@ pub fn materialize_zero_initialized_build_time_value(
     })
 }
 
+/// Current fixed step ceiling for pure source evaluation. Retained invocation
+/// charges compare this policy as well as their schema and step schedule before
+/// replacing work; the value is the same one fresh evaluation configures.
+pub const fn pure_evaluation_step_ceiling() -> u64 {
+    CONST_EVAL_STEP_BUDGET
+}
+
 /// Evaluate one build-time machine for its structured return value and the
 /// private layout placements it issued. Selected operators are honored; the
 /// evaluation is pure and unsponsored.

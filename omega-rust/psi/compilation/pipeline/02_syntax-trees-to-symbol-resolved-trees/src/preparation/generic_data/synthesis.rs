@@ -11,7 +11,7 @@ use crate::preparation::generic_data::uses::{
     closed_constructor_carrier, relabel_closed_data_uses_in_constants,
     relabel_closed_data_uses_in_exact_assignments,
     relabel_closed_data_uses_in_exact_calls_and_returns,
-    relabel_closed_sum_memberships_from_local_types, relabel_unique_closed_sum_paths,
+    relabel_closed_sum_memberships_from_local_types,
 };
 
 use super::substitution::substitute_copied_type_names;
@@ -528,7 +528,6 @@ pub(crate) fn desugar_generic_data_instances_in(
         &declarations,
     );
     relabel_closed_sum_memberships_from_local_types(syntax, &synthesized, selection, &declarations);
-    relabel_unique_closed_sum_paths(syntax, &synthesized, selection, &declarations);
 
     normalize_generic_template_const_expressions(syntax, &const_values, warnings, &declarations)
         .map_err(|diagnostic| vec![diagnostic])?;

@@ -1,11 +1,11 @@
 //! Exact scalar stack fragments use SSA identity and ordinary frame/pointer instructions.
 use super::{
     Builder, IntegerSign, LegalizedScalarFunction, ScalarType, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, ValueDefinitionSite, ValueId,
-    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedInstructionProvenance, ValueDefinitionSite, ValueId, VirtualRegister,
+    VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
-use crate::selection::scalar_call_abi::{scalar_shape, scalar_stack_placement};
+use crate::selection::scalar_call_abi::{load_transfer, scalar_shape, scalar_stack_placement};
 use calling_conventions::ValuePlacement;
 use selected_instructions::{
     FrameStorageSlotId, OutgoingArgumentSlotId, SelectedOutgoingArgumentSlot,
@@ -91,25 +91,8 @@ pub(super) fn entry(
             parameter.definition_site,
             parameter.scalar_type,
         )?;
-        let (kind, key) = match byte_size {
-            1 => (
-                SelectedInstructionKind::Load8 { byte_offset: 0 },
-                builder.constraints.keys.load8,
-            ),
-            2 => (
-                SelectedInstructionKind::Load16 { byte_offset: 0 },
-                builder.constraints.keys.load16,
-            ),
-            4 => (
-                SelectedInstructionKind::Load32 { byte_offset: 0 },
-                builder.constraints.keys.load32,
-            ),
-            8 => (
-                SelectedInstructionKind::Load64 { byte_offset: 0 },
-                builder.constraints.keys.load64,
-            ),
-            _ => return Err(SelectedInstructionError::custody()),
-        };
+        let (kind, key) = load_transfer(&builder.constraints.keys, u32::from(byte_size), 0)
+            .ok_or_else(SelectedInstructionError::custody)?;
         builder.emit(
             kind,
             key.ok_or_else(|| SelectedInstructionError::custody())?,

@@ -114,6 +114,7 @@ pub(crate) fn project_checked_callable_policy<'a>(
             machine,
             projected.entry,
             &projected.binders,
+            &projected.lifetime_parameters,
             projected.realized,
             &inferred_crash_causes,
         )?;

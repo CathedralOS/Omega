@@ -107,7 +107,9 @@ pub(crate) fn lower_and_install_evidence_artifacts(
             &evidence_terms.declarations,
         )?;
         evidence_contract_lanes.extend(lower_evidence_contract_lanes(
+            identities,
             checked,
+            &lowered.semantic_module,
             machine,
             terminal_machine,
             &evidence_terms.term_ids,
@@ -115,6 +117,7 @@ pub(crate) fn lower_and_install_evidence_artifacts(
         proof_output_calls.extend(lower_proof_output_calls(
             identities,
             checked,
+            source_machine_ids,
             machine,
             terminal_machine,
             &lowered.semantic_module,
@@ -151,15 +154,6 @@ pub(crate) fn lower_and_install_evidence_artifacts(
     lowered.semantic_module.evidence_contract_lanes = evidence_contract_lanes;
     lowered.semantic_module.proof_output_calls = proof_output_calls;
     Ok(())
-}
-
-fn hex_bytes(bytes: &[u8]) -> String {
-    let mut rendered = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        use std::fmt::Write;
-        write!(&mut rendered, "{byte:02x}").expect("writing to a String cannot fail");
-    }
-    rendered
 }
 
 /// Lowered kind of one proposition binder argument.
@@ -292,6 +286,16 @@ pub(crate) fn checked_requirement_schema(
         None
     };
     Ok(terminal_psi::ClosedConformanceSchema {
+        requirement_declaration: terminal_psi::NominalDeclarationIdentity::new(
+            crate::machine_lowering::declarations::semantic_identity(
+                identities,
+                checked,
+                requirement,
+            )
+            .map_err(|_| {
+                LoweringError::Unsupported("conformance requirement lost its declaration owner")
+            })?,
+        ),
         declaring_trait_identity: identities
             .intern(&checked.symbols.display_path(declaring_trait, "::")),
         public_requirement_identity: identities.intern(&checked_evidence_requirement_identity(
@@ -522,11 +526,9 @@ pub(crate) fn checked_evidence_machine_identity(
             .ok_or(LoweringError::Unsupported(
                 "evidence machine lost its checked executable application identity",
             ))?;
-        identity = format!(
-            "specialized-machine|callable={}:{}|application={}",
-            identity.len(),
-            identity,
-            hex_bytes(&checked_identity.commitment.as_bytes())
+        identity = terminal_psi::CheckedMachineDeclaration::callable_evidence_identity(
+            &identity,
+            Some(&checked_identity.commitment.as_bytes()),
         );
     }
     Ok(identity)

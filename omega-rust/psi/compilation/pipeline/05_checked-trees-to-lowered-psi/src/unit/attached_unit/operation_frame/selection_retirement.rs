@@ -7,7 +7,9 @@ use super::{LoweringError, OperationFrame};
 use crate::expression_preparation::bindings::{structural_cases, structural_paths};
 use crate::unit::unit_cleanup::{CleanupCaseCondition, CleanupRegion};
 use checked_trees::{CheckedUnitSelectedReferenceRetirementPlan, CheckedUnitStructuralPathSegment};
-use terminal_psi::{StructuralAffineDiscard, StructuralTypeShape, TerminalAffineCleanupAction};
+use terminal_psi::{
+    StructuralAccess, StructuralAffineDiscard, StructuralTypeShape, TerminalAffineCleanupAction,
+};
 
 impl OperationFrame<'_, '_> {
     pub(super) fn retire_selection_complements(
@@ -17,26 +19,47 @@ impl OperationFrame<'_, '_> {
         complements: &[CheckedUnitSelectedReferenceRetirementPlan],
     ) -> Result<(), LoweringError> {
         let mut regions = Vec::new();
-        let mut retired = Vec::new();
+        let mut retired = Vec::<(
+            usize,
+            semantic_vocabulary::PlaceId,
+            Vec<terminal_psi::StructuralPathSegment>,
+        )>::new();
         for complement in complements {
-            let selection = self
+            let (continuation, selection) = self
                 .evaluation
                 .selection_cleanups
                 .iter()
-                .find(|cleanup| cleanup.selection == complement.selection)
+                .enumerate()
+                .find(|(_, cleanup)| cleanup.selection == complement.selection)
                 .ok_or(LoweringError::Unsupported(
                     "selected reference retirement lost its join",
                 ))?;
+            // The owning production captured one complete source roster.
+            // Private value joins do not contribute competing correspondences.
             for residual in &selection.sources {
                 let place = residual.storage.place;
-                let (root_type, _) = self.evaluation.carrier_signature(place, self.operations)?;
+                let (root_type, _) = self.evaluation.emitted_carrier(place, self.operations)?;
                 let types = self.structural_types.declarations();
-                let path = structural_paths::lower_static_argument_path(
+                let captured = terminal_semantics::runtime_structural_path_tip(
+                    types.iter(),
+                    root_type,
+                    &residual.storage.path,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "selected residual lost its captured source projection",
+                ))?;
+                if captured.id != residual.storage.selected_type {
+                    return Err(LoweringError::Unsupported(
+                        "selected residual captured source has a different carrier",
+                    ));
+                }
+                let mut path = residual.storage.path.clone();
+                path.extend(structural_paths::lower_static_argument_path(
                     identities,
                     &complement.path,
-                    root_type,
+                    residual.storage.selected_type,
                     types,
-                )?;
+                )?);
                 let leaf =
                     terminal_semantics::runtime_structural_path_tip(types.iter(), root_type, &path)
                         .ok_or(LoweringError::Unsupported(
@@ -44,7 +67,7 @@ impl OperationFrame<'_, '_> {
                         ))?;
                 if !matches!(leaf.shape, StructuralTypeShape::Reference { .. }) {
                     return Err(LoweringError::Unsupported(
-                        "selected complement retirement requires descriptor custody",
+                        "selected complement retirement requires shared descriptor custody",
                     ));
                 }
                 let mut conditions = Vec::new();
@@ -52,13 +75,15 @@ impl OperationFrame<'_, '_> {
                     let CheckedUnitStructuralPathSegment::Case(identity) = segment else {
                         continue;
                     };
-                    let (prefix, case) = structural_cases::resolve_at(
+                    let (selected_prefix, case) = structural_cases::resolve_at(
                         identities,
                         types,
-                        root_type,
+                        residual.storage.selected_type,
                         &complement.path[..position],
                         identity,
                     )?;
+                    let mut prefix = residual.storage.path.clone();
+                    prefix.extend(selected_prefix);
                     let sum = terminal_semantics::runtime_structural_path_tip(
                         types.iter(),
                         root_type,
@@ -74,16 +99,27 @@ impl OperationFrame<'_, '_> {
                         case,
                     });
                 }
-                retired.push((complement.selection, place, path.clone()));
+                // Repeated requests still validate the exact typed path, but
+                // one physical descriptor has only one death at this cut.
+                let duplicate = retired
+                    .iter()
+                    .any(|(prior_continuation, prior, prior_path)| {
+                        self.evaluation.selection_cleanups[*prior_continuation].selection
+                            == complement.selection
+                            && *prior == place
+                            && prior_path == &path
+                    });
+                retired.push((continuation, place, path.clone()));
+                if duplicate {
+                    continue;
+                }
                 let action = if path.is_empty() {
-                    // A standalone descriptor has no containing home to keep.
-                    // End it once; its later conditional death is then absent.
                     self.evaluation
                         .descriptor_retirement(place, self.operations)?
                 } else {
                     TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {
                         place,
-                        path,
+                        path: path.clone(),
                         structural_type: leaf.id,
                     })
                 };
@@ -91,24 +127,23 @@ impl OperationFrame<'_, '_> {
                     declaration_order: None,
                     selected_region: Some(terminal_psi::StructuralArgument {
                         place,
-                        path: Vec::new(),
-                        access: terminal_psi::StructuralAccess::Owned,
+                        path: path.clone(),
+                        access: StructuralAccess::Owned,
                     }),
                     conditions,
                     action,
                 });
             }
         }
-        for (selection, place, path) in retired {
-            let cleanup = self
-                .evaluation
-                .selection_cleanups
-                .iter_mut()
-                .find(|cleanup| cleanup.selection == selection)
-                .ok_or(LoweringError::Unsupported(
-                    "selected residual retirement lost its receipt",
-                ))?;
-            cleanup.retired_reference_paths.push((place, path));
+        for (continuation, place, path) in retired {
+            let cleanup = &mut self.evaluation.selection_cleanups[continuation];
+            if !cleanup
+                .retired_reference_paths
+                .iter()
+                .any(|(prior, prior_path)| *prior == place && *prior_path == path)
+            {
+                cleanup.retired_reference_paths.push((place, path));
+            }
         }
         if !regions.is_empty() {
             self.evaluation.continue_cleanup_regions(

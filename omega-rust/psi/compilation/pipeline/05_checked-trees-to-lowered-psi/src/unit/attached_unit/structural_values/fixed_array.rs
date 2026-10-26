@@ -45,15 +45,8 @@ impl emission::Emission<'_, '_, '_> {
         for (element_position, value) in elements.iter().enumerate() {
             let element_index = u64::try_from(element_position)
                 .map_err(|_| LoweringError::Unsupported("array element identity overflow"))?;
-            let operand = self.child_constructor_operand(
-                identities,
-                element,
-                *value,
-                element_reference,
-                &[terminal_psi::StructuralPathSegment::FixedIndex(
-                    element_index,
-                )],
-            )?;
+            let operand =
+                self.child_constructor_operand(identities, element, *value, element_reference)?;
             for claim in operand.claims {
                 let mut path = vec![terminal_psi::StructuralPathSegment::FixedIndex(
                     element_index,
@@ -68,19 +61,21 @@ impl emission::Emission<'_, '_, '_> {
         }
         claims.sort();
         let place = place_id(allocate_dense(self.environment.next_place)?);
-        self.environment
-            .private_places
-            .push(completed_aggregate::emit_completed(
-                place,
-                parent_type,
-                parent_multiplicity,
-                CompletedAggregate::Array { elements: operands },
-                self.evaluation
-                    .structural_parameters
-                    .iter()
-                    .map(|(_, parameter)| parameter),
-                self.operations,
-            )?);
+        let declaration = completed_aggregate::emit_completed(
+            place,
+            parent_type,
+            parent_multiplicity,
+            CompletedAggregate::Array { elements: operands },
+            self.evaluation.structural_root_parameters(),
+            self.operations,
+        )?;
+        if let semantic_vocabulary::StructuralPlaceKind::OperationResult { producer, .. } =
+            declaration.kind
+        {
+            self.evaluation
+                .retire_structural_operation_operands(producer, self.operations)?;
+        }
+        self.environment.private_places.push(declaration);
         self.operations
             .set_structural_result_claims(place, claims)?;
         self.values.truncate(source_count);

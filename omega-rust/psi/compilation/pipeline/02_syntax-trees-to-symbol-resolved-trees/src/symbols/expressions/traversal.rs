@@ -164,10 +164,10 @@ impl ExpressionSymbolContext<'_, '_> {
         }
 
         match self.expression_table.expression(expression).clone() {
-            symbol_resolved_trees::expression::ExpressionNode::Match(dispatch) => {
+            symbol_resolved_trees::expression::ExpressionNode::Match(mut dispatch) => {
                 self.assign_expression_table_symbols(dispatch.subject);
                 for offset in 0..dispatch.arms.count() {
-                    let arm = self.expression_table.match_arms(dispatch.arms)[offset as usize];
+                    let mut arm = self.expression_table.match_arms(dispatch.arms)[offset as usize];
                     let dependencies = self
                         .expression_table
                         .match_pattern_dependencies(arm.pattern)
@@ -175,6 +175,10 @@ impl ExpressionSymbolContext<'_, '_> {
                     for pattern in dependencies {
                         self.assign_expression_table_symbols(pattern);
                     }
+                    self.normalize_domain_pattern(&mut dispatch, &mut arm);
+                    self.expression_table
+                        .match_arm_mut(dispatch.arms.handle_at(offset))
+                        .pattern = arm.pattern;
                     if let symbol_resolved_trees::expression::MatchPattern::Destructure(pattern) =
                         arm.pattern
                     {
@@ -199,6 +203,8 @@ impl ExpressionSymbolContext<'_, '_> {
                     }
                     self.assign_expression_table_symbols(arm.value);
                 }
+                *self.expression_table.expression_mut(expression) =
+                    symbol_resolved_trees::expression::ExpressionNode::Match(dispatch);
             }
             // The definition's subject and each head are visited by Match.
             // An alias is not another use/evaluation of that source subtree.
@@ -321,5 +327,128 @@ impl ExpressionSymbolContext<'_, '_> {
                 self.reassign_type_reference(type_reference);
             }
         }
+    }
+
+    /// A selected domain head is an ordinary predicate on the one captured
+    /// subject. Normalize it where declaration identity is known, before the
+    /// authored-selection ledger and typing consume the expression graph. The
+    /// membership node therefore retains the same visibility, provenance and
+    /// executable-predicate obligations as an authored `subject in Domain`.
+    fn normalize_domain_pattern(
+        &mut self,
+        dispatch: &mut symbol_resolved_trees::expression::TableMatchExpression,
+        arm: &mut symbol_resolved_trees::expression::TableMatchArm,
+    ) {
+        use symbol_resolved_trees::expression::{
+            BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern, TableBinaryExpression,
+            TableDestructurePattern, TableMembershipExpression, TableSavedSubject,
+        };
+        use symbols::JoinedPath;
+        let (head, previous) = match arm.pattern {
+            MatchPattern::Value(head) => (head, None),
+            MatchPattern::Destructure(pattern) => (pattern.head, Some(pattern)),
+            MatchPattern::Wildcard => return,
+        };
+        let Some(path) = self.expression_table.name_path_node(head).cloned() else {
+            return;
+        };
+        // Domains are declaration-owned qualified names, not necessarily
+        // children of their data carrier. Ordinary value-path lookup may
+        // therefore leave this head unresolved. Use membership's one exact
+        // selection entrance, including imports and ambiguity handling.
+        let members = self.expression_table.name_path_members(path.members);
+        let domain = match crate::symbols::membership_selection(
+            self.symbols,
+            &members.joined_path(),
+            self.expression_table.source_span(head),
+        ) {
+            Ok(Some(crate::symbols::MembershipSelection::Domain(domain))) => domain,
+            // Retain an ambiguous membership for the fallible authored-
+            // selection ledger to diagnose before typing, never a case fallback.
+            Err(_) => SymbolHandle::invalid(),
+            _ => return,
+        };
+        // Symbol assignment can revisit a shared expression. The normalized
+        // membership is the first test and authenticates this exact capture
+        // and head, so normalization remains idempotent.
+        if let Some(previous) = previous {
+            let mut condition = previous.condition;
+            while let ExpressionNode::Binary(binary) = self.expression_table.expression(condition) {
+                if binary.operator != BinaryOperator::And {
+                    break;
+                }
+                condition = binary.left;
+            }
+            if let ExpressionNode::Membership(membership) =
+                self.expression_table.expression(condition)
+                && membership.domain_symbol == domain
+                && let ExpressionNode::SavedSubject(saved) =
+                    self.expression_table.expression(membership.value)
+                && saved.capture == dispatch.capture
+                && saved.pattern_head == head
+            {
+                return;
+            }
+        }
+        if let ExpressionNode::Name(path) = self.expression_table.expression_mut(head) {
+            path.symbol = domain;
+        }
+        if let Some(offset) = path.member_symbols.count().checked_sub(1) {
+            self.expression_table.set_name_path_member_symbol_at_offset(
+                path.member_symbols,
+                offset,
+                domain,
+            );
+        }
+        if !dispatch.capture.is_valid() {
+            dispatch.capture = self.expression_table.insert_match_subject(dispatch.subject);
+        }
+        let saved = self
+            .expression_table
+            .insert(ExpressionNode::SavedSubject(TableSavedSubject {
+                capture: dispatch.capture,
+                pattern_head: head,
+            }));
+        let condition =
+            self.expression_table
+                .insert(ExpressionNode::Membership(TableMembershipExpression {
+                    value: saved,
+                    domain: path.members,
+                    domain_symbol: domain,
+                    case_type_symbol: SymbolHandle::invalid(),
+                    case_symbol: SymbolHandle::invalid(),
+                }));
+        self.expression_table
+            .set_source_span(condition, self.expression_table.source_span(head));
+        if let Some(exposure) = self.expression_table.authored_expression_exposure(head) {
+            self.expression_table
+                .set_authored_expression_exposure(condition, exposure);
+        }
+        if let Some(partition) = self.expression_table.compiler_selection_partition(head) {
+            self.expression_table
+                .set_compiler_selection_partition(condition, partition);
+        }
+        arm.pattern = MatchPattern::Destructure(if let Some(previous) = previous {
+            let condition =
+                self.expression_table
+                    .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        left: condition,
+                        operator: BinaryOperator::And,
+                        right: previous.condition,
+                    }));
+            TableDestructurePattern {
+                condition,
+                ..previous
+            }
+        } else {
+            TableDestructurePattern {
+                head,
+                fields: HandleSpan::empty(),
+                has_rest: true,
+                guard: ExpressionHandle::invalid(),
+                condition,
+                proof_selectors: HandleSpan::empty(),
+            }
+        });
     }
 }

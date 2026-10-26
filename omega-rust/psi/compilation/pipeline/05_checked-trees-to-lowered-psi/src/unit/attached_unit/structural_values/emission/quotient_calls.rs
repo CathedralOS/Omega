@@ -19,13 +19,8 @@ impl Emission<'_, '_, '_> {
                     &[],
                 ),
             )?;
-            let child = self.child_constructor_operand(
-                identities,
-                ty,
-                *argument,
-                child.type_reference,
-                &[],
-            )?;
+            let child =
+                self.child_constructor_operand(identities, ty, *argument, child.type_reference)?;
             if !child.claims.is_empty() || !child.argument.path.is_empty() {
                 return unsupported("quotient invocation input carries custody");
             }

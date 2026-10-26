@@ -58,11 +58,13 @@ mod aggregate;
 mod owner_paths;
 mod returned_carriers;
 pub(crate) use returned_carriers::{
-    call_reference_lifetime_sources, call_reference_sources, returned_body_source_mismatch,
+    CompletedReturnSource, call_reference_lifetime_sources, call_reference_sources,
+    completed_call_reference_sources, returned_body_source_mismatch,
 };
 mod replacement;
 mod stored_calls;
 pub(in crate::borrow) use replacement::{CarrierReplacement, capture_replacement};
+pub(in crate::borrow) use stored_calls::from_effects as stored_reference_effect_loans;
 pub(crate) mod types;
 
 use types::{is_reference_type, reference_borrow_access_kind};
@@ -77,9 +79,17 @@ use reference_borrows::*;
 mod aggregate_loans;
 mod call_views;
 
+/// Construction scratch for one supplied descriptor namespace. Its path is
+/// allocated by the receiving resource owner, after alternatives are complete.
+#[derive(Clone, PartialEq, Eq)]
+pub(super) struct PendingIncomingReference {
+    pub(super) identity: checked_trees::IncomingReferenceIdentity,
+    pub(super) owner_path: Vec<checked_trees::BorrowLoanOwnerSegment>,
+}
+
 #[derive(Clone)]
 pub(super) struct StatementBorrowLoan {
-    pub(super) incoming_origin: Option<checked_trees::IncomingReferenceIdentity>,
+    pub(super) incoming_origin: Option<PendingIncomingReference>,
     pub(super) formation_expression: ExpressionHandle,
     pub(super) formation_owner_path: Option<Vec<BorrowOwnerSegment>>,
     pub(super) owner_symbol: SymbolHandle,
@@ -87,6 +97,7 @@ pub(super) struct StatementBorrowLoan {
     pub(super) owner_name: Identifier,
     pub(super) owner_path: Vec<BorrowOwnerSegment>,
     pub(super) place: accesses::BorrowAccessPlace,
+    pub(super) representation_address: Option<accesses::BorrowAccessPlace>,
     pub(super) retained_operand: Option<checked_trees::BorrowRetainedOperand>,
     pub(super) source_owner_symbol: SymbolHandle,
     pub(super) supplying_loans: Vec<Handle<checked_trees::BorrowLoanFact>>,
@@ -105,6 +116,7 @@ struct RebasedBorrowPlace {
     /// containing pointer is not the supplier of a stored child descriptor.
     source_place: accesses::BorrowAccessPlace,
     place: accesses::BorrowAccessPlace,
+    representation_address: Option<accesses::BorrowAccessPlace>,
     retained_operand: Option<checked_trees::BorrowRetainedOperand>,
     source_owner_symbol: SymbolHandle,
     parent_loan: Handle<checked_trees::BorrowLoanFact>,
@@ -224,6 +236,7 @@ pub(super) fn returned_value_loans(
     machine_symbol: SymbolHandle,
     statement: &StatementNode,
     loan_trackers: &[StateLoanTracker],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<
     Vec<(
         checked_trees::statement::TransitionTargetHandle,
@@ -252,13 +265,14 @@ pub(super) fn returned_value_loans(
     let expression_loans = |expression| {
         let mut value = returned_value.clone();
         value.initial_value = expression;
-        value_borrow_loans(
+        binding_borrow_loans(
             program,
             state,
             statement_index,
             machine_symbol,
-            &StatementNode::LocalData(value),
+            &value,
             loan_trackers,
+            call_frames,
         )
     };
     let transition = match statement {
@@ -380,8 +394,110 @@ pub(super) fn statement_borrow_loans(
         machine_symbol,
         statement,
         loan_trackers,
+        call_frames,
     )?);
     Ok(loans)
+}
+
+/// Local publication, stored replacement and normal return share one value
+/// formation. Each source leaf observes the same completed-call prefix; its
+/// consumer's destination and lifetime remain separate judgments.
+fn binding_borrow_loans(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    local_data: &checked_trees::statement::TableLocalData,
+    loan_trackers: &[StateLoanTracker],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Result<Vec<StatementBorrowLoan>, &'static str> {
+    // A selection's operands complete after its subject and patterns. Form
+    // each selected value at its own cut, rather than borrowing the selection's
+    // entry roster for every arm. This is shared by references and aggregates.
+    if let checked_trees::expression::ExpressionNode::Match(dispatch) = program
+        .expression_table
+        .expression(local_data.initial_value)
+    {
+        let mut loans = Vec::new();
+        for arm in program.expression_table.match_arms(dispatch.arms) {
+            let mut selected = local_data.clone();
+            selected.initial_value = arm.value;
+            loans.extend(binding_borrow_loans(
+                program,
+                state,
+                statement_index,
+                machine_symbol,
+                &selected,
+                loan_trackers,
+                call_frames,
+            )?);
+        }
+        return Ok(loans);
+    }
+    if !is_reference_type(program, local_data.type_reference)
+        && is_borrow_carrying_data(program, local_data.type_reference)
+    {
+        let frames = call_frames.ok_or("value formation has no prepared call-frame context")?;
+        let machine = program
+            .machine(machine_symbol)
+            .ok_or("value formation has no owning machine")?;
+        let mut loans = Vec::new();
+        for initializer in borrowed_initializers(
+            program,
+            local_data.type_reference,
+            local_data.initial_value,
+            &[],
+            &[],
+        ) {
+            let current = stored_calls::roster_at_expression(
+                program,
+                machine,
+                state,
+                statement_index,
+                initializer.expression,
+                frames,
+                loan_trackers,
+            )
+            .ok_or("operand has no complete completed call-slot relation")?;
+            loans.extend(borrowed_initializer_loans(
+                program,
+                state.symbol,
+                statement_index,
+                machine_symbol,
+                local_data,
+                initializer,
+                &current,
+            ));
+        }
+        return Ok(loans);
+    }
+    if !is_reference_type(program, local_data.type_reference)
+        && !element_view_local_binding(program, state, machine_symbol, local_data)
+    {
+        return Ok(Vec::new());
+    }
+    let frames = call_frames.ok_or("value formation has no prepared call-frame context")?;
+    let machine = program
+        .machine(machine_symbol)
+        .ok_or("value formation has no owning machine")?;
+    let current = stored_calls::roster_at_expression(
+        program,
+        machine,
+        state,
+        statement_index,
+        local_data.initial_value,
+        frames,
+        loan_trackers,
+    )
+    .ok_or("operand has no complete completed call-slot relation")?;
+    Ok(reference_local_borrow_loans(
+        program,
+        state,
+        statement_index,
+        machine_symbol,
+        local_data,
+        &current,
+    ))
 }
 
 fn value_borrow_loans(
@@ -391,9 +507,9 @@ fn value_borrow_loans(
     machine_symbol: SymbolHandle,
     statement: &StatementNode,
     loan_trackers: &[StateLoanTracker],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<Vec<StatementBorrowLoan>, &'static str> {
-    Ok(match statement {
-        StatementNode::Assembly(_) => Vec::new(),
+    match statement {
         StatementNode::Assignment(assignment) => assignment_borrow_loans(
             program,
             state,
@@ -401,43 +517,19 @@ fn value_borrow_loans(
             machine_symbol,
             assignment,
             loan_trackers,
-        )?,
-        StatementNode::LocalData(local_data) => {
-            // Borrow-carrying data local (`let msg: Message = Message { body: input }`):
-            // the value borrows whatever its reference field is initialized from,
-            // so its loan follows that source's place (decision 15 stage 2).
-            if !is_reference_type(program, local_data.type_reference)
-                && is_borrow_carrying_data(program, local_data.type_reference)
-            {
-                return Ok(borrow_carrying_data_loans(
-                    program,
-                    state,
-                    statement_index,
-                    machine_symbol,
-                    local_data,
-                    loan_trackers,
-                ));
-            }
-            if !is_reference_type(program, local_data.type_reference)
-                && !element_view_local_binding(program, state, machine_symbol, local_data)
-            {
-                return Ok(Vec::new());
-            }
-
-            reference_local_borrow_loans(
-                program,
-                state,
-                statement_index,
-                machine_symbol,
-                local_data,
-                loan_trackers,
-            )
-        }
-        StatementNode::Call(_)
-        | StatementNode::AssemblyFact(_)
-        | StatementNode::Expression(_)
-        | StatementNode::Transition(_) => Vec::new(),
-    })
+            call_frames,
+        ),
+        StatementNode::LocalData(local_data) => binding_borrow_loans(
+            program,
+            state,
+            statement_index,
+            machine_symbol,
+            local_data,
+            loan_trackers,
+            call_frames,
+        ),
+        _ => Ok(Vec::new()),
+    }
 }
 
 /// A store installs the replacement's loans in its actual carrier. A projected
@@ -452,6 +544,7 @@ fn assignment_borrow_loans(
     machine_symbol: SymbolHandle,
     assignment: &checked_trees::statement::TableAssignment,
     loan_trackers: &[StateLoanTracker],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<Vec<StatementBorrowLoan>, &'static str> {
     let Some(target) = borrow_access_place(
         program,
@@ -487,25 +580,15 @@ fn assignment_borrow_loans(
         relevance: language_core::BindingRelevance::Relevant,
     };
 
-    let loans = if is_reference_type(program, target_type) {
-        reference_local_borrow_loans(
-            program,
-            state,
-            statement_index,
-            machine_symbol,
-            &synthetic_local,
-            loan_trackers,
-        )
-    } else {
-        borrow_carrying_data_loans(
-            program,
-            state,
-            statement_index,
-            machine_symbol,
-            &synthetic_local,
-            loan_trackers,
-        )
-    };
+    let loans = binding_borrow_loans(
+        program,
+        state,
+        statement_index,
+        machine_symbol,
+        &synthetic_local,
+        loan_trackers,
+        call_frames,
+    )?;
     let writes_referent = validation::expression_type_reference_in_state(
         program,
         state.symbol,

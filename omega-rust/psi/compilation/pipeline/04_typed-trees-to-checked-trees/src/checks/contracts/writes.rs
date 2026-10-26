@@ -32,6 +32,7 @@ use crate::labels::{machine_name, symbol_name};
 mod constructor_memberships;
 pub(super) use constructor_memberships::ConstructorMemberships;
 mod domain_implications;
+mod domain_tests;
 mod member_domains;
 use domain_implications::value_proves_qualification;
 pub(super) use domain_implications::value_proves_qualification_in_contexts;
@@ -617,6 +618,16 @@ impl ConstructionWalk<'_, '_> {
         }
         // Children complete before the next operand may mutate their source.
         // Reuse this walk's exact live contexts, just as record-field admission does.
+        domain_tests::validate(
+            program,
+            facts,
+            constructor_memberships,
+            state_flow,
+            statement_index,
+            expression,
+            contexts,
+            self.diagnostics,
+        );
         let site = (
             statement_index,
             expression.arena_index(),

@@ -3,9 +3,12 @@
 //! This is a projection of the permission producer's occurrence order, not a
 //! second control-flow analysis. The producer forks this state alongside its
 //! ordinary ownership state for each outgoing edge.
+mod case_exclusions;
+use case_exclusions::CaseExclusions;
+
 use checked_trees::{
-    ContextualCleanupDisposition, ContextualCleanupFacts, FlowClaimJoinExit,
-    FlowPermissionEventFact,
+    ContextualCleanupDisposition, ContextualCleanupExcludedRegion, ContextualCleanupExclusionCause,
+    ContextualCleanupFacts, FlowClaimJoinExit, FlowPermissionEventFact,
 };
 use facts::{Place, PlaceRoot, PlaceSegment};
 use language_semantics::{
@@ -16,14 +19,14 @@ use language_semantics::{
 pub(crate) struct RemainingCustody {
     // Moved regions and conditional claim regions that were never established
     // both lie outside the owner's cleanup complement.
-    excluded: Vec<(PlaceRoot, Vec<PlaceSegment>)>,
-    // A transfer is definite on each path where its selected case exists.
-    // Joins require transfer or authenticated case absence on BOTH edges.
-    definite_excluded: Vec<(PlaceRoot, Vec<PlaceSegment>)>,
+    excluded: Vec<ExcludedStorage>,
+    // Real transfers survive only where each predecessor transfers the region
+    // or proves its case absent. This is independent of possible exclusions.
+    definite_excluded: Vec<validation::CanonicalPlace>,
     // Tag observations are facts, not transfers. They intersect at joins and
     // are invalidated by writes; unioning them can erase every live alternative.
-    inactive_cases: Vec<(PlaceRoot, Vec<PlaceSegment>)>,
-    constructing: Vec<(
+    inactive_cases: CaseExclusions,
+    storage_frontiers: Vec<(
         PlaceRoot,
         super::construction_frontier::ConstructionFrontier,
     )>,
@@ -34,6 +37,17 @@ pub(crate) struct RemainingCustody {
     zero_images: Vec<PlaceRoot>,
 }
 
+/// Cleanup normalizes absent regions by containment. Retain the actual
+/// consumed subregion separately as diagnostic provenance: coalescing an
+/// unestablished ancestor must not claim that ancestor itself was transferred.
+#[derive(Clone)]
+struct ExcludedStorage {
+    root: PlaceRoot,
+    path: Vec<PlaceSegment>,
+    consumed_path: Option<Vec<PlaceSegment>>,
+    cause: ContextualCleanupExclusionCause,
+}
+
 /// A receiving write's storage extent, paired with its first claim event in
 /// the current evaluation. Claim events name leaves, not the containing write.
 pub(super) struct StorageEstablishment {
@@ -41,19 +55,36 @@ pub(super) struct StorageEstablishment {
     pub(super) destination: validation::CanonicalPlace,
 }
 
+/// A source evaluation position, distinct even when it emits no claim event.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct CustodyCut {
+    pub(crate) occurrence_ordinal: usize,
+    pub(crate) permission_prefix: usize,
+}
+
+/// A completed invocation's physical write frontier at its exact event cut.
+/// Unknown writes detach historical source associations; they never grant
+/// replacement or transfer authority.
+pub(super) struct StorageBindingChange {
+    pub(super) cut: CustodyCut,
+    pub(super) source: PermissionEventSource,
+    pub(super) evaluation: checked_trees::FlowPermissionEvaluation,
+    pub(super) route: Vec<crate::checks::ownership_occurrences::EvaluationBranch>,
+    pub(super) writes: Option<Vec<validation::CanonicalPlace>>,
+}
+
 /// A selected move's exact pre-transfer custody, captured by the producer.
 /// Permission events alone omit call invalidations and storage-only changes.
 pub(crate) struct TransferCustody {
+    pub(crate) occurrence_ordinal: usize,
     pub(crate) events: std::ops::Range<usize>,
     pub(crate) places: Vec<super::linear_obligations::LinearPlace>,
     pub(crate) remaining: RemainingCustody,
 }
 
 impl RemainingCustody {
-    /// Compare the retained complement after the receipt's authenticated
-    /// transfers. Successive operands of one construction have different
-    /// pre-move holes but still owe one death of the same untouched sibling.
-    /// Case, construction and zero-image evidence must still match exactly.
+    /// Compare the same occurrence after its exact receipt transfers. Holes
+    /// are a set; construction order and case evidence remain exact.
     pub(super) fn same_storage_after_transfers(
         &self,
         other: &Self,
@@ -69,73 +100,162 @@ impl RemainingCustody {
         left.same_storage_custody(&right, root)
     }
 
-    /// Identical claim names alone do not establish identical cleanup. Compare
-    /// every custody component for this storage root, including case exclusions
-    /// and incomplete/zero construction. Other roots do not own this disposal.
     pub(super) fn same_storage_custody(&self, other: &Self, root: PlaceRoot) -> bool {
-        // Holes are a set, not an effect schedule. Opposite operand orders
-        // can create the same exact complement in different insertion order.
+        let equal_removal = |left: &ExcludedStorage, right: &ExcludedStorage| {
+            left.root == right.root && left.path == right.path && left.cause == right.cause
+        };
         self.excluded
             .iter()
-            .filter(|(candidate, _)| *candidate == root)
-            .all(|entry| other.excluded.contains(entry))
+            .filter(|entry| entry.root == root)
+            .all(|entry| {
+                other
+                    .excluded
+                    .iter()
+                    .any(|other| equal_removal(entry, other))
+            })
             && other
                 .excluded
                 .iter()
-                .filter(|(candidate, _)| *candidate == root)
-                .all(|entry| self.excluded.contains(entry))
+                .filter(|entry| entry.root == root)
+                .all(|entry| {
+                    self.excluded
+                        .iter()
+                        .any(|other| equal_removal(entry, other))
+                })
             && self
                 .definite_excluded
                 .iter()
-                .filter(|(candidate, _)| *candidate == root)
-                .all(|entry| other.definite_excluded.contains(entry))
+                .filter(|place| place.root == root)
+                .all(|place| other.definite_excluded.contains(place))
             && other
                 .definite_excluded
                 .iter()
-                .filter(|(candidate, _)| *candidate == root)
-                .all(|entry| self.definite_excluded.contains(entry))
+                .filter(|place| place.root == root)
+                .all(|place| self.definite_excluded.contains(place))
             && self
                 .inactive_cases
                 .iter()
-                .filter(|(candidate, _)| *candidate == root)
+                .filter(|entry| entry.root == root)
                 .eq(other
                     .inactive_cases
                     .iter()
-                    .filter(|(candidate, _)| *candidate == root))
+                    .filter(|entry| entry.root == root))
             && self
-                .constructing
+                .storage_frontiers
                 .iter()
                 .filter(|(candidate, _)| *candidate == root)
                 .eq(other
-                    .constructing
+                    .storage_frontiers
                     .iter()
                     .filter(|(candidate, _)| *candidate == root))
             && self.zero_images.contains(&root) == other.zero_images.contains(&root)
     }
+
+    /// A fresh construction vacancy is distinct from previously moved storage.
+    pub(super) fn is_construction_vacancy(&self, root: PlaceRoot, path: &[PlaceSegment]) -> bool {
+        self.storage_frontiers
+            .iter()
+            .any(|(candidate, frontier)| *candidate == root && !frontier.contains(path))
+            && !self.excluded.iter().any(|removed| {
+                removed.root == root
+                    && (path.starts_with(&removed.path) || removed.path.starts_with(path))
+            })
+            && !self.inactive_cases.iter().any(|removed| {
+                removed.root == root
+                    && (path.starts_with(&removed.segments) || removed.segments.starts_with(path))
+            })
+    }
+
+    pub(super) fn for_state(
+        program: &dyn validation::CheckingInput,
+        state: &typed_trees::state::State,
+    ) -> Self {
+        let mut custody = Self::default();
+        for parameter in program.state_parameters(state) {
+            if !parameter.relevance.is_erased()
+                && validation::reference_shell(program, parameter.type_reference).is_none()
+                && program.type_multiplicity(parameter.type_reference) != Multiplicity::Unrestricted
+            {
+                custody.storage_frontiers.push((
+                    PlaceRoot::Symbol(parameter.symbol),
+                    super::construction_frontier::ConstructionFrontier::completed(
+                        program,
+                        parameter.type_reference,
+                    ),
+                ));
+            }
+        }
+        custody
+    }
+
     /// Ordinary post-selection availability is the intersection. Selected
     /// cleanup retains the exact skipped-path frontier separately; this join
     /// never turns possible custody into unconditional disposal authority.
     pub(super) fn join(&mut self, sibling: &Self) {
         let mut definite = self.definite_excluded.clone();
-        for entry in &sibling.definite_excluded {
-            if !definite.contains(entry) {
-                definite.push(entry.clone());
+        for place in &sibling.definite_excluded {
+            if !definite.contains(place) {
+                definite.push(place.clone());
             }
         }
-        definite.retain(|(root, path)| {
-            self.definitely_absent(*root, path) && sibling.definitely_absent(*root, path)
+        definite.retain(|place| {
+            self.definitely_absent(place.root, &place.segments)
+                && sibling.definitely_absent(place.root, &place.segments)
         });
-        for (root, path) in &sibling.excluded {
-            self.remove(*root, path);
+        // Availability intersects by excluding either path's unavailable
+        // regions. Positive absence evidence is stronger: it must name the
+        // same exact region on both paths before it can survive the join.
+        let common_unestablished = sibling
+            .excluded
+            .iter()
+            .map(|right| {
+                right.cause == ContextualCleanupExclusionCause::Unestablished
+                    && self.excluded.iter().any(|left| {
+                        left.root == right.root
+                            && left.path == right.path
+                            && left.cause == ContextualCleanupExclusionCause::Unestablished
+                    })
+            })
+            .collect::<Vec<_>>();
+        for left in &mut self.excluded {
+            if left.cause == ContextualCleanupExclusionCause::Unestablished
+                && !sibling.excluded.iter().any(|right| {
+                    right.root == left.root
+                        && right.path == left.path
+                        && right.cause == ContextualCleanupExclusionCause::Unestablished
+                })
+            {
+                left.cause = ContextualCleanupExclusionCause::Unknown;
+            }
+        }
+        for (removed, common) in sibling.excluded.iter().zip(common_unestablished) {
+            let cause =
+                if removed.cause == ContextualCleanupExclusionCause::Unestablished && !common {
+                    ContextualCleanupExclusionCause::Unknown
+                } else {
+                    removed.cause
+                };
+            self.remove(
+                removed.root,
+                &removed.path,
+                cause,
+                removed.consumed_path.as_deref(),
+            );
         }
         self.definite_excluded = definite;
         self.inactive_cases
             .retain(|observation| sibling.inactive_cases.contains(observation));
         self.zero_images
             .retain(|root| sibling.zero_images.contains(root));
-        for (root, frontier) in &mut self.constructing {
+        self.storage_frontiers.retain(|(root, _)| {
+            sibling
+                .storage_frontiers
+                .iter()
+                .any(|(other, _)| other == root)
+        });
+        for (root, frontier) in &mut self.storage_frontiers {
             if let Some((_, other)) = sibling
-                .constructing
+                .storage_frontiers
                 .iter()
                 .find(|(candidate, _)| candidate == root)
             {
@@ -176,14 +296,14 @@ impl RemainingCustody {
         {
             return;
         }
-        self.constructing.push((
+        self.storage_frontiers.push((
             PlaceRoot::Symbol(local.symbol),
             super::construction_frontier::ConstructionFrontier::new(program, local.type_reference),
         ));
     }
 
-    pub(super) fn is_reserved(&self, root: PlaceRoot) -> bool {
-        self.constructing
+    pub(super) fn has_storage_frontier(&self, root: PlaceRoot) -> bool {
+        self.storage_frontiers
             .iter()
             .any(|(candidate, _)| *candidate == root)
     }
@@ -200,7 +320,7 @@ impl RemainingCustody {
         receiving_writes: &[Vec<PlaceSegment>],
     ) -> bool {
         let Some((_, frontier)) = self
-            .constructing
+            .storage_frontiers
             .iter()
             .find(|(candidate, _)| *candidate == root)
         else {
@@ -209,10 +329,10 @@ impl RemainingCustody {
         frontier.completes_with(program, later, receiving_writes)
     }
 
-    /// The reserved root's established subtrees in establishment order, or
-    /// none for a root that is not under construction.
+    /// The authenticated storage root's established subtrees in establishment
+    /// order, or none when no formation frontier is retained.
     pub(super) fn established_paths(&self, root: PlaceRoot) -> &[Vec<PlaceSegment>] {
-        self.constructing
+        self.storage_frontiers
             .iter()
             .find(|(candidate, _)| *candidate == root)
             .map_or(&[], |(_, frontier)| frontier.established.as_slice())
@@ -222,29 +342,16 @@ impl RemainingCustody {
         !self
             .excluded
             .iter()
-            .chain(&self.inactive_cases)
-            .any(|(candidate, removed)| *candidate == root && path.starts_with(removed))
+            .any(|removed| removed.root == root && path.starts_with(&removed.path))
+            && !self
+                .inactive_cases
+                .iter()
+                .any(|inactive| inactive.root == root && path.starts_with(&inactive.segments))
             && self
-                .constructing
+                .storage_frontiers
                 .iter()
                 .find(|(candidate, _)| *candidate == root)
                 .is_none_or(|(_, frontier)| frontier.contains(path))
-    }
-
-    /// Fresh construction storage is not the same as an excluded owner. A
-    /// descendant write cannot revive an already moved containing value or an
-    /// inactive payload. Case selection is checked separately at the store.
-    pub(super) fn is_construction_vacancy(&self, root: PlaceRoot, path: &[PlaceSegment]) -> bool {
-        self.constructing
-            .iter()
-            .any(|(candidate, frontier)| *candidate == root && !frontier.contains(path))
-            && !self
-                .excluded
-                .iter()
-                .chain(&self.inactive_cases)
-                .any(|(candidate, removed)| {
-                    *candidate == root && (path.starts_with(removed) || removed.starts_with(path))
-                })
     }
 
     /// An allocated, still-owned home must retire even when no semantic
@@ -259,9 +366,9 @@ impl RemainingCustody {
         !self
             .excluded
             .iter()
-            .any(|(candidate, path)| *candidate == root && path.is_empty())
+            .any(|removed| removed.root == root && removed.path.is_empty())
             && self
-                .constructing
+                .storage_frontiers
                 .iter()
                 .find(|(candidate, _)| *candidate == root)
                 .is_some_and(|(_, frontier)| {
@@ -279,14 +386,31 @@ impl RemainingCustody {
         root: PlaceRoot,
         path: &[PlaceSegment],
     ) -> Vec<&'a [PlaceSegment]> {
+        self.removed_regions(program, root, path)
+            .into_iter()
+            .map(|(path, _)| path)
+            .collect()
+    }
+
+    pub(super) fn removed_regions<'a>(
+        &'a self,
+        program: &dyn ::validation::CheckingInput,
+        root: PlaceRoot,
+        path: &[PlaceSegment],
+    ) -> Vec<(&'a [PlaceSegment], ContextualCleanupExclusionCause)> {
         if path.is_empty() && self.needs_empty_retirement(program, root) {
-            return vec![&[]];
+            return vec![(&[], ContextualCleanupExclusionCause::Unknown)];
         }
         self.excluded
             .iter()
-            .filter_map(|(candidate, removed)| {
-                (*candidate == root)
-                    .then(|| removed.strip_prefix(path))
+            .filter_map(|removed| {
+                (removed.root == root)
+                    .then(|| {
+                        removed
+                            .path
+                            .strip_prefix(path)
+                            .map(|path| (path, removed.cause))
+                    })
                     .flatten()
             })
             .collect()
@@ -299,9 +423,9 @@ impl RemainingCustody {
     ) -> Vec<&'a [PlaceSegment]> {
         self.inactive_cases
             .iter()
-            .filter_map(|(candidate, inactive)| {
-                (*candidate == root)
-                    .then(|| inactive.strip_prefix(path))
+            .filter_map(|inactive| {
+                (inactive.root == root)
+                    .then(|| inactive.segments.strip_prefix(path))
                     .flatten()
             })
             .collect()
@@ -311,7 +435,7 @@ impl RemainingCustody {
         &self,
         root: PlaceRoot,
     ) -> Option<impl Iterator<Item = &[PlaceSegment]>> {
-        self.constructing
+        self.storage_frontiers
             .iter()
             .find(|(candidate, _)| *candidate == root)
             .map(|(_, frontier)| {
@@ -340,9 +464,16 @@ impl RemainingCustody {
 
     pub(super) fn disposal_paths(
         &self,
+        program: &dyn ::validation::CheckingInput,
         root: PlaceRoot,
         path: &[PlaceSegment],
     ) -> Vec<Vec<PlaceSegment>> {
+        // Preserve the allocated home's boundary when its remaining children
+        // owe no value cleanup. Expanding that boundary would turn retirement
+        // back into disposal of raw or unrestricted storage fields.
+        if path.is_empty() && self.needs_empty_retirement(program, root) {
+            return vec![Vec::new()];
+        }
         if self.is_present(root, path) {
             return vec![path.to_vec()];
         }
@@ -461,11 +592,7 @@ impl RemainingCustody {
                         },
                     },
                 );
-                self.establish_storage(
-                    program,
-                    establishment.destination.root,
-                    &establishment.destination.segments,
-                );
+                self.establish_storage(program, &establishment.destination, event);
             }
             let path = segments.span_or_empty(event.segments);
             // A containing death is published before its exact child claim
@@ -507,10 +634,11 @@ impl RemainingCustody {
                 } else {
                     self.excluded
                         .iter()
-                        .filter(|(root, _)| *root == event.root)
-                        .map(|(root, path)| Place {
-                            root: *root,
-                            segments: output.segments.insert_many(path.iter().copied()),
+                        .filter(|removed| removed.root == event.root)
+                        .map(|removed| ContextualCleanupExcludedRegion {
+                            root: removed.root,
+                            segments: output.segments.insert_many(removed.path.iter().copied()),
+                            cause: removed.cause,
                         })
                         .collect::<Vec<_>>()
                 };
@@ -519,9 +647,10 @@ impl RemainingCustody {
                     && self.needs_empty_retirement(program, event.root)
                 {
                     exclusions.clear();
-                    exclusions.push(Place {
+                    exclusions.push(ContextualCleanupExcludedRegion {
                         root: event.root,
                         segments: Default::default(),
+                        cause: ContextualCleanupExclusionCause::Unknown,
                     });
                 }
                 // A root that stays under construction at this edge, on every
@@ -531,19 +660,22 @@ impl RemainingCustody {
                 let inactive_cases = self
                     .inactive_cases
                     .iter()
-                    .filter(|(root, _)| *root == event.root)
-                    .map(|(root, path)| Place {
-                        root: *root,
-                        segments: output.segments.insert_many(path.iter().copied()),
+                    .filter(|inactive| inactive.root == event.root)
+                    .map(|inactive| ContextualCleanupExcludedRegion {
+                        root: inactive.root,
+                        cause: ContextualCleanupExclusionCause::InactiveCase,
+                        segments: output
+                            .segments
+                            .insert_many(inactive.segments.iter().copied()),
                     })
                     .collect::<Vec<_>>();
                 let definite_exclusions = exclusions
                     .iter()
-                    .filter(|place| {
-                        let path = output.segments.span_or_empty(place.segments);
-                        self.definite_excluded
-                            .iter()
-                            .any(|(root, removed)| *root == place.root && path.starts_with(removed))
+                    .filter(|excluded| {
+                        self.definitely_transferred(
+                            excluded.root,
+                            output.segments.span_or_empty(excluded.segments),
+                        )
                     })
                     .cloned()
                     .collect::<Vec<_>>();
@@ -602,15 +734,20 @@ impl RemainingCustody {
                         path,
                     )
                 {
-                    self.exclude_absent_case(event.root, inactive);
+                    self.exclude_absent_case(&validation::CanonicalPlace {
+                        root: event.root,
+                        segments: inactive.to_vec(),
+                    });
                     return;
                 }
                 self.invalidate_case_observations(program, event.root, path);
                 // A strict child cannot revive its consumed containing owner.
-                self.excluded
-                    .retain(|(root, removed)| *root != event.root || !removed.starts_with(path));
-                self.definite_excluded
-                    .retain(|(root, removed)| *root != event.root || !removed.starts_with(path));
+                self.excluded.retain(|removed| {
+                    removed.root != event.root || !removed.path.starts_with(path)
+                });
+                self.definite_excluded.retain(|removed| {
+                    removed.root != event.root || !removed.segments.starts_with(path)
+                });
                 // A conditional claim with no live establishment denotes an
                 // absent payload, not a dead value available for cleanup. The
                 // whole root is different: a linear local's obligation-free
@@ -622,7 +759,16 @@ impl RemainingCustody {
                             self.zero_images.push(event.root);
                         }
                     } else {
-                        self.remove(event.root, path);
+                        // A receiving establishment positively reports that
+                        // this typed claim region never held a value. Restore
+                        // also uses this replay arm, but without a separately
+                        // authenticated receiving proof it remains unknown.
+                        let cause = if event.kind == PermissionEventKind::Establish {
+                            ContextualCleanupExclusionCause::Unestablished
+                        } else {
+                            ContextualCleanupExclusionCause::Unknown
+                        };
+                        self.remove(event.root, path, cause, None);
                     }
                 } else if path.is_empty() {
                     self.zero_images.retain(|root| *root != event.root);
@@ -630,9 +776,9 @@ impl RemainingCustody {
                 if !self
                     .excluded
                     .iter()
-                    .any(|(root, removed)| *root == event.root && path.starts_with(removed))
+                    .any(|removed| removed.root == event.root && path.starts_with(&removed.path))
                     && let Some((_, frontier)) = self
-                        .constructing
+                        .storage_frontiers
                         .iter_mut()
                         .find(|(root, _)| *root == event.root)
                 {
@@ -646,7 +792,7 @@ impl RemainingCustody {
                     self.zero_images.retain(|root| *root != event.root);
                 }
                 if let Some((_, frontier)) = self
-                    .constructing
+                    .storage_frontiers
                     .iter_mut()
                     .find(|(root, _)| *root == event.root)
                 {
@@ -659,28 +805,26 @@ impl RemainingCustody {
 
     /// The source schedule proved this whole case absent on this alternative.
     /// Preserve the containing home; this is not an owned transfer or death.
-    pub(super) fn exclude_absent_case(&mut self, root: PlaceRoot, path: &[PlaceSegment]) {
-        debug_assert!(matches!(path.last(), Some(PlaceSegment::Case { .. })));
-        if !self
-            .inactive_cases
-            .iter()
-            .any(|(candidate, inactive)| *candidate == root && inactive == path)
-        {
-            self.inactive_cases.push((root, path.to_vec()));
-        }
+    pub(super) fn exclude_absent_case(&mut self, place: &validation::CanonicalPlace) {
+        debug_assert!(matches!(
+            place.segments.last(),
+            Some(PlaceSegment::Case { .. })
+        ));
+        self.inactive_cases.insert(place);
     }
 
     fn definitely_absent(&self, root: PlaceRoot, path: &[PlaceSegment]) -> bool {
-        self.definite_excluded
-            .iter()
-            .chain(&self.inactive_cases)
-            .any(|(candidate, removed)| *candidate == root && path.starts_with(removed))
+        self.definitely_transferred(root, path)
+            || self
+                .inactive_cases
+                .iter()
+                .any(|place| place.root == root && path.starts_with(&place.segments))
     }
 
     pub(super) fn definitely_transferred(&self, root: PlaceRoot, path: &[PlaceSegment]) -> bool {
         self.definite_excluded
             .iter()
-            .any(|(candidate, removed)| *candidate == root && path.starts_with(removed))
+            .any(|place| place.root == root && path.starts_with(&place.segments))
     }
 
     /// A checked case projection authenticates the active tag at this actual
@@ -731,7 +875,13 @@ impl RemainingCustody {
         variant: symbols::SymbolHandle,
         positive: bool,
     ) {
-        if !crate::flow::stable_case_subject(place)
+        let Some(machine) = program.machine_holding_state(state) else {
+            return;
+        };
+        let Some(state_definition) = program.state_in_machine(machine, state) else {
+            return;
+        };
+        if !crate::flow::stable_case_subject(program, machine, state_definition, statement, place)
             || !(0..=place.segments.len()).all(|length| {
                 validation::canonical_place_type_reference(
                     program,
@@ -770,7 +920,10 @@ impl RemainingCustody {
         {
             let mut path = place.segments.clone();
             path.push(PlaceSegment::Case { variant: excluded });
-            self.exclude_absent_case(place.root, &path);
+            self.exclude_absent_case(&validation::CanonicalPlace {
+                root: place.root,
+                segments: path,
+            });
         }
     }
 
@@ -780,9 +933,21 @@ impl RemainingCustody {
         root: PlaceRoot,
         path: &[PlaceSegment],
     ) {
-        self.inactive_cases.retain(|(candidate, inactive)| {
-            *candidate != root
-                || !crate::flow::canonical_place_segments_may_overlap(program, inactive, path)
+        for removed in &mut self.excluded {
+            if removed.root == root
+                && removed.cause == ContextualCleanupExclusionCause::Unestablished
+                && crate::flow::canonical_place_segments_may_overlap(program, &removed.path, path)
+            {
+                removed.cause = ContextualCleanupExclusionCause::Unknown;
+            }
+        }
+        self.inactive_cases.retain(|inactive| {
+            inactive.root != root
+                || !crate::flow::canonical_place_segments_may_overlap(
+                    program,
+                    &inactive.segments,
+                    path,
+                )
         });
     }
 
@@ -796,6 +961,11 @@ impl RemainingCustody {
     ) {
         let Some(writes) = writes else {
             self.inactive_cases.clear();
+            for removed in &mut self.excluded {
+                if removed.cause == ContextualCleanupExclusionCause::Unestablished {
+                    removed.cause = ContextualCleanupExclusionCause::Unknown;
+                }
+            }
             return;
         };
         for write in writes {
@@ -803,32 +973,86 @@ impl RemainingCustody {
         }
     }
 
-    fn remove(&mut self, root: PlaceRoot, path: &[PlaceSegment]) {
-        if self
+    fn remove(
+        &mut self,
+        root: PlaceRoot,
+        path: &[PlaceSegment],
+        cause: ContextualCleanupExclusionCause,
+        consumed_path: Option<&[PlaceSegment]>,
+    ) {
+        if let Some(prior) = self
             .excluded
-            .iter()
-            .any(|(prior_root, prior)| *prior_root == root && path.starts_with(prior))
+            .iter_mut()
+            .find(|prior| prior.root == root && path.starts_with(&prior.path))
         {
+            if prior.path != path || prior.cause != cause {
+                prior.cause = ContextualCleanupExclusionCause::Unknown;
+            }
+            if prior.consumed_path.is_none() {
+                prior.consumed_path = consumed_path.map(<[PlaceSegment]>::to_vec);
+            }
             return;
         }
+        let cause = if self.excluded.iter().any(|prior| {
+            prior.root == root
+                && prior.path.starts_with(path)
+                && (prior.path != path || prior.cause != cause)
+        }) {
+            ContextualCleanupExclusionCause::Unknown
+        } else {
+            cause
+        };
+        let consumed_path = consumed_path.map(<[PlaceSegment]>::to_vec).or_else(|| {
+            self.excluded.iter().find_map(|prior| {
+                (prior.root == root && prior.path.starts_with(path))
+                    .then(|| prior.consumed_path.clone())
+                    .flatten()
+            })
+        });
         self.excluded
-            .retain(|(prior_root, prior)| *prior_root != root || !prior.starts_with(path));
-        self.excluded.push((root, path.to_vec()));
+            .retain(|prior| prior.root != root || !prior.path.starts_with(path));
+        self.excluded.push(ExcludedStorage {
+            root,
+            path: path.to_vec(),
+            consumed_path,
+            cause,
+        });
+    }
+
+    /// Only a real transfer/disposal cause diagnoses consumption. A missing
+    /// establishment or inactive tag alone remains a different source failure.
+    pub(super) fn consumed_place(
+        &self,
+        root: PlaceRoot,
+        path: &[PlaceSegment],
+    ) -> Option<validation::CanonicalPlace> {
+        self.excluded.iter().find_map(|removed| {
+            let consumed = removed.consumed_path.as_deref()?;
+            (removed.root == root && (path.starts_with(consumed) || consumed.starts_with(path)))
+                .then(|| validation::CanonicalPlace {
+                    root,
+                    segments: consumed.to_vec(),
+                })
+        })
     }
 
     /// A captured owned move transfers its selected storage along with the
     /// claim frontier. Descendant claim events alone cannot record a whole
     /// carrier transfer: retaining that home would dispose it on the edge.
     pub(super) fn transfer_storage(&mut self, root: PlaceRoot, path: &[PlaceSegment]) {
-        self.remove(root, path);
-        if !self
-            .definite_excluded
-            .iter()
-            .any(|(candidate, removed)| *candidate == root && path.starts_with(removed))
-        {
+        self.remove(
+            root,
+            path,
+            ContextualCleanupExclusionCause::Consumed,
+            Some(path),
+        );
+        if !self.definitely_transferred(root, path) {
             self.definite_excluded
-                .retain(|(candidate, removed)| *candidate != root || !removed.starts_with(path));
-            self.definite_excluded.push((root, path.to_vec()));
+                .retain(|place| place.root != root || !place.segments.starts_with(path));
+            self.definite_excluded.push(validation::CanonicalPlace {
+                root,
+                segments: path.to_vec(),
+            });
         }
     }
 
@@ -848,10 +1072,13 @@ impl RemainingCustody {
         if !output.dispositions.iter().any(|(_, row)| {
             row.machine == machine && row.state == state && row.source == source && row.root == root
         }) {
-            let exclusions = output.exclusions.insert_many([Place {
-                root,
-                segments: Default::default(),
-            }]);
+            let exclusions = output
+                .exclusions
+                .insert_many([ContextualCleanupExcludedRegion {
+                    root,
+                    segments: Default::default(),
+                    cause: ContextualCleanupExclusionCause::Consumed,
+                }]);
             output.dispositions.append(ContextualCleanupDisposition {
                 selection: Default::default(),
                 machine,
@@ -870,7 +1097,12 @@ impl RemainingCustody {
                 zero_image: false,
             });
         }
-        self.remove(root, &[]);
+        self.remove(
+            root,
+            &[],
+            ContextualCleanupExclusionCause::Consumed,
+            Some(&[]),
+        );
     }
 
     /// Claim events name leaves; the successful write also establishes its
@@ -878,18 +1110,48 @@ impl RemainingCustody {
     fn establish_storage(
         &mut self,
         program: &dyn validation::CheckingInput,
-        root: PlaceRoot,
-        path: &[PlaceSegment],
+        destination: &validation::CanonicalPlace,
+        event: &FlowPermissionEventFact,
     ) {
+        let root = destination.root;
+        let path = destination.segments.as_slice();
+        let state = event.state_symbol;
+        let zero_image = path.is_empty()
+            && event.segments.is_empty()
+            && event.multiplicity == Multiplicity::Linear
+            && !event.obligation_live;
         self.invalidate_case_observations(program, root, path);
         self.excluded
-            .retain(|(candidate, removed)| *candidate != root || !removed.starts_with(path));
+            .retain(|removed| removed.root != root || !removed.path.starts_with(path));
         self.definite_excluded
-            .retain(|(candidate, removed)| *candidate != root || !removed.starts_with(path));
+            .retain(|removed| removed.root != root || !removed.segments.starts_with(path));
+        // Only a whole completed write can introduce a new storage frontier.
+        // Child writes update an already reserved/established one; they cannot
+        // infer that an otherwise unavailable aggregate was formed.
+        if path.is_empty()
+            && !zero_image
+            && !self
+                .storage_frontiers
+                .iter()
+                .any(|(candidate, _)| *candidate == root)
+            && let Some(symbol) = root.as_symbol()
+            && let Some(state) = program.state_by_symbol(state)
+            && let Some((_, local)) = program.state_local_declaration(state, symbol)
+            && !local.relevance.is_erased()
+        {
+            self.storage_frontiers.push((
+                root,
+                super::construction_frontier::ConstructionFrontier::completed(
+                    program,
+                    local.type_reference,
+                ),
+            ));
+        }
         if let Some((_, frontier)) = self
-            .constructing
+            .storage_frontiers
             .iter_mut()
             .find(|(candidate, _)| *candidate == root)
+            && !zero_image
         {
             frontier.establish(program, path);
         }

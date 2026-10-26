@@ -187,6 +187,10 @@ pub struct CheckedUnitStructuralFieldPlan {
 
 impl PartialEq for CheckedUnitStructuralFieldPlan {
     fn eq(&self, other: &Self) -> bool {
+        // The source reference supplies receiving predicates to lowering, but
+        // its arena coordinate is not part of the field's semantic identity.
+        // Compare its complete normalized type instead of either dropping
+        // qualifications or requiring independently cloned references to alias.
         self.receiving_type_identity == other.receiving_type_identity
             && self.identity == other.identity
             && self.relevance == other.relevance
@@ -392,6 +396,9 @@ impl CheckedByteSequenceCarrier {
 /// One normalized structural qualification required by a retained parameter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralDomainPlan {
+    /// The retained predicate/issuer vocabulary describes the complete source
+    /// theory; no independent role, cleanup, alias or refinement is omitted.
+    pub complete_predicate_theory: bool,
     /// Complete closed declaration predicates over formal subject zero; None is opaque.
     pub predicate: Option<crate::CheckedBooleanExpression>,
     pub byte_predicate: Option<language_semantics::byte_predicates::ByteSequencePredicate>,

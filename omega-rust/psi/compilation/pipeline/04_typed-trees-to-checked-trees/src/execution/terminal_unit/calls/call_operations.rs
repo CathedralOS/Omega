@@ -237,59 +237,55 @@ pub(in crate::execution) fn build_call_operation(
 
     let selected_realization =
         exact_external_leaf_boundary_requirement(program, call.target_symbol);
-    let requirement = match boundary_requirement(program, call.target_symbol) {
-        BoundaryTarget::Requirement(requirement) => Some(requirement),
-        BoundaryTarget::Body => None,
-        BoundaryTarget::Ambiguous => return None,
-    };
-    if let Some(requirement) = requirement {
-        return super::trait_boundary_call::build(
-            program,
-            facts,
-            machine,
-            state,
-            caller_parameters,
-            call,
-            expected_call_result.as_ref(),
-            caller_structural_results,
-            caller_operations,
-            trace,
-            coordinate,
-            &call_site,
-            source_site,
-            requirement,
-            selected_realization,
-        );
-    }
-
-    if let Some(slot) = program.dynamic_slot_by_symbol(call.target_symbol) {
-        return super::dynamic_call::build(
-            program,
-            facts,
-            machine,
-            state,
-            caller_parameters,
-            caller_trivial_affine_locals,
-            call,
-            expected_call_result.as_ref(),
-            caller_structural_results,
-            caller_operations,
-            trace,
-            coordinate,
-            &call_site,
-            source_site,
-            slot,
-        );
-    }
     phase("call operation: target state");
-    // Resolve the executable pair without rewriting the flow occurrence,
-    // which still authenticates the authored call and operands.
-    let (target_machine, target_state) = executable_target(program, call.target_symbol)?;
+    let destination = super::resolve_call_target(program, call.target_symbol)?;
+    let (target_machine, target_state) = match destination {
+        super::ResolvedCallTarget::Requirement(requirement) => {
+            return super::trait_boundary_call::build(
+                program,
+                facts,
+                machine,
+                state,
+                caller_parameters,
+                call,
+                expected_call_result.as_ref(),
+                caller_structural_results,
+                caller_operations,
+                trace,
+                coordinate,
+                &call_site,
+                source_site,
+                requirement,
+                selected_realization,
+            );
+        }
+        super::ResolvedCallTarget::DynamicSlot(slot) => {
+            return super::dynamic_call::build(
+                program,
+                facts,
+                machine,
+                state,
+                caller_parameters,
+                caller_trivial_affine_locals,
+                call,
+                expected_call_result.as_ref(),
+                caller_structural_results,
+                caller_operations,
+                trace,
+                coordinate,
+                &call_site,
+                source_site,
+                slot,
+            );
+        }
+        super::ResolvedCallTarget::Declared { machine, state } => (machine, state),
+    };
+    let (target_machine_identity, target_state_identity) = destination.identity();
     phase("call operation: target contract");
     let target_contract = facts.contract_plans.for_machine(target_machine.symbol)?;
     let call_target = CheckedUnitCallTarget {
-        machine: target_machine.symbol,
-        state: target_state.symbol,
+        machine: target_machine_identity,
+        state: target_state_identity,
         contract_report_fingerprint: target_contract.report_fingerprint,
         service_reach: call.service_reach,
     };
@@ -667,73 +663,4 @@ pub(in crate::execution) fn build_call_operation(
         })
         .map(CheckedUnitEffectOperationPlan::Call)
     }
-}
-
-/// What a call's authored target completes through.
-pub(super) enum BoundaryTarget<'program> {
-    /// A boundary requirement's call route.
-    Requirement(super::trait_boundary_call::BoundaryRequirement<'program>),
-    /// More than one boundary requirement declares the target.
-    Ambiguous,
-    /// No boundary requirement: a machine body or a dynamic slot.
-    Body,
-}
-
-/// The boundary requirement a call to `target` invokes. A direct call to a
-/// bodyless external leaf is a boundary call on the leaf's exact satisfied
-/// requirement (see `validation`'s `intrinsic_boundaries` module); the leaf
-/// owns no body to call. A nominal binder describes an obligation, not a
-/// selected boundary body: specialization must replace it with the exact
-/// executable target before a call is planned, and projecting its
-/// requirement here would make an open generic entry executable and bypass
-/// its selected implementation. Both declaration spellings retain a
-/// requirement edge; the planner sees the authored signature, never its
-/// selected provider.
-pub(super) fn boundary_requirement(
-    program: &dyn ::validation::CheckingInput,
-    target: SymbolHandle,
-) -> BoundaryTarget<'_> {
-    let direct = exact_external_leaf_boundary_requirement(program, target)
-        .map(|(requirement, _)| requirement)
-        .unwrap_or(target);
-    let static_boundaries = program
-        .traits()
-        .iter()
-        .filter(|definition| definition.is_boundary)
-        .flat_map(|definition| {
-            program
-                .trait_machine_instances(definition)
-                .filter(move |signature| signature.symbol == direct)
-                .map(move |signature| (definition, signature))
-        })
-        .collect::<Vec<_>>();
-    match static_boundaries.as_slice() {
-        [(definition, signature)] => {
-            BoundaryTarget::Requirement(super::trait_boundary_call::BoundaryRequirement::Trait {
-                definition,
-                signature,
-            })
-        }
-        [] => program
-            .operators()
-            .iter()
-            .find(|operator| operator.is_boundary && operator.symbol == direct)
-            .map_or(BoundaryTarget::Body, |operator| {
-                BoundaryTarget::Requirement(
-                    super::trait_boundary_call::BoundaryRequirement::Operator(operator),
-                )
-            }),
-        _ => BoundaryTarget::Ambiguous,
-    }
-}
-
-/// The machine and state a call to `target` executes. Source custody can name
-/// a machine head or an exact stored state: a machine invokes its entry, and
-/// an explicitly selected state keeps its own signature.
-fn executable_target(
-    program: &dyn ::validation::CheckingInput,
-    target: SymbolHandle,
-) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
-    validation::find_machine_head(program, target)
-        .or_else(|| validation::find_state(program, target))
 }

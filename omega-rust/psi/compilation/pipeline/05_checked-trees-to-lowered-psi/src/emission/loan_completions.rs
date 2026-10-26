@@ -187,6 +187,7 @@ pub(crate) fn emit(
     coordinate: SourceCallCoordinate,
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
+    current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
 ) -> Result<(), LoweringError> {
     if prepared.is_empty() {
         return Ok(());
@@ -223,6 +224,19 @@ pub(crate) fn emit(
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
         claims.sort();
+        let relative = claims
+            .iter()
+            .map(|claim| {
+                let path = claim.path.strip_prefix(completion.path.as_slice()).ok_or(
+                    LoweringError::Unsupported("loan completion claim escapes its exact region"),
+                )?;
+                Ok(StructuralResultClaimBinding {
+                    claim: claim.claim,
+                    path: path.to_vec(),
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        current_claims.replace(completion.place, &completion.path, &relative)?;
         operations.loan_completions.push(LoanCompletion {
             operation,
             place: completion.place,

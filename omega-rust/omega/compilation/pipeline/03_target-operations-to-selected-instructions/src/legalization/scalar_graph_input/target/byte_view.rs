@@ -66,15 +66,33 @@ impl Checker<'_> {
                             && owner.structural_parameters.iter().any(|parameter| {
                                 parameter.place == *place
                                     && parameter.structural_type == *structural_type
-                                    && (parameter.multiplicity
-                                        == terminal_psi::StructuralMultiplicity::Unrestricted
-                                        || parameter.multiplicity
-                                            == terminal_psi::StructuralMultiplicity::Affine
-                                            && matches!(
-                                            parameter.access,
-                                            terminal_psi::StructuralAccess::MutableBorrow
-                                                | terminal_psi::StructuralAccess::WriteOnlyBorrow
-                                        ))
+                                    && self
+                                        .types
+                                        .iter()
+                                        .find(|row| row.id == parameter.structural_type)
+                                        .is_some_and(|row| {
+                                            match row.shape {
+                                        terminal_psi::StructuralTypeShape::ByteSequence(
+                                            terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                                                ..
+                                            },
+                                        ) => parameter.multiplicity
+                                            == terminal_psi::StructuralMultiplicity::Unrestricted,
+                                        terminal_psi::StructuralTypeShape::ByteSequence(
+                                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                                ..
+                                            }
+                                            | terminal_psi::ByteSequenceCarrier::BoundedView {
+                                                ..
+                                            },
+                                        ) => terminal_semantics::descriptor_parameter_access(
+                                            parameter,
+                                            self.types.iter(),
+                                        )
+                                        .is_some(),
+                                        _ => false,
+                                    }
+                                        })
                                     && self.optimized.arrival_parameter(source) == Some(parameter)
                                     && parameter.projected_qualifications.is_empty()
                             })

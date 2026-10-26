@@ -1,12 +1,13 @@
 //! Physical backing of a completed descriptor, independent of scalar identity.
 //! Both compatibility and write invalidation consume this same association.
-//! Enclosures are conservative, every alternative must resolve, and a missing
-//! lifetime/address bridge stays unavailable. The caller may resolve an
-//! unchanged loan at its capture's own completion cut; explicit unavailable
-//! storage never invokes that resolver or recovers an old initializer.
-use arena::Handle;
+//! Every selected/profile alternative must resolve. Frozen descriptor geometry
+//! stays separate from deferred inventory: only the caller can authenticate a
+//! loan at its original completion cut. No lifetime root supplies an address.
+use arena::{Handle, HandleSpan};
 use checked_trees::{CapturedPlace, FlowControlFacts, FlowOperandFact};
 use facts::PlaceSegment;
+
+use super::{FrozenReferenceSelection, frozen_reference_leaf};
 
 type Query = (Handle<FlowOperandFact>, Vec<PlaceSegment>);
 type UnchangedLoan<'a> =
@@ -24,6 +25,7 @@ pub fn reference_backing_places(
         control,
         unchanged_loan,
         active: Vec::new(),
+        active_profiles: Vec::new(),
     }
     .places(operand, path)
 }
@@ -33,6 +35,15 @@ struct Resolver<'a, 'resolver> {
     control: &'a FlowControlFacts,
     unchanged_loan: &'resolver mut UnchangedLoan<'a>,
     active: Vec<Query>,
+    active_profiles: Vec<Handle<checked_trees::FlowOperandRetention>>,
+}
+
+/// Scratch result of a complete retention profile. Unchanged is distinct from
+/// a proved empty immutable image; mixing it with resolved alternatives cannot
+/// silently drop the alternative whose pointer was unavailable.
+enum ProfileBacking {
+    Known(Vec<CapturedPlace>),
+    Unchanged,
 }
 
 impl Resolver<'_, '_> {
@@ -56,22 +67,62 @@ impl Resolver<'_, '_> {
         operand: Handle<FlowOperandFact>,
         path: &[PlaceSegment],
     ) -> Option<Vec<CapturedPlace>> {
-        let capture = self.control.operands.get(operand);
-        if path.is_empty()
-            && capture.alternatives.is_empty()
-            && crate::reference_shell(self.program, capture.type_reference).is_some()
-            && let Some(profile) = self.profile(capture)
-            && profile.enclosing_storage.is_valid()
-        {
-            return self.enclosing(profile.enclosing_storage);
+        let capture = *self.control.operands.get(operand);
+        if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion {
+            let rows = self.control.operand_alternatives.span(alternatives)?;
+            if rows.is_empty() || rows.iter().any(|row| !row.source_arm.is_valid()) {
+                return None;
+            }
+            let values = rows.iter().map(|row| row.value).collect::<Vec<_>>();
+            let mut output = Vec::new();
+            for value in values {
+                Self::append(&mut output, self.places(value, path)?);
+            }
+            return Some(output);
+        }
+        match frozen_reference_leaf(self.program, self.control, operand, path) {
+            FrozenReferenceSelection::Unavailable => return None,
+            FrozenReferenceSelection::Endpoint { leaf, .. } => {
+                if leaf.referents.is_empty() {
+                    let profiles = super::captured_retention_profiles_at_path(
+                        self.program,
+                        self.control,
+                        &capture,
+                        path,
+                    )?;
+                    if profiles.is_empty() {
+                        return None;
+                    }
+                    // A frozen leaf's declared lifetime profile can retain
+                    // debts beyond its actual pointer. Resolve its authenticated
+                    // descriptor/supplier graph just as other completed values
+                    // do; empty address inventory alone proves no image scope.
+                    let mut output = Vec::new();
+                    for profile in profiles {
+                        match self.profile_backing(profile)? {
+                            ProfileBacking::Known(places) => Self::append(&mut output, places),
+                            // No frozen address and no complete profile cannot
+                            // recover the current contents of its former slot.
+                            ProfileBacking::Unchanged => return None,
+                        }
+                    }
+                    return Some(output);
+                }
+                return self.referents_or_loan(operand, path, leaf.referents);
+            }
+            FrozenReferenceSelection::NotFrozen | FrozenReferenceSelection::ThroughReference => {}
         }
         if path.is_empty()
-            && capture.alternatives.is_empty()
             && crate::reference_shell(self.program, capture.type_reference).is_some()
-            && let Some(profile) = self.profile(capture)
-            && !profile.enclosing_regions.is_empty()
+            && let Some(profile) = self.profile(&capture)
+            && profile.alternatives.is_empty()
         {
-            return self.regions(profile.enclosing_regions);
+            if profile.enclosing_storage.is_valid() {
+                return self.enclosing(profile.enclosing_storage);
+            }
+            if !profile.enclosing_regions.is_empty() {
+                return self.regions(profile.enclosing_regions);
+            }
         }
         let Some(selected) = super::reference_captures_at_path(
             self.program,
@@ -92,16 +143,22 @@ impl Resolver<'_, '_> {
             let places = if !selected.projection.is_empty() {
                 self.places(selected.capture, &selected.projection)?
             } else {
-                let descriptor = self.control.operands.get(selected.capture);
-                let profile = self.profile(descriptor);
-                // Literal-authenticated pointer scope is independent of the
-                // signature's lifetime debts. Those roots remain in retention
-                // for custody; they do not make immutable image bytes overlap
-                // a caller's writable local storage.
-                if profile.is_some_and(|profile| profile.immutable_image) {
-                    continue;
+                if !self.control.operands.is_valid(selected.capture) {
+                    return None;
                 }
-                if let Some(profile) = profile
+                let descriptor = *self.control.operands.get(selected.capture);
+                let profile = self.profile(&descriptor);
+                if profile.is_some_and(|profile| !profile.alternatives.is_empty()) {
+                    match self.profile_backing(descriptor.retention)? {
+                        ProfileBacking::Known(places) => places,
+                        ProfileBacking::Unchanged => {
+                            needs_unchanged_loan = true;
+                            continue;
+                        }
+                    }
+                } else if profile.is_some_and(|profile| profile.immutable_image) {
+                    continue;
+                } else if let Some(profile) = profile
                     && profile.enclosing_storage.is_valid()
                 {
                     self.enclosing(profile.enclosing_storage)?
@@ -110,44 +167,23 @@ impl Resolver<'_, '_> {
                 {
                     self.regions(profile.enclosing_regions)?
                 } else if !descriptor.referents.is_empty() {
-                    self.referents(descriptor)?
+                    self.referents_or_loan(selected.capture, &[], descriptor.referents)?
                 } else {
-                    let Some(suppliers) = super::descriptor_suppliers(
-                        self.control,
-                        descriptor.retention,
-                        &mut Vec::new(),
-                    ) else {
-                        needs_unchanged_loan = true;
-                        continue;
-                    };
-                    if suppliers.is_empty() {
-                        return None;
+                    match self.profile_backing(descriptor.retention)? {
+                        ProfileBacking::Known(places) => places,
+                        ProfileBacking::Unchanged => {
+                            needs_unchanged_loan = true;
+                            continue;
+                        }
                     }
-                    let mut places = Vec::new();
-                    for supplier in suppliers {
-                        let projection = self
-                            .control
-                            .operand_retained_paths
-                            .span(supplier.projection)?;
-                        places.extend(self.places(supplier.operand, projection)?);
-                    }
-                    places
                 }
             };
-            for place in places {
-                if !output.contains(&place) {
-                    output.push(place);
-                }
-            }
+            Self::append(&mut output, places);
         }
         if needs_unchanged_loan {
-            // Resolve the original observation at its completion, not a
-            // producer before its loan existed or a later replaced home.
-            for place in (self.unchanged_loan)(operand, path)? {
-                if !output.contains(&place) {
-                    output.push(place);
-                }
-            }
+            // The original query identifies its completion cut, not an older
+            // producer before loan formation or a newer same-slot occupant.
+            Self::append(&mut output, (self.unchanged_loan)(operand, path)?);
         }
         Some(output)
     }
@@ -159,28 +195,116 @@ impl Resolver<'_, '_> {
             .then(|| *self.control.operand_retentions.get(capture.retention))
     }
 
-    /// Every candidate contributes to the conservative footprint. One missing
-    /// candidate withholds coverage; no region is an exact pointer or permission.
+    fn profile_backing(
+        &mut self,
+        profile: Handle<checked_trees::FlowOperandRetention>,
+    ) -> Option<ProfileBacking> {
+        if !profile.is_valid() {
+            return Some(ProfileBacking::Unchanged);
+        }
+        if !self.control.operand_retentions.is_valid(profile) {
+            return None;
+        }
+        if self.active_profiles.contains(&profile) {
+            return None;
+        }
+        self.active_profiles.push(profile);
+        let result = self.resolve_profile(profile);
+        self.active_profiles.pop();
+        result
+    }
+
+    fn resolve_profile(
+        &mut self,
+        profile: Handle<checked_trees::FlowOperandRetention>,
+    ) -> Option<ProfileBacking> {
+        let row = *self.control.operand_retentions.get(profile);
+        if !row.alternatives.is_empty() {
+            // Alternatives are profiles, not fake evaluated child operands.
+            self.control.operand_retentions.span(row.alternatives)?;
+            let handles = row.alternatives.handles().collect::<Vec<_>>();
+            let mut output = Vec::new();
+            let mut known = false;
+            let mut unchanged = false;
+            for profile in handles {
+                match self.profile_backing(profile)? {
+                    ProfileBacking::Known(places) => {
+                        known = true;
+                        Self::append(&mut output, places);
+                    }
+                    ProfileBacking::Unchanged => unchanged = true,
+                }
+            }
+            return if known && unchanged {
+                None
+            } else if unchanged {
+                Some(ProfileBacking::Unchanged)
+            } else {
+                Some(ProfileBacking::Known(output))
+            };
+        }
+        // Image authentication describes pointer storage independently of
+        // retained signature lifetime debts; alternatives were joined above.
+        if row.immutable_image {
+            return Some(ProfileBacking::Known(Vec::new()));
+        }
+        if row.enclosing_storage.is_valid() {
+            return Some(ProfileBacking::Known(
+                self.enclosing(row.enclosing_storage)?,
+            ));
+        }
+        if !row.enclosing_regions.is_empty() {
+            return Some(ProfileBacking::Known(self.regions(row.enclosing_regions)?));
+        }
+        if row.descriptor.is_valid() {
+            return Some(ProfileBacking::Known(self.places(row.descriptor, &[])?));
+        }
+        if row.suppliers.is_empty() {
+            return Some(ProfileBacking::Unchanged);
+        }
+        let suppliers = self
+            .control
+            .operand_retained_suppliers
+            .span(row.suppliers)?
+            .to_vec();
+        if suppliers.is_empty() {
+            return None;
+        }
+        let mut output = Vec::new();
+        for supplier in suppliers {
+            let path = self
+                .control
+                .operand_retained_paths
+                .span(supplier.projection)?
+                .to_vec();
+            Self::append(&mut output, self.places(supplier.operand, &path)?);
+        }
+        Some(ProfileBacking::Known(output))
+    }
+
+    /// Every region contributes to the conservative interference footprint.
+    /// These are admitted WithinRegion inputs, not exact pointer suppliers.
+    /// One unavailable region withholds the complete result.
     fn regions(
         &mut self,
-        regions: arena::HandleSpan<checked_trees::FlowOperandRetainedRegion>,
+        regions: HandleSpan<checked_trees::FlowOperandRetainedRegion>,
     ) -> Option<Vec<CapturedPlace>> {
-        let mut output = Vec::new();
-        for region in self
+        let regions = self
             .control
             .operand_retained_regions
             .span(regions)?
-            .to_vec()
-        {
+            .to_vec();
+        if regions.is_empty() {
+            return None;
+        }
+        let mut output = Vec::new();
+        for region in regions {
             let projection = self
                 .control
                 .operand_retained_paths
-                .span(region.projection)?;
-            for place in self.places(region.operand, projection)? {
-                if !output.contains(&place) {
-                    output.push(place);
-                }
-            }
+                .span(region.projection)?
+                .to_vec();
+            Self::append(&mut output, self.places(region.operand, &projection)?);
         }
         Some(output)
     }
@@ -189,36 +313,110 @@ impl Resolver<'_, '_> {
         if !self.control.operands.is_valid(enclosing) {
             return None;
         }
-        let storage = self.control.operands.get(enclosing);
+        let storage = *self.control.operands.get(enclosing);
         if crate::reference_shell(self.program, storage.type_reference).is_some()
             || crate::slice_view_shell(self.program, storage.type_reference, &[]).is_some()
         {
             return self.places(enclosing, &[]);
         }
-        // Owned bytes lent at formation are an address, not a descriptor
-        // stored in those bytes. Their contents need not contain a pointer.
-        self.referents(storage)
+        // Owned bytes supply original address geometry, not a descriptor in
+        // their contents. Deferred inventory still requires its checked loan.
+        self.referents_or_loan(enclosing, &[], storage.referents)
     }
 
-    fn referents(&self, capture: &FlowOperandFact) -> Option<Vec<CapturedPlace>> {
-        if capture.referents.is_empty() {
+    fn referents_or_loan(
+        &mut self,
+        operand: Handle<FlowOperandFact>,
+        path: &[PlaceSegment],
+        span: HandleSpan<checked_trees::FlowOperandReferent>,
+    ) -> Option<Vec<CapturedPlace>> {
+        let referents = self.control.operand_referents.span(span)?;
+        if referents.is_empty() {
             return None;
         }
-        self.control
-            .operand_referents
-            .span(capture.referents)?
-            .iter()
-            .map(|referent| {
-                Some(CapturedPlace {
-                    incoming_reference: Handle::invalid(),
-                    root: referent.root,
-                    segments: self
-                        .control
-                        .operand_referent_segments
-                        .span(referent.segments)?
-                        .to_vec(),
-                })
-            })
-            .collect()
+        for referent in referents {
+            if referent.formation.is_valid() {
+                if !self
+                    .control
+                    .referent_formations
+                    .is_valid(referent.formation)
+                {
+                    return None;
+                }
+                let formation = self.control.referent_formations.get(referent.formation);
+                if formation.owner.is_valid() && !self.control.operands.is_valid(formation.owner) {
+                    return None;
+                }
+            }
+        }
+        let deferred = |referent: &checked_trees::FlowOperandReferent| {
+            self.control
+                .referent_formations
+                .is_valid(referent.formation)
+                && self
+                    .control
+                    .referent_formations
+                    .get(referent.formation)
+                    .owner
+                    .is_valid()
+        };
+        if referents.iter().any(deferred) {
+            if !referents.iter().all(deferred) {
+                return None;
+            }
+            return (self.unchanged_loan)(operand, path);
+        }
+        direct_referent_places(self.control, span)
     }
+
+    fn append(output: &mut Vec<CapturedPlace>, places: Vec<CapturedPlace>) {
+        for place in places {
+            if !output.contains(&place) {
+                output.push(place);
+            }
+        }
+    }
+}
+
+/// Geometry explicitly captured by a producer, without deferred inventory.
+/// An invalid nonzero formation or any owned-inventory namespace withholds
+/// these coordinates. Zero formation is the producer's direct geometry lane;
+/// this query supplies no case, permission, membership or lifetime evidence.
+pub fn direct_referent_places(
+    control: &FlowControlFacts,
+    span: HandleSpan<checked_trees::FlowOperandReferent>,
+) -> Option<Vec<CapturedPlace>> {
+    let referents = control.operand_referents.span(span)?;
+    if referents.is_empty() {
+        return None;
+    }
+    let mut output = Vec::new();
+    for referent in referents {
+        if !referent.root.is_valid() {
+            return None;
+        }
+        if referent.formation.is_valid() {
+            if !control.referent_formations.is_valid(referent.formation)
+                || control
+                    .referent_formations
+                    .get(referent.formation)
+                    .owner
+                    .is_valid()
+            {
+                return None;
+            }
+        }
+        let place = CapturedPlace {
+            incoming_reference: Handle::invalid(),
+            root: referent.root,
+            segments: control
+                .operand_referent_segments
+                .span(referent.segments)?
+                .to_vec(),
+        };
+        if !output.contains(&place) {
+            output.push(place);
+        }
+    }
+    Some(output)
 }

@@ -6,9 +6,10 @@
 use crate::TypedTrees;
 use crate::name::Identifier;
 use crate::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+use crate::typed_trees::ClosedConformanceApplicationSite;
 
 impl TypedTrees {
-    pub fn prepare_closed_conformance_scopes(&mut self) -> Result<(), &'static str> {
+    pub fn prepare_closed_conformance_scopes(&mut self) -> Result<(), String> {
         let pending = self
             .closed_conformance_application_sites()
             .into_iter()
@@ -17,7 +18,8 @@ impl TypedTrees {
         for (site, binding_application, application) in pending {
             if !binding_application.is_valid() {
                 return Err(
-                    "closed implementation application lost its supplying source application",
+                    "closed implementation application lost its supplying source application"
+                        .into(),
                 );
             }
             // Specialization owns the executable body, not its caller's regions.
@@ -38,7 +40,23 @@ impl TypedTrees {
                 .collect::<Vec<_>>();
             let declaration = self
                 .conformance_by_symbol(application.declaration)
-                .ok_or("closed implementation application lost its declaration")?;
+                .ok_or_else(|| {
+                    let source_owner = match site {
+                        ClosedConformanceApplicationSite::TraitArgument(handle) => self
+                            .trait_implementation_applications
+                            .get(handle)
+                            .source_scope
+                            .supplying_owner(),
+                        _ => symbols::SymbolHandle::invalid(),
+                    };
+                    format!(
+                        "closed implementation application lost its declaration: site={site:?}, declaration={:?} ({:?}), supplying_application={binding_application:?}, generated_owner={owner:?} ({:?}), retained_source_owner={source_owner:?} ({:?})",
+                        application.declaration,
+                        self.symbols.display_path(application.declaration, "::"),
+                        self.symbols.display_path(owner, "::"),
+                        self.symbols.display_path(source_owner, "::"),
+                    )
+                })?;
             let scope = AppliedTraitScope::from_conformance_application(
                 self,
                 declaration,

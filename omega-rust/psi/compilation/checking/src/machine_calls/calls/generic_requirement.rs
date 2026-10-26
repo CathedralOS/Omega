@@ -130,6 +130,7 @@ pub(super) fn validate_requirement_call_arguments(
     requirement: &crate::declarations::traits::GenericBoundRequirement<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     validate_call_arguments(
         program,
@@ -174,6 +175,7 @@ pub(super) fn validate_requirement_call_arguments(
             argument_matches_call_carrier(program, machine.symbol, argument, required, &[])
         },
         diagnostics,
+        formation_obligations,
     );
 }
 
@@ -237,6 +239,7 @@ pub(super) fn validate_named_conformance_arguments(
     requirement: &crate::declarations::traits::GenericBoundRequirement<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     // The enclosing trait and the member's own invocation telescope are
     // simultaneous independent frames. Derive the latter from this exact call,
@@ -309,6 +312,7 @@ pub(super) fn validate_named_conformance_arguments(
         requirement,
         writable_roots,
         diagnostics,
+        formation_obligations,
     );
     for (argument, parameter) in arguments.iter().zip(&parameters) {
         let Some(actual) = declared_place_type(program, machine, state, *argument) else {

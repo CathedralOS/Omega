@@ -23,7 +23,7 @@ pub fn has_exact_domain_case_membership_meaning(
         return false;
     }
     exact_case_membership_meaning(program, expression, comparison, |subject, owner| {
-        membership_subject_matches_owner(program, None, subject, owner, |subject| {
+        membership_subject_matches_owner(program, subject, owner, |subject| {
             subject_type(program, DefinitionSubject::Domain(domain), subject, 0)
         })
     })
@@ -49,7 +49,7 @@ pub fn has_exact_data_case_membership_meaning(
         return false;
     }
     exact_case_membership_meaning(program, expression, comparison, |subject, owner| {
-        membership_subject_matches_owner(program, None, subject, owner, |subject| {
+        membership_subject_matches_owner(program, subject, owner, |subject| {
             subject_type(program, DefinitionSubject::Data(data), subject, 0)
         })
     })

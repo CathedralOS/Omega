@@ -131,6 +131,9 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     StructuralLocalBorrow {
         symbol: SymbolHandle,
         root_type_identity: TypeIdentityId,
+        /// Producer-spelled crossings of this local's root shells, before the
+        /// logical projection suffix. Nested field reference hops are excluded.
+        root_reference_hops: u32,
     },
     /// An already evaluated structural expression. The enclosing operation
     /// sequence establishes its storage before a consumer observes it; this
@@ -203,6 +206,11 @@ pub struct CheckedUnitStructuralArgumentPlan {
     /// the callee whole through `call_projection`. Other arguments retain their
     /// exact field and fixed or captured-index path into the call.
     pub path: Vec<CheckedUnitStructuralPathSegment>,
+    /// Authored point-selector children in source order, owned by the scalar
+    /// computation operand arena. They select the index suffix after an already
+    /// completed alias prefix. Fixed coordinates keep their geometry; dynamic
+    /// coordinates must name the same child in the path.
+    pub projection_evaluations: arena::HandleSpan<crate::CheckedScalarComputationHandle>,
     pub type_identity: TypeIdentityId,
     /// Explicit access presented at this call site. This is independently
     /// checked against both the source carrier and target parameter.
@@ -216,6 +224,7 @@ impl Default for CheckedUnitStructuralArgumentPlan {
                 symbol: SymbolHandle::invalid(),
             },
             path: Vec::new(),
+            projection_evaluations: Default::default(),
             type_identity: TypeIdentityId::default(),
             access: CheckedStructuralAccess::Owned,
         }
@@ -239,22 +248,135 @@ impl CheckedUnitStructuralArgumentPlan {
     /// Address operands the call schedule must capture, in projection order.
     /// Parameter and local SSA indices already name captured values; computed
     /// indices and stored-field observations require evaluation at this slot.
-    pub fn call_selector_segments(
+    pub fn call_selector_positions(&self) -> impl Iterator<Item = usize> + '_ {
+        let path = self.call_projection();
+        let index_count = path
+            .iter()
+            .filter(|segment| Self::is_index(segment))
+            .count();
+        let inherited = index_count.saturating_sub(self.projection_evaluations.len());
+        let mut ordinal = 0;
+        path.iter()
+            .enumerate()
+            .filter_map(move |(position, segment)| {
+                let index = Self::is_index(segment);
+                let authored =
+                    index && ordinal >= inherited && !self.projection_evaluations.is_empty();
+                ordinal += usize::from(index);
+                (authored
+                    || matches!(
+                        segment,
+                        CheckedUnitStructuralPathSegment::ComputedIndex(_)
+                            | CheckedUnitStructuralPathSegment::RuntimeIndex(
+                                super::CheckedRuntimeIndex::StructuralField(_)
+                                    | super::CheckedRuntimeIndex::StorageRead { .. }
+                            )
+                    ))
+                .then_some(position)
+            })
+    }
+
+    fn is_index(segment: &CheckedUnitStructuralPathSegment) -> bool {
+        matches!(
+            segment,
+            CheckedUnitStructuralPathSegment::FixedIndex(_)
+                | CheckedUnitStructuralPathSegment::ComputedIndex(_)
+                | CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+        )
+    }
+
+    /// The supplied span is owned by CheckedScalarComputationPlans.operands.
+    /// Its children append to a previously completed alias prefix; they never
+    /// replace the canonical coordinates or supply access/bounds evidence.
+    pub fn retain_projection_evaluations(
+        &mut self,
+        evaluations: arena::HandleSpan<crate::CheckedScalarComputationHandle>,
+        operands: &arena::Arena<crate::CheckedScalarComputationHandle>,
+    ) -> Option<()> {
+        if !Self::projection_evaluations_match(&self.path, evaluations, operands) {
+            return None;
+        }
+        self.projection_evaluations = evaluations;
+        Some(())
+    }
+
+    pub fn projection_evaluations_match(
+        path: &[CheckedUnitStructuralPathSegment],
+        evaluations: arena::HandleSpan<crate::CheckedScalarComputationHandle>,
+        operands: &arena::Arena<crate::CheckedScalarComputationHandle>,
+    ) -> bool {
+        let Some(children) = (if evaluations.is_empty() {
+            Some(&[][..])
+        } else {
+            operands.span(evaluations)
+        }) else {
+            return false;
+        };
+        let indexes = path
+            .iter()
+            .filter(|segment| Self::is_index(segment))
+            .count();
+        let Some(inherited) = indexes.checked_sub(children.len()) else {
+            return false;
+        };
+        path.iter()
+            .filter(|segment| Self::is_index(segment))
+            .skip(inherited)
+            .zip(children)
+            .all(|(segment, child)| {
+                child.is_valid()
+                    && match segment {
+                        CheckedUnitStructuralPathSegment::FixedIndex(_) => true,
+                        CheckedUnitStructuralPathSegment::ComputedIndex(expected) => {
+                            expected == child
+                        }
+                        _ => false,
+                    }
+            })
+    }
+
+    pub fn projection_computation_operands<'a>(
+        path: &'a [CheckedUnitStructuralPathSegment],
+        evaluations: arena::HandleSpan<crate::CheckedScalarComputationHandle>,
+        operands: &'a arena::Arena<crate::CheckedScalarComputationHandle>,
+    ) -> impl Iterator<Item = crate::CheckedScalarComputationHandle> + 'a {
+        path.iter()
+            .filter_map(move |segment| match segment {
+                CheckedUnitStructuralPathSegment::ComputedIndex(root) if evaluations.is_empty() => {
+                    Some(*root)
+                }
+                _ => None,
+            })
+            .chain(
+                evaluations
+                    .handles()
+                    .map(move |handle| *operands.get(handle)),
+            )
+    }
+
+    pub fn selector_computation(
         &self,
-    ) -> impl Iterator<Item = (usize, &super::CheckedUnitStructuralPathSegment)> {
-        self.call_projection()
+        position: usize,
+        operands: &arena::Arena<crate::CheckedScalarComputationHandle>,
+    ) -> Option<crate::CheckedScalarComputationHandle> {
+        let indexes = self
+            .path
             .iter()
             .enumerate()
-            .filter(|(_, segment)| {
-                matches!(
-                    segment,
-                    super::CheckedUnitStructuralPathSegment::ComputedIndex(_)
-                        | super::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                            super::CheckedRuntimeIndex::StructuralField(_)
-                                | super::CheckedRuntimeIndex::StorageRead { .. }
-                        )
-                )
-            })
+            .filter(|(_, segment)| Self::is_index(segment))
+            .map(|(position, _)| position)
+            .collect::<Vec<_>>();
+        let inherited = indexes
+            .len()
+            .checked_sub(self.projection_evaluations.len())?;
+        let ordinal = indexes
+            .iter()
+            .position(|candidate| *candidate == position)?;
+        let ordinal = ordinal.checked_sub(inherited)?;
+        operands
+            .span(self.projection_evaluations)?
+            .get(ordinal)
+            .copied()
     }
 
     /// Complete-source structural-result argument: an empty projection path.
@@ -266,6 +388,7 @@ impl CheckedUnitStructuralArgumentPlan {
         Self {
             source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
             path: Vec::new(),
+            projection_evaluations: Default::default(),
             type_identity,
             access,
         }
@@ -289,15 +412,11 @@ impl CheckedUnitStructuralArgumentPlan {
     /// Executable children of this argument, in its retained source order.
     /// Range endpoints and projected selectors share the same call-occurrence
     /// and dependency traversal instead of replaying their source expressions.
-    pub fn computation_operands(
-        &self,
-    ) -> impl Iterator<Item = crate::CheckedScalarComputationHandle> + '_ {
-        self.path
-            .iter()
-            .filter_map(|segment| match segment {
-                super::CheckedUnitStructuralPathSegment::ComputedIndex(root) => Some(*root),
-                _ => None,
-            })
+    pub fn computation_operands<'a>(
+        &'a self,
+        operands: &'a arena::Arena<crate::CheckedScalarComputationHandle>,
+    ) -> impl Iterator<Item = crate::CheckedScalarComputationHandle> + 'a {
+        Self::projection_computation_operands(&self.path, self.projection_evaluations, operands)
             .chain(self.scalar_operands().filter_map(|operand| match operand {
                 CheckedCallScalarArgument::Computation(root) => Some(*root),
                 CheckedCallScalarArgument::Pure(_) => None,
@@ -394,8 +513,21 @@ impl CheckedUnitStructuralArgumentPlan {
         }
     }
 
+    /// Count only root crossings spelled by the checked source producer.
+    pub fn borrowed_root_reference_hops(&self) -> u32 {
+        match &self.source {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
+                root_reference_hops,
+                ..
+            } => *root_reference_hops,
+            _ => 0,
+        }
+    }
+
     /// A range's source root belongs to collection evaluation. Its completed
     /// call argument is the derived descriptor, in a different namespace.
+    /// projected_borrowed_path omits inherited root reference crossings, so
+    /// these paths spell zero root hops while retaining every nested crossing.
     pub fn subslice_root_type_identity(&self) -> Option<TypeIdentityId> {
         match &self.source {
             CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {

@@ -3,8 +3,9 @@
 //! Target-neutral admission and execution of compile-time Omega machines.
 //!
 //! Start at `build_time_evaluation.rs`: build machines are admitted against the
-//! checked program, executed through the checked interpreter, and their results
-//! installed as const lengths, const domain facts, layout plans, placed views,
+//! checked program. Admitted constants use common Terminal production and
+//! execution; other Build jobs retain their checked-interpreter service. Results
+//! are installed as const lengths, const domain facts, layout plans, placed views,
 //! and wire plans. Omega schedules these services; it never reinterprets them.
 //!
 //! `build_time_evaluation.rs` is the lifecycle root. The evaluators are grouped
@@ -22,7 +23,13 @@
 pub mod assumed_bindings;
 mod build_time_evaluation;
 mod const_evaluation;
+mod evaluation_accounting;
 mod fnv;
+pub use evaluation_accounting::{
+    PureEvaluationOutcome, PureEvaluationProgram, PureEvaluationReceipt, PureEvaluationRecord,
+    PureTerminalEvaluationOutcome, PureTerminalEvaluationReceipt, RecordedPreCheck,
+    SourceCompletionAccounting,
+};
 mod layouts;
 mod machine_execution;
 pub mod provider_declarations;

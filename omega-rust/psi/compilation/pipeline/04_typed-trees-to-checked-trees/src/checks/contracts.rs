@@ -224,6 +224,7 @@ pub(super) fn check_flow_call_contracts(
                 )
             });
             phase_profile::scope("05.d.7.3b.2.exits.d.exit_ensures", || {
+                let available_content = entailment.content_sources();
                 check_exit_ensures(
                     program,
                     facts,
@@ -231,6 +232,7 @@ pub(super) fn check_flow_call_contracts(
                     exit_flow,
                     entailment.for_machine(facts, state_flow.machine_symbol),
                     &content_plans,
+                    &available_content,
                     call_frames,
                     &mut cyclic_headers,
                     &mut recipe_obligations,

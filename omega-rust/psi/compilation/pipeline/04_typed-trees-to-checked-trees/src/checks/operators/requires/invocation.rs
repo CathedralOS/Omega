@@ -298,6 +298,65 @@ impl<'facts> InvocationContexts<'facts> {
         self.flow
     }
 
+    /// A selected expression call shares ordinary calls' operation-entry
+    /// proof owner. Its completed operands and saved Boolean observations can
+    /// establish a requirement absent from the smaller semantic-context
+    /// vocabulary. That query stops before this call's result and guarantees.
+    /// Missing, duplicate or substituted capture still establishes nothing.
+    pub(crate) fn proves_selected_requirement(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        origin: checked_trees::CheckedValueOrigin,
+        source_expression: ExpressionHandle,
+        required_expression: ExpressionHandle,
+    ) -> bool {
+        let Some(invocation) = &self.invocation else {
+            return false;
+        };
+        let checked_trees::CheckedValueOrigin::StateStatement {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            ..
+        } = origin
+        else {
+            return false;
+        };
+        let operands = match invocation {
+            CapturedInvocation::Operator(invocation) => invocation.operands,
+            CapturedInvocation::Call { call, .. } => call.operands,
+        };
+        let Some(operands) = self.flow.control.operands.span(operands) else {
+            return false;
+        };
+        if operands.iter().any(|operand| {
+            operand.state_symbol != state_symbol || operand.statement_index != statement_index
+        }) {
+            return false;
+        }
+        let Some((machine, state)) =
+            validation::machine_state_by_symbols(program, machine_symbol, state_symbol)
+        else {
+            return false;
+        };
+        let Some(call) = program.expression_table.call_node(source_expression) else {
+            return false;
+        };
+        validation::selected_value_call_requirement_entailed(
+            program,
+            machine,
+            state,
+            statement_index,
+            validation::CallSite::Expression {
+                expression: source_expression,
+                call,
+            },
+            required_expression,
+            false,
+            None,
+        )
+    }
+
     pub(crate) fn operand_at(
         &self,
         ordinal: usize,

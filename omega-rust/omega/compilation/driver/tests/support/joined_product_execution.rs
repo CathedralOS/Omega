@@ -37,6 +37,7 @@ pub fn execute_report(report: compiler::CompileReport, output: &std::path::Path)
     let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
         native_provider: None,
         x86_flags: None,
+        memory_ordering: None,
         provider_proposal: None,
         artifact: &reloaded,
         target: Some(

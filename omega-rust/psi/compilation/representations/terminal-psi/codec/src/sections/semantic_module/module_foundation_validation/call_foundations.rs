@@ -412,7 +412,10 @@ pub(super) fn validate_call_structural(
         || actual_result.structural_type != expected_result.structural_type
         || actual_result.multiplicity != expected_result.multiplicity
         || actual_result.qualifications != expected_result.qualifications
-        || actual_result.projected_qualifications != expected_result.projected_qualifications
+        || !expected_result
+            .projected_qualifications
+            .iter()
+            .all(|row| actual_result.projected_qualifications.contains(row))
     {
         return malformed("structural call has the wrong callee signature or structural arity");
     }
@@ -433,6 +436,23 @@ pub(super) fn validate_call_structural(
         return malformed(
             "guarded call argument substitution disagrees with its callee declaration",
         );
+    }
+    // A public guarantee and caller-owned preservation have different issuers.
+    // Reconstruct every extra row from the actual post-effect caller history;
+    // neither the receiving annotation nor a callee's private rows prove it.
+    if actual_result
+        .projected_qualifications
+        .iter()
+        .any(|row| !expected_result.projected_qualifications.contains(row))
+    {
+        let preserved = terminal_semantics::ReferenceResultMemberships::new(module)
+            .for_operation(machine, operation)
+            .map_err(CodecError::MalformedStructuralFoundation)?;
+        if actual_result.projected_qualifications.iter().any(|row| {
+            !expected_result.projected_qualifications.contains(row) && !preserved.contains(row)
+        }) {
+            return malformed("structural call adds an unpreserved caller membership");
+        }
     }
     validate_structural_call_result_declaration(module, machine, operation, actual_result)?;
     if exact_payloadless {

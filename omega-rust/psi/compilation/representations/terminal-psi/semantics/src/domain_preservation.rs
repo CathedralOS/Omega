@@ -207,11 +207,27 @@ pub fn domain_predicate_is_closed<'a>(
     predicate_dependencies(types, carrier, predicate).is_some()
 }
 
+/// A closed theory with no carrier observations contains no artifact-local
+/// field or value coordinates. Its proposition can therefore be compared across
+/// catalogs directly. This does not prove the proposition or issue membership.
+pub fn domain_predicate_observes_no_storage<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    carrier: StructuralTypeId,
+    predicate: &StructuralDomainPredicate,
+) -> bool {
+    predicate_dependencies(types, carrier, predicate).is_some_and(|paths| paths.is_empty())
+}
+
 fn storage_path<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     carrier: StructuralTypeId,
     path: &[Segment],
 ) -> Option<Vec<StructuralPathSegment>> {
+    if path.contains(&Segment::Referent) {
+        // A descriptor and its current backing are different storage subjects.
+        // This inline domain framing query has no captured backing/alias cut.
+        return None;
+    }
     if let Some((Segment::Field(field), prefix)) = path.split_last() {
         let mut storage = crate::canonical_structural_storage_path(types.clone(), carrier, prefix)?;
         let field = crate::observed_field_declaration(types, carrier, prefix, *field)?;

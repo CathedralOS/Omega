@@ -8,6 +8,7 @@
 use super::integer_arithmetic::instruction_scratch;
 use super::{Builder, IntegerSign, SelectedInstructionKind, VirtualRegisterId};
 use crate::SelectedInstructionError;
+use crate::selection::scalar_call_abi::load_transfer;
 
 pub(super) fn load(
     builder: &mut Builder<'_>,
@@ -17,24 +18,9 @@ pub(super) fn load(
     byte_size: u32,
 ) -> Result<(), SelectedInstructionError> {
     let mut operands = vec![pointer, output];
-    let (kind, key) = match byte_size {
-        1 => (
-            SelectedInstructionKind::Load8 { byte_offset },
-            builder.constraints.keys.load8,
-        ),
-        2 => (
-            SelectedInstructionKind::Load16 { byte_offset },
-            builder.constraints.keys.load16,
-        ),
-        4 => (
-            SelectedInstructionKind::Load32 { byte_offset },
-            builder.constraints.keys.load32,
-        ),
-        8 => (
-            SelectedInstructionKind::Load64 { byte_offset },
-            builder.constraints.keys.load64,
-        ),
-        _ => {
+    let (kind, key) = match load_transfer(&builder.constraints.keys, byte_size, byte_offset) {
+        Some(pair) => pair,
+        None => {
             let width = selected_instructions::PackedByteWidth::from_byte_size(
                 byte_size
                     .try_into()

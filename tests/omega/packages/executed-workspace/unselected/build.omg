@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "workspace_unselected");
+    Build::depend_as(builder, "missing", Source::Path { location: "../never_acquired" });
+}

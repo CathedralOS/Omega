@@ -135,6 +135,7 @@ pub(crate) fn build_check_facts(
     operational: OperationalPlan,
     service_reach_inference: flow_effects::ServiceReachInferencePlan,
     mut validation_facts: validation::ProgramValidationFacts,
+    expression_intervals: &[validation::ExpressionInterval],
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(CheckFacts, validation::PreparedEffectPlans), Vec<diagnostics::Diagnostic>> {
     // One resolver serves this immutable fact-construction window, including
@@ -246,6 +247,7 @@ pub(crate) fn build_check_facts(
                 &prepared.values.scalar_expressions,
                 &prepared.operators,
                 &validation_facts.exact_integer_casts,
+                expression_intervals,
                 mutation_summaries,
                 call_frames.as_ref(),
             )
@@ -281,6 +283,7 @@ pub(crate) fn build_check_facts(
     }
     drop(flow_loop_guard);
     let _post_flow_guard = phase_profile::guard("05.d.3.c.post_flow_facts");
+    crate::borrow::accesses::retain_completed_dispatch_extractions(program, &mut prepared);
     phase_profile::scope("05.d.3.c.1.scalar_and_index_plans", || {
         crate::values::retain_nested_call_arguments(
             program,
@@ -296,13 +299,15 @@ pub(crate) fn build_check_facts(
         ) = crate::execution::scalar_computations::build_checked_value_computation_plans(
             program,
             &prepared.operators,
+            &prepared.semantic,
             &prepared.flow,
             &prepared.borrow,
             &prepared.proof,
-            &prepared.values.scalar_expressions,
+            &mut prepared.values.scalar_expressions,
             &validation_facts.exact_integer_casts,
         );
     });
+    crate::execution::content_consumption::attach(program, &mut prepared)?;
     let index_compatibility = phase_profile::scope("05.d.3.c.2.index_compatibility", || {
         index_compatibility::build_index_compatibility_facts(
             program,
@@ -433,6 +438,7 @@ pub(crate) fn build_check_facts(
             &validation_facts.exact_integer_casts,
             &values.scalar_expressions,
             &values.scalar_computations,
+            &values.structural_values,
         )
     })?;
     let nominal_machine_uses = build_nominal_machine_use_facts(

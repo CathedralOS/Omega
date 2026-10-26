@@ -303,8 +303,16 @@ impl<'program> Collector<'program> {
             return Ok(());
         }
         for argument in arguments {
-            if self.program.symbols.get(argument.symbol).kind == SymbolKind::Conformance {
-                self.conformance_declaration(argument.symbol)?;
+            let selected = self.program.symbols.get(argument.symbol);
+            match selected.kind {
+                SymbolKind::Conformance => self.conformance_declaration(argument.symbol)?,
+                SymbolKind::Machine => self.machines.push(argument.symbol),
+                SymbolKind::State
+                    if self.program.symbols.get(selected.parent).kind == SymbolKind::Machine =>
+                {
+                    self.machines.push(selected.parent);
+                }
+                _ => {}
             }
             if argument.type_reference.is_valid() {
                 self.type_child(argument.type_reference)?;

@@ -131,6 +131,8 @@ pub struct ComputedBuildConfig {
     /// Only reached, activation-authenticated choices activate Product rows.
     pub product_selection_requests:
         Vec<language_semantics::declaration_selection::ExecutedProductSelection>,
+    pub behavior_exclusion_requests:
+        Vec<language_semantics::declaration_selection::ExecutedEnumExclusion>,
     pub project_declaration: Option<build_declarations::BuildDeclaration>,
     pub optimization_report_request: optimization_core::OptimizationReportRequest,
     pub evaluation_usage: Option<package_compilation::BuildEvaluationUsage>,

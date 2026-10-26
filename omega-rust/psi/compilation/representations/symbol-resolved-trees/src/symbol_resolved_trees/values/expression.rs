@@ -110,6 +110,10 @@ impl ExpressionTable {
         self.spans.match_arms.span_or_empty(arms)
     }
 
+    pub fn match_arm_mut(&mut self, arm: Handle<TableMatchArm>) -> &mut TableMatchArm {
+        self.spans.match_arms.get_mut(arm)
+    }
+
     pub fn insert_match_fields(
         &mut self,
         fields: impl IntoIterator<Item = TableMatchField>,

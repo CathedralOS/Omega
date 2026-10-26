@@ -19,6 +19,7 @@ pub enum CallSite<'program> {
     },
     TransitionNamed {
         path: &'program typed_trees::statement::TableNamePath,
+        static_machine_parameter: SymbolHandle,
         arguments: arena::HandleSpan<ExpressionHandle>,
         evidence_arguments: &'program [Identifier],
         source_span: source::SourceSpan,
@@ -29,6 +30,20 @@ pub enum CallSite<'program> {
 }
 
 impl<'program> CallSite<'program> {
+    /// The source binder survives executable retargeting in every call
+    /// position. Terminal forwarding changes continuation ownership, not the
+    /// identity of the contract this occurrence selected.
+    pub fn static_machine_parameter(&self) -> SymbolHandle {
+        match self {
+            Self::Statement(call) => call.static_machine_parameter,
+            Self::Expression { call, .. } => call.static_machine_parameter,
+            Self::TransitionNamed {
+                static_machine_parameter,
+                ..
+            } => *static_machine_parameter,
+        }
+    }
+
     /// Parameter carriers belong to the occurrence's applied logical contract.
     /// A selected map's private body may still have open captured binders;
     /// those are not types in the caller and cannot classify its authority.
@@ -215,4 +230,41 @@ pub fn call_site_evidence_arguments<'program>(
             evidence_arguments, ..
         } => evidence_arguments,
     }
+}
+
+/// The applied carrier named by one output namespace. This authenticates only
+/// typed coordinates, never a performed completion, backing or loan permission.
+/// Checked bodies use their own formal identities; opaque selected requirements
+/// use the occurrence's applied logical signature.
+pub fn invocation_output_parameter(
+    program: &dyn crate::CheckingInput,
+    identity: facts::InvocationOutputIdentity,
+) -> Option<&typed_trees::signature::StateParameter> {
+    if !identity.is_valid() {
+        return None;
+    }
+    let (machine, state) = crate::find_state(program, identity.state_symbol)?;
+    let site = find_call_site_in_state(
+        program,
+        machine,
+        state,
+        identity.statement_index,
+        identity.call_ordinal,
+    )?;
+    if let Some((callee, selected)) = crate::find_state(program, site.target_symbol(program))
+        .or_else(|| crate::find_machine_head(program, site.target_symbol(program)))
+        && callee.body_is_present
+        && callee.supply_mode.is_checked_body()
+    {
+        let parameters = program.state_parameters(selected);
+        let position = typed_trees::signature::state_parameter_position(
+            parameters,
+            identity.parameter_symbol,
+        )?;
+        return parameters.get(position);
+    }
+    let parameters = site.parameters(program, machine.symbol)?;
+    let position =
+        typed_trees::signature::state_parameter_position(parameters, identity.parameter_symbol)?;
+    parameters.get(position)
 }

@@ -279,6 +279,8 @@ pub(super) fn closed_domain_indices(
             domain.name.as_str(),
             parameter,
             *argument,
+            parameters,
+            &constraint.arguments,
         )
         .ok()?;
         let TypeReferenceNode::Named { name, .. } =

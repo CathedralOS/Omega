@@ -106,18 +106,6 @@ impl TypeLayoutDescriptor {
             _ => None,
         }
     }
-
-    /// The arithmetic domain (Wrapping/Saturating/Trapping) declared on this
-    /// type via `T in <Domain>`. Defaults to `Exact` for unconstrained types.
-    /// Looks through a leading `&`/`&mut` reference so a `&mut (u8 in Saturating)`
-    /// target still reports its domain at the binary-write site.
-    pub fn arithmetic_domain(&self) -> numerics::arithmetic::ArithmeticDomain {
-        match self {
-            Self::Constrained { domain, .. } => *domain,
-            Self::Reference { referee, .. } => referee.arithmetic_domain(),
-            _ => numerics::arithmetic::ArithmeticDomain::Exact,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

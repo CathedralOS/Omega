@@ -8,12 +8,11 @@ use super::{CheckedTrees, LoweringError};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::unit::attached_unit::argument_evaluation::{Evaluation, ScalarReturnCleanup};
 use crate::unit::unit_cleanup::CleanupRegion;
-use checked_trees::{CheckedScalarBranchDestination, FlowClaimJoinExit, FlowClaimJoinExitKind};
-use terminal_psi::StructuralParameterDeclaration;
-
 mod owner_order;
 mod remaining_partition;
+use checked_trees::{CheckedScalarBranchDestination, FlowClaimJoinExit, FlowClaimJoinExitKind};
 pub(crate) use owner_order::selection;
+use terminal_psi::StructuralParameterDeclaration;
 
 /// Borrowed source authority common to sequence and graph completion.
 #[derive(Clone, Copy)]
@@ -171,10 +170,12 @@ pub(crate) fn for_exit_regions(
             "normal cleanup repeats its selected exit",
         ));
     }
+    let cleanup_control = catalog.control;
     let actions = crate::unit::unit_cleanup::outstanding_actions(
-        catalog.control.actions.span_or_empty(selected_exit.actions),
+        cleanup_control.actions.span_or_empty(selected_exit.actions),
         source.operations,
         source.parameters,
+        cleanup_control,
     );
     let declaration_orders = actions
         .iter()
@@ -182,28 +183,99 @@ pub(crate) fn for_exit_regions(
             owner_order::declaring_order(checked, exit.state_symbol, source, action.source())
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let mut rows = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
+    let mut rows = lower_regions(
+        identities,
+        claims,
+        checked,
+        actions,
+        cleanup_control
+            .normal_exit_regions
+            .span_or_empty(selected_exit.selected_regions),
+        catalog,
+        parameters,
+        evaluation,
+        operations,
+    )?;
+    for (row, order) in rows.iter_mut().zip(declaration_orders) {
+        row.declaration_order = order;
+    }
+    rows = remaining_partition::retain(evaluation, rows, catalog.types, operations)?;
+    let mut regions = crate::unit::unit_cleanup::lower_reference_completion_regions(
+        identities,
+        checked,
+        source.operations,
+        rows,
+        parameters,
+        evaluation,
+        operations,
+        |identities, owner| {
+            lower_regions(
+                identities,
+                claims,
+                checked,
+                cleanup_control.actions.span_or_empty(owner.actions),
+                std::slice::from_ref(&owner.owner),
+                catalog,
+                parameters,
+                evaluation,
+                operations,
+            )
+        },
+        |binding| {
+            let (_, result) = operations
+                .structural_values
+                .iter()
+                .find(|(ordinal, _)| *ordinal == binding)
+                .ok_or(LoweringError::Unsupported(
+                    "deferred reference release has no established carrier",
+                ))?;
+            Ok(result.into())
+        },
+    )?;
+    regions.extend(source.trivial_affine_discards.iter().map(|place| {
+        CleanupRegion::unconditional(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+            *place,
+        ))
+    }));
+    Ok(regions)
+}
+
+/// Every completion action resolves through the same captured value namespace.
+#[allow(clippy::too_many_arguments)]
+fn lower_regions<'actions>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    claims: &[(
+        language_semantics::PermissionClaimIdentity,
+        semantic_vocabulary::ClaimId,
+    )],
+    checked: &CheckedTrees,
+    actions: impl IntoIterator<Item = &'actions checked_trees::CheckedNormalCleanupAction>,
+    selected_regions: &[checked_trees::CheckedUnitStructuralArgumentPlan],
+    catalog: &mut CompletionCleanupCatalog<'_, '_, '_>,
+    parameters: &[StructuralParameterDeclaration],
+    evaluation: &Evaluation,
+    operations: &OperationBuffer,
+) -> Result<Vec<CleanupRegion>, LoweringError> {
+    crate::unit::unit_cleanup::lower_checked_cleanup_regions(
         identities,
         checked,
         actions,
-        catalog
-            .control
-            .normal_exit_regions
-            .span_or_empty(selected_exit.selected_regions),
+        selected_regions,
         catalog.control,
         catalog.types,
         catalog.type_ids,
         |identities, source, path| {
-            let mut storage = evaluation.value_storage(source, parameters, |binding_ordinal| {
-                let (_, result) = operations
-                    .structural_values
-                    .iter()
-                    .find(|(ordinal, _)| *ordinal == binding_ordinal)
-                    .ok_or(LoweringError::Unsupported(
-                        "cleanup result is not established",
-                    ))?;
-                Ok(result.into())
-            })?;
+            let mut storage =
+                evaluation.cleanup_value_storage(source, parameters, |binding_ordinal| {
+                    let (_, result) = operations
+                        .structural_values
+                        .iter()
+                        .find(|(ordinal, _)| *ordinal == binding_ordinal)
+                        .ok_or(LoweringError::Unsupported(
+                            "cleanup result is not established",
+                        ))?;
+                    Ok(result.into())
+                })?;
             storage.path.extend(crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
                 identities, path, storage.selected_type, catalog.types, None, &mut std::iter::empty(), None,
             )?);
@@ -228,36 +300,5 @@ pub(crate) fn for_exit_regions(
             )?;
             Ok(action)
         },
-    )?;
-    // Each checked action lowers to one region; preserve its declaring owner
-    // before partitioning or deferred descriptor completion adds physical rows.
-    for (row, order) in rows.iter_mut().zip(declaration_orders) {
-        row.declaration_order = order;
-    }
-    rows = remaining_partition::retain(evaluation, rows, catalog.types, operations)?;
-    let mut regions = crate::unit::unit_cleanup::lower_reference_completion_regions(
-        identities,
-        checked,
-        source.operations,
-        rows,
-        parameters,
-        evaluation,
-        operations,
-        |binding| {
-            let (_, result) = operations
-                .structural_values
-                .iter()
-                .find(|(ordinal, _)| *ordinal == binding)
-                .ok_or(LoweringError::Unsupported(
-                    "deferred reference release has no established carrier",
-                ))?;
-            Ok(result.into())
-        },
-    )?;
-    regions.extend(source.trivial_affine_discards.iter().map(|place| {
-        CleanupRegion::unconditional(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
-            *place,
-        ))
-    }));
-    Ok(regions)
+    )
 }

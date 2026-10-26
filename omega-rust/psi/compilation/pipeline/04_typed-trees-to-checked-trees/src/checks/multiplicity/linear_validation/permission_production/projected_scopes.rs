@@ -21,6 +21,7 @@ use typed_trees::expression::ExpressionHandle;
 
 struct ProjectedOwner {
     expression: ExpressionHandle,
+    completion: ExpressionHandle,
     path: Vec<facts::PlaceSegment>,
     scope: Option<EvaluationBranch>,
     establishment: usize,
@@ -61,6 +62,7 @@ impl ProjectedScopes {
         };
         self.owners.push(ProjectedOwner {
             expression,
+            completion: event.expression,
             path: path.to_vec(),
             scope: producer.route.last().copied(),
             establishment,
@@ -137,6 +139,7 @@ impl ProjectedScopes {
                 remaining,
                 permissions,
             )?;
+            let disposition_start = dispositions.dispositions.len();
             remaining.observe_ordinary(
                 program,
                 &permissions[first..],
@@ -147,6 +150,15 @@ impl ProjectedScopes {
                 false,
             );
             remaining.retire_storage(root, site.machine, site.state, source, dispositions);
+            // This source operation completed the projection. Keep that exact
+            // lowering coordinate while the scope owner decides death order.
+            let mut ordinal = 0;
+            dispositions.dispositions.for_each_mut(|_, disposition| {
+                if ordinal >= disposition_start {
+                    disposition.completion = owner.completion;
+                }
+                ordinal += 1;
+            });
         }
         Ok(())
     }

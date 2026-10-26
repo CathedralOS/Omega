@@ -19,8 +19,8 @@ use terminal_psi::{
 /// `bypass` accepts the same captured scalar/proof frame as the jump's target.
 /// Skipping the group also skips its case observations and nominal prerequisites.
 /// A live value authorizes its intact cleanup graph. Home retirement instead
-/// ends the already disposed resident storage; a partial frontier is not a
-/// whole value and may enter only that separate, checked RetireHome action.
+/// observes its separate resident binding after regional disposal; binding
+/// availability grants no whole-value authority to the cleanup graph.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum CleanupRequirement {
     WholeValue,
@@ -35,12 +35,20 @@ pub(crate) struct SelectedCleanupGroup {
     pub(crate) bypass: BlockId,
 }
 
+/// Value availability and residence are different observations of one home.
+/// A borrowed parameter supplies its frame binding, never an owned referent.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TrackedRegion {
+    region: StructuralArgument,
+    requirement: CleanupRequirement,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum RegionState {
     Absent,
     Live,
-    /// Exact outstanding holes. A store restores only the subtree it supplies;
-    /// an unrelated write cannot turn a partial occurrence into a whole owner.
+    /// Exact whole-value holes; residence uses only Absent/Live. A store
+    /// restores only its supplied subtree, never an unrelated missing value.
     Partial(Vec<Vec<StructuralPathSegment>>),
 }
 
@@ -63,6 +71,7 @@ pub(crate) struct Specialization {
 /// caller must instantiate every retained block and its proof/source companions
 /// in one namespace before the ordinary Terminal verifiers see the result.
 pub(crate) fn prepare(
+    machine: semantic_vocabulary::MachineId,
     entry: BlockId,
     parameters: &[StructuralParameterDeclaration],
     places: &[StructuralPlaceDeclaration],
@@ -76,13 +85,17 @@ pub(crate) fn prepare(
         if group.region.access != StructuralAccess::Owned {
             return unsupported("selected cleanup does not name an owned occurrence");
         }
-        if !regions.contains(&group.region) {
-            regions.push(group.region.clone());
+        let tracked = TrackedRegion {
+            region: group.region.clone(),
+            requirement: group.requirement,
+        };
+        if !regions.contains(&tracked) {
+            regions.push(tracked);
         }
         if group.requirement == CleanupRequirement::ResidentHome && !group.region.path.is_empty() {
             return unsupported("selected home retirement has a projected value receiver");
         }
-        validate_group(blocks, group)?;
+        validate_group(machine, blocks, group)?;
     }
     let extractions = super::affine_cleanup::owned_extractions(parameters, places, blocks, types)?;
     let copied_roots = super::affine_cleanup::copied_operand_roots(parameters, blocks);
@@ -98,8 +111,12 @@ pub(crate) fn prepare(
                 path: Vec::new(),
                 access: StructuralAccess::Owned,
             };
-            if !regions.contains(&root) {
-                regions.push(root);
+            let tracked = TrackedRegion {
+                region: root,
+                requirement: CleanupRequirement::WholeValue,
+            };
+            if !regions.contains(&tracked) {
+                regions.push(tracked);
             }
         }
     }
@@ -107,20 +124,10 @@ pub(crate) fn prepare(
         return Ok(None);
     }
     let entry = block_position(blocks, entry)?;
-    let initial = regions
-        .iter()
-        .map(|region| {
-            if parameters.iter().any(|parameter| {
-                parameter.place == region.place
-                    && (parameter.access == StructuralAccess::Owned
-                        || projected_roots.contains(&region.place))
-            }) {
-                RegionState::Live
-            } else {
-                RegionState::Absent
-            }
-        })
-        .collect();
+    let mut initial = vec![RegionState::Absent; regions.len()];
+    for parameter in parameters {
+        establish_parameter(&regions, &mut initial, parameter, &projected_roots);
+    }
     let mut continuations = vec![Continuation {
         original_block: entry,
         incoming: initial,
@@ -134,18 +141,14 @@ pub(crate) fn prepare(
             // Projected tracking records storage availability, not permission
             // to own a borrowed referent. Only the supplied candidate groups
             // can select cleanup; every actual operand retains its access.
-            if parameter.access == StructuralAccess::Owned
-                || projected_roots.contains(&parameter.place)
-            {
-                establish(&regions, &mut frontier, parameter.place);
-            }
+            establish_parameter(&regions, &mut frontier, parameter, &projected_roots);
         }
         for operation in &block.operations {
             for argument in super::affine_cleanup::structural_operands(&operation.kind) {
                 consume_argument(&regions, &mut frontier, argument, &copied_roots);
             }
             for (_, extraction) in extractions.iter().filter(|(id, _)| *id == operation.id) {
-                consume(&regions, &mut frontier, extraction.place, &extraction.path);
+                extract(&regions, &mut frontier, extraction);
             }
             if let OperationKind::ReleaseReference { source, path } = &operation.kind {
                 consume(&regions, &mut frontier, *source, path);
@@ -156,7 +159,9 @@ pub(crate) fn prepare(
                 field,
                 ..
             } = &operation.kind
-                && regions.iter().any(|region| region.place == *destination)
+                && regions
+                    .iter()
+                    .any(|tracked| tracked.region.place == *destination)
             {
                 let root = root_type(*destination, parameters, places, blocks)?;
                 let restored = terminal_semantics::structural_window_projection(
@@ -203,15 +208,15 @@ pub(crate) fn prepare(
             if let Some(group) = groups.iter().find(|group| group.edge == edge) {
                 let selected = regions
                     .iter()
-                    .position(|region| region == &group.region)
+                    .position(|tracked| {
+                        tracked.region == group.region && tracked.requirement == group.requirement
+                    })
                     .ok_or(LoweringError::Unsupported(
                         "selected death lost its occurrence",
                     ))?;
                 match outgoing[selected] {
                     RegionState::Live => {}
                     RegionState::Absent => target = group.bypass,
-                    RegionState::Partial(_)
-                        if group.requirement == CleanupRequirement::ResidentHome => {}
                     RegionState::Partial(_) => {
                         return unsupported(
                             "selected whole-owner cleanup has a partially transferred occurrence",
@@ -254,8 +259,25 @@ pub(crate) fn prepare(
     }))
 }
 
-fn establish(regions: &[StructuralArgument], frontier: &mut [RegionState], place: PlaceId) {
-    for (region, state) in regions.iter().zip(frontier) {
+fn establish_parameter(
+    regions: &[TrackedRegion],
+    frontier: &mut [RegionState],
+    parameter: &StructuralParameterDeclaration,
+    projected_roots: &std::collections::BTreeSet<PlaceId>,
+) {
+    for (tracked, state) in regions.iter().zip(frontier) {
+        if tracked.region.place == parameter.place
+            && (tracked.requirement == CleanupRequirement::ResidentHome
+                || parameter.access == StructuralAccess::Owned
+                || projected_roots.contains(&parameter.place))
+        {
+            *state = RegionState::Live;
+        }
+    }
+}
+
+fn establish(regions: &[TrackedRegion], frontier: &mut [RegionState], place: PlaceId) {
+    for (region, state) in regions.iter().map(|tracked| &tracked.region).zip(frontier) {
         if region.place == place {
             *state = RegionState::Live;
         }
@@ -263,7 +285,7 @@ fn establish(regions: &[StructuralArgument], frontier: &mut [RegionState], place
 }
 
 fn consume_argument(
-    regions: &[StructuralArgument],
+    regions: &[TrackedRegion],
     frontier: &mut [RegionState],
     argument: &StructuralArgument,
     copied_roots: &std::collections::BTreeSet<PlaceId>,
@@ -273,28 +295,72 @@ fn consume_argument(
     }
 }
 
+fn extract(
+    regions: &[TrackedRegion],
+    frontier: &mut [RegionState],
+    extraction: &StructuralArgument,
+) {
+    if !extraction.path.is_empty() {
+        consume(regions, frontier, extraction.place, &extraction.path);
+        return;
+    }
+    // A whole extraction vacates the contents, not their allocation. Retain
+    // the empty complement until restoration or the already selected home
+    // retirement. A transferred-away occurrence must stay absent.
+    for (tracked, state) in regions.iter().zip(frontier) {
+        if tracked.requirement == CleanupRequirement::ResidentHome {
+            continue;
+        }
+        let region = &tracked.region;
+        if region.place == extraction.place && *state != RegionState::Absent {
+            *state = if region.path.is_empty() {
+                RegionState::Partial(vec![Vec::new()])
+            } else {
+                RegionState::Absent
+            };
+        }
+    }
+}
+
 fn consume(
-    regions: &[StructuralArgument],
+    regions: &[TrackedRegion],
     frontier: &mut [RegionState],
     place: PlaceId,
     path: &[StructuralPathSegment],
 ) {
-    for (region, state) in regions.iter().zip(frontier) {
-        if region.place != place || *state == RegionState::Absent {
-            continue;
+    for (tracked, state) in regions.iter().zip(frontier) {
+        if tracked.requirement == CleanupRequirement::ResidentHome {
+            // A projected transfer leaves the binding. Residence carries no
+            // value-hole history through later restoration or loop joins.
+            if tracked.region.place == place && path.is_empty() {
+                *state = RegionState::Absent;
+            }
+        } else {
+            consume_region(&tracked.region, state, place, path);
         }
-        if contains_path(path, &region.path) {
-            *state = RegionState::Absent;
-        } else if terminal_semantics::structural_paths_may_overlap(&region.path, path) {
-            match state {
-                RegionState::Absent => {}
-                RegionState::Live => *state = RegionState::Partial(vec![path.to_vec()]),
-                RegionState::Partial(missing) => {
-                    if !missing.iter().any(|prior| contains_path(prior, path)) {
-                        missing.retain(|prior| !contains_path(path, prior));
-                        missing.push(path.to_vec());
-                        missing.sort();
-                    }
+    }
+}
+
+fn consume_region(
+    region: &StructuralArgument,
+    state: &mut RegionState,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+) {
+    if region.place != place || *state == RegionState::Absent {
+        return;
+    }
+    if contains_path(path, &region.path) {
+        *state = RegionState::Absent;
+    } else if terminal_semantics::structural_paths_may_overlap(&region.path, path) {
+        match state {
+            RegionState::Absent => {}
+            RegionState::Live => *state = RegionState::Partial(vec![path.to_vec()]),
+            RegionState::Partial(missing) => {
+                if !missing.iter().any(|prior| contains_path(prior, path)) {
+                    missing.retain(|prior| !contains_path(path, prior));
+                    missing.push(path.to_vec());
+                    missing.sort();
                 }
             }
         }
@@ -309,12 +375,18 @@ fn contains_path(prefix: &[StructuralPathSegment], path: &[StructuralPathSegment
 }
 
 fn restore(
-    regions: &[StructuralArgument],
+    regions: &[TrackedRegion],
     frontier: &mut [RegionState],
     place: PlaceId,
     path: &[StructuralPathSegment],
 ) {
-    for (region, state) in regions.iter().zip(frontier) {
+    for (tracked, state) in regions.iter().zip(frontier) {
+        // A store repairs value custody inside an existing allocation; it
+        // neither creates nor ends the destination's resident binding.
+        if tracked.requirement == CleanupRequirement::ResidentHome {
+            continue;
+        }
+        let region = &tracked.region;
         if region.place != place {
             continue;
         }
@@ -369,7 +441,7 @@ fn root_type(
 }
 
 fn dispose(
-    regions: &[StructuralArgument],
+    regions: &[TrackedRegion],
     frontier: &mut [RegionState],
     action: &TerminalAffineCleanupAction,
 ) {
@@ -379,7 +451,13 @@ fn dispose(
             consume(regions, frontier, *place, &[]);
         }
         TerminalAffineCleanupAction::DiscardResidual(discard) => {
-            consume(regions, frontier, discard.place, &discard.path)
+            // Regional disposal, including the whole empty path, consumes
+            // contents while retaining the home for its explicit retirement.
+            for (tracked, state) in regions.iter().zip(frontier) {
+                if tracked.requirement == CleanupRequirement::WholeValue {
+                    consume_region(&tracked.region, state, discard.place, &discard.path);
+                }
+            }
         }
         TerminalAffineCleanupAction::InvokeNominal(cleanup) if !cleanup.retains_descendants => {
             consume(regions, frontier, cleanup.place, &cleanup.path);
@@ -402,7 +480,11 @@ fn block_position(blocks: &[Block], target: BlockId) -> Result<usize, LoweringEr
     Ok(position)
 }
 
-fn validate_group(blocks: &[Block], group: &SelectedCleanupGroup) -> Result<(), LoweringError> {
+fn validate_group(
+    machine: semantic_vocabulary::MachineId,
+    blocks: &[Block],
+    group: &SelectedCleanupGroup,
+) -> Result<(), LoweringError> {
     let mut sites = blocks.iter().filter_map(|block| match &block.terminator {
         Terminator::Jump {
             edge,
@@ -417,7 +499,32 @@ fn validate_group(blocks: &[Block], group: &SelectedCleanupGroup) -> Result<(), 
         return unsupported("selected cleanup group has no private entry jump");
     };
     if sites.next().is_some() || !arguments.is_empty() || !actions.is_empty() {
-        return unsupported("selected cleanup group entry changes structural custody");
+        let sites = blocks
+            .iter()
+            .filter_map(|block| match &block.terminator {
+                Terminator::Jump {
+                    edge,
+                    target,
+                    structural_arguments,
+                    cleanup_actions,
+                    ..
+                } if *edge == group.edge => Some(crate::lowering_error::SelectedCleanupEntrySite {
+                    block: block.id,
+                    target: *target,
+                    structural_arguments: structural_arguments.clone(),
+                    cleanup_actions: cleanup_actions.clone(),
+                }),
+                _ => None,
+            })
+            .collect();
+        return Err(LoweringError::InvalidSelectedCleanupEntry(Box::new(
+            crate::lowering_error::SelectedCleanupEntryMismatch {
+                machine,
+                edge: group.edge,
+                region: group.region.clone(),
+                sites,
+            },
+        )));
     }
     let entry = &blocks[block_position(blocks, target)?];
     let bypass = &blocks[block_position(blocks, group.bypass)?];

@@ -307,6 +307,7 @@ fn expression_places_resolve_attached_data_members() {
         type_parameters: HandleSpan::empty(),
         properties: typed_trees::data::DataProperties::default(),
         quotient: None,
+        cleanup_selection: None,
         where_facts: Default::default(),
         zero_gated: false,
         retired_identities: Vec::new(),
@@ -322,6 +323,7 @@ fn expression_places_resolve_attached_data_members() {
         type_parameters: HandleSpan::empty(),
         properties: typed_trees::data::DataProperties::default(),
         quotient: None,
+        cleanup_selection: None,
         where_facts: Default::default(),
         zero_gated: false,
         retired_identities: Vec::new(),
@@ -360,6 +362,7 @@ fn expression_places_resolve_attached_data_members() {
         structural_type_equations_pending: false,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
+        declared_type_equations: HandleSpan::empty(),
         attached_data: Some(Identifier::generated("Main")),
         attached_data_symbol: main_data_symbol,
         attached_data_application: TypeReferenceHandle::invalid(),
@@ -611,4 +614,181 @@ fn expression_places_resolve_exact_local_and_collection_element_types() {
             "{shape} {malformed}"
         );
     }
+}
+
+#[test]
+fn shared_checkpoint_detaches_only_edited_fact_roots() {
+    let mut baseline = FactPlan::default();
+    macro_rules! seed_roots {
+        ($($root:ident),+ $(,)?) => {
+            $(baseline.$root.append(Default::default());)+
+        };
+    }
+    seed_roots!(
+        places,
+        place_segments,
+        facts,
+        scalar_values,
+        boolean_predicates,
+        boolean_predicate_bindings,
+        integer_ranges,
+        qualification_correspondences,
+        domain_definition_facts,
+        data_definition_facts,
+        instantiated_expressions,
+        refs,
+        symbol_sets,
+    );
+    let context = baseline.contexts.append(Default::default());
+    baseline.share_pages();
+    let mut worker = baseline.clone();
+    macro_rules! assert_shared_then_detached {
+        ($($root:ident),+ $(,)?) => {
+            $(
+                let handle = baseline.$root.iter().next().unwrap().0;
+                assert!(std::ptr::eq(baseline.$root.get(handle), worker.$root.get(handle)),
+                    stringify!($root));
+                let _ = worker.$root.get_mut(handle);
+                assert!(!std::ptr::eq(baseline.$root.get(handle), worker.$root.get(handle)),
+                    stringify!($root));
+            )+
+        };
+    }
+    assert_shared_then_detached!(
+        places,
+        place_segments,
+        facts,
+        scalar_values,
+        boolean_predicates,
+        boolean_predicate_bindings,
+        integer_ranges,
+        qualification_correspondences,
+        domain_definition_facts,
+        data_definition_facts,
+        instantiated_expressions,
+        refs,
+        symbol_sets,
+    );
+    assert!(std::ptr::eq(
+        baseline.contexts.get(context),
+        worker.contexts.get(context)
+    ));
+    let fact = baseline.facts.iter().next().unwrap().0;
+    let original = *baseline.facts.get(fact);
+    worker.facts.get_mut(fact).origin = FactOrigin::StatementTransfer;
+    assert_eq!(*baseline.facts.get(fact), original);
+    assert_eq!(worker.facts.get(fact).origin, FactOrigin::StatementTransfer);
+    assert!(worker.contexts.free(context));
+    assert_eq!(
+        baseline
+            .context_handles_at_point(ProgramPoint::Global)
+            .count(),
+        1
+    );
+    assert_eq!(
+        worker
+            .context_handles_at_point(ProgramPoint::Global)
+            .count(),
+        0
+    );
+}
+
+#[test]
+fn shared_checkpoint_adopts_disjoint_worker_pages_in_publication_order() {
+    fn extend(
+        plan: &mut FactPlan,
+        generation: u32,
+    ) -> (crate::FactHandle, crate::FactContextHandle) {
+        plan.begin_page(generation);
+        let fact = plan.append_fact(Fact::default());
+        let mut references = HandleSpan::empty();
+        plan.append_ref(&mut references, fact);
+        let context = plan.append_context(ProgramPoint::Global, references);
+        (fact, context)
+    }
+
+    let mut baseline = FactPlan::default();
+    let first = baseline.append_context(ProgramPoint::Global, HandleSpan::empty());
+    let group = baseline.context_group_at_point(ProgramPoint::Global);
+    baseline.share_pages();
+    let mut first_worker = baseline.clone();
+    let mut second_worker = baseline.clone();
+    let first_rows = extend(&mut first_worker, 2);
+    let second_rows = extend(&mut second_worker, 3);
+    assert_eq!(
+        baseline.context_handles_in_group(group).collect::<Vec<_>>(),
+        [first]
+    );
+    assert_eq!(
+        first_worker
+            .context_handles_in_group(group)
+            .collect::<Vec<_>>(),
+        [first, first_rows.1]
+    );
+    assert_eq!(
+        second_worker
+            .context_handles_in_group(group)
+            .collect::<Vec<_>>(),
+        [first, second_rows.1]
+    );
+    let first_pages = first_worker.take_additional_pages();
+    let second_pages = second_worker.take_additional_pages();
+    first_worker.clone_from(&baseline);
+    second_worker.clone_from(&baseline);
+    assert_eq!(
+        first_worker
+            .context_handles_in_group(group)
+            .collect::<Vec<_>>(),
+        [first]
+    );
+    assert_eq!(
+        second_worker
+            .context_handles_in_group(group)
+            .collect::<Vec<_>>(),
+        [first]
+    );
+
+    // Arrival can differ from page order. Compare with ordinary publication
+    // in that same arrival order; no sorting may replace context encounter order.
+    let mut sequential = baseline.clone();
+    assert_eq!(extend(&mut sequential, 3), second_rows);
+    assert_eq!(extend(&mut sequential, 2), first_rows);
+    baseline.adopt_additional_pages(second_pages);
+    baseline.adopt_additional_pages(first_pages);
+    assert_eq!(
+        baseline.facts.iter().collect::<Vec<_>>(),
+        sequential.facts.iter().collect::<Vec<_>>()
+    );
+    assert_eq!(
+        baseline.contexts.iter().collect::<Vec<_>>(),
+        sequential.contexts.iter().collect::<Vec<_>>()
+    );
+    assert_eq!(
+        baseline.context_handles_in_group(group).collect::<Vec<_>>(),
+        [first, second_rows.1, first_rows.1]
+    );
+    assert_eq!(
+        baseline.context_handles_in_group(group).collect::<Vec<_>>(),
+        sequential
+            .context_handles_in_group(group)
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        baseline
+            .contexts
+            .get(first_rows.1)
+            .facts
+            .start()
+            .generation(),
+        2
+    );
+    assert_eq!(
+        baseline
+            .contexts
+            .get(second_rows.1)
+            .facts
+            .start()
+            .generation(),
+        3
+    );
 }

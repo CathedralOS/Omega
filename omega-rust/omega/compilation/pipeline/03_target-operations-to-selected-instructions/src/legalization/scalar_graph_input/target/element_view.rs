@@ -70,11 +70,11 @@ impl Checker<'_> {
                             && owner.structural_parameters.iter().any(|parameter| {
                                 parameter.place == *place
                                     && parameter.structural_type == *structural_type
-                                    && access(parameter.access)
-                                    && terminal_semantics::view_descriptor_parameter(
+                                    && terminal_semantics::descriptor_parameter_access(
                                         parameter,
                                         self.types.iter(),
                                     )
+                                    .is_some_and(access)
                             })
                     })
             }
@@ -84,7 +84,20 @@ impl Checker<'_> {
                         |parameters| {
                             parameters.iter().any(|parameter| {
                                 parameter.place == source
-                                    && access(parameter.access)
+                                    && self.optimized.arrival_parameter(source).is_some_and(
+                                        |semantic| {
+                                            semantic.structural_type == parameter.structural_type
+                                                && semantic.access == parameter.access
+                                                && semantic.multiplicity == parameter.multiplicity
+                                                && semantic.projected_qualifications
+                                                    == parameter.projected_qualifications
+                                                && terminal_semantics::descriptor_parameter_access(
+                                                    semantic,
+                                                    self.types.iter(),
+                                                )
+                                                .is_some_and(access)
+                                        },
+                                    )
                                     && &parameter.placement == placement
                             })
                         },

@@ -3,15 +3,14 @@
 //! lineage root. Substitute every affected field together and retain the edge
 //! so later result or storage expansion cannot combine mutually exclusive arms.
 
-use super::{ExitFrontier, JoinedOccurrence, expand_joined_frontier};
+use super::{ExitFrontier, JoinedOccurrence, ReturnFrontierDiagnostics, expand_joined_frontier};
 use crate::checks::multiplicity::linear_obligations::{
     CheckedClaimOutcomeMap, CheckedClaimOutcomeSource,
 };
 use crate::checks::multiplicity::owned_selection::terminal_arm_route;
 use crate::checks::ownership_occurrences::{EvaluationBranch, routes_compatible};
 use checked_trees::{
-    FlowClaimJoinExit, FlowClaimJoinExitKind, FlowOwnershipFacts, FlowPermissionEventFact,
-    FlowSelectionPlaceBinding,
+    FlowClaimJoinExit, FlowClaimJoinExitKind, FlowPermissionEventFact, FlowSelectionPlaceBinding,
 };
 use symbols::SymbolHandle;
 
@@ -50,16 +49,17 @@ pub(super) fn selection_routes_agree(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn expand_storage_frontier(
     program: &dyn validation::CheckingInput,
-    borrow: &checked_trees::BorrowFacts,
+    facts: &checked_trees::CheckFacts,
     state: &typed_trees::state::State,
-    ownership: &FlowOwnershipFacts,
     events: &[FlowPermissionEventFact],
     maps: &[CheckedClaimOutcomeMap],
     active: &mut Vec<SymbolHandle>,
     visited: &[JoinedOccurrence],
     frontier: ExitFrontier,
     binding: &FlowSelectionPlaceBinding,
+    diagnostics: &mut ReturnFrontierDiagnostics,
 ) -> Option<Vec<ExitFrontier>> {
+    let ownership = &facts.flow.ownership;
     let occurrence = JoinedOccurrence::Storage {
         state: binding.state,
         statement: binding.statement_ordinal,
@@ -153,7 +153,15 @@ pub(super) fn expand_storage_frontier(
             );
         }
         expanded.extend(expand_joined_frontier(
-            program, borrow, state, ownership, events, maps, active, &visited, next,
+            program,
+            facts,
+            state,
+            events,
+            maps,
+            active,
+            &visited,
+            next,
+            diagnostics,
         )?);
     }
     (!expanded.is_empty()).then_some(expanded)

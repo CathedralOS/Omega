@@ -54,6 +54,7 @@ struct Effect {
 }
 #[derive(Debug, Default)]
 pub(super) struct Effects {
+    pub(super) reference_catalog_available: bool,
     machines: BTreeMap<MachineId, Option<Vec<Effect>>>,
     boundaries: BTreeMap<BoundaryMachineId, Option<Vec<Effect>>>,
     pub(super) observations:
@@ -89,6 +90,7 @@ pub(super) fn prepare(
         .filter(|function| writable_slots(function, types))
         .collect::<Vec<_>>();
     let mut effects = Effects {
+        reference_catalog_available: false,
         boundaries: unit
             .boundary_machines
             .iter()
@@ -159,6 +161,7 @@ pub(super) fn prepare(
     else {
         return effects;
     };
+    effects.reference_catalog_available = true;
     let mut analysis = DescriptorAnalysis::with_reference_slots(types, &graph);
     for machine in &graph {
         effects

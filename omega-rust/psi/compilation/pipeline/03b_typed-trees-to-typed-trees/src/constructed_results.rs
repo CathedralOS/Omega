@@ -20,6 +20,8 @@
 //! children alongside body expressions: a constructor in a postcondition needs
 //! its applied type before checking can establish its equality meaning. This
 //! supplies type vocabulary, not the truth of the contract or its premises.
+//! Abstract operators and requirement signatures use their exact parameter
+//! roster without manufacturing a machine or demanding runtime specialization.
 
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -36,14 +38,97 @@ pub(crate) struct UnavailableValueType {
     pub(crate) diagnostics: Vec<diagnostics::Diagnostic>,
 }
 
+/// Executable storage and abstract signature parameters supply different
+/// lexical scopes to the same completed-value derivation.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ValueTypeOwner {
+    State {
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+    },
+    Declaration {
+        callable: symbols::SymbolHandle,
+        parameters: arena::HandleSpan<typed_trees::signature::StateParameter>,
+    },
+}
+
+impl ValueTypeOwner {
+    fn symbol(self) -> symbols::SymbolHandle {
+        match self {
+            Self::State { machine, .. } => machine,
+            Self::Declaration { callable, .. } => callable,
+        }
+    }
+
+    /// Retain applications from this actual source's lexical root. Whole
+    /// computed values may have no enclosing application; an unresolved
+    /// projected prefix withholds inference rather than guessing a region.
+    fn source_applications(
+        self,
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+    ) -> Option<Vec<TypeReferenceHandle>> {
+        match self {
+            Self::State { state, .. } => {
+                let place = validation::canonical_place_from_expression_in_state(
+                    program,
+                    state,
+                    usize::MAX,
+                    expression,
+                )?;
+                match validation::canonical_place_source_type_application(
+                    program,
+                    state,
+                    usize::MAX,
+                    &place,
+                ) {
+                    Some((_, applications)) => Some(applications),
+                    None if place.segments.is_empty() => Some(Vec::new()),
+                    None => None,
+                }
+            }
+            Self::Declaration {
+                callable,
+                parameters,
+            } => validation::parameter_source_type_application(
+                program,
+                callable,
+                program.state_parameters.span_or_empty(parameters),
+                expression,
+            )
+            .map(|(_, applications)| applications),
+        }
+    }
+
+    fn result_type(
+        self,
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        match self {
+            Self::State { machine, state } => validation::expression_result_type_reference(
+                program,
+                program.machine_by_symbol(machine)?,
+                program.state_by_symbol(state)?,
+                expression,
+            ),
+            Self::Declaration {
+                callable,
+                parameters,
+            } => validation::parameter_expression_result_type_reference(
+                program,
+                callable,
+                program.state_parameters.span_or_empty(parameters),
+                expression,
+            ),
+        }
+    }
+}
+
 fn occurrences(
     program: &TypedTrees,
     selected: fn(&ExpressionNode) -> bool,
-) -> Vec<(
-    symbols::SymbolHandle,
-    symbols::SymbolHandle,
-    ExpressionHandle,
-)> {
+) -> Vec<(ValueTypeOwner, ExpressionHandle)> {
     let mut occurrences = Vec::new();
     for machine in program.machines() {
         for (state_ordinal, state) in program.machine_states(machine).iter().enumerate() {
@@ -78,11 +163,58 @@ fn occurrences(
                     &mut visited,
                     |expression, node| {
                         if selected(node) {
-                            occurrences.push((machine.symbol, state.symbol, expression));
+                            occurrences.push((
+                                ValueTypeOwner::State {
+                                    machine: machine.symbol,
+                                    state: state.symbol,
+                                },
+                                expression,
+                            ));
                         }
                     },
                 );
             }
+        }
+    }
+    let mut declarations = Vec::<(ValueTypeOwner, Vec<ExpressionHandle>)>::new();
+    for (callable, _, parameters, contract) in validation::callable_contract_scopes(program) {
+        // Entry contracts already use their actual executable state above.
+        if program.machine_by_symbol(callable).is_some_and(|machine| {
+            program
+                .machine_states(machine)
+                .first()
+                .is_some_and(|state| state.parameters == parameters)
+        }) {
+            continue;
+        }
+        let owner = ValueTypeOwner::Declaration {
+            callable,
+            parameters,
+        };
+        let position = declarations
+            .iter()
+            .position(|(candidate, _)| *candidate == owner)
+            .unwrap_or_else(|| {
+                declarations.push((owner, Vec::new()));
+                declarations.len() - 1
+            });
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            validation::append_fact_expression_roots(program, fact, &mut declarations[position].1);
+        }
+    }
+    for (owner, roots) in declarations {
+        let mut visited = Vec::new();
+        for root in roots {
+            validation::expression_traversal::visit_post_order(
+                program,
+                root,
+                &mut visited,
+                |expression, node| {
+                    if selected(node) {
+                        occurrences.push((owner, expression));
+                    }
+                },
+            );
         }
     }
     occurrences
@@ -94,20 +226,12 @@ fn occurrences(
 /// lifetime correspondence and parent lineage independently.
 fn retain_borrow_result_type(
     program: &mut TypedTrees,
-    machine_symbol: symbols::SymbolHandle,
-    state_symbol: symbols::SymbolHandle,
+    scope: ValueTypeOwner,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     let derived = (|| {
-        let machine = program.machine_by_symbol(machine_symbol)?;
-        let state = program.state_by_symbol(state_symbol)?;
         let formation = validation::reference_formation_source(program, expression)?;
-        let target = validation::expression_result_type_reference(
-            program,
-            machine,
-            state,
-            formation.source,
-        )?;
+        let target = scope.result_type(program, formation.source)?;
         let carrier = program
             .type_reference_table
             .unconstrained_type_reference(target);
@@ -151,7 +275,7 @@ pub(crate) fn retain_constructed_result_types(
     program: &mut TypedTrees,
 ) -> Vec<UnavailableValueType> {
     let mut unavailable = Vec::new();
-    for (machine_symbol, state_symbol, expression) in occurrences(program, |node| {
+    for (scope, expression) in occurrences(program, |node| {
         matches!(
             node,
             ExpressionNode::ArrayLiteral(_)
@@ -161,7 +285,25 @@ pub(crate) fn retain_constructed_result_types(
         ) || matches!(node, ExpressionNode::Cast(cast) if cast.form.is_recast())
     }) {
         let reference = if program.expression_table.call_node(expression).is_some() {
-            match call_results::retain(program, machine_symbol, state_symbol, expression) {
+            let result = match scope {
+                ValueTypeOwner::State { machine, state } => {
+                    call_results::retain(program, machine, state, expression)
+                }
+                // Logical declarations retain only the source-selected result;
+                // they never demand an executable specialization or body.
+                ValueTypeOwner::Declaration { .. } => {
+                    // Rebinding revisits the occurrence. Its previous result
+                    // cannot witness the newly selected application itself.
+                    program
+                        .expression_table
+                        .set_constructed_value_type_reference(
+                            expression,
+                            TypeReferenceHandle::invalid(),
+                        );
+                    Ok(scope.result_type(program, expression))
+                }
+            };
+            match result {
                 Ok(reference) => reference,
                 Err(diagnostics) => {
                     unavailable.push(UnavailableValueType {
@@ -172,26 +314,20 @@ pub(crate) fn retain_constructed_result_types(
                 }
             }
         } else if validation::reference_formation_source(program, expression).is_some() {
-            retain_borrow_result_type(program, machine_symbol, state_symbol, expression)
+            retain_borrow_result_type(program, scope, expression)
         } else if program
             .expression_table
             .struct_literal_node(expression)
             .is_some()
         {
-            retain_constructor_result_type(program, machine_symbol, state_symbol, expression)
+            retain_constructor_result_type(program, scope, expression)
         } else {
             let derived = (|| {
-                let machine = program.machine_by_symbol(machine_symbol)?;
-                let state = program.state_by_symbol(state_symbol)?;
                 let elements = program.expression_table.array_literal_node(expression)?;
                 let elements = program.expression_table.expression_handles(*elements);
                 let references = elements
                     .iter()
-                    .map(|element| {
-                        validation::expression_result_type_reference(
-                            program, machine, state, *element,
-                        )
-                    })
+                    .map(|element| scope.result_type(program, *element))
                     .collect::<Vec<_>>();
                 let element_type = validation::join_result_type_references(
                     program,
@@ -240,8 +376,7 @@ pub(crate) fn retain_constructed_result_types(
 /// unresolved. This establishes a type, never a resource claim or field proof.
 fn retain_constructor_result_type(
     program: &mut TypedTrees,
-    machine_symbol: symbols::SymbolHandle,
-    state_symbol: symbols::SymbolHandle,
+    scope: ValueTypeOwner,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     let literal = program.expression_table.struct_literal_node(expression)?;
@@ -252,8 +387,6 @@ fn retain_constructor_result_type(
             .type_reference_table
             .find_named_type_reference(owner.symbol);
     }
-    let machine = program.machine_by_symbol(machine_symbol)?;
-    let state = program.state_by_symbol(state_symbol)?;
     let type_parameters = parameters
         .iter()
         .filter(|parameter| parameter.kind == typed_trees::data::TypeParameterKind::Type)
@@ -301,9 +434,7 @@ fn retain_constructor_result_type(
                 }
                 _ => None,
             })?;
-        let Some(actual) =
-            validation::expression_result_type_reference(program, machine, state, field.value)
-        else {
+        let Some(actual) = scope.result_type(program, field.value) else {
             continue;
         };
         crate::monomorphization::infer_static_bindings(
@@ -312,13 +443,22 @@ fn retain_constructor_result_type(
             actual,
             &mut inferred,
         );
+        // Static type/const proposals above do not need region inference.
+        // Empty telescopes and primitive scalar fields make no such demand.
+        if owner.lifetime_parameters.is_empty()
+            || program
+                .primitive_type_reference(required.type_reference)
+                .is_some()
+        {
+            continue;
+        }
+        let applications = scope.source_applications(program, field.value)?;
         crate::conformance::conformance_application_lifetimes::collect_declared_field_lifetime_bindings(
             program,
             owner,
             required,
-            machine,
-            state,
-            field.value,
+            scope.symbol(),
+            &applications,
             actual,
             &mut lifetime_bindings,
             &mut lifetime_conflict,
@@ -367,12 +507,12 @@ fn retain_constructor_result_type(
         };
         let first = *proposals.first()?;
         let identity =
-            typed_trees::type_identity::applied_type_identity(program, first, machine_symbol, &[])?;
+            typed_trees::type_identity::applied_type_identity(program, first, scope.symbol(), &[])?;
         if proposals.iter().any(|reference| {
             typed_trees::type_identity::applied_type_identity(
                 program,
                 *reference,
-                machine_symbol,
+                scope.symbol(),
                 &[],
             )
             .is_none_or(|candidate| candidate != identity)

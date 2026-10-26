@@ -65,12 +65,15 @@ impl<'a> FloatObservations<'a> {
         invocation: HandleSpan<FlowConstraintRef>,
         epoch: &FlowOperandFact,
     ) -> Option<Vec<FloatMeaning>> {
+        // The shared completed-value walk expands every Selected arm and keeps
+        // its actual copy/constructor associations. IEEE observation must not
+        // select alternatives again from the source expression's shape.
         let values = crate::flow::captured_operand_values(
             self.program,
             self.flow,
             self.semantic,
             state,
-            operand,
+            crate::flow::CapturedOperand::unrecorded(operand),
             reference,
             &[],
         )?;
@@ -101,7 +104,7 @@ impl<'a> FloatObservations<'a> {
                     &value.projection,
                     crate::flow::captured_value_places(self.program, self.flow, &value),
                     value.producer_invocation(invocation),
-                    value.producer_epoch.unwrap_or(epoch),
+                    value.producer_epoch.map_or(epoch, |source| source.row()),
                 ),
             ]
             .into_iter()
@@ -112,7 +115,7 @@ impl<'a> FloatObservations<'a> {
                         &self.flow.contexts,
                         &self.flow.control,
                         self.semantic,
-                        capture,
+                        capture.row(),
                         reference,
                         invocation,
                     );
@@ -149,7 +152,7 @@ impl<'a> FloatObservations<'a> {
                         }
                         self.produced(
                             state,
-                            capture,
+                            capture.row(),
                             projection.expression,
                             invocation,
                             epoch,
@@ -199,20 +202,6 @@ impl<'a> FloatObservations<'a> {
                     .primitive_type_reference(operand.type_reference)
                     == Some(expected))
                 .then_some(vec![FloatMeaning::NaN])
-            }
-            ExpressionNode::Match(_) => {
-                let mut possibilities = Vec::new();
-                for alternative in self.flow.control.operands.span(operand.alternatives)? {
-                    let observed = self.capture_values(
-                        state,
-                        alternative,
-                        alternative.type_reference,
-                        invocation,
-                        epoch,
-                    )?;
-                    extend_values(&mut possibilities, observed);
-                }
-                (!possibilities.is_empty()).then_some(possibilities)
             }
             ExpressionNode::Call(authored) => {
                 // Expression identity alone is not an invocation: bind its exact

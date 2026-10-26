@@ -7,6 +7,8 @@
 mod commitment;
 mod error;
 mod evidence;
+mod executed;
+pub(crate) use executed::selection_plan as executed_selection_plan;
 mod planner;
 mod source_projection;
 

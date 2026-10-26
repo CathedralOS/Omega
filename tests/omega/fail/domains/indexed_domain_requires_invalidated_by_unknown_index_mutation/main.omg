@@ -1,3 +1,4 @@
+// An unknown bounded input can alias items[0]; it is not identity_index(1).
 data Item [copy] {
     value: i32;
     tag: i32;
@@ -28,8 +29,10 @@ machine Main::identity_index(index: u64) -> u64 {
     index
 }
 
-machine Main::main(main: &mut Main) {
-    let index: u64 = Main::identity_index(1);
+machine Main::main(main: &mut Main, unknown: u64)
+requires unknown < 2u64
+{
+    let index: u64 = Main::identity_index(unknown);
     Main::mark_valid(&mut main.items[0]);
     main.items[index].value = 0;
     Main::accept(main.items[0]);

@@ -184,6 +184,14 @@ pub fn lower_machine(
     )
     .map_err(LoweringError::InvalidDeclarationIdentity)?;
     lowered.semantic_module.identities = identities.build();
+    // Declaration and evidence producers intern beyond the body snapshot.
+    // Validate against their complete module-owned table before publication.
+    if let Err(reason) =
+        terminal_semantics::validate_runtime_evidence_inputs(&lowered.semantic_module)
+    {
+        diagnose_runtime_evidence_case_failure(&lowered.semantic_module, reason);
+        return Err(LoweringError::Unsupported(reason));
+    }
     // Debug identity binds the whole semantic module, including retained
     // boundary/callback applications and the final interned identity table.
     // Construct it only after those producers finish; stamping the body's
@@ -221,6 +229,9 @@ pub(crate) fn nominal_cleanup_subject(
         semantic_vocabulary::StructuralTypeId,
     )],
 ) -> Result<Option<semantic_vocabulary::StructuralTypeId>, LoweringError> {
+    if validation::nominal_cleanup_owner(&checked.typed, source).is_none() {
+        return Ok(None);
+    }
     let rendered = type_ids
         .iter()
         .map(|(identity, id)| {
@@ -427,7 +438,122 @@ fn lower_terminal_selection(
     crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
         &mut lowered.semantic_module,
     );
-    crate::retention::copied_memberships::retain(&mut lowered.semantic_module)?;
+    crate::emission::descriptor_residences::complete(&mut lowered.semantic_module)?;
+    crate::retention::payload_memberships::retain(&mut lowered.semantic_module)?;
     lower_and_install_evidence_artifacts(identities, checked, &source_machine_ids, &mut lowered)?;
     Ok((lowered, completion))
+}
+
+/// Failure-only imaging of the actual, unpublished module. The normal reader
+/// remains the sole admission decision; these queries cannot authorize a call.
+/// Keep environment/logging at the producer boundary, outside pure semantics.
+fn diagnose_runtime_evidence_case_failure(module: &terminal_psi::TerminalModule, reason: &str) {
+    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_none() {
+        return;
+    }
+    let graph = terminal_semantics::descriptor_results::terminal_graph(module);
+    let mut analysis = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
+        &module.structural_types,
+        &graph,
+    );
+    for invocation in &module.proof_output_calls {
+        let Some(runtime) = invocation.runtime_call else {
+            continue;
+        };
+        let Some(caller) = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == invocation.caller)
+        else {
+            continue;
+        };
+        let Some(machine) = graph.iter().find(|machine| machine.id == caller.id) else {
+            eprintln!(
+                "[runtime-evidence-case] caller={:?} consumer={:?} graph=absent reason={reason}",
+                caller.id, runtime.operation
+            );
+            continue;
+        };
+        let feasibility = analysis.flow_feasibility(caller.id);
+        for block in &caller.blocks {
+            for (index, operation) in block.operations.iter().enumerate() {
+                let Some(parts) = terminal_psi::direct_call_parts(&operation.kind) else {
+                    continue;
+                };
+                for row in parts.selected_evidence.iter().filter(|row| {
+                    invocation
+                        .evidence_arguments
+                        .iter()
+                        .any(|argument| argument.source == row.output)
+                }) {
+                    let terminal_psi::OperationResult::Structural(result) = &operation.result
+                    else {
+                        continue;
+                    };
+                    let predicate =
+                        terminal_semantics::descriptor_results::DescriptorCasePredicate {
+                            subject:
+                                terminal_semantics::descriptor_lifetimes::DescriptorLocation::whole(
+                                    result.place,
+                                ),
+                            case: row.guard.result_case,
+                        };
+                    eprintln!(
+                        "[runtime-evidence-case] caller={:?} producer={:?} producer_cut=({:?},{index}) consumer={:?} output={:?} result={:?} type={:?} guard_case={:?} validity_result={:?} reason={reason}",
+                        caller.id,
+                        operation.id,
+                        block.id,
+                        runtime.operation,
+                        row.output,
+                        result.place,
+                        result.structural_type,
+                        row.guard.result_case,
+                        row.validity.result
+                    );
+                    for (position, step) in &machine.flow {
+                        let established =
+                            analysis.case_is_established(caller.id, *position, &predicate);
+                        let membership =
+                            analysis.case_feasibility(caller.id, *position, &predicate);
+                        eprintln!(
+                            "[runtime-evidence-case-step] caller={:?} cut={position:?} flow={:?} original_selected={established} original_membership={membership:?} definitions={:?} derivations={:?} producer={:?} contents_transfer={} unresolved_write={} payload_invalidations={}",
+                            caller.id,
+                            feasibility.get(position),
+                            step.definitions,
+                            step.derivations,
+                            machine.payload_producers.get(position),
+                            machine.contents_transfers.contains_key(position),
+                            machine.unresolved_contents_writes.contains(position),
+                            machine
+                                .payload_invalidations
+                                .get(position)
+                                .map_or(0, Vec::len)
+                        );
+                        for edge in &step.successors {
+                            eprintln!(
+                                "[runtime-evidence-case-edge] caller={:?} cut={position:?} target={:?} parameters={:?} derivations={:?}",
+                                caller.id,
+                                edge.target,
+                                edge.parameters,
+                                edge.derivations().collect::<Vec<_>>()
+                            );
+                        }
+                        for (branch, predicates) in &machine.case_successors {
+                            for (observed, truth) in predicates
+                                .iter()
+                                .filter(|(observed, _)| observed.case == row.guard.result_case)
+                            {
+                                let selected =
+                                    analysis.case_is_established(caller.id, *position, observed);
+                                eprintln!(
+                                    "[runtime-evidence-case-observation] caller={:?} cut={position:?} branch={branch:?} subject={:?} case={:?} truth={truth} selected={selected}",
+                                    caller.id, observed.subject, observed.case
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

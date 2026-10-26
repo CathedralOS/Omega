@@ -14,6 +14,7 @@ pub(super) fn project(
     machine: &Machine,
     conformance: &TraitConformance,
     binders: &[(SymbolHandle, String)],
+    lifetime_parameters: &[typed_trees::name::Identifier],
     binding: &PackageReviewExternalBinding,
 ) -> Result<PackagePolicyExternalRequirement, Vec<Diagnostic>> {
     let declaration = typed_trees::machine::resolve_satisfied_declaration(
@@ -55,7 +56,7 @@ pub(super) fn project(
                     requirement,
                     conformance,
                     binders,
-                    machine,
+                    lifetime_parameters,
                     alias,
                 )?,
             )
@@ -78,7 +79,7 @@ pub(super) fn project(
             super::super::boundary_requirements::validate_selected_top_level_requirement_external_supply(compilation, machine, requirement, binding)?;
             PackagePolicyExternalRequirement::TopLevelRequirement {
                 identity: top_level_requirement_identity(compilation, requirement)?,
-                signature: super::signatures::project(compilation, requirement)?.1,
+                signature: super::signatures::project(compilation, requirement)?.2,
                 alias,
             }
         }
@@ -96,8 +97,8 @@ pub(super) fn project(
             }
             if !operator.lifetime_parameters.is_empty()
                 || !compilation.operator_type_parameters(operator).is_empty()
-                || !machine.lifetime_parameters.is_empty()
-                || !machine.type_parameters.is_empty()
+                || !lifetime_parameters.is_empty()
+                || !binders.is_empty()
             {
                 return Err(rejected("external operator application is not closed"));
             }

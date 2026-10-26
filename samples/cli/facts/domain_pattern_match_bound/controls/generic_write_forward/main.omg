@@ -1,0 +1,32 @@
+// A selected predicate-domain match arm establishes value >= 73, and the joined value discharges value - 73.
+// Expected exit: 0
+
+data Cell [copy] { value: u64; }
+domain Cell::Ready(cell)
+requires cell.value >= 73u64;
+
+machine identity<Value>(value: Value) -> Value
+where Value == &write Cell
+{ value }
+
+machine consume(cell: &Cell) -> u64 {
+    let generic: &Cell = cell;
+    let selected: u64 = match generic {
+        Cell::Ready -> generic.value
+        _ -> 73u64
+    };
+    selected - 73u64
+}
+
+machine main() crashes Trap {
+    let mut cell: Cell = Cell { value: 72u64 };
+    let forwarded: &write Cell = identity<&write Cell>(&write cell);
+    forwarded.value = 73u64;
+    let difference: u64 = consume(&cell);
+    transition difference == 0u64 && cell.value == 73u64 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

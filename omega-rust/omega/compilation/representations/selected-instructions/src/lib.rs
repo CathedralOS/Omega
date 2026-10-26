@@ -8,9 +8,11 @@
 mod codec_bytes;
 
 pub(crate) use optimization_core::digest_encoder;
-pub use terminal_psi::{ControlRegister, InterruptControlKind, RegisterOperation, SystemRegister};
+pub use terminal_psi::{
+    ControlRegister, InterruptControlKind, MemoryFenceKind, RegisterOperation,
+    RegisterTargetApplicability, SystemRegister,
+};
 pub mod selected_instructions;
-pub use selected_instructions::{BlockSlotEvent, BlockSlotSummary, SelectedBlocks};
 pub use selected_instructions::{
     AddressFoldIdentity, ArchitecturalUnitAction, ArchitecturalUnitActionKind,
     ArchitecturalUnitLiveRange, BlockLiveness, BlockMachineEffects, BlockPointDomain,
@@ -64,4 +66,5 @@ pub use selected_instructions::{
     IeeeFloatFormat, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
     PlacedScalarForm, ieee_float_arithmetic_is_trapping,
 };
+pub use selected_instructions::{BlockSlotEvent, BlockSlotSummary, SelectedBlocks};
 pub use terminal_psi::ByteSequencePredicate;

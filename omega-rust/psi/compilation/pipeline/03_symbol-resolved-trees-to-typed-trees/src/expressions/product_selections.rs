@@ -18,8 +18,36 @@ pub(crate) fn request(
     evidence_count: usize,
     span: source::SourceSpan,
 ) -> Result<Option<BuildSelectionRequest>, Diagnostic> {
+    // Resolved enum operations are exact prelude declarations, unlike the
+    // unresolved syntax carrying designated Product declaration operands.
+    if target.is_valid() && source.symbols.is_build_prelude_symbol(target) {
+        use language_semantics::declaration_selection::{
+            EnumExclusionRequest, ExclusionVocabulary,
+        };
+        let vocabulary = match name {
+            "exclude_crash" => Some(ExclusionVocabulary::CrashCause),
+            "exclude_physical_authority" => Some(ExclusionVocabulary::PhysicalAuthorityClass),
+            _ => None,
+        };
+        if let Some(vocabulary) = vocabulary {
+            if ordinary_count != 2 || evidence_count != 0 || !operands.is_empty() {
+                return Err(Diagnostic::error(
+                    "behavior exclusion requires its mutable Build and one evaluated enum value",
+                )
+                .with_source_span(span));
+            }
+            return Ok(Some(BuildSelectionRequest::Exclusion(
+                EnumExclusionRequest {
+                    source_span: span,
+                    vocabulary,
+                },
+            )));
+        }
+    }
     let Some(
-        operation @ (BuildOperation::ProviderSelection | BuildOperation::RepresentationSelection),
+        operation @ (BuildOperation::ProviderSelection
+        | BuildOperation::RepresentationSelection
+        | BuildOperation::ServiceExclusion),
     ) = BuildOperation::from_call_target(name)
     else {
         return Ok(None);
@@ -34,14 +62,24 @@ pub(crate) fn request(
     {
         return Ok(None);
     }
-    if operands.len() != 2
+    let operand_count = if operation == BuildOperation::ServiceExclusion {
+        1
+    } else {
+        2
+    };
+    if operands.len() != operand_count
         || evidence_count != 0
         || !(ordinary_count == 1
             || (operation == BuildOperation::ProviderSelection && ordinary_count == 2))
     {
         return Err(Diagnostic::error(format!(
-            "{} requires two bare declaration operands and its explicit mutable Build argument",
-            operation.authored_spelling()
+            "{} requires {} and its explicit mutable Build argument",
+            operation.authored_spelling(),
+            if operand_count == 1 {
+                "one bare declaration operand"
+            } else {
+                "two bare declaration operands"
+            }
         ))
         .with_source_span(span));
     }

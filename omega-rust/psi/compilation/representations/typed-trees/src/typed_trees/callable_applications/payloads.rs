@@ -410,6 +410,15 @@ impl CallableApplication {
                 .rev()
                 .find(|(name, _)| name == member)
             {
+                // This is one bare lexical binding, not a namespace path.
+                // Publish its complete occurrence before alpha remapping:
+                // consumers authenticate the member roster as well as the
+                // head and leaf, so a partially resolved copy is unavailable.
+                let mut member_symbols = HandleSpan::empty();
+                program
+                    .expression_table
+                    .push_name_path_member_symbol(&mut member_symbols, *symbol);
+                path.member_symbols = member_symbols;
                 path.head_symbol = *symbol;
                 path.symbol = *symbol;
                 *program.expression_table.expression_mut(*handle) =

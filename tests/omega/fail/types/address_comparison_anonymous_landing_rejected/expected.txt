@@ -1,0 +1,3 @@
+does not fit destination `addr`
+not an integer and cannot land in `addr`
+cannot prove fit in `addr::Bound`

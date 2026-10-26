@@ -1,0 +1,6 @@
+public data Scan { phase: u64; length: u64; }
+public machine prepare(length: u64, scan: &mut Scan) -> u64 {
+    scan.phase = 1u64;
+    scan.length = length;
+    scan.length
+}

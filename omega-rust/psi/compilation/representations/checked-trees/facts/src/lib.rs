@@ -39,8 +39,8 @@ pub use fact_plan::places::resolution::{
 };
 pub use fact_plan::places::write_frame::{NormalizedWriteFrame, WriteFrameCompleteness};
 pub use fact_plan::places::{
-    FactPlace, Place, PlaceRoot, PlaceSegment, compose_captured_view_segments,
-    project_captured_view_segments, resolution, write_frame,
+    FactPlace, InvocationOutputIdentity, Place, PlaceRoot, PlaceSegment,
+    compose_captured_view_segments, project_captured_view_segments, resolution, write_frame,
 };
 pub use fact_plan::{
     FactContextHandle, FactHandle, FactPlan, PlaceHandle, QualificationCorrespondenceHandle,

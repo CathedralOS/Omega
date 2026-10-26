@@ -38,11 +38,19 @@ pub(in crate::machine_calls::calls::write_frames) fn written_paths(
         symbols,
         inference,
         false,
-        &|expression, _, _, inference| {
-            exclusive_reference_origins(program, caller_machine, expression, symbols, inference)
+        &crate::machine_calls::calls::write_frames::path_instantiation::aggregate_arguments::SymbolicArguments {
+            reference: &|expression, _, _, inference| {
+            symbolic_sources(exclusive_reference_origins(
+                program,
+                caller_machine,
+                expression,
+                symbols,
+                inference,
+            ))
         },
-        &|expression, reference, inference| {
+            stored: &|expression, reference, inference| {
             symbolic_reference_leaves(program, caller_machine, expression, reference, inference)
+        },
         },
     )?;
     let mut written = Vec::new();
@@ -51,7 +59,7 @@ pub(in crate::machine_calls::calls::write_frames) fn written_paths(
         {
             continue;
         }
-        let origin = leaf.origin?;
+        let origin = leaf.origin?.into_symbolic_place()?;
         if !written.contains(&origin.path) {
             written.push(origin.path);
         }
@@ -59,9 +67,90 @@ pub(in crate::machine_calls::calls::write_frames) fn written_paths(
     Some(written)
 }
 
+/// A declaration-relative source still needs its caller-prefix substitution.
+/// A completed source already names both the observed backing and the supplying
+/// descriptor carrier; later slot contents cannot reinterpret that value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::machine_calls::calls::write_frames) enum ReferenceSource {
+    Symbolic(FramePlaceOrigin),
+    Captured(CapturedReferenceSource),
+}
+
+/// A completed descriptor and the observation which authenticated its backing.
+/// Its base is the completed value before a new boundary appends its own path.
+/// Further descriptor loads belong to that boundary's entry inventory, while
+/// the earlier descriptor value and its carrier remain fixed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::machine_calls::calls::write_frames) struct CapturedReferenceSource {
+    pub source: super::super::stored_calls::SlotSource,
+    pub base: FramePlaceOrigin,
+    /// Input backing before this boundary appended its own relative path.
+    /// The finite state-substitution graph counts only this actual prefix;
+    /// an authored callee field projection is not argument-path growth.
+    pub substitution: super::super::FrameSourcePlace,
+}
+
+impl ReferenceSource {
+    pub(in crate::machine_calls::calls::write_frames) fn place(&self) -> &FramePlaceOrigin {
+        match self {
+            Self::Symbolic(origin) => origin,
+            Self::Captured(source) => &source.source.origin,
+        }
+    }
+    pub(in crate::machine_calls::calls::write_frames) fn place_mut(
+        &mut self,
+    ) -> &mut FramePlaceOrigin {
+        match self {
+            Self::Symbolic(origin) => origin,
+            Self::Captured(source) => &mut source.source.origin,
+        }
+    }
+    /// Legacy spatial consumers accept declaration-relative evidence only.
+    /// A completed observation must first finish its demanded pointer path in
+    /// the owner which retains that observation's exact inventory.
+    pub(in crate::machine_calls::calls::write_frames) fn into_symbolic_place(
+        self,
+    ) -> Option<FramePlaceOrigin> {
+        match self {
+            Self::Symbolic(origin) => Some(origin),
+            Self::Captured(_) => None,
+        }
+    }
+}
+
+pub(in crate::machine_calls::calls::write_frames) fn symbolic_sources(
+    origins: Option<Vec<FramePlaceOrigin>>,
+) -> Option<Vec<ReferenceSource>> {
+    origins.map(|origins| origins.into_iter().map(ReferenceSource::Symbolic).collect())
+}
+
+/// Lifetime debts accompany a value without becoming its spatial referent.
+/// Keep those already checked dependencies whole when another boundary projects
+/// the value; the result leaf's existing dependency field owns their lifetime.
+pub(in crate::machine_calls::calls::write_frames) fn partition_sources(
+    sources: Vec<ReferenceSource>,
+) -> (
+    Vec<ReferenceSource>,
+    Vec<super::super::stored_calls::SlotSource>,
+) {
+    let mut spatial = Vec::new();
+    let mut dependencies = Vec::new();
+    for source in sources {
+        match source {
+            ReferenceSource::Captured(observed) if observed.source.lifetime_access.is_some() => {
+                if !dependencies.contains(&observed.source) {
+                    dependencies.push(observed.source);
+                }
+            }
+            source => spatial.push(source),
+        }
+    }
+    (spatial, dependencies)
+}
+
 /// Temporary structural evidence shared by immediate arguments and stored
 /// aggregate declarations. Only the string view coarsens array selectors.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(in crate::machine_calls::calls::write_frames) struct ReferenceLeaf {
     pub lifetime_dependencies: Vec<super::super::stored_calls::SlotSource>,
     pub kind: super::super::stored_origins::StoredOriginKind,
@@ -69,7 +158,7 @@ pub(in crate::machine_calls::calls::write_frames) struct ReferenceLeaf {
     pub local_segments: Vec<PlaceSegment>,
     pub may_select: bool,
     /// None retains an unresolved reference boundary, never an absent leaf.
-    pub origin: Option<FramePlaceOrigin>,
+    pub origin: Option<ReferenceSource>,
 }
 
 #[derive(Clone, Default)]
@@ -82,7 +171,7 @@ pub(in crate::machine_calls::calls::write_frames) struct AggregateOrigins {
 
 /// A moved value subtree retains its input identity as a whole. Substitution
 /// transports its cases and reference leaves together, including empty cases.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::machine_calls::calls::write_frames) struct AggregateMove {
     pub local_segments: Vec<PlaceSegment>,
     pub source: super::super::FrameSourcePlace,
@@ -98,12 +187,134 @@ pub(in crate::machine_calls::calls::write_frames) type ReferenceResolver<'resolv
             TypeReferenceHandle,
             bool,
             &mut FrameInference,
-        ) -> Option<Vec<FramePlaceOrigin>>
+        ) -> Option<Vec<ReferenceSource>>
         + 'resolver;
 
 pub(in crate::machine_calls::calls::write_frames) type AggregateResolver<'resolver> =
     dyn Fn(ExpressionHandle, TypeReferenceHandle, &FrameInference) -> Option<AggregateOrigins>
         + 'resolver;
+
+/// A single query context owns input observations and completion of a returned
+/// value at its invocation boundary. Symbolic callers retain their ordinary
+/// declaration-relative sources; chronological callers finish descriptor loads
+/// against the invocation's own entry inventory before exporting its result.
+pub(in crate::machine_calls::calls::write_frames) trait ArgumentOrigins {
+    fn reference(
+        &self,
+        expression: ExpressionHandle,
+        reference: TypeReferenceHandle,
+        implicit_borrow: bool,
+        inference: &mut FrameInference,
+    ) -> Option<Vec<ReferenceSource>>;
+
+    fn stored(
+        &self,
+        expression: ExpressionHandle,
+        reference: TypeReferenceHandle,
+        inference: &FrameInference,
+    ) -> Option<AggregateOrigins>;
+
+    fn call_result(
+        &self,
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+        symbols: &TopLevelSymbols<'_>,
+        inference: &mut FrameInference,
+        include_shared: bool,
+    ) -> Option<AggregateOrigins>;
+
+    fn project(
+        &self,
+        program: &dyn crate::CheckingInput,
+        source: ReferenceSource,
+        suffix: &str,
+        precision: FramePathPrecision,
+        relative: &super::super::FrameSourcePlace,
+    ) -> Option<Vec<ReferenceSource>> {
+        Some(vec![super::super::result_origins::compose_source(
+            program, source, suffix, precision, relative,
+        )])
+    }
+}
+
+pub(in crate::machine_calls::calls::write_frames) struct SymbolicArguments<'request> {
+    pub reference: &'request ReferenceResolver<'request>,
+    pub stored: &'request AggregateResolver<'request>,
+}
+
+impl ArgumentOrigins for SymbolicArguments<'_> {
+    fn reference(
+        &self,
+        expression: ExpressionHandle,
+        reference: TypeReferenceHandle,
+        implicit_borrow: bool,
+        inference: &mut FrameInference,
+    ) -> Option<Vec<ReferenceSource>> {
+        (self.reference)(expression, reference, implicit_borrow, inference)
+    }
+    fn stored(
+        &self,
+        expression: ExpressionHandle,
+        reference: TypeReferenceHandle,
+        inference: &FrameInference,
+    ) -> Option<AggregateOrigins> {
+        (self.stored)(expression, reference, inference)
+    }
+    fn call_result(
+        &self,
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+        symbols: &TopLevelSymbols<'_>,
+        inference: &mut FrameInference,
+        include_shared: bool,
+    ) -> Option<AggregateOrigins> {
+        super::super::result_origins::call_result_origins(
+            program,
+            machine,
+            expression,
+            expected,
+            symbols,
+            inference,
+            include_shared,
+            self,
+        )
+    }
+}
+
+/// Direct references and owned aggregates use this same checked Call result
+/// relation and completion hook. No parent query can append another relative
+/// projection until the nested invocation has finished its own observations.
+pub(in crate::machine_calls::calls::write_frames) fn aggregate_value(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    include_shared: bool,
+    inputs: &dyn ArgumentOrigins,
+) -> Option<AggregateOrigins> {
+    if matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Call(_)
+    ) {
+        inputs.call_result(
+            program,
+            machine,
+            expression,
+            expected,
+            symbols,
+            inference,
+            include_shared,
+        )
+    } else {
+        inputs.stored(expression, expected, inference)
+    }
+}
 
 /// The caller supplies frozen or symbolic leaf evidence; the shared walker
 /// filters demand and attaches it beneath the current literal's prefix.
@@ -116,8 +327,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     include_shared: bool,
-    resolve_reference: &ReferenceResolver<'_>,
-    resolve_origins: &AggregateResolver<'_>,
+    inputs: &dyn ArgumentOrigins,
 ) -> Option<AggregateOrigins> {
     let mut pending = vec![(
         argument,
@@ -200,24 +410,16 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                     | TypeReferenceNode::FixedArray { .. }
             )
         {
-            // Declaration transfer supplies frozen evidence; raw calls retain
-            // symbolic source leaves for their existing caller-prefix closure.
-            let moved =
-                if let ExpressionNode::Call(_) = program.expression_table.expression(expression) {
-                    super::super::result_origins::call_result_origins(
-                        program,
-                        caller_machine,
-                        expression,
-                        reference,
-                        symbols,
-                        inference,
-                        include_shared,
-                        resolve_reference,
-                        resolve_origins,
-                    )?
-                } else {
-                    resolve_origins(expression, reference, inference)?
-                };
+            let moved = aggregate_value(
+                program,
+                caller_machine,
+                expression,
+                reference,
+                symbols,
+                inference,
+                include_shared,
+                inputs,
+            )?;
             if !demand_is_declared(program, reference, suffix) {
                 return None;
             }
@@ -235,8 +437,9 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
             for mut leaf in moved.references {
                 if let Some(remainder) = place_suffix(&leaf.local_suffix, suffix) {
                     if let Some(origin) = &mut leaf.origin
-                        && origin.precision == FramePathPrecision::Exact
+                        && origin.place().precision == FramePathPrecision::Exact
                     {
+                        let origin = origin.place_mut();
                         origin.path = append_place_suffix(&origin.path, remainder);
                     }
                 } else if place_suffix(suffix, &leaf.local_suffix).is_none() {
@@ -270,7 +473,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                 if !access.is_exclusive() && !include_shared {
                     continue;
                 }
-                let origins = resolve_reference(expression, reference, false, inference);
+                let origins = inputs.reference(expression, reference, false, inference);
                 let Some(origins) = origins else {
                     leaves.references.push(ReferenceLeaf {
                         kind: super::super::stored_origins::StoredOriginKind::Reference(*access),
@@ -282,22 +485,31 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                     });
                     continue;
                 };
-                for origin in origins {
-                    let path = match origin.precision {
-                        FramePathPrecision::Exact => append_place_suffix(&origin.path, suffix),
-                        FramePathPrecision::CollectionCoarse => origin.path,
+                let (origins, lifetime_dependencies) = partition_sources(origins);
+                if origins.is_empty() {
+                    leaves.references.push(ReferenceLeaf {
+                        kind: super::super::stored_origins::StoredOriginKind::Reference(*access),
+                        local_suffix,
+                        local_segments,
+                        may_select: false,
+                        origin: None,
+                        lifetime_dependencies,
+                    });
+                    continue;
+                }
+                for mut origin in origins {
+                    let place = origin.place_mut();
+                    place.path = match place.precision {
+                        FramePathPrecision::Exact => append_place_suffix(&place.path, suffix),
+                        FramePathPrecision::CollectionCoarse => place.path.clone(),
                     };
                     leaves.references.push(ReferenceLeaf {
                         kind: super::super::stored_origins::StoredOriginKind::Reference(*access),
                         local_suffix: local_suffix.clone(),
                         local_segments: local_segments.clone(),
                         may_select: false,
-                        origin: Some(FramePlaceOrigin {
-                            path,
-                            precision: origin.precision,
-                            source: origin.source,
-                        }),
-                        lifetime_dependencies: Vec::new(),
+                        origin: Some(origin),
+                        lifetime_dependencies: lifetime_dependencies.clone(),
                     });
                 }
             }

@@ -25,8 +25,9 @@ pub(in crate::program_validation) fn validate_type_reference(
     symbols: &crate::TopLevelSymbols<'_>,
     value_environment: &arithmetic_domains::ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
-    if local_data.role != language_core::LocalBindingRole::Value {
+    if !local_data.role.is_runtime_binding() {
         return;
     }
     let (type_parameters, lifetime_parameters) = program
@@ -52,6 +53,7 @@ pub(in crate::program_validation) fn validate_type_reference(
             type_parameters: &type_parameters,
             lifetime_parameters: &lifetime_parameters,
         },
+        formation_obligations,
     );
 }
 
@@ -82,9 +84,12 @@ pub(super) fn validate(
     let value_environment = &mut *outputs.value_environment;
     let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let diagnostics = &mut *outputs.diagnostics;
-    // Inferred results and operand captures belong to completed initializer
-    // operands, not to an authored receiving application at statement entry.
-    if local_data.type_is_inferred || local_data.is_operand_capture {
+    // Derived runtime bindings, inferred results and operand captures belong
+    // to completed operands, not an authored receiving application at entry.
+    if local_data.role != language_core::LocalBindingRole::Value
+        || local_data.type_is_inferred
+        || local_data.is_operand_capture
+    {
         validate_type_reference(
             program,
             machine,
@@ -94,6 +99,7 @@ pub(super) fn validate(
             scope.symbols,
             value_environment,
             diagnostics,
+            &mut arithmetic_decisions.integer_range_obligations,
         );
     }
     let local_target_primitive = program.primitive_type_reference(local_data.type_reference);
@@ -107,6 +113,7 @@ pub(super) fn validate(
             local_data.initial_value,
             local_data.type_reference,
             diagnostics,
+            &mut arithmetic_decisions.integer_range_obligations,
         );
     }
     let owner = format!(

@@ -8,22 +8,19 @@ mod mixed_application_controls;
 use super::indexed_family_controls;
 
 use proof_admission::{Budget, DEFAULT_CONVERSION_STEPS, MathematicalCertificate};
+use psi_compiler::{TerminalMachineSelection, TerminalProductionRequest, UnmeasuredProduction};
 use std::collections::BTreeSet;
 use std::time::Instant;
 use terminal_codec::{
     CanonicalTerminalArtifact, MathematicalProofActualError, mathematical_carrier_key,
     verify_module_mathematical_actuals,
 };
-use terminal_production::{
-    TerminalMachineSelection, TerminalProductionRequest, produce_terminal_artifact,
-};
 
 pub(super) fn produce(
     request: compiler::CheckedCompileRequest,
     machine: &str,
 ) -> Result<CanonicalTerminalArtifact, String> {
-    let checked = compiler::CompilationSession::default()
-        .check(request)
+    let checked = omega_build::check_source(&mut compiler::CompilationSession::default(), request)
         .result
         .map_err(|errors| format!("mathematical actual source checking: {errors:?}"))?;
     let program = &checked.execution().program;
@@ -102,16 +99,12 @@ pub(super) fn produce(
             Some(formals.map(|formals| (identity, contract, formals)))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let mut timings = Default::default();
-    let artifact = produce_terminal_artifact(
-        TerminalProductionRequest::new(
-            program,
-            TerminalMachineSelection::Name(machine),
-            checked.sources().exact_toolchain_sources(),
-        ),
-        &[],
-        &mut timings,
+    let artifact = TerminalProductionRequest::new(
+        program,
+        TerminalMachineSelection::Name(machine),
+        checked.sources().exact_toolchain_sources(),
     )
+    .produce(Default::default(), &mut UnmeasuredProduction)
     .map_err(|error| format!("mathematical actual Terminal production: {error:?}"))?
     .into_artifact()
     .map_err(|error| error.to_string())?;

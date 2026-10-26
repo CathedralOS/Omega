@@ -26,6 +26,35 @@ pub(super) fn call_argument_types(
     site: super::caller_aliases::CallerWriteSite<'_>,
     symbols: &TopLevelSymbols<'_>,
 ) -> Vec<TypeReferenceHandle> {
+    // Named operators use the same selected occurrence and complete public
+    // formal roster as call admission. Their namespace is not an argument;
+    // retaining these types keeps detached scalar actuals independent of the
+    // caller's storage-origin inventory. Unknown selections add no context.
+    let call_site = match site {
+        super::caller_aliases::CallerWriteSite::Expression(expression) => program
+            .expression_table
+            .call_node(expression)
+            .filter(|call| program.call_has_no_runtime_receiver_for_target(call))
+            .map(|call| crate::machine_calls::calls::CallSite::Expression { expression, call }),
+        _ => None,
+    };
+    if let Some(call_site) = call_site
+        && typed_trees::operator::declaration_by_symbol(program, call_site.target_symbol(program))
+            .is_some()
+    {
+        if let Some(parameters) = call_site.parameters(program, current_machine.symbol)
+            && parameters.len()
+                == crate::machine_calls::calls::call_site_argument_expressions(program, &call_site)
+                    .len()
+        {
+            // A value-receiver spelling may bind the first operator formal
+            // outside call.arguments. It cannot shift this explicit roster.
+            return parameters
+                .iter()
+                .map(|parameter| parameter.type_reference)
+                .collect();
+        }
+    }
     // A dynamic slot has already instantiated its complete operand roster,
     // including the independent selector. The public declaration omits that
     // lane, so reading it here would shift every actual's type by one position.
@@ -135,6 +164,35 @@ pub(crate) fn machine_state_by_symbol(
     program
         .state_in_machine(machine, symbol)
         .map(|state| (machine, state))
+}
+
+/// Exact checked bodies behind one call. Portable interfaces are not opaque
+/// suppliers: every retained target member contributes an alternative. Never
+/// select the build host here or infer a body from a matching name.
+pub(super) fn checked_body_alternatives(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+) -> Option<Vec<SymbolHandle>> {
+    if !machine.target_family_interface {
+        return (machine.body_is_present && machine.supply_mode.is_checked_body())
+            .then_some(vec![state.symbol]);
+    }
+    if program.machine_states(machine).first()?.symbol != state.symbol {
+        return None;
+    }
+    crate::target_family_members(program, machine)?
+        .iter()
+        .map(|member| {
+            let machine = program.machine(member.machine)?;
+            (machine.body_is_present && machine.supply_mode.is_checked_body()).then(|| {
+                program
+                    .machine_states(machine)
+                    .first()
+                    .map(|state| state.symbol)
+            })?
+        })
+        .collect()
 }
 
 /// A signature's formal types in declaration order — the argument context

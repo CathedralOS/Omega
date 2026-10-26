@@ -102,15 +102,31 @@ impl IntegerRangeRecipe {
     }
 }
 
+/// The endpoint meaning owned by the formation being retained. A selected
+/// address model is not a fixed integer ceiling known during shared checking.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum RangeRequirement {
+    Fixed { minimum: BigInt, maximum: BigInt },
+    AddressModel,
+}
+
+/// Exact model dependency consumed while closing one address formation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IntegerRangeModel {
+    pub carrier: semantic_vocabulary::IntegerType,
+    pub semantics_version: u32,
+    pub commitment: [u8; 32],
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IntegerRangeObligation {
     expression: ExpressionHandle,
     owner: SymbolHandle,
     steps: Arena<RangeStep>,
     recipe: HandleSpan<RangeStep>,
-    minimum: BigInt,
-    maximum: BigInt,
+    requirement: RangeRequirement,
     description: String,
+    discharged_address_model: Option<IntegerRangeModel>,
     discharged_target: Option<typed_trees::name::Identifier>,
 }
 
@@ -123,6 +139,22 @@ impl IntegerRangeObligation {
         maximum: BigInt,
         description: String,
     ) -> Self {
+        Self::with_requirement(
+            expression,
+            owner,
+            recipe,
+            RangeRequirement::Fixed { minimum, maximum },
+            description,
+        )
+    }
+
+    fn with_requirement(
+        expression: ExpressionHandle,
+        owner: SymbolHandle,
+        recipe: IntegerRangeRecipe,
+        requirement: RangeRequirement,
+        description: String,
+    ) -> Self {
         let mut steps = Arena::new();
         let recipe = steps.insert_many(recipe.steps);
         Self {
@@ -130,11 +162,39 @@ impl IntegerRangeObligation {
             owner,
             steps,
             recipe,
-            minimum,
-            maximum,
+            requirement,
             description,
+            discharged_address_model: None,
             discharged_target: None,
         }
+    }
+
+    /// Capture a closed anonymous value at its original formation occurrence.
+    /// The producer has checked integrality, selected meaning and every normal
+    /// path. This row is conditional; it grants no carrier membership before
+    /// the selected target closes it.
+    pub fn retain_address_fit(
+        expression: ExpressionHandle,
+        owner: SymbolHandle,
+        low: BigInt,
+        high: BigInt,
+        description: String,
+    ) -> Self {
+        Self::with_requirement(
+            expression,
+            owner,
+            IntegerRangeRecipe::bounds(low, high),
+            RangeRequirement::AddressModel,
+            description,
+        )
+    }
+
+    pub fn needs_address_model(&self) -> bool {
+        matches!(self.requirement, RangeRequirement::AddressModel)
+    }
+
+    pub fn discharged_address_model(&self) -> Option<&IntegerRangeModel> {
+        self.discharged_address_model.as_ref()
     }
 
     pub fn owner(&self) -> SymbolHandle {
@@ -147,25 +207,50 @@ impl IntegerRangeObligation {
         self.discharged_target.is_none()
     }
 
-    pub fn discharge(&mut self, program: &TypedTrees, target: &str) -> Result<(), Diagnostic> {
+    pub fn discharge(
+        &mut self,
+        program: &TypedTrees,
+        target: &str,
+        address_model: Option<&IntegerRangeModel>,
+    ) -> Result<(), Diagnostic> {
+        let limits = match &self.requirement {
+            RangeRequirement::Fixed { minimum, maximum } => {
+                Some((minimum.clone(), maximum.clone()))
+            }
+            RangeRequirement::AddressModel => address_model
+                .filter(|model| model.carrier.is_address())
+                .map(|model| {
+                    (
+                        BigInt::zero(),
+                        BigInt::from_u64(1)
+                            .shl_bits(usize::from(model.carrier.bits()))
+                            .sub(&BigInt::from_u64(1)),
+                    )
+                }),
+        };
         let result = self
             .steps
             .span(self.recipe)
             .ok_or_else(|| "retained integer range has no recipe storage".to_owned())
             .and_then(|steps| evaluate(steps, program))
             .and_then(|(low, high)| {
-                if self.minimum <= low && high <= self.maximum {
+                let (minimum, maximum) = limits
+                    .as_ref()
+                    .ok_or_else(|| "selected address model is not closed".to_owned())?;
+                if minimum <= &low && &high <= maximum {
                     Ok(())
                 } else {
                     Err(format!(
-                        "bounds [{low}, {high}] lie outside [{}, {}]",
-                        self.minimum, self.maximum
+                        "bounds [{low}, {high}] lie outside [{minimum}, {maximum}]"
                     ))
                 }
             });
         match result {
             Ok(()) => {
                 self.discharged_target = Some(typed_trees::name::Identifier::generated(target));
+                if self.needs_address_model() {
+                    self.discharged_address_model = address_model.cloned();
+                }
                 Ok(())
             }
             Err(reason) => Err(Diagnostic::error(format!(

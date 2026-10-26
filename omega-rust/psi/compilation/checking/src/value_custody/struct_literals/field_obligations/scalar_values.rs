@@ -1,12 +1,13 @@
 //! One scalar field check owns arithmetic, semantic landing and value bounds.
 //! Ordinary and layout-bearing records consume this same decision. The facts
-//! come from the field's evaluation occurrence, not a replay of initializers or
+//! first establish every receiving obligation independently of flow; otherwise
+//! they come from the field's evaluation occurrence, not initializer replay or
 //! the environment after another field has already mutated its inputs.
 
 use super::super::observations::ConstructionObservations;
 use crate::proof_contracts::arithmetic_domains::{
-    Interval, ValueEnvironment, check_validated_value_narrowing,
-    immutable_integer_expression_interval, validate_value_range,
+    ArithmeticDecisions, Interval, ValueEnvironment, check_validated_value_narrowing,
+    immutable_integer_expression_interval, validate_value_range_retaining_decisions,
 };
 use diagnostics::Diagnostic;
 use typed_trees::expression::ExpressionHandle;
@@ -20,8 +21,12 @@ pub(super) struct ConstructionScalarValue {
     pub(super) environment: ValueEnvironment,
 }
 
+/// Validate the complete receiving operation before requesting occurrence flow.
+/// A successful independent attempt has no provisional diagnostics or pending
+/// formations, and its receiver has already checked every range/physical target.
+/// Failed attempts publish nothing; the same body then uses exact observations.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn validate(
+pub(super) fn validate_scalar_receiving<Output>(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
@@ -30,6 +35,58 @@ pub(super) fn validate(
     field_type: TypeReferenceHandle,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
+    receiving: impl Fn(Option<&ConstructionScalarValue>, &mut Vec<Diagnostic>) -> Output,
+) -> Output {
+    let mut independent_diagnostics = Vec::new();
+    let mut independent_formations = Vec::new();
+    let independent = analyze_scalar_value(
+        program,
+        machine,
+        state,
+        &|_| ValueEnvironment::new(),
+        expression,
+        field_type,
+        owner,
+        &mut independent_diagnostics,
+        &mut independent_formations,
+    );
+    let output = receiving(independent.as_ref(), &mut independent_diagnostics);
+    if independent.is_some()
+        && independent_diagnostics.is_empty()
+        && independent_formations.is_empty()
+    {
+        return output;
+    }
+    // The receiver returns construction scratch (currently physical-write rows),
+    // never appends it to its caller. Discard it together with the speculative
+    // diagnostics and obligations before the original occurrence-sensitive run.
+    drop(output);
+    let value = analyze_scalar_value(
+        program,
+        machine,
+        state,
+        &|expression| observations.environment(expression),
+        expression,
+        field_type,
+        owner,
+        diagnostics,
+        formation_obligations,
+    );
+    receiving(value.as_ref(), diagnostics)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn analyze_scalar_value(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    environment_for: &impl Fn(ExpressionHandle) -> ValueEnvironment,
+    expression: ExpressionHandle,
+    field_type: TypeReferenceHandle,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) -> Option<ConstructionScalarValue> {
     let target = program.primitive_type_reference(field_type)?;
     if let Some(dispatch) = program.expression_table.match_node(expression) {
@@ -37,15 +94,16 @@ pub(super) fn validate(
         let mut combined: Option<ConstructionScalarValue> = None;
         let mut complete = true;
         for arm in program.expression_table.match_arms(dispatch.arms) {
-            let Some(value) = validate(
+            let Some(value) = analyze_scalar_value(
                 program,
                 machine,
                 state,
-                observations,
+                environment_for,
                 arm.value,
                 field_type,
                 owner,
                 diagnostics,
+                formation_obligations,
             ) else {
                 complete = false;
                 continue;
@@ -74,10 +132,11 @@ pub(super) fn validate(
     let environment = if is_literal {
         ValueEnvironment::default()
     } else {
-        observations.environment(expression)
+        environment_for(expression)
     };
     let before = diagnostics.len();
-    let (interval, primitive, source_domain) = validate_value_range(
+    let mut decisions = ArithmeticDecisions::default();
+    let (interval, primitive, source_domain) = validate_value_range_retaining_decisions(
         program,
         machine,
         Some(state),
@@ -87,7 +146,9 @@ pub(super) fn validate(
         numerics::arithmetic::ArithmeticDomain::Exact,
         owner,
         diagnostics,
+        &mut decisions,
     );
+    formation_obligations.extend(decisions.integer_range_obligations);
     if diagnostics.len() != before {
         return None;
     }

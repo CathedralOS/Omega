@@ -10,6 +10,20 @@ pub fn expression_contains(
     root: typed_trees::expression::ExpressionHandle,
     target: typed_trees::expression::ExpressionHandle,
 ) -> bool {
+    // Exact identity and leaf membership need no traversal inventory. Keep
+    // the shared walk unchanged for callers collecting the complete DAG.
+    if !root.is_valid() || !target.is_valid() {
+        return false;
+    }
+    if root == target {
+        return true;
+    }
+    if matches!(
+        program.expression_table.expression(root),
+        typed_trees::literal_expression_pattern!()
+    ) {
+        return false;
+    }
     reaches(program, root, target, &mut HashSet::default())
 }
 

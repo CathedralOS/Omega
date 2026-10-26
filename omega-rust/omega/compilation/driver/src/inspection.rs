@@ -6,24 +6,20 @@
 //! Package acquisition and presentation remain with their respective callers.
 
 use crate::CheckedCompilation;
+use crate::observations::PsiStageTimings;
 use diagnostics::Diagnostic;
-use terminal_production::{
-    TerminalMachineSelection, TerminalProductionRequest, produce_terminal_artifact,
-};
+use psi_compiler::{ProducedTerminalProgram, TerminalMachineSelection, TerminalProductionRequest};
 
 pub fn inspect_terminal(
     mut checked: CheckedCompilation,
     machine: &str,
-) -> Result<terminal_production::ProducedTerminalProgram, Vec<Diagnostic>> {
+) -> Result<ProducedTerminalProgram, Vec<Diagnostic>> {
     let mut timings = std::mem::take(checked.timings_mut());
-    produce_terminal_artifact(
-        TerminalProductionRequest::new(
-            &checked.execution().program,
-            TerminalMachineSelection::Name(machine),
-            checked.sources().exact_toolchain_sources(),
-        ),
-        &[],
-        &mut timings,
+    TerminalProductionRequest::new(
+        &checked.execution().program,
+        TerminalMachineSelection::Name(machine),
+        checked.sources().exact_toolchain_sources(),
     )
+    .produce(Default::default(), &mut PsiStageTimings::new(&mut timings))
     .map_err(|error| vec![error.diagnostic()])
 }

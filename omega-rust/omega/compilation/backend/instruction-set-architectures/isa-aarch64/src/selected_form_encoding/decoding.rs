@@ -1071,6 +1071,9 @@ pub(crate) fn footprint(
         SelectedInstructionKind::FloatResultPolicy { form } => {
             return super::float_result_policy::footprint(form, operands);
         }
+        SelectedInstructionKind::RegisterAccess {
+            operation: selected_instructions::RegisterOperation::MemoryFence(_),
+        } => (Vec::new(), Vec::new(), false),
         SelectedInstructionKind::RegisterAccess { operation } => {
             if operation.produces_value() {
                 (vec![], vec![0], false)
@@ -1162,7 +1165,14 @@ pub(crate) fn footprint(
         .collect();
     let physical = aarch64_physical_register_model_ref();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
-    let encoded = if let SelectedInstructionKind::RegisterAccess { operation } = kind {
+    let encoded = if matches!(
+        kind,
+        SelectedInstructionKind::RegisterAccess {
+            operation: selected_instructions::RegisterOperation::MemoryFence(_)
+        }
+    ) {
+        MachineEncodedEffects::catalog_fence_v1()
+    } else if let SelectedInstructionKind::RegisterAccess { operation } = kind {
         super::register_access::effects(operation.produces_value())
     } else if kind == SelectedInstructionKind::AtomicFence {
         MachineEncodedEffects::atomic_fence_v1()

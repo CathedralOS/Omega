@@ -5,9 +5,9 @@
 
 use semantic_vocabulary::ReferenceOriginExtent;
 use terminal_psi::{
-    ReferenceOriginProjection, ReferenceOriginSource, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralResultDeclaration, StructuralTypeDeclaration,
-    TerminalDynamicReferenceRegion,
+    ReferenceOriginProjection, ReferenceOriginSource, StructuralAccess,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralResultDeclaration,
+    StructuralTypeDeclaration, TerminalDynamicReferenceRegion,
 };
 
 use crate::borrowed_storage::Projection;
@@ -53,6 +53,45 @@ pub fn validate_descriptor_result_regions(
         }
         for origin in &slot.origins {
             if matches!(origin, DescriptorStoredOrigin::Empty) {
+                continue;
+            }
+            if matches!(origin, DescriptorStoredOrigin::Literal { .. }) {
+                // Independently replayed literal establishments own immutable
+                // image storage. They owe no activation-relative input loan;
+                // this is not an input address, an inactive slot or an unknown
+                // provider origin. The public input contract remains intact.
+                if leaf.access != StructuralAccess::SharedBorrow {
+                    return Err("dynamic literal view exceeds immutable image access");
+                }
+                let mut advertised = false;
+                for region in regions.iter().filter(|region| region.path == leaf.path) {
+                    let terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index } =
+                        region.origin
+                    else {
+                        return Err("dynamic literal view has no shared input-region contract");
+                    };
+                    if region.access != StructuralAccess::SharedBorrow {
+                        return Err("dynamic literal view exceeds its public access");
+                    }
+                    let parameter = usize::try_from(argument_index)
+                        .ok()
+                        .and_then(|position| parameters.get(position))
+                        .ok_or("dynamic literal view names no formal input")?;
+                    // Share declaration admission, including stored view
+                    // ceilings and exact typed paths. Literal production
+                    // cannot repair an incomplete or malformed public row.
+                    super::result_regions::validate_input_region(
+                        types.iter(),
+                        parameter.structural_type,
+                        parameter.access,
+                        &region.source_path,
+                        region.access,
+                    )?;
+                    advertised = true;
+                }
+                if !advertised {
+                    return Err("dynamic literal view has no public input-region contract");
+                }
                 continue;
             }
             let (position, path) = input_origin_path(types, parameters, origin)?;

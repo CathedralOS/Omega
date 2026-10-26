@@ -37,7 +37,7 @@ pub(crate) fn local(
     if candidates.next().is_some()
         || row.result.is_some()
         || result.multiplicity != StructuralMultiplicity::Unrestricted
-        || !result.qualifications.is_empty()
+        || !result.qualification_establishments.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
         || !signature.structural_places.iter().any(|declaration| {
@@ -356,9 +356,9 @@ pub(super) fn read_geometry(
             let signature = source.structural.as_ref()?;
             let structural_type =
                 if let Some((_, result)) = super::aggregate_result_input::home(source, *place) {
-                    if path.is_empty() {
-                        return None;
-                    }
+                    // Whole primitive results and projected leaves share the
+                    // producer's existing home. Exact endpoint geometry below
+                    // admits scalar storage, never a whole aggregate or pointer.
                     result.structural_type
                 } else {
                     let parameter = read_parameter(source, *place)?;

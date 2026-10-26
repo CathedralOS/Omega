@@ -27,6 +27,15 @@ use terminal_psi::{
     ClaimTransfer, OperationKind, StructuralAccess, StructuralMultiplicity, TerminalMachineResult,
 };
 
+/// Prepared host inputs stay owned across readiness waits. Re-polling neither
+/// reconstructs loans nor exports owned arguments a second time.
+pub(crate) struct PendingBoundaryCall {
+    pub(crate) site: crate::results::TerminalEffectWait,
+    arguments: crate::effects::byte_buffers::BoundaryArguments,
+    remaining_claims: BTreeMap<semantic_vocabulary::ClaimId, crate::execution::LiveClaim>,
+    effect: TerminalEffect,
+}
+
 /// The rows at `positions`, in that order: one declared-position subset.
 fn select_positions<T: Clone>(
     rows: &[T],
@@ -300,6 +309,15 @@ impl<'artifact> TerminalExecution<'artifact> {
         meter: &mut terminal_fuel::TerminalFuelMeter,
         components: &mut crate::instance::ComponentBindings<'_, 'artifact>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
+        if let Some(pending) = self.awaiting_effect.as_ref() {
+            if !self.boundary_effect_is_ready(operation, handler, pending)? {
+                return Ok(OperationFlow::Yield(
+                    TerminalExecutionStatus::AwaitingEffect(pending.site),
+                ));
+            }
+            let pending = self.awaiting_effect.take().ok_or_else(malformed)?;
+            return self.complete_boundary_effect(operation, handler, *pending);
+        }
         let OperationKind::BoundaryCall {
             boundary,
             arguments: ref scalar_argument_ids,
@@ -495,16 +513,13 @@ impl<'artifact> TerminalExecution<'artifact> {
                 let argument = structural_arguments.get(position).ok_or_else(malformed)?;
                 if formal.structural_type
                     != boundary_declaration.structural_parameters[position].structural_type
-                    || prepared_arguments
-                        .scalar_arrays
-                        .insert(
-                            formal.place,
-                            self.prepare_scalar_array_argument(callee, formal, argument)?,
-                        )?
-                        .is_some()
                 {
                     return Err(malformed());
                 }
+                prepared_arguments.scalar_arrays.publish(
+                    formal.place,
+                    self.prepare_scalar_array_argument(callee, formal, argument)?,
+                )?;
             }
             let claim_transfers = completion_receipts
                 .iter()
@@ -590,6 +605,10 @@ impl<'artifact> TerminalExecution<'artifact> {
         validate_boundary_requirements(boundary_declaration, |index| {
             boundary_arguments.values.get(index)
         })?;
+        crate::effects::boundary_predicates::validate_input_requirements(
+            boundary_declaration,
+            &scalar_arguments,
+        )?;
         self.preflight_boundary_result(boundary_declaration, &operation.result)?;
         let remaining_claims = complete_claims(
             &self.live_claims,
@@ -597,6 +616,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             completion_receipts,
             &boundary_declaration.structural_parameters,
         )?;
+        boundary_arguments.capture_reference_inputs(boundary_declaration, structural_arguments)?;
         boundary_arguments
             .storage_inputs
             .prepare_original_storage(self, handler, boundary)?;
@@ -622,6 +642,85 @@ impl<'artifact> TerminalExecution<'artifact> {
             completion_receipts: completion_receipts.clone(),
             result: boundary_declaration.result.clone(),
         };
+        let pending = PendingBoundaryCall {
+            site: crate::results::TerminalEffectWait {
+                program: self.program.identity,
+                machine: self.current_machine,
+                block: self.current,
+                operation: operation.id,
+                boundary,
+            },
+            arguments: boundary_arguments,
+            remaining_claims,
+            effect,
+        };
+        if self.boundary_effect_is_ready(operation, handler, &pending)? {
+            self.complete_boundary_effect(operation, handler, pending)
+        } else {
+            let site = pending.site;
+            self.awaiting_effect = Some(Box::new(pending));
+            Ok(OperationFlow::Yield(
+                TerminalExecutionStatus::AwaitingEffect(site),
+            ))
+        }
+    }
+
+    fn boundary_effect_is_ready(
+        &self,
+        operation: &terminal_psi::Operation,
+        handler: &mut impl TerminalEffectHandler,
+        pending: &PendingBoundaryCall,
+    ) -> Result<bool, TerminalInterpretError> {
+        let OperationKind::BoundaryCall { boundary, .. } = &operation.kind else {
+            return Err(malformed());
+        };
+        if pending.site.program != self.program.identity
+            || pending.site.machine != self.current_machine
+            || pending.site.block != self.current
+            || pending.site.operation != operation.id
+            || pending.site.boundary != *boundary
+        {
+            return Err(malformed());
+        }
+        let ready = handler
+            .poll_effect_readiness(&pending.effect)
+            .map_err(|rejection| TerminalInterpretError::EffectRejected {
+                operation: operation.id,
+                rejection,
+            })?;
+        if !ready && operation.suspension_crossing.is_none() {
+            return Err(TerminalInterpretError::EffectRejected {
+                operation: operation.id,
+                rejection: crate::effects::TerminalEffectRejection::new(
+                    "host readiness cannot suspend a call without a checked suspension crossing",
+                ),
+            });
+        }
+        Ok(ready)
+    }
+
+    fn complete_boundary_effect(
+        &mut self,
+        operation: &terminal_psi::Operation,
+        handler: &mut impl TerminalEffectHandler,
+        pending: PendingBoundaryCall,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let OperationKind::BoundaryCall {
+            boundary,
+            structural_arguments,
+            ..
+        } = &operation.kind
+        else {
+            return Err(malformed());
+        };
+        let PendingBoundaryCall {
+            arguments: mut boundary_arguments,
+            remaining_claims,
+            effect,
+            ..
+        } = pending;
+        let program = std::sync::Arc::clone(&self.program);
+        let boundary_declaration = program.verified_boundary_machine(boundary)?;
         let returned = handler
             .handle_effect_with_buffers(
                 &effect,
@@ -643,7 +742,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 crash,
             )));
         }
-        boundary_arguments.validate_writeback(self)?;
+        boundary_arguments.validate_writeback(self, boundary_declaration)?;
         if let TerminalEffectResult::Structural(value) = &returned {
             boundary_arguments.reserve_host_result(&mut self.local_structural_identities, value)?;
         }

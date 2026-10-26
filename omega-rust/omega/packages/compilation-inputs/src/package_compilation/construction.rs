@@ -104,7 +104,7 @@ impl PackageCompilationInputs {
             }
         }
 
-        append_overlapping_source_roots(&roots, &mut errors);
+        append_overlapping_source_roots(&roots, &canonical_packages, &mut errors);
 
         if !canonical_packages.contains_key(&root) {
             errors.push(PackageCompilationInputError::MissingRootPackage { root });
@@ -270,7 +270,7 @@ impl PackageCompilationInputs {
                 let expected_root = self
                     .package_root(self.source.root)
                     .expect("validated package graph retains its root");
-                if !root_file.starts_with(expected_root) {
+                if self.package_for_source(&root_file) != Some(self.source.root) {
                     diagnostics.push(Diagnostic::error(format!(
                         "compilation root {} is outside reconciled root package {}",
                         root_file.display(),
@@ -309,6 +309,7 @@ impl PackageCompilationInputs {
 
 pub(super) fn append_overlapping_source_roots(
     roots: &BTreeMap<PathBuf, PackageKeyIdentity>,
+    packages: &BTreeMap<PackageKeyIdentity, PackageCompilationSourceRecord>,
     errors: &mut Vec<PackageCompilationInputError>,
 ) {
     let mut overlaps = Vec::new();
@@ -318,6 +319,23 @@ pub(super) fn append_overlapping_source_roots(
         // Only actual ancestor roots can overlap; disjoint pairs are not visited.
         for ancestor in root.ancestors().skip(1) {
             if let Some((ancestor_root, ancestor_identity)) = roots.get_key_value(ancestor) {
+                // In-memory acquisition retains the authored routing roots. A
+                // dependency may live inside its requester's directory, but
+                // mounting it must not replace any captured observation. The
+                // exact subtree comparison includes absent entries, link data
+                // and executable flags. Physical or differing roots still
+                // overlap ambiguously and reject below.
+                if let (Some(parent), Some(child)) = (
+                    packages[ancestor_identity].captured_source.as_ref(),
+                    packages[identity].captured_source.as_ref(),
+                ) {
+                    let relative = root
+                        .strip_prefix(ancestor_root)
+                        .expect("ancestor is a component prefix");
+                    if captured_subtree_matches(parent, relative, child) {
+                        continue;
+                    }
+                }
                 overlaps.push((ancestor_root, root, ancestor_identity, identity));
             }
         }
@@ -336,6 +354,39 @@ pub(super) fn append_overlapping_source_roots(
                 }
             }),
     );
+}
+
+/// A nested mount must preserve every captured observation, including absence.
+fn captured_subtree_matches(
+    parent: &source::CapturedSourceTree,
+    relative: &Path,
+    child: &source::CapturedSourceTree,
+) -> bool {
+    if !parent.entries().any(|(path, node)| {
+        path == relative && matches!(node, source::CapturedSourceNode::Directory)
+    }) {
+        return false;
+    }
+    let mut child_entries = child.entries();
+    for (path, node) in parent.entries().filter_map(|(path, node)| {
+        let member = path.strip_prefix(relative).ok()?;
+        (!member.as_os_str().is_empty()).then_some((member, node))
+    }) {
+        let Some((child_path, child_node)) = child_entries.next() else {
+            return false;
+        };
+        let same_node = match (node, child_node) {
+            (
+                source::CapturedSourceNode::Symlink { target: a },
+                source::CapturedSourceNode::Symlink { target: b },
+            ) => a.as_os_str() == b.as_os_str(),
+            _ => node == child_node,
+        };
+        if path != child_path || !same_node {
+            return false;
+        }
+    }
+    child_entries.next().is_none()
 }
 
 pub(crate) fn canonical_source_root(path: &Path) -> Result<PathBuf, String> {

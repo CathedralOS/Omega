@@ -20,11 +20,13 @@ pub(crate) fn evaluate(
 ) -> Option<ScalarValue> {
     match expression {
         CheckedScalarExpression::StructuralParameterField {
+            observation,
             parameter_position,
             path,
             primitive_type: PrimitiveType::Bool,
+            ..
         } => resolve_binding
-            .structural_field(*parameter_position, path)
+            .structural_field(*observation, *parameter_position, path)
             .filter(|value| matches!(value, ScalarValue::Boolean(_))),
         CheckedScalarExpression::StorageRead {
             symbol,
@@ -56,13 +58,15 @@ fn integer(
         CheckedScalarExpression::StructuralParameterIndexedRead { .. }
         | CheckedScalarExpression::StructuralSequenceLength { .. } => None,
         CheckedScalarExpression::StructuralParameterField {
+            observation,
             parameter_position,
             path,
             primitive_type,
+            ..
         } => {
             let scalar_type = integer_type(*primitive_type)?;
             let ScalarValue::Integer(value) =
-                resolve_binding.structural_field(*parameter_position, path)?
+                resolve_binding.structural_field(*observation, *parameter_position, path)?
             else {
                 return None;
             };
@@ -276,9 +280,11 @@ pub(crate) fn boolean(
 ) -> Option<bool> {
     match expression {
         CheckedBooleanExpression::StructuralParameterField {
+            observation,
             parameter_position,
             path,
-        } => match resolve_binding.structural_field(*parameter_position, path)? {
+            ..
+        } => match resolve_binding.structural_field(*observation, *parameter_position, path)? {
             ScalarValue::Boolean(value) => Some(value),
             _ => None,
         },

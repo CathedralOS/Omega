@@ -15,7 +15,10 @@ type Snapshot = Handle<FlowStorageSnapshot>;
 enum Resolution {
     Incoming,
     Unavailable,
-    Stores(Vec<Snapshot>),
+    Sources {
+        incoming: bool,
+        stores: Vec<Snapshot>,
+    },
 }
 
 enum Annotation {
@@ -54,6 +57,25 @@ fn matches_store(
                     program, *left, *right,
                 )
             }),
+    )
+}
+
+fn preserved_binding_matches(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    source: &CanonicalPlace,
+    destination: checked_trees::FlowOperandReferent,
+    observation: StoredObservation,
+) -> Option<bool> {
+    if !matches!(observation, StoredObservation::Binding) {
+        return Some(false);
+    }
+    let path = control
+        .operand_referent_segments
+        .span(destination.segments)?;
+    Some(
+        path.len() == source.segments.len()
+            && matches_store(program, control, source, destination)?,
     )
 }
 
@@ -113,18 +135,41 @@ pub fn at_snapshot(
                         match resolved(&annotations, *predecessor) {
                             Resolution::Incoming => incoming = true,
                             Resolution::Unavailable => unavailable = true,
-                            Resolution::Stores(values) => stores.extend(values),
+                            Resolution::Sources {
+                                incoming: entry,
+                                stores: values,
+                            } => {
+                                incoming |= entry;
+                                stores.extend(values);
+                            }
                         }
                     }
                     stores.sort_unstable_by_key(|handle| identity(*handle));
                     stores.dedup();
-                    if unavailable || (incoming && !stores.is_empty()) {
+                    if unavailable
+                        || (incoming
+                            && !stores.is_empty()
+                            && matches!(observation, StoredObservation::Contents))
+                    {
                         Resolution::Unavailable
                     } else if stores.is_empty() {
                         Resolution::Incoming
                     } else {
-                        Resolution::Stores(stores)
+                        Resolution::Sources { incoming, stores }
                     }
+                }
+                FlowStorageOperation::PreserveBinding {
+                    destination,
+                    source: entry,
+                } if preserved_binding_matches(
+                    program,
+                    control,
+                    source,
+                    destination,
+                    observation,
+                ) == Some(true) =>
+                {
+                    resolved(&annotations, entry)
                 }
                 _ => resolved(&annotations, event.previous),
             };
@@ -143,9 +188,10 @@ pub fn at_snapshot(
             } => match matches_store(program, control, source, destination) {
                 None => Some(Resolution::Unavailable),
                 Some(false) => None,
-                Some(true) if control.operands.is_valid(value) => {
-                    Some(Resolution::Stores(vec![current]))
-                }
+                Some(true) if control.operands.is_valid(value) => Some(Resolution::Sources {
+                    incoming: false,
+                    stores: vec![current],
+                }),
                 Some(true) => Some(Resolution::Unavailable),
             },
             FlowStorageOperation::Writes {
@@ -184,6 +230,11 @@ pub fn at_snapshot(
                         });
                 (!stable).then_some(Resolution::Unavailable)
             }
+            FlowStorageOperation::PreserveBinding { destination, .. } => {
+                preserved_binding_matches(program, control, source, destination, observation)
+                    .is_none()
+                    .then_some(Resolution::Unavailable)
+            }
             FlowStorageOperation::Join { .. } => None,
         };
         if let Some(result) = terminal {
@@ -196,6 +247,14 @@ pub fn at_snapshot(
                     return Some(StoredOperand::Unavailable);
                 };
                 pending.extend(predecessors.iter().rev().map(|handle| (*handle, false)));
+            } else if let FlowStorageOperation::PreserveBinding {
+                destination,
+                source: entry,
+            } = event.operation
+                && preserved_binding_matches(program, control, source, destination, observation)
+                    == Some(true)
+            {
+                pending.push((entry, false));
             } else {
                 pending.push((event.previous, false));
             }
@@ -204,8 +263,11 @@ pub fn at_snapshot(
     match resolved(&annotations, snapshot) {
         Resolution::Incoming => None,
         Resolution::Unavailable => Some(StoredOperand::Unavailable),
-        Resolution::Stores(stores) => {
+        Resolution::Sources { incoming, stores } => {
             let mut values = Vec::new();
+            if incoming {
+                values.push(StoredOperand::Incoming(source.clone()));
+            }
             for handle in stores {
                 let FlowStorageOperation::Store {
                     destination,
