@@ -16624,8 +16624,8 @@ fail/generics/generic_selected_extent_qualified_binder rejected 634ms expected @
 	data `Wrong` field `values` uses unresolved fixed-array length `Counts::FOUR`; a symbolic array length must name an in-scope `const` parameter
 fail/generics/generic_selected_extent_type_binder rejected 549ms expected @a92f16431042
 	data `Wrong` field `values` uses type parameter `Count` as a fixed-array length; array lengths must name a `const` parameter
-fail/generics/grouped_decimal_const_fraction_rejected rejected 257ms expected @a92f16431042
-	const argument expression for `FixedBuffer` is invalid for `u64`: exact anonymous value `25/8` cannot land in an integer const argument; type an operand if typed integer division was intended
+fail/generics/grouped_decimal_const_fraction_rejected rejected 213ms expected @264fd279a7bb+wt
+	const argument expression: exact anonymous value `25/8` cannot land in an integer const argument
 fail/generics/grouped_decimal_const_suffix_rejected rejected 1842ms unexpected @a92f16431042
 	const parameter `N` of `FixedBuffer` requires an integer literal argument
 fail/generics/grouped_decimal_const_zero_division_rejected rejected 245ms expected @a92f16431042
@@ -16650,6 +16650,24 @@ fail/generics/inferred_equation_deferred_callee_requires_rejected rejected 570ms
 	machine `main` state `entry` value call to `forward` violates required fact `okay`: the instantiated fact is structurally false
 fail/generics/inferred_equation_explicit_forward_conflict_rejected rejected 579ms expected @036605466510+wt
 	argument `value` for state `entry` expects `[u8; 3]`, got `named value`
+fail/generics/inferred_equation_typed_const_call_result_conflict rejected 95ms expected @264fd279a7bb+wt
+	generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/generics/inferred_equation_typed_const_const_name_conflict rejected 89ms expected @264fd279a7bb+wt
+	generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/generics/inferred_equation_typed_const_field_conflict rejected 72ms expected @264fd279a7bb+wt
+	generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/generics/inferred_equation_typed_const_local_conflict rejected 86ms expected @264fd279a7bb+wt
+	generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/generics/inferred_equation_typed_const_match_join_conflict rejected 92ms expected @264fd279a7bb+wt
+	generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/generics/inferred_equation_typed_const_other_machine_conflict rejected 81ms expected @264fd279a7bb+wt
+	generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/generics/inferred_equation_typed_const_other_state_conflict rejected 76ms expected @264fd279a7bb+wt
+	generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/generics/inferred_equation_typed_const_parameter_conflict rejected 102ms expected @264fd279a7bb+wt
+	generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/generics/inferred_equation_typed_const_target_body_conflict rejected 87ms expected @264fd279a7bb+wt
+	generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3
 fail/generics/inferred_machine_array_equation_constructor_identity_rejected rejected 436ms expected @a92f16431042
 	generic machine `capacity` where type equation requires the same fixed-array constructor
 fail/generics/inferred_machine_array_equation_copy_bound_rejected rejected 888ms expected @a92f16431042
@@ -16965,6 +16983,14 @@ fail/generics/type_index_distinct_binders rejected 1692ms expected @a92f16431042
 fail/generics/type_index_wrong_telescope rejected 1691ms expected @a92f16431042
 	index compatibility condition `index-equality:Pair:wrong::entry:call-0-0:Pair<Left, Right>==Pair<Left, Right>` is not established: actual `Pair<Left, Right>` and expected `Pair<Left, Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 	index compatibility condition `index-equality:Pair:wrong::entry:statement-0:Pair<Left, Right>==Pair<Left, Right>` is not established: actual `Pair<Left, Right>` and expected `Pair<Left, Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/generics/typed_const_probe_false_extent_requires rejected 64ms expected @264fd279a7bb+wt
+	const-generic application evaluation failed: constant invocation of `extent` failed checking: machine `@const-invocation` state `@const-invocation` value call to `extent` violates required fact `false`: the instantiated fact is structurally false
+fail/generics/typed_const_probe_trapping_extent rejected 73ms expected @264fd279a7bb+wt
+	const-generic application evaluation failed: constant invocation of `extent` retains unhandled [Trap] routes at its concrete arguments
+fail/generics/typed_const_probe_unused_bad_scalar rejected 90ms expected @264fd279a7bb+wt
+	scalar constant `BAD` is invalid: const value `300` does not fit `u8`
+fail/generics/typed_const_probe_unused_public_bad_array rejected 105ms expected @264fd279a7bb+wt
+	array constant `BAD` is invalid: fixed-array const value requires 2 elements but has 3
 fail/generics/unused_selected_value_is_not_const rejected 480ms expected @a92f16431042
 	const parameter `Index` of `read` cannot accept runtime-capable Value binder `Index`
 	retained requirement tuple lost its exact source call application: call `read` in `unused` binds declaration Handle { arena_index: 764, generation: 1 }, but its retained targets are [(Handle { arena_index: 892, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
@@ -27358,11 +27384,21 @@ pass/generics/generic_result_parameter_receipt checked 1711ms @a92f16431042
 pass/generics/generic_seq_consuming_map_filter checked 1485ms @a92f16431042
 pass/generics/generic_seq_map_filter checked 1919ms @a92f16431042
 pass/generics/higher_order_schema checked 2033ms @a92f16431042
+pass/generics/inferred_equation_generic_result_projection_exit checked 1769ms check-target:macos_arm64 @264fd279a7bb+wt
 pass/generics/inferred_equation_inferred_array_result_exit checked 1927ms check-target:macos_arm64 @036605466510+wt
 pass/generics/inferred_equation_machine_binder_context_exit checked 2541ms check-target:macos_arm64 @036605466510+wt
 pass/generics/inferred_equation_nested_forwarding_exit checked 2167ms check-target:macos_arm64 @036605466510+wt
 pass/generics/inferred_equation_outer_context_exit checked 2366ms check-target:macos_arm64 @036605466510+wt
 pass/generics/inferred_equation_reference_compatibility_exit checked 2289ms check-target:macos_arm64 @036605466510+wt
+pass/generics/inferred_equation_typed_const_call_result_exit checked 1870ms check-target:macos_arm64 @264fd279a7bb+wt
+pass/generics/inferred_equation_typed_const_const_name_exit checked 1829ms check-target:macos_arm64 @264fd279a7bb+wt
+pass/generics/inferred_equation_typed_const_field_exit checked 1857ms check-target:macos_arm64 @264fd279a7bb+wt
+pass/generics/inferred_equation_typed_const_local_exit checked 1756ms check-target:macos_arm64 @264fd279a7bb+wt
+pass/generics/inferred_equation_typed_const_match_join_exit checked 1775ms check-target:macos_arm64 @264fd279a7bb+wt
+pass/generics/inferred_equation_typed_const_other_machine_exit checked 1793ms check-target:macos_arm64 @264fd279a7bb+wt
+pass/generics/inferred_equation_typed_const_other_state_exit checked 1914ms check-target:macos_arm64 @264fd279a7bb+wt
+pass/generics/inferred_equation_typed_const_parameter_exit checked 1854ms check-target:macos_arm64 @264fd279a7bb+wt
+pass/generics/inferred_equation_typed_const_target_body_exit checked 1836ms check-target:macos_arm64 @264fd279a7bb+wt
 pass/generics/inferred_machine_array_equation_deferred_bodies_exit checked 2000ms check-target:macos_arm64 @a92f16431042
 pass/generics/inferred_machine_array_equation_generic_owner_field_exit checked 2903ms check-target:macos_arm64 @a92f16431042
 pass/generics/inferred_machine_array_equation_named_extent_exit checked 2001ms check-target:macos_arm64 @a92f16431042
@@ -27403,8 +27439,7 @@ pass/generics/owned_member_applied_ceiling checked 5882ms check-target:macos_arm
 pass/generics/owned_member_applied_result checked 2389ms check-target:macos_arm64 @a92f16431042
 pass/generics/owned_member_static_type_operand checked 2404ms check-target:macos_arm64 @a92f16431042
 pass/generics/ranged_const_parameter_attached_shape checked 5778ms check-target:macos_arm64 @a92f16431042
-pass/generics/record_const_named_literal_equivalence rejected 1546ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
+pass/generics/record_const_named_literal_equivalence checked 1748ms check-target:macos_arm64 @264fd279a7bb+wt
 pass/generics/runtime_applied_implementation_qualifier_exit rejected 898ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	call `read` has an invalid argument correspondence: selected call has no admitted public application
 	call `own` has an invalid argument correspondence: selected call has no admitted public application
@@ -27529,6 +27564,7 @@ pass/generics/static_machine_borrowed_parameter_refines_after_substitution check
 pass/generics/swapped_type_parameter_result checked 2319ms @a92f16431042
 pass/generics/type_index_forwarding_exit rejected 2834ms check-target:macos_arm64 @a92f16431042
 	terminal-artifact production failed: Lowering(Unsupported("scalar entry membership has no exact primitive application"))
+pass/generics/typed_const_equation_helper_body_exit checked 2210ms check-target:macos_arm64 @264fd279a7bb+wt
 pass/generics/unused_selected_value_carrier checked 2091ms @a92f16431042
 pass/generics/unused_selected_value_proved_where checked 1524ms @a92f16431042
 pass/host/console_exit_process_exit checked 6213ms check-target:macos_arm64 @a92f16431042
