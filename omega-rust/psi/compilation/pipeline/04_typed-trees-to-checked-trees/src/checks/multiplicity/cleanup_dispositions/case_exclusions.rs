@@ -7,6 +7,74 @@
 
 use validation::CanonicalPlace;
 
+mod lookup_profile {
+    use std::sync::{
+        OnceLock,
+        atomic::{AtomicUsize, Ordering},
+    };
+    use validation::CanonicalPlace;
+
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    static LOOKUPS: AtomicUsize = AtomicUsize::new(0);
+    static HITS: AtomicUsize = AtomicUsize::new(0);
+    static COMPARISONS: AtomicUsize = AtomicUsize::new(0);
+    static SAME_ROOT: AtomicUsize = AtomicUsize::new(0);
+    static PREFIX_SEGMENTS: AtomicUsize = AtomicUsize::new(0);
+    static EXACT: AtomicUsize = AtomicUsize::new(0);
+    static SIZE_BUCKETS: [AtomicUsize; 16] = [const { AtomicUsize::new(0) }; 16];
+
+    fn enabled() -> bool {
+        *ENABLED.get_or_init(|| std::env::var_os("OMEGA_CASE_INDEX_PROFILE").is_some())
+    }
+
+    pub(super) fn comparison(left: &CanonicalPlace, right: &CanonicalPlace) {
+        if !enabled() {
+            return;
+        }
+        COMPARISONS.fetch_add(1, Ordering::Relaxed);
+        if left.root == right.root {
+            SAME_ROOT.fetch_add(1, Ordering::Relaxed);
+            PREFIX_SEGMENTS.fetch_add(
+                left.segments
+                    .iter()
+                    .zip(&right.segments)
+                    .take_while(|(left, right)| left == right)
+                    .count(),
+                Ordering::Relaxed,
+            );
+        }
+        EXACT.fetch_add(usize::from(left == right), Ordering::Relaxed);
+    }
+
+    pub(super) fn lookup(length: usize, found: bool) {
+        if !enabled() {
+            return;
+        }
+        let bucket = if length == 0 {
+            0
+        } else {
+            (length.ilog2() as usize + 1).min(15)
+        };
+        SIZE_BUCKETS[bucket].fetch_add(1, Ordering::Relaxed);
+        HITS.fetch_add(usize::from(found), Ordering::Relaxed);
+        let count = LOOKUPS.fetch_add(1, Ordering::Relaxed) + 1;
+        if count == 1 || count % 10000 == 0 {
+            eprintln!(
+                "case-index-profile lookups={} hits={} comparisons={} same_root={} prefix_segments={} exact={} size_log2={:?}",
+                count,
+                HITS.load(Ordering::Relaxed),
+                COMPARISONS.load(Ordering::Relaxed),
+                SAME_ROOT.load(Ordering::Relaxed),
+                PREFIX_SEGMENTS.load(Ordering::Relaxed),
+                EXACT.load(Ordering::Relaxed),
+                SIZE_BUCKETS
+                    .each_ref()
+                    .map(|count| count.load(Ordering::Relaxed))
+            );
+        }
+    }
+}
+
 #[derive(Clone, Default)]
 pub(super) struct CaseExclusions {
     observations: Vec<CanonicalPlace>,
@@ -14,24 +82,13 @@ pub(super) struct CaseExclusions {
 }
 
 impl CaseExclusions {
-    fn compare_observation_identity(
-        left: &CanonicalPlace,
-        right: &CanonicalPlace,
-    ) -> std::cmp::Ordering {
-        // Repeated cuts revisit exact observations. Equality avoids rebuilding
-        // lexicographic keys for those hits; distinct identities retain the
-        // existing complete structural ordering.
-        if left == right {
-            std::cmp::Ordering::Equal
-        } else {
-            left.compare_identity(right)
-        }
-    }
-
     pub(super) fn insert(&mut self, place: &CanonicalPlace) {
-        let Err(position) = self.by_identity.binary_search_by(|&position| {
-            Self::compare_observation_identity(&self.observations[position], place)
-        }) else {
+        let lookup = self.by_identity.binary_search_by(|&position| {
+            lookup_profile::comparison(&self.observations[position], place);
+            self.observations[position].compare_identity(place)
+        });
+        lookup_profile::lookup(self.by_identity.len(), lookup.is_ok());
+        let Err(position) = lookup else {
             return;
         };
         self.by_identity.insert(position, self.observations.len());
@@ -39,11 +96,12 @@ impl CaseExclusions {
     }
 
     pub(super) fn contains(&self, place: &CanonicalPlace) -> bool {
-        self.by_identity
-            .binary_search_by(|&position| {
-                Self::compare_observation_identity(&self.observations[position], place)
-            })
-            .is_ok()
+        let lookup = self.by_identity.binary_search_by(|&position| {
+            lookup_profile::comparison(&self.observations[position], place);
+            self.observations[position].compare_identity(place)
+        });
+        lookup_profile::lookup(self.by_identity.len(), lookup.is_ok());
+        lookup.is_ok()
     }
 
     pub(super) fn iter(&self) -> impl Iterator<Item = &CanonicalPlace> {
