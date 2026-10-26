@@ -22,6 +22,12 @@ and Linux x86-64 both-engine goldens with the exact candidate applied to recorde
 base `290b093a0ecc`. Every positive build binds all four hosted ProgramEntry
 targets; execution here qualifies only the actual Linux x86-64 host.
 
+Known red on main: `erased_predicates` (predicate erasure) refuses native
+compilation at the landing commit (`f8645229c43`) and at current main —
+Terminal Psi lowering reports `InvalidUnitMachinePlan`, "resident membership
+home has no exact source projection" (05 structural-values emission,
+`current_memberships.rs`). The other places in the same sweep (28 of 29) exit 0.
+
 | Place | Runtime result | Sensitive twin |
 | --- | --- | --- |
 | local | native 0, interpreter 0 | cleanup requires rejects |
