@@ -6,7 +6,8 @@ machine replace(values: &mut [Cell], first_index: u64, second_index: u64)
 requires values.len == 2, first_index < values.len, second_index < values.len,
     distinct(first_index, second_index) == true
 {
-    let first: &mut Cell = &mut values[first_index];
+    let selected: u64 = first_index;
+    let first: &mut Cell = &mut values[selected];
     let second: &mut Cell = &mut values[second_index];
     first = Cell { value: 17 };
     second = Cell { value: 53 };

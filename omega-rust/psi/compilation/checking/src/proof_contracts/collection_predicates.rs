@@ -20,6 +20,10 @@
 //!   the facts standing before a store; live guards project the same checked
 //!   consequences onto their exact scalar arguments and descriptor extents.
 //!   Extent knowledge never supplies element contents (`exploration.rs`).
+//! - Integer relations: the same symbolic implication judgment proves ordering
+//!   consequences on every successful return, then publishes exact caller
+//!   actuals for borrow compatibility. Independent interval hulls cannot retain
+//!   correlations such as two unrestricted indices being unequal.
 //! - Proof: helper-theorem implication and predicate handback use symbolic
 //!   descriptors, selected read coordinates and functional store versions.
 //!   Recursive cases owe a complete substituted induction-premise roster and

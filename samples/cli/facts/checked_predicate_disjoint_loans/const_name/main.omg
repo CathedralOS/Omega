@@ -3,10 +3,10 @@
 data Cell { value: i32; }
 machine distinct(first_index: u64, second_index: u64) -> bool { first_index != second_index }
 machine replace(values: &mut [Cell], first_index: u64, second_index: u64)
-requires values.len == 2, first_index < values.len, second_index < values.len,
-    distinct(first_index, second_index) == true
+requires values.len == 2, first_index == FIRST, FIRST < values.len, second_index < values.len,
+    distinct(FIRST, second_index) == true
 {
-    let first: &mut Cell = &mut values[first_index];
+    let first: &mut Cell = &mut values[FIRST];
     let second: &mut Cell = &mut values[second_index];
     first = Cell { value: 17 };
     second = Cell { value: 53 };

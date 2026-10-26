@@ -11,7 +11,9 @@ every true return reach borrow compatibility, substituted onto the exact actuals
 
 The consuming `replace` operation retains its two independent element loans,
 then writes 17 and 53 to the original caller array. Every place transports the
-same selected first index into that invocation. The runtime comparison observes
+same selected first index into that invocation and consumes its relation through
+a local alias, record projection, parameter, completed result, match join,
+constant, nested arrival, separate machine or target-scoped body. The runtime comparison observes
 both updates; it does not establish the static separation required by the loans.
 Every reject twin changes only the predicate's own body from `!=` to `<=`.
 That weaker fact permits equal indices and must reject the same loans.
@@ -49,7 +51,11 @@ All positives bind all four hosted `ProgramEntry` targets and declare exit 0.
 - **Soundness:** [equal actuals](controls/equal_actuals/invalid/main.omg),
   [an unrelated always-true predicate](controls/unrelated_predicate/invalid/main.omg)
   and [an overlapping whole window](controls/wide_overlap/invalid/main.omg)
-  reject. Singleton disequality does not establish separation of wider windows.
+  reject. [Circular formation](controls/circular_formation/invalid/main.omg)
+  cannot use a predicate result to establish that predicate call's own partial
+  operands. [A changed selector](controls/stale_selector/invalid/main.omg)
+  invalidates the entry relation before loan formation. Singleton disequality
+  does not establish separation of wider windows.
   Unsupported/effectful bodies and exhausted proof work supply no evidence.
 - **Psi 05–07:** admitted loans and stores use the existing Terminal Psi route;
   pure proof reasoning introduces no runtime authority or proof replay. Public

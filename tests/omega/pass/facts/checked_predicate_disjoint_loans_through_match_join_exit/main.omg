@@ -2,11 +2,13 @@
 // Expected exit: 0
 data Cell { value: i32; }
 machine distinct(first_index: u64, second_index: u64) -> bool { first_index != second_index }
+machine same_index(choice: bool, value: u64) -> u64 ensures result == value { match choice { true -> value false -> value } }
 machine replace(values: &mut [Cell], first_index: u64, second_index: u64)
 requires values.len == 2, first_index < values.len, second_index < values.len,
     distinct(first_index, second_index) == true
 {
-    let first: &mut Cell = &mut values[first_index];
+    let completed: u64 = same_index(first_index == 0, first_index);
+    let first: &mut Cell = &mut values[completed];
     let second: &mut Cell = &mut values[second_index];
     first = Cell { value: 17 };
     second = Cell { value: 53 };

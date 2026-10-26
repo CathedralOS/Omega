@@ -2,7 +2,12 @@
 // Expected exit: 0
 data Cell { value: i32; }
 machine distinct(first_index: u64, second_index: u64) -> bool { first_index <= second_index }
-machine replace(values: &mut [Cell], first_index: u64, second_index: u64)
+machine forward(values: &mut [Cell]) requires values.len == 2 {
+    next(values, 0);
+    machine next(values: &mut [Cell], selected: u64)
+    requires values.len == 2, selected == 0
+    { apply(values, selected, 1); }
+machine apply(values: &mut [Cell], first_index: u64, second_index: u64)
 requires values.len == 2, first_index < values.len, second_index < values.len,
     distinct(first_index, second_index) == true
 {
@@ -11,11 +16,7 @@ requires values.len == 2, first_index < values.len, second_index < values.len,
     first = Cell { value: 17 };
     second = Cell { value: 53 };
 }
-machine forward(values: &mut [Cell]) requires values.len == 2 {
-    next(values, 0);
-    machine next(values: &mut [Cell], selected: u64)
-    requires values.len == 2, selected == 0
-    { replace(values, selected, 1); }
+
 }
 machine main() crashes Trap {
     let mut values: [Cell; 2] = [Cell { value: 1 }, Cell { value: 2 }];
