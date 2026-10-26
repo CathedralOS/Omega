@@ -1469,7 +1469,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         // descriptor-table memory operands, the memory-destination
         // non-temporal stores, and frame setup — each always reads or writes
         // memory, so no spelling here is a register-only contract candidate.
-        // Address-arithmetic (`lea`), ordering (`dmb`/`dsb`), cache/TLB
+        // Address-arithmetic (`lea`), unsupported ordering (`dsb`), cache/TLB
         // maintenance (`cl*`/`tlbi`/`ic`/`dc`), and SIMD register-only moves
         // do not access memory or belong to a different contract family, and
         // stay unrecognized rather than borrowing this refusal.
