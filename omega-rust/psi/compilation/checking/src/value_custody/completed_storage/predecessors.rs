@@ -25,10 +25,14 @@ pub fn terminal_alternatives(
         }
         visited.push(value);
         let capture = control.operands.get(value);
-        if capture.alternatives.is_empty() {
-            completed.push(value);
+        if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion {
+            let rows = control.operand_alternatives.span(alternatives)?;
+            if rows.is_empty() || rows.iter().any(|row| !row.source_arm.is_valid()) {
+                return None;
+            }
+            pending.extend(rows.iter().map(|row| row.value));
         } else {
-            pending.extend(capture.alternatives.handles());
+            completed.push(value);
         }
     }
     Some(completed)
@@ -100,12 +104,25 @@ pub fn predecessors_in_control(
             .is_valid(capture.value_source)
             .then(|| vec![(capture.value_source, projection.to_vec())]);
     }
-    if !capture.alternatives.is_empty() {
+    if let checked_trees::FlowOperandCompletion::Copied { copy, path } = capture.completion
+        && (matches!(observation, super::StoredObservation::Binding) || !crosses_reference)
+    {
+        if !control.copied_values.is_valid(copy) {
+            return None;
+        }
+        let copied = control.copied_values.get(copy);
+        let mut selected = control.operand_child_paths.span(path)?.to_vec();
+        selected.extend_from_slice(projection);
+        return Some(vec![(copied.source, selected)]);
+    }
+    if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion {
+        let rows = control.operand_alternatives.span(alternatives)?;
+        if rows.is_empty() || rows.iter().any(|row| !row.source_arm.is_valid()) {
+            return None;
+        }
         return Some(
-            capture
-                .alternatives
-                .handles()
-                .map(|alternative| (alternative, projection.to_vec()))
+            rows.iter()
+                .map(|row| (row.value, projection.to_vec()))
                 .collect(),
         );
     }

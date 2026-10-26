@@ -24,7 +24,9 @@ impl SourceRootRole {
 }
 
 mod acquisition;
+mod workspace_acquisition;
 pub use acquisition::{AcquiredBuildSource, BuildSourceAcquisitionError, BuildSourceAcquisitions};
+pub use workspace_acquisition::{AcquiredWorkspaceBuild, AcquiredWorkspaceMembers};
 mod build_resolution;
 mod custody;
 pub use build_resolution::{
@@ -55,7 +57,6 @@ mod navigation;
 mod projection;
 mod resolved;
 mod selection;
-mod workspace;
 pub(crate) mod workspace_path;
 
 pub(crate) use custody::PackageSourceCustody;
@@ -63,20 +64,13 @@ pub(crate) use custody::{CHECKED_SOURCE_CACHE_LANE, COMPILED_REVIEW_CACHE_LANE};
 pub(crate) use error::ResolvePackageSourceError;
 pub(crate) use git::GitPackageSourceRequest;
 pub(crate) use git::resolve_selected_git_source_at_revision_in_lanes;
-pub(crate) use git::resolve_selected_git_source_from_pin_in_lanes;
 pub(crate) use git::workspace::{GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence};
-pub(crate) use local::{
-    bind_staged_external_local_project_source, resolve_external_local_project_source,
-};
-pub(crate) use local::{
-    capture_external_local_project_source, recover_cached_external_local_source,
-    resolve_external_local_source_in_lane,
-};
+pub(crate) use local::recover_cached_external_local_source;
+pub(crate) use local::resolve_external_local_project_source;
 pub(crate) use materialization::PackageSourceMaterialization;
 pub(crate) use navigation::PackageSourceNavigation;
 pub(crate) use resolved::ResolvedPackageSource;
 pub(crate) use selection::{PackageSourceSelectionEvidence, PackageSourceSelectionEvidenceError};
-pub(crate) use workspace::resolve_workspace_member_source_in_lane;
 
 /// The accessor surface every resolved-package-source record shares:
 /// custody and resolved shapes carry identically-named projection fields and

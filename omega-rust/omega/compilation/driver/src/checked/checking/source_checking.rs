@@ -17,6 +17,7 @@ pub(crate) fn check_product_source(
     selections: &mut psi_compiler::ProductSelections,
 ) -> Result<CheckedProductSource, Vec<Diagnostic>> {
     let PreparedProductSource {
+        source_completion_accounting,
         typed,
         pending_pre_checks,
         computed_build_config,
@@ -25,6 +26,9 @@ pub(crate) fn check_product_source(
         mut timings,
         retained_build_check,
     } = source;
+    source_completion_accounting
+        .validate_charges()
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     // A deferred application still needs selected runtime meaning. The shared
     // judgment checks its symbolic recipe; each target closure resumes this
     // continuation under its own selected rows after settlement.
@@ -35,6 +39,8 @@ pub(crate) fn check_product_source(
     let representations = representation_planning::rederive_opaque_representation_selections(
         &typed,
         computed_build_config.selected_build_machine_symbol,
+        &computed_build_config.declared_product_selections,
+        &computed_build_config.product_selection_requests,
         &build.opaque_representation_selections,
     )?;
     let opaque_properties = representations
@@ -119,6 +125,7 @@ pub(crate) fn check_product_source(
     let accepted_template_classifications =
         trust_model::AcceptedTemplateClassifications::capture(&program);
     Ok(CheckedProductSource {
+        source_completion_accounting,
         program,
         provider_defaults: provider_defaults.into(),
         computed_build_config,

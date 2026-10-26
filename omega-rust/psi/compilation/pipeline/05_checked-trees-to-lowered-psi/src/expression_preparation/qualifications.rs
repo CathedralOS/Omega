@@ -663,20 +663,7 @@ pub(crate) fn type_atoms(
     checked: &CheckedTrees,
     reference: TypeReferenceHandle,
 ) -> Result<(PrimitiveType, Vec<(SymbolHandle, SemanticDomainId)>), LoweringError> {
-    let primitive = checked
-        .primitive_type_reference(reference)
-        .or_else(|| {
-            // A retained scalar field read can name its borrowed source.
-            // Classify exactly that observation's referee, while the full
-            // traversal below still checks the original reference type and
-            // refuses transporting semantic atoms through it. Permission to
-            // observe remains owned by the checked storage-read operation.
-            validation::reference_shell(&checked.typed, reference)
-                .and_then(|shell| checked.primitive_type_reference(shell.referee))
-        })
-        .ok_or(LoweringError::Unsupported(
-            "scalar qualification has no primitive carrier",
-        ))?;
+    let primitive = observed_scalar_carrier(checked, reference)?;
     let mut current = reference;
     let mut active = Vec::new();
     let mut atoms = Vec::new();
@@ -806,6 +793,77 @@ pub(crate) fn type_atoms(
     atoms.sort_by_key(|(_, identity)| identity.0);
     atoms.dedup();
     Ok((primitive, atoms))
+}
+
+/// A scalar observation can follow a stored readable reference without making
+/// the descriptor itself a scalar value. Resolve only its payload carrier here;
+/// `type_atoms` still checks every original shell and rejects transporting
+/// nominal scalar memberships through a reference without its own judgment.
+fn observed_scalar_carrier(
+    checked: &CheckedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Result<PrimitiveType, LoweringError> {
+    for _ in 0..checked.type_reference_table.type_reference_count() {
+        if !checked
+            .type_reference_table
+            .contains_type_reference(reference)
+        {
+            return unsupported("scalar qualification has a stale type");
+        }
+        match checked.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference {
+                referee, access, ..
+            } if access.is_readable() => reference = *referee,
+            TypeReferenceNode::Reference { .. } => {
+                return unsupported("scalar qualification cannot observe write-only storage");
+            }
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            _ => {
+                return checked.primitive_type_reference(reference).ok_or(
+                    LoweringError::Unsupported("scalar qualification has no primitive carrier"),
+                );
+            }
+        }
+    }
+    unsupported("scalar qualification has a cyclic type")
+}
+
+/// The source checker retained the complete receiving restriction before its
+/// temporary mathematical view expired. Its exact source type identity includes
+/// every qualification; equal primitive layout alone supplies no restriction.
+fn retained_scalar_domain_predicate(
+    checked: &CheckedTrees,
+    reference: TypeReferenceHandle,
+    primitive: PrimitiveType,
+) -> bool {
+    checked.primitive_type_reference(reference) == Some(primitive)
+        && matches!(
+            retained_scalar_restriction(checked, reference),
+            Some(
+                checked_trees::CheckedUnitStructuralFieldType::RefinedScalar { .. }
+                    | checked_trees::CheckedUnitStructuralFieldType::BoundedInteger(_)
+            )
+        )
+}
+
+pub(crate) fn retained_scalar_restriction(
+    checked: &CheckedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<&checked_trees::CheckedUnitStructuralFieldType> {
+    let primitive = checked.primitive_type_reference(reference)?;
+    let identity = validation::structural_type_identity(&checked.typed, reference, &[], &[]);
+    checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .structural_types
+        .iter()
+        .find(|plan| {
+            plan.identity == identity
+                && plan.shape
+                    == checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)
+        })
+        .and_then(|plan| plan.scalar_restriction.as_ref())
 }
 
 pub(crate) fn declared_atoms(

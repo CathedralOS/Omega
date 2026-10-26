@@ -21,3 +21,6 @@ pub use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus}
 
 /// Dispatch the explicitly sponsored isolated native provider before normal host arguments.
 pub use native_provider_runtime::run_worker_if_requested as run_native_provider_worker_if_requested;
+
+// Receiving roots explicitly select this scoped interpreter memory model.
+pub use terminal_interpreter::TerminalMemoryOrderingEnvironment;

@@ -77,7 +77,9 @@ fn value(
         }
     }
     Some(match source {
-        ScopedArithmeticValue::Atom { .. } | ScopedArithmeticValue::Integer(_) => source.clone(),
+        ScopedArithmeticValue::TypeReference(_)
+        | ScopedArithmeticValue::Atom { .. }
+        | ScopedArithmeticValue::Integer(_) => source.clone(),
         ScopedArithmeticValue::BoundedInteger {
             value: inner,
             minimum,

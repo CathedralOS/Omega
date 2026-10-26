@@ -17,6 +17,10 @@ pub(crate) use argument_paths::{projected_evaluated_path, value_index_segment};
 pub(super) mod argument_presentation;
 mod boundary_admission;
 mod call_operations;
+mod call_targets;
+pub(in crate::execution::terminal_unit) use call_targets::{
+    ResolvedCallTarget, resolve_call_target,
+};
 mod computation_arguments;
 mod dynamic_call;
 mod parameter_argument_paths;

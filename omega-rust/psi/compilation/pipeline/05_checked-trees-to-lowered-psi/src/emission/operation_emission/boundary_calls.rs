@@ -37,6 +37,7 @@ pub(crate) fn complete_operands(
     structural_arguments: Vec<terminal_psi::StructuralArgument>,
     receipts: &[crate::emission::claim_bindings::PreparedClaimTransfer],
     calls: &mut CallEmissionContext<'_>,
+    current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
 ) -> Result<BoundaryOperands, LoweringError> {
     if structural_arguments.len() != target.structural.len() {
         return unsupported("boundary arguments disagree with their declared structural roster");
@@ -48,14 +49,17 @@ pub(crate) fn complete_operands(
     .iter()
     .map(|value| value.id)
     .collect();
+    let completion_receipts = crate::emission::claim_bindings::emit_completion_receipts(
+        receipts,
+        calls.claims.bindings(),
+        &structural_arguments,
+        current_claims,
+    )?;
     Ok(BoundaryOperands {
         boundary: target.id,
         arguments,
         structural_arguments,
-        completion_receipts: crate::emission::claim_bindings::emit_completion_receipts(
-            receipts,
-            calls.claims.bindings(),
-        )?,
+        completion_receipts,
         requirement_obligations: (0..target.requirement_count)
             .map(|_| calls.allocate_requirement())
             .collect::<Result<Vec<_>, _>>()?,
@@ -96,6 +100,7 @@ pub(super) fn emit_boundary_call_binding(
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
+    current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
 ) -> Result<ValueId, LoweringError> {
     let mut targets = call_emission
         .boundaries
@@ -140,6 +145,7 @@ pub(super) fn emit_boundary_call_binding(
         structural_arguments,
         &call.completion_receipts,
         call_emission,
+        current_claims,
     )?;
     let result = value_id(*next_value_identity);
     *next_value_identity = next_value_identity

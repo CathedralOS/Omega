@@ -29,7 +29,7 @@
 
 use super::exploration::{ValueShape, admitted_predicate_machine, value_shape};
 use crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning;
-use crate::proof_contracts::contract_entailment::{
+use crate::{
     ScopedArithmeticComparison as Comparison, ScopedArithmeticValue as Integer,
     scoped_arithmetic_comparisons_unsatisfiable,
 };

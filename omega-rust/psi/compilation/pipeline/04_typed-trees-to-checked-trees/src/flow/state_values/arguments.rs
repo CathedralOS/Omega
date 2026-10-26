@@ -24,6 +24,7 @@ pub(in crate::flow) fn capture_argument(
     ordinal: usize,
     argument: ExpressionHandle,
     contexts: HandleSpan<FlowSemanticContextRef>,
+    copied_values: HandleSpan<checked_trees::FlowOperandFact>,
 ) -> ScalarValue {
     if !program.expression_table.expression_is_valid(argument) {
         return ScalarValue::Unknown;
@@ -95,8 +96,17 @@ pub(in crate::flow) fn capture_argument(
                         .scalar_expressions
                         .binding_symbols
                         .span_or_empty(binding.symbols),
-                    value_at_place: |place: &CanonicalPlace| {
-                        context.scalar_value_at_place(program, semantic, contexts, place)
+                    value_at_place: |place: &CanonicalPlace, observation| {
+                        let place = crate::flow::observations::completed_copy_read_place(
+                            program,
+                            &context.control,
+                            copied_values,
+                            state.symbol,
+                            statement_index,
+                            observation,
+                            place,
+                        )?;
+                        context.scalar_value_at_place(program, semantic, contexts, &place)
                     },
                 },
             )
@@ -110,6 +120,17 @@ pub(in crate::flow) fn capture_argument(
     // still need their own captured index identity before they carry values.
     let Some(place) = context.canonical_place_at(program, state.symbol, statement_index, argument)
     else {
+        return ScalarValue::Unknown;
+    };
+    let Some(place) = crate::flow::observations::completed_copy_read_place(
+        program,
+        &context.control,
+        copied_values,
+        state.symbol,
+        statement_index,
+        argument,
+        &place,
+    ) else {
         return ScalarValue::Unknown;
     };
     if !place.segments.iter().all(|segment| {

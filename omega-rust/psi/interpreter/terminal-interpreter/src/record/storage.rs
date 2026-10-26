@@ -173,45 +173,22 @@ impl<'execution> ConstructorValue<'execution> {
                 *selector = remaining.checked_rem(*length).ok_or_else(malformed)?;
                 remaining = remaining.checked_div(*length).ok_or_else(malformed)?;
             }
-            let value = match self {
-                Self::PackedScalars { elements, .. } => *elements
-                    .get(usize::try_from(leaf_ordinal).map_err(|_| malformed())?)
-                    .ok_or_else(malformed)?,
-                Self::Placed(value) => {
-                    let (storage, actual, shared) = if dimensions.is_empty() {
-                        // An owned primitive parameter is a completed payload,
-                        // not an ordinary whole-root borrowing operation.
-                        execution.primitive_view_access(value, &[], scalar_type, false)?
-                    } else {
-                        // A borrowed array can be presented by opaque metadata
-                        // while its bytes remain in a suspended caller. Keep
-                        // the actual operand's home/path to follow that loan.
-                        let mut path = source.path.clone();
-                        path.extend(
-                            selectors
-                                .iter()
-                                .copied()
-                                .map(StructuralPathSegment::FixedIndex),
-                        );
-                        execution.primitive_access(source.place, false, &path)?
-                    };
-                    execution.read_primitive_storage(
-                        source.place,
-                        storage,
-                        actual,
-                        scalar_type,
-                        shared,
-                    )?
-                }
-            };
-            if value.scalar_type() != scalar_type || !terminal_scalar_belongs_to_type(value) {
-                return Err(malformed());
-            }
             let path = selectors
                 .iter()
                 .copied()
                 .map(StructuralPathSegment::FixedIndex)
                 .collect::<Vec<_>>();
+            let value = match self {
+                Self::PackedScalars { elements, .. } => *elements
+                    .get(usize::try_from(leaf_ordinal).map_err(|_| malformed())?)
+                    .ok_or_else(malformed)?,
+                Self::Placed(value) => {
+                    execution.read_primitive_argument(source, value, &path, scalar_type)?
+                }
+            };
+            if value.scalar_type() != scalar_type || !terminal_scalar_belongs_to_type(value) {
+                return Err(malformed());
+            }
             visit(&path, scalar_type, value)?;
         }
         Ok(Some(scalar_type))
@@ -332,6 +309,25 @@ impl DetachedConstructorStorage {
 }
 
 impl ConstructorStorage {
+    /// Prepared outgoing storage is not resident yet. Its captured backings
+    /// remain live throughout the cleanup that precedes publication.
+    pub(crate) fn retain_storage(&self, retained: &mut crate::structural_storage::RetainedStorage) {
+        for reference in self.references.values() {
+            retained.reference(reference);
+        }
+        for view in self.views.values() {
+            view.retain_storage(retained);
+        }
+        for binding in self
+            .bytes
+            .values()
+            .chain(self.byte_descriptors.values())
+            .chain(self.activation_descriptors.values())
+        {
+            retained.byte_binding(binding);
+        }
+    }
+
     /// Detached resident custody owns these rows independently of the execution
     /// tables. Its provider and immutable backing edges can share other owners.
     pub(crate) fn measure_result_custody<'storage>(

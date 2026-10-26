@@ -25,7 +25,7 @@ pub fn structural_match_subject_type(
     Some(reference)
 }
 
-/// Zero denotes a record pattern; a nonzero handle denotes one exact case.
+/// Zero denotes an untagged record or domain predicate; a nonzero handle denotes one exact case.
 /// Absence means that the pattern does not belong to this subject's carrier.
 pub fn structural_match_pattern_case(
     program: &dyn crate::CheckingInput,
@@ -66,6 +66,21 @@ pub fn structural_match_pattern_case(
         {
             return Some(SymbolHandle::invalid());
         }
+        // Domain patterns carry a normalized executable predicate and no
+        // payload binding. They select this exact carrier without selecting a
+        // case; successful predicate checking supplies the branch facts.
+        if matches!(pattern, MatchPattern::Destructure(_))
+            && let Some(domain) = program.domain_definition(name.symbol)
+            && let Some(subject) =
+                crate::value_custody::places::unwrapped_type_reference(program, reference)
+            && let Some(target) =
+                crate::value_custody::places::unwrapped_type_reference(program, domain.target_type)
+            && crate::value_custody::type_references::type_references_match(
+                program, subject, target,
+            )
+        {
+            return Some(SymbolHandle::invalid());
+        }
     }
     // Preserve the fieldless literal classifier accepted before payload
     // patterns, without imposing copyability or a source-location roster.
@@ -85,6 +100,32 @@ pub fn structural_match_pattern_case(
         return Some(case);
     }
     None
+}
+
+/// Only an unfiltered record/case pattern covers its complete carrier. A
+/// domain's predicate, like a field equality or explicit guard, may fail.
+/// Every coverage consumer uses this judgment rather than interpreting an
+/// empty field list as proof that a domain accepts the whole record.
+pub fn structural_match_pattern_is_total(
+    program: &dyn crate::CheckingInput,
+    pattern: MatchPattern,
+) -> bool {
+    match pattern {
+        MatchPattern::Value(_) => true,
+        MatchPattern::Wildcard => false,
+        MatchPattern::Destructure(pattern) => {
+            !pattern.guard.is_valid()
+                && !program
+                    .expression_table
+                    .name_path_node(pattern.head)
+                    .is_some_and(|head| program.domain_definition(head.symbol).is_some())
+                && !program
+                    .expression_table
+                    .match_fields(pattern.fields)
+                    .iter()
+                    .any(|field| matches!(field.action, MatchFieldAction::Equal(_)))
+        }
+    }
 }
 
 pub(super) fn validate(
@@ -128,7 +169,7 @@ pub(super) fn validate(
         declared.extend(program.data_payload_fields(variant));
     }
     let fields = program.expression_table.match_fields(pattern.fields);
-    let mut total = !pattern.guard.is_valid();
+    let total = structural_match_pattern_is_total(program, MatchPattern::Destructure(pattern));
     for (ordinal, field) in fields.iter().enumerate() {
         let exact = declared.iter().find(|declared| {
             declared.symbol == field.field_symbol && declared.name.as_str() == field.member.as_str()
@@ -147,7 +188,6 @@ pub(super) fn validate(
             );
         }
         if let MatchFieldAction::Equal(value) = field.action {
-            total = false;
             if let Some(declared) = exact {
                 let carrier = crate::value_custody::places::assignment_value_type(
                     program,

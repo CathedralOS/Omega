@@ -10,6 +10,7 @@ use super::*;
 pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    prepared_calls: &crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
     machine: SymbolHandle,
     state: SymbolHandle,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -38,9 +39,11 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
         let vacancies = super::super::storage_transfers::parameter_vacancies(
             program,
             facts,
+            prepared_calls,
             parameter_index,
             parameter.position,
             source.symbol,
+            parameter.multiplicity,
             operations,
         )?;
         // A whole affine root moved on only some alternatives (one arm of a

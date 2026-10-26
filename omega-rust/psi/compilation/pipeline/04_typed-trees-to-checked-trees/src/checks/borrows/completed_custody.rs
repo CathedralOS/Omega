@@ -251,7 +251,6 @@ pub(crate) fn require_unborrowed_completion(
                 facts,
                 state_flow,
                 operand.statement_index,
-                statement.entry_constraints,
                 active.iter().copied(),
                 CapturedPlace {
                     incoming_reference: Default::default(),

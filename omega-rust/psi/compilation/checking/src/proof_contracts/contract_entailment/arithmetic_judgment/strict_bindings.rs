@@ -2,11 +2,12 @@
 //! strict bindings, scoped-value normalization under the original declaration
 //! and selected arithmetic policy, and admitted operator occurrence bindings.
 use super::super::{
-    BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, Machine,
-    StrictArithmeticBindingValue, StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding,
-    SymbolHandle,
+    BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, Machine, SymbolHandle,
 };
 use super::{Engine, OpaqueTerm, Polynomial};
+use crate::{
+    StrictArithmeticBindingValue, StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding,
+};
 
 impl<'program> Engine<'program> {
     /// Actuals are completed in the caller before this complete formal roster
@@ -33,6 +34,54 @@ impl<'program> Engine<'program> {
         self.strict_occurrences = previous_occurrences;
         self.saved_conditions = previous_conditions;
         value
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn integer_value_fit(
+        &mut self,
+        value: &Polynomial,
+        minimum: &BigInt,
+        maximum: &Polynomial,
+        maximum_is_exclusive: bool,
+        target_address_model: bool,
+    ) -> super::super::operand_fits::CarrierFit {
+        use super::super::operand_fits::CarrierFit;
+        if self.requires_unsatisfiable {
+            return CarrierFit::Unknown;
+        }
+        let value = self.substituted(value);
+        let maximum = self.substituted(maximum);
+        if self.prove_at_least(&value, minimum)
+            && self.prove_at_least(
+                &maximum.sub(&value),
+                &BigInt::from_i64(i64::from(maximum_is_exclusive)),
+            )
+        {
+            return CarrierFit::Proven;
+        }
+        if self.prove_at_least(
+            &Polynomial::constant(minimum.clone()).sub(&value),
+            &BigInt::from_i64(1),
+        ) || self.prove_at_least(
+            &value.sub(&maximum),
+            &BigInt::from_i64(i64::from(!maximum_is_exclusive)),
+        ) {
+            return CarrierFit::Refuted;
+        }
+        if target_address_model
+            && maximum_is_exclusive
+            && minimum == &BigInt::zero()
+            && self
+                .address_model_bound()
+                .is_some_and(|bound| bound == maximum)
+            && let Some(value) = value.constant_value()
+            && value.to_u64().is_some()
+        {
+            return CarrierFit::Pending {
+                low: value.clone(),
+                high: value,
+            };
+        }
+        CarrierFit::Unknown
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn strict_for_declaration(
@@ -167,10 +216,11 @@ impl<'program> Engine<'program> {
     /// an implicit successor or a current storage observation.
     pub(in crate::proof_contracts::contract_entailment) fn normalize_scoped_value(
         &mut self,
-        value: &super::super::ScopedArithmeticValue,
+        value: &crate::ScopedArithmeticValue,
     ) -> Option<Polynomial> {
-        use super::super::ScopedArithmeticValue;
+        use crate::ScopedArithmeticValue;
         Some(match value {
+            ScopedArithmeticValue::TypeReference(_) => return None,
             ScopedArithmeticValue::Atom { identity, unsigned } => {
                 self.declare_atom(identity, *unsigned);
                 Polynomial::atom(identity.clone())
@@ -228,15 +278,17 @@ impl<'program> Engine<'program> {
 
     fn with_scoped_expression(
         &mut self,
-        term: &super::super::ScopedArithmeticExpression,
+        term: &crate::ScopedArithmeticExpression,
         query: impl FnOnce(&mut Self) -> Option<Polynomial>,
     ) -> Option<Polynomial> {
         let previous_owner = self.source_owner;
+        let previous_types = self.source_type_bindings.clone();
         let value = (|| {
             self.install_scoped_expression(term).then_some(())?;
             query(self)
         })();
         self.source_owner = previous_owner;
+        self.source_type_bindings = previous_types;
         value
     }
 
@@ -244,7 +296,7 @@ impl<'program> Engine<'program> {
     /// Actual values are normalized before the formal roster is published.
     pub(in crate::proof_contracts::contract_entailment) fn install_scoped_expression(
         &mut self,
-        expression: &super::super::ScopedArithmeticExpression,
+        expression: &crate::ScopedArithmeticExpression,
     ) -> bool {
         if !expression.owner.is_valid() {
             return false;
@@ -255,7 +307,7 @@ impl<'program> Engine<'program> {
 
     /// Source types come from the exact declaration, independently of scoped
     /// substitutions. A polynomial cannot lend its type to a selected node.
-    pub(super) fn source_result_type(
+    fn declared_source_result_type(
         &self,
         expression: ExpressionHandle,
     ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -299,6 +351,42 @@ impl<'program> Engine<'program> {
             },
             expression,
         )
+    }
+
+    pub(super) fn source_result_type(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<typed_trees::types::TypeReferenceHandle> {
+        if !self.source_type_bindings.is_empty()
+            && let Some(binary) = self.program.expression_table.binary_node(expression)
+        {
+            let operands =
+                [binary.left, binary.right].map(|operand| self.source_result_type(operand));
+            if let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
+                && typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    self.program,
+                    self.source_owner,
+                    expression,
+                    spelling,
+                    &operands,
+                )
+                && let Some(reference) =
+                    crate::value_custody::expression_types::builtin_binary_result_type_reference(
+                        self.program,
+                        binary,
+                        operands,
+                        &mut |operand| self.source_result_type(operand),
+                    )
+            {
+                return Some(reference);
+            }
+        }
+        let reference = self.declared_source_result_type(expression)?;
+        Some(typed_trees::static_applications::project_type_operand(
+            self.program,
+            reference,
+            &self.source_type_bindings,
+        ))
     }
 
     /// Interpret only the selected builtin operation. Fixed-carrier arithmetic
@@ -377,8 +465,17 @@ impl<'program> Engine<'program> {
         &mut self,
         selection: crate::proof_contracts::arithmetic_domains::DispatchSelection,
     ) {
-        let operands =
-            [selection.subject, selection.pattern].map(|operand| self.source_result_type(operand));
+        use crate::proof_contracts::arithmetic_domains::DispatchCondition;
+        let (subject, pattern) = match selection.condition {
+            DispatchCondition::Equality { subject, pattern } => (subject, pattern),
+            DispatchCondition::Predicate(condition) => {
+                let mut comparisons = Vec::new();
+                self.collect_condition_comparisons(condition, selection.matched, &mut comparisons);
+                self.install_hypotheses(comparisons);
+                return;
+            }
+        };
+        let operands = [subject, pattern].map(|operand| self.source_result_type(operand));
         if !typed_trees::operator::has_builtin_spelled_expression_meaning(
             self.program,
             self.source_owner,
@@ -389,18 +486,14 @@ impl<'program> Engine<'program> {
             return;
         }
         let mut comparisons = Vec::new();
-        if let ExpressionNode::Boolean(value) =
-            self.program.expression_table.expression(selection.pattern)
-        {
+        if let ExpressionNode::Boolean(value) = self.program.expression_table.expression(pattern) {
             self.collect_condition_comparisons(
-                selection.subject,
+                subject,
                 selection.matched == *value,
                 &mut comparisons,
             );
-        } else if let (Some(left), Some(right)) = (
-            self.normalize(selection.subject),
-            self.normalize(selection.pattern),
-        ) {
+        } else if let (Some(left), Some(right)) = (self.normalize(subject), self.normalize(pattern))
+        {
             comparisons.push((
                 if selection.matched {
                     BinaryOperator::Equal
@@ -482,9 +575,9 @@ impl<'program> Engine<'program> {
     /// bound twice to different values, or a term outside the language.
     pub(in crate::proof_contracts::contract_entailment) fn install_scoped_bindings(
         &mut self,
-        bindings: &[super::super::ScopedArithmeticBinding],
+        bindings: &[crate::ScopedArithmeticBinding],
     ) -> bool {
-        use super::super::ScopedArithmeticBinder;
+        use crate::ScopedArithmeticBinder;
         if !self.strict_symbol_bindings_valid {
             return false;
         }
@@ -492,12 +585,36 @@ impl<'program> Engine<'program> {
         let mut symbols: Vec<(SymbolHandle, Polynomial)> = Vec::with_capacity(bindings.len());
         self.saved_conditions.clear();
         let mut occurrences = Vec::new();
+        let mut types = Vec::new();
         let mut result = None;
         for binding in bindings {
+            if let ScopedArithmeticBinder::Type(symbol) = binding.binder {
+                let super::super::ScopedArithmeticValue::TypeReference(reference) = binding.value
+                else {
+                    return false;
+                };
+                if !symbol.is_valid()
+                    || !self
+                        .program
+                        .type_reference_table
+                        .contains_type_reference(reference)
+                {
+                    return false;
+                }
+                if let Some((_, existing)) = types.iter().find(|(formal, _)| *formal == symbol) {
+                    if *existing != reference {
+                        return false;
+                    }
+                } else {
+                    types.push((symbol, reference));
+                }
+                continue;
+            }
             let Some(polynomial) = self.normalize_scoped_value(&binding.value) else {
                 return false;
             };
             match binding.binder {
+                ScopedArithmeticBinder::Type(_) => unreachable!("type metadata handled above"),
                 ScopedArithmeticBinder::Symbol(symbol) => {
                     if !symbol.is_valid() {
                         return false;
@@ -526,6 +643,7 @@ impl<'program> Engine<'program> {
                 }
             }
         }
+        self.source_type_bindings = types;
         self.strict_symbol_bindings = Some(symbols);
         self.strict_result_binding = result;
         // Nested terms installed their own occurrence tables. Publish only

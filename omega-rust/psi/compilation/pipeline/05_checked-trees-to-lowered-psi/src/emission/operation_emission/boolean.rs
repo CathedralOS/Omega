@@ -359,7 +359,7 @@ fn byte_sequence_operand(
                 operations,
             );
             operations
-                .length_observations
+                .storage_observations
                 .field_bytes
                 .push((source, path.clone(), field, length));
             terminal_psi::control_flow::ByteSequenceOperand::Field {

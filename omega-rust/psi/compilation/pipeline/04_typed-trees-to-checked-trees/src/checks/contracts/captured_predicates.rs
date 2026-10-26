@@ -62,7 +62,7 @@ pub(super) fn retain_bindings<'facts>(
         && !crate::flow::operand_observations_agree(
             program,
             &facts.flow,
-            captured.operand,
+            captured.operand.row(),
             epoch,
             &produced.projected,
         )
@@ -77,7 +77,7 @@ pub(super) fn retain_bindings<'facts>(
     // cannot be established.
     let Some(prefixes) = super::capture_coordinates::borrowed_bindings(
         program,
-        captured.operand,
+        captured.operand.row(),
         &captured.projection.remaining,
     ) else {
         return;
@@ -86,7 +86,7 @@ pub(super) fn retain_bindings<'facts>(
         !crate::flow::operand_entry_binding_origin_is_stable(
             program,
             &facts.flow,
-            captured.operand,
+            captured.operand.row(),
             prefix,
         )
     }) {
@@ -107,7 +107,7 @@ pub(super) fn retain_bindings<'facts>(
             retained.push(CapturedBinding {
                 position: first_position + offset,
                 place: produced.projected.clone(),
-                epoch: captured.operand,
+                epoch: captured.operand.row(),
             });
         }
     }
@@ -347,7 +347,8 @@ pub(crate) fn cleanup_predicates(
             .operand_children
             .iter()
             .filter_map(|(_, child)| {
-                let operand = facts.flow.control.operands.get(child.value);
+                let operand =
+                    crate::flow::CapturedOperand::recorded(&facts.flow.control, child.value)?;
                 (child.parent == parent
                     && operand.state_symbol == state_symbol
                     && operand.statement_index == statement_index
@@ -422,7 +423,7 @@ pub(crate) fn cleanup_predicates(
             program,
             facts,
             &captured,
-            operand,
+            operand.row(),
             &[copied],
             position,
             &mut captures,

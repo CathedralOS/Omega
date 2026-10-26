@@ -29,6 +29,64 @@ pub(super) fn append_copied_field_predicates(
     point: ProgramPoint,
     references: &mut HandleSpan<facts::FactRef>,
 ) {
+    append_value_predicates(
+        program,
+        semantic,
+        contexts,
+        active,
+        source,
+        destination,
+        point,
+        references,
+        CopiedEvidence::ContainedStorage,
+    );
+}
+
+/// Completed owned copies have their own expression storage. Only observations
+/// of owned contents cross this boundary; reference descriptors retain live
+/// referent epochs and routed qualifications keep their independent custody.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::flow) fn append_completed_copy_predicates(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &mut FactPlan,
+    contexts: &FlowBuildContext,
+    active: HandleSpan<FlowSemanticContextRef>,
+    source: PlaceHandle,
+    destination: PlaceHandle,
+    point: ProgramPoint,
+    references: &mut HandleSpan<facts::FactRef>,
+) {
+    append_value_predicates(
+        program,
+        semantic,
+        contexts,
+        active,
+        source,
+        destination,
+        point,
+        references,
+        CopiedEvidence::CompletedValue,
+    );
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CopiedEvidence {
+    ContainedStorage,
+    CompletedValue,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_value_predicates(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &mut FactPlan,
+    contexts: &FlowBuildContext,
+    active: HandleSpan<FlowSemanticContextRef>,
+    source: PlaceHandle,
+    destination: PlaceHandle,
+    point: ProgramPoint,
+    references: &mut HandleSpan<facts::FactRef>,
+    evidence: CopiedEvidence,
+) {
     let source_place = *semantic.places.get(source);
     let destination_place = *semantic.places.get(destination);
     // Storage and completed expression occurrences share the same evidence
@@ -44,7 +102,10 @@ pub(super) fn append_copied_field_predicates(
         _ => false,
     };
     if !valid_source_root
-        || !matches!(destination_place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
+        || !(matches!(destination_place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
+            || (evidence == CopiedEvidence::CompletedValue
+                && matches!(destination_place.root, facts::PlaceRoot::Expression(expression)
+                    if program.expression_table.expression_is_valid(expression))))
     {
         return;
     }
@@ -119,7 +180,7 @@ pub(super) fn append_copied_field_predicates(
             {
                 fact.payload
             }
-            FactPayload::AssignedCase { .. }
+            FactPayload::CaseValue { .. }
             | FactPayload::AssignedScalarValue { .. }
             | FactPayload::AssignedValueCapture { .. }
             | FactPayload::BytePredicate { .. }
@@ -132,7 +193,9 @@ pub(super) fn append_copied_field_predicates(
         let place = semantic.places.get(place);
         let segments = semantic.place_segments.span_or_empty(place.segments);
         if place.root != source_place.root
-            || segments.len() <= source_segments.len()
+            || segments.len() < source_segments.len()
+            || (evidence == CopiedEvidence::ContainedStorage
+                && segments.len() == source_segments.len())
             || !segments.starts_with(&source_segments)
             || !segments
                 .iter()
@@ -161,12 +224,42 @@ pub(super) fn append_copied_field_predicates(
                 .copied()
                 .collect(),
         };
+        if evidence == CopiedEvidence::CompletedValue {
+            let Some(source_type) = validation::canonical_place_type_reference(
+                program,
+                state_symbol,
+                statement_index,
+                &validation::CanonicalPlace {
+                    root: source_place.root,
+                    segments: source_segments.clone(),
+                },
+            ) else {
+                continue;
+            };
+            // Only owned paths may freeze observations. At a shared-reference
+            // leaf a tag or scalar predicate describes live referee contents.
+            let Some(projected_type) =
+                validation::owned_projection_type_reference(program, source_type, &suffix)
+            else {
+                continue;
+            };
+            if validation::reference_shell(program, projected_type).is_some()
+                || (!matches!(payload, FactPayload::CaseValue { .. })
+                    && !super::super::operand_contexts::operand_binds_stable_copy(
+                        program,
+                        projected_type,
+                    ))
+            {
+                continue;
+            }
+        }
         if !super::completed_value_carriers_agree(
             program,
             state_symbol,
             statement_index,
             &source_value,
             &target_value,
+            None,
         ) {
             continue;
         }

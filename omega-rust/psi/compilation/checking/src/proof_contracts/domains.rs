@@ -12,7 +12,9 @@ mod integer_membership;
 pub(crate) use closed_instances::closed_integer_index_bindings;
 pub use integer_membership::integer_domain_membership;
 
+mod executable_tests;
 mod runtime_predicates;
+pub use executable_tests::validate_executable_domain_test_carriers;
 pub use runtime_predicates::{
     scalar_domain_predicate, scalar_domain_value_predicate, scalar_field_domain_predicate,
     scalar_field_restriction, scalar_membership_carrier, scalar_membership_predicates,
@@ -40,6 +42,7 @@ pub(crate) fn validate_domain_definitions(
     symbols: &TopLevelSymbols<'_>,
     fact_plan: &FactPlan,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     validate_domain_aliases(program, diagnostics);
     validate_progress_profile_domains(program, diagnostics);
@@ -62,6 +65,7 @@ pub(crate) fn validate_domain_definitions(
                 type_parameters: program.domain_type_parameters(domain),
                 lifetime_parameters: &[],
             },
+            formation_obligations,
         );
         validate_domain_fact_payloads(
             program,

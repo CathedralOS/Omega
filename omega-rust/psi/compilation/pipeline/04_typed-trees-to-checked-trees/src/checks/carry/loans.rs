@@ -529,6 +529,7 @@ pub(super) fn retain_backing_values(
         for dependency in std::iter::once(match loan.lineage {
             BorrowLoanLineage::Reborrow { parent_loan } => parent_loan,
             BorrowLoanLineage::DirectRoot
+            | BorrowLoanLineage::SuppliedOutput
             | BorrowLoanLineage::UnretainedDerived
             | BorrowLoanLineage::LifetimeDependency => Handle::invalid(),
         })

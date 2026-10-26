@@ -13,8 +13,8 @@
 //! Value inputs cross state boundaries along transitions and ordinary call
 //! argument deliveries, including another machine's entry, so machines
 //! joined by such invocations form independent groups. Each group reaches its
-//! own fixed point, or its own unknown-input fallback, on a worker over a copy
-//! of the baseline plan, writing every machine on page
+//! own fixed point, or its own unknown-input fallback, on a worker over a fork
+//! of the shared baseline plan, writing every machine on page
 //! `MACHINE_PAGE_BASE + roster position` of each output arena; the owner
 //! adopts those pages, so handles and order follow the roster. A group's facts
 //! depend only on machines its values reach: a loop in an unrelated machine
@@ -54,6 +54,7 @@ pub(crate) fn build_flow_facts(
     scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
     operators: &checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
+    expression_intervals: &[validation::ExpressionInterval],
     state_mutation_summary_cache: &StateMutationSummaryCache,
     shared_call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> FlowFacts {
@@ -104,6 +105,7 @@ pub(crate) fn build_flow_facts(
             scalar_expressions,
             operators,
             exact_integer_casts,
+            expression_intervals,
             call_frames,
             state_mutation_summary_cache,
             shared_tables.clone(),
@@ -302,7 +304,10 @@ fn machine_groups(
             && let Some(origin_position) = program.machine_position_by_symbol(origin.machine)
             && origin_position != position
         {
-            let (left, right) = (root(&mut owner, position), root(&mut owner, origin_position));
+            let (left, right) = (
+                root(&mut owner, position),
+                root(&mut owner, origin_position),
+            );
             owner[left.max(right)] = left.min(right);
         }
     }
@@ -321,9 +326,33 @@ fn machine_groups(
             {
                 continue;
             }
-            if callee != caller {
-                let (left, right) = (root(&mut owner, caller), root(&mut owner, callee));
-                owner[left.max(right)] = left.min(right);
+            // Keep every authored family body in the same dependency group.
+            // Each body is checked under its declared premises; grouping grants
+            // no selected-case or scalar assumption from a caller.
+            let mut callees = vec![callee];
+            let machine_symbol = machines[callee].symbol;
+            if let Some(family) = program.target_machine_families.iter().find(|family| {
+                family.canonical == machine_symbol
+                    || family
+                        .members
+                        .iter()
+                        .any(|member| member.machine == machine_symbol)
+            }) {
+                for member in std::iter::once(family.canonical)
+                    .chain(family.members.iter().map(|member| member.machine))
+                {
+                    if let Some(position) = program.machine_position_by_symbol(member) {
+                        if !callees.contains(&position) {
+                            callees.push(position);
+                        }
+                    }
+                }
+            }
+            for callee in callees {
+                if callee != caller {
+                    let (left, right) = (root(&mut owner, caller), root(&mut owner, callee));
+                    owner[left.max(right)] = left.min(right);
+                }
             }
         }
     }

@@ -27,7 +27,7 @@ pub(super) fn append_constructed_field_values(
         return;
     }
     let capture = *contexts.control.operands.get(stored_value);
-    if capture.children.is_empty() {
+    if capture.constructed_children().is_empty() {
         // Whole stored values already use ordinary context transport. Only
         // separately evaluated children need distinct completion contexts.
         return;

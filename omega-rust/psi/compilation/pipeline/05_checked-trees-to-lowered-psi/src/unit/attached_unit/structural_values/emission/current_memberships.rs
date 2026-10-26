@@ -36,7 +36,6 @@ impl Emission<'_, '_, '_> {
                 &source,
                 arena::HandleSpan::empty(),
                 expression,
-                None,
             )?;
             Ok(StructuralArgument::whole(
                 place,
@@ -86,6 +85,7 @@ impl Emission<'_, '_, '_> {
                         .structural()
                         .is_some_and(|result| result.place == source.place)
                 }) || self
+                    .operations
                     .arrival_claims
                     .iter()
                     .any(|(place, _)| *place == source.place));

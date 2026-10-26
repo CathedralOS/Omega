@@ -6,7 +6,6 @@ use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
 use crate::capture::contracts::propositions::application::project_contract_proposition;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
-use crate::capture::semantics::signatures::callable_declaration_scope;
 use crate::record::{
     PackageReviewCallableContract, PackageReviewContractFact, PackageReviewContractKind,
     PackageReviewResultCaseIdentity,
@@ -52,8 +51,8 @@ pub(crate) fn project_callable_contracts(
     machine: &typed_trees::machine::Machine,
     entry: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
+    lifetime_parameters: &[typed_trees::name::Identifier],
 ) -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
-    let scope = callable_declaration_scope(compilation, machine)?;
     let parameters = compilation.state_parameters(entry);
     let context = ContractProjectionContext {
         subject_kind: "callable",
@@ -67,7 +66,7 @@ pub(crate) fn project_callable_contracts(
         parameters,
         domain_symbol: None,
         data_symbol: None,
-        lifetime_binders: scope.lifetime_parameters,
+        lifetime_binders: lifetime_parameters,
         lifetime_substitutions: &[],
         selection_exposure: callable_contract_exposure(machine),
     };

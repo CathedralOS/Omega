@@ -45,7 +45,11 @@ pub(crate) enum PlaceReadSite {
     Storage(symbols::SymbolHandle),
     Parameter(usize),
     Local(usize),
-    StructuralField(u32, Vec<CheckedStructuralPredicatePathSegment>),
+    StructuralField {
+        observation: ExpressionHandle,
+        parameter_position: u32,
+        path: Vec<CheckedStructuralPredicatePathSegment>,
+    },
 }
 
 /// Recover the storage site of one checked read when it is a whole scalar
@@ -61,13 +65,15 @@ pub(crate) fn place_read_site(read: &CheckedScalarExpression) -> Option<PlaceRea
         }
         CheckedScalarExpression::Local { position, .. } => Some(PlaceReadSite::Local(*position)),
         CheckedScalarExpression::StructuralParameterField {
+            observation,
             parameter_position,
             path,
             ..
-        } => Some(PlaceReadSite::StructuralField(
-            *parameter_position,
-            path.clone(),
-        )),
+        } => Some(PlaceReadSite::StructuralField {
+            observation: *observation,
+            parameter_position: *parameter_position,
+            path: path.clone(),
+        }),
         CheckedScalarExpression::Boolean(inner) => match inner.as_ref() {
             CheckedBooleanExpression::StorageRead { symbol } => {
                 Some(PlaceReadSite::Storage(*symbol))
@@ -77,12 +83,15 @@ pub(crate) fn place_read_site(read: &CheckedScalarExpression) -> Option<PlaceRea
             }
             CheckedBooleanExpression::Local { position } => Some(PlaceReadSite::Local(*position)),
             CheckedBooleanExpression::StructuralParameterField {
+                observation,
                 parameter_position,
                 path,
-            } => Some(PlaceReadSite::StructuralField(
-                *parameter_position,
-                path.clone(),
-            )),
+                ..
+            } => Some(PlaceReadSite::StructuralField {
+                observation: *observation,
+                parameter_position: *parameter_position,
+                path: path.clone(),
+            }),
             _ => None,
         },
         _ => None,
@@ -175,12 +184,15 @@ pub(crate) fn place_read_site_as_boolean(site: PlaceReadSite) -> CheckedBooleanE
         PlaceReadSite::Storage(symbol) => CheckedBooleanExpression::StorageRead { symbol },
         PlaceReadSite::Parameter(position) => CheckedBooleanExpression::Parameter { position },
         PlaceReadSite::Local(position) => CheckedBooleanExpression::Local { position },
-        PlaceReadSite::StructuralField(parameter_position, path) => {
-            CheckedBooleanExpression::StructuralParameterField {
-                parameter_position,
-                path,
-            }
-        }
+        PlaceReadSite::StructuralField {
+            observation,
+            parameter_position,
+            path,
+        } => CheckedBooleanExpression::StructuralParameterField {
+            observation,
+            parameter_position,
+            path,
+        },
     }
 }
 

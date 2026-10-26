@@ -124,27 +124,5 @@ pub(super) fn capture_position_at_site(
     saved: &typed_trees::expression::TableSavedSubject,
     site: crate::CallSite<'_>,
 ) -> Option<usize> {
-    use typed_trees::expression::ValueCaptureOwner;
-    program.saved_value_source(saved)?;
-    match (
-        program.expression_table.value_capture(saved.capture).owner,
-        site,
-    ) {
-        (
-            ValueCaptureOwner::ExpressionArgument { call, position },
-            crate::CallSite::Expression { expression, .. },
-        ) if call == expression => Some(position as usize),
-        (
-            ValueCaptureOwner::StatementArgument { call, position },
-            crate::CallSite::Statement(statement),
-        ) if program
-            .statement_table
-            .statement(call)
-            .as_call()
-            .is_some_and(|stored| std::ptr::eq(stored, statement)) =>
-        {
-            Some(position as usize)
-        }
-        _ => None,
-    }
+    crate::machine_calls::calls::captured_argument_position(program, saved, site)
 }

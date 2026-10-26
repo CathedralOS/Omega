@@ -4,7 +4,6 @@
 //! constructor and local referents must arrive through ordinary value sequencing.
 //! Normal-return contracts additionally name their authenticated result place,
 //! never a synthetic parameter slot or a constructor-derived assumption.
-use crate::values::scalar::structural_fields::structural_parameter_field_path;
 use checked_trees::CheckedBooleanExpression;
 use checked_trees::CheckedStructuralParameterField;
 use typed_trees::expression::BinaryOperator;
@@ -31,8 +30,9 @@ pub(crate) fn lower(
         _ => binary.left,
     };
     let mut path = Vec::new();
-    let parameter_position =
-        structural_parameter_field_path(program, parameters, subject, &mut path)?;
+    let parameter_position = super::structural_fields::structural_parameter_case_path(
+        program, parameters, subject, &mut path,
+    )?;
     let root = parameters.get(parameter_position as usize)?;
     // The existing scalar builder supplies its authored parameter namespace,
     // not a machine handle. Rejoin through the selected root symbol, which is
@@ -75,24 +75,9 @@ pub(crate) fn lower_result(
     }
     let machine = program.machine_by_symbol(owner)?;
     let case = case_identity(program, machine, None, expression, binary, binary.left)?;
-    let path = result
-        .segments
-        .iter()
-        .map(|segment| match segment {
-            facts::PlaceSegment::Field { symbol } => {
-                let field = crate::execution::terminal_unit::types::terminal_field_declaration(
-                    program, *symbol,
-                )?;
-                Some(checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        field.identity,
-                        field.name.clone(),
-                    ),
-                ))
-            }
-            _ => None,
-        })
-        .collect::<Option<Vec<_>>>()?;
+    let path = super::structural_fields::structural_projection_path(program, &result.segments)?;
+    let (path, _) =
+        super::structural_fields::explicit_observation_path(program, result_type, &path)?;
     Some(CheckedBooleanExpression::StructuralCaseMembership {
         subject: checked_trees::CheckedStructuralCaseSubject {
             root: checked_trees::CheckedStructuralCaseRoot::Result,

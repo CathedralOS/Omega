@@ -135,7 +135,9 @@ impl BoundaryArguments {
                         values.get(&parameter.place).ok_or_else(malformed)?,
                     )
             } else {
-                parameter.access == view.access()
+                terminal_semantics::borrowed_storage_reference_ceiling(parameter, types.values())
+                    .unwrap_or(parameter.access)
+                    == view.access()
                     && parameter.multiplicity == StructuralMultiplicity::Unrestricted
                     && if matches!(
                         types.get(&parameter.structural_type).map(|row| &row.shape),
@@ -178,7 +180,12 @@ impl BoundaryArguments {
                 ByteSequenceBinding::Immutable(_) => StructuralAccess::SharedBorrow,
                 ByteSequenceBinding::MutableField { .. }
                 | ByteSequenceBinding::MutableOwner { .. }
-                    if parameter.access == StructuralAccess::WriteOnlyBorrow =>
+                    if terminal_semantics::borrowed_storage_reference_ceiling(
+                        parameter,
+                        types.values(),
+                    )
+                    .unwrap_or(parameter.access)
+                        == StructuralAccess::WriteOnlyBorrow =>
                 {
                     StructuralAccess::WriteOnlyBorrow
                 }
@@ -186,7 +193,9 @@ impl BoundaryArguments {
                 | ByteSequenceBinding::MutableOwner { .. }
                 | ByteSequenceBinding::MutableArray { .. } => StructuralAccess::MutableBorrow,
             };
-            if parameter.access != access
+            if terminal_semantics::borrowed_storage_reference_ceiling(parameter, types.values())
+                .unwrap_or(parameter.access)
+                != access
                 || (parameter.multiplicity != StructuralMultiplicity::Unrestricted
                     && !terminal_semantics::view_descriptor_parameter(parameter, types.values()))
                 || !parameter.projected_qualifications.is_empty()
@@ -212,9 +221,18 @@ impl BoundaryArguments {
             values,
             byte_sequences,
             primitive_loans,
-            scalar_arrays: RuntimeRows::new(account),
+            scalar_arrays: crate::scalar_array::ScalarArrayBindings::new(account),
             element_views,
         })
+    }
+
+    pub(crate) fn capture_reference_inputs(
+        &mut self,
+        declaration: &terminal_psi::BoundaryMachineDeclaration,
+        arguments: &[StructuralArgument],
+    ) -> Result<(), TerminalInterpretError> {
+        self.storage_inputs
+            .capture_reference_inputs(declaration, arguments, &self.values)
     }
 
     /// A handler can reorder its slice, but cannot thereby retarget writeback.
@@ -222,6 +240,7 @@ impl BoundaryArguments {
     pub(crate) fn validate_writeback(
         &mut self,
         execution: &TerminalExecution,
+        declaration: &terminal_psi::BoundaryMachineDeclaration,
     ) -> Result<(), TerminalInterpretError> {
         if self.buffers.len() != self.bindings.len() {
             return Err(malformed());
@@ -229,7 +248,11 @@ impl BoundaryArguments {
         for (buffer, binding) in self.buffers.iter().zip(&self.bindings) {
             binding.validate(execution, buffer)?;
         }
-        self.storage_inputs.validate_writeback(execution)
+        self.storage_inputs.validate_writeback(
+            execution,
+            declaration,
+            &mut self.local_identity_cursor,
+        )
     }
 
     pub(crate) fn commit(
@@ -502,6 +525,22 @@ impl TerminalExecution<'_> {
         local_array_roots: &mut RuntimeRows<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
     ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
     {
+        if terminal_semantics::borrowed_storage_parameter(
+            parameter,
+            self.program.structural_types().values(),
+        ) && self
+            .program
+            .structural_types()
+            .get(&parameter.structural_type)
+            .is_some_and(|row| terminal_semantics::stored_reference_access(&row.shape).is_some())
+            && terminal_semantics::borrowed_storage_reference_ceiling(
+                parameter,
+                self.program.structural_types().values(),
+            )
+            .is_none()
+        {
+            return Ok(None);
+        }
         if let Some(prepared) = self.prepare_byte_descriptor_argument(parameter, argument)? {
             return Ok(Some(prepared));
         }

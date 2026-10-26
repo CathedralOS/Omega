@@ -1,0 +1,20 @@
+// A shared two-byte Pair view starting at byte 1 of live [u8; 4] preserves the original first-byte address and full two-byte loan while its second field reads 37.
+// Expected exit: 0
+// Place: parameter.
+data Pair { first: u8; second: u8; }
+machine observe(view: &Pair, original: addr) -> bool {
+    address_of(&view.first) == original && view.second == 37
+}
+machine probe() -> bool {
+    let mut bytes: [u8; 4] = [11, 23, 37, 41];
+    let original: addr = address_of(&bytes[1]);
+    let view: &Pair = &bytes[1] as &Pair;
+    bytes[2] = 99;
+    observe(view, original)
+}
+machine main() crashes Trap {
+    let accepted: bool = probe();
+    transition accepted { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -142,6 +142,7 @@ fn place(
         return None;
     }
     Some(CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source,
         path,
         type_identity: validation::stored_structural_type_identity(program, projected, &[], &[]),

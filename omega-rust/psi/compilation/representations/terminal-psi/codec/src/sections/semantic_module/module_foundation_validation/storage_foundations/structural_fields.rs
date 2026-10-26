@@ -142,6 +142,31 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     if restriction.is_some() != range_obligation.is_some() {
         return malformed("primitive store receiving obligation does not match its declaration");
     }
+    let Some(source) = machine
+        .parameters
+        .iter()
+        .chain(machine.block_parameters())
+        .chain(
+            machine
+                .operations()
+                .filter_map(|operation| operation.result.scalar_ref()),
+        )
+        .find(|source| source.id == *value)
+    else {
+        return malformed("primitive store lost its completed SSA source");
+    };
+    if !terminal_semantics::primitive_store_preserves_scalar_memberships(
+        module.structural_types.iter(),
+        module.structural_domains.iter(),
+        &module.scalar_qualifications,
+        destination_type,
+        qualifications,
+        projected_qualifications,
+        path,
+        source,
+    ) {
+        return malformed("primitive store value lacks its exact receiving domain provenance");
+    }
     let actual = declared_scalar_type(machine, *value);
     if actual != Some(expected) {
         return malformed("write-only primitive store value type does not match referent");

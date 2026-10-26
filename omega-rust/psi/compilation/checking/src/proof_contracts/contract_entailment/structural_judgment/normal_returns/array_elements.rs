@@ -2,14 +2,14 @@
 //! evaluated operand. Descriptor metadata follows that exact element, while
 //! reference-content authority stays with the separate observation owner.
 
-use super::{ExpressionHandle, StructuralJudge, StructuralTerm};
+use super::{ExpressionHandle, NormalOperandResult, StructuralJudge, StructuralTerm};
 
 impl StructuralJudge<'_> {
     pub(super) fn intake_completed_array_elements(
         &mut self,
         value: &StructuralTerm,
         element_count: u32,
-        inputs: &[(ExpressionHandle, StructuralTerm)],
+        inputs: &[(ExpressionHandle, NormalOperandResult)],
     ) {
         let Ok(element_count) = usize::try_from(element_count) else {
             return;
@@ -41,6 +41,9 @@ impl StructuralJudge<'_> {
                 value.clone(),
                 StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(element_index)),
             ) else {
+                return;
+            };
+            let Some(operand) = operand.observed_value() else {
                 return;
             };
             self.assume_completed_value_equation(element_type, selected, operand.clone());

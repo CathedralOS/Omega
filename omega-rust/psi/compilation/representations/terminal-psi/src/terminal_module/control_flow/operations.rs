@@ -1434,6 +1434,30 @@ impl OperationKind {
         }
     }
 
+    /// Exact owned-claim transfers of any call shape. This is a custody roster,
+    /// not target resolution or disposition authority; those are checked by
+    /// the consuming call operation.
+    pub fn claim_transfers(&self) -> &[ClaimTransfer] {
+        match self {
+            Self::CallUnit {
+                claim_transfers, ..
+            }
+            | Self::CallStructuralScalar {
+                claim_transfers, ..
+            }
+            | Self::CallStructural {
+                claim_transfers, ..
+            }
+            | Self::CallStructuralWithScalarArguments {
+                claim_transfers, ..
+            }
+            | Self::CallDynamic {
+                claim_transfers, ..
+            } => claim_transfers,
+            _ => &[],
+        }
+    }
+
     /// Mutable view of [`Self::structural_arguments`].
     pub fn structural_arguments_mut(&mut self) -> Option<&mut Vec<StructuralArgument>> {
         match self {

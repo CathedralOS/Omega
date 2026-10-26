@@ -496,7 +496,7 @@ pub fn whole_collection_view_source(
         {
             value.to_u64()
         } else if let Some(state) = state {
-            crate::captured_integer_value(program, machine, state, expression, |_| None)
+            crate::captured_integer_value(program, machine, state, expression, |_, _| None)
                 .and_then(|value| value.to_u64())
         } else {
             None

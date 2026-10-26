@@ -234,6 +234,15 @@ pub(super) fn assign_machine_symbols(
             type_constraints,
         };
 
+        for equation in declarations.declared_type_equations.span_mut_or_empty(machine.declared_type_equations) {
+            for reference in [&mut equation.parameter, &mut equation.definition] {
+                assign_type_reference_symbol_with_locals_and_constraints(
+                    symbols, child_type_references, type_constraints,
+                    &local_type_parameters, reference,
+                );
+            }
+        }
+
         for owned_data in machine_owned_data.span_mut_or_empty(machine.owned_data) {
             owned_data.symbol =
                 next_child_of_kind(&mut machine_children, symbols, SymbolKind::Field);

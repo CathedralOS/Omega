@@ -1,0 +1,29 @@
+// Expected diagnostic: reads write-only parameter `source`
+// Output case metadata does not permit an executable tag read through &write.
+data Choice [copy] { case Ready(value: u32); case Empty; }
+
+machine initialize(destination: &write Choice)
+ensures destination in Choice::Ready {
+    destination = Choice::Ready { value: 7 };
+}
+
+machine read_ready(source: &Choice) -> u32
+requires source in Choice::Ready {
+    source.value
+}
+
+machine observe(source: &write Choice) -> bool {
+    source in Choice::Ready
+}
+
+machine main() crashes Trap {
+    let mut destination: Choice = Choice::Empty;
+    initialize(&write destination);
+    let denied: bool = observe(&write destination);
+    transition read_ready(&destination) == 7 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

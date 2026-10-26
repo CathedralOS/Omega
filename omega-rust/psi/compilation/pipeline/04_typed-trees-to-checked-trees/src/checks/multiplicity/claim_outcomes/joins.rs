@@ -5,10 +5,8 @@
 //! retain every alternative rather than manufacturing an unconditional lineage.
 
 use super::{
-    ClaimAbsence, argument_for_parameter, bind_claim_outcome_source_at_arguments,
-    bind_claim_outcome_source_at_call, claim_outcomes_for_expression,
-    claim_paths_are_case_alternatives, derive_checked_claim_outcome_maps, named_claim_invocation,
-    parameter_for_symbol, selection_alternatives,
+    bind_claim_outcome_source_at_arguments, claim_paths_are_case_alternatives,
+    derive_checked_claim_outcome_maps,
 };
 use crate::checks::multiplicity::linear_obligations::{
     CheckedClaimOutcomeEntry, CheckedClaimOutcomeMap, CheckedClaimOutcomeSource,
@@ -30,13 +28,16 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 
 mod selected_storage;
-use selected_storage::{expand_storage_frontier, selection_routes_agree};
+use selected_storage::expand_storage_frontier;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ExitFrontier {
     exits: Vec<FlowClaimJoinExit>,
     entries: Vec<CheckedClaimOutcomeEntry>,
     inactive_paths: Vec<Vec<PlaceSegment>>,
+    path: Vec<PlaceSegment>,
+    captures: Vec<Capture>,
+    excluded_input: Option<ExcludedInput>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -45,11 +46,6 @@ enum JoinedOccurrence {
         state: SymbolHandle,
         statement: usize,
         ordinal: usize,
-    },
-    Selection {
-        state: SymbolHandle,
-        statement: usize,
-        expression: ExpressionHandle,
     },
     Storage {
         state: SymbolHandle,
@@ -63,16 +59,27 @@ enum JoinedOccurrence {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Alternative {
     exits: Vec<FlowClaimJoinExit>,
+    captures: Vec<Capture>,
     source: Option<(CheckedClaimOutcomeSource, CheckedClaimOutcomeSource)>,
     excluded_input: Option<ExcludedInput>,
+}
+
+/// Retain the existing completed return graph as the guard authority. A
+/// path query never creates a fresh choice per output field: all projections
+/// refer to the same capture and its actual returned identity. Nested call
+/// exits namespace these captures at their exact invocation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Capture {
+    operand: arena::Handle<checked_trees::FlowOperandFact>,
+    path: Vec<PlaceSegment>,
+    identity: PermissionClaimIdentity,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ExcludedInput {
     source: CheckedClaimOutcomeSource,
-    root: PlaceRoot,
+    operand: arena::Handle<checked_trees::FlowOperandFact>,
     path: Vec<PlaceSegment>,
-    established_at: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -87,6 +94,128 @@ struct Receipt {
     path: Vec<PlaceSegment>,
     identity: PermissionClaimIdentity,
     alternatives: Vec<Alternative>,
+}
+
+/// Diagnostic observations stay outside every permission and receipt. Recording
+/// them does not turn a failed candidate into a new checking failure or a join.
+#[derive(Clone)]
+struct ReturnFrontierFailure {
+    exit: FlowClaimJoinExit,
+    reason: &'static str,
+    source: Option<CheckedClaimOutcomeSource>,
+}
+
+#[derive(Default)]
+struct ReturnFrontierDiagnostics {
+    enabled: bool,
+    failures: Vec<ReturnFrontierFailure>,
+}
+
+impl ReturnFrontierDiagnostics {
+    fn record(&mut self, exit: FlowClaimJoinExit, reason: &'static str) {
+        if self.enabled {
+            self.failures.push(ReturnFrontierFailure {
+                exit,
+                reason,
+                source: None,
+            });
+        }
+    }
+
+    fn record_binding(
+        &mut self,
+        exit: FlowClaimJoinExit,
+        reason: &'static str,
+        source: &CheckedClaimOutcomeSource,
+    ) {
+        if self.enabled {
+            self.failures.push(ReturnFrontierFailure {
+                exit,
+                reason,
+                source: Some(source.clone()),
+            });
+        }
+    }
+}
+
+struct PreparedCalleeFrontier {
+    state: SymbolHandle,
+    path: Vec<PlaceSegment>,
+    frontiers: Option<Vec<ExitFrontier>>,
+    diagnostics: ReturnFrontierDiagnostics,
+}
+
+pub(crate) struct CallClaimJoinFailure {
+    receiver: ReceivingClaim,
+    statement: usize,
+    ordinal: usize,
+    target: SymbolHandle,
+    reason: &'static str,
+    returns: Vec<ReturnFrontierFailure>,
+}
+
+impl CallClaimJoinFailure {
+    /// An unresolved receiving event can report only its own attempted join.
+    pub(crate) fn detail_for(
+        &self,
+        program: &dyn validation::CheckingInput,
+        event: &FlowPermissionEventFact,
+        expression: ExpressionHandle,
+        segments: &arena::PagedArenaSet<PlaceSegment>,
+    ) -> Option<String> {
+        let receiver = &self.receiver;
+        if receiver.machine != event.machine_symbol
+            || receiver.state != event.state_symbol
+            || receiver.source != event.source
+            || receiver.expression != expression
+            || receiver.root != event.root
+            || receiver.identity != event.claim_identity
+            || receiver.path.as_slice() != segments.span_or_empty(event.segments)
+        {
+            return None;
+        }
+        let mut detail = format!(
+            "join candidate in machine `{}` state `{}` statement {} call {} to `{}`: {}",
+            program.symbols.name(receiver.machine),
+            program.symbols.name(receiver.state),
+            self.statement,
+            self.ordinal,
+            program.symbols.name(self.target),
+            self.reason,
+        );
+        for failure in &self.returns {
+            detail.push_str(&format!(
+                "; return state `{}` statement {} {:?}: {}",
+                program.symbols.name(failure.exit.state_symbol),
+                failure.exit.statement_index,
+                failure.exit.kind,
+                failure.reason,
+            ));
+            if let Some(source) = &failure.source {
+                match source {
+                    CheckedClaimOutcomeSource::Input {
+                        parameter_symbol,
+                        path,
+                    } => {
+                        let source = validation::CanonicalPlace {
+                            root: PlaceRoot::Symbol(*parameter_symbol),
+                            segments: path.clone(),
+                        };
+                        detail.push_str(&format!(" (callee input `{}`)", source.label(program)));
+                    }
+                    CheckedClaimOutcomeSource::Established {
+                        claim_identity,
+                        provenance,
+                    } => {
+                        detail.push_str(&format!(
+                            " (callee establishment {claim_identity:?}/{provenance:?})",
+                        ));
+                    }
+                }
+            }
+        }
+        Some(detail)
+    }
 }
 
 /// Preparation copies semantic paths, never handles into an arena that the
@@ -208,151 +337,198 @@ fn known_source(source: &CheckedClaimOutcomeSource) -> bool {
 
 /// No exit may disappear through filter_map. Missing facts, unknown sources,
 /// and recursive expansion all make the complete correspondence unavailable.
+#[allow(clippy::too_many_arguments)]
 fn state_frontiers(
     program: &dyn ::validation::CheckingInput,
-    borrow: &checked_trees::BorrowFacts,
+    facts: &CheckFacts,
     state: &typed_trees::state::State,
-    ownership: &FlowOwnershipFacts,
     events: &[FlowPermissionEventFact],
     maps: &[CheckedClaimOutcomeMap],
     active: &mut Vec<SymbolHandle>,
+    path: &[PlaceSegment],
+    diagnostics: &mut ReturnFrontierDiagnostics,
 ) -> Option<Vec<ExitFrontier>> {
     if active.contains(&state.symbol) {
         return None;
     }
     active.push(state.symbol);
     let result = (|| {
-        let statements = typed_trees::statement::reachable_state_statements(
-            program.statement_table.statements(state.statement_nodes),
-        );
-        let transition_indices = statements
+        let ownership = &facts.flow.ownership;
+        let flow = facts
+            .flow
+            .control
+            .states
             .iter()
-            .enumerate()
-            .filter_map(|(index, statement)| {
-                matches!(statement, StatementNode::Transition(_)).then_some(index)
-            })
-            .collect::<Vec<_>>();
-        if let Some(last) = transition_indices.last() {
-            let StatementNode::Transition(transition) = &statements[*last] else {
-                return None;
-            };
-            if !matches!(transition.guard, typed_trees::statement::TransitionGuardNode::Always)
-                && !transition.continuation.is_valid()
-                && !crate::checks::multiplicity::permission_events::case_transition_run_is_exhaustive(
-                    program, state.symbol, statements, &transition_indices)
-            { return None; }
-        }
+            .find_map(|(_, row)| (row.state_symbol == state.symbol).then_some(row))?;
         let mut frontiers = Vec::new();
-        for (statement_index, statement) in statements.iter().enumerate() {
-            match statement {
-                StatementNode::Expression(expression)
-                    if statement_index + 1 == statements.len() =>
-                {
-                    frontiers.extend(expression_frontiers(
-                        program,
-                        borrow,
-                        state,
-                        statement_index,
-                        *expression,
-                        ownership,
-                        events,
-                        maps,
-                        active,
-                        FlowClaimJoinExitKind::FinalExpression,
-                    )?);
+        let mut conditions = crate::flow::SelectionConditions::new();
+        for outgoing in facts.flow.control.outgoing.span_or_empty(flow.outgoing) {
+            let (kind, target) = if outgoing.transition_target.is_valid() {
+                let StatementNode::Transition(transition) = program
+                    .statement_table
+                    .statement_at(state, outgoing.statement_index)?
+                else {
+                    return None;
+                };
+                if transition.exit != TransitionExit::Ordinary {
+                    continue;
                 }
-                StatementNode::Transition(transition) => {
-                    if transition.exit != TransitionExit::Ordinary {
-                        continue;
+                let kind = if transition.target == outgoing.transition_target {
+                    FlowClaimJoinExitKind::TransitionTarget
+                } else if transition.continuation == outgoing.transition_target {
+                    FlowClaimJoinExitKind::TransitionContinuation
+                } else {
+                    return None;
+                };
+                (
+                    kind,
+                    Some(
+                        program
+                            .statement_table
+                            .transition_target(outgoing.transition_target),
+                    ),
+                )
+            } else {
+                (FlowClaimJoinExitKind::FinalExpression, None)
+            };
+            let edge = FlowClaimJoinExit {
+                state_symbol: state.symbol,
+                statement_index: outgoing.statement_index,
+                kind,
+            };
+            if let Some(TransitionTargetNode::Named {
+                path: target,
+                arguments,
+                ..
+            }) = target
+            {
+                let target = validation::call_target_state(program, target.symbol)?;
+                let children = state_frontiers(
+                    program,
+                    facts,
+                    target,
+                    events,
+                    maps,
+                    active,
+                    path,
+                    diagnostics,
+                )?;
+                for mut child in children {
+                    for entry in &mut child.entries {
+                        let Some(source) = bind_claim_outcome_source_at_arguments(
+                            program,
+                            state,
+                            outgoing.statement_index,
+                            program.statement_table.expression_handles(*arguments),
+                            target,
+                            &entry.source,
+                            &ownership.segments,
+                            events,
+                        ) else {
+                            diagnostics.record(
+                                edge,
+                                "named transition cannot bind its returned input source",
+                            );
+                            return None;
+                        };
+                        entry.source = source;
                     }
-                    for (target, kind) in [
-                        (transition.target, FlowClaimJoinExitKind::TransitionTarget),
+                    child.exits.insert(0, edge);
+                    frontiers.push(child);
+                }
+                continue;
+            }
+            // This query checks the whole actual return frontier, including
+            // every retained alternative and cross-path resource uniqueness,
+            // before projecting the one result path this receipt requests.
+            let claims = match crate::checks::multiplicity::current_returned_claims(
+                program,
+                facts,
+                outgoing,
+                &mut conditions,
+            ) {
+                Ok(claims) => claims,
+                Err(reason) => {
+                    diagnostics.record(edge, reason);
+                    return None;
+                }
+            };
+            let mut found = false;
+            for claim in claims.iter().filter(|claim| claim.path == path) {
+                found = true;
+                let (entries, inactive_paths, identity) = match claim.source {
+                    crate::checks::multiplicity::ReturnedClaimSource::Inactive => (
+                        Vec::new(),
+                        vec![path.to_vec()],
+                        PermissionClaimIdentity::Unknown,
+                    ),
+                    crate::checks::multiplicity::ReturnedClaimSource::Live(identity) => {
+                        let Some(source) =
+                            returned_identity_source(state, identity, ownership, events)
+                        else {
+                            diagnostics.record(
+                                edge,
+                                "returned live claim has no unique entry or establishment source",
+                            );
+                            return None;
+                        };
                         (
-                            transition.continuation,
-                            FlowClaimJoinExitKind::TransitionContinuation,
-                        ),
-                    ] {
-                        if !target.is_valid() {
-                            continue;
-                        }
-                        match program.statement_table.transition_target(target) {
-                            TransitionTargetNode::Value(expression) => {
-                                frontiers.extend(expression_frontiers(
-                                    program,
-                                    borrow,
-                                    state,
-                                    statement_index,
-                                    *expression,
-                                    ownership,
-                                    events,
-                                    maps,
-                                    active,
-                                    kind,
-                                )?);
-                            }
-                            TransitionTargetNode::Named {
-                                path, arguments, ..
-                            } => {
-                                let target_state =
-                                    validation::call_target_state(program, path.symbol)?;
-                                if validation::normal_completion_possible(program, target_state)
-                                    == Some(false)
-                                {
-                                    continue;
-                                }
-                                let mut children = state_frontiers(
-                                    program,
-                                    borrow,
-                                    target_state,
-                                    ownership,
-                                    events,
-                                    maps,
-                                    active,
-                                )?;
-                                for child in &mut children {
-                                    for entry in &mut child.entries {
-                                        entry.source = bind_claim_outcome_source_at_arguments(
-                                            program,
-                                            state,
-                                            statement_index,
-                                            program.statement_table.expression_handles(*arguments),
-                                            target_state,
-                                            named_claim_invocation(
-                                                program,
-                                                state,
-                                                statement_index,
-                                                path.symbol,
-                                                *arguments,
-                                            )?,
-                                            &entry.source,
-                                            &ownership.segments,
-                                            events,
-                                        )?;
-                                    }
-                                    child.exits.insert(
-                                        0,
-                                        FlowClaimJoinExit {
-                                            state_symbol: state.symbol,
-                                            statement_index,
-                                            kind,
-                                        },
-                                    );
-                                    if !complete_frontier(
-                                        program,
-                                        state.return_type,
-                                        &child.entries,
-                                        &child.inactive_paths,
-                                    ) {
-                                        return None;
-                                    }
-                                }
-                                frontiers.extend(children);
-                            }
-                            _ => return None,
-                        }
+                            vec![CheckedClaimOutcomeEntry {
+                                output_path: path.to_vec(),
+                                source,
+                            }],
+                            Vec::new(),
+                            identity,
+                        )
                     }
+                };
+                let frontier = ExitFrontier {
+                    exits: vec![edge],
+                    entries,
+                    inactive_paths,
+                    path: path.to_vec(),
+                    captures: vec![Capture {
+                        operand: outgoing.returned_value,
+                        path: path.to_vec(),
+                        identity,
+                    }],
+                    excluded_input: None,
+                };
+                if !complete_frontier(
+                    program,
+                    state.return_type,
+                    path,
+                    &frontier.entries,
+                    &frontier.inactive_paths,
+                ) {
+                    diagnostics.record(edge, "returned claim path has no complete frontier");
+                    return None;
                 }
-                _ => {}
+                let failure_count = diagnostics.failures.len();
+                let Some(expanded) = expand_joined_frontier(
+                    program,
+                    facts,
+                    state,
+                    events,
+                    maps,
+                    active,
+                    &[],
+                    frontier,
+                    diagnostics,
+                ) else {
+                    if diagnostics.failures.len() == failure_count {
+                        diagnostics.record(edge, "returned claim source expansion is unavailable");
+                    }
+                    return None;
+                };
+                frontiers.extend(expanded);
+            }
+            if !found {
+                diagnostics.record(
+                    edge,
+                    "completed return omits the requested result claim path",
+                );
+                return None;
             }
         }
         (!frontiers.is_empty()).then_some(frontiers)
@@ -361,127 +537,208 @@ fn state_frontiers(
     result
 }
 
-#[allow(clippy::too_many_arguments)]
-fn expression_frontiers(
-    program: &dyn ::validation::CheckingInput,
-    borrow: &checked_trees::BorrowFacts,
+fn returned_identity_source(
     state: &typed_trees::state::State,
-    statement: usize,
-    expression: ExpressionHandle,
+    identity: PermissionClaimIdentity,
     ownership: &FlowOwnershipFacts,
     events: &[FlowPermissionEventFact],
-    maps: &[CheckedClaimOutcomeMap],
-    active: &mut Vec<SymbolHandle>,
-    kind: FlowClaimJoinExitKind,
-) -> Option<Vec<ExitFrontier>> {
-    let edge = FlowClaimJoinExit {
-        state_symbol: state.symbol,
-        statement_index: statement,
-        kind,
-    };
-    let entries = claim_outcomes_for_expression(
-        program,
-        state,
-        statement,
-        expression,
-        ownership,
-        events,
-        maps,
-        &[],
-    );
-    let absence = ClaimAbsence {
-        program,
-        state,
-        ownership,
-        events,
-        maps,
-        writes: InactivePlaceWrites::prepare(program, borrow, state),
-    };
-    let inactive_paths = linear_claim_frontier(program, state.return_type)
-        .into_iter()
-        .filter(|claim| {
-            claim.conditional
-                && absence.expression(statement, expression, &claim.path, state.return_type)
+) -> Option<CheckedClaimOutcomeSource> {
+    let definitions = events
+        .iter()
+        .filter(|event| {
+            event.state_symbol == state.symbol
+                // An exclusive call's checked restoration replaces the
+                // returned storage's claims at that exact call occurrence.
+                // These identities are actual producers too; the suspended
+                // pre-call value is neither their source nor their identity.
+                && matches!(
+                    event.kind,
+                    PermissionEventKind::Establish | PermissionEventKind::Restore
+                )
+                && event.access == PermissionAccess::Owned
+                && event.obligation_live
+                && event.claim_identity == identity
         })
-        .map(|claim| claim.path)
         .collect::<Vec<_>>();
-    if complete_frontier(program, state.return_type, &entries, &inactive_paths) {
-        return expand_joined_frontier(
-            program,
-            borrow,
-            state,
-            ownership,
-            events,
-            maps,
-            active,
-            &[],
-            ExitFrontier {
-                exits: vec![edge],
-                entries,
-                inactive_paths,
-            },
-        );
+    let entries = definitions
+        .iter()
+        .filter(|event| {
+            event.kind == PermissionEventKind::Establish
+                && event.source == PermissionEventSource::StateEntry
+        })
+        .collect::<Vec<_>>();
+    if let [entry] = entries.as_slice() {
+        return Some(CheckedClaimOutcomeSource::Input {
+            parameter_symbol: entry.root.as_symbol()?,
+            path: ownership.segments.span(entry.segments)?.to_vec(),
+        });
     }
-    if let Some((_, receipt)) = ownership.owned_selection_at(state.symbol, statement as u32)
-        && receipt.expression == expression
+    if !entries.is_empty() {
+        return None;
+    }
+    let first = definitions.first()?;
+    if definitions
+        .iter()
+        .any(|event| event.provenance != first.provenance)
     {
-        let mut frontiers = Vec::new();
-        for (arm, entries) in selection_alternatives(program, state, ownership, events, receipt)? {
-            if !complete_frontier(program, state.return_type, &entries, &[]) {
-                return None;
+        return None;
+    }
+    let source = CheckedClaimOutcomeSource::Established {
+        claim_identity: identity,
+        provenance: first.provenance,
+    };
+    known_source(&source).then_some(source)
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct BoundSource {
+    source: Option<CheckedClaimOutcomeSource>,
+    captures: Vec<Capture>,
+    excluded_input: Option<ExcludedInput>,
+}
+
+/// Bind one callee input path through the actual completed argument, retaining
+/// its original selection graph. Every argument path is checked completely
+/// before projection; missing alternatives cannot become a convenient source.
+#[allow(clippy::too_many_arguments)]
+fn bound_sources_at_call(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement: usize,
+    ordinal: usize,
+    expression: ExpressionHandle,
+    call: &typed_trees::expression::TableCallExpression,
+    target: &typed_trees::state::State,
+    source: &CheckedClaimOutcomeSource,
+    events: &[FlowPermissionEventFact],
+) -> Result<Vec<BoundSource>, &'static str> {
+    let CheckedClaimOutcomeSource::Input {
+        parameter_symbol,
+        path,
+    } = source
+    else {
+        return Ok(vec![BoundSource {
+            source: Some(source.clone()),
+            captures: Vec::new(),
+            excluded_input: None,
+        }]);
+    };
+    let flow = facts
+        .flow
+        .control
+        .state(machine, state.symbol)
+        .ok_or("caller argument binding has no owning state flow")?;
+    let mut matching = facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(flow.calls)
+        .iter()
+        .filter(|row| {
+            row.statement_index == statement
+                && row.call_ordinal == ordinal
+                && row.target_symbol == call.target_symbol
+                && row.authored_expression == expression
+        });
+    let captured = matching
+        .next()
+        .ok_or("caller argument binding has no exact captured invocation")?;
+    if matching.next().is_some() {
+        return Err("caller argument binding has multiple captured invocations");
+    }
+    let parameters = program.state_parameters(target);
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    let operands = facts
+        .flow
+        .control
+        .operands
+        .span(captured.argument_operands())
+        .ok_or("caller argument binding has an invalid completed operand span")?;
+    if parameters.len() != arguments.len()
+        || !operands
+            .iter()
+            .map(|operand| operand.expression)
+            .eq(arguments.iter().copied())
+    {
+        return Err("caller argument captures disagree with the exact callee parameter roster");
+    }
+    let position = typed_trees::signature::state_parameter_position(parameters, *parameter_symbol)
+        .ok_or("returned input source is not a parameter of the captured call target")?;
+    let operand = captured.argument_operands().handle_at(
+        u32::try_from(position)
+            .map_err(|_| "caller argument position exceeds arena coordinates")?,
+    );
+    let machine_owner = program
+        .machine_by_symbol(machine)
+        .ok_or("caller argument binding has no owning machine")?;
+    let evaluation =
+        crate::flow::call_permission_evaluation(program, machine_owner, state, statement, ordinal);
+    if evaluation == checked_trees::FlowPermissionEvaluation::Unknown {
+        return Err("caller argument binding has no exact permission evaluation");
+    }
+    let consumer = crate::checks::multiplicity::ClaimConsumption {
+        machine,
+        state: state.symbol,
+        statement_index: statement,
+        evaluation,
+        source: PermissionEventSource::Call {
+            statement_index: statement,
+            call_ordinal: ordinal,
+            target_symbol: call.target_symbol,
+        },
+    };
+    let mut conditions = crate::flow::SelectionConditions::new();
+    let claims = crate::checks::multiplicity::consumed_operand_claims(
+        program,
+        facts,
+        consumer,
+        operand,
+        &mut conditions,
+    )?;
+    let mut sources = Vec::new();
+    for claim in claims.iter().filter(|claim| claim.path == *path) {
+        let (source, identity) = match claim.source {
+            crate::checks::multiplicity::ReturnedClaimSource::Live(identity) => (
+                Some(
+                    returned_identity_source(state, identity, &facts.flow.ownership, events)
+                        .ok_or(
+                            "consumed caller argument has no unique entry or establishment source",
+                        )?,
+                ),
+                identity,
+            ),
+            crate::checks::multiplicity::ReturnedClaimSource::Inactive => {
+                (None, PermissionClaimIdentity::Unknown)
             }
-            frontiers.extend(expand_joined_frontier(
-                program,
-                borrow,
-                state,
-                ownership,
-                events,
-                maps,
-                active,
-                &[],
-                ExitFrontier {
-                    exits: vec![
-                        edge,
-                        FlowClaimJoinExit {
-                            state_symbol: state.symbol,
-                            statement_index: statement,
-                            kind: FlowClaimJoinExitKind::SelectionArm { expression, arm },
-                        },
-                    ],
-                    entries,
-                    inactive_paths: Vec::new(),
-                },
-            )?);
-        }
-        return Some(frontiers);
-    }
-    let call = program.expression_table.call_node(expression)?;
-    let target = validation::call_target_state(program, call.target_symbol)?;
-    let mut frontiers = state_frontiers(program, borrow, target, ownership, events, maps, active)?;
-    for frontier in &mut frontiers {
-        for entry in &mut frontier.entries {
-            entry.source = bind_claim_outcome_source_at_call(
-                program,
-                state,
-                statement,
-                call,
-                target,
-                &entry.source,
-                &ownership.segments,
-                events,
-            )?;
-        }
-        frontier.exits.insert(0, edge);
-        if !complete_frontier(
-            program,
-            state.return_type,
-            &frontier.entries,
-            &frontier.inactive_paths,
-        ) {
-            return None;
+        };
+        let excluded_input = source.is_none().then(|| ExcludedInput {
+            source: CheckedClaimOutcomeSource::Input {
+                parameter_symbol: *parameter_symbol,
+                path: path.clone(),
+            },
+            operand,
+            path: path.clone(),
+        });
+        let bound = BoundSource {
+            source,
+            excluded_input,
+            captures: vec![Capture {
+                operand,
+                path: path.clone(),
+                identity,
+            }],
+        };
+        if !sources.contains(&bound) {
+            sources.push(bound);
         }
     }
-    Some(frontiers)
+    if sources.is_empty() {
+        Err("completed caller argument omits the exact returned input-source path")
+    } else {
+        Ok(sources)
+    }
 }
 
 /// A wrapper cannot reuse its callee's local joined occurrence as a global
@@ -490,118 +747,16 @@ fn expression_frontiers(
 #[allow(clippy::too_many_arguments)]
 fn expand_joined_frontier(
     program: &dyn ::validation::CheckingInput,
-    borrow: &checked_trees::BorrowFacts,
+    facts: &CheckFacts,
     state: &typed_trees::state::State,
-    ownership: &FlowOwnershipFacts,
     events: &[FlowPermissionEventFact],
     maps: &[CheckedClaimOutcomeMap],
     active: &mut Vec<SymbolHandle>,
     visited: &[JoinedOccurrence],
     frontier: ExitFrontier,
+    diagnostics: &mut ReturnFrontierDiagnostics,
 ) -> Option<Vec<ExitFrontier>> {
-    let selected = frontier
-        .entries
-        .iter()
-        .find_map(|entry| match entry.source {
-            CheckedClaimOutcomeSource::Established {
-                claim_identity,
-                provenance:
-                    provenance @ PermissionProvenance::Joined {
-                        machine_symbol,
-                        state_symbol,
-                        source: PermissionEventSource::Statement { statement_index },
-                        ..
-                    },
-            } if super::super::owned_selection::selection_claim_origin(
-                ownership,
-                claim_identity,
-                provenance,
-            ) =>
-            {
-                Some((machine_symbol, state_symbol, statement_index))
-            }
-            _ => None,
-        });
-    if let Some((machine, owner, statement)) = selected {
-        let (_, receipt) = ownership.owned_selection_at(owner, statement as u32)?;
-        let occurrence = JoinedOccurrence::Selection {
-            state: owner,
-            statement,
-            expression: receipt.expression,
-        };
-        if owner != state.symbol || visited.contains(&occurrence) {
-            return None;
-        }
-        if receipt.machine != machine {
-            return None;
-        }
-        let mut visited = visited.to_vec();
-        visited.push(occurrence);
-        let mut expanded = Vec::new();
-        for (arm, alternatives) in
-            selection_alternatives(program, state, ownership, events, receipt)?
-        {
-            let route = super::super::owned_selection::terminal_arm_route(
-                program,
-                receipt.expression,
-                arm,
-            )?;
-            if !selection_routes_agree(program, &frontier.exits, owner, statement, &route)? {
-                continue;
-            }
-            let mut next = frontier.clone();
-            next.exits.push(FlowClaimJoinExit {
-                state_symbol: owner,
-                statement_index: statement,
-                kind: FlowClaimJoinExitKind::SelectionArm {
-                    expression: receipt.expression,
-                    arm,
-                },
-            });
-            for entry in &mut next.entries {
-                let CheckedClaimOutcomeSource::Established {
-                    claim_identity,
-                    provenance,
-                } = entry.source
-                else {
-                    continue;
-                };
-                let mut bindings = ownership
-                    .selection_result_claims
-                    .span_or_empty(receipt.result_claims)
-                    .iter()
-                    .filter(|claim| {
-                        claim.claim_identity == claim_identity && claim.provenance == provenance
-                    });
-                let Some(binding) = bindings.next() else {
-                    continue;
-                };
-                if bindings.next().is_some() {
-                    return None;
-                }
-                let path = ownership.segments.span_or_empty(binding.path);
-                let mut sources = alternatives
-                    .iter()
-                    .filter(|alternative| alternative.output_path == path);
-                entry.source = sources.next()?.source.clone();
-                if sources.next().is_some() {
-                    return None;
-                }
-            }
-            if !complete_frontier(
-                program,
-                state.return_type,
-                &next.entries,
-                &next.inactive_paths,
-            ) {
-                return None;
-            }
-            expanded.extend(expand_joined_frontier(
-                program, borrow, state, ownership, events, maps, active, &visited, next,
-            )?);
-        }
-        return Some(expanded);
-    }
+    let ownership = &facts.flow.ownership;
     if let Some(binding) = frontier.entries.iter().find_map(|entry| {
         let CheckedClaimOutcomeSource::Established {
             claim_identity,
@@ -622,15 +777,15 @@ fn expand_joined_frontier(
     }) {
         return expand_storage_frontier(
             program,
-            borrow,
+            facts,
             state,
-            ownership,
             events,
             maps,
             active,
             visited,
             frontier.clone(),
             binding,
+            diagnostics,
         );
     }
     if frontier.entries.iter().any(|entry| {
@@ -702,7 +857,50 @@ fn expand_joined_frontier(
         return None;
     }
     let target = validation::call_target_state(program, target_symbol)?;
-    let children = state_frontiers(program, borrow, target, ownership, events, maps, active)?;
+    let joined_identity = frontier
+        .entries
+        .iter()
+        .find_map(|entry| match entry.source {
+            CheckedClaimOutcomeSource::Established {
+                claim_identity,
+                provenance: PermissionProvenance::Joined { .. },
+            } => Some(claim_identity),
+            _ => None,
+        })?;
+    let origins = events
+        .iter()
+        .filter(|event| {
+            event.kind == PermissionEventKind::Establish
+                && event.state_symbol == owner
+                && event.claim_identity == joined_identity
+        })
+        .filter_map(|event| {
+            let (at, expression, path) =
+                super::receiving_value(program, &ownership.segments, event)?;
+            (at == statement && expression == call_expression).then_some(path)
+        })
+        .fold(Vec::new(), |mut origins, path| {
+            // A completed child can establish the same claim at successive
+            // receiving homes. Those rows still name one call occurrence and
+            // result path; distinct result paths remain ambiguous.
+            if !origins.contains(&path) {
+                origins.push(path);
+            }
+            origins
+        });
+    let [requested] = origins.as_slice() else {
+        return None;
+    };
+    let children = state_frontiers(
+        program,
+        facts,
+        target,
+        events,
+        maps,
+        active,
+        requested,
+        diagnostics,
+    )?;
     let mut expanded = Vec::new();
     for child in children {
         let mut next = frontier.clone();
@@ -714,123 +912,150 @@ fn expand_joined_frontier(
             },
         });
         next.exits.extend(child.exits);
-        let mut entries = Vec::new();
-        for mut entry in next.entries {
-            let CheckedClaimOutcomeSource::Established {
-                claim_identity,
-                provenance:
-                    PermissionProvenance::Joined {
-                        machine_symbol,
-                        state_symbol,
-                        source:
-                            PermissionEventSource::Call {
-                                statement_index,
-                                call_ordinal,
-                                target_symbol: source_target,
-                            },
-                        ..
-                    },
-            } = entry.source
-            else {
-                entries.push(entry);
-                continue;
-            };
-            if (
-                machine_symbol,
-                state_symbol,
-                statement_index,
-                call_ordinal,
-                source_target,
-            ) != (machine, owner, statement, ordinal, target_symbol)
-            {
-                entries.push(entry);
-                continue;
-            }
-            let mut origins = events
-                .iter()
-                .filter(|event| {
-                    event.kind == PermissionEventKind::Establish
-                        && event.state_symbol == owner
-                        && event.claim_identity == claim_identity
-                })
-                .filter_map(|event| {
-                    let (established_at, expression, path) =
-                        super::receiving_value(program, &ownership.segments, event)?;
-                    (established_at == statement && expression == call_expression).then_some(path)
-                });
-            let path = origins.next()?;
-            if origins.next().is_some() {
-                return None;
-            }
-            // The receiving home may contain this call beneath constructor
-            // fields or indexes. Only its result-relative suffix can select
-            // the callee's return frontier; storage prefixes are not lineage.
-            if child.inactive_paths.iter().any(|inactive| inactive == path) {
-                next.inactive_paths.push(entry.output_path);
-                continue;
-            }
-            let mut matching = child
-                .entries
-                .iter()
-                .filter(|candidate| candidate.output_path == path);
-            let source = &matching.next()?.source;
-            if matching.next().is_some() {
-                return None;
-            }
-            entry.source = bind_claim_outcome_source_at_call(
-                program,
-                state,
-                statement,
-                call,
-                target,
-                source,
-                &ownership.segments,
-                events,
-            )?;
-            // Expansion explains lineage; it must not replace the exact
-            // caller occurrence with a shared callee establishment template.
-            // The child frontier already rejects duplicate return sources.
-            // Input forwarding still binds the caller's actual held claim.
-            if matches!(source, CheckedClaimOutcomeSource::Established { .. })
-                && let CheckedClaimOutcomeSource::Established {
-                    claim_identity: expanded_identity,
-                    ..
-                } = &mut entry.source
-            {
-                *expanded_identity = claim_identity;
-            }
-            if matches!(entry.source, CheckedClaimOutcomeSource::Established { provenance:
-                PermissionProvenance::Joined { machine_symbol: rebound_machine, state_symbol: rebound_state,
-                    source: PermissionEventSource::Call { statement_index: rebound_statement, call_ordinal: rebound_ordinal, .. }, .. }, .. }
-                if (rebound_machine, rebound_state, rebound_statement, rebound_ordinal) == (machine, owner, statement, ordinal))
-            {
-                return None;
-            }
-            entries.push(entry);
+        next.captures.extend(child.captures);
+        if next.excluded_input.is_none() {
+            next.excluded_input = child.excluded_input;
         }
-        next.entries = entries;
-        if !complete_frontier(
-            program,
-            state.return_type,
-            &next.entries,
-            &next.inactive_paths,
-        ) {
+        // This operation queries one exact result claim path. Its receiving
+        // identity stays distinct from the source lineage being substituted.
+        let position = next.entries.iter().position(|entry| matches!(entry.source,
+            CheckedClaimOutcomeSource::Established { claim_identity, .. } if claim_identity == joined_identity))?;
+        let output_path = next.entries[position].output_path.clone();
+        if child
+            .inactive_paths
+            .iter()
+            .any(|inactive| inactive == requested)
+        {
+            next.entries.remove(position);
+            next.inactive_paths.push(output_path);
+            expanded.push(next);
+            continue;
+        }
+        let mut matching = child
+            .entries
+            .iter()
+            .filter(|entry| entry.output_path == *requested);
+        let source = &matching.next()?.source;
+        if matching.next().is_some() {
             return None;
         }
-        expanded.extend(expand_joined_frontier(
-            program, borrow, state, ownership, events, maps, active, &visited, next,
-        )?);
+        let bound_sources = match bound_sources_at_call(
+            program,
+            facts,
+            machine,
+            state,
+            statement,
+            ordinal,
+            call_expression,
+            call,
+            target,
+            source,
+            events,
+        ) {
+            Ok(sources) => sources,
+            Err(reason) => {
+                diagnostics.record_binding(
+                    FlowClaimJoinExit {
+                        state_symbol: owner,
+                        statement_index: statement,
+                        kind: FlowClaimJoinExitKind::CallResult {
+                            call_ordinal: ordinal,
+                        },
+                    },
+                    reason,
+                    source,
+                );
+                return None;
+            }
+        };
+        for bound in bound_sources {
+            let mut next = next.clone();
+            next.captures.extend(bound.captures);
+            if next.excluded_input.is_none() {
+                next.excluded_input = bound.excluded_input;
+            }
+            if let Some(mut bound) = bound.source {
+                // A callee-local origin is an explanation, not a replacement
+                // for this exact caller result occurrence's resource name.
+                if matches!(source, CheckedClaimOutcomeSource::Established { .. })
+                    && let CheckedClaimOutcomeSource::Established { claim_identity, .. } =
+                        &mut bound
+                {
+                    *claim_identity = joined_identity;
+                }
+                if matches!(bound, CheckedClaimOutcomeSource::Established { provenance:
+                    PermissionProvenance::Joined { machine_symbol: rebound_machine, state_symbol: rebound_state,
+                        source: PermissionEventSource::Call { statement_index: rebound_statement, call_ordinal: rebound_ordinal, .. }, .. }, .. }
+                    if (rebound_machine, rebound_state, rebound_statement, rebound_ordinal) == (machine, owner, statement, ordinal))
+                {
+                    return None;
+                }
+                next.entries[position].source = bound;
+            } else {
+                next.entries.remove(position);
+                next.inactive_paths.push(output_path.clone());
+            }
+            if !complete_frontier(
+                program,
+                state.return_type,
+                &next.path,
+                &next.entries,
+                &next.inactive_paths,
+            ) {
+                return None;
+            }
+            expanded.extend(expand_joined_frontier(
+                program,
+                facts,
+                state,
+                events,
+                maps,
+                active,
+                &visited,
+                next,
+                diagnostics,
+            )?);
+        }
     }
     Some(expanded)
 }
 
-pub(super) fn complete_frontier(
+pub(super) fn complete_whole_frontier(
     program: &dyn ::validation::CheckingInput,
     result_type: typed_trees::types::TypeReferenceHandle,
     entries: &[CheckedClaimOutcomeEntry],
     inactive_paths: &[Vec<PlaceSegment>],
 ) -> bool {
-    let expected = linear_claim_frontier(program, result_type);
+    validate_frontier(program, result_type, None, entries, inactive_paths)
+}
+
+pub(super) fn complete_frontier(
+    program: &dyn ::validation::CheckingInput,
+    result_type: typed_trees::types::TypeReferenceHandle,
+    requested: &[PlaceSegment],
+    entries: &[CheckedClaimOutcomeEntry],
+    inactive_paths: &[Vec<PlaceSegment>],
+) -> bool {
+    validate_frontier(
+        program,
+        result_type,
+        Some(requested),
+        entries,
+        inactive_paths,
+    )
+}
+
+fn validate_frontier(
+    program: &dyn ::validation::CheckingInput,
+    result_type: typed_trees::types::TypeReferenceHandle,
+    requested: Option<&[PlaceSegment]>,
+    entries: &[CheckedClaimOutcomeEntry],
+    inactive_paths: &[Vec<PlaceSegment>],
+) -> bool {
+    let expected = linear_claim_frontier(program, result_type)
+        .into_iter()
+        .filter(|claim| requested.is_none_or(|requested| claim.path == requested))
+        .collect::<Vec<_>>();
     if expected.is_empty()
         || entries.iter().any(|entry| {
             !known_source(&entry.source)
@@ -860,83 +1085,18 @@ pub(super) fn complete_frontier(
     })
 }
 
-/// Reuse source-replayed absence rather than treating a failed binding as an
-/// empty case. A historical establishment alone is insufficient: assignments
-/// and call write frames must preserve that exact place through this call's
-/// entire statement, including earlier argument evaluation.
-#[allow(clippy::too_many_arguments)]
-fn excluded_input_at_call(
-    program: &dyn ::validation::CheckingInput,
-    borrow: &checked_trees::BorrowFacts,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    call: &typed_trees::expression::TableCallExpression,
-    target: &typed_trees::state::State,
-    source: &CheckedClaimOutcomeSource,
-    ownership: &FlowOwnershipFacts,
-    events: &[FlowPermissionEventFact],
-) -> Option<ExcludedInput> {
-    let CheckedClaimOutcomeSource::Input {
-        parameter_symbol,
-        path,
-    } = source
-    else {
-        return None;
-    };
-    let argument = argument_for_parameter(
-        program,
-        program.expression_table.expression_handles(call.arguments),
-        target,
-        *parameter_symbol,
-    )?;
-    let parameter = parameter_for_symbol(program, target, *parameter_symbol)?;
-    let mut projections = crate::flow::literal_expression_projections(
-        program,
-        argument,
-        parameter.type_reference,
-        path,
-        false,
-    )?;
-    let projection = projections.pop()?;
-    if !projections.is_empty() {
-        return None;
-    }
-    let mut place = validation::ownership_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        projection.expression,
-    )?;
-    place.segments.extend_from_slice(&projection.remaining);
-    let established_at = preserved_inactive_place(
-        program,
-        borrow,
-        state,
-        statement_index,
-        &place,
-        ownership,
-        events,
-    )?;
-    Some(ExcludedInput {
-        source: source.clone(),
-        root: place.root,
-        path: place.segments,
-        established_at,
-    })
-}
-
 /// An absent conditional payload remains absent only while the exact storage
 /// path is preserved through the entire consuming statement. Unknown identity
 /// alone, and an inactive unguarded allocation, establish no such fact.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn preserved_inactive_place(
+pub(in crate::checks::multiplicity) fn preserved_inactive_place<'a>(
     program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     state: &typed_trees::state::State,
     statement_index: usize,
     place: &validation::CanonicalPlace,
     ownership: &FlowOwnershipFacts,
-    events: &[FlowPermissionEventFact],
+    events: impl IntoIterator<Item = &'a FlowPermissionEventFact>,
 ) -> Option<usize> {
     InactivePlaceWrites::prepare(program, borrow, state)?.preserved(
         program,
@@ -1031,14 +1191,14 @@ impl InactivePlaceWrites {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn preserved(
+    pub(super) fn preserved<'a>(
         &self,
         program: &dyn ::validation::CheckingInput,
         state: &typed_trees::state::State,
         statement_index: usize,
         place: &validation::CanonicalPlace,
         ownership: &FlowOwnershipFacts,
-        events: &[FlowPermissionEventFact],
+        events: impl IntoIterator<Item = &'a FlowPermissionEventFact>,
     ) -> Option<usize> {
         if self.state != state.symbol {
             return None;
@@ -1050,7 +1210,7 @@ impl InactivePlaceWrites {
         {
             return None;
         }
-        let establishment = events.iter().filter(|event| {
+        let establishment = events.into_iter().filter(|event| {
         event.state_symbol == state.symbol && event.kind == PermissionEventKind::Establish
             && event.access == PermissionAccess::Owned && !event.obligation_live
             && event.claim_identity == PermissionClaimIdentity::Unknown
@@ -1087,17 +1247,19 @@ impl InactivePlaceWrites {
 
 fn derive_receipts(
     program: &dyn ::validation::CheckingInput,
-    borrow: &checked_trees::BorrowFacts,
-    ownership: &FlowOwnershipFacts,
+    facts: &CheckFacts,
     events: &[FlowPermissionEventFact],
+    mut failures: Option<&mut Vec<CallClaimJoinFailure>>,
 ) -> Result<Vec<Receipt>, &'static str> {
+    let borrow = &facts.borrow;
+    let ownership = &facts.flow.ownership;
     let maps = derive_checked_claim_outcome_maps(program, borrow, ownership, events)?;
     let mut receipts = Vec::new();
-    // This sweep borrows one immutable ownership/event/map revision. A callee's
-    // complete frontier depends on those inputs and its state, not on which
-    // receiving claim asks for it. Keep failures too; binding actuals and the
-    // newly established identity remains below, at each exact call occurrence.
-    let mut prepared_frontiers: Vec<(SymbolHandle, Option<Vec<ExitFrontier>>)> = Vec::new();
+    // This cache belongs to one immutable facts/events/maps revision, including
+    // its exact completed operand handles. The private frontier projects one
+    // received path, so a target alone cannot key it. Actual argument binding
+    // and the receiving occurrence remain outside this prepared callee graph.
+    let mut prepared_frontiers: Vec<PreparedCalleeFrontier> = Vec::new();
     for event in events {
         if event.kind != PermissionEventKind::Establish
             || event.access != PermissionAccess::Owned
@@ -1110,6 +1272,18 @@ fn derive_receipts(
         else {
             continue;
         };
+        // The invariant Input mapping and exact actual binding authenticate
+        // forwarding independently of the receiving identity's lexical source.
+        // A constructor created in this same statement can share its allocated
+        // pair with the result. Joining that forwarded pair would rewrite its
+        // earlier input definition into a receipt that cites itself.
+        if super::call_result_origin_rewrite(program, &ownership.segments, event, events, &maps)
+            .is_some_and(|(_, _, provenance, identity)| {
+                event.provenance == provenance && event.claim_identity == identity
+            })
+        {
+            continue;
+        }
         let Some(state) = program.state_by_symbol(event.state_symbol) else {
             continue;
         };
@@ -1139,29 +1313,59 @@ fn derive_receipts(
         if !exact_call {
             continue;
         }
-        let frontier_index = match prepared_frontiers
-            .iter()
-            .position(|(symbol, _)| *symbol == target.symbol)
-        {
+        let failure = |reason, returns| CallClaimJoinFailure {
+            receiver: ReceivingClaim {
+                machine: event.machine_symbol,
+                state: event.state_symbol,
+                source: event.source,
+                expression,
+                root: event.root,
+                path: ownership.segments.span_or_empty(event.segments).to_vec(),
+                identity: event.claim_identity,
+            },
+            statement: statement_index,
+            ordinal,
+            target: call.target_symbol,
+            reason,
+            returns,
+        };
+        let frontier_index = match prepared_frontiers.iter().position(|prepared| {
+            prepared.state == target.symbol && prepared.path.as_slice() == received_path
+        }) {
             Some(index) => index,
             None => {
                 let index = prepared_frontiers.len();
-                prepared_frontiers.push((
-                    target.symbol,
-                    state_frontiers(
-                        program,
-                        borrow,
-                        target,
-                        ownership,
-                        events,
-                        &maps,
-                        &mut Vec::new(),
-                    ),
-                ));
+                let mut diagnostics = ReturnFrontierDiagnostics {
+                    enabled: failures.is_some(),
+                    ..Default::default()
+                };
+                let frontiers = state_frontiers(
+                    program,
+                    facts,
+                    target,
+                    events,
+                    &maps,
+                    &mut Vec::new(),
+                    received_path,
+                    &mut diagnostics,
+                );
+                prepared_frontiers.push(PreparedCalleeFrontier {
+                    state: target.symbol,
+                    path: received_path.to_vec(),
+                    frontiers,
+                    diagnostics,
+                });
                 index
             }
         };
-        let Some(frontiers) = prepared_frontiers[frontier_index].1.as_deref() else {
+        let prepared = &prepared_frontiers[frontier_index];
+        let Some(frontiers) = prepared.frontiers.as_deref() else {
+            if let Some(failures) = failures.as_deref_mut() {
+                failures.push(failure(
+                    "callee return frontier correspondence is unavailable",
+                    prepared.diagnostics.failures.clone(),
+                ));
+            }
             continue;
         };
         let path = ownership.segments.span_or_empty(event.segments);
@@ -1179,9 +1383,10 @@ fn derive_receipts(
                     .any(|inactive| inactive == received_path)
                 {
                     alternatives.push(Alternative {
+                        captures: frontier.captures.clone(),
                         exits: frontier.exits.clone(),
                         source: None,
-                        excluded_input: None,
+                        excluded_input: frontier.excluded_input.clone(),
                     });
                     continue;
                 }
@@ -1192,80 +1397,61 @@ fn derive_receipts(
                 complete = false;
                 break;
             }
-            let bound_source = bind_claim_outcome_source_at_call(
+            let bound_sources = match bound_sources_at_call(
                 program,
+                facts,
+                event.machine_symbol,
                 state,
                 statement_index,
+                ordinal,
+                expression,
                 call,
                 target,
                 &entry.source,
-                &ownership.segments,
                 events,
-            )
-            .filter(known_source);
-            let excluded_input = if bound_source.is_none() {
-                excluded_input_at_call(
-                    program,
-                    borrow,
-                    state,
-                    statement_index,
-                    call,
-                    target,
-                    &entry.source,
-                    ownership,
-                    events,
-                )
-            } else {
-                None
+            ) {
+                Ok(sources) => sources,
+                Err(reason) => {
+                    if let Some(failures) = failures.as_deref_mut() {
+                        failures.push(failure(
+                            "completed caller argument cannot bind this callee return source",
+                            frontier
+                                .exits
+                                .iter()
+                                .map(|exit| ReturnFrontierFailure {
+                                    exit: *exit,
+                                    reason,
+                                    source: Some(entry.source.clone()),
+                                })
+                                .collect(),
+                        ));
+                    }
+                    complete = false;
+                    break;
+                }
             };
-            if bound_source.is_none() && excluded_input.is_none() {
-                complete = false;
-                break;
+            for bound in bound_sources {
+                let mut captures = frontier.captures.clone();
+                captures.extend(bound.captures);
+                alternatives.push(Alternative {
+                    captures,
+                    exits: frontier.exits.clone(),
+                    source: bound.source.map(|bound| (entry.source.clone(), bound)),
+                    excluded_input: bound
+                        .excluded_input
+                        .or_else(|| frontier.excluded_input.clone()),
+                });
             }
-            alternatives.push(Alternative {
-                exits: frontier.exits.clone(),
-                source: bound_source.map(|bound| (entry.source.clone(), bound)),
-                excluded_input,
-            });
         }
         if !complete || alternatives.is_empty() {
             continue;
         }
-        let first = &alternatives[0];
-        let shared_source = alternatives.iter().all(|alternative| {
-            alternative.source.as_ref().map(|(source, _)| source)
-                == first.source.as_ref().map(|(source, _)| source)
-                && alternative.excluded_input == first.excluded_input
-        });
-        // An invariant input source forwards the existing caller claim.
-        // A callee-local source instead needs an occurrence-local binding,
-        // even when every exit agrees. Active versus excluded custody also
-        // keeps its complete frontier, not just the one active source.
-        let callee_establishment = first.source.as_ref().is_some_and(|(source, _)| {
-            matches!(source, CheckedClaimOutcomeSource::Established { .. })
-        });
-        // Authenticated absence is a disposition, never an active claim an
-        // ordinary origin rewrite could forward, even on a uniform exit set.
-        let carries_absence = alternatives
-            .iter()
-            .any(|alternative| alternative.source.is_none());
-        // The invariant-map route publishes only complete result frontiers.
-        // A uniform input field beside an arm-local birth therefore still
-        // needs this call correspondence when no complete map was published.
-        // Uniformity alone cannot stand in for an actually available map.
-        let mapped_input = maps.iter().any(|map| {
-            map.state_symbol == target.symbol
-                && map.entries.iter().any(|entry| {
-                    entry.output_path == received_path
-                        && first
-                            .source
-                            .as_ref()
-                            .is_some_and(|(source, _)| entry.source == *source)
-                })
-        });
-        if shared_source && !callee_establishment && !carries_absence && mapped_input {
-            continue;
-        }
+        // An available invariant whole-result map has already forwarded its
+        // input identities before this query. A path can nevertheless have an
+        // invariant input while a sibling has differing returning sources, so
+        // no whole-result map exists. Retain that path's exact receipt too:
+        // the local receiving name continues its authenticated input rather
+        // than acquiring authority from an unrelated sibling's summary.
         // Only the result occurrence allocated at this call can name its join.
         // Rewritten identities from another call cannot borrow this receipt.
         let PermissionClaimIdentity::Established {
@@ -1341,8 +1527,9 @@ pub(crate) fn publish_call_claim_joins(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
 ) -> Result<Vec<PreparedCallClaimJoin>, &'static str> {
-    let ownership = &mut facts.flow.ownership;
-    let mut events = ownership
+    let mut events = facts
+        .flow
+        .ownership
         .permissions
         .iter()
         .map(|(_, event)| event.clone())
@@ -1350,20 +1537,27 @@ pub(crate) fn publish_call_claim_joins(
     // Earlier call joins can feed later calls, but no receipt cites itself.
     let mut converged = false;
     for _ in 0..=events.len() {
-        let receipts = derive_receipts(program, &facts.borrow, ownership, &events)?;
-        let mut changed = false;
+        let receipts = derive_receipts(program, facts, &events, None)?;
+        let mut rewrites = Vec::new();
         for receipt in &receipts {
             let Some(provenance) = join_provenance(receipt) else {
                 continue;
             };
-            for event in &mut events {
+            for event in &events {
                 if event.claim_identity == receipt.identity && event.provenance != provenance {
-                    event.provenance = provenance;
-                    changed = true;
+                    let rewrite = (
+                        event.provenance,
+                        event.claim_identity,
+                        provenance,
+                        receipt.identity,
+                    );
+                    if !rewrites.contains(&rewrite) {
+                        rewrites.push(rewrite);
+                    }
                 }
             }
         }
-        if !changed {
+        if !super::apply_claim_origin_rewrites(&mut events, &mut facts.flow.ownership, &rewrites) {
             converged = true;
             break;
         }
@@ -1371,13 +1565,15 @@ pub(crate) fn publish_call_claim_joins(
     if !converged {
         return Err("call-result claim joins did not converge");
     }
-    let receipts = derive_receipts(program, &facts.borrow, ownership, &events)?;
+    let receipts = derive_receipts(program, facts, &events, None)?;
+    let ownership = &mut facts.flow.ownership;
     ownership.permissions = Default::default();
     ownership.permissions.insert_many(events);
     ownership.claim_join_receipts = Default::default();
     ownership.claim_join_alternatives = Default::default();
     ownership.claim_join_exits = Default::default();
     let mut prepared = Vec::new();
+    ownership.claim_join_captures = Default::default();
     for receipt in receipts {
         let PermissionClaimIdentity::Established { source, .. } = receipt.identity else {
             return Err("call-result join lacks an exact receiving identity");
@@ -1403,16 +1599,29 @@ pub(crate) fn publish_call_claim_joins(
                 (None, None) => FlowClaimJoinAlternativeSource::Inactive,
                 (_, Some(excluded)) => FlowClaimJoinAlternativeSource::ExcludedInput {
                     source: store_source(ownership, excluded.source),
-                    root: excluded.root,
+                    operand: excluded.operand,
                     segments: ownership.segments.insert_many(excluded.path),
-                    established_at: excluded.established_at,
                 },
                 (Some((source, bound_source)), None) => FlowClaimJoinAlternativeSource::Claim {
                     source: store_source(ownership, source),
                     bound_source: store_source(ownership, bound_source),
                 },
             };
-            alternatives.push(FlowClaimJoinAlternative { exits, source });
+            let captures = alternative
+                .captures
+                .into_iter()
+                .map(|capture| checked_trees::FlowClaimJoinCapture {
+                    operand: capture.operand,
+                    path: ownership.segments.insert_many(capture.path),
+                    identity: capture.identity,
+                })
+                .collect::<Vec<_>>();
+            let captures = ownership.claim_join_captures.insert_many(captures);
+            alternatives.push(FlowClaimJoinAlternative {
+                exits,
+                source,
+                captures,
+            });
         }
         let alternatives = ownership.claim_join_alternatives.insert_many(alternatives);
         let result_segments = ownership.segments.insert_many(receipt.path);
@@ -1457,20 +1666,21 @@ fn read_source(
 
 pub(crate) fn validate_call_claim_joins(
     program: &dyn ::validation::CheckingInput,
-    borrow: &checked_trees::BorrowFacts,
-    ownership: &FlowOwnershipFacts,
+    facts: &CheckFacts,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> Vec<CallClaimJoinFailure> {
+    let ownership = &facts.flow.ownership;
     let events = ownership
         .permissions
         .iter()
         .map(|(_, event)| event.clone())
         .collect::<Vec<_>>();
-    let expected = match derive_receipts(program, borrow, ownership, &events) {
+    let mut failures = Vec::new();
+    let expected = match derive_receipts(program, facts, &events, Some(&mut failures)) {
         Ok(receipts) => receipts,
         Err(message) => {
             diagnostics.push(Diagnostic::error(message));
-            return;
+            return failures;
         }
     };
     let recorded = ownership
@@ -1483,6 +1693,18 @@ pub(crate) fn validate_call_claim_joins(
                 .iter()
                 .map(|alternative| {
                     Some(Alternative {
+                        captures: ownership
+                            .claim_join_captures
+                            .span(alternative.captures)?
+                            .iter()
+                            .map(|capture| {
+                                Some(Capture {
+                                    operand: capture.operand,
+                                    path: ownership.segments.span(capture.path)?.to_vec(),
+                                    identity: capture.identity,
+                                })
+                            })
+                            .collect::<Option<Vec<_>>>()?,
                         exits: ownership.claim_join_exits.span(alternative.exits)?.to_vec(),
                         source: match alternative.source {
                             FlowClaimJoinAlternativeSource::Inactive
@@ -1498,14 +1720,12 @@ pub(crate) fn validate_call_claim_joins(
                         excluded_input: match alternative.source {
                             FlowClaimJoinAlternativeSource::ExcludedInput {
                                 source,
-                                root,
+                                operand,
                                 segments,
-                                established_at,
                             } => Some(ExcludedInput {
                                 source: read_source(ownership, source)?,
-                                root,
+                                operand,
                                 path: ownership.segments.span(segments)?.to_vec(),
-                                established_at,
                             }),
                             _ => None,
                         },
@@ -1555,11 +1775,7 @@ pub(crate) fn validate_call_claim_joins(
                 ..
             }
         ) {
-            super::super::owned_selection::selection_claim_origin(
-                ownership,
-                event.claim_identity,
-                event.provenance,
-            ) || super::super::selected_evaluation::place_bindings::claim_origin(
+            super::super::selected_evaluation::place_bindings::claim_origin(
                 ownership,
                 event.claim_identity,
                 event.provenance,
@@ -1585,4 +1801,5 @@ pub(crate) fn validate_call_claim_joins(
             event.kind,
         )));
     }
+    failures
 }

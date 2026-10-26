@@ -476,6 +476,10 @@ impl CheckingInput for CheckingProjection<'_> {
 #[derive(Default)]
 pub struct CheckingMemos {
     pub(crate) indexed_logical_machines: OnceLock<Arc<Vec<symbols::SymbolHandle>>>,
+    /// Exact satisfaction associations depend only on this immutable typed
+    /// program, not changing progress summaries, effects or selected layouts.
+    pub(crate) requirement_satisfiers:
+        OnceLock<Arc<crate::machine_calls::denotational_calls::RequirementSatisfierIndex>>,
     pub(crate) erased_initializers: OnceLock<Arc<Vec<typed_trees::expression::ExpressionHandle>>>,
     pub(crate) mathematical_expression_nodes:
         OnceLock<Arc<Vec<typed_trees::expression::ExpressionHandle>>>,
@@ -484,6 +488,9 @@ pub struct CheckingMemos {
     pub(crate) claim_frontiers:
         OnceLock<crate::value_custody::type_properties::ClaimFrontierQueries>,
     pub(crate) establishment: OnceLock<crate::value_custody::type_properties::EstablishmentQueries>,
+    /// Cleanup selection and carrier custody may observe finalized context.
+    /// Unlike typed-tree-only indexes, these answers reset with that context.
+    pub(crate) cleanup_types: OnceLock<crate::value_custody::cleanup::CleanupTypeQueries>,
     pub(crate) call_destinations:
         OnceLock<crate::machine_calls::calls::signature_queries::CallDestinationQueries>,
     pub(crate) operational: OnceLock<Arc<flow_effects::OperationalPlan>>,
@@ -492,6 +499,21 @@ pub struct CheckingMemos {
         flow_effects::ServiceReachInferencePlan,
     )>,
     pub(crate) call_frames: Arc<CallFrameCaches>,
+    /// One normal-value traversal supplies scalar reads and operation-entry
+    /// orderings for this exact immutable state prefix. No runtime occurrence
+    /// is transported into another invocation by these scoped observations.
+    pub(crate) completed_numeric_observations: Mutex<
+        symbols::SymbolKeyMap<
+            (
+                symbols::SymbolHandle,
+                symbols::SymbolHandle,
+                usize,
+                bool,
+                crate::NumericObservationDemand,
+            ),
+            crate::CapturedNumericObservations,
+        >,
+    >,
     proof_only: OnceLock<Arc<ProofOnlyClassification>>,
     pub(crate) license_candidates: OnceLock<Arc<LicenseCandidates>>,
     pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
@@ -656,8 +678,11 @@ impl CheckingMemos {
     /// Retain memos that depend strictly on the immutable `TypedTrees` tables
     /// (`self.program`), resetting memos that may observe prepared effects,
     /// finalized selections, prepared mathematics, or opaque representations.
+    /// Call-frame caches also retain prepared operational/service plans, so
+    /// only an unchanged-context Arc clone may share those caches.
     fn retain_typed_tree_memos(self) -> Self {
         Self {
+            requirement_satisfiers: self.requirement_satisfiers,
             erased_initializers: self.erased_initializers,
             mathematical_expression_nodes: self.mathematical_expression_nodes,
             owned_field_domains: self.owned_field_domains,
@@ -680,6 +705,7 @@ impl CheckingMemos {
 
     fn clone_typed_tree_memos(&self) -> Self {
         Self {
+            requirement_satisfiers: self.requirement_satisfiers.clone(),
             erased_initializers: self.erased_initializers.clone(),
             mathematical_expression_nodes: self.mathematical_expression_nodes.clone(),
             proof_only: self.proof_only.clone(),
@@ -737,4 +763,54 @@ pub(crate) fn frozen_memo<T>(
 /// Proof-only classification, shared by consumers of this checking context.
 pub fn proof_only_classification(program: &dyn CheckingInput) -> Arc<ProofOnlyClassification> {
     program.proof_only_classification()
+}
+
+#[cfg(test)]
+mod cleanup_query_tests {
+    use super::*;
+    use crate::value_custody::cleanup::has_no_owned_cleanup_obligations;
+    use typed_trees::types::TypeReferenceNode;
+
+    #[test]
+    fn cleanup_queries_reset_for_unique_and_shared_context_substitutions() {
+        let mut program = TypedTrees::default();
+        let reference = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        for share_previous in [false, true] {
+            let context = CheckingContext::new(&program);
+            let answer = has_no_owned_cleanup_obligations(&context, reference);
+            assert!(context.memos.cleanup_types.get().is_some());
+            let previous = share_previous.then(|| context.memos.clone());
+
+            let substituted = context.with_prepared_mathematics(None);
+            assert!(substituted.memos.cleanup_types.get().is_none());
+            assert_eq!(
+                has_no_owned_cleanup_obligations(&substituted, reference),
+                answer
+            );
+            if let Some(previous) = previous {
+                assert!(previous.cleanup_types.get().is_some());
+            }
+        }
+    }
+
+    #[test]
+    fn cleanup_queries_do_not_cross_borrow_contexts_or_bare_inputs() {
+        let mut program = TypedTrees::default();
+        let reference = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        assert!(program.checking_memos().is_none());
+        let uncached = has_no_owned_cleanup_obligations(&program, reference);
+        let context = CheckingContext::new(&program);
+        assert!(context.memos.cleanup_types.get().is_none());
+        assert_eq!(
+            has_no_owned_cleanup_obligations(&context, reference),
+            uncached
+        );
+
+        let substituted = context.with_retained_borrow_custodies(Arc::from([]));
+        assert!(substituted.memos.cleanup_types.get().is_none());
+        assert_eq!(
+            has_no_owned_cleanup_obligations(&substituted, reference),
+            uncached
+        );
+    }
 }

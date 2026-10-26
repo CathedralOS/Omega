@@ -90,6 +90,7 @@ mod atomic_access;
 mod boundary_calls;
 mod byte_operands;
 mod calls;
+pub(crate) mod completed_arguments;
 mod dynamic_calls;
 mod structural_results;
 pub(super) use structural_results::{StructuralResults, dense_result_homes};
@@ -100,6 +101,7 @@ mod selection_retirement;
 mod stores;
 mod values;
 pub(super) use calls::CallInputs;
+pub(super) use completed_arguments::CompletedStructuralArgument;
 
 /// One lowered boundary declaration a call can name.
 #[derive(Debug, Clone)]
@@ -329,12 +331,67 @@ impl OperationEnvironment<'_> {
     /// evaluation supplies its current ingress and scalar prefix, including
     /// private joins reached while evaluating earlier operands.
     #[allow(clippy::too_many_arguments)]
+    pub(in crate::unit::attached_unit) fn capture_argument(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        operation: &CheckedUnitEffectOperationPlan,
+        ordinal: usize,
+        selectors: &[usize],
+        previous: Option<CompletedStructuralArgument>,
+        complete: bool,
+        source_value_count: usize,
+        evaluation: &mut Evaluation,
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        calls: &mut CallEmissionContext<'_>,
+        operations: &mut OperationBuffer,
+    ) -> Result<CompletedStructuralArgument, LoweringError> {
+        let frame = OperationFrame {
+            checked: self.checked,
+            machine: self.machine,
+            state: self.state,
+            scalar_result: self.scalar_result,
+            scalar_parameter_count: self.scalar_parameter_count,
+            source_value_count,
+            parameters: evaluation.current_parameters(&self.parameters),
+            structural_types: StructuralTypeRoster::Published(self.structural_types),
+            type_ids: self.type_ids,
+            service_ids: self.service_ids,
+            primitive_locals: self.primitive_locals,
+            results: match &mut self.results {
+                StructuralResults::Dense(roster) => StructuralResults::Dense(roster),
+                StructuralResults::StateGraph { state, places } => {
+                    StructuralResults::StateGraph { state, places }
+                }
+            },
+            private_places: self.private_places,
+            windows: self.windows,
+            evaluation,
+            values,
+            next_place: self.next_place,
+            next_value,
+            next_block,
+            next_edge,
+            calls,
+            operations,
+            callees: self.callees,
+            caller: self.caller,
+        };
+        frame.capture_argument(
+            identities, operation, ordinal, selectors, previous, complete,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub(in crate::unit::attached_unit) fn emit_operand(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operand: &CheckedUnitEffectOperationPlan,
         evaluated: Option<&[ValueDeclaration]>,
         evaluated_selectors: Option<&[ValueDeclaration]>,
+        completed_structural_arguments: Option<&[Option<CompletedStructuralArgument>]>,
         byte_places: &[PlaceId],
         source_value_count: usize,
         evaluation: &mut Evaluation,
@@ -397,6 +454,7 @@ impl OperationEnvironment<'_> {
                 evaluated_scalar_arguments: evaluated,
                 byte_places,
                 evaluated_selectors,
+                completed_structural_arguments,
             },
         )?;
         // Publication observes the completed home; it does not consume the
@@ -597,6 +655,7 @@ impl OperationFrame<'_, '_> {
                     source.structural_storage_root(),
                     self.values,
                     self.structural_types.declarations(),
+                    self.calls.domain_declarations,
                     self.next_place,
                     self.operations,
                     self.private_places,
@@ -651,7 +710,7 @@ impl OperationFrame<'_, '_> {
             storage,
             self.type_ids,
             self.structural_types.declarations(),
-            self.evaluation.structural_root_parameters(),
+            self.evaluation,
             self.next_place,
             self.operations,
         )?;
@@ -663,6 +722,9 @@ impl OperationFrame<'_, '_> {
         else {
             return unsupported("reference establishment produced no structural result");
         };
+        self.evaluation
+            .current_claims
+            .publish(produced.place, produced.claims.clone())?;
         // Descriptor cleanup follows its emitted transfers and releases. A
         // source local alone does not imply the original holder survives.
         self.results.push(declaration, false);
@@ -691,6 +753,7 @@ impl OperationFrame<'_, '_> {
             source,
             self.values,
             self.structural_types.declarations(),
+            self.calls.domain_declarations,
             self.next_place,
             self.operations,
             self.private_places,
@@ -742,6 +805,7 @@ impl OperationFrame<'_, '_> {
             case_conditions,
             select_evaluated_storage,
             selection_complements,
+            owner_cleanups,
             ..
         } = operation
         else {
@@ -838,6 +902,45 @@ impl OperationFrame<'_, '_> {
             // private edge; projected releases retain the owner's siblings.
             self.evaluation.retire_structural_home(source);
         }
+        let checked = self.checked;
+        let control = &checked.facts.flow.terminal_unit_effects.cleanup_control;
+        for owner in control
+            .reference_owner_cleanups
+            .span_or_empty(*owner_cleanups)
+        {
+            let disposition = checked
+                .facts
+                .contextual_cleanup
+                .dispositions
+                .get(owner.disposition);
+            let language_semantics::PermissionEventSource::Call {
+                statement_index,
+                call_ordinal,
+                ..
+            } = disposition.source
+            else {
+                return unsupported("reference owner cleanup lost its checked call disposition");
+            };
+            self.continuation_cleanup(
+                identities,
+                &checked_trees::CheckedUnitCleanupBoundary::Call(
+                    checked_trees::CheckedUnitCallCoordinate {
+                        statement_index: u32::try_from(statement_index).map_err(|_| {
+                            LoweringError::Unsupported(
+                                "reference owner statement exceeds checked coordinate",
+                            )
+                        })?,
+                        call_ordinal: u32::try_from(call_ordinal).map_err(|_| {
+                            LoweringError::Unsupported(
+                                "reference owner call exceeds checked coordinate",
+                            )
+                        })?,
+                    },
+                ),
+                control.actions.span_or_empty(owner.actions),
+                std::slice::from_ref(&owner.owner),
+            )?;
+        }
         Ok(())
     }
 
@@ -851,6 +954,7 @@ impl OperationFrame<'_, '_> {
         earlier: &[(Option<StructuralPlaceDeclaration>, bool)],
         byte_places: &[PlaceId],
         evaluated_selectors: Option<&[ValueDeclaration]>,
+        completed: Option<&[Option<CompletedStructuralArgument>]>,
     ) -> Result<Vec<StructuralArgument>, LoweringError> {
         let mut selector_values =
             parameters::call_index_selectors(arguments, evaluated_selectors)?.into_iter();
@@ -858,6 +962,7 @@ impl OperationFrame<'_, '_> {
             identities,
             self.checked,
             arguments,
+            completed,
             self.structural_types.declarations(),
             &self.parameters,
             &[],
@@ -908,6 +1013,7 @@ fn window_place(
     type_identity: typed_trees::type_identity::TypeIdentityId,
 ) -> CheckedUnitStructuralArgumentPlan {
     CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source,
         path: path.to_vec(),
         type_identity,

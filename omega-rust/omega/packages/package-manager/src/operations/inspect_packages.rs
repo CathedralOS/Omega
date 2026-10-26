@@ -6,11 +6,21 @@ mod sources;
 use super::{PackageFileTransaction, PackagePublicationLimits};
 use crate::build_session::{PackageBuildSession, PackageSourceBindings};
 use crate::lock::{PackageLock, PackageLockRecoveryLimits, PackageLockTarget};
+use crate::resolution::graph::{
+    CanonicalRootSourceRequest, GitDependencyPins, GitResolutionOptions, PackageRootSourceRequest,
+};
+use crate::resolution::source::{
+    AcquiredBuildSource, BuildSourceAcquisitions, ResolvedBuildSources,
+};
 use crate::review::CompileResolvedPackageReviewsError;
 use package_source::PrimaryGitChoices;
 use package_source::SourceResolver;
+use package_source::git::resolution::GitExactRevisionAcquisition;
+use package_source::{ExternalSourceContext, LocalSourceLimits};
+pub use sources::PackageInspectionSources;
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use target::TargetProfile;
 
 #[derive(Debug, Clone)]
@@ -42,6 +52,12 @@ pub struct PackageInspectionOutcome {
 pub struct PackageInspectionError(String);
 
 diagnostics::string_diagnostic!(PackageInspectionError);
+
+impl From<String> for PackageInspectionError {
+    fn from(message: String) -> Self {
+        Self(message)
+    }
+}
 
 fn failure(error: impl fmt::Display) -> PackageInspectionError {
     PackageInspectionError(error.to_string())
@@ -106,6 +122,7 @@ impl PackageInspectionTransaction {
             .clone()
             .map(|inputs| build_evaluation::BuildSnapshotRequest::scoped(Vec::new(), inputs));
         Ok(PreparedPackageInspection {
+            identity: Arc::new(InspectionIdentity),
             transaction: self,
             before,
             accepted,
@@ -125,6 +142,7 @@ impl PackageInspectionTransaction {
 /// Package-owned admission and report state. Application Build executes the
 /// target roster; this owner compares findings and checks final file identity.
 pub struct PreparedPackageInspection<'inspection> {
+    identity: Arc<InspectionIdentity>,
     transaction: &'inspection PackageInspectionTransaction,
     before: (Vec<u8>, Option<Vec<u8>>),
     accepted: Option<PackageLock>,
@@ -135,6 +153,8 @@ pub struct PreparedPackageInspection<'inspection> {
     outcome: PackageInspectionOutcome,
 }
 
+struct InspectionIdentity;
+
 // Full normalized findings include all authored target members. Bound aggregate
 // reporting without truncating contracts or dropping inactive deployments.
 const MAXIMUM_REPORT_BYTES: usize = 64 * 1024 * 1024;
@@ -144,11 +164,94 @@ impl PreparedPackageInspection<'_> {
         &self.targets
     }
 
+    pub fn acquire_root(&self) -> Result<AcquiredBuildSource, PackageInspectionError> {
+        AcquiredBuildSource::capture_local(
+            self.transaction.project_root(),
+            LocalSourceLimits::default(),
+            ExternalSourceContext::derive(super::prepare_project::LOCAL_PROJECT_CONTEXT),
+        )
+        .map_err(failure)
+    }
+
+    pub fn build_snapshot(&self) -> Option<&build_evaluation::BuildSnapshotRequest> {
+        self.build_snapshot.as_ref()
+    }
+
+    /// Every recovered target shares the same source graph. Acquire its exact
+    /// Git pins once; Product review still checks each target's own baseline.
+    pub fn source_acquisitions(
+        &self,
+    ) -> Result<BuildSourceAcquisitions<'_>, PackageInspectionError> {
+        let storage = self.storage.as_ref().map_err(failure)?.as_resolver();
+        let source = self
+            .accepted
+            .as_ref()
+            .and_then(|lock| lock.targets().first())
+            .map(PackageLockTarget::source);
+        let context = ExternalSourceContext::derive(super::prepare_project::LOCAL_PROJECT_CONTEXT);
+        if let Some(source) = source
+            && !matches!(source.root().request(), CanonicalRootSourceRequest::ExternalLocal { source_context, .. } if source_context == &context)
+        {
+            return Err(failure(
+                "accepted inspection pins belong to another source context",
+            ));
+        }
+        let acquisition = if self.transaction.options.offline {
+            GitExactRevisionAcquisition::Offline
+        } else {
+            GitExactRevisionAcquisition::AllowFetch
+        };
+        let pins = source
+            .map(|source| GitDependencyPins::new(source, &[], acquisition))
+            .transpose()
+            .map_err(failure)?;
+        let mut acquisitions = BuildSourceAcquisitions::new(
+            storage,
+            GitResolutionOptions {
+                pins,
+                offline: self.transaction.options.offline,
+            },
+            self.root_request(),
+        );
+        if let Some(source) = source {
+            acquisitions.require_locked_graph(source);
+        }
+        Ok(acquisitions)
+    }
+
+    fn root_request(&self) -> PackageRootSourceRequest {
+        PackageRootSourceRequest::ExternalLocal {
+            requested_root: self.transaction.project_root().to_path_buf(),
+            source_context: ExternalSourceContext::derive(
+                super::prepare_project::LOCAL_PROJECT_CONTEXT,
+            ),
+        }
+    }
+
+    /// Bind the shared executed closure to this observational transaction.
+    /// This admits no publication and changes neither proposals nor decisions.
+    pub fn complete_source_resolution(
+        &self,
+        resolved: ResolvedBuildSources,
+    ) -> Result<PackageInspectionSources, PackageInspectionError> {
+        let closure = resolved.into_source_closure();
+        if closure.source_requests().root().request() != &self.root_request() {
+            return Err(failure(
+                "executed inspection sources belong to another project",
+            ));
+        }
+        Ok(PackageInspectionSources {
+            closure,
+            identity: Arc::clone(&self.identity),
+        })
+    }
+
     /// Join one target's fresh findings or refusal to its accepted baseline.
     /// Compiler refusal is report data; report failure stops subsequent work.
     pub fn review_target(
         &mut self,
         target: TargetProfile,
+        sources: Result<&PackageInspectionSources, &PackageInspectionError>,
         session: &mut PackageBuildSession,
         source_bindings: &mut PackageSourceBindings,
         execute: &mut crate::review::PackageReviewExecutor<'_>,
@@ -158,14 +261,17 @@ impl PreparedPackageInspection<'_> {
                 "inspection target does not match the next admitted target",
             ));
         }
+        if let Ok(sources) = sources
+            && !Arc::ptr_eq(&sources.identity, &self.identity)
+        {
+            return Err(failure("resolved sources belong to another inspection"));
+        }
         let baseline = self.accepted.as_ref().and_then(|lock| lock.target(target));
-        let fresh = match &self.storage {
-            Ok(storage) => sources::review(
-                self.transaction.project_root(),
+        let fresh = match sources {
+            Ok(sources) => sources::review(
+                sources,
                 target,
                 baseline,
-                storage.as_resolver(),
-                self.transaction.options.offline,
                 self.build_snapshot.as_ref(),
                 session,
                 source_bindings,

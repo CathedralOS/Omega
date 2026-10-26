@@ -141,6 +141,7 @@ impl SelectionOccurrences {
     /// checks the same ordered events using the checked write destination.
     pub(in crate::checks::multiplicity) fn check_events<'a>(
         &self,
+        program: &dyn validation::CheckingInput,
         events: impl IntoIterator<Item = &'a FlowPermissionEventFact>,
         segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     ) -> Result<(), Diagnostic> {
@@ -155,9 +156,12 @@ impl SelectionOccurrences {
                     .conflict(event.root, segments.span_or_empty(event.segments))
                     .is_some()
             {
-                return Err(Diagnostic::error(
-                    "owned selection acquired unconditional transfer, establishment, or residual cleanup events",
-                ));
+                return Err(Diagnostic::error(format!(
+                    "owned selection acquired unconditional transfer, establishment, or residual cleanup events in machine `{}` state `{}` at {:?}",
+                    program.symbols.name(event.machine_symbol),
+                    program.symbols.name(event.state_symbol),
+                    event.source,
+                )));
             }
         }
         Ok(())
@@ -207,7 +211,7 @@ impl SelectionOccurrences {
                     self.establish(target.root, &target.destination_path);
                 }
             }
-            self.check_events(std::iter::once(event), &ownership.segments)?;
+            self.check_events(program, std::iter::once(event), &ownership.segments)?;
         }
         Ok(())
     }

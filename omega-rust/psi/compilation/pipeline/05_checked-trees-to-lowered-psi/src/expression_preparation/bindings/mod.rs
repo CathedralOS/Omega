@@ -23,12 +23,8 @@ pub(crate) mod primitive_reads;
 pub(crate) use primitive_reads::primitive_storage_read;
 pub(crate) mod place_observations;
 pub(crate) mod structural_cases;
-mod structural_copy;
 pub(crate) mod structural_fields;
 pub(crate) mod structural_paths;
-pub(crate) use structural_copy::{
-    PreparedCopyPathSegment, PreparedStructuralCopy, StructuralCopySelector,
-};
 pub(crate) mod view_locals;
 pub(crate) use structural_fields::{StructuralFieldBindings, StructuralScalarFieldBinding};
 
@@ -541,6 +537,9 @@ impl ScalarBindings {
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
                         symbol,
                         root_type_identity: checked.normalized_type_identity(alias.loan.root_type),
+                        // The captured loan already owns a root-relative path.
+                        // Its nested reference steps remain strict suffixes.
+                        root_reference_hops: 0,
                     }
                 }
                 checked_trees::CheckedPlaceLoanRoot::ScalarParameter { .. } => {
@@ -765,6 +764,9 @@ impl ScalarBindings {
             segments
                 .iter()
                 .map(|segment| match segment {
+                    checked_trees::CheckedUnitStructuralPathSegment::Referent => {
+                        Ok(checked_trees::CheckedStructuralPredicatePathSegment::Referent)
+                    }
                     checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
                         Ok(checked_trees::CheckedStructuralPredicatePathSegment::Field(
                             identity.clone(),
@@ -773,7 +775,14 @@ impl ScalarBindings {
                     checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => Ok(
                         checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(*index),
                     ),
-                    _ => unsupported("runtime case observation has a non-field projection"),
+                    checked_trees::CheckedUnitStructuralPathSegment::Case(identity) => {
+                        Ok(checked_trees::CheckedStructuralPredicatePathSegment::Case(
+                            identity.clone(),
+                        ))
+                    }
+                    _ => {
+                        unsupported("runtime case observation has an unsupported static projection")
+                    }
                 })
                 .collect::<Result<Vec<_>, _>>()
         };
@@ -1613,14 +1622,58 @@ impl ScalarBindings {
         statement: u32,
         role: CheckedScalarExpressionRole,
     ) -> Result<LoweredDirectExpression, LoweringError> {
-        let (_, expression) = checked
+        let Some((_, expression)) = checked
             .facts
             .values
             .scalar_expressions
             .bound_expression_at(state, statement, role)
-            .ok_or(LoweringError::Unsupported(
-                "scalar computation needs one checked expression and one source binding",
-            ))?;
+        else {
+            // Diagnose the unchanged exact-pair refusal once. Current-row
+            // counts remain complete; nearby roles are capped diagnostic data,
+            // never a substitute binding or a second semantic lookup.
+            let plans = &checked.facts.values.scalar_expressions;
+            let mut source_binding_count = 0usize;
+            let mut expression_plan_count = 0usize;
+            let mut nearby_bindings = Vec::new();
+            let mut nearby_plans = Vec::new();
+            for (_, binding) in plans
+                .source_bindings
+                .iter()
+                .filter(|(_, binding)| binding.state == state)
+            {
+                if binding.statement_ordinal == statement && binding.role == role {
+                    source_binding_count += 1;
+                }
+                if binding.statement_ordinal.abs_diff(statement) <= 1 && nearby_bindings.len() < 8 {
+                    nearby_bindings.push((
+                        binding.statement_ordinal,
+                        binding.role,
+                        binding.expression,
+                    ));
+                }
+            }
+            for expression in plans
+                .expressions
+                .iter()
+                .filter(|expression| expression.state == state)
+            {
+                if expression.statement_ordinal == statement && expression.role == role {
+                    expression_plan_count += 1;
+                }
+                if expression.statement_ordinal.abs_diff(statement) <= 1 && nearby_plans.len() < 8 {
+                    nearby_plans.push((expression.statement_ordinal, expression.role));
+                }
+            }
+            let (machine, _) = crate::declarations::state_declaration(checked, state)?;
+            return Err(LoweringError::InvalidUnitMachinePlan {
+                machine: checked.symbols.display_path(machine.symbol, "::"),
+                reason: "scalar computation needs one checked expression and one source binding",
+                gap: Some(diagnostics::Diagnostic::error(format!(
+                    "scalar expression custody mismatch in state `{}` ({state:?}), statement {statement}, role {role:?}: source_bindings={source_binding_count}, expression_plans={expression_plan_count}; nearby_bindings={nearby_bindings:?}; nearby_plans={nearby_plans:?}",
+                    checked.symbols.display_path(state, "::"),
+                ))),
+            });
+        };
         self.expression(identities, &checked.facts.proven_scalar_indexes, expression)
     }
 

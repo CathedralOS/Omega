@@ -64,6 +64,28 @@ pub(crate) fn structural_call_arguments(
         trace.statement(u32::try_from(statement_index).ok());
     };
 
+    // A whole evaluated argument owns its selector DAG. A projection appended
+    // to an earlier result still names that earlier owner through its place,
+    // rather than publishing this complete argument occurrence as a result.
+    // Use the same exact occurrence/formal join for construction and selector
+    // attachment; a shared temporary may retain its referent occurrence.
+    let materialized_argument_owner =
+        |expression: typed_trees::expression::ExpressionHandle,
+         formal: typed_trees::types::TypeReferenceHandle| {
+            let materialized = |candidate| {
+                caller_structural_results
+                    .iter()
+                    .any(|(_, root)| *root == facts::PlaceRoot::Expression(candidate))
+            };
+            if materialized(expression) {
+                Some(expression)
+            } else {
+                let (referent, _) =
+                    crate::semantic::calls::shared_argument_referent(program, expression, formal)?;
+                materialized(referent).then_some(referent)
+            }
+        };
+
     for target in target_parameters {
         // The erased position's authored argument is proof material with no
         // structural or scalar transfer; consume it and plan nothing.
@@ -100,27 +122,9 @@ pub(crate) fn structural_call_arguments(
         let authored_place = {
             let expression = *explicit_arguments.get(explicit_index)?;
             explicit_index += 1;
-            // A retained producer owns the actual, even when the authored
-            // expression also has an inline literal or range presentation.
-            // Shared temporaries retain their referent expression; exclusive
-            // borrows cannot be peeled into an owned result.
-            let owner_expression = if caller_structural_results
-                .iter()
-                .any(|(_, root)| *root == facts::PlaceRoot::Expression(expression))
+            if let Some(owner_expression) =
+                materialized_argument_owner(expression, target.type_reference)
             {
-                expression
-            } else {
-                crate::semantic::calls::shared_argument_referent(
-                    program,
-                    expression,
-                    target.type_reference,
-                )
-                .map_or(expression, |(referent, _)| referent)
-            };
-            let produced = caller_structural_results
-                .iter()
-                .any(|(_, root)| *root == facts::PlaceRoot::Expression(owner_expression));
-            if produced {
                 validation::CanonicalPlace {
                     root: facts::PlaceRoot::Expression(owner_expression),
                     segments: Vec::new(),
@@ -295,13 +299,15 @@ pub(crate) fn structural_call_arguments(
                 expression,
             )?;
             let node = facts.values.structural_values.nodes.get(retained.root);
-            let (owner, path) =
-                match &node.kind {
-                    checked_trees::CheckedStructuralValueKind::Projection {
-                        source, path, ..
-                    } if !path.is_empty() => (*source, path.clone()),
-                    _ => (retained.root, Vec::new()),
-                };
+            let (owner, path, projection_evaluations) = match &node.kind {
+                checked_trees::CheckedStructuralValueKind::Projection {
+                    source,
+                    path,
+                    projection_evaluations,
+                    ..
+                } if !path.is_empty() => (*source, path.clone(), *projection_evaluations),
+                _ => (retained.root, Vec::new(), Default::default()),
+            };
             let owner_expression = facts.values.structural_values.nodes.get(owner).expression;
             let owner_type = if owner == retained.root {
                 referent
@@ -335,11 +341,19 @@ pub(crate) fn structural_call_arguments(
                 )?;
             }
             output.push(CheckedUnitStructuralArgumentPlan {
+                projection_evaluations,
                 source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                     expression: owner_expression,
                 },
                 path,
-                type_identity: validation::structural_type_identity(program, referent, &[], &[]),
+                type_identity: if descriptor.is_some() {
+                    // Direct slice/byte views keep their canonical descriptor
+                    // occurrence. Other borrowed actuals already name storage
+                    // after the formal's outer reference was consumed above.
+                    validation::structural_type_identity(program, referent, &[], &[])
+                } else {
+                    validation::stored_structural_type_identity(program, referent, &[], &[])
+                },
                 access,
             });
             continue;
@@ -403,6 +417,7 @@ pub(crate) fn structural_call_arguments(
                 return None;
             }
             output.push(CheckedUnitStructuralArgumentPlan {
+                projection_evaluations: Default::default(),
                 source: CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
                     declaration_ordinal: local.declaration_ordinal,
                 },
@@ -495,6 +510,7 @@ pub(crate) fn structural_call_arguments(
         arm("call operation: structural arguments: parameter access");
         let target_access = target_access?;
         output.push(CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(source.index).ok()?,
             },
@@ -530,9 +546,94 @@ pub(crate) fn structural_call_arguments(
             },
         });
     }
-    arm("call operation: structural arguments: argument count");
+    arm("call operation: structural arguments: explicit argument count");
     if explicit_index != explicit_arguments.len() {
         return None;
+    }
+    // Argument planning may retain an alias's completed prefix. Source
+    // selectors belong only to this occurrence's appended suffix; completed
+    // value arguments already own their evaluations within their value DAG.
+    arm("call operation: structural arguments: retained structural positions");
+    let explicit = target_parameters
+        .iter()
+        .zip(explicit_arguments)
+        .filter_map(
+            |(parameter, expression)| match strips_erased_parameter(parameter) {
+                Some(true) => None,
+                Some(false)
+                    if program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_none() =>
+                {
+                    Some(Some((parameter, *expression)))
+                }
+                Some(false) => None,
+                None => Some(None),
+            },
+        )
+        .collect::<Option<Vec<_>>>()?;
+    arm("call operation: structural arguments: structural argument count");
+    if explicit.len() != output.len() {
+        return None;
+    }
+    for (argument, (parameter, expression)) in output.iter_mut().zip(explicit) {
+        if argument.path.is_empty() || !argument.projection_evaluations.is_empty() {
+            continue;
+        }
+        // The completed whole value already evaluated these selectors inside
+        // its DAG. Its receiving path can still cross the captured Referent;
+        // those source selectors are not a new suffix of that receiving path.
+        // Earlier owners selected by a new projection do not match this exact
+        // occurrence and continue through suffix attachment and correspondence.
+        if materialized_argument_owner(expression, parameter.type_reference).is_some() {
+            continue;
+        }
+        arm("call operation: structural arguments: authored projection selectors");
+        if crate::values::authored_projection_selectors(program, expression)?.is_empty() {
+            continue;
+        }
+        arm("call operation: structural arguments: retained projection selectors");
+        let selectors = facts.values.scalar_computations.projection_selectors_at(
+            caller_machine.symbol,
+            caller_state.symbol,
+            u32::try_from(statement_index).ok()?,
+            expression,
+        )?;
+        arm("call operation: structural arguments: selector evaluation correspondence");
+        if argument
+            .retain_projection_evaluations(selectors, &facts.values.scalar_computations.operands)
+            .is_none()
+        {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                let plans = &facts.values.scalar_computations;
+                let children = plans
+                    .operands
+                    .span_or_empty(selectors)
+                    .iter()
+                    .map(|child| {
+                        (
+                            *child,
+                            plans
+                                .nodes
+                                .is_valid(*child)
+                                .then(|| plans.nodes.get(*child).authored_root),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                eprintln!(
+                    "CHECKSITE structural-selector-correspondence machine={:?} state={:?} statement={} call={} expression={:?} source={:?} path={:?} children={:?}",
+                    caller_machine.symbol,
+                    caller_state.symbol,
+                    statement_index,
+                    call.call_ordinal,
+                    expression,
+                    argument.source,
+                    argument.path,
+                    children,
+                );
+            }
+            return None;
+        }
     }
     Some(output)
 }
@@ -1028,7 +1129,10 @@ pub(crate) fn call_claim_transfers(
             if output
                 .iter()
                 .any(|transfer: &CheckedUnitClaimTransferPlan| {
-                    transfer.claim_identity == claim_identity
+                    (claim_identity != PermissionClaimIdentity::Unknown
+                        && transfer.claim_identity == claim_identity)
+                        || (usize::try_from(transfer.argument_index).ok() == Some(argument_index)
+                            && transfer.path == path)
                 })
             {
                 return Err("claim transfer: two arguments carry the same linear claim");
@@ -1202,7 +1306,10 @@ fn claim_crossings_at_place(
     let (mut selected_path, _) =
         validation::structural_owned_path(program, root_type, &owner.segments).ok()?;
     selected_path.extend_from_slice(path);
-    let mut claims = Vec::new();
+    let mut claims: Vec<(
+        PermissionClaimIdentity,
+        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    )> = Vec::new();
     for event in crossing_events {
         let (event_path, _) = validation::structural_owned_path(
             program,
@@ -1235,11 +1342,15 @@ fn claim_crossings_at_place(
         };
         // Disposal settles a claim without transferring it. It cannot supply
         // ingress or a normal boundary receipt, regardless of source shape.
+        // A selected live frontier has no invariant incoming checked ID.
+        // Retain its exact consuming path as transport; lowering resolves the
+        // name from the actual completed argument, never from an annotation.
         if event.kind != PermissionEventKind::Transfer
-            || event.claim_identity == PermissionClaimIdentity::Unknown
-            || claims
-                .iter()
-                .any(|(identity, _)| *identity == event.claim_identity)
+            || claims.iter().any(|(identity, existing_path)| {
+                (event.claim_identity != PermissionClaimIdentity::Unknown
+                    && *identity == event.claim_identity)
+                    || existing_path.as_slice() == relative
+            })
         {
             return None;
         }
@@ -1356,7 +1467,10 @@ pub(crate) fn computed_call_claim_transfers(
             if output
                 .iter()
                 .any(|transfer: &CheckedUnitClaimTransferPlan| {
-                    transfer.claim_identity == claim_identity
+                    (claim_identity != PermissionClaimIdentity::Unknown
+                        && transfer.claim_identity == claim_identity)
+                        || (usize::try_from(transfer.argument_index).ok() == Some(argument_index)
+                            && transfer.path == path)
                 })
             {
                 return None;

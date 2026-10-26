@@ -36,11 +36,22 @@ pub fn resolve_product_operand(
     occurrence: source::SourceSpan,
     kind: ProductOperandKind,
 ) -> Option<symbols::SymbolHandle> {
-    let program = typed.product_declarations();
     if !is_declaration_operand(argument) {
         return None;
     }
-    let path = argument.path.joined_path();
+    resolve_product_path(typed, &argument.path.joined_path(), occurrence, kind)
+}
+
+/// Resolve a source-issued locator at its retained lexical occurrence. Paths
+/// describe declarations; role, package and source-stratum authority remain
+/// with this common Product query.
+pub fn resolve_product_path(
+    typed: &TypedTrees,
+    path: &str,
+    occurrence: source::SourceSpan,
+    kind: ProductOperandKind,
+) -> Option<symbols::SymbolHandle> {
+    let program = typed.product_declarations();
     let candidates = match kind {
         ProductOperandKind::BoundarySubject => program
             .traits()
@@ -112,7 +123,7 @@ pub fn resolve_product_operand(
         Vec::new()
     };
     program.symbols.find_build_subject_declaration_from_source(
-        &path,
+        path,
         occurrence,
         candidates,
         &token_bound_machines,
@@ -146,6 +157,13 @@ pub trait ProductEntryCompatibility: Sync {
 /// Removing the entry body does not authorize dropping those dependencies.
 #[derive(Clone, Copy)]
 pub struct ProductEntryDeclaration<'program> {
+    /// Exact product declaration, shared by query compatibility and final
+    /// settlement. Display names cannot authenticate its contract inputs.
+    machine_symbol: SymbolHandle,
+    /// Complete retained input headers. Only the Psi factory may construct
+    /// these; realization receives their data query, never a supplied truth bit.
+    machine_contracts: &'program [crate::signature::SignatureContract],
+    entry_contracts: &'program [crate::signature::SignatureContract],
     pub name: &'program str,
     pub attached_data_symbol: SymbolHandle,
     pub type_parameters: &'program [crate::data::TypeParameter],
@@ -159,6 +177,58 @@ pub struct ProductEntrySignature<'program> {
 }
 
 impl<'program> ProductEntryDeclaration<'program> {
+    /// Rejoin an exact retained product declaration independently of a supplied
+    /// projection. A missing owner or incomplete header never becomes empty
+    /// input metadata. Bodyless descriptions retain these same source headers.
+    pub fn from_declared_owner(
+        program: &'program TypedTrees,
+        symbol: SymbolHandle,
+    ) -> Option<Self> {
+        let machine = program.machine(symbol)?;
+        let contracts = program.machine_contracts(machine);
+        if contracts.len() != machine.contracts.len()
+            || program.machine_states(machine).len() != machine.states.len()
+        {
+            return None;
+        }
+        let entry_contracts = program
+            .machine_states(machine)
+            .first()
+            .map_or(&[][..], |entry| program.state_contracts(entry));
+        if program
+            .machine_states(machine)
+            .first()
+            .is_some_and(|entry| entry_contracts.len() != entry.contracts.len())
+        {
+            return None;
+        }
+        if contracts.iter().chain(entry_contracts).any(|contract| {
+            program.proof_facts.span_or_empty(contract.facts).len() != contract.facts.len()
+        }) {
+            return None;
+        }
+        Some(Self::from_machine(program, machine))
+    }
+
+    pub const fn machine_symbol(&self) -> SymbolHandle {
+        self.machine_symbol
+    }
+
+    /// Exact named erased inputs declared by this retained entry interface.
+    /// This is boundary input data, not evidence that any input was supplied.
+    /// Normal source binding rules still require a real invocation witness.
+    pub fn erased_requires_inputs(self) -> impl Iterator<Item = &'program str> + 'program {
+        self.machine_contracts
+            .iter()
+            .chain(self.entry_contracts)
+            .filter_map(|contract| {
+                (contract.kind == crate::signature::SignatureContractKind::Requires)
+                    .then_some(contract.binding.as_ref())
+                    .flatten()
+                    .map(|binding| binding.as_str())
+            })
+    }
+
     /// Project the existing complete-program producer onto the declaration
     /// boundary. A missing entry stays missing; it is never an empty body.
     pub fn from_machine(
@@ -166,6 +236,12 @@ impl<'program> ProductEntryDeclaration<'program> {
         machine: &'program crate::machine::Machine,
     ) -> Self {
         Self {
+            machine_symbol: machine.symbol,
+            machine_contracts: program.machine_contracts(machine),
+            entry_contracts: program
+                .machine_states(machine)
+                .first()
+                .map_or(&[][..], |entry| program.state_contracts(entry)),
             name: machine.name.as_str(),
             attached_data_symbol: machine.attached_data_symbol,
             type_parameters: program.machine_type_parameters(machine),

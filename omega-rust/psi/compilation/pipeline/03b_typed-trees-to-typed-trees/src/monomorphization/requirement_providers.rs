@@ -74,15 +74,21 @@ pub(crate) fn generate_requirement_provider_specializations(
     }
     let mut generated = 0;
     for (index, application) in demands {
+        let owner = program
+            .expression_table
+            .static_machine_application(application)
+            .lexical_owner;
+        let mut arguments = program
+            .expression_table
+            .static_machine_application_arguments(application)
+            .to_vec();
+        super::body_rewriting::normalize_const_arguments(program, owner, &mut arguments)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
         let mut provider = candidate::from_machine(program, index);
         let machine = &program.machines()[index];
         let Some(state) = program.machine_states(machine).first().cloned() else {
             continue;
         };
-        let arguments = program
-            .expression_table
-            .static_machine_application_arguments(application)
-            .to_vec();
         explicit_arguments::bind(program, &mut provider, &state, state.symbol, &arguments)?;
         provider.binding_application = application;
         if provider.conflicted

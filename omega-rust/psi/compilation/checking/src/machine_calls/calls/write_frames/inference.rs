@@ -5,6 +5,7 @@ use super::StoredLocalOrigins;
 use super::call_targets::machine_state_by_symbol;
 use crate::value_custody::places::binding_observations::{
     BindingObservation, binding_has_write_effects, binding_is_exclusively_exposed,
+    binding_is_written,
 };
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
@@ -63,6 +64,66 @@ impl FrameInference {
             .collect()
     }
 
+    /// Only a proven fixed scalar value refines selector geometry. Each
+    /// invocation supplies already completed actuals; unresolved values remain
+    /// the ordinary possible-element relation.
+    pub(super) fn argument_indices(
+        &self,
+        program: &dyn crate::CheckingInput,
+        arguments: &[ExpressionHandle],
+    ) -> Vec<Option<usize>> {
+        arguments
+            .iter()
+            .map(|argument| self.index_value(program, *argument))
+            .collect()
+    }
+
+    pub(super) fn index_value(
+        &self,
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+    ) -> Option<usize> {
+        match &self.parameter_values {
+            Some(values) => values.index_value(program, expression),
+            None => constant_index(program, expression),
+        }
+    }
+
+    pub(super) fn specialize_segments(
+        &self,
+        program: &dyn crate::CheckingInput,
+        segments: &mut [facts::PlaceSegment],
+    ) {
+        for segment in segments {
+            if let facts::PlaceSegment::Index { expression } = *segment
+                && expression.is_valid()
+                && let Some(index) = self.index_value(program, expression)
+            {
+                *segment = facts::PlaceSegment::FixedIndex { index };
+            }
+        }
+    }
+
+    pub(super) fn specialize_source(
+        &self,
+        program: &dyn crate::CheckingInput,
+        source: &mut super::FrameSourcePlace,
+    ) {
+        if !source.builtin_coordinates {
+            return;
+        }
+        self.specialize_segments(program, &mut source.segments);
+        if let Some((_, path)) = &mut source.representation {
+            self.specialize_segments(program, path);
+        }
+        for recast in &mut source.recasts {
+            self.specialize_segments(program, &mut recast.segments);
+            if let Some((_, path)) = &mut recast.representation {
+                self.specialize_segments(program, path);
+            }
+        }
+    }
+
     pub(super) fn selects_state(&self, state: &State) -> bool {
         self.parameter_values
             .as_ref()
@@ -76,9 +137,18 @@ impl FrameInference {
         program: &dyn crate::CheckingInput,
         state: &State,
         values: &[BoolTruth],
+        indices: &[Option<usize>],
         action: impl FnOnce(&mut Self) -> T,
     ) -> T {
-        let parameter_values = ParameterValues::new(program, state, values);
+        let indices = program
+            .machine_holding_state(state.symbol)
+            .filter(|machine| {
+                super::transition_topology::named_state_transition_subgraph_is_acyclic(
+                    program, machine, state,
+                )
+            })
+            .map_or(&[][..], |_| indices);
+        let parameter_values = ParameterValues::new(program, state, values, indices);
         // With no known eligible input the ordinary full-union summary is
         // sufficient and remains shareable. Never specialize a cache entry.
         let previous = std::mem::replace(
@@ -104,7 +174,7 @@ impl FrameInference {
                 .as_ref()
                 .map(|parameter_values| parameter_values.restart(program, state))
         } else {
-            Some(ParameterValues::new(program, state, &[]))
+            Some(ParameterValues::new(program, state, &[], &[]))
         };
         let previous = std::mem::replace(&mut self.parameter_values, parameter_values);
         let result = action(self);
@@ -133,13 +203,15 @@ impl FrameInference {
     }
 }
 
-/// Boolean entry snapshots and live private-home values for one state walk.
+/// Invocation entry snapshots and live private-home values for one state walk.
 /// Calls consume values at their program point, never replay outer expressions.
 #[derive(Clone)]
 pub(super) struct ParameterValues {
     pub(super) state: SymbolHandle,
     entry_values: Vec<BoolTruth>,
     values: Vec<(SymbolHandle, Option<BoolTruth>)>,
+    entry_indices: Vec<Option<usize>>,
+    indices: Vec<(SymbolHandle, Option<usize>)>,
 }
 
 impl ParameterValues {
@@ -147,6 +219,7 @@ impl ParameterValues {
         program: &dyn crate::CheckingInput,
         state: &State,
         actual_values: &[BoolTruth],
+        actual_indices: &[Option<usize>],
     ) -> Self {
         // Actuals are entry snapshots. Only a private owned Bool home can be
         // advanced by the direct-store transfer below. Exposure and indirect
@@ -180,21 +253,66 @@ impl ParameterValues {
                 )
             })
             .collect();
+        let indices = program
+            .state_parameters(state)
+            .iter()
+            .enumerate()
+            .map(|(position, parameter)| {
+                let value = actual_indices.get(position).copied().flatten().filter(|_| {
+                    !super::type_reference_is_reference(program, parameter.type_reference)
+                        && crate::value_custody::recasts::exact_primitive_type(
+                            program,
+                            parameter.type_reference,
+                        )
+                        .is_some_and(|primitive| primitive.is_fixed_integer())
+                        && !binding_is_exclusively_exposed(program, state, parameter.symbol)
+                        && !binding_is_written(
+                            program,
+                            state,
+                            parameter.symbol,
+                            BindingObservation::WholeValue,
+                        )
+                });
+                (parameter.symbol, value)
+            })
+            .collect();
         Self {
             state: state.symbol,
             entry_values: actual_values.to_vec(),
             values,
+            entry_indices: actual_indices.to_vec(),
+            indices,
         }
+    }
+
+    fn index_value(
+        &self,
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+    ) -> Option<usize> {
+        if !expression.is_valid() {
+            return None;
+        }
+        constant_index(program, expression).or_else(|| {
+            let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
+                return None;
+            };
+            self.indices
+                .iter()
+                .find(|(symbol, _)| *symbol == name.symbol)
+                .and_then(|(_, value)| *value)
+        })
     }
 
     pub(super) fn has_known_values(&self) -> bool {
         self.values
             .iter()
             .any(|(_, value)| matches!(value, Some(BoolTruth::True | BoolTruth::False)))
+            || self.indices.iter().any(|(_, value)| value.is_some())
     }
 
     pub(super) fn restart(&self, program: &dyn crate::CheckingInput, state: &State) -> Self {
-        Self::new(program, state, &self.entry_values)
+        Self::new(program, state, &self.entry_values, &self.entry_indices)
     }
 
     pub(super) fn argument_values(
@@ -228,6 +346,35 @@ impl ParameterValues {
         state: &State,
         statement: &StatementNode,
     ) {
+        if self.state != state.symbol {
+            return;
+        }
+        if let StatementNode::LocalData(local) = statement {
+            // A completed private scalar binding is a snapshot in this walk.
+            // Treat authored and normalized locals alike; never replay an
+            // initializer later when a stored selector is consumed.
+            let private_integer = local.symbol.is_valid()
+                && local.role == language_core::LocalBindingRole::Value
+                && local.relevance == language_core::BindingRelevance::Relevant
+                && !super::type_reference_is_reference(program, local.type_reference)
+                && crate::value_custody::recasts::exact_primitive_type(
+                    program,
+                    local.type_reference,
+                )
+                .is_some_and(|primitive| primitive.is_fixed_integer())
+                && !binding_is_exclusively_exposed(program, state, local.symbol)
+                && !binding_is_written(
+                    program,
+                    state,
+                    local.symbol,
+                    BindingObservation::WholeValue,
+                );
+            if private_integer {
+                let value = self.index_value(program, local.initial_value);
+                self.indices.push((local.symbol, value));
+            }
+            return;
+        }
         let StatementNode::Assignment(assignment) = statement else {
             return;
         };
@@ -331,4 +478,17 @@ impl BoolTruth {
             _ => Self::Unknown,
         }
     }
+}
+
+fn constant_index(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<usize> {
+    if !expression.is_valid() {
+        return None;
+    }
+    let ExpressionNode::Integer(integer) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    usize::try_from(integer.value_i64()?).ok()
 }

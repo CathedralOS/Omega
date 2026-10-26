@@ -1,5 +1,7 @@
 #[path = "terminal_build_bindings.rs"]
 mod build_bindings;
+#[path = "terminal_carried_requirements.rs"]
+mod carried_requirements;
 #[path = "terminal_cleanup_resume.rs"]
 mod cleanup_resume;
 #[path = "terminal_extent_view.rs"]
@@ -35,6 +37,7 @@ pub(super) fn observe_portable(
             storage_budget::observe(artifact, cells, value, Some(initial))
         }
         ["cleanup-resume"] => cleanup_resume::observe(artifact),
+        ["carried-boundary-ingress"] => carried_requirements::observe(artifact),
         ["mutable-boundary"] => mutable_boundary::observe(artifact),
         ["build-bindings", slots, entry, identifier] => {
             build_bindings::observe(artifact, bindings, requests, slots, entry, identifier)

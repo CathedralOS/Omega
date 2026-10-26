@@ -874,6 +874,8 @@ impl Elaborator<'_> {
                     "source indexed family",
                     parameter,
                     reference,
+                    &[],
+                    &[],
                 )?;
                 let value = BigInt::from_decimal_str(name.as_str())
                     .or_else(|| {

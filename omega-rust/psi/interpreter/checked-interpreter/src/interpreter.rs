@@ -285,6 +285,13 @@ pub fn materialize_zero_initialized_build_time_value(
     })
 }
 
+/// Current fixed step ceiling for pure source evaluation. Retained invocation
+/// charges compare this policy as well as their schema and step schedule before
+/// replacing work; the value is the same one fresh evaluation configures.
+pub const fn pure_evaluation_step_ceiling() -> u64 {
+    CONST_EVAL_STEP_BUDGET
+}
+
 /// Evaluate one build-time machine for its structured return value and the
 /// private layout placements it issued. Selected operators are honored; the
 /// evaluation is pure and unsponsored.
@@ -485,7 +492,7 @@ fn evaluate_observed_arguments(
                             values,
                             usage,
                             observations,
-                            std::mem::take(&mut evaluator.executed_root_bindings),
+                            std::mem::take(&mut evaluator.executed_source_selections),
                             std::mem::take(&mut evaluator.executed_behavior_exclusions),
                             std::mem::take(&mut evaluator.executed_build_selections),
                             std::mem::take(&mut evaluator.executed_wire_demands),
@@ -640,7 +647,7 @@ fn evaluate_granted_arguments(
                             values,
                             usage,
                             observations,
-                            std::mem::take(&mut evaluator.executed_root_bindings),
+                            std::mem::take(&mut evaluator.executed_source_selections),
                             std::mem::take(&mut evaluator.executed_behavior_exclusions),
                             std::mem::take(&mut evaluator.executed_build_selections),
                             std::mem::take(&mut evaluator.executed_wire_demands),

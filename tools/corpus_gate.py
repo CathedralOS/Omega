@@ -361,6 +361,50 @@ def terminal_target_failures(records: list[dict], corpus: Path) -> list[dict]:
     return failures
 
 
+def terminal_fence_failures(records: list[dict], corpus: Path) -> list[dict]:
+    """Exact ordering events and pause progress are authored execution oracles."""
+    failures = []
+    kinds = {"lfence", "sfence", "mfence", "dmb_ld", "dmb_st", "dmb_sy"}
+    for record in records:
+        fixture = corpus / record["fixture"]
+        path = fixture / "expected_terminal_fences.txt"
+        if not path.exists():
+            continue
+        try:
+            expectations = {}
+            if not (fixture / "expected_terminal_targets.txt").is_file():
+                raise ValueError("fence observations require explicit target installations")
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                words = line.split()
+                if not words:
+                    continue
+                target, *sequence = words
+                if (not target.isascii()
+                        or not all(character.isalnum() or character == "_" for character in target)
+                        or target in expectations or not sequence
+                        or any(name not in kinds for name in sequence)):
+                    raise ValueError(f"line {number} needs a unique target and known nonempty fence sequence")
+                expectations[target] = ",".join(sequence)
+            if not expectations:
+                raise ValueError("no fence expectations")
+        except (OSError, UnicodeError, ValueError) as error:
+            failures.append(oracle_failure(
+                record, f"{record['fixture']}: invalid Terminal fence expectation ({error})",
+                recordable=False))
+            continue
+        facts = record.get("facts", {})
+        mismatches = [f"{target} expected {expected}, observed {facts.get('terminal-fences.' + target, 'missing')}"
+                      for target, expected in expectations.items()
+                      if facts.get("terminal-fences." + target) != expected]
+        if (record["status"] not in corpus_records.SUCCESS_STATUSES
+                or facts.get("terminal-fence-artifact") != "unchanged"
+                or facts.get("terminal-fences") != "match" or mismatches):
+            failures.append(oracle_failure(
+                record, f"{record['fixture']}: expected exact fence events with missing/wrong-model refusal "
+                        f"and replay-free fuel progress; observed {record['status']} {facts}; {'; '.join(mismatches)}"))
+    return failures
+
+
 def entry_ram_failures(records: list[dict], corpus: Path, prefix: str) -> list[dict]:
     """An installed input promises observation of the same original backing."""
     failures = []
@@ -1724,6 +1768,7 @@ def main() -> int:
               f"{facts['migration-capability']} ({facts['migration-task']}, "
               f"{facts['migration-route']})")
     failures = terminal_target_failures(records, ROOT / "tests" / "omega")
+    failures.extend(terminal_fence_failures(records, ROOT / "tests" / "omega"))
     # A publication refusal is weighed on every leg that published, not on the
     # native leg alone: the check leg realizes an entry-binding pass fixture
     # itself, so its own row is the evidence the authored oracle speaks about.

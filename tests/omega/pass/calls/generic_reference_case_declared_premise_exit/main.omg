@@ -1,0 +1,13 @@
+// Expected exit: 0
+// The generic forwarding machine declares the case premise its body consumes.
+data Cell [copy] { case Held(value: u64); case Empty; }
+machine read(cell: &Cell) -> u64
+requires cell in Cell::Held { cell.value }
+machine forward(cell: &Cell) -> u64
+requires cell in Cell::Held { read(cell) }
+machine main() crashes Trap {
+    let cell: Cell = Cell::Held { value: 17 };
+    transition forward(&cell) == 17 { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

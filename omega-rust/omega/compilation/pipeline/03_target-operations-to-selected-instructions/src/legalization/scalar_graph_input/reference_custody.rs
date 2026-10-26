@@ -352,6 +352,17 @@ pub(in crate::legalization) struct Custody {
 }
 
 impl Custody {
+    fn position_is_impossible(&self) -> bool {
+        self.reference_position
+            .and_then(|position| self.descriptor_backing.flow.get(&position))
+            == Some(&terminal_semantics::descriptor_results::FlowFeasibility::ProvedImpossible)
+    }
+
+    fn edge_is_impossible(&self, edge: EdgeId) -> bool {
+        self.descriptor_backing.edges.get(&edge)
+            == Some(&terminal_semantics::descriptor_results::FlowFeasibility::ProvedImpossible)
+    }
+
     pub(in crate::legalization) fn set_position(
         &mut self,
         block: BlockId,
@@ -1048,8 +1059,7 @@ fn normalized_direct_source(
             types,
             source.place,
             carrier_path,
-        )
-        .ok_or_else(|| invalid())?;
+        )?;
         let mut candidates = Vec::with_capacity(observations.len());
         for observed in observations {
             if optimization_unit_semantics::structural_borrowed_storage_projection(
@@ -2174,6 +2184,12 @@ pub(in crate::legalization) fn apply(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
+    // Static source and target rows are still validated by their owners. No
+    // live descriptor transaction occurs in a positively excluded case arm.
+    // Unknown replay retains the ordinary complete custody obligation.
+    if custody.position_is_impossible() {
+        return Ok(());
+    }
     // A selected Omega provider has ordinary call custody, including owned
     // reference carriers. Reuse the exact retained-origin join used by row
     // validation; a boundary declaration or candidate roster alone cannot
@@ -3047,6 +3063,9 @@ pub(in crate::legalization) fn apply_terminator(
     function: &PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
+    if custody.position_is_impossible() {
+        return Ok(());
+    }
     let types = &plan.structural_types[..];
     if let AbstractOperation::ReturnStructural {
         source,
@@ -3060,6 +3079,9 @@ pub(in crate::legalization) fn apply_terminator(
     }
     let mut exits = Vec::new();
     for (edge, actions) in operation.cleanup_rosters() {
+        if custody.edge_is_impossible(edge) {
+            continue;
+        }
         let owned_transfer = operation.owned_transfer(edge);
         let target = operation.successor_target(edge);
         if let Some(target) = target {
@@ -3256,6 +3278,12 @@ pub(in crate::legalization) fn block_entry_states(
     if positions.len() != blocks.len() {
         return Err(invalid());
     }
+    // Prepare current typed feasibility once. Storage availability and the
+    // custody worklist must use the same executable predecessor graph: a
+    // positively impossible case edge cannot make a real producer cease to
+    // dominate its receiving home. Unknown edges remain in both analyses.
+    let descriptor_backing =
+        std::sync::Arc::new(descriptor_backing::prepare(function, native, plan, unit)?);
     // Independently reconstruct which source storage is available on entry.
     // A branch-local descriptor cannot require an unrelated arm to recreate
     // it. Receiving parameters are available at their own block's entry;
@@ -3274,6 +3302,13 @@ pub(in crate::legalization) fn block_entry_states(
                 storage_definitions.insert(result.place, (block.id, false));
             }
             for edge in &node.successors {
+                if descriptor_backing.edges.get(&edge.psi_edge)
+                    == Some(
+                        &terminal_semantics::descriptor_results::FlowFeasibility::ProvedImpossible,
+                    )
+                {
+                    continue;
+                }
                 predecessors
                     .get_mut(&edge.target)
                     .ok_or(invalid())?
@@ -3313,9 +3348,17 @@ pub(in crate::legalization) fn block_entry_states(
             return Err(invalid());
         }
     }
-    initial.descriptor_backing =
-        std::sync::Arc::new(descriptor_backing::prepare(function, native, plan, unit)?);
+    initial.descriptor_backing = descriptor_backing;
     initial.stored_calls = std::sync::Arc::new(stored_calls::prepare(native, plan, unit));
+    // A false execution context contains no permissions, debt, or runtime
+    // address. Keep its positive flow proof and immutable catalogs only, so
+    // target row/type correspondence can still be checked for dead blocks.
+    let impossible_context = Custody {
+        descriptor_backing: initial.descriptor_backing.clone(),
+        stored_calls: initial.stored_calls.clone(),
+        placement_catalog: initial.placement_catalog.clone(),
+        ..Custody::default()
+    };
     let mut entries = BTreeMap::from([(function.entry, initial)]);
     let mut pending = VecDeque::from([entry_position]);
     let mut queued = vec![false; blocks.len()];
@@ -3350,6 +3393,9 @@ pub(in crate::legalization) fn block_entry_states(
             let target_position = *positions.get(&edge.target).ok_or_else(|| invalid())?;
             if target_position == entry_position {
                 return Err(invalid());
+            }
+            if custody.edge_is_impossible(edge.psi_edge) {
+                continue;
             }
             let mut arrival = custody.edge_custody(edge.psi_edge, edge.target)?;
             // Case payload establishment has its own transport; ordinary owned
@@ -3424,10 +3470,31 @@ pub(in crate::legalization) fn block_entry_states(
             }
         }
     }
+    for block in blocks {
+        if impossible_context
+            .descriptor_backing
+            .flow
+            .get(&(block.id, 0))
+            == Some(&terminal_semantics::descriptor_results::FlowFeasibility::ProvedImpossible)
+        {
+            if entries.contains_key(&block.id) {
+                return Err(invalid());
+            }
+            entries.insert(block.id, impossible_context.clone());
+        }
+    }
     if entries.len() != blocks.len() || !deferred.is_empty() {
         return Err(invalid());
     }
     for block in blocks.iter().filter(|block| block.id != function.entry) {
+        if impossible_context
+            .descriptor_backing
+            .flow
+            .get(&(block.id, 0))
+            == Some(&terminal_semantics::descriptor_results::FlowFeasibility::ProvedImpossible)
+        {
+            continue;
+        }
         let arrivals = final_arrivals
             .iter()
             .flatten()

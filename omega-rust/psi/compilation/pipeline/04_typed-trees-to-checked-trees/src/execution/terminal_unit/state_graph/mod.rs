@@ -204,13 +204,11 @@ pub(super) fn build_traced(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
+    prepared_calls: &mut crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &control::LocalConstructionTrace,
-) -> Option<(
-    CheckedComposedUnitControlMachinePlan,
-    Vec<super::structural_value_calls::PreparedValueCalls>,
-)> {
+) -> Option<CheckedComposedUnitControlMachinePlan> {
     trace.phase("state graph: shape");
     trace.state(None);
     let states = program.machine_states(machine);
@@ -296,19 +294,41 @@ pub(super) fn build_traced(
         // decisions, not by independently proving them again or replacing
         // them with a scalar tautology. Declaration projections remain required.
         let Some(contract_predicates) =
-            validation::structural_state_contract_scalar_predicates(program, state)
+            validation::structural_state_contract_predicates(program, state)
         else {
             trace.phase("state graph: state signature: contract shape unadmitted");
             return None;
         };
         let mut requires = Vec::with_capacity(contract_predicates.len());
         for row in contract_predicates {
+            if let validation::StateContractRow::SourceFact(fact) = &row {
+                // The graph entry has an invocation evidence lane, not an
+                // incoming edge. Do not use block-arrival receipts to erase it.
+                if signatures.is_empty()
+                    || facts
+                        .proof
+                        .state_requires_fact(
+                            program.typed_program(),
+                            owner.symbol,
+                            state.symbol,
+                            *fact,
+                        )
+                        .is_none()
+                {
+                    trace.phase("state graph: source requirement has no exact arrival proof owner");
+                    return None;
+                }
+                requires.push(checked_trees::CheckedStateContractRequirement::SourceFact(
+                    *fact,
+                ));
+                continue;
+            }
             let source_expression = match &row {
-                validation::StateScalarContractRow::Expression(expression) => Some(*expression),
+                validation::StateContractRow::Expression(expression) => Some(*expression),
                 _ => None,
             };
             let predicate = match row {
-                validation::StateScalarContractRow::Expression(expression) => {
+                validation::StateContractRow::Expression(expression) => {
                     crate::values::lower_state_scalar_contract_predicate(
                         program,
                         &facts.operators,
@@ -318,7 +338,7 @@ pub(super) fn build_traced(
                         &mut 4096,
                     )
                 }
-                validation::StateScalarContractRow::DeclaredRange {
+                validation::StateContractRow::DeclaredRange {
                     parameter,
                     minimum,
                     maximum,
@@ -333,7 +353,7 @@ pub(super) fn build_traced(
                     maximum,
                     end_inclusive,
                 ),
-                validation::StateScalarContractRow::Domain {
+                validation::StateContractRow::Domain {
                     parameter,
                     constraint,
                 } => crate::values::lower_state_domain_predicate(
@@ -342,7 +362,10 @@ pub(super) fn build_traced(
                     parameter,
                     &constraint,
                 ),
-                validation::StateScalarContractRow::Finite { parameter } => {
+                validation::StateContractRow::SourceFact(_) => {
+                    unreachable!("source fact handled above")
+                }
+                validation::StateContractRow::Finite { parameter } => {
                     validation::state_finite_predicate(program, state, parameter)
                 }
             };
@@ -388,7 +411,7 @@ pub(super) fn build_traced(
                 return None;
             }
             attachment = attachment.or(identity);
-            fold_parameter_entry_domains(program, shapes, owner, state, &mut structural)?;
+            fold_parameter_entry_domains(program, shapes, state.symbol, &[], &mut structural)?;
             (structural, scalar)
         } else {
             free_structural_scalar_entry_signature_traced(program, shapes, state, &[], trace)?
@@ -414,7 +437,6 @@ pub(super) fn build_traced(
     }
     drop(_sig_guard);
     let mut planned = Vec::new();
-    let mut prepared_calls = Vec::new();
     for (state_index, &(owner, state)) in fused.iter().enumerate() {
         let _seq_guard = phase_profile::guard("05.d.8_10.a.3.2c.3.sequence");
         trace.state(Some(state.symbol));
@@ -489,6 +511,7 @@ pub(super) fn build_traced(
                 facts,
                 scalar_callees,
                 shapes,
+                prepared_calls,
                 owner,
                 state,
                 &mut sequence_structural,
@@ -547,11 +570,11 @@ pub(super) fn build_traced(
         // scalar. Prepare their exact DAG schedules from this completed prefix
         // before accounting; waiting for body publication creates a cycle.
         // Keep the schedules transactional until the complete graph succeeds.
-        let state_calls = super::structural_value_calls::prepare_state(
+        super::structural_value_calls::prepare_state(
             program,
             facts,
             shapes,
-            machine.symbol,
+            prepared_calls,
             owner.symbol,
             state.symbol,
             &super::structural_value_calls::StateCallInputs {
@@ -560,26 +583,22 @@ pub(super) fn build_traced(
                 operations: &operations,
                 trivial_locals: &[],
             },
-        );
+        )?;
         trace.phase("state graph: value call source custody");
         super::structural_value_calls::consume_caller_results(
             program,
             owner.symbol,
             state.symbol,
             &mut operations,
-            state_calls.iter().map(|row| row.calls.as_slice()),
+            prepared_calls.state_schedules(owner.symbol, state.symbol),
         )?;
-        let call_schedules = |value| {
-            state_calls
-                .iter()
-                .find(|row| row.value == value)
-                .map(|row| row.calls.as_slice())
-        };
+        let call_schedules = |value| prepared_calls.schedule(value);
         result_custody::account(
             program,
             facts,
             &call_schedules,
             shapes,
+            prepared_calls,
             owner,
             state,
             structural,
@@ -588,7 +607,6 @@ pub(super) fn build_traced(
             &terminator,
             trace,
         )?;
-        prepared_calls.extend(state_calls);
         planned.push(CheckedComposedUnitControlStatePlan {
             normal_exit_cleanups: Default::default(),
             state: state.symbol,
@@ -813,7 +831,7 @@ pub(super) fn build_traced(
             )?;
     }
     plan.result = result;
-    Some((plan, prepared_calls))
+    Some(plan)
 }
 
 type Signature = (

@@ -66,6 +66,15 @@ pub(crate) fn binding_is_exclusively_exposed(
     state: &State,
     symbol: SymbolHandle,
 ) -> bool {
+    binding_has_exclusive_exposure(program, state, symbol, BindingObservation::Descriptor)
+}
+
+fn binding_has_exclusive_exposure(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    symbol: SymbolHandle,
+    observation: BindingObservation,
+) -> bool {
     let mut nodes = Vec::new();
     let mut seen = std::collections::HashSet::with_hasher(symbols::BuildSymbolHasher);
     for root in statement_expression_roots(program, state) {
@@ -77,7 +86,8 @@ pub(crate) fn binding_is_exclusively_exposed(
                 !formation.interpretation.is_placed()
                     && formation.access.is_exclusive()
                     && borrow_root_symbol(program, formation.source) == Some(symbol)
-                    && !selects_builtin_collection_contents(program, state, formation.source)
+                    && (observation == BindingObservation::WholeValue
+                        || !selects_builtin_collection_contents(program, state, formation.source))
             },
         )
     })
@@ -256,4 +266,133 @@ fn borrow_root_symbol(
         }
     }
     None
+}
+
+/// The complete stored value has no observed write or exclusive exposure in
+/// this state. Unlike descriptor preservation, an exclusive borrow into a
+/// builtin element can change this value and therefore retires the identity.
+/// This conservative bar is independent of proof/call obligation order.
+pub(crate) fn binding_is_unchanged_value(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    symbol: SymbolHandle,
+) -> bool {
+    !binding_is_written(program, state, symbol, BindingObservation::WholeValue)
+        && !binding_has_exclusive_exposure(program, state, symbol, BindingObservation::WholeValue)
+}
+
+/// A prepared builtin place can denote the same value without another stored
+/// capture only while every named coordinate is immutable and unchanged. This
+/// supplies value identity, never a loan, ownership transfer or permission to
+/// duplicate a resource. The consumer separately decides whether its carrier
+/// admits a logical observation. Calls and computed selectors must first be
+/// captured by their ordinary evaluation owner; this query never repeats them.
+pub fn place_has_immutable_denotation(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &State,
+    before: usize,
+    expression: ExpressionHandle,
+) -> bool {
+    if !crate::place_has_builtin_coordinates(program, machine, Some(state), expression) {
+        return false;
+    }
+    let Some(place) =
+        crate::canonical_place_from_expression_in_state(program, state.symbol, before, expression)
+    else {
+        return false;
+    };
+    if place.root.as_symbol().is_none()
+        || !(0..=place.segments.len()).all(|length| {
+            crate::canonical_place_type_reference(
+                program,
+                state.symbol,
+                before,
+                &crate::CanonicalPlace {
+                    root: place.root,
+                    segments: place.segments[..length].to_vec(),
+                },
+            )
+            .is_some_and(|reference| crate::reference_shell(program, reference).is_none())
+        })
+    {
+        return false;
+    }
+    let mut nodes = Vec::new();
+    crate::expression_traversal::collect_expression_tree(program, expression, &mut nodes);
+    nodes
+        .into_iter()
+        .all(|node| match program.expression_table.expression(node) {
+            ExpressionNode::Name(path) => {
+                let symbol = path.head_symbol;
+                let reference = if let Some(parameter) =
+                    program.state_parameter_by_symbol(state, symbol)
+                {
+                    (!parameter.is_mutable).then_some(parameter.type_reference)
+                } else {
+                    program
+                        .state_local_declaration(state, symbol)
+                        .and_then(|(position, local)| {
+                            (position < before && !local.is_mutable).then_some(local.type_reference)
+                        })
+                };
+                reference.is_some_and(|reference| {
+                    crate::reference_shell(program, reference).is_none()
+                        && binding_is_unchanged_value(program, state, symbol)
+                })
+            }
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_) | ExpressionNode::Integer(_) => {
+                true
+            }
+            _ => false,
+        })
+}
+
+/// Rejoin an earlier immutable binding to the exact value it produced. Every
+/// definition precedes the occurrence it serves, so alias cycles and forward
+/// references decline. A fixed home alone does not freeze fields; whole-value
+/// writes and exclusive exposures also prevent this rejoin.
+///
+/// The returned position belongs to the original producer, not the later use.
+/// This supplies no current referent contents, projection or loan authority.
+/// Calls and constructors remain produced expressions for the consumer to
+/// judge; the query never imports their guarantees or executes them again.
+pub(crate) fn immutable_value_origin(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    mut before: usize,
+    mut expression: ExpressionHandle,
+) -> Option<(usize, ExpressionHandle)> {
+    loop {
+        if !program.expression_table.expression_is_valid(expression) {
+            return None;
+        }
+        let Some(path) = program.expression_table.name_path_node(expression) else {
+            return Some((before, expression));
+        };
+        if !path.symbol.is_valid() {
+            return None;
+        }
+        if path.head_symbol != path.symbol
+            || program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                != 1
+        {
+            return Some((before, expression));
+        }
+        let Some((position, local)) = program.state_local_declaration(state, path.symbol) else {
+            return Some((before, expression));
+        };
+        if position >= before
+            || local.is_mutable
+            || !local.initial_value.is_valid()
+            || !binding_is_unchanged_value(program, state, local.symbol)
+        {
+            return None;
+        }
+        before = position;
+        expression = local.initial_value;
+    }
 }

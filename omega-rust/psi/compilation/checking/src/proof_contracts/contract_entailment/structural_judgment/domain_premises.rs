@@ -707,23 +707,20 @@ impl StructuralJudge<'_> {
                             StructuralTerm::BoundValue(*symbol)
                         }
                         TypeReferenceNode::ConstExpression(expression) => {
-                            if let Some(path) = program.expression_table.name_path_node(*expression)
+                            if let Some(path) = program
+                                .expression_table
+                                .name_path_node(*expression)
+                                .filter(|path| {
+                                    path.symbol.is_valid()
+                                        && program.symbols.get(path.symbol).kind
+                                            == symbols::SymbolKind::TypeParameter
+                                })
                             {
-                                if path.symbol.is_valid()
-                                    && program.symbols.get(path.symbol).kind
-                                        == symbols::SymbolKind::TypeParameter
-                                {
-                                    StructuralTerm::BoundValue(path.symbol)
-                                } else {
-                                    super::super::structural_terms::structural_term(
-                                        program,
-                                        None,
-                                        None,
-                                        *expression,
-                                        None,
-                                    )?
-                                }
-                            } else {
+                                StructuralTerm::BoundValue(path.symbol)
+                            } else if matches!(
+                                parameter.kind,
+                                typed_trees::data::TypeParameterKind::Const { .. }
+                            ) {
                                 super::super::structural_terms::structural_term(
                                     program,
                                     None,
@@ -731,6 +728,12 @@ impl StructuralJudge<'_> {
                                     *expression,
                                     None,
                                 )?
+                            } else {
+                                // A runtime Value recipe belongs to its
+                                // completed index/descriptor observation. This
+                                // static intake has no supplying frame and
+                                // cannot replay the former source expression.
+                                return None;
                             }
                         }
                         _ => return None,

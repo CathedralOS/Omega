@@ -9,9 +9,11 @@ use facts::PlaceSegment;
 
 #[derive(Clone)]
 enum Selection {
-    Incoming,
     Unavailable,
-    Values(Vec<StoredCapture>),
+    Sources {
+        incoming: Vec<crate::CanonicalPlace>,
+        values: Vec<StoredCapture>,
+    },
 }
 #[derive(Clone, PartialEq, Eq)]
 struct Query {
@@ -28,6 +30,32 @@ pub fn reference_captures_at_path(
     path: &[PlaceSegment],
     current: Handle<FlowStorageSnapshot>,
 ) -> Option<StoredOperand> {
+    let sources = reference_sources_at_path(program, control, value, path, current);
+    // This captures-only projection retains its existing unchanged-ingress
+    // contract. Physical source consumers use the lossless frontier below.
+    fn incoming_only(source: &StoredOperand) -> bool {
+        match source {
+            StoredOperand::Incoming(_) => true,
+            StoredOperand::Alternatives(sources) => {
+                !sources.is_empty() && sources.iter().all(incoming_only)
+            }
+            StoredOperand::Unavailable | StoredOperand::Value { .. } => false,
+        }
+    }
+    (!incoming_only(&sources)).then_some(sources)
+}
+
+/// Resolve the complete descriptor source frontier at this same observation
+/// cut. An incoming slot remains explicit even when there is no produced
+/// capture; it is neither a pointee address nor new permission. Consumers must
+/// authenticate that exact incoming namespace independently.
+pub fn reference_sources_at_path(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    value: Handle<FlowOperandFact>,
+    path: &[PlaceSegment],
+    current: Handle<FlowStorageSnapshot>,
+) -> StoredOperand {
     let mut resolver = Resolver {
         program,
         control,
@@ -37,26 +65,25 @@ pub fn reference_captures_at_path(
         active_profiles: Vec::new(),
         profile_memo: Vec::new(),
     };
-    match resolver.select(value, path) {
-        Selection::Incoming => None,
-        Selection::Unavailable => Some(StoredOperand::Unavailable),
-        Selection::Values(values) => {
-            let mut values = values
-                .into_iter()
-                .map(|value| StoredOperand::Value {
-                    capture: value.capture,
-                    reference: value.reference,
-                    projection: value.projection,
-                })
-                .collect::<Vec<_>>();
-            match values.len() {
-                0 => Some(StoredOperand::Unavailable),
-                1 => values.pop(),
-                _ => Some(StoredOperand::Alternatives(values)),
-            }
-        }
+    let Selection::Sources { incoming, values } = resolver.select(value, path) else {
+        return StoredOperand::Unavailable;
+    };
+    let mut alternatives = incoming
+        .into_iter()
+        .map(StoredOperand::Incoming)
+        .collect::<Vec<_>>();
+    alternatives.extend(values.into_iter().map(|value| StoredOperand::Value {
+        capture: value.capture,
+        reference: value.reference,
+        projection: value.projection,
+    }));
+    match alternatives.len() {
+        0 => StoredOperand::Unavailable,
+        1 => alternatives.pop().unwrap_or(StoredOperand::Unavailable),
+        _ => StoredOperand::Alternatives(alternatives),
     }
 }
+
 type ProfileQuery = (
     Handle<checked_trees::FlowOperandRetention>,
     typed_trees::types::TypeReferenceHandle,
@@ -95,29 +122,61 @@ impl Resolver<'_> {
         if !capture.type_reference.is_valid() {
             return Selection::Unavailable;
         }
-        // A view join retains complete pointer alternatives too. Selecting a
-        // descriptor shortcut first could discard its non-image alternatives.
-        if !capture.alternatives.is_empty() {
-            let selected = capture
-                .alternatives
-                .handles()
-                .map(|alternative| self.select(alternative, path))
-                .collect();
-            return join(selected);
+        if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion {
+            let Some(rows) = self.control.operand_alternatives.span(alternatives) else {
+                return Selection::Unavailable;
+            };
+            if rows.is_empty() || rows.iter().any(|row| !row.source_arm.is_valid()) {
+                return Selection::Unavailable;
+            }
+            let values = rows.iter().map(|row| row.value).collect::<Vec<_>>();
+            return join(
+                values
+                    .into_iter()
+                    .map(|value| self.select(value, path))
+                    .collect(),
+            );
         }
         let view = crate::reference_shell(self.program, capture.type_reference).is_some();
+        if let checked_trees::FlowOperandCompletion::Copied { copy, path: prefix } =
+            capture.completion
+        {
+            if !self.control.copied_values.is_valid(copy) {
+                return Selection::Unavailable;
+            }
+            let Some(prefix) = self.control.operand_child_paths.span(prefix) else {
+                return Selection::Unavailable;
+            };
+            let copied = self.control.copied_values.get(copy);
+            if !self.control.operands.is_valid(copied.source) {
+                return Selection::Unavailable;
+            }
+            return self
+                .reference_leaf(value, path, copied.references, prefix)
+                .unwrap_or(Selection::Unavailable);
+        }
+        if !capture.reference_leaves.is_empty() {
+            return self
+                .reference_leaf(value, path, capture.reference_leaves, &[])
+                .unwrap_or(Selection::Unavailable);
+        }
         if view && self.control.operand_retentions.is_valid(capture.retention) {
             let profile = self.control.operand_retentions.get(capture.retention);
-            if profile.descriptor.is_valid() {
-                return self.select(profile.descriptor, path);
+            if profile.descriptor.is_valid() || !profile.alternatives.is_empty() {
+                return self
+                    .profile_descriptor(capture.retention, capture.type_reference, path)
+                    .unwrap_or(Selection::Unavailable);
             }
         }
         if view && path.is_empty() {
-            return Selection::Values(vec![StoredCapture {
-                capture: value,
-                reference: capture.type_reference,
-                projection: Vec::new(),
-            }]);
+            return Selection::Sources {
+                incoming: Vec::new(),
+                values: vec![StoredCapture {
+                    capture: value,
+                    reference: capture.type_reference,
+                    projection: Vec::new(),
+                }],
+            };
         }
         if !view {
             // Returned descriptors have their own associations; they are
@@ -149,12 +208,17 @@ impl Resolver<'_> {
                 )
                 .is_some_and(|reference| crate::reference_shell(self.program, reference).is_some())
                 {
-                    let Selection::Values(pointers) = self.select(value, &path[..length]) else {
+                    let Selection::Sources {
+                        incoming,
+                        values: pointers,
+                    } = self.select(value, &path[..length])
+                    else {
                         return Selection::Unavailable;
                     };
-                    if pointers
-                        .iter()
-                        .any(|pointer| !pointer.projection.is_empty())
+                    if !incoming.is_empty()
+                        || pointers
+                            .iter()
+                            .any(|pointer| !pointer.projection.is_empty())
                     {
                         // A real descriptor subtree may have known lifetime
                         // dependencies without a captured pointee address.
@@ -230,15 +294,135 @@ impl Resolver<'_> {
                                 })
                             }) =>
                     {
-                        Selection::Incoming
+                        Selection::Sources {
+                            incoming: vec![place],
+                            values: Vec::new(),
+                        }
                     }
                     None => self.opaque_subtree(value, path),
-                    Some(stored) => self.stored(stored),
+                    Some(stored) => self.stored(stored, &[]),
                 },
             );
         }
         join(selected)
     }
+    /// Inline descriptor bytes belong to this completed occurrence. Crossing
+    /// that descriptor reads its referent at the consumer's cut, while merely
+    /// selecting the descriptor preserves its captured leaf and formation.
+    fn reference_leaf(
+        &mut self,
+        value: Handle<FlowOperandFact>,
+        path: &[PlaceSegment],
+        references: arena::HandleSpan<checked_trees::FlowCapturedReferenceLeaf>,
+        prefix: &[PlaceSegment],
+    ) -> Option<Selection> {
+        let mut whole_path = prefix.to_vec();
+        whole_path.extend_from_slice(path);
+        let Some(leaves) = self.control.captured_reference_leaves.span(references) else {
+            return Some(Selection::Unavailable);
+        };
+        let mut matched = None;
+        for leaf in leaves {
+            let Some(leaf_path) = self.control.operand_child_paths.span(leaf.path) else {
+                return Some(Selection::Unavailable);
+            };
+            if leaf_path.len() <= whole_path.len()
+                && leaf_path.iter().zip(&whole_path).all(|(left, right)| {
+                    crate::storage_path_relations::canonical_place_segments_equal(
+                        self.program,
+                        *left,
+                        *right,
+                    )
+                })
+            {
+                if matched.replace((*leaf, leaf_path.to_vec())).is_some() {
+                    return Some(Selection::Unavailable);
+                }
+            }
+        }
+        let (leaf, leaf_path) = matched?;
+        if leaf_path.len() < prefix.len() {
+            return Some(Selection::Unavailable);
+        }
+        let consumed = leaf_path.len() - prefix.len();
+        let capture = self.control.operands.get(value);
+        let Some(selected) = crate::project_type_reference_from_segments(
+            self.program,
+            capture.type_reference,
+            &path[..consumed],
+        ) else {
+            return Some(Selection::Unavailable);
+        };
+        let (Some(actual), Some(declared)) = (
+            crate::reference_shell(self.program, selected),
+            crate::reference_shell(self.program, leaf.type_reference),
+        ) else {
+            return Some(Selection::Unavailable);
+        };
+        if !(actual.access == declared.access
+            || declared.access == language_semantics::ReferenceAccess::Mutable)
+            || !crate::storage_origin_types_match(self.program, actual.referee, declared.referee)
+        {
+            return Some(Selection::Unavailable);
+        }
+        if consumed == path.len() {
+            return Some(self.opaque_subtree(value, path));
+        }
+        // Stop at the next descriptor. Further reference crossings recurse
+        // through its actual stored value instead of flattening several hops.
+        let end = (consumed + 1..=path.len()).find(|length| {
+            crate::project_type_reference_from_segments(
+                self.program,
+                capture.type_reference,
+                &path[..*length],
+            )
+            .is_some_and(|reference| crate::reference_shell(self.program, reference).is_some())
+        });
+        let Some(end) = end else {
+            return Some(Selection::Unavailable);
+        };
+        let Some(referents) = self.control.operand_referents.span(leaf.referents) else {
+            return Some(Selection::Unavailable);
+        };
+        if referents.is_empty() {
+            return Some(Selection::Unavailable);
+        }
+        let mut results = Vec::new();
+        for referent in referents {
+            let Some(segments) = self
+                .control
+                .operand_referent_segments
+                .span(referent.segments)
+            else {
+                return Some(Selection::Unavailable);
+            };
+            let Some(place) = super::project_captured_view_place(
+                crate::CanonicalPlace {
+                    root: referent.root,
+                    segments: segments.to_vec(),
+                },
+                &path[consumed..end],
+            ) else {
+                return Some(Selection::Unavailable);
+            };
+            match super::at_snapshot(
+                self.program,
+                self.control,
+                self.current,
+                &place,
+                StoredObservation::Binding,
+            ) {
+                None if end == path.len() => results.push(Selection::Sources {
+                    incoming: vec![place],
+                    values: Vec::new(),
+                }),
+                None => return Some(Selection::Unavailable),
+                Some(stored) => results.push(self.stored(stored, &path[end..])),
+            }
+        }
+        Some(join(results))
+    }
+
     fn profile_descriptor(
         &mut self,
         retention: Handle<checked_trees::FlowOperandRetention>,
@@ -269,16 +453,25 @@ impl Resolver<'_> {
             return None;
         }
         let profile = *self.control.operand_retentions.get(retention);
-        if profile.descriptor.is_valid() {
-            return Some(self.select(profile.descriptor, path));
-        }
         if !profile.alternatives.is_empty() {
+            let Some(rows) = self.control.operand_retentions.span(profile.alternatives) else {
+                return Some(Selection::Unavailable);
+            };
+            if rows.is_empty() {
+                return Some(Selection::Unavailable);
+            }
             let alternatives = profile.alternatives.handles().collect::<Vec<_>>();
             let selected = alternatives
                 .into_iter()
-                .map(|profile| self.profile_descriptor(profile, reference, path))
-                .collect::<Option<Vec<_>>>()?;
+                .map(|profile| {
+                    self.profile_descriptor(profile, reference, path)
+                        .unwrap_or(Selection::Unavailable)
+                })
+                .collect();
             return Some(join(selected));
+        }
+        if profile.descriptor.is_valid() {
+            return Some(self.select(profile.descriptor, path));
         }
         // An owned profile may link to its completed value. A reference
         // profile instead lends its captured pointee: following that link
@@ -349,51 +542,71 @@ impl Resolver<'_> {
         {
             return Selection::Unavailable;
         }
-        Selection::Values(vec![StoredCapture {
-            capture: value,
-            reference: capture.type_reference,
-            projection: path.to_vec(),
-        }])
+        Selection::Sources {
+            incoming: Vec::new(),
+            values: vec![StoredCapture {
+                capture: value,
+                reference: capture.type_reference,
+                projection: path.to_vec(),
+            }],
+        }
     }
 
-    fn stored(&mut self, stored: StoredOperand) -> Selection {
-        let Some(values) = stored.captures() else {
-            return Selection::Unavailable;
-        };
-        let selected = values
-            .into_iter()
-            .map(|value| self.select(value.capture, &value.projection))
-            .collect();
-        join(selected)
-    }
-}
-fn join(selections: Vec<Selection>) -> Selection {
-    let mut incoming = false;
-    let mut values: Vec<StoredCapture> = Vec::new();
-    for selected in selections {
-        match selected {
-            Selection::Unavailable => return Selection::Unavailable,
-            Selection::Incoming => incoming = true,
-            Selection::Values(selected) => {
-                for value in selected {
-                    if !values.iter().any(|prior| {
-                        prior.capture == value.capture && prior.projection == value.projection
-                    }) {
-                        values.push(value);
-                    }
-                }
+    fn stored(&mut self, stored: StoredOperand, suffix: &[PlaceSegment]) -> Selection {
+        match stored {
+            StoredOperand::Unavailable => Selection::Unavailable,
+            StoredOperand::Incoming(place) if suffix.is_empty() => Selection::Sources {
+                incoming: vec![place],
+                values: Vec::new(),
+            },
+            // An entry slot is not an address for another pointer crossing.
+            StoredOperand::Incoming(_) => Selection::Unavailable,
+            StoredOperand::Value {
+                capture,
+                mut projection,
+                ..
+            } => {
+                projection.extend_from_slice(suffix);
+                self.select(capture, &projection)
+            }
+            StoredOperand::Alternatives(alternatives) => {
+                let selections = alternatives
+                    .into_iter()
+                    .map(|alternative| self.stored(alternative, suffix))
+                    .collect();
+                join(selections)
             }
         }
     }
-    if incoming {
-        if values.is_empty() {
-            Selection::Incoming
-        } else {
-            Selection::Unavailable
+}
+fn join(selections: Vec<Selection>) -> Selection {
+    let mut incoming = Vec::new();
+    let mut values: Vec<StoredCapture> = Vec::new();
+    for selected in selections {
+        let Selection::Sources {
+            incoming: entries,
+            values: selected,
+        } = selected
+        else {
+            return Selection::Unavailable;
+        };
+        for entry in entries {
+            if !incoming.contains(&entry) {
+                incoming.push(entry);
+            }
         }
-    } else if values.is_empty() {
+        for value in selected {
+            if !values
+                .iter()
+                .any(|prior| prior.capture == value.capture && prior.projection == value.projection)
+            {
+                values.push(value);
+            }
+        }
+    }
+    if incoming.is_empty() && values.is_empty() {
         Selection::Unavailable
     } else {
-        Selection::Values(values)
+        Selection::Sources { incoming, values }
     }
 }

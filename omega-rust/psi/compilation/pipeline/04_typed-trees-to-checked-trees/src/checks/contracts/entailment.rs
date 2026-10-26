@@ -13,6 +13,7 @@ pub(in crate::checks) struct ProvenExitExpressions<'program, 'frames> {
     /// Postconditions the one judgment proved on this program, by machine.
     validated: &'frames [(SymbolHandle, validation::ProvenContractExpressions)],
     machines: Vec<MachineEntailmentOutcome>,
+    content_sources: std::sync::Arc<Vec<language_semantics::content::ContentConservationPlan>>,
 }
 
 pub(in crate::checks) struct MachineEntailmentOutcome {
@@ -37,6 +38,53 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
             resolver,
             validated,
             machines: Vec::new(),
+            content_sources: std::sync::Arc::new(Vec::new()),
+        }
+    }
+
+    pub(in crate::checks) fn conditional_content(
+        &self,
+        plan: &language_semantics::content::ContentConservationPlan,
+        expression: ExpressionHandle,
+    ) -> Option<&validation::ConditionalContentGuarantee> {
+        self.validated
+            .iter()
+            .find(|(owner, _)| *owner == plan.owner)?
+            .1
+            .conditional_content
+            .iter()
+            .find(|proof| proof.expression == expression && proof.plan == *plan)
+    }
+
+    pub(in crate::checks) fn publish_content_sources(
+        &mut self,
+        sources: Vec<language_semantics::content::ContentConservationPlan>,
+    ) {
+        self.content_sources = std::sync::Arc::new(sources);
+    }
+
+    pub(in crate::checks) fn content_sources(
+        &self,
+    ) -> std::sync::Arc<Vec<language_semantics::content::ContentConservationPlan>> {
+        std::sync::Arc::clone(&self.content_sources)
+    }
+
+    /// A nonmutating entry/current congruence is an independent body proof,
+    /// including Unit-returning bodies. Do not confuse absence of an observed
+    /// return with that proof: the existing exit/origin owner must cover all exits.
+    pub(in crate::checks) fn record_preserved_content_sources(
+        &mut self,
+        facts: &checked_trees::CheckFacts,
+        sources: &[validation::ContentConservationSourcePlan],
+    ) {
+        for source in sources {
+            if super::content_preservation::proves_readonly_source(self.program, facts, source) {
+                self.record_proved_normal_return(
+                    facts,
+                    source.plan.owner,
+                    source.source_expression,
+                );
+            }
         }
     }
 

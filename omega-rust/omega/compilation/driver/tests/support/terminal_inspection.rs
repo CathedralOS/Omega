@@ -15,6 +15,8 @@ use crate::fixture_package_inputs::{
 
 #[path = "closed_reach_controls.rs"]
 mod closed_reach_controls;
+#[path = "dynamic_image_controls.rs"]
+mod dynamic_image_controls;
 #[path = "terminal_host_provisions.rs"]
 mod host_provisions;
 #[path = "indexed_family_controls.rs"]
@@ -25,10 +27,12 @@ mod mathematical_actuals;
 pub(super) const ORACLE: &str = "expected_terminal_inspections.txt";
 
 #[derive(Clone, Copy)]
-enum InspectionControls {    MethodApplications,
+enum InspectionControls {
+    MethodApplications,
     BoundaryCallables,
     IndexedFamily,
     MathematicalActuals,
+    DynamicImage,
     ClosedReach,
     ClosedReachCaptures,
 }
@@ -85,9 +89,11 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 false,
                 Some(InspectionControls::MethodApplications),
             ),
-            [machine, "closed-reach-capture-controls"] => {
-                (*machine, false, Some(InspectionControls::ClosedReachCaptures))
-            }
+            [machine, "closed-reach-capture-controls"] => (
+                *machine,
+                false,
+                Some(InspectionControls::ClosedReachCaptures),
+            ),
             [machine, "closed-reach-controls"] => {
                 (*machine, false, Some(InspectionControls::ClosedReach))
             }
@@ -99,12 +105,15 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 false,
                 Some(InspectionControls::MathematicalActuals),
             ),
+            [machine, "dynamic-image-controls"] => {
+                (*machine, false, Some(InspectionControls::DynamicImage))
+            }
             [machine, "indexed-family-controls"] => {
                 (*machine, false, Some(InspectionControls::IndexedFamily))
             }
             _ => {
                 return Err(format!(
-                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `boundary-conformance-controls`, `indexed-family-controls` or `mathematical-actuals`"
+                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `boundary-conformance-controls`, `indexed-family-controls` or `mathematical-actuals` or `dynamic-image-controls`"
                 ));
             }
         };
@@ -130,14 +139,14 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             let _artifact = indexed_family_controls::produce(request, machine)?;
             continue;
         }
-        let produced = compiler::CompilationSession::default()
-            .produce(
-                request,
-                compiler::CompilationProduct::Inspection(machine.to_owned()),
-            )
-            .and_then(compiler::CompilationOutput::into_inspection)
-            .map_err(compiler::CompilationProductError::into_diagnostics)
-            .map_err(|errors| format!("inspection {machine} production: {errors:?}"))?;
+        let produced = omega_build::produce_source(
+            &mut compiler::CompilationSession::default(),
+            request,
+            compiler::CompilationProduct::Inspection(machine.to_owned()),
+        )
+        .and_then(compiler::CompilationOutput::into_inspection)
+        .map_err(compiler::CompilationProductError::into_diagnostics)
+        .map_err(|errors| format!("inspection {machine} production: {errors:?}"))?;
         let artifact = produced.artifact().map_err(|error| error.to_string())?;
         let mut transported = artifact.to_bytes();
         let decoded = CanonicalTerminalArtifact::from_bytes(&transported)
@@ -213,8 +222,11 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             match controls {
                 InspectionControls::MethodApplications => closed_conformance_controls(&decoded)?,
                 InspectionControls::ClosedReach => closed_reach_controls::inspect(&decoded)?,
-                InspectionControls::ClosedReachCaptures => closed_reach_controls::inspect_captures(&decoded)?,
+                InspectionControls::ClosedReachCaptures => {
+                    closed_reach_controls::inspect_captures(&decoded)?
+                }
                 InspectionControls::BoundaryCallables => boundary_conformance_controls(&decoded)?,
+                InspectionControls::DynamicImage => dynamic_image_controls::inspect(&decoded)?,
                 InspectionControls::IndexedFamily | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")
                 }

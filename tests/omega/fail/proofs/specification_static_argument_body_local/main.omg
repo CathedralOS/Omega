@@ -1,0 +1,12 @@
+machine selected<Expected: u64>(value: u64) -> u64
+requires value == Expected
+{ value }
+
+machine witness(value: u64)
+requires value == 4
+ensures selected<body_local>(value) == value
+{
+    let body_local: u64 = 4;
+}
+
+machine main() {}

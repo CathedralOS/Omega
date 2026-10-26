@@ -179,6 +179,8 @@ pub(crate) struct CallEmissionContext<'a> {
     /// Actual emitted owner, including all source owners of a fused graph.
     pub(crate) terminal_machine: MachineId,
     pub(crate) domain_ids: &'a [crate::terminal_identities::StructuralDomainBinding],
+    pub(crate) domain_declarations: &'a [terminal_psi::StructuralDomainDeclaration],
+    pub(crate) scalar_qualifications: &'a terminal_psi::ScalarQualificationCatalog,
     pub(crate) claims: crate::emission::claim_bindings::ClaimBindings<'a>,
     pub(crate) cleanup_receivers: &'a [(symbols::SymbolHandle, semantic_vocabulary::PlaceId)],
     pub(crate) machine_ids: &'a [(symbols::SymbolHandle, MachineId)],
@@ -216,6 +218,7 @@ pub(super) fn emit_scalar_call_binding(
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
+    current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
 ) -> Result<ValueId, LoweringError> {
     let parameter_types = parameters
         .iter()
@@ -247,6 +250,7 @@ pub(super) fn emit_scalar_call_binding(
         next_value_identity,
         operations,
         call_emission,
+        current_claims,
     )
 }
 
@@ -261,6 +265,7 @@ fn emit_direct_call_operation(
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
+    current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
 ) -> Result<ValueId, LoweringError> {
     let callee = crate::terminal_identities::lookup_machine_id_with(
         call_emission.machine_ids,
@@ -294,12 +299,13 @@ fn emit_direct_call_operation(
         call_emission,
         next_value_identity,
         operations,
+        current_claims,
     )?
     .emit(
+        checked,
         operations,
         call.source_coordinate,
         None,
-        call.target_machine,
         crate::direct_calls::CallRecord::Values(source_values_before_call),
         terminal_psi::OperationResult::Scalar(ValueDeclaration {
             qualifications: call.result_type.qualifications,

@@ -4,7 +4,6 @@ use crate::capture::contracts::{
     expressions::projection::project_contract_expression, facts::ContractProjectionContext,
 };
 use crate::capture::semantics::facts::exactly_one;
-use crate::capture::semantics::signatures::callable_declaration_scope;
 use crate::record::{
     PackagePolicyCrash, PackagePolicyCrashGuard, PackagePolicyCrashRoute,
     PackagePolicyInferredCrash, PackageReviewCrashInterface,
@@ -24,6 +23,7 @@ pub(crate) fn crash(
     machine: &Machine,
     entry: &State,
     binders: &[(SymbolHandle, String)],
+    lifetime_binders: &[typed_trees::name::Identifier],
     envelope: &RealizedMachineContractEnvelope,
     inferred_causes: &[(SymbolHandle, Vec<checked_trees::CrashCause>)],
 ) -> Result<PackagePolicyCrash, Vec<Diagnostic>> {
@@ -49,7 +49,6 @@ pub(crate) fn crash(
             "authored crash routes do not equal their exact checked entry plan and envelope",
         ));
     }
-    let scope = callable_declaration_scope(compilation, machine)?;
     let context = ContractProjectionContext {
         subject_kind: "callable",
         subject_name: machine.name.as_str(),
@@ -62,7 +61,7 @@ pub(crate) fn crash(
         parameters: compilation.state_parameters(entry),
         domain_symbol: None,
         data_symbol: None,
-        lifetime_binders: scope.lifetime_parameters,
+        lifetime_binders,
         lifetime_substitutions: &[],
         selection_exposure: crate::capture::contracts::facts::callable_contract_exposure(machine),
     };
@@ -152,7 +151,7 @@ fn validate_crash_publication(
     )?;
     let original_head = machine_contract_plan(compilation.custody, original_machine)?;
     let original_authored = typed_trees_to_checked_trees::derive_authored_machine_crash_buckets(
-        &**compilation.custody,
+        compilation.custody_checking_input,
         original_machine,
     )
     .map_err(|diagnostic| vec![diagnostic])?;

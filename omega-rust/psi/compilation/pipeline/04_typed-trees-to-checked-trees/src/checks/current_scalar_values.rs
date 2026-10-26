@@ -201,13 +201,19 @@ impl<'program> CurrentScalarValues<'program> {
             fields: Vec::new(),
             conditions: Vec::new(),
             hypotheses: Vec::new(),
-            scalar_observations: validation::captured_scalar_observations(
+            scalar_observations: validation::captured_numeric_observations(
                 program,
                 machine,
                 state,
                 statement_index,
                 target.is_valid(),
-            ),
+                validation::NumericObservationDemand {
+                    scalar_values: true,
+                    integer_operations: false,
+                    scalar_associations: false,
+                },
+            )
+            .scalar_values,
         };
         values.seed_parameter_fields();
         let owned_frames = frames
@@ -1721,7 +1727,9 @@ fn charge(value: &ScopedArithmeticValue, budget: &mut usize, depth: usize) -> Op
             charge(left, budget, depth + 1)?;
             charge(right, budget, depth + 1)?;
         }
-        ScopedArithmeticValue::Atom { .. } | ScopedArithmeticValue::Integer(_) => {}
+        ScopedArithmeticValue::TypeReference(_)
+        | ScopedArithmeticValue::Atom { .. }
+        | ScopedArithmeticValue::Integer(_) => {}
     }
     Some(())
 }

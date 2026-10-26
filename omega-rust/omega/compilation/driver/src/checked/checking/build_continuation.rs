@@ -16,6 +16,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 pub(super) struct BuildSourceInvocation {
+    execution_contract: package_compilation::build_execution::BuildExecutionContract,
     parsed: compilation_products::PreparedCheckedSource,
     frontier: TypedCompilationFrontier,
     evaluation: build_evaluation::PreparedBuildEvaluation,
@@ -46,6 +47,7 @@ pub(super) fn prepare_build_invocation(
         settled_check_reuse,
     } = child;
     let build_execution_profile = build.profile;
+    let execution_contract = build.contract();
     let TypedCompilationFrontier {
         mut source,
         anonymous_source,
@@ -81,6 +83,7 @@ pub(super) fn prepare_build_invocation(
         &mut timings,
     )?;
     Ok(BuildSourceInvocation {
+        execution_contract,
         parsed,
         frontier: TypedCompilationFrontier {
             source,
@@ -101,6 +104,12 @@ pub(super) fn prepare_build_invocation(
 }
 
 impl BuildSourceInvocation {
+    pub(super) fn validate_return(
+        &self,
+        returned: &build_evaluation::ReturnedBuild,
+    ) -> Result<(), CompileFailure> {
+        self.evaluation.validate_return(returned)
+    }
     pub(super) fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
         self.evaluation.execution()
     }
@@ -123,6 +132,7 @@ impl BuildSourceInvocation {
         product_target: Option<target::TargetProfile>,
     ) -> Result<compilation_products::SettledBuildSource, CompileFailure> {
         let Self {
+            execution_contract,
             parsed,
             frontier,
             evaluation,
@@ -197,6 +207,7 @@ impl BuildSourceInvocation {
             }
         }
         Ok(compilation_products::SettledBuildSource {
+            execution_contract,
             parsed,
             frontier,
             evaluated,
@@ -316,6 +327,7 @@ fn complete_build_source(
         generated_source_custody = product.generated_source_custody;
         Arc::make_mut(&mut computed_build_config).selected_build_machine_symbol = selected;
     }
+    super::product_selections::admit(source.typed(), Arc::make_mut(&mut computed_build_config))?;
     let sources = BuildSourceCustody {
         source_file_count,
         build_execution_profile,
@@ -413,6 +425,7 @@ pub(super) fn complete_product_frontend(
     (
         typed_trees::TypedTrees,
         Vec<build_time_evaluation::PreCheckEvaluation>,
+        build_time_evaluation::SourceCompletionAccounting,
         Arc<compilation_products::ComputedBuildConfig>,
         BuildAdmission,
     ),
@@ -471,6 +484,7 @@ pub(super) fn complete_product_frontend(
     Ok((
         prepared.typed,
         prepared.pending_pre_checks,
+        prepared.accounting,
         computed_build_config,
         admission,
     ))

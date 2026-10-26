@@ -31,7 +31,7 @@ pub(crate) use scalar_case_frontiers::rewrite_relocated_case_result_frontiers;
 
 pub(crate) use context::{
     ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates,
-    validate_transformed_psi_cycle_components, validate_verified_psi_cycle_components,
+    validate_transformed_psi_context, validate_verified_psi_context,
 };
 pub use prephysical_manifest::ValidatedPrePhysicalOptimizationManifest;
 pub(crate) use prephysical_manifest::{

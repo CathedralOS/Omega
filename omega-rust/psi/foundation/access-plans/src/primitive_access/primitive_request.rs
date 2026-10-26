@@ -7,7 +7,6 @@ use crate::{
     AccessOperation, AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence, BorrowPolarity,
     BoundaryReach, EffectFootprint, EffectiveFieldSupply, LogicalFieldExtent, ObservationModel,
     PlacedOccurrenceId, PlacementAdmissionId, PlacementPlanId, ResourceProfileReceiptId,
-    effect_footprints_conflict,
 };
 
 /// Canonical input to target-specific placed-memory lowering.

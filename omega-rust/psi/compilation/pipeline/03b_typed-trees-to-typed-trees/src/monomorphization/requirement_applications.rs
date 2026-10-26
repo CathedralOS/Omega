@@ -109,7 +109,15 @@ pub(crate) fn instantiate_requirement_applications(
             }
         };
         for invocation in tuples {
-            let arguments = invocation.arguments;
+            let mut arguments = invocation.arguments;
+            // Closed instances consume a derived tuple. Keep the occurrence's
+            // authored recipes available to final formation checking.
+            super::body_rewriting::normalize_const_arguments(
+                program,
+                invocation.owner,
+                &mut arguments,
+            )
+            .map_err(|message| vec![Diagnostic::error(message)])?;
             if arguments.len() != parameters.len() {
                 return Err(vec![Diagnostic::error(
                     "static method application requires its complete invocation telescope",

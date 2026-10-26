@@ -18,7 +18,6 @@ use crate::errors::{TerminalInterpretError, malformed};
 use crate::results::meter_status;
 use crate::results::{TerminalCrash, TerminalExecutionResult, TerminalExecutionStatus};
 use crate::runtime_rows::RuntimeRows;
-use crate::scalar_array::TerminalScalarArrayValue;
 use crate::structural_identities::LocalStructuralIdentities;
 use crate::structural_inputs::case_membership::StructuralCaseContents;
 use crate::structural_inputs::placed_views::{
@@ -87,6 +86,7 @@ pub struct TerminalExecution<'artifact> {
     /// One immutable selected route per boundary. Catalog alternatives are
     /// never a substitute for a checked installation or explicit host choice.
     pub(crate) x86_flags: Option<crate::effects::TerminalX86FlagsEnvironment>,
+    pub(crate) memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
     pub(crate) boundary_supplies:
         BTreeMap<BoundaryMachineId, crate::effects::AdmittedBoundarySupply>,
     /// Exact family catalog selection, never provider or boundary issuance.
@@ -116,6 +116,10 @@ pub struct TerminalExecution<'artifact> {
     >,
     pub(crate) reference_referents:
         RuntimeRows<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
+    /// Homes whose bindings have retired may still supply a live descriptor's
+    /// backing. These candidates are global housekeeping, never retention roots
+    /// or ownership evidence; revisit them after later descriptor releases.
+    pub(crate) retired_descriptor_homes: Vec<StructuralRuntimePlace>,
     /// Mutable primitive contents live outside call frames. Machine-local
     /// place maps are only views into this stable logical storage arena.
     pub(crate) structural_primitive_storage:
@@ -157,7 +161,7 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) structural_host_atoms:
         RuntimeRows<StructuralRuntimePlace, crate::structural_storage::HostStructuralPayload>,
     pub(crate) next_host_atom_collection_size: usize,
-    pub(crate) scalar_array_values: RuntimeRows<PlaceId, TerminalScalarArrayValue>,
+    pub(crate) scalar_array_values: crate::scalar_array::ScalarArrayBindings,
     /// Frame-local immutable descriptors or exact boundary-introduced mutable
     /// field loans, rebound to callee parameters. Opaque identities alone do
     /// not supply either byte contents or permission to mutate a field.
@@ -218,7 +222,7 @@ pub(crate) struct SuspendedCall {
     pub(crate) structural_values: RuntimeRows<PlaceId, TerminalStructuralValue>,
     pub(crate) aggregate_argument_backings:
         RuntimeRows<PlaceId, crate::reference::AggregateBacking>,
-    pub(crate) scalar_array_values: RuntimeRows<PlaceId, TerminalScalarArrayValue>,
+    pub(crate) scalar_array_values: crate::scalar_array::ScalarArrayBindings,
     pub(crate) byte_sequence_values: RuntimeRows<PlaceId, ByteSequenceBinding>,
     pub(crate) primitive_loan_values: RuntimeRows<PlaceId, crate::primitive_storage::PrimitiveLoan>,
     pub(crate) element_view_values: RuntimeRows<PlaceId, crate::element_views::ElementView>,
@@ -316,7 +320,11 @@ impl ResultClaimOrigin {
         self,
         result: &terminal_psi::StructuralOperationResult,
         declared: &[terminal_psi::StructuralPathQualification],
+        preserved: &[terminal_psi::StructuralPathQualification],
     ) -> bool {
+        if self != Self::CalleeReturn && !preserved.is_empty() {
+            return false;
+        }
         if matches!(
             self,
             Self::TargetFamilyReturn { .. } | Self::CheckedProvider
@@ -326,7 +334,11 @@ impl ResultClaimOrigin {
                 .iter()
                 .all(|row| declared.contains(row))
         } else {
-            result.projected_qualifications == declared
+            let mut expected = declared.to_vec();
+            expected.extend_from_slice(preserved);
+            expected.sort();
+            expected.dedup();
+            result.projected_qualifications == expected
         }
     }
 }
@@ -344,6 +356,9 @@ pub(crate) enum SuspendedCallResult {
         result: StructuralOperationResult,
         claim_origin: ResultClaimOrigin,
         expected_reference_backings: Vec<Vec<crate::reference::ReferenceBacking>>,
+        /// Caller facts authenticated for this operation's normal completion.
+        /// The callee's weak live carrier need not carry these caller premises.
+        preserved_projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
         profile_completion: Option<crate::provider_storage::profiles::PendingResourceProfile>,
     },
     NominalCleanups {
@@ -446,6 +461,19 @@ impl<'artifact> TerminalExecution<'artifact> {
         account: Option<EvaluationInvocationAccount>,
     ) -> Result<Self, TerminalInterpretError> {
         let current_machine = program.resolve_entry(installation)?;
+        // This host invocation supplies scalar/structural values and storage
+        // custody, but no erased proof actuals. Loading/inspecting the same
+        // retained Requires function is still valid; execution is the boundary.
+        terminal_semantics::validate_empty_erased_invocation_inputs(
+            &program.catalogs,
+            current_machine,
+        )
+        .map_err(
+            |reason| TerminalInterpretError::UnsuppliedErasedEntryInputs {
+                machine: current_machine,
+                reason,
+            },
+        )?;
         let frame_storage = account
             .as_ref()
             .map(|account| account.reserve_storage(1, 0))
@@ -527,6 +555,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         let mut execution = Self {
             failure: None,
             x86_flags: installation.and_then(|supplies| supplies.x86_flags),
+            memory_ordering: installation.and_then(|supplies| supplies.memory_ordering),
             activation_storage: crate::activation_storage::RuntimeActivationStorage::new(
                 account.as_ref(),
             ),
@@ -553,6 +582,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             structural_primitive_entry_places: RuntimeRows::new(account.as_ref()),
             local_structural_identities,
             next_scalar_collection_identity: 1024,
+            retired_descriptor_homes: Vec::new(),
             structural_scalar_fields: crate::scalar_storage::ScalarStorageRows::new(
                 account.as_ref(),
             ),
@@ -566,7 +596,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             structural_cases: RuntimeRows::new(account.as_ref()),
             structural_host_atoms: RuntimeRows::new(account.as_ref()),
             next_host_atom_collection_size: 1024,
-            scalar_array_values: RuntimeRows::new(account.as_ref()),
+            scalar_array_values: crate::scalar_array::ScalarArrayBindings::new(account.as_ref()),
             byte_sequence_values: RuntimeRows::new(account.as_ref()),
             primitive_loan_values: RuntimeRows::new(account.as_ref()),
             element_view_values: RuntimeRows::new(account.as_ref()),
@@ -951,6 +981,10 @@ impl<'artifact> TerminalExecution<'artifact> {
                 .operations
                 .get(self.next_operation)
             {
+                // No constructor payload is transient between operations. Calls
+                // already installed their callee or retained their saved frame.
+                // Revisit dead homes before a later operation consults loans.
+                self.collect_retired_descriptor_storage(None);
                 // A component call already paid its parent operation before
                 // entering the retained child. Only the child's next step is
                 // charged after suspension; neither effects nor call fuel replay.
@@ -1013,6 +1047,21 @@ impl<'artifact> TerminalExecution<'artifact> {
                                     }
                                     OperationKind::PortWrite { .. } => {
                                         self.execute_port_write(operation, handler)?
+                                    }
+                                    OperationKind::RegisterAccess { event: terminal_psi::RegisterAccessEvent::MemoryFence { kind }, .. } => {
+                                        if !matches!(operation.result, terminal_psi::OperationResult::Unit) { return Err(malformed()); }
+                                        if self.memory_ordering.is_none_or(|model| !model.supports(kind)) {
+                                            return Err(TerminalInterpretError::UnsupportedCapability(
+                                                crate::capabilities::TerminalUnsupportedCapability::RegisterAccess {
+                                                    operation: terminal_psi::RegisterOperation::MemoryFence(kind),
+                                                },
+                                            ));
+                                        }
+                                        // The supplied model completes every access in program
+                                        // order. Record this exact event only after admission;
+                                        // ordinary fuel/next-operation progress prevents replay.
+                                        self.effects.push(crate::effects::TerminalEffect::MemoryFence { operation: operation.id, kind });
+                                        OperationFlow::Advance
                                     }
                                     OperationKind::RegisterAccess { event: terminal_psi::RegisterAccessEvent::Read { register: terminal_psi::SystemRegister::Rflags }, .. } => {
                                         let image = self.x86_flags.ok_or(TerminalInterpretError::UnsupportedCapability(crate::capabilities::TerminalUnsupportedCapability::RegisterAccess { operation: terminal_psi::RegisterOperation::SystemRead(terminal_psi::SystemRegister::Rflags) }))?.snapshot();
@@ -1152,6 +1201,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 }
                 self.next_operation += 1;
             }
+            self.collect_retired_descriptor_storage(None);
             let terminator = &program
                 .verified_machine(self.current_machine)?
                 .block(&self.current)

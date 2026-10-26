@@ -375,7 +375,7 @@ fn prepare_linux_x86_64(
         &bytes,
         "omega_linux_x86_64_hosted_receiver_entry",
         &fields,
-        |symbol, offset| crate::hosted_unit_entry::EntryShim::LinuxReceiver { symbol, offset },
+        |symbol, offset| crate::hosted_unit_entry::EntrySurface::LinuxReceiver.shim(symbol, offset),
     )
 }
 

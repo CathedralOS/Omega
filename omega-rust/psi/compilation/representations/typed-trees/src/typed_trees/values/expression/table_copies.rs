@@ -189,6 +189,54 @@ impl ExpressionTable {
         copy
     }
 
+    /// Replace a structural occurrence with an existing expression node while
+    /// retaining its selected meaning and declaration-selection provenance.
+    /// Children stay the exact existing occurrences. The caller owns whether
+    /// another execution is permitted; this does not snapshot a computed value.
+    pub fn replace_with_existing(
+        &mut self,
+        destination: ExpressionHandle,
+        source: ExpressionHandle,
+    ) {
+        let node = self.expression(source).clone();
+        let authority = self.index_expression_authority(source).cloned();
+        let source_index = super::source_span_index(source);
+        let destination_index = super::source_span_index(destination);
+        let occurrences = self.authored_selection_occurrences[source_index];
+        let source_span = self.source_span(source);
+        let carrier = self.constructed_value_type_reference(source);
+        *self.expression_mut(destination) = node;
+        self.set_source_span(destination, source_span);
+        self.authored_selection_occurrences[destination_index] = occurrences;
+        // Replacement invalidates both an absent source result and the old
+        // receiving context. Neither may survive as authority on a new node.
+        if carrier.is_valid() {
+            self.set_constructed_value_type_reference(destination, carrier);
+        } else if let Some(previous) = self
+            .constructed_value_type_handles
+            .get_mut(destination_index)
+        {
+            *previous = Default::default();
+        }
+        if let Some(previous) = self
+            .construction_required_type_handles
+            .get_mut(destination_index)
+        {
+            *previous = Default::default();
+        }
+        if let Some(mut authority) = authority {
+            if let Some(operation) = &mut authority.operation {
+                operation.expression = destination;
+            }
+            *self.index_expression_authority_mut(destination) = authority;
+        } else if let Some(previous) = self
+            .index_expression_authority_handles
+            .get_mut(destination_index)
+        {
+            *previous = Default::default();
+        }
+    }
+
     pub fn copy_from(
         &mut self,
         source: &ExpressionTable,
@@ -226,6 +274,15 @@ impl ExpressionTable {
             return;
         }
         visited.push(root);
+
+        let mut tests = self.executable_domain_tests(root).to_vec();
+        for test in &mut tests {
+            self.remap_symbols_in_inner(test.subject, symbols, visited);
+            test.domain = remapped(test.domain, symbols);
+        }
+        if !tests.is_empty() {
+            self.replace_executable_domain_tests(root, tests);
+        }
 
         if self.index_expression_authority(root).is_some() {
             let authority = self.index_expression_authority_mut(root);
@@ -494,6 +551,7 @@ impl ExpressionTable {
         let origin = source.table(self);
         let source_span = origin.source_span(expression);
         let authority = origin.index_expression_authority(expression).cloned();
+        let domain_tests = origin.executable_domain_tests(expression).to_vec();
         let query_carrier = matches!(origin.expression(expression), ExpressionNode::Call(call)
             if call.native_code_layout.is_some() || call.layout_query.is_some())
         .then(|| origin.constructed_value_type_reference(expression));
@@ -602,11 +660,11 @@ impl ExpressionTable {
             ExpressionNode::Call(call) => {
                 let receiver = self.copy_optional_subtree(source, call.receiver, retain, copies);
                 let arguments = self.copy_expression_span(source, call.arguments, retain, copies);
-                let root_binding = source
+                let build_selection = source
                     .table(self)
-                    .root_binding_request(call.root_binding)
+                    .build_selection_request(call.build_selection)
                     .cloned()
-                    .map(|request| self.insert_root_binding_request(request))
+                    .map(|request| self.insert_build_selection_request(request))
                     .unwrap_or_default();
                 let (authored_machine_application, static_requirement_dispatch) = self
                     .copy_call_static_applications(
@@ -628,7 +686,7 @@ impl ExpressionTable {
                     private_layout_operation: call.private_layout_operation,
                     layout_query: call.layout_query,
                     native_code_layout: call.native_code_layout,
-                    root_binding,
+                    build_selection,
                     arguments,
                     evidence_arguments: call.evidence_arguments,
                     operational_acknowledgement: call.operational_acknowledgement,
@@ -722,6 +780,19 @@ impl ExpressionTable {
             *self.index_expression_authority_mut(copied) = authority;
         }
         copies.expressions.push((expression, copied));
+        // Register the copied root first: a predicate such as `bool::True`
+        // may be its own tested subject. That semantic back-edge must retain
+        // the same occurrence instead of recursively cloning it.
+        for test in domain_tests {
+            let subject = self.copy_subtree_with_occurrences(source, test.subject, retain, copies);
+            self.retain_executable_domain_test(
+                copied,
+                super::ExecutableDomainTest {
+                    subject,
+                    domain: test.domain,
+                },
+            );
+        }
         // A call owns aliases among its children. Their copied parent only
         // exists after the children, so close that exact source back-edge now.
         for (original, capture) in &copies.subjects {

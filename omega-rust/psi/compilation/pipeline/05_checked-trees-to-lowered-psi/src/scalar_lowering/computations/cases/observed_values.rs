@@ -1,9 +1,9 @@
-//! A computed unrestricted sum owns one retained result before tag observation.
-//! Reservation names its whole value; preparation evaluates the ordinary call
-//! exactly once at the observation, preserving effects and normal completion.
-//! The observation reads only the tag. Payloads of every case stay in the
-//! retained value and are discarded with it, which `[copy]` multiplicity
-//! permits without cleanup; an affine or linear result is refused upstream.
+//! A computed sum owns one retained result before tag observation.
+//! Reservation names its whole value; preparation evaluates the ordinary value
+//! exactly once, preserving effects and normal completion. Observation borrows
+//! only its tag. A fresh noncopy receiver must have its own checked normal death
+//! at this observation; that disposition, not the read, settles its remaining
+//! claims and nominal obligations through the ordinary completion machinery.
 use super::{CheckedTrees, Expansion, LoweringError, QualifiedScalarType, Site, unsupported};
 
 pub(super) fn lower(
@@ -48,18 +48,35 @@ pub(super) fn lower(
         && expansion.checked.type_multiplicity(root.type_reference)
             != language_semantics::Multiplicity::Unrestricted
     {
-        return unsupported("computed enum membership requires unrestricted receiver custody");
+        let node = expansion
+            .checked
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get(observation);
+        let control = &expansion
+            .checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .cleanup_control;
+        let source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+            expression: root.expression,
+        };
+        let authorized = control
+            .value_completion(
+                root.machine,
+                root.state,
+                root.statement_ordinal,
+                node.completion_expression(&expansion.checked.facts.flow.control),
+            )
+            .and_then(|completion| control.actions.span(completion.actions))
+            .is_some_and(|actions| actions.iter().any(|action| action.source() == &source));
+        if !authorized {
+            return unsupported("computed enum receiver has no checked normal disposition");
+        }
     }
-    let identity = expansion
-        .checked
-        .normalized_type_identity(root.type_reference);
-    let declaration = crate::terminal_identities::structural_declaration_by_identity(
-        expansion.structural_types,
-        identities,
-        expansion.checked,
-        identity,
-        "computed enum membership has no carrier namespace",
-    )?;
     let mut arguments = super::parameters(input_types);
     arguments.push(super::parameter(
         input_types.len(),
@@ -81,10 +98,12 @@ pub(super) fn lower(
         return Ok(observe);
     }
     Ok(
-        crate::scalar_lowering::branch_states::structural_values::ValueRequest {
-            value: receiver_value,
-            structural_type: declaration.id,
-        }
+        crate::scalar_lowering::branch_states::structural_values::ValueRequest::prepare(
+            identities,
+            expansion.checked,
+            receiver_value,
+            expansion.structural_types,
+        )?
         .finish(input_types, observe, expansion),
     )
 }

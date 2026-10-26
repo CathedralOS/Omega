@@ -47,27 +47,31 @@ pub(super) fn disposes_candidate(
         return false;
     };
     let path = retirement.facts.borrow.loan_owner_path(loan);
-    if super::transport::carrier_path(retirement.program, reference, path)
-        .is_none_or(|selected| selected != complement.path)
+    if super::transport::named_carrier_path(
+        retirement.program,
+        retirement.state,
+        loan.owner_symbol,
+        reference,
+        path,
+    )
+    .is_none_or(|selected| selected != complement.path)
     {
         return false;
     }
-    retirement
-        .facts
-        .borrow
-        .loans
-        .iter()
-        .filter(|(_, candidate)| {
-            candidate.owner_symbol == loan.owner_symbol
-                && retirement.order.precedes(
-                    candidate.statement_index,
-                    receipt.statement_ordinal as usize,
-                )
-                && retirement.facts.borrow.loan_owner_path(candidate) == path
-        })
-        .map(|(_, candidate)| candidate.statement_index)
-        .max_by_key(|statement| retirement.order.position(*statement))
-        == Some(loan.statement_index)
+    retirement.resource_loans().is_some_and(|resources| {
+        resources
+            .filter(|(_, candidate)| {
+                candidate.owner_symbol == loan.owner_symbol
+                    && retirement.order.precedes(
+                        candidate.statement_index,
+                        receipt.statement_ordinal as usize,
+                    )
+                    && retirement.facts.borrow.loan_owner_path(candidate) == path
+            })
+            .map(|(_, candidate)| candidate.statement_index)
+            .max_by_key(|statement| retirement.order.position(*statement))
+            == Some(loan.statement_index)
+    })
 }
 
 pub(super) fn supplies_group(
@@ -75,27 +79,12 @@ pub(super) fn supplies_group(
     supplier: Handle<BorrowLoanFact>,
     receivers: HandleSpan<BorrowLoanFact>,
 ) -> bool {
-    let Some(group) = retirement.facts.borrow.loan_group(receivers) else {
+    let Some(mut group) = retirement.facts.borrow.loan_group(receivers) else {
         return false;
     };
-    let mut pending = group.map(|(handle, _)| handle).collect::<Vec<_>>();
-    let mut visited = Vec::new();
-    while let Some(receiver) = pending.pop() {
-        if receiver == supplier {
-            return true;
-        }
-        if visited.contains(&receiver) {
-            continue;
-        }
-        visited.push(receiver);
-        pending.extend(
-            retirement
-                .transported_loans
-                .iter()
-                .filter_map(|(received, supplying)| (*received == receiver).then_some(*supplying)),
-        );
-    }
-    false
+    group.any(|(receiver, _)| {
+        super::transport::supplies(retirement.transported_loans, supplier, receiver)
+    })
 }
 
 pub(in crate::execution::terminal_unit::control::statement_sequence) fn closed_complements(
@@ -207,4 +196,36 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn closed_c
         }
     }
     Some(output)
+}
+
+/// A receiving cohort closes at its last contributing descriptor release.
+/// An unrelated later release cannot stand in for this custody dependency.
+pub(in crate::execution::terminal_unit::control::statement_sequence) fn complement_completions(
+    retirement: &Retirement<'_>,
+) -> Option<Vec<(usize, CheckedUnitSelectedReferenceRetirementPlan)>> {
+    closed_complements(retirement)?
+        .into_iter()
+        .map(|complement| {
+            let position =
+                retirement
+                    .pending
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find_map(|(index, operation)| {
+                        let CheckedUnitEffectOperationPlan::ReleaseReference { loans, .. } =
+                            operation
+                        else {
+                            return None;
+                        };
+                        retirement
+                            .facts
+                            .borrow
+                            .loan_group(complement.loans)?
+                            .any(|(receiver, _)| supplies_group(retirement, receiver, *loans))
+                            .then_some(index)
+                    })?;
+            Some((position, complement))
+        })
+        .collect()
 }

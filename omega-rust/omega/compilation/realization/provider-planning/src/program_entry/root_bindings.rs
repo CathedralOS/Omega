@@ -93,6 +93,12 @@ pub fn collect_root_bindings(
                                     }),
                             }
                     })
+                    .filter(|machine| {
+                        typed.symbols.source_reference_can_describe_product_symbol(
+                            binding.source_span,
+                            machine.symbol,
+                        )
+                    })
                     .collect::<Vec<_>>();
                 // Prefer complete declaration paths over the existing same-package
                 // relative spelling. Otherwise another module's attached machine

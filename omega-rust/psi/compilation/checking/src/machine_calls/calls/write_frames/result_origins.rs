@@ -8,9 +8,10 @@
 //! origins; an internal backedge neither fabricates a result nor hides an unknown.
 
 use super::path_instantiation::aggregate_arguments::{
-    AggregateOrigins, AggregateResolver, ReferenceLeaf, ReferenceResolver, reference_leaves,
+    AggregateOrigins, ArgumentOrigins, ReferenceLeaf, ReferenceSource, partition_sources,
+    reference_leaves,
 };
-use super::stored_origins::canonical_reference_origins;
+use super::stored_origins::canonical_reference_sources;
 use super::{
     ExpressionHandle, FramePathPrecision, FramePlaceOrigin, Machine, StatementNode,
     TopLevelSymbols, TypeReferenceHandle, machine_state_by_symbol,
@@ -28,7 +29,7 @@ use typed_trees::statement::{TransitionExit, TransitionTargetHandle, TransitionT
 mod input_moves;
 mod input_sources;
 mod primitive_results;
-pub(super) use input_sources::instantiate_source;
+pub(super) use input_sources::{compose_source, instantiate_source};
 pub(super) use primitive_results::extent_view_types;
 mod state_equations;
 
@@ -40,8 +41,7 @@ pub(super) fn call_result_origins(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     include_shared: bool,
-    resolve_reference: &ReferenceResolver<'_>,
-    resolve_origins: &AggregateResolver<'_>,
+    inputs: &dyn ArgumentOrigins,
 ) -> Option<AggregateOrigins> {
     // A stale or missing selected target cannot be repaired by its spelling.
     let call = program.expression_table.call_node(expression)?;
@@ -74,15 +74,18 @@ pub(super) fn call_result_origins(
     let mut relative = if let Some(origin) = primitive_origin {
         origin
     } else {
-        state_result_origins(
-            program,
-            machine,
-            state,
-            state.return_type,
-            symbols,
-            inference,
-            include_shared,
-        )?
+        let indices = inference.argument_indices(program, arguments);
+        inference.with_invocation(program, state, &[], &indices, |inference| {
+            state_result_origins(
+                program,
+                machine,
+                state,
+                state.return_type,
+                symbols,
+                inference,
+                include_shared,
+            )
+        })?
     };
     instantiate_result_origins(
         program,
@@ -93,8 +96,7 @@ pub(super) fn call_result_origins(
         symbols,
         inference,
         include_shared,
-        resolve_reference,
-        resolve_origins,
+        inputs,
     )
 }
 
@@ -404,44 +406,19 @@ fn merge_result_arm(
                 symbols,
                 inference,
                 include_shared,
-                &|expression, reference, _implicit_borrow, inference| {
-                    if include_shared {
-                        // Returned provenance needs the complete backing set,
-                        // not an exact predicate subject. Collection selectors
-                        // retain typed origins without claiming value equality.
-                        super::reference_subjects::backing_origins(
-                            program,
-                            machine,
-                            expression,
-                            symbols,
-                            inference,
-                            &context.aliases,
-                            &context.stored,
-                        )
-                        .or_else(|| {
-                            super::reference_subjects::unknown_readonly_origin(
-                                program, reference, "",
-                            )
-                            .map(|origin| vec![origin])
-                        })
-                    } else {
-                        super::reference_origins::exclusive_reference_origins(
-                            program, machine, expression, symbols, inference,
-                        )
-                    }
-                },
-                &|expression, reference, _| {
-                    super::stored_origins::reference_leaves_before_statement_for_query(
-                        program,
-                        state,
-                        boundary,
-                        expression,
-                        reference,
-                        Some(&context.stored),
-                        None,
-                        include_shared,
-                    )
-                },
+        &crate::machine_calls::calls::write_frames::path_instantiation::aggregate_arguments::SymbolicArguments {
+            reference: &|expression, reference, _implicit_borrow, inference| {
+                pending_result_reference_sources(
+                    program, machine, state, boundary_index, expression, reference,
+                    symbols, inference, include_shared,
+                )
+            },
+            stored: &|expression, reference, _| {
+                super::stored_origins::reference_carriers_before_statement_for_query(
+                    program, state, boundary, expression, reference, &context.stored, include_shared,
+                )
+            },
+        },
             )?
         };
         merge_relative_origins(
@@ -453,13 +430,58 @@ fn merge_result_arm(
             context,
             relative,
             include_shared,
+            inference,
         )
     })
 }
 
-/// Adapt the already-collected prefix to the existing parameter-relative
-/// expression resolver. Local declaration symbols authenticate alias identity;
-/// the prefix supplies the referents after all preceding writes and rebinds.
+/// Both ordinary result construction and named-edge substitution retain the
+/// descriptor home until the shared merge reads it. A previously captured
+/// pointer must not be resolved through its old slot's later contents.
+#[allow(clippy::too_many_arguments)]
+fn pending_result_reference_sources(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    boundary_index: usize,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    include_shared: bool,
+) -> Option<Vec<ReferenceSource>> {
+    reference_result_relation(
+        program,
+        machine,
+        state,
+        boundary_index,
+        expression,
+        reference,
+        symbols,
+        inference,
+    )
+    .and_then(|returned| {
+        returned
+            .references
+            .into_iter()
+            .map(|leaf| leaf.origin)
+            .collect()
+    })
+    .or_else(|| {
+        if include_shared {
+            super::reference_subjects::unknown_readonly_origin(program, reference, "")
+                .map(|origin| vec![ReferenceSource::Symbolic(origin)])
+        } else {
+            None
+        }
+    })
+}
+
+/// Preserve declaration-relative reference sources for whole results and
+/// constructed reference leaves alike. Local symbols authenticate alias identity;
+/// the shared result merge crosses each saved descriptor exactly once against
+/// the collected prefix. Resolving a leaf here would erase that crossing and
+/// could load a subsequently replaced slot again at the merge.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn reference_result_relation(
     program: &dyn crate::CheckingInput,
@@ -519,7 +541,7 @@ pub(super) fn reference_result_relation(
                 local_suffix: String::new(),
                 local_segments: Vec::new(),
                 may_select: false,
-                origin: Some(origin.place),
+                origin: Some(ReferenceSource::Symbolic(origin.place)),
                 lifetime_dependencies: Vec::new(),
             })
             .collect(),
@@ -541,6 +563,7 @@ fn merge_relative_origins(
     context: &CollectedStatementPrefix,
     relative: &mut AggregateOrigins,
     include_shared: bool,
+    inference: &FrameInference,
 ) -> Option<()> {
     let parameters = program.state_parameters(state);
     for case in returned.cases {
@@ -558,13 +581,22 @@ fn merge_relative_origins(
         }
     }
     for leaf in returned.references {
-        for origin in canonical_result_reference_origins(
-            program,
-            state,
-            boundary_index,
-            &leaf.origin,
-            context,
-        ) {
+        let origins = match &leaf.origin {
+            // These are callee-state summaries. A caller observation cannot
+            // escape without its own inventory finishing the demanded path.
+            Some(ReferenceSource::Captured(_)) => return None,
+            origin => canonical_result_reference_origins(
+                program,
+                state,
+                boundary_index,
+                &origin.as_ref().map(|origin| origin.place().clone()),
+                context,
+            ),
+        };
+        for mut origin in origins {
+            if let Some(origin) = &mut origin {
+                inference.specialize_source(program, &mut origin.source);
+            }
             if let Some(origin) = &origin
                 && include_shared
                 && parameters.iter().any(|parameter| {
@@ -590,7 +622,9 @@ fn merge_relative_origins(
                 local_suffix: leaf.local_suffix.clone(),
                 local_segments: leaf.local_segments.clone(),
                 may_select: leaf.may_select,
-                origin,
+                // A state summary exports checked formal coordinates, not a
+                // caller's private completed descriptor occurrence.
+                origin: origin.map(ReferenceSource::Symbolic),
                 lifetime_dependencies: leaf.lifetime_dependencies.clone(),
             };
             if !relative.references.iter().any(|existing| {
@@ -618,6 +652,18 @@ fn canonical_result_reference_origins(
     origin: &Option<FramePlaceOrigin>,
     context: &CollectedStatementPrefix,
 ) -> Vec<Option<FramePlaceOrigin>> {
+    // Result summaries retain the explicit opaque category so a consumer can
+    // refuse that unimplemented result transport. Raw spatial adapters still
+    // withhold it; a lifetime candidate must never become its address fallback.
+    let captured_origins = |origin: &Option<FramePlaceOrigin>,
+                            aliases: &[(String, FramePlaceOrigin)]| {
+        canonical_reference_sources(program, origin, aliases, &context.stored)
+            .into_iter()
+            .map(|source| {
+                source.and_then(|source| source.lifetime_access.is_none().then_some(source.origin))
+            })
+            .collect::<Vec<_>>()
+    };
     if let Some(origin) = origin
         && origin.source.root.is_valid()
         && let Some(local) = program
@@ -642,16 +688,11 @@ fn canonical_result_reference_origins(
         return candidates
             .iter()
             .flat_map(|candidate| {
-                canonical_reference_origins(
-                    program,
-                    &Some(origin.clone()),
-                    &[(name.clone(), candidate.clone())],
-                    &context.stored,
-                )
+                captured_origins(&Some(origin.clone()), &[(name.clone(), candidate.clone())])
             })
             .collect();
     }
-    canonical_reference_origins(program, origin, &context.aliases, &context.stored)
+    captured_origins(origin, &context.aliases)
 }
 
 /// A named edge routes the call's result through the target state's own
@@ -677,16 +718,9 @@ fn merge_named_edge<'program>(
     returns: &mut bool,
     boundary_prefix: Option<&CollectedStatementPrefix>,
 ) -> Option<()> {
-    let TransitionTargetNode::Named {
-        static_machine_parameter,
-        ..
-    } = program.statement_table.transition_target(edge)
-    else {
+    let TransitionTargetNode::Named { .. } = program.statement_table.transition_target(edge) else {
         return None;
     };
-    if static_machine_parameter.is_valid() {
-        return None;
-    }
     let call_target = super::terminal_calls::target(program, machine, edge);
     let (target_machine, target_state) = if call_target.is_valid() {
         let (callee, state) = machine_state_by_symbol(program, call_target)?;
@@ -797,45 +831,19 @@ fn instantiate_edge_origins(
             symbols,
             inference,
             include_shared,
-            &|actual, reference, _implicit_borrow, inference| {
-                if include_shared {
-                    super::reference_subjects::backing_origins(
-                        program,
-                        machine,
-                        actual,
-                        symbols,
-                        inference,
-                        &context.aliases,
-                        &context.stored,
-                    )
-                    .or_else(|| {
-                        super::reference_subjects::unknown_readonly_origin(program, reference, "")
-                            .map(|origin| vec![origin])
-                    })
-                } else {
-                    super::reference_origins::exclusive_reference_origins(
-                        program, machine, actual, symbols, inference,
-                    )
-                }
+        &crate::machine_calls::calls::write_frames::path_instantiation::aggregate_arguments::SymbolicArguments {
+            reference: &|actual, reference, _implicit_borrow, inference| {
+                pending_result_reference_sources(
+                    program, machine, source_state, boundary_index, actual, reference,
+                    symbols, inference, include_shared,
+                )
             },
-            &|actual, reference, inference| {
-                if include_shared {
-                    super::stored_origins::reference_leaves_before_statement_for_query(
-                        program,
-                        source_state,
-                        boundary,
-                        actual,
-                        reference,
-                        Some(&context.stored),
-                        None,
-                        true,
-                    )
-                } else {
-                    super::stored_origins::symbolic_reference_leaves(
-                        program, machine, actual, reference, inference,
-                    )
-                }
+            stored: &|actual, reference, _| {
+                super::stored_origins::reference_carriers_before_statement_for_query(
+                    program, source_state, boundary, actual, reference, &context.stored, include_shared,
+                )
             },
+        },
         )?;
         merge_relative_origins(
             program,
@@ -846,6 +854,7 @@ fn instantiate_edge_origins(
             context,
             relative,
             include_shared,
+            inference,
         )
     })
 }
@@ -864,8 +873,7 @@ fn instantiate_result_origins(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     include_shared: bool,
-    resolve_reference: &ReferenceResolver<'_>,
-    resolve_origins: &AggregateResolver<'_>,
+    inputs: &dyn ArgumentOrigins,
 ) -> Option<AggregateOrigins> {
     // Body recursion and finite repeated calls in caller syntax are distinct.
     // Finish the guarded body proof before substituting caller expressions;
@@ -879,8 +887,7 @@ fn instantiate_result_origins(
         symbols,
         inference,
         include_shared,
-        resolve_reference,
-        resolve_origins,
+        inputs,
     )?;
     returned.cases.extend(relative.cases.iter().cloned());
     for leaf in relative.references.iter() {
@@ -906,13 +913,27 @@ fn instantiate_result_origins(
                 symbols,
                 inference,
                 include_shared,
-                resolve_reference,
-                resolve_origins,
+                inputs,
             )? {
-                let dependency = super::stored_calls::SlotSource {
-                    carrier: origin.source.clone(),
-                    origin,
-                    lifetime_access: dependency.lifetime_access,
+                let dependency = match origin {
+                    ReferenceSource::Symbolic(origin) => super::stored_calls::SlotSource {
+                        carrier_backing: None,
+                        carrier: origin.source.clone(),
+                        origin,
+                        lifetime_access: dependency.lifetime_access,
+                    },
+                    ReferenceSource::Captured(observed) => {
+                        if observed.base != observed.source.origin {
+                            return None;
+                        }
+                        super::stored_calls::SlotSource {
+                            lifetime_access: observed
+                                .source
+                                .lifetime_access
+                                .or(dependency.lifetime_access),
+                            ..observed.source
+                        }
+                    }
                 };
                 if !lifetime_dependencies.contains(&dependency) {
                     lifetime_dependencies.push(dependency);
@@ -926,7 +947,10 @@ fn instantiate_result_origins(
             });
             continue;
         };
-        if origin.source.is_static() {
+        if origin.place().source.is_static() || origin.place().source.output_identity().is_some() {
+            // Opaque output metadata remains unavailable as an input-relative
+            // result. Keeping the category preserves every alternative for the
+            // rejecting consumer; it grants no caller permission or address.
             // Literal-issued image storage belongs to no callee declaration.
             // Keep its captured source and substituted lifetime debts when a
             // named state or call returns it; never infer static storage from
@@ -938,8 +962,8 @@ fn instantiate_result_origins(
             continue;
         }
         if include_shared
-            && !origin.source.root.is_valid()
-            && origin.precision == FramePathPrecision::CollectionCoarse
+            && !origin.place().source.root.is_valid()
+            && origin.place().precision == FramePathPrecision::CollectionCoarse
         {
             // A shared unknown is still a leaf, not an empty result footprint.
             // Mutable unknowns cannot be issued by the reference resolver.
@@ -951,25 +975,38 @@ fn instantiate_result_origins(
         }
         let parameter = parameters
             .iter()
-            .find(|parameter| origin.source.root == parameter.symbol)?;
+            .find(|parameter| origin.place().source.root == parameter.symbol)?;
         let actual = {
             let index = parameters
                 .iter()
                 .position(|candidate| candidate.symbol == parameter.symbol)?;
             *arguments.get(index)?
         };
-        for origin in input_sources::instantiate_source(
+        let (origins, dependencies) = partition_sources(input_sources::instantiate_source(
             program,
             host_machine,
             parameter,
             actual,
-            origin,
+            origin.place(),
             symbols,
             inference,
             include_shared,
-            resolve_reference,
-            resolve_origins,
-        )? {
+            inputs,
+        )?);
+        for dependency in dependencies {
+            if !lifetime_dependencies.contains(&dependency) {
+                lifetime_dependencies.push(dependency);
+            }
+        }
+        if origins.is_empty() {
+            returned.references.push(ReferenceLeaf {
+                origin: None,
+                lifetime_dependencies,
+                ..leaf.clone()
+            });
+            continue;
+        }
+        for origin in origins {
             returned.references.push(ReferenceLeaf {
                 kind: leaf.kind,
                 local_suffix: leaf.local_suffix.clone(),

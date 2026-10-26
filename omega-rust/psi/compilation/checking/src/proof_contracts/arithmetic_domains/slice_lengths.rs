@@ -232,7 +232,7 @@ fn measured_call_length(
     let collection = super::normal_return_length_collection(program, call)?;
     let collection = strip_borrow(program, collection);
     let receiver = ordered_values::operand(program, machine, state, collection, None)?;
-    Some(Operand::CollectionLength(Box::new(receiver)))
+    ordered_values::collection_length_operand(program, machine, state, collection, receiver)
 }
 
 /// `end - start` as an ordered operand. A literal zero start is the end
@@ -260,9 +260,8 @@ fn length_measure(
         return None;
     } else {
         let collection = strip_borrow(program, indexed.collection);
-        Operand::CollectionLength(Box::new(ordered_values::operand(
-            program, machine, state, collection, None,
-        )?))
+        let receiver = ordered_values::operand(program, machine, state, collection, None)?;
+        ordered_values::collection_length_operand(program, machine, state, collection, receiver)?
     };
     let mut measure = if is_zero(&start) {
         end

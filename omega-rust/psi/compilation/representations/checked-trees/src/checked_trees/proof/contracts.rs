@@ -118,6 +118,9 @@ pub struct OutcomeSpecificArmFact {
     pub caller_state_symbol: SymbolHandle,
     pub statement_index: usize,
     pub result_call_statement_index: usize,
+    /// Exact source invocation, independent of other calls evaluated in this statement.
+    pub result_call_expression: ExpressionHandle,
+    pub result_call_target: SymbolHandle,
     pub result_data: SymbolHandle,
     pub result_case: SymbolHandle,
     pub result_expression: ExpressionHandle,

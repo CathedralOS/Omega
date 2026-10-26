@@ -243,12 +243,18 @@ capability.
    then return to the fact. The smaller witness keeps the same fact, bound,
    and operation. Facts advance as a ladder of those places,
    never as stage tasks.
-4. **Return to the remaining acceptance.** After a witness lands or already
-   passes, subtract only the requirement its evidence establishes and take the
-   next required place of the same fact, or the next uncovered fact under
-   `samples/cli/facts`. Write a new witness when an
+4. **Return to the remaining acceptance.** `tests/omega/` (`corpus_results.txt`)
+   and `samples/cli/facts/` own regression retention of landed witnesses;
+   `TASKS.md` owns only the unbuilt or failing gap. Each outcome in `TASKS.md`
+   lists its remaining work as discrete, one-per-line bullets (one unfinished
+   witness or missing mechanism gap per bullet). After a witness lands or already
+   passes, delete its bullet or requirement from `TASKS.md` outright so the
+   board shrinks monotonically (never move a landed witness into a
+   `"preserving / retaining / keeping / now passes"` clause or append milestone
+   history), and take the next required place of the same fact, or the next
+   uncovered fact under `samples/cli/facts`. Write a new witness when an
    uncovered requirement needs one, not to manufacture a failure or fill a slot.
-   Close the task only when its full acceptance passes. Switch capabilities on
+   Delete the `TASKS.md` item when its full `Acceptance:` passes. Switch capabilities on
    closure, explicit reprioritization, or a genuine external prerequisite after
    exhausting feasible work on that outcome. Never interrupt an active
    capability chain for an unrelated `main` regression, and keep chaining next

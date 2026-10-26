@@ -27,7 +27,10 @@ pub enum CheckedDispatchSubject {
 }
 
 impl CheckedDispatchSubject {
-    pub fn scalar_operands(&self) -> impl Iterator<Item = CheckedScalarComputationHandle> + '_ {
+    pub fn scalar_operands<'a>(
+        &'a self,
+        operands: &'a arena::Arena<CheckedScalarComputationHandle>,
+    ) -> impl Iterator<Item = CheckedScalarComputationHandle> + 'a {
         let (scalar, place) = match self {
             Self::Scalar(value) => (Some(*value), None),
             Self::Structural { place, .. } => (None, Some(place)),
@@ -35,7 +38,7 @@ impl CheckedDispatchSubject {
         scalar.into_iter().chain(
             place
                 .into_iter()
-                .flat_map(|place| place.computation_operands()),
+                .flat_map(move |place| place.computation_operands(operands)),
         )
     }
 
@@ -111,11 +114,29 @@ pub struct CheckedScalarComputationTemporaryCleanup {
     pub actions: HandleSpan<crate::CheckedNormalCleanupAction>,
 }
 
+/// One actual value completed before a scoped scalar consumer. Scalar
+/// observations capture their value without copying the structural carrier;
+/// owned dependencies retain the ordinary value producer and its custody.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedScalarEvaluationOperand {
+    Scalar(CheckedScalarComputationHandle),
+    Structural(super::structural_values::CheckedStructuralValueHandle),
+}
+
+impl Default for CheckedScalarEvaluationOperand {
+    fn default() -> Self {
+        Self::Scalar(CheckedScalarComputationHandle::invalid())
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedScalarComputationPlans {
     pub roots: Arena<CheckedScalarComputationRoot>,
+    pub projection_selectors: Arena<CheckedProjectionSelectorRoot>,
     pub nodes: Arena<CheckedScalarComputation>,
     pub operands: Arena<CheckedScalarComputationHandle>,
+    /// Ordered mixed dependencies, published once by their expression owner.
+    pub evaluation_operands: Arena<CheckedScalarEvaluationOperand>,
     pub observation_collections: Arena<typed_trees::types::TypeReferenceHandle>,
     pub structural_arguments: Arena<CheckedScalarComputationStructuralArgument>,
     pub temporary_cleanups: Arena<CheckedScalarComputationTemporaryCleanup>,
@@ -128,6 +149,27 @@ pub struct CheckedScalarComputationPlans {
 }
 
 impl CheckedScalarComputationPlans {
+    pub fn projection_selectors_at(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement: u32,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<HandleSpan<CheckedScalarComputationHandle>> {
+        let mut roots = self
+            .projection_selectors
+            .iter()
+            .map(|(_, root)| root)
+            .filter(|root| {
+                root.machine == machine
+                    && root.state == state
+                    && root.statement_ordinal == statement
+                    && root.expression == expression
+            });
+        let root = roots.next()?;
+        roots.next().is_none().then_some(root.evaluations)
+    }
+
     fn with_state_roots<R>(
         &self,
         state: SymbolHandle,
@@ -260,6 +302,29 @@ impl CheckedScalarComputationPlans {
     }
 }
 
+/// One exact authored projection occurrence. Child computations live in the
+/// ordinary operand arena; frozen execution planning borrows this published span.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedProjectionSelectorRoot {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub statement_ordinal: u32,
+    pub expression: typed_trees::expression::ExpressionHandle,
+    pub evaluations: HandleSpan<CheckedScalarComputationHandle>,
+}
+
+impl Default for CheckedProjectionSelectorRoot {
+    fn default() -> Self {
+        Self {
+            machine: SymbolHandle::invalid(),
+            state: SymbolHandle::invalid(),
+            statement_ordinal: 0,
+            expression: typed_trees::expression::ExpressionHandle::invalid(),
+            evaluations: HandleSpan::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedScalarComputationRoot {
     pub machine: SymbolHandle,
@@ -365,6 +430,9 @@ impl CheckedScalarComputation {
                 source_expression, ..
             }
             | CheckedScalarComputationKind::Apply {
+                source_expression, ..
+            }
+            | CheckedScalarComputationKind::WithOperands {
                 source_expression, ..
             } => *source_expression,
             CheckedScalarComputationKind::CaseMembership {
@@ -555,6 +623,15 @@ pub enum CheckedScalarComputationKind {
         expression: CheckedScalarExpression,
         operands: HandleSpan<CheckedScalarComputationHandle>,
         collections: HandleSpan<typed_trees::types::TypeReferenceHandle>,
+    },
+    /// Complete scalar snapshots and ordinary structural values in source
+    /// order, then evaluate one scalar consumer in that exact operand prefix.
+    /// Normal completion belongs to this whole occurrence; nested observations
+    /// cannot replay the producers or lengthen the checked owner lifetimes.
+    WithOperands {
+        source_expression: typed_trees::expression::ExpressionHandle,
+        operands: HandleSpan<CheckedScalarEvaluationOperand>,
+        operand: CheckedScalarComputationHandle,
     },
     /// Evaluate operands left-to-right once, then apply a pure template whose
     /// Parameter positions name only these computed operands, not source locals.

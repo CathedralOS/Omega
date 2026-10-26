@@ -45,7 +45,7 @@ pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loan
         })
         .map(|(_, argument)| argument)
         .collect();
-    let entry_constraints = super::super::call_borrow_constraints(call, state_flow, facts);
+    let entry_constraints = super::super::call_borrow_constraints(program, call, state_flow, facts);
     for argument in retained_arguments {
         let operand = CapturedPlace {
             incoming_reference: Default::default(),

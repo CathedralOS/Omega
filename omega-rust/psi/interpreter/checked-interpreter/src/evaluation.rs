@@ -1,6 +1,6 @@
 //! Evaluator work, observed effects, and returned-result custody.
 
-use language_semantics::declaration_selection::ExecutedRootBinding;
+use language_semantics::declaration_selection::ExecutedBuildSelection as SourceBuildSelection;
 
 use crate::{
     FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION, FilesystemGrantRootIdentity,
@@ -21,7 +21,7 @@ impl EvaluationSemanticsIdentity {
 }
 
 pub const CURRENT_EVALUATION_SEMANTICS: EvaluationSemanticsIdentity =
-    EvaluationSemanticsIdentity(4);
+    EvaluationSemanticsIdentity(5);
 
 /// Identity of the deterministic evaluator-step schedule used before the
 /// canonical portable IR exists.
@@ -534,7 +534,7 @@ impl<T> BuildTimeOperationEvaluation<T> {
 pub struct MeasuredBuildMachineEvaluation<T> {
     pub(crate) measured: MeasuredEvaluation<T>,
     pub(crate) observations: EvaluationObservations,
-    pub(crate) executed_root_bindings: Vec<ExecutedRootBinding>,
+    pub(crate) executed_source_selections: Vec<SourceBuildSelection>,
     pub(crate) executed_behavior_exclusions: Vec<ExecutedBehaviorExclusion>,
     pub(crate) executed_build_selections: Vec<ExecutedBuildSelection>,
     pub(crate) executed_wire_demands: Vec<typed_trees::expression::ExpressionHandle>,
@@ -545,7 +545,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         value: T,
         usage: EvaluationUsage,
         observations: EvaluationObservations,
-        executed_root_bindings: Vec<ExecutedRootBinding>,
+        executed_source_selections: Vec<SourceBuildSelection>,
         executed_behavior_exclusions: Vec<ExecutedBehaviorExclusion>,
         executed_build_selections: Vec<ExecutedBuildSelection>,
         executed_wire_demands: Vec<typed_trees::expression::ExpressionHandle>,
@@ -553,7 +553,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         Self {
             measured: MeasuredEvaluation::new(value, usage),
             observations,
-            executed_root_bindings,
+            executed_source_selections,
             executed_behavior_exclusions,
             executed_build_selections,
             executed_wire_demands,
@@ -566,7 +566,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         Self {
             measured,
             observations: EvaluationObservations::default(),
-            executed_root_bindings: Vec::new(),
+            executed_source_selections: Vec::new(),
             executed_behavior_exclusions: Vec::new(),
             executed_build_selections: Vec::new(),
             executed_wire_demands: Vec::new(),
@@ -590,8 +590,8 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
     /// must rejoin them to that program and check lexical/product authority.
     /// A described binding additionally carries the exact compiler-issued
     /// `ProductEntryRef` payload it bound.
-    pub fn executed_root_bindings(&self) -> &[ExecutedRootBinding] {
-        &self.executed_root_bindings
+    pub fn executed_source_selections(&self) -> &[SourceBuildSelection] {
+        &self.executed_source_selections
     }
 
     /// Executed exclusion selections in the exact evaluated program: each
@@ -628,7 +628,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         T,
         EvaluationUsage,
         EvaluationObservations,
-        Vec<ExecutedRootBinding>,
+        Vec<SourceBuildSelection>,
         Vec<ExecutedBehaviorExclusion>,
         Vec<ExecutedBuildSelection>,
         Vec<typed_trees::expression::ExpressionHandle>,
@@ -638,7 +638,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
             value,
             usage,
             self.observations,
-            self.executed_root_bindings,
+            self.executed_source_selections,
             self.executed_behavior_exclusions,
             self.executed_build_selections,
             self.executed_wire_demands,

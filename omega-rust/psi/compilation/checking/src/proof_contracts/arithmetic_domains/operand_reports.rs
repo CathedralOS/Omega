@@ -1,74 +1,9 @@
-//! Out-of-range comparison literals and mismatched integer carriers.
+//! Mismatched integer carriers for builtin computations.
 
-use crate::proof_contracts::arithmetic_domains::integer_ranges::{
-    integer_literal_value, primitive_range,
-};
 use diagnostics::Diagnostic;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-
-/// Reject a comparison (`==`/`!=`/`<`/`<=`/`>`/`>=`) between an integer-typed value
-/// and an integer LITERAL outside that type's range: `self.b == 300` for a `u8` `b`
-/// silently TRUNCATED the literal to the operand width (`300 & 0xFF == 44`) and
-/// compared `b == 44` -- a confirmed miscompile (native took the `== 44` branch).
-/// A literal compared against a value must be a representable value of that value's
-/// type. Fires only when one operand resolves to an integer primitive and the other
-/// is an integer literal outside its range; two-place, float/bool/text, and in-range
-/// pairings are skipped. Sibling of the decision-17 narrowing obligation for stores.
-pub(crate) fn report_out_of_range_comparison_literal(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
-    operator: BinaryOperator,
-    left: ExpressionHandle,
-    right: ExpressionHandle,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> bool {
-    if !matches!(
-        operator,
-        BinaryOperator::Equal
-            | BinaryOperator::NotEqual
-            | BinaryOperator::Less
-            | BinaryOperator::LessOrEqual
-            | BinaryOperator::Greater
-            | BinaryOperator::GreaterOrEqual
-    ) {
-        return false;
-    }
-    for (typed_operand, literal_operand) in [(left, right), (right, left)] {
-        let Some(primitive) = crate::value_custody::places::declared_place_type(
-            program,
-            machine,
-            state,
-            typed_operand,
-        )
-        .and_then(|type_reference| program.primitive_type_reference(type_reference)) else {
-            continue;
-        };
-        let Some(range) = primitive_range(primitive) else {
-            continue;
-        };
-        let Some(literal) = integer_literal_value(program, literal_operand) else {
-            continue;
-        };
-        let in_range = range.low().is_none_or(|low| literal >= low)
-            && range.high().is_none_or(|high| literal <= high);
-        if !in_range {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` compares a `{}` value against `{literal}`, which is out of \
-                 range for `{}` -- the comparison would silently truncate the literal to the \
-                 operand width; compare an in-range value or widen the value with an `as` cast",
-                machine.name.as_str(),
-                state.map(|state| state.name.as_str()).unwrap_or(""),
-                primitive.name(),
-                primitive.name(),
-            )));
-            return true;
-        }
-    }
-    false
-}
 
 /// Builtin arithmetic and bitwise operands retain one common integer carrier.
 /// Resolve each expression's type, not its inferred interval: calls, casts and

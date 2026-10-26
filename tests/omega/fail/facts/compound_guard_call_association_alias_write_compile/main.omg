@@ -1,0 +1,18 @@
+// A copied result cannot use a later current-field guard after an alias write.
+// Compile-checked only: no ProgramEntry and no native oracle.
+data Main { hits: i32 in Wrapping; a: i32 in Wrapping; b: i32 in Wrapping; grid: [i32; 200] in Wrapping; }
+machine coordinate(a: i32 in Wrapping) -> i32 in Wrapping ensures result == a { a }
+machine reset(cell: &mut Main) { cell.a = 0; }
+machine Main::main(main: &mut Main) {
+    let a: i32 in Wrapping = coordinate(main.a);
+    reset(main);
+    transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 {
+        true -> put(main, a)
+        _ -> done(main)
+    }
+    state put(main: &mut Main, a: i32 in Wrapping) {
+        main.grid[main.b * 20 + a] = 7;
+        main.hits = 1;
+    }
+    state done(main: &mut Main) { main.hits = -1; }
+}

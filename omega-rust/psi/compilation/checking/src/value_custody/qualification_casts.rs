@@ -11,9 +11,7 @@
 //! Predicate discharge and authorized provenance remain independent obligations.
 
 use crate::program_validation::{ExpressionInterval, expression_interval};
-use crate::proof_contracts::contract_entailment::{
-    ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
-};
+use crate::{ScopedArithmeticValue, StrictArithmeticImplicationJudgment};
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use symbols::JoinedPath;

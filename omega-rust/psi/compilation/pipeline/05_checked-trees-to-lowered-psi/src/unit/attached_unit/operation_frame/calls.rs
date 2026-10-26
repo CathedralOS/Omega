@@ -46,6 +46,8 @@ pub(in crate::unit::attached_unit) struct CallInputs<'i> {
     pub(in crate::unit::attached_unit) byte_places: &'i [PlaceId],
     /// Address operands captured by the same authored schedule as scalar arguments.
     pub(in crate::unit::attached_unit) evaluated_selectors: Option<&'i [ValueDeclaration]>,
+    pub(in crate::unit::attached_unit) completed_structural_arguments:
+        Option<&'i [Option<super::CompletedStructuralArgument>]>,
 }
 
 impl OperationFrame<'_, '_> {
@@ -70,6 +72,7 @@ impl OperationFrame<'_, '_> {
                 argument,
                 self.values,
                 self.structural_types.declarations(),
+                self.calls.domain_declarations,
                 self.next_place,
                 self.operations,
                 self.private_places,
@@ -128,7 +131,45 @@ impl OperationFrame<'_, '_> {
                 _,
             ) => self.dynamic_call(identities, operation, call, interface_identity, &inputs),
         }?;
-        self.publish_loan_completions(identities, call)
+        // Resolve the exact call just committed, including its prepared storage
+        // coordinates. Replaying the checked actuals after result publication
+        // could select a replacement binding; walking prior operations would
+        // borrow consumption from mutually exclusive sibling bodies.
+        if let Some(emitted) = self.operations.source_calls.iter().find(|emitted| {
+            emitted.source_state == self.state
+                && emitted.statement_index == call.coordinate.statement_index as usize
+                && emitted.call_ordinal == call.coordinate.call_ordinal as usize
+        }) {
+            if let lowered_psi::LoweredSourceCallSite::Operation(operation) = emitted.terminal_site
+            {
+                self.evaluation
+                    .retire_structural_operation_operands(operation, self.operations)?;
+            }
+        }
+        self.publish_loan_completions(identities, call)?;
+        if let Some(completed) = inputs.completed_structural_arguments {
+            for captured in completed.iter().flatten().rev() {
+                for place in captured.private_homes.iter().rev() {
+                    let regions = self.evaluation.normal_discard_regions(
+                        *place,
+                        self.structural_types.declarations(),
+                        self.operations,
+                    )?;
+                    self.evaluation.continue_cleanup_regions(
+                        identities,
+                        self.checked,
+                        regions,
+                        self.values,
+                        self.next_value,
+                        self.next_block,
+                        self.next_edge,
+                        self.operations,
+                    )?;
+                    self.evaluation.retire_structural_home(*place);
+                }
+            }
+        }
+        Ok(())
     }
 
     /// A retained scalar call result is the next dense value, so it also
@@ -211,6 +252,9 @@ impl OperationFrame<'_, '_> {
             self.state,
             result.statement_index,
         )?;
+        self.evaluation
+            .current_claims
+            .publish(produced.place, produced.claims.clone())?;
         self.results.push(declaration, discard_on_return);
         // Every performed call publishes its exact expression home, including
         // preparatory calls. A containing value's consumer cannot reconstruct
@@ -239,13 +283,14 @@ impl OperationFrame<'_, '_> {
             )?;
         }
         if matches!(self.results, StructuralResults::Dense(_)) {
-            structural_values::bind_local(
+            if let Some(binding) = structural_values::local_binding(
                 operation,
                 declaration,
                 produced.structural_type,
                 self.structural_types.declarations(),
-                &mut self.evaluation.structural_locals,
-            )?;
+            ) {
+                self.evaluation.bind_structural_local(binding);
+            }
             // A view local this call bound joins the view roster: its lengths
             // and element reads resolve through the place the locals join
             // named, and the produced type names which view family it is.
@@ -629,7 +674,6 @@ impl OperationFrame<'_, '_> {
         let checked = self.checked;
         let coordinate = &call.coordinate;
         let target_machine = &call.target.machine;
-        let target_state = &call.target.state;
         let structural_arguments = &call.structural_arguments;
         let earlier =
             self.results
@@ -642,6 +686,7 @@ impl OperationFrame<'_, '_> {
             signatures::find(self.callees.signatures, *target_machine)?.call_target(),
             inputs.evaluated_scalar_arguments,
             inputs.evaluated_selectors,
+            inputs.completed_structural_arguments,
             self.values,
             self.caller.erased_scalar_parameters,
             self.caller.erased_proof_parameters,
@@ -657,6 +702,7 @@ impl OperationFrame<'_, '_> {
             self.calls,
             self.next_value,
             self.operations,
+            &mut self.evaluation.current_claims,
         )?;
         drop(earlier);
         let callee = lookup_machine_id(self.calls.machine_ids, *target_machine)?;
@@ -696,10 +742,10 @@ impl OperationFrame<'_, '_> {
         }
         let (coordinate, frontier) = self.source_call_record(*coordinate)?;
         prepared.emit(
+            checked,
             self.operations,
             coordinate,
             None,
-            *target_state,
             crate::direct_calls::CallRecord::Frontier(&frontier),
             OperationResult::Unit,
             callee,
@@ -726,7 +772,6 @@ impl OperationFrame<'_, '_> {
         let coordinate = &call.coordinate;
         let realization_machine = &call.target.machine;
         let realization_state = &call.target.state;
-        let source_target = call.target.state;
         let target = CheckedScalarCallee::find_for_unit_call(checked, *realization_machine)?;
         if !self.callees.closure.contains(realization_machine) {
             return unsupported("Unit scalar call target is absent from the prepared closure");
@@ -788,6 +833,7 @@ impl OperationFrame<'_, '_> {
             signature.call_target(),
             inputs.evaluated_scalar_arguments,
             inputs.evaluated_selectors,
+            inputs.completed_structural_arguments,
             self.values,
             self.caller.erased_scalar_parameters,
             self.caller.erased_proof_parameters,
@@ -803,6 +849,7 @@ impl OperationFrame<'_, '_> {
             self.calls,
             self.next_value,
             self.operations,
+            &mut self.evaluation.current_claims,
         )?;
         drop(earlier);
         let value = ValueDeclaration {
@@ -813,10 +860,10 @@ impl OperationFrame<'_, '_> {
         let callee = lookup_machine_id(self.calls.machine_ids, *realization_machine)?;
         let (coordinate, frontier) = self.source_call_record(*coordinate)?;
         prepared.emit(
+            checked,
             self.operations,
             coordinate,
             None,
-            source_target,
             crate::direct_calls::CallRecord::Frontier(&frontier),
             OperationResult::Scalar(value),
             callee,

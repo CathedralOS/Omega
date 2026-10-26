@@ -13,7 +13,10 @@
 //! pure-value owner independently requires exact inputs and fresh logical charge.
 
 use super::checking::compile_thread::run_on_compile_thread;
-use super::checking::{begin_package_build_worker, prepare_checked_source, select_checked_worker};
+use super::checking::{
+    SourceCompilation, begin_package_build_worker, prepare_checked_source,
+    prepare_source_compilation,
+};
 use crate::execution_settlement::SelectedCompileOutcome;
 use artifacts::compile_timings::counters;
 use compilation_products::{
@@ -66,29 +69,66 @@ impl CompilationSession {
         }
     }
 
-    /// Compile every requested target against this session's retained source,
-    /// pure-Build and checked-judgment stores.
-    pub fn compile(
+    /// Admit source and prepare its Build without executing it. The application
+    /// owns activation stepping; source storage remains with this opaque request.
+    pub fn begin_source_compilation(
         &mut self,
-        request: crate::CompileRequest,
-    ) -> Result<crate::CompileOutcomes, Vec<diagnostics::Diagnostic>> {
-        crate::compiler::compile_with_session(self, request)
+        request: CheckedCompileRequest,
+    ) -> Result<SourceCompilation, CompileFailure> {
+        run_on_compile_thread(|| {
+            counters::record_checked_compilation();
+            let source = self.prepare_source(&request)?;
+            let target = request
+                .target_name
+                .as_deref()
+                .map(|name| target::TargetProfile::from_omega_target_name(Some(name)))
+                .transpose()
+                .map_err(|diagnostic| vec![diagnostic])?;
+            let inputs = request.package_inputs.as_ref();
+            let child = compilation_products::CheckedExecutionRequest {
+                selected_target_profile: target,
+                package_inputs: inputs,
+                build: request.build.resolve_compilation_defaults(inputs),
+                optimization_rollback: request.optimization_rollback,
+                permit_unsettled_fused_service_fields: request
+                    .permit_unsettled_fused_service_fields,
+                settled_check_reuse: self.reuse(),
+            };
+            prepare_source_compilation(&request.root_path, source, child, &self.pure_builds)
+        })
     }
 
-    /// Complete one source request at its requested stop. Intermediate source
-    /// custody never leaves the invocation to be handed back for production.
-    pub fn produce(
+    /// Finish a diagnostic request after the exact Build has returned. Target
+    /// settlement failure retains the Build's independent-component observations.
+    pub fn complete_source_check(
         &mut self,
-        mut request: CheckedCompileRequest,
+        source: SourceCompilation,
+        returned: Result<Option<build_evaluation::ReturnedBuild>, CompileFailure>,
+    ) -> CheckedCompileOutcome {
+        run_on_compile_thread(|| {
+            Ok::<_, CompileFailure>(self.select_completed_source(source, returned).install())
+        })
+        .unwrap_or_else(|failure| refusal(failure).install())
+    }
+
+    /// Produce a requested artifact or inspection from its completed source
+    /// invocation. No execution, source reacquisition or Build replay occurs here.
+    pub fn complete_source_product(
+        &mut self,
+        source: SourceCompilation,
+        returned: Result<Option<build_evaluation::ReturnedBuild>, CompileFailure>,
         product: crate::CompilationProduct,
     ) -> Result<crate::CompilationOutput, crate::CompilationProductError> {
         run_on_compile_thread(|| {
-            let root = request.root_path.clone();
-            request.optimization_rollback = product.optimization_rollback();
-            let selected = self.select(request).result.map_err(|failure| {
-                crate::CompilationProductError::Production(failure.into_diagnostics())
-            })?;
-            crate::compiler::produce_products(vec![(
+            source.require_product_policy(&product)?;
+            let root = source.root().to_path_buf();
+            let selected = self
+                .select_completed_source(source, returned)
+                .result
+                .map_err(|failure| {
+                    crate::CompilationProductError::Production(failure.into_diagnostics())
+                })?;
+            let mut outputs = crate::compiler::produce_products(vec![(
                 (),
                 Ok(crate::product_execution::ProductRequest {
                     realization: selected,
@@ -96,43 +136,31 @@ impl CompilationSession {
                     product,
                     permissions: None,
                 }),
-            )])
-            .into_iter()
-            .next()
-            .map(|(_, outcome)| outcome)
-            .ok_or_else(|| {
-                crate::CompilationProductError::Production(vec![diagnostics::Diagnostic::error(
+            )]);
+            match outputs.pop() {
+                Some(((), output)) => output,
+                None => Err(vec![diagnostics::Diagnostic::error(
                     "compiler lost the requested source product",
-                )])
-            })?
+                )]
+                .into()),
+            }
         })
     }
 
-    /// Check one complete source request without publishing native output.
-    /// Discovery observations survive a target-settlement rejection.
-    pub fn check(&mut self, request: CheckedCompileRequest) -> CheckedCompileOutcome {
-        run_on_compile_thread(|| Ok::<_, CompileFailure>(self.select(request).install()))
-            .unwrap_or_else(|failure| refusal(failure).install())
-    }
-
-    fn select(&mut self, request: CheckedCompileRequest) -> SelectedCompileOutcome {
-        counters::record_checked_compilation();
-        (|| {
-            let source = self.prepare_source(&request)?;
-            let mut outcome = select_checked_worker(
-                request,
-                source,
-                self.reuse(),
-                &self.pure_builds,
-                &mut self.selections,
-            )?;
-            if let Ok(selected) = &outcome.result {
-                self.retain(&selected.retained_checks);
-            }
-            self.attach_component_products(&mut outcome);
-            Ok::<_, CompileFailure>(outcome)
-        })()
-        .unwrap_or_else(refusal)
+    fn select_completed_source(
+        &mut self,
+        source: SourceCompilation,
+        returned: Result<Option<build_evaluation::ReturnedBuild>, CompileFailure>,
+    ) -> SelectedCompileOutcome {
+        let mut outcome = match source.select(returned, &mut self.selections) {
+            Ok(outcome) => outcome,
+            Err(failure) => return refusal(failure),
+        };
+        if let Ok(selected) = &outcome.result {
+            self.retain(&selected.retained_checks);
+        }
+        self.attach_component_products(&mut outcome);
+        outcome
     }
 
     /// Admit a dependency Build while retaining its pending Product source.
@@ -215,38 +243,30 @@ impl CompilationSession {
         Ok(source)
     }
 
-    /// The shared source/Build prefix for an admitted multi-target request.
-    /// Target provider selection begins only after this completed Psi judgment;
-    /// source continuations and invocation reuse remain owned by the session.
-    pub(crate) fn check_shared_source(
+    /// Prepare the shared source prefix once; the caller executes its Build
+    /// before any target consumes the completed source judgment.
+    pub(crate) fn prepare_shared_source(
         &mut self,
         shared: &compilation_products::compile_request::SharedCompileInputs,
         target: &compilation_products::compile_request::ValidatedTargetCompilation,
-    ) -> Result<compilation_products::CheckedProductSource, Vec<diagnostics::Diagnostic>> {
-        let parsed = self
-            .prepare_source_with_inputs(
-                &shared.root_path,
-                shared.package_sources.clone(),
-                None,
-                shared.timings,
-            )
-            .map_err(CompileFailure::into_diagnostics)?;
+    ) -> Result<SourceCompilation, CompileFailure> {
+        let parsed = self.prepare_source_with_inputs(
+            &shared.root_path,
+            shared.package_sources.clone(),
+            None,
+            shared.timings,
+        )?;
         let mut execution = target.checked_execution(&shared.build_directory);
         execution.settled_check_reuse = self.reuse();
-        let source = super::prepare_product_source(
-            &shared.root_path,
-            parsed,
-            execution,
-            Some(&self.pure_builds),
-        )
-        .map_err(CompileFailure::into_diagnostics)?;
-        let checked = super::check_product_source(
-            source,
-            target.package_inputs(),
-            target.optimization_rollback(),
-            self.reuse(),
-            &mut self.selections,
-        )?;
+        prepare_source_compilation(&shared.root_path, parsed, execution, &self.pure_builds)
+    }
+
+    pub(crate) fn check_completed_source(
+        &mut self,
+        source: SourceCompilation,
+        returned: Result<Option<build_evaluation::ReturnedBuild>, CompileFailure>,
+    ) -> Result<compilation_products::CheckedProductSource, Vec<diagnostics::Diagnostic>> {
+        let checked = source.check(returned, &mut self.selections)?;
         self.retain(&checked.retained_checks);
         Ok(checked)
     }

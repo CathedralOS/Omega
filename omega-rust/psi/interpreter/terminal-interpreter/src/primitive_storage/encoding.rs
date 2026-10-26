@@ -264,7 +264,7 @@ impl TerminalExecution<'_> {
                     let frame = self.call_stack.get(home.depth).ok_or_else(malformed)?;
                     (frame.current_machine, &frame.scalar_array_values)
                 };
-                let array = arrays.get(&home.place).ok_or_else(malformed)?;
+                let array = arrays.backing(&home.place).ok_or_else(malformed)?;
                 if machine != home.machine
                     || array.structural_type != home.structural_type
                     || array.elements().get(start..end).is_none_or(|bytes| {

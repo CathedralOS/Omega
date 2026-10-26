@@ -199,3 +199,32 @@ fn disjoint(read: &[ReadSegment], written: &[PlaceSegment]) -> bool {
     // overlaps. A missing suffix is never evidence of independence.
     false
 }
+
+/// Capturing the completed result does not capture mutable actual operands.
+/// A store which replaces one of those operands must not reinstall a promise
+/// about its old value under the destination's new storage identity.
+pub(in crate::proof_contracts::arithmetic_domains) fn survives_delivery(
+    program: &dyn crate::CheckingInput,
+    state: &typed_trees::state::State,
+    operand: &Operand,
+    result: &Operand,
+    written: Option<&[String]>,
+) -> bool {
+    let preserved = written.map_or_else(
+        || operand.is_immutable_snapshot(program, state),
+        |written| operand.survives_storage_writes(program, Some(state), written),
+    );
+    if operand == result || preserved {
+        return true;
+    }
+    let survives = |operand: &Operand| survives_delivery(program, state, operand, result, written);
+    match operand {
+        Operand::Field { receiver, .. } => survives(receiver),
+        Operand::CollectionLength(collection) => survives(collection),
+        Operand::Indexed {
+            collection, index, ..
+        } => survives(collection) && survives(index),
+        Operand::Binary { operands, .. } => operands.iter().all(survives),
+        _ => false,
+    }
+}

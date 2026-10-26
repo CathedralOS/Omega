@@ -743,6 +743,19 @@ impl TerminalExecution<'_> {
         argument: &StructuralArgument,
     ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
     {
+        if terminal_semantics::borrowed_storage_parameter(
+            parameter,
+            self.program.structural_types().values(),
+        ) && terminal_semantics::borrowed_storage_reference_ceiling(
+            parameter,
+            self.program.structural_types().values(),
+        )
+        .is_none()
+        {
+            // Forwarding descriptor storage is allowed without granting any
+            // readable view of a write-only contained reference.
+            return Ok(None);
+        }
         if parameter.access == StructuralAccess::Owned {
             // Ownership transfer is admitted from the actual producer, not a
             // borrowed descriptor's geometry or the access of its backing.
@@ -774,10 +787,15 @@ impl TerminalExecution<'_> {
         // establishment instead loses canonical-to-stored view presentation on
         // a return-state edge. The shared arrival contract admits both carrier
         // lifetimes without granting ownership or widening the source loan.
-        if !terminal_semantics::view_descriptor_parameter(
+        let storage_ceiling = terminal_semantics::borrowed_storage_reference_ceiling(
             parameter,
             self.program.structural_types().values(),
-        ) || argument.access != parameter.access
+        );
+        if !(terminal_semantics::view_descriptor_parameter(
+            parameter,
+            self.program.structural_types().values(),
+        ) || storage_ceiling.is_some())
+            || argument.access != parameter.access
             || !parameter.projected_qualifications.is_empty()
             || crate::custody::place_is_claimed(&self.live_claims, argument.place)
         {
@@ -785,23 +803,35 @@ impl TerminalExecution<'_> {
         }
         self.validate_descriptor_borrow(argument, parameter.access)?;
         let binding = self.byte_descriptor_binding(argument, &value)?;
+        let requested_access = storage_ceiling.unwrap_or(parameter.access);
         if !terminal_semantics::descriptor_reborrow_matches(
             self.program.structural_types().values(),
             value.structural_type,
             parameter.access,
             Some(binding.access()),
             parameter.structural_type,
-            parameter.access,
+            requested_access,
         ) {
             return Err(malformed());
         }
-        let binding = self.reborrow_byte_sequence_binding(&binding, &value, parameter.access)?;
+        let binding = if requested_access == StructuralAccess::WriteOnlyBorrow {
+            // An outer readable storage loan can expose a write-only inner
+            // descriptor. Keep its existing mutable backing without reading
+            // bytes or manufacturing a readable snapshot. Compatibility above
+            // authenticated the exact resident descriptor and its ceiling.
+            binding.clone()
+        } else {
+            self.reborrow_byte_sequence_binding(&binding, &value, requested_access)?
+        };
         // A lent descriptor must satisfy every domain the formal names
         // (structural access, shared view fields). The checked call proved
         // that implication; execution fails closed on the actual bytes
         // rather than trusting whichever domains the source value spells,
         // and the formal then holds the descriptor under those domains.
-        if parameter.access == StructuralAccess::MutableBorrow {
+        if matches!(
+            requested_access,
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        ) {
             if !parameter.qualifications.is_empty() || !value.qualifications.is_empty() {
                 return Err(malformed());
             }

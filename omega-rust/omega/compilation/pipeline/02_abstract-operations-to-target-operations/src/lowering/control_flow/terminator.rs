@@ -16,7 +16,9 @@ use terminal_psi::{StructuralAccess, StructuralMultiplicity, TerminalAffineClean
 /// exact establishment contract before accepting a no-code discard; a block
 /// binding is not an owned backing home and has no operation-result producer.
 /// Copyability permits independent descriptors; it does not keep a replaced
-/// descriptor alive or authorize disposal of a linear carrier.
+/// descriptor alive or authorize disposal of a linear carrier. Qualification
+/// rows describe that same carrier; abandoning them adds no cleanup work and
+/// cannot change its storage or grant authority over the backing.
 fn disposable_view_carrier(
     live: &LiveDefinitions,
     function: &AbstractFunction,
@@ -29,13 +31,11 @@ fn disposable_view_carrier(
             result.multiplicity,
             StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
         ) || !result.claims.is_empty()
-            || !result.qualifications.is_empty()
             || !terminal_semantics::view_descriptor_projected_qualifications(
                 types.values().copied(),
                 result.structural_type,
                 &result.projected_qualifications,
             )
-            || !result.qualification_establishments.is_empty()
         {
             return None;
         }
@@ -45,21 +45,12 @@ fn disposable_view_carrier(
             return None;
         }
         let parameter = function.arrival_parameter(place)?;
-        if !parameter.qualifications.is_empty()
-            || !terminal_semantics::view_descriptor_parameter(parameter, types.values().copied())
-        {
+        if !terminal_semantics::view_descriptor_parameter(parameter, types.values().copied()) {
             return None;
         }
         (parameter.structural_type, parameter.multiplicity)
     };
-    types
-        .get(&structural_type)
-        .is_some_and(|declaration| {
-            matches!(
-                declaration.shape,
-                terminal_psi::StructuralTypeShape::ElementView { .. }
-            ) || declaration.shape.is_borrowed_byte_view()
-        })
+    terminal_semantics::descriptor_results::is_descriptor(types.values().copied(), structural_type)
         .then_some(multiplicity)
 }
 
@@ -154,9 +145,26 @@ pub(super) fn plain_home_cleanup(
             }
             TerminalAffineCleanupAction::DiscardRoot(place) => {
                 if live.views.contains_key(place) || live.block_views.contains(place) {
-                    if disposable_view_carrier(live, function, structural_types, *place)
-                        != Some(StructuralMultiplicity::Affine)
-                    {
+                    let carrier = disposable_view_carrier(live, function, structural_types, *place);
+                    if carrier != Some(StructuralMultiplicity::Affine) {
+                        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                            eprintln!(
+                                "descriptor-discard refusal machine={:?} action={action:?} helper={carrier:?} view={:?} result={:?} arrival={:?} block_view={} retired={} home={:?}",
+                                function.machine,
+                                live.views.get(place),
+                                live.view_result(function, *place),
+                                function.arrival_parameter(*place),
+                                live.block_views.contains(place),
+                                live.retired_reference_roots.contains(place),
+                                live.structural_homes.get(place).map(|home| (
+                                    home.structural_type(),
+                                    home.access(),
+                                    home.multiplicity(),
+                                    home.qualifications(),
+                                    home.projected_qualifications(),
+                                )),
+                            );
+                        }
                         return Err(LoweringError::InvalidStructuralValueInput {
                             machine: function.machine,
                             place: *place,

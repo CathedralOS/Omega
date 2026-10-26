@@ -2,7 +2,7 @@
 //! boundary. Exact source coordinates survive conservative effect footprints.
 
 use super::super::path_instantiation::aggregate_arguments::{
-    AggregateResolver, ReferenceResolver, reference_leaves,
+    ArgumentOrigins, ReferenceSource, reference_leaves,
 };
 use super::super::reference_origins::{
     exclusive_reference_origins, exclusive_reference_referee, referent_has_only_owned_storage,
@@ -24,9 +24,8 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     include_shared: bool,
-    resolve_reference: &ReferenceResolver<'_>,
-    resolve_origins: &AggregateResolver<'_>,
-) -> Option<Vec<FramePlaceOrigin>> {
+    inputs: &dyn ArgumentOrigins,
+) -> Option<Vec<ReferenceSource>> {
     if include_shared
         && super::super::type_reference_is_reference(program, parameter.type_reference)
     {
@@ -42,22 +41,19 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
         {
             return None;
         }
-        let origins = resolve_reference(actual, parameter.type_reference, true, inference)?;
+        let origins = inputs.reference(actual, parameter.type_reference, true, inference)?;
         let (_, suffix) = split_place_root(&relative.path);
-        return Some(
-            origins
-                .into_iter()
-                .map(|origin| {
-                    compose_source(
-                        program,
-                        origin,
-                        suffix,
-                        relative.precision,
-                        &relative.source,
-                    )
-                })
-                .collect(),
-        );
+        let mut sources = Vec::new();
+        for origin in origins {
+            sources.extend(inputs.project(
+                program,
+                origin,
+                suffix,
+                relative.precision,
+                &relative.source,
+            )?);
+        }
+        return Some(sources);
     }
     if let Some(referee) = exclusive_reference_referee(program, parameter.type_reference) {
         let origins = {
@@ -65,22 +61,22 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
                 return None;
             }
             exclusive_reference_origins(program, caller_machine, actual, symbols, inference)?
+                .into_iter()
+                .map(ReferenceSource::Symbolic)
+                .collect::<Vec<_>>()
         };
         let (_, suffix) = split_place_root(&relative.path);
-        return Some(
-            origins
-                .into_iter()
-                .map(|origin| {
-                    compose_source(
-                        program,
-                        origin,
-                        suffix,
-                        relative.precision,
-                        &relative.source,
-                    )
-                })
-                .collect(),
-        );
+        let mut sources = Vec::new();
+        for origin in origins {
+            sources.extend(inputs.project(
+                program,
+                origin,
+                suffix,
+                relative.precision,
+                &relative.source,
+            )?);
+        }
+        return Some(sources);
     }
     if super::super::type_reference_is_reference(program, parameter.type_reference)
         || relative.source.root != parameter.symbol
@@ -110,8 +106,7 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
         symbols,
         inference,
         include_shared,
-        resolve_reference,
-        resolve_origins,
+        inputs,
     )?;
     let mut sources = Vec::new();
     for leaf in actual_leaves.references {
@@ -131,15 +126,16 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
             segments: relative.source.segments[leaf.local_segments.len()..].to_vec(),
             builtin_coordinates: relative.source.builtin_coordinates,
         };
-        let source = compose_source(
+        for source in inputs.project(
             program,
             leaf.origin?,
             suffix,
             relative.precision,
             &remaining,
-        );
-        if !sources.contains(&source) {
-            sources.push(source);
+        )? {
+            if !sources.contains(&source) {
+                sources.push(source);
+            }
         }
     }
     // A selected reference cannot become private just because its selected
@@ -182,17 +178,18 @@ fn application_source_reaches_leaf(
             })
 }
 
-fn compose_source(
+pub(in crate::machine_calls::calls::write_frames) fn compose_source(
     program: &dyn crate::CheckingInput,
-    mut origin: FramePlaceOrigin,
+    mut captured: ReferenceSource,
     suffix: &str,
     precision: FramePathPrecision,
     relative: &FrameSourcePlace,
-) -> FramePlaceOrigin {
+) -> ReferenceSource {
+    let origin = captured.place_mut();
     if origin.precision == FramePathPrecision::Exact {
         origin.path = append_place_suffix(&origin.path, suffix);
         origin.precision = precision;
     }
     origin.source = origin.source.append_relative(program, relative);
-    origin
+    captured
 }

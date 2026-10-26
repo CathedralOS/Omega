@@ -311,9 +311,17 @@ pub(crate) fn structural_crash_route_prefix_from_type(
                 );
             }
             StructuralPathSegment::Referent => {
-                return unsupported(
-                    "reference crash paths require retained referent projection custody",
-                );
+                if selected_case.is_some() {
+                    return unsupported("reference predicate path has an unfinished case");
+                }
+                let StructuralTypeShape::Reference { referent, access } = declaration.shape else {
+                    return unsupported("reference predicate prefix requires a reference carrier");
+                };
+                if access == StructuralAccess::WriteOnlyBorrow {
+                    return unsupported("reference predicate prefix requires readable access");
+                }
+                prefix.push(CanonicalStructuralPathSegment::Referent);
+                structural_type = referent;
             }
             StructuralPathSegment::RuntimeIndex { .. } => {
                 return unsupported(

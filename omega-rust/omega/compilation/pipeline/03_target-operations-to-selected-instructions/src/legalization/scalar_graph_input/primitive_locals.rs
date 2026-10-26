@@ -51,7 +51,7 @@ pub(super) fn valid_result(
     result: &StructuralOperationResult,
 ) -> bool {
     result.multiplicity == StructuralMultiplicity::Unrestricted
-        && result.qualifications.is_empty()
+        && result.qualification_establishments.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
         && has_owned_result_declaration(function, operation, result)
@@ -126,6 +126,10 @@ pub(super) fn validate(
                 let (operation, result, _) =
                     producer(function, *destination).ok_or(LegalizationError::custody())?;
                 if !valid_result(function, operation, result)
+                    // This legacy store has no receiving obligation or source
+                    // qualification correspondence; qualified homes use the
+                    // ordinary checked primitive-write operation instead.
+                    || !result.qualifications.is_empty()
                     || scalar(types, result.structural_type) != Some(value.scalar_type)
                     || scalar_shape(value.scalar_type).is_none()
                     || value_type(function, value.value) != Some(value.scalar_type)
@@ -149,9 +153,9 @@ pub(super) fn validate(
                 {
                     // The read observes this exact established carrier. Its
                     // claim roster describes ownership, not copy eligibility
-                    // of the scalar leaf; geometry checks the complete path.
-                    if path.is_empty() || !has_owned_result_declaration(function, operation, local)
-                    {
+                    // of the scalar leaf; geometry checks the complete path,
+                    // including a whole primitive result at the empty path.
+                    if !has_owned_result_declaration(function, operation, local) {
                         return Err(LegalizationError::custody());
                     }
                     local.structural_type

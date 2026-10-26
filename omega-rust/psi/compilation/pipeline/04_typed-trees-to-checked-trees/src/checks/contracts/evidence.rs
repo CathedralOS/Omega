@@ -1,3 +1,5 @@
+mod runtime_calls;
+
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     CheckFacts, CheckedEvidenceTerm, CheckedPropositionApplication, ContractEvidenceArgument,
@@ -395,6 +397,7 @@ pub(super) fn bind_call_evidence_arguments(
         }
 
         let mut span = HandleSpan::empty();
+        let mut runtime_arguments = Vec::with_capacity(authored.len());
         for (lane_position, (name, parameter)) in authored.iter().zip(parameters).enumerate() {
             let Some(source) = source_term_by_name(
                 &facts.proof.evidence_terms,
@@ -418,9 +421,9 @@ pub(super) fn bind_call_evidence_arguments(
                 .iter()
                 .flat_map(|(_, arm)| &arm.rows)
                 .find(|row| row.selected_term == Some(source));
-            let expected = instantiated_parameter_proposition(
+            let expected = instantiated_call_proposition(
                 program,
-                facts,
+                &facts.proof,
                 &call,
                 &call_site,
                 parameter,
@@ -440,7 +443,9 @@ pub(super) fn bind_call_evidence_arguments(
             } else {
                 Some(source_term.proposition.clone())
             };
-            if expected.is_none() || expected != source_proposition {
+            if expected.as_ref().map(|(proposition, _)| proposition) != source_proposition.as_ref()
+                || expected.is_none()
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "evidence term `{}` does not inhabit erased requires position {} of call `{}`",
                     name,
@@ -450,6 +455,31 @@ pub(super) fn bind_call_evidence_arguments(
                 continue;
             }
 
+            // Capture keys above compare checked values only. Public evidence
+            // keeps the ordinary canonical actual substitution; the retained
+            // runtime occurrence supplies the evaluated operand identities.
+            let Some((instantiated_proposition, instantiated_label)) =
+                instantiated_call_proposition(
+                    program,
+                    &facts.proof,
+                    &call,
+                    &call_site,
+                    parameter,
+                    false,
+                )
+            else {
+                diagnostics.push(Diagnostic::error(
+                    "ordinary evidence call lost its canonical actual substitution",
+                ));
+                continue;
+            };
+            runtime_arguments.push(checked_trees::ProofOutputEvidenceArgumentFact {
+                input_position: lane_position,
+                callee_input: parameter,
+                source,
+                instantiated_proposition,
+                instantiated_label,
+            });
             bindings.append_to_span(
                 &mut span,
                 ContractEvidenceArgument {
@@ -464,6 +494,17 @@ pub(super) fn bind_call_evidence_arguments(
             .contract_calls
             .get_mut(call_handle)
             .evidence_arguments = span;
+        if !is_state_transfer && runtime_arguments.len() == authored.len() {
+            if let Err(message) = runtime_calls::retain(
+                program,
+                &mut facts.proof,
+                &call,
+                &call_site,
+                runtime_arguments,
+            ) {
+                diagnostics.push(Diagnostic::error(message));
+            }
+        }
     }
 
     facts.proof.contract_evidence_arguments = bindings;
@@ -504,21 +545,24 @@ fn source_term_by_name(
         })
 }
 
-fn instantiated_parameter_proposition(
+fn instantiated_call_proposition(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    proof: &checked_trees::ProofFacts,
     call: &checked_trees::ContractCallFact,
     call_site: &validation::CallSite<'_>,
     parameter: Handle<CheckedEvidenceTerm>,
     captured_outcome: bool,
-) -> Option<CheckedPropositionApplication> {
-    let parameter_term = facts.proof.evidence_terms.get(parameter);
-    let contract = facts
-        .proof
+) -> Option<(CheckedPropositionApplication, String)> {
+    let parameter_term = proof.evidence_terms.get(parameter);
+    let lane = match parameter_term.kind {
+        ContractProofFactKind::Requires => call.requires,
+        ContractProofFactKind::Ensures => call.ensures,
+    };
+    let contract = proof
         .contract_fact_refs
-        .span_or_empty(call.requires)
+        .span_or_empty(lane)
         .iter()
-        .map(|fact_ref| facts.proof.contract_facts.get(fact_ref.fact))
+        .map(|fact_ref| proof.contract_facts.get(fact_ref.fact))
         .find(|contract| contract.evidence_term == Some(parameter))?;
     let application = program.proof_facts.get(contract.fact).as_proposition()?;
     let target_parameters = if let Some(dispatch) = call_site.static_requirement_dispatch() {
@@ -560,8 +604,10 @@ fn instantiated_parameter_proposition(
         })
         .collect::<Option<Vec<_>>>()?;
     let mut proposition = parameter_term.proposition.clone();
+    let (binder_labels, _) = crate::labels::proposition_label_sources(application, program);
+    let label = program.normalized_identity_label(application, &binder_labels, &argument_labels)?;
     proposition.arguments = argument_labels;
-    Some(proposition)
+    Some((proposition, label))
 }
 
 fn call_target_name(

@@ -58,18 +58,20 @@ pub(crate) fn projected_temporary_cleanup(
 /// Results follow establishment order, so reverse traversal also orders mixed
 /// borrowed owners and partially transferred owners without regrouping them.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::execution::terminal_unit) fn append_continuation(
+pub(in crate::execution::terminal_unit) fn insert_continuation(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     coordinate: checked_trees::CheckedUnitCallCoordinate,
+    insertion: usize,
     results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
     trace: &super::super::control::LocalConstructionTrace,
 ) -> Option<()> {
     let invocation = operations
+        .get(..insertion)?
         .iter()
         .rev()
         .find(|operation| operation.invocation_coordinate() == Some(coordinate))?
@@ -85,7 +87,12 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
         &invocation,
         trace,
     )?;
-    operations.extend(completions);
+    // Selection observes the complete planned namespace, including exact
+    // result consumption. Execution belongs to the captured call continuation,
+    // before an enclosing assignment can displace storage lent to this call.
+    // The callee may have installed a new value there: end its temporary loan
+    // before the enclosing replacement disposes those current contents.
+    operations.splice(insertion..insertion, completions);
     Some(())
 }
 
@@ -281,14 +288,16 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
     });
     let mut cleanup_actions = Vec::new();
     for expression in dying {
-        completion_phase("normal completion: checked owner disposition");
+        completion_phase("normal completion: owner value graph");
         let root = values.root_for_expression(state.symbol, statement, expression)?;
+        completion_phase("normal completion: owner retained association");
         if root.machine != machine.symbol
             || (!retained.contains(&root.root)
                 && !retained_owners.contains(&facts::PlaceRoot::Expression(expression)))
         {
             return None;
         }
+        completion_phase("normal completion: owner result binding");
         let mut bindings = results.iter().filter(|(result, source)| {
             result.statement_index == statement
                 && *source == facts::PlaceRoot::Expression(expression)
@@ -315,15 +324,26 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
             {
                 continue;
             }
-            let mut producers = operations.iter_mut().filter_map(|operation| {
-                operation
-                    .discardable_structural_result_mut()
-                    .filter(|(produced, _)| produced.binding_ordinal == result.binding_ordinal)
-            });
-            let (produced, discard_on_return) = producers.next()?;
-            if producers.next().is_some() || *produced != *result {
-                return None;
+            completion_phase("normal completion: owner producer lookup");
+            {
+                // Binding identities span the whole value evaluation. A nested
+                // argument owns the same disposition as a flat producer; keep
+                // the exact-once check over that complete inventory before
+                // asking its existing ordinal owner to change the flag.
+                let mut producers = operations
+                    .iter()
+                    .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                    .filter_map(CheckedUnitEffectOperationPlan::discardable_structural_result)
+                    .filter(|(produced, _)| produced.binding_ordinal == result.binding_ordinal);
+                let (produced, _) = producers.next()?;
+                completion_phase("normal completion: owner producer agreement");
+                if producers.next().is_some() || *produced != *result {
+                    return None;
+                }
             }
+            let (_, discard_on_return) = operations.iter_mut().find_map(|operation| {
+                operation.discardable_structural_result_by_ordinal_mut(result.binding_ordinal)
+            })?;
             // Scheduling metadata is not custody. A selected contextual death
             // remains authoritative even without an automatic return discard.
             *discard_on_return = false;
@@ -333,10 +353,12 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         } else {
             CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression }
         };
+        completion_phase("normal completion: owner prior continuation");
         if operations.iter().flat_map(CheckedUnitEffectOperationPlan::with_value_calls).any(|operation| matches!(operation,
             CheckedUnitEffectOperationPlan::ContinuationCleanup { cleanup_actions, .. }
                 if cleanup_actions.iter().any(|action| action.source() == &source && action.path().is_empty())))
         { return None; }
+        completion_phase("normal completion: owner cleanup type");
         cleanup_actions.push(CheckedNormalCleanupAction::RetireHome {
             source,
             type_identity: base_type_identity(

@@ -18,12 +18,14 @@ including pause/resume, effect and rejection controls for the claimed profile.
 | Catalog family | Current structured operands and distinctions |
 | --- | --- |
 | x86 `sub`, `jz`, `jnz` | Modeled u32 GPR subtraction establishes immutable arithmetic/ZF versions. Local `jz` and `jnz` edges consume opposite polarities of the same latest ZF version, retain both successor obligations and carry no clobber or authority of their own. |
+| AArch64 `subs` | Three operands name an independent writable W-register destination, a W-register left input and a matching W-register or encodable immediate right input. Modular u32 subtraction writes the destination and establishes the zero condition for `b.eq`/`b.ne`, with NZCV and the destination's X-register view clobbered. The destination need not be initialized; inputs still must be. Other flag observations and wide/stack/link/zero aliases remain outside this cohort. |
 | x86 / AArch64 `cmp` | Modeled u32 scratch-register comparison preserves both operands and establishes a private subtraction result and zero-flag version. x86 uses `jz`/`jnz`; AArch64 uses `b.eq`/`b.ne`, with opposite polarities on the same checked version. AArch64 scratch operands are W0–W28; SP/FP/LR, zero and wide aliases remain refused. |
 | `jmp`, `hlt` | State-target transition or halt; no local post-state. |
 | `mov` / `movq` | Structured data move between a writable Omega place and a readable value; lowers to an ordinary checked assignment, so the copy's provenance, permission and exact-type obligations are the assignment's. Bracketed `[address]` operands keep refusing as unmodeled memory access; authorized memory data moves through a typed view index. |
 | AArch64 `ldr` / `str` | Unordered memory transfers whose memory operand is a typed Omega place: `ldr <dest>, <place>` is `<dest> = <place>` and `str <value>, <place>` is `<place> = <value>` — the place carries the provenance, permission and exact-type contract a raw address cannot. Width-suffixed (`ldrb`/`strh`/...), offset/unscaled, ordered (acquire/release) and multi-register spellings are each a different contract and stay refused. |
 | x86 `in` / `out` | Exact `u16` port at DX and `u8` value/destination at AL; only catalog-permitted fitting literals. |
 | x86 `lfence` / `sfence` / `mfence` | Zero operands, load/store/full ordering; no service reach or general-register clobbers. |
+| AArch64 `dmb ld` / `dmb st` / `dmb sy` | Explicit full-system option fixes the access mask: LD orders prior reads before later reads/writes, ST orders writes, SY orders reads/writes. No runtime operands, authority or clobbers. Other scopes, reserved/numeric options and `dsb` remain unsupported. |
 | x86 `cli` / `sti` | MachineOwner requirement; immediate IF clear versus interrupt recognition after STI's following instruction. |
 | x86 structured `pushfq` / `popfq` | Exact `u64` writable/saved place; snapshot or restore with balanced RSP. Restore requires MachineOwner; a literal is not a saved-flags place. |
 | x86 `rdmsr` / `wrmsr` | Exact `u32` ECX selector and `u64` EDX:EAX value; explicit read destination; MachineOwner. |
@@ -57,7 +59,7 @@ refusal. Register-only `mov`/`movq` is the decoded exception: it carries no
 memory-addressing operand, so its contract is the ordinary assignment's.
 Unknown mnemonics remain distinct failures, and service-admission candidates
 (`svc`/`hvc`/`smc`/`brk`, `syscall`/`sysenter`/`sysexit`) plus address-arithmetic
-(`lea`), ordering (`dmb`/`dsb`), and cache/TLB maintenance (`cl*`/`tlbi`/`ic`/`dc`)
+(`lea`), ordering (`dsb` and unsupported `dmb` scopes), and cache/TLB maintenance (`cl*`/`tlbi`/`ic`/`dc`)
 families stay unrecognized pending their own contracts.
 Target gates do not silently substitute another ISA's instruction.
 
@@ -93,3 +95,15 @@ Catalog expansion for atomics, cache/TLB operations and mode transitions must
 extend the same contract/replay model; there is
 no per-family alternate instruction language. Final realization participates in
 [machine-state footprint replay](../../../../wiki/spec/build/machine_state_evidence.md).
+
+Memory fences retain their exact kind through the shared processor-event carrier,
+the canonical Terminal wire and native selected forms. Receiving roots must
+explicitly supply the interpreter's private sequential memory model; the model
+has no pending or shared/device accesses and grants no synchronization evidence.
+The interpreter records each completed catalog event in order through helpers
+and fuel pauses. Native encoders independently decode the exact x86 fence or
+full-system A64 DMB form; full atomic ordering cannot substitute for a partial
+catalog fence. The `checked_asm_fence_contracts` fact row and its
+`expected_terminal_fences.txt` corpus oracles exercise source transport, target
+selection, missing supply, event traces and pause progress. This profile makes no hardware
+timing or multi-core/device correctness claim.

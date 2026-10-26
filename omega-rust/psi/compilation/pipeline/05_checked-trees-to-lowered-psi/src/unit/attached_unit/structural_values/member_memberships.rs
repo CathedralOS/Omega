@@ -33,8 +33,22 @@ pub(in crate::unit::attached_unit) fn source_memberships<'parameter: 'source, 's
     &'source [semantic_vocabulary::StructuralDomainId],
     &'source [StructuralPathQualification],
 )> {
+    source_memberships_in(place, parameters, operations.iter())
+}
+
+/// Read an actual emitted source contract across the caller's retained blocks.
+/// Completing a private branch moves operations out of its current buffer;
+/// that scheduling detail cannot erase the source's published memberships.
+pub(in crate::unit::attached_unit) fn source_memberships_in<'parameter: 'source, 'source>(
+    place: semantic_vocabulary::PlaceId,
+    parameters: impl Iterator<Item = &'parameter StructuralParameterDeclaration>,
+    operations: impl Iterator<Item = &'source terminal_psi::Operation>,
+) -> Option<(
+    semantic_vocabulary::StructuralTypeId,
+    &'source [semantic_vocabulary::StructuralDomainId],
+    &'source [StructuralPathQualification],
+)> {
     operations
-        .iter()
         .filter_map(|operation| operation.result.structural())
         .find(|result| result.place == place)
         .map(|result| {

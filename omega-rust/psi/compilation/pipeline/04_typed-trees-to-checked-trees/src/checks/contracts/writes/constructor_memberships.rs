@@ -18,7 +18,7 @@ use crate::labels::{machine_name, symbol_name};
 type Occurrence = ((u32, u32), usize, (u32, u32));
 
 pub(in crate::checks::contracts) struct ConstructorMemberships<'facts> {
-    captures: Vec<&'facts checked_trees::FlowOperandFact>,
+    captures: Vec<crate::flow::CapturedOperand<'facts>>,
 }
 
 impl<'facts> ConstructorMemberships<'facts> {
@@ -28,8 +28,13 @@ impl<'facts> ConstructorMemberships<'facts> {
             .control
             .operands
             .iter()
-            .map(|(_, capture)| capture)
-            .filter(|capture| capture.expression.is_valid() && capture.type_reference.is_valid())
+            .filter(|(_, capture)| {
+                capture.expression.is_valid() && capture.type_reference.is_valid()
+            })
+            .map(|(handle, _)| {
+                crate::flow::CapturedOperand::recorded(&facts.flow.control, handle)
+                    .expect("operand arena iteration returns live recorded handles")
+            })
             .collect::<Vec<_>>();
         captures.sort_by_key(|capture| occurrence(capture));
         Self { captures }
@@ -74,12 +79,12 @@ impl<'facts> ConstructorMemberships<'facts> {
         domains
     }
 
-    fn at(
+    pub(super) fn at(
         &self,
         state: SymbolHandle,
         statement: usize,
         expression: ExpressionHandle,
-    ) -> &[&'facts checked_trees::FlowOperandFact] {
+    ) -> &[crate::flow::CapturedOperand<'facts>] {
         let key = (
             (state.arena_index(), state.generation()),
             statement,
@@ -162,6 +167,15 @@ impl ConstructionWalk<'_, '_> {
                 semantic_domain,
                 contexts,
             ) || vacuous
+                || live_bounds_satisfy_domain(
+                    program,
+                    facts,
+                    state,
+                    statement_index,
+                    value,
+                    constraint,
+                    contexts,
+                )
                 || (predicate_only
                     && capture.is_some()
                     && (value_satisfies_domain_instance_predicates_in_contexts(
@@ -195,11 +209,11 @@ impl ConstructionWalk<'_, '_> {
                     &facts.flow.contexts,
                     &facts.flow.control,
                     &facts.semantic,
-                    capture,
+                    capture.row(),
                     capture.type_reference,
                     capture.constraints,
                 );
-                proves(Some(capture), &contexts)
+                proves(Some(capture.row()), &contexts)
             })
         };
         if proven {
@@ -220,4 +234,47 @@ impl ConstructionWalk<'_, '_> {
         )));
         }
     }
+}
+
+/// A range proves membership only when it describes the entire selected
+/// predicate domain. Necessary numeric consequences alone are insufficient;
+/// routed domains and unrecognized conjuncts decline the exact-domain query.
+#[allow(clippy::too_many_arguments)]
+fn live_bounds_satisfy_domain(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &checked_trees::FlowStateFact,
+    statement: usize,
+    value: ExpressionHandle,
+    constraint: &typed_trees::types::DomainConstraint,
+    contexts: &[facts::FactContextHandle],
+) -> bool {
+    let Some(domain) = program.domain_definition(constraint.symbol) else {
+        return false;
+    };
+    let Some(carrier) = program.primitive_type_reference(domain.target_type) else {
+        return false;
+    };
+    let Some((minimum, maximum)) =
+        validation::exact_declared_domain_carrier_interval(program, carrier, constraint)
+    else {
+        return false;
+    };
+    let Some(subject) = validation::canonical_place_from_expression_in_state(
+        program,
+        state.state_symbol,
+        statement,
+        value,
+    ) else {
+        return false;
+    };
+    crate::values::integer_bounds_at_place(
+        program,
+        &facts.semantic,
+        contexts
+            .iter()
+            .map(|context| facts.semantic.contexts.get(*context)),
+        &subject,
+    )
+    .is_some_and(|bounds| minimum <= bounds.minimum && bounds.maximum <= maximum)
 }

@@ -17,8 +17,8 @@ use checked_trees::{
 };
 use terminal_psi::StructuralParameterDeclaration;
 
-mod case_capture;
-pub(super) use case_capture::retire_captured_subjects;
+mod reference_reads;
+pub(super) use reference_reads::{observed_reference_retirements, retire_observed_references};
 
 fn source<'a>(
     state: &'a CheckedComposedUnitControlStatePlan,
