@@ -1,1 +1,1 @@
-value call `Build.exclude_service(..)` does not resolve to a callable machine entry or requirement
+Build product recording operation requires its explicit mutable Build argument and declared value operands

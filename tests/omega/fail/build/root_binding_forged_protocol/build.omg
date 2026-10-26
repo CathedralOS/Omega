@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "root_binding_forged_protocol");
-    BuildBindingOperations::bind(0u64);
+    BuildProductOperations::bind(0u64);
 }
