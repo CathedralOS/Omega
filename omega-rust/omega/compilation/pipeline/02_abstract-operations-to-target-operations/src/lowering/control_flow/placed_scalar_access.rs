@@ -1,25 +1,22 @@
 //! A placed boundary remains an observable event on its current original backing.
 //! Catalog geometry, live descriptor custody and scalar operands are independent joins.
-use super::LiveDefinitions;
-use crate::{LoweringError, lowering::structural_type_lookup::StructuralTypeLookup};
-use abstract_operations::{AbstractBoundaryResult, AbstractFunction, AbstractOperation};
+use super::RowSite;
+use crate::LoweringError;
+use abstract_operations::{AbstractBoundaryResult, AbstractOperation};
 use semantic_vocabulary::{BoundaryMachineId, ScalarType};
 use std::collections::BTreeMap;
 use target_operations::{
     BoundaryRealization, BoundarySettlementBinding, BoundarySettlementRealization,
-    TargetUnitOperation, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+    TargetUnitOperation, TargetUnitScalarHomeRequirement,
 };
 use terminal_psi::TerminalPlacedAccessorKind;
 
 pub(super) fn lower(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
+    site: &mut RowSite<'_>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
     macro_rules! invalid {
         () => {
             LoweringError::unsupported_control_flow(function.machine)

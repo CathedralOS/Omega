@@ -36,26 +36,23 @@
 //! zero beneath the loan's pointer. A captured mutable carrier retains its
 //! actual live owned or exclusive-ingress backing; descriptor ownership is
 //! not permission to write the referent.
-use super::LiveDefinitions;
+use super::{LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::StructuralFieldId;
 use std::collections::BTreeSet;
-use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+use target_operations::TargetUnitOperation;
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralPathSegment,
 };
 
 pub(super) fn move_field(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
+    site: &mut RowSite<'_>,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    let (function, types) = (site.function, site.types);
     let AbstractOperation::MoveStructuralField {
         psi_operation,
         result,
@@ -68,7 +65,7 @@ pub(super) fn move_field(
     };
     let referent = window_referent(
         function,
-        live,
+        site.live,
         types,
         source,
         path,
@@ -77,12 +74,12 @@ pub(super) fn move_field(
     if !window_root(
         function,
         prepared,
-        live,
+        site.live,
         source,
         StructuralAccess::MutableBorrow,
     ) || !root_window_loan(
         function,
-        live,
+        site.live,
         types,
         source,
         path,
@@ -104,7 +101,8 @@ pub(super) fn move_field(
         full.extend(path);
         path = full;
     }
-    if live
+    if site
+        .live
         .references
         .keys()
         .any(|(carrier, _)| *carrier == result.place)
@@ -115,14 +113,14 @@ pub(super) fn move_field(
     let mut moved_leaves = BTreeSet::new();
     let (storage, storage_path) =
         if super::references::contains_reference(types, result.structural_type) {
-            super::references::window_storage(function, types, live, source.place(), &path)?
+            super::references::window_storage(function, types, site.live, source.place(), &path)?
         } else {
             (source.place(), path.clone())
         };
     super::references::subtree_leaves(
         function,
         types,
-        live,
+        site.live,
         &[],
         result.structural_type,
         &StructuralArgument {
@@ -140,25 +138,18 @@ pub(super) fn move_field(
         source.place(),
         &path.into(),
         source.structural_type(),
-        function,
-        types,
-        live,
-        operations,
-        provenance,
+        site,
     )?;
-    super::references::relocate_leaves(live, result.place, relocations, moved_leaves);
+    super::references::relocate_leaves(site.live, result.place, relocations, moved_leaves);
     Ok(())
 }
 
 pub(super) fn store_field(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
+    site: &mut RowSite<'_>,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
     let AbstractOperation::StoreStructuralField {
         disposition,
         psi_operation,

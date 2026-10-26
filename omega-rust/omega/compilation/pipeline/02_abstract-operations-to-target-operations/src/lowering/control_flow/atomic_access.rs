@@ -4,7 +4,7 @@
 //! Fences retain their location-free ordering event; single-attempt exchange
 //! retains its complete structural result and independently derived home.
 
-use super::LiveDefinitions;
+use super::{LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractAtomicEvent, AbstractFunction};
@@ -15,13 +15,10 @@ use terminal_psi::{AtomicAccessEvent, StructuralAccess};
 pub(super) fn lower(
     operation: OperationId,
     event: &AbstractAtomicEvent,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
+    site: &mut RowSite<'_>,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
     if let AbstractAtomicEvent::Fence { ordering } = event {
         operations.push(TargetUnitOperation::AtomicFence {
             psi_operation: operation,
